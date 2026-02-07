@@ -2,8 +2,10 @@
 
 import { v } from 'convex/values';
 import { action } from '../_generated/server';
-import { internal, api } from '../_generated/api';
+import { internal } from '../_generated/api';
 import { authComponent } from '../auth';
+import { encryptString } from '../lib/crypto/encrypt_string';
+import { decryptString } from '../lib/crypto/decrypt_string';
 import { createProviderLogic } from './create_provider_logic';
 import { createOAuth2ProviderLogic } from './create_oauth2_provider_logic';
 import { updateOAuth2ProviderLogic } from './update_oauth2_provider_logic';
@@ -47,12 +49,12 @@ export const create = action({
   handler: async (ctx, args): Promise<Id<'emailProviders'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     return await createProviderLogic(ctx, args, {
       encryptString: async (plaintext: string): Promise<string> => {
-        return await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, { plaintext });
+        return await encryptString(plaintext);
       },
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
@@ -102,12 +104,12 @@ export const createOAuth2Provider = action({
   handler: async (ctx, args): Promise<Id<'emailProviders'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     return await createOAuth2ProviderLogic(ctx, args, {
       encryptString: async (plaintext: string): Promise<string> => {
-        return await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, { plaintext });
+        return await encryptString(plaintext);
       },
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
@@ -140,7 +142,7 @@ export const generateOAuth2AuthUrl = action({
   handler: async (ctx, args): Promise<{ authUrl: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     const authUrl = await generateOAuth2AuthUrlLogic(ctx, args, {
@@ -173,12 +175,12 @@ export const storeOAuth2Tokens = action({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     return await storeOAuth2TokensLogic(ctx, args, {
       encryptString: async (plaintext: string): Promise<string> => {
-        return await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, { plaintext });
+        return await encryptString(plaintext);
       },
       updateTokens: async (params) => {
         await ctx.runMutation(
@@ -212,7 +214,7 @@ export const testConnection = action({
   handler: async (ctx, args): Promise<TestResult> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     return await ctx.runAction(
@@ -250,14 +252,14 @@ export const testExistingProvider = action({
         );
       },
       decryptString: async (encrypted) => {
-        return await ctx.runAction(internal.lib.crypto.actions.decryptStringInternal, { jwe: encrypted });
+        return await decryptString(encrypted);
       },
       refreshToken: async (params) => {
-        return await ctx.runAction(api.oauth2.refreshToken, params);
+        return await ctx.runAction(internal.oauth2.refreshToken, params);
       },
       storeTokens: async (params) => {
         return await ctx.runAction(
-          api.email_providers.actions.storeOAuth2Tokens,
+          internal.email_providers.internal_actions.storeOAuth2TokensInternal,
           params,
         );
       },
@@ -284,12 +286,12 @@ export const updateOAuth2Provider = action({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     return await updateOAuth2ProviderLogic(ctx, args, {
       encryptString: async (plaintext: string): Promise<string> => {
-        return await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, { plaintext });
+        return await encryptString(plaintext);
       },
       getProvider: async (providerId: Id<'emailProviders'>): Promise<Doc<'emailProviders'> | null> => {
         return await ctx.runQuery(

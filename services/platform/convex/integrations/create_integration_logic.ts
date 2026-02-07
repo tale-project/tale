@@ -75,10 +75,7 @@ export async function createIntegrationLogic(
   }
 
   // Encrypt credentials
-  const { apiKeyAuth, basicAuth, oauth2Auth } = await encryptCredentials(
-    ctx,
-    args,
-  );
+  const { apiKeyAuth, basicAuth, oauth2Auth } = await encryptCredentials(args);
 
   // Run health check (skip for SQL integrations - connection test happens at create time)
   if (args.type !== 'sql') {

@@ -9,6 +9,7 @@ import { createFunctionHandle, makeFunctionReference } from 'convex/server';
 import type { MutationCtx } from '../../_generated/server';
 import type { SerializableAgentConfig, AgentHooksConfig } from '../../lib/agent_chat/types';
 import type { ToolName } from '../../agent_tools/tool_registry';
+import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { CHAT_AGENT_INSTRUCTIONS } from './agent';
 
 export const CHAT_AGENT_TOOL_NAMES: ToolName[] = [
@@ -32,11 +33,12 @@ export const CHAT_AGENT_CONFIG: SerializableAgentConfig = {
  * Model is read from environment variable at runtime.
  */
 export function getChatAgentRuntimeConfig() {
+  const { model, provider } = getDefaultAgentRuntimeConfig();
   return {
     agentType: 'chat' as const,
     agentConfig: CHAT_AGENT_CONFIG,
-    model: process.env.OPENAI_MODEL || '',
-    provider: 'openai',
+    model,
+    provider,
     debugTag: '[RoutingAgent]',
     enableStreaming: true,
   };

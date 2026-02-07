@@ -13,7 +13,7 @@ export async function deleteOrganization(
   // Ensure user is authenticated
   const authUser = await authComponent.getAuthUser(ctx);
   if (!authUser) {
-    throw new Error('Not authenticated');
+    throw new Error('Unauthenticated');
   }
 
   await validateOrganizationAccess(ctx, organizationId, ['admin'] as const);

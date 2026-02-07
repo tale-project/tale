@@ -11,6 +11,7 @@ import * as WebsitesHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
 import { websiteValidator } from './validators';
 
 /**
@@ -80,14 +81,7 @@ export const hasWebsites = query({
       return false;
     }
 
-    const firstWebsite = await ctx.db
-      .query('websites')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .first();
-
-    return firstWebsite !== null;
+    return await hasRecordsInOrg(ctx.db, 'websites', args.organizationId);
   },
 });
 

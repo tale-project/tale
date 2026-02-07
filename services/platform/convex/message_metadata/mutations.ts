@@ -1,11 +1,11 @@
 /**
  * Message Metadata Mutations
  *
- * Public mutations for saving message metadata (token usage, model info, etc.).
+ * Internal mutations for saving message metadata (token usage, model info, etc.).
  */
 
 import { v } from 'convex/values';
-import { mutation } from '../_generated/server';
+import { internalMutation } from '../_generated/server';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 /**
@@ -14,7 +14,7 @@ import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
  */
 const MAX_CONTEXT_WINDOW_CHARS = 500000;
 
-export const saveMessageMetadata = mutation({
+export const saveMessageMetadata = internalMutation({
   args: {
     messageId: v.string(),
     threadId: v.string(),

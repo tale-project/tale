@@ -5,7 +5,7 @@
 import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 import type { ProviderForTesting, TestResult } from './test_existing_provider';
-import { api } from '../_generated/api';
+import { internal } from '../_generated/api';
 import {
   validateProviderForTesting,
   getOAuth2UserEmail,
@@ -143,13 +143,13 @@ export async function testExistingProviderLogic(
             accountType,
             tokenUrl: providerData.oauth2Auth.tokenUrl,
           });
-          derivedEmail = await ctx.runAction(api.oauth2.getUserEmail, {
+          derivedEmail = await ctx.runAction(internal.oauth2.getUserEmail, {
             provider: providerData.oauth2Auth.provider,
             accessToken: graphTokens.accessToken,
           });
         } else {
           // For other providers, try with the current resource token
-          derivedEmail = await ctx.runAction(api.oauth2.getUserEmail, {
+          derivedEmail = await ctx.runAction(internal.oauth2.getUserEmail, {
             provider: providerData.oauth2Auth.provider,
             accessToken: tokenResult.accessToken,
           });

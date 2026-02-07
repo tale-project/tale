@@ -22,7 +22,7 @@ export const addExampleMessage = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     await getOrganizationMember(ctx, args.organizationId, {
@@ -44,7 +44,7 @@ export const updateExampleMessage = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     const message = await ctx.db.get(args.messageId);
@@ -69,7 +69,7 @@ export const deleteExampleMessage = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     const message = await ctx.db.get(args.messageId);
@@ -96,7 +96,7 @@ export const upsertToneOfVoice = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     await getOrganizationMember(ctx, args.organizationId, {

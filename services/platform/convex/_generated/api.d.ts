@@ -260,7 +260,6 @@ import type * as http from "../http.js";
 import type * as http_streaming from "../http/streaming.js";
 import type * as improve_message from "../improve_message.js";
 import type * as integrations_actions_create from "../integrations/actions/create.js";
-import type * as integrations_actions_test from "../integrations/actions/test.js";
 import type * as integrations_actions_test_connection from "../integrations/actions/test_connection.js";
 import type * as integrations_actions_update from "../integrations/actions/update.js";
 import type * as integrations_create_integration_internal from "../integrations/create_integration_internal.js";
@@ -305,6 +304,7 @@ import type * as lib_agent_response_generate_response from "../lib/agent_respons
 import type * as lib_agent_response_index from "../lib/agent_response/index.js";
 import type * as lib_agent_response_types from "../lib/agent_response/types.js";
 import type * as lib_agent_response_validators from "../lib/agent_response/validators.js";
+import type * as lib_agent_runtime_config from "../lib/agent_runtime_config.js";
 import type * as lib_attachments_build_multi_modal_content from "../lib/attachments/build_multi_modal_content.js";
 import type * as lib_attachments_format_markdown from "../lib/attachments/format_markdown.js";
 import type * as lib_attachments_index from "../lib/attachments/index.js";
@@ -345,6 +345,7 @@ import type * as lib_function_refs_streaming from "../lib/function_refs/streamin
 import type * as lib_function_refs_wf_definitions from "../lib/function_refs/wf_definitions.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
 import type * as lib_get_user_teams from "../lib/get_user_teams.js";
+import type * as lib_helpers_has_records_in_org from "../lib/helpers/has_records_in_org.js";
 import type * as lib_message_deduplication from "../lib/message_deduplication.js";
 import type * as lib_metadata_get_metadata_string from "../lib/metadata/get_metadata_string.js";
 import type * as lib_openai_provider from "../lib/openai_provider.js";
@@ -1140,7 +1141,6 @@ declare const fullApi: ApiFromModules<{
   "http/streaming": typeof http_streaming;
   improve_message: typeof improve_message;
   "integrations/actions/create": typeof integrations_actions_create;
-  "integrations/actions/test": typeof integrations_actions_test;
   "integrations/actions/test_connection": typeof integrations_actions_test_connection;
   "integrations/actions/update": typeof integrations_actions_update;
   "integrations/create_integration_internal": typeof integrations_create_integration_internal;
@@ -1185,6 +1185,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_response/index": typeof lib_agent_response_index;
   "lib/agent_response/types": typeof lib_agent_response_types;
   "lib/agent_response/validators": typeof lib_agent_response_validators;
+  "lib/agent_runtime_config": typeof lib_agent_runtime_config;
   "lib/attachments/build_multi_modal_content": typeof lib_attachments_build_multi_modal_content;
   "lib/attachments/format_markdown": typeof lib_attachments_format_markdown;
   "lib/attachments/index": typeof lib_attachments_index;
@@ -1225,6 +1226,7 @@ declare const fullApi: ApiFromModules<{
   "lib/function_refs/wf_definitions": typeof lib_function_refs_wf_definitions;
   "lib/get_or_throw": typeof lib_get_or_throw;
   "lib/get_user_teams": typeof lib_get_user_teams;
+  "lib/helpers/has_records_in_org": typeof lib_helpers_has_records_in_org;
   "lib/message_deduplication": typeof lib_message_deduplication;
   "lib/metadata/get_metadata_string": typeof lib_metadata_get_metadata_string;
   "lib/openai_provider": typeof lib_openai_provider;

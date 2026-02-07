@@ -9,6 +9,19 @@ import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import { components } from '../_generated/api';
 
+export const updateStreamStatus = internalMutation({
+  args: {
+    streamId: v.string(),
+    status: v.union(v.literal('streaming'), v.literal('done'), v.literal('error')),
+  },
+  handler: async (ctx, args) => {
+    await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
+      streamId: args.streamId as any,
+      status: args.status,
+    });
+  },
+});
+
 export const startStream = internalMutation({
   args: {
     streamId: v.string(),

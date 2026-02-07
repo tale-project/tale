@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { queryWithRLS } from '../lib/rls';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
 import * as ProductsHelpers from './helpers';
 import {
   productStatusValidator,
@@ -75,13 +76,7 @@ export const hasProducts = queryWithRLS({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const firstProduct = await ctx.db
-      .query('products')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .first();
-    return firstProduct !== null;
+    return await hasRecordsInOrg(ctx.db, 'products', args.organizationId);
   },
 });
 

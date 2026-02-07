@@ -13,7 +13,7 @@ import { createRef } from '../function_refs/create_ref';
  */
 export type SaveMessageMetadataRef = FunctionReference<
   'mutation',
-  'public',
+  'internal',
   {
     messageId: string;
     threadId: string;
@@ -49,5 +49,5 @@ export type SaveMessageMetadataRef = FunctionReference<
  * Get the function reference for saveMessageMetadata.
  */
 export function getSaveMessageMetadataRef(): SaveMessageMetadataRef {
-  return createRef<SaveMessageMetadataRef>('api', ['message_metadata', 'mutations', 'saveMessageMetadata']);
+  return createRef<SaveMessageMetadataRef>('internal', ['message_metadata', 'mutations', 'saveMessageMetadata']);
 }

@@ -8,12 +8,13 @@
 
 import { v } from 'convex/values';
 import { mutation } from '../../_generated/server';
+import { internal } from '../../_generated/api';
 import { authComponent } from '../../auth';
 import { startAgentChat } from '../../lib/agent_chat';
+import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { INTEGRATION_AGENT_INSTRUCTIONS } from './agent';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import type { ToolName } from '../../agent_tools/tool_registry';
-import { internal } from '../../_generated/api';
 
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
 
@@ -71,6 +72,7 @@ export const chatWithIntegrationAgent = mutation({
       );
     }
 
+    const { model, provider } = getDefaultAgentRuntimeConfig();
     return startAgentChat({
       ctx,
       agentType: 'integration',
@@ -80,8 +82,8 @@ export const chatWithIntegrationAgent = mutation({
       maxSteps: args.maxSteps,
       attachments: args.attachments,
       agentConfig: INTEGRATION_AGENT_CONFIG,
-      model: process.env.OPENAI_MODEL || '',
-      provider: 'openai',
+      model,
+      provider,
       debugTag: '[IntegrationAgent]',
       enableStreaming: true,
     });

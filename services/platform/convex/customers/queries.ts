@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { queryWithRLS } from '../lib/rls';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
 import * as CustomersHelpers from './helpers';
 import {
   customerStatusValidator,
@@ -80,21 +81,7 @@ export const hasCustomers = queryWithRLS({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const firstCustomer = await ctx.db
-      .query('customers')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .first();
-    return firstCustomer !== null;
-  },
-});
-
-export const getCustomers = queryWithRLS({
-  args: queryCustomersArgs,
-  returns: queryCustomersReturns,
-  handler: async (ctx, args) => {
-    return await CustomersHelpers.queryCustomers(ctx, args);
+    return await hasRecordsInOrg(ctx.db, 'customers', args.organizationId);
   },
 });
 

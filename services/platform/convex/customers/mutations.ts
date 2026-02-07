@@ -95,6 +95,7 @@ export const deleteCustomer = mutationWithRLS({
   args: {
     customerId: v.id('customers'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     return await CustomersHelpers.deleteCustomer(ctx, args.customerId);
   },

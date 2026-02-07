@@ -9,6 +9,7 @@ import { v } from 'convex/values';
 import { mutation } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import { startAgentChat } from '../../lib/agent_chat';
+import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { CRM_AGENT_INSTRUCTIONS } from './agent';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import type { ToolName } from '../../agent_tools/tool_registry';
@@ -53,6 +54,7 @@ export const chatWithCrmAgent = mutation({
       throw new Error('Unauthenticated');
     }
 
+    const { model, provider } = getDefaultAgentRuntimeConfig();
     return startAgentChat({
       ctx,
       agentType: 'crm',
@@ -62,8 +64,8 @@ export const chatWithCrmAgent = mutation({
       maxSteps: args.maxSteps,
       attachments: args.attachments,
       agentConfig: CRM_AGENT_CONFIG,
-      model: process.env.OPENAI_MODEL || '',
-      provider: 'openai',
+      model,
+      provider,
       debugTag: '[CrmAgent]',
       enableStreaming: true,
     });
