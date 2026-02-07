@@ -168,7 +168,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         }
 
         const result = (await ctx.runMutation!(
-          internal.products.mutations.createProduct,
+          internal.products.mutations.ingestProduct,
           {
             organizationId,
             name: params.name, // Required by validator

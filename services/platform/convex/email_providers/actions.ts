@@ -21,9 +21,9 @@ import {
   passwordAuthValidator,
 } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-import type { Id, Doc } from '../_generated/dataModel';
-import type { TestResult } from './test_existing_provider';
+import type { Id } from '../_generated/dataModel';
 import type { EmailProviderVendor } from '../../lib/shared/schemas/email_providers';
+import type { TestResult } from './test_existing_provider';
 
 export const create = action({
   args: {
@@ -53,26 +53,11 @@ export const create = action({
     }
 
     return await createProviderLogic(ctx, args, {
-      encryptString: async (plaintext: string): Promise<string> => {
-        return await encryptString(plaintext);
-      },
+      encryptString,
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
           internal.email_providers.internal_mutations.createProvider,
-          {
-            organizationId: params.organizationId,
-            name: params.name,
-            vendor: params.vendor as 'gmail' | 'outlook' | 'smtp' | 'resend' | 'other',
-            authMethod: params.authMethod as 'password' | 'oauth2',
-            sendMethod: params.sendMethod,
-            passwordAuth: params.passwordAuth,
-            oauth2Auth: params.oauth2Auth,
-            smtpConfig: params.smtpConfig,
-            imapConfig: params.imapConfig,
-            isDefault: params.isDefault,
-             
-            metadata: params.metadata as any,
-          },
+          params,
         );
       },
     });
@@ -108,25 +93,11 @@ export const createOAuth2Provider = action({
     }
 
     return await createOAuth2ProviderLogic(ctx, args, {
-      encryptString: async (plaintext: string): Promise<string> => {
-        return await encryptString(plaintext);
-      },
+      encryptString,
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
           internal.email_providers.internal_mutations.createProvider,
-          {
-            organizationId: params.organizationId,
-            name: params.name,
-            vendor: params.vendor as 'gmail' | 'outlook' | 'smtp' | 'resend' | 'other',
-            authMethod: params.authMethod as 'password' | 'oauth2',
-            sendMethod: params.sendMethod,
-            oauth2Auth: params.oauth2Auth,
-            smtpConfig: params.smtpConfig,
-            imapConfig: params.imapConfig,
-            isDefault: params.isDefault,
-             
-            metadata: params.metadata as any,
-          },
+          params,
         );
       },
     });
@@ -139,16 +110,16 @@ export const generateOAuth2AuthUrl = action({
     organizationId: v.string(),
     redirectUri: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<{ authUrl: string }> => {
+  handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
     const authUrl = await generateOAuth2AuthUrlLogic(ctx, args, {
-      getProvider: async (providerId: Id<'emailProviders'>): Promise<Doc<'emailProviders'> | null> => {
+      getProvider: async (providerId) => {
         return await ctx.runQuery(
-          internal.email_providers.internal_queries.getProviderById,
+          internal.email_providers.internal_queries.getInternal,
           { providerId },
         );
       },
@@ -172,16 +143,14 @@ export const storeOAuth2Tokens = action({
     expiresIn: v.optional(v.number()),
     scope: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<null> => {
+  handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    return await storeOAuth2TokensLogic(ctx, args, {
-      encryptString: async (plaintext: string): Promise<string> => {
-        return await encryptString(plaintext);
-      },
+    return await storeOAuth2TokensLogic(args, {
+      encryptString,
       updateTokens: async (params) => {
         await ctx.runMutation(
           internal.email_providers.internal_mutations.updateOAuth2Tokens,
@@ -232,7 +201,7 @@ export const testExistingProvider = action({
     return await testExistingProviderLogic(ctx, args.providerId, {
       getProvider: async (providerId) => {
         return await ctx.runQuery(
-          internal.email_providers.internal_queries.getProviderById,
+          internal.email_providers.internal_queries.getInternal,
           { providerId },
         );
       },
@@ -251,9 +220,7 @@ export const testExistingProvider = action({
           },
         );
       },
-      decryptString: async (encrypted) => {
-        return await decryptString(encrypted);
-      },
+      decryptString,
       refreshToken: async (params) => {
         return await ctx.runAction(internal.oauth2.refreshToken, params);
       },
@@ -289,13 +256,11 @@ export const updateOAuth2Provider = action({
       throw new Error('Unauthenticated');
     }
 
-    return await updateOAuth2ProviderLogic(ctx, args, {
-      encryptString: async (plaintext: string): Promise<string> => {
-        return await encryptString(plaintext);
-      },
-      getProvider: async (providerId: Id<'emailProviders'>): Promise<Doc<'emailProviders'> | null> => {
+    return await updateOAuth2ProviderLogic(args, {
+      encryptString,
+      getProvider: async (providerId) => {
         return await ctx.runQuery(
-          internal.email_providers.internal_queries.getProviderById,
+          internal.email_providers.internal_queries.getInternal,
           { providerId },
         );
       },

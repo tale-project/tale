@@ -34,7 +34,7 @@ export const executeApprovedWorkflowCreation = internalAction({
       organizationId: string;
       threadId?: string;
       metadata?: unknown;
-    } | null = await ctx.runQuery(internal.approvals.queries.getApprovalInternal, {
+    } | null = await ctx.runQuery(internal.approvals.queries.getApprovalById, {
       approvalId: args.approvalId,
     });
 

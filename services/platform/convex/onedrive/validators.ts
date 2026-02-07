@@ -1,8 +1,3 @@
-/**
- * Convex validators for OneDrive operations
- * Generated from shared Zod schemas using zodToConvex
- */
-
 import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
 import {

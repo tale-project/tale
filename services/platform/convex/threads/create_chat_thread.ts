@@ -1,7 +1,3 @@
-/**
- * Create a new chat thread using Convex Agent Component.
- */
-
 import { MutationCtx } from '../_generated/server';
 import { components } from '../_generated/api';
 import { createThread } from '@convex-dev/agent';
@@ -14,15 +10,11 @@ export async function createChatThread(
   title?: string,
   chatType: ChatType = 'general',
 ): Promise<string> {
-  // Create thread using Agent Component
-  // The thread is stored in Agent's threads table
   const summary = JSON.stringify({ chatType });
 
-  const threadId = await createThread(ctx, components.agent, {
-    userId: userId,
+  return await createThread(ctx, components.agent, {
+    userId,
     title: title ?? 'New Chat',
     summary,
   });
-
-  return threadId;
 }

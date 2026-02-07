@@ -8,7 +8,7 @@ import {
 } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
-export const createProduct = internalMutation({
+export const ingestProduct = internalMutation({
   args: {
     organizationId: v.string(),
     name: v.string(),
@@ -66,7 +66,7 @@ export const updateProducts = internalMutation({
   },
 });
 
-export const createProductPublic = mutationWithRLS({
+export const createProduct = mutationWithRLS({
   args: {
     organizationId: v.string(),
     name: v.string(),
@@ -85,7 +85,7 @@ export const createProductPublic = mutationWithRLS({
   },
   returns: v.id('products'),
   handler: async (ctx, args) => {
-    return await ProductsHelpers.createProductPublic(ctx, args);
+    return await ProductsHelpers.createProductWithTranslations(ctx, args);
   },
 });
 

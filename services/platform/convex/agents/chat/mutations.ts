@@ -1,18 +1,16 @@
 /**
  * Routing Agent Mutations
- *
- * Public and internal mutations for routing agent operations.
  */
 
 import { v } from 'convex/values';
 import { internalMutation, mutation } from '../../_generated/server';
+import { authComponent } from '../../auth';
 import { startAgentChat } from '../../lib/agent_chat';
 import { onChatComplete as onChatCompleteHelper } from './on_chat_complete';
-import { authComponent } from '../../auth';
 import {
   CHAT_AGENT_CONFIG,
-  getChatAgentRuntimeConfig,
   createChatHookHandles,
+  getChatAgentRuntimeConfig,
 } from './config';
 
 export const chatWithAgent = mutation({
@@ -42,7 +40,6 @@ export const chatWithAgent = mutation({
       throw new Error('Unauthenticated');
     }
 
-    // Get runtime config and create FunctionHandles for hooks
     const runtimeConfig = getChatAgentRuntimeConfig();
     const hooks = await createChatHookHandles(ctx);
 
@@ -115,7 +112,7 @@ export const onChatComplete = internalMutation({
           totalTokens: v.number(),
           messageCount: v.number(),
           approvalCount: v.number(),
-          hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
+          hasSummary: v.optional(v.boolean()),
           hasRag: v.boolean(),
           hasIntegrations: v.boolean(),
         }),

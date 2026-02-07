@@ -1,19 +1,17 @@
 /**
  * Workflow Agent Mutations
  *
- * Public mutations for the Workflow Agent.
- * Allows direct chat with the workflow agent from the frontend.
  * Requires admin/developer role for access.
  */
 
 import { v } from 'convex/values';
 import { mutation } from '../../_generated/server';
+import { internal } from '../../_generated/api';
+import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+import type { ToolName } from '../../agent_tools/tool_registry';
 import { authComponent } from '../../auth';
 import { startAgentChat } from '../../lib/agent_chat';
 import { WORKFLOW_AGENT_CORE_INSTRUCTIONS } from './agent';
-import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
-import type { ToolName } from '../../agent_tools/tool_registry';
-import { internal } from '../../_generated/api';
 
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
 
@@ -26,18 +24,21 @@ const WORKFLOW_AGENT_TOOL_NAMES: ToolName[] = [
   'database_schema',
 ];
 
-function getWorkflowAgentConfig(): SerializableAgentConfig {
+function getWorkflowAgentConfig() {
   const model = process.env.OPENAI_CODING_MODEL;
   if (!model) {
     throw new Error('OPENAI_CODING_MODEL environment variable is not configured');
   }
-  return {
+
+  const config: SerializableAgentConfig = {
     name: 'workflow-assistant',
     instructions: WORKFLOW_AGENT_CORE_INSTRUCTIONS,
     convexToolNames: WORKFLOW_AGENT_TOOL_NAMES,
     model,
     maxSteps: 30,
   };
+
+  return { config, model };
 }
 
 export const chatWithWorkflowAgent = mutation({
@@ -68,7 +69,7 @@ export const chatWithWorkflowAgent = mutation({
     }
 
     const userRole = await ctx.runQuery(
-      internal.members.queries.getMemberRoleInternal,
+      internal.members.queries.getMemberRole,
       { userId: String(authUser._id), organizationId: args.organizationId },
     );
 
@@ -79,7 +80,7 @@ export const chatWithWorkflowAgent = mutation({
       );
     }
 
-    const agentConfig = getWorkflowAgentConfig();
+    const { config: agentConfig, model } = getWorkflowAgentConfig();
 
     return startAgentChat({
       ctx,
@@ -90,7 +91,7 @@ export const chatWithWorkflowAgent = mutation({
       maxSteps: args.maxSteps,
       attachments: args.attachments,
       agentConfig,
-      model: agentConfig.model || '',
+      model,
       provider: 'openai',
       debugTag: '[WorkflowAgent]',
       enableStreaming: true,

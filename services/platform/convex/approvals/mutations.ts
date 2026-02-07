@@ -1,9 +1,3 @@
-/**
- * Approvals Mutations
- *
- * Internal and public mutations for approval operations.
- */
-
 import { v } from 'convex/values';
 import { internalMutation, mutation } from '../_generated/server';
 import * as ApprovalsHelpers from './helpers';
@@ -42,11 +36,7 @@ export const linkApprovalsToMessage = internalMutation({
   },
 });
 
-// =============================================================================
-// PUBLIC MUTATIONS (for frontend via api.approvals.mutations.*)
-// =============================================================================
-
-export const updateApprovalStatusPublic = mutation({
+export const updateApprovalStatus = mutation({
   args: {
     approvalId: v.id('approvals'),
     status: approvalStatusValidator,

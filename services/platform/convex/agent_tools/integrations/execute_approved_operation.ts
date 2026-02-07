@@ -44,7 +44,7 @@ export const executeApprovedOperation = internalAction({
       resourceType: string;
       organizationId: string;
       metadata?: Record<string, ConvexJsonValue>;
-    } | null = await ctx.runQuery(internal.approvals.queries.getApprovalInternal, {
+    } | null = await ctx.runQuery(internal.approvals.queries.getApprovalById, {
       approvalId: args.approvalId,
     });
 

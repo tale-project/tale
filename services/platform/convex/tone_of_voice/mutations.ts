@@ -19,6 +19,7 @@ export const addExampleMessage = mutation({
     content: v.string(),
     metadata: v.optional(jsonRecordValidator),
   },
+  returns: v.id('exampleMessages'),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
@@ -41,6 +42,7 @@ export const updateExampleMessage = mutation({
     content: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
@@ -66,6 +68,7 @@ export const deleteExampleMessage = mutation({
   args: {
     messageId: v.id('exampleMessages'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
@@ -93,6 +96,7 @@ export const upsertToneOfVoice = mutation({
     generatedTone: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
   },
+  returns: v.id('toneOfVoice'),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
@@ -114,6 +118,7 @@ export const saveGeneratedTone = internalMutation({
     organizationId: v.string(),
     generatedTone: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     return await saveGeneratedToneHelper(ctx, args);
   },

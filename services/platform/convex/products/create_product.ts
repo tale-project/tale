@@ -1,10 +1,5 @@
-/**
- * Create a new product (internal operation)
- */
-
-import { MutationCtx } from '../_generated/server';
-
-import { CreateProductResult, ProductStatus } from './types';
+import type { MutationCtx } from '../_generated/server';
+import type { CreateProductResult, ProductStatus } from './types';
 
 export interface CreateProductArgs {
   organizationId: string;
@@ -38,7 +33,7 @@ export async function createProduct(
     status: args.status,
     externalId: args.externalId,
      
-    metadata: args.metadata as any,
+    metadata: args.metadata as Record<string, unknown>,
   });
 
   return {

@@ -1,9 +1,5 @@
-/**
- * Delete a product (public API)
- */
-
-import { MutationCtx } from '../_generated/server';
-import { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
 
 export async function deleteProduct(
   ctx: MutationCtx,
@@ -14,7 +10,6 @@ export async function deleteProduct(
     throw new Error('Product not found');
   }
 
-  // Delete the product
   await ctx.db.delete(productId);
   return productId;
 }

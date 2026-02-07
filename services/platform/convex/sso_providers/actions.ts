@@ -77,18 +77,20 @@ export const remove = action({
 	handler: async (ctx, args) => removeSsoProvider(ctx, args),
 });
 
+const validationResultValidator = v.object({
+	valid: v.boolean(),
+	error: v.optional(v.string()),
+});
+
 export const testConfig = action({
 	args: {
 		issuer: v.string(),
 		clientId: v.string(),
 		clientSecret: v.string(),
 	},
-	returns: v.object({
-		valid: v.boolean(),
-		error: v.optional(v.string()),
-	}),
+	returns: validationResultValidator,
 	handler: async (ctx, args) => {
-		const authUser: { _id: string } | null = await ctx.runQuery(
+		const authUser = await ctx.runQuery(
 			internal.sso_providers.internal_queries.getAuthUser,
 			{},
 		);
@@ -97,22 +99,16 @@ export const testConfig = action({
 			return { valid: false, error: 'Unauthenticated' };
 		}
 
-		const result = await validateSsoConfig(args);
-		return {
-			valid: result.valid,
-			error: result.error,
-		};
+		const { valid, error } = await validateSsoConfig(args);
+		return { valid, error };
 	},
 });
 
 export const testExistingConfig = action({
 	args: {},
-	returns: v.object({
-		valid: v.boolean(),
-		error: v.optional(v.string()),
-	}),
+	returns: validationResultValidator,
 	handler: async (ctx) => {
-		const authUser: { _id: string } | null = await ctx.runQuery(
+		const authUser = await ctx.runQuery(
 			internal.sso_providers.internal_queries.getAuthUser,
 			{},
 		);
@@ -130,15 +126,11 @@ export const testExistingConfig = action({
 		const clientId = await decryptString(provider.clientIdEncrypted);
 		const clientSecret = await decryptString(provider.clientSecretEncrypted);
 
-		const result = await validateSsoConfig({
+		const { valid, error } = await validateSsoConfig({
 			issuer: provider.issuer,
 			clientId,
 			clientSecret,
 		});
-
-		return {
-			valid: result.valid,
-			error: result.error,
-		};
+		return { valid, error };
 	},
 });

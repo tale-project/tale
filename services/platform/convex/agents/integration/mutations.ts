@@ -1,20 +1,18 @@
 /**
  * Integration Agent Mutations
  *
- * Public mutations for the Integration Agent.
- * Allows direct chat with the integration agent from the frontend.
  * Requires admin/developer role for access.
  */
 
 import { v } from 'convex/values';
 import { mutation } from '../../_generated/server';
 import { internal } from '../../_generated/api';
+import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+import type { ToolName } from '../../agent_tools/tool_registry';
 import { authComponent } from '../../auth';
 import { startAgentChat } from '../../lib/agent_chat';
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { INTEGRATION_AGENT_INSTRUCTIONS } from './agent';
-import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
-import type { ToolName } from '../../agent_tools/tool_registry';
 
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
 
@@ -61,7 +59,7 @@ export const chatWithIntegrationAgent = mutation({
     }
 
     const userRole = await ctx.runQuery(
-      internal.members.queries.getMemberRoleInternal,
+      internal.members.queries.getMemberRole,
       { userId: String(authUser._id), organizationId: args.organizationId },
     );
 

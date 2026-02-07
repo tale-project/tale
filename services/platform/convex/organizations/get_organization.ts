@@ -1,13 +1,8 @@
-/**
- * Get an organization by ID
- */
-
 import type { QueryCtx } from '../_generated/server';
 import { components } from '../_generated/api';
 import { authComponent } from '../auth';
 import { validateOrganizationAccess } from '../lib/rls';
 
-// Minimal Better Auth organization shape we use server-side
 type BAOrganization = {
   _id: string;
   _creationTime: number;
@@ -27,10 +22,8 @@ export async function getOrganization(
     return null;
   }
 
-  // Validate access with Better Auth roles; any non-disabled member is sufficient to read
   await validateOrganizationAccess(ctx, organizationId);
 
-  // Load from Better Auth component
   const organization = await ctx.runQuery(
     components.betterAuth.adapter.findOne,
     {

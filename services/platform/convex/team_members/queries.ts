@@ -3,16 +3,6 @@ import { query } from '../_generated/server';
 import { components } from '../_generated/api';
 import { authComponent } from '../auth';
 
-interface TeamMemberItem {
-  _id: string;
-  teamId: string;
-  userId: string;
-  role: string;
-  joinedAt: number;
-  displayName?: string;
-  email?: string;
-}
-
 export const listByTeam = query({
   args: {
     teamId: v.string(),
@@ -28,7 +18,7 @@ export const listByTeam = query({
       email: v.optional(v.string()),
     }),
   ),
-  handler: async (ctx, args): Promise<TeamMemberItem[]> => {
+  handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
       return [];
@@ -53,15 +43,14 @@ export const listByTeam = query({
       return [];
     }
 
-    const seenUserIds = new Set<string>();
+    const userIds = new Set<string>();
     for (const m of result.page) {
-      seenUserIds.add(String((m as any).userId));
+      userIds.add(String((m as Record<string, unknown>).userId));
     }
-    const uniqueUserIds = Array.from(seenUserIds);
 
     const userMap = new Map<string, { name?: string; email?: string }>();
     await Promise.all(
-      uniqueUserIds.map(async (userId) => {
+      [...userIds].map(async (userId) => {
         const userResult = await ctx.runQuery(
           components.betterAuth.adapter.findOne,
           {

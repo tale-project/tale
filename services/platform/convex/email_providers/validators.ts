@@ -1,10 +1,3 @@
-/**
- * Convex validators for email provider operations
- *
- * Note: Some schemas use jsonRecordSchema which contains z.lazy() for recursive types.
- * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
- */
-
 import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
 import {
@@ -31,7 +24,6 @@ export {
   emailProviderDocSchema,
 } from '../../lib/shared/schemas/email_providers';
 
-// Simple schemas without z.lazy()
 export const emailProviderVendorValidator = zodToConvex(emailProviderVendorSchema);
 export const emailProviderAuthMethodValidator = zodToConvex(emailProviderAuthMethodSchema);
 export const emailProviderStatusValidator = zodToConvex(emailProviderStatusSchema);
@@ -43,7 +35,6 @@ export const passwordAuthEncryptedValidator = zodToConvex(passwordAuthEncryptedS
 export const oauth2AuthStoredValidator = zodToConvex(oauth2AuthStoredSchema);
 export const connectionTestResultValidator = zodToConvex(connectionTestResultSchema);
 
-// Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
 export const emailProviderDocValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),

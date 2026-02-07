@@ -1,18 +1,15 @@
 /**
  * Web Agent Mutations
- *
- * Public mutations for the Web Agent.
- * Allows direct chat with the web agent from the frontend.
  */
 
 import { v } from 'convex/values';
 import { mutation } from '../../_generated/server';
+import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+import type { ToolName } from '../../agent_tools/tool_registry';
 import { authComponent } from '../../auth';
 import { startAgentChat } from '../../lib/agent_chat';
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { WEB_AGENT_INSTRUCTIONS } from './agent';
-import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
-import type { ToolName } from '../../agent_tools/tool_registry';
 
 const WEB_AGENT_TOOL_NAMES: ToolName[] = ['web', 'request_human_input'];
 

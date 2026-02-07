@@ -1,5 +1,5 @@
 /**
- * Get document by ID (for public API)
+ * Get document by ID with transformation (for public API)
  */
 
 import type { QueryCtx } from '../_generated/server';
@@ -8,7 +8,7 @@ import type { DocumentItemResponse } from './types';
 import { getDocumentById } from './get_document_by_id';
 import { transformDocumentsBatch } from './transform_to_document_item';
 
-export async function getDocumentByIdPublic(
+export async function getDocumentByIdTransformed(
   ctx: QueryCtx,
   documentId: Id<'documents'>,
 ): Promise<
@@ -24,7 +24,6 @@ export async function getDocumentByIdPublic(
       };
     }
 
-    // Use batch transform for consistent behavior (even for single document)
     const [item] = await transformDocumentsBatch(ctx, [document]);
 
     return {

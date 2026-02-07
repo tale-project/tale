@@ -1,10 +1,3 @@
-/**
- * Threads Queries
- *
- * Public queries for thread operations.
- * These queries are used by the frontend via api.queries.threads.*
- */
-
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
@@ -43,9 +36,6 @@ export const listThreads = query({
   },
 });
 
-/**
- * Get messages for a thread with streaming support.
- */
 export const getThreadMessagesStreaming = query({
   args: {
     threadId: v.string(),

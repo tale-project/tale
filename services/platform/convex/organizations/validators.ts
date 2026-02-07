@@ -1,9 +1,5 @@
-/**
- * Convex validators for organizations operations
- *
- * Note: Some schemas use jsonRecordSchema which contains z.lazy() for recursive types.
- * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
- */
+// Note: jsonRecordSchema contains z.lazy() which zodToConvex doesn't support,
+// so validators containing metadata use native Convex v instead.
 
 import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
@@ -13,10 +9,8 @@ import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 export { memberRoleSchema, organizationSchema } from '../../lib/shared/schemas/organizations';
 export type { MemberRole, Organization } from '../../lib/shared/schemas/organizations';
 
-// Simple schemas without z.lazy()
 export const memberRoleValidator = zodToConvex(memberRoleSchema);
 
-// Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
 export const organizationValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),

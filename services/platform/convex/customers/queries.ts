@@ -60,21 +60,6 @@ export const filterCustomers = internalQuery({
   },
 });
 
-export const getCustomerByEmailInternal = internalQuery({
-  args: {
-    organizationId: v.string(),
-    email: v.string(),
-  },
-  returns: v.union(customerValidator, v.null()),
-  handler: async (ctx, args) => {
-    return await CustomersHelpers.getCustomerByEmail(
-      ctx,
-      args.organizationId,
-      args.email,
-    );
-  },
-});
-
 export const hasCustomers = queryWithRLS({
   args: {
     organizationId: v.string(),
@@ -89,6 +74,7 @@ export const getCustomer = queryWithRLS({
   args: {
     customerId: v.id('customers'),
   },
+  returns: v.union(customerValidator, v.null()),
   handler: async (ctx, args) => {
     return await CustomersHelpers.getCustomer(ctx, args.customerId);
   },
@@ -99,6 +85,7 @@ export const getCustomerByEmail = queryWithRLS({
     organizationId: v.string(),
     email: v.string(),
   },
+  returns: v.union(customerValidator, v.null()),
   handler: async (ctx, args) => {
     return await CustomersHelpers.getCustomerByEmail(
       ctx,
@@ -113,6 +100,11 @@ export const listCustomers = queryWithRLS({
     organizationId: v.string(),
     paginationOpts: cursorPaginationOptsValidator,
   },
+  returns: v.object({
+    page: v.array(customerValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
   handler: async (ctx, args) => {
     return await ctx.db
       .query('customers')

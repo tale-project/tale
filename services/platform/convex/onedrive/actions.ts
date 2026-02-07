@@ -1,14 +1,9 @@
 'use node';
 
-/**
- * OneDrive Public Actions
- * Thin wrappers that delegate to implementation files
- */
-
 import { v } from 'convex/values';
 import { action, internalAction } from '../_generated/server';
 import { withMicrosoftToken } from './with_microsoft_token';
-import { importFiles as importFilesImpl, type ImportItem, type ImportFilesResult } from './import_files';
+import { importFiles as importFilesImpl, type ImportItem } from './import_files';
 import { listSharePointSites as listSharePointSitesImpl } from './list_sharepoint_sites';
 import { listSharePointDrives as listSharePointDrivesImpl } from './list_sharepoint_drives';
 import { listSharePointFiles as listSharePointFilesImpl } from './list_sharepoint_files';
@@ -76,7 +71,7 @@ export const importFiles = action({
     skippedCount: v.number(),
     error: v.optional(v.string()),
   }),
-  handler: async (ctx, args): Promise<ImportFilesResult & { error?: string }> => {
+  handler: async (ctx, args) => {
     const tokenResult = await withMicrosoftToken(ctx);
     if (!tokenResult.success) {
       return {

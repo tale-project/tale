@@ -1,18 +1,9 @@
-/**
- * Message Metadata Mutations
- *
- * Internal mutations for saving message metadata (token usage, model info, etc.).
- */
-
 import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { subAgentUsageItemValidator, contextStatsValidator } from '../streaming/validators';
 
-/**
- * Max size for contextWindow field to prevent Convex document size limit issues.
- * Convex has a 1MB document limit; this leaves room for other fields.
- */
-const MAX_CONTEXT_WINDOW_CHARS = 500000;
+const MAX_CONTEXT_WINDOW_CHARS = 500_000;
 
 export const saveMessageMetadata = internalMutation({
   args: {
@@ -29,36 +20,12 @@ export const saveMessageMetadata = internalMutation({
     providerMetadata: v.optional(jsonRecordValidator),
     durationMs: v.optional(v.number()),
     timeToFirstTokenMs: v.optional(v.number()),
-    subAgentUsage: v.optional(
-      v.array(
-        v.object({
-          toolName: v.string(),
-          model: v.optional(v.string()),
-          provider: v.optional(v.string()),
-          inputTokens: v.optional(v.number()),
-          outputTokens: v.optional(v.number()),
-          totalTokens: v.optional(v.number()),
-          durationMs: v.optional(v.number()),
-          input: v.optional(v.string()),
-          output: v.optional(v.string()),
-        }),
-      ),
-    ),
-    // Structured context window for debugging
+    subAgentUsage: v.optional(v.array(subAgentUsageItemValidator)),
     contextWindow: v.optional(v.string()),
-    contextStats: v.optional(
-      v.object({
-        totalTokens: v.number(),
-        messageCount: v.number(),
-        approvalCount: v.number(),
-        hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
-        hasRag: v.boolean(),
-        hasIntegrations: v.boolean(),
-      }),
-    ),
+    contextStats: v.optional(contextStatsValidator),
   },
+  returns: v.id('messageMetadata'),
   handler: async (ctx, args) => {
-    // Truncate contextWindow if it exceeds size limit
     let contextWindow = args.contextWindow;
     if (contextWindow && contextWindow.length > MAX_CONTEXT_WINDOW_CHARS) {
       console.warn(

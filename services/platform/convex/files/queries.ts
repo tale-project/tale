@@ -1,16 +1,7 @@
-/**
- * Files Queries
- *
- * Public queries for file operations.
- */
-
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
 
-/**
- * Get a file URL from a storage ID.
- */
 export const getFileUrl = query({
   args: {
     fileId: v.id('_storage'),
@@ -21,8 +12,7 @@ export const getFileUrl = query({
     if (!authUser) return null;
 
     try {
-      const url = await ctx.storage.getUrl(args.fileId);
-      return url;
+      return await ctx.storage.getUrl(args.fileId);
     } catch {
       return null;
     }

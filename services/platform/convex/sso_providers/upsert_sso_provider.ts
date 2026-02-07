@@ -2,22 +2,7 @@ import { GenericActionCtx } from 'convex/server';
 import { DataModel } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
 import { validateSsoConfig } from './validate_sso_config';
-import type { PlatformRole, RoleMappingRule } from './types';
-
-type EntraIdFeatures = {
-	enableOneDriveAccess?: boolean;
-	autoProvisionTeam?: boolean;
-	excludeGroups?: string[];
-};
-
-type GoogleWorkspaceFeatures = {
-	enableGoogleDriveAccess?: boolean;
-};
-
-type ProviderFeatures = {
-	entraId?: EntraIdFeatures;
-	googleWorkspace?: GoogleWorkspaceFeatures;
-};
+import type { PlatformRole, ProviderFeatures, RoleMappingRule } from '@/lib/shared/schemas/sso_providers';
 
 type UpsertSsoProviderArgs = {
 	organizationId: string;

@@ -1,7 +1,3 @@
-/**
- * Email Providers Internal Queries
- */
-
 import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 
@@ -20,15 +16,6 @@ export const getDefaultInternal = internalQuery({
 });
 
 export const getInternal = internalQuery({
-  args: {
-    providerId: v.id('emailProviders'),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.providerId);
-  },
-});
-
-export const getProviderById = internalQuery({
   args: {
     providerId: v.id('emailProviders'),
   },

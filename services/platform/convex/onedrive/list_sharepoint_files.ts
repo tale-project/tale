@@ -1,9 +1,3 @@
-/**
- * SharePoint Files List
- *
- * Lists files and folders within a SharePoint document library via Microsoft Graph API.
- */
-
 export interface SharePointItem {
   id: string;
   name: string;

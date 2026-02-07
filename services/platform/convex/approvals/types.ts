@@ -1,8 +1,3 @@
-/**
- * Type definitions for approval operations
- * @updated for threadId support
- */
-
 import type { Infer } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import {
@@ -12,22 +7,11 @@ import {
   approvalStatusValidator,
 } from './validators';
 
-// =============================================================================
-// INFERRED TYPES (from validators)
-// =============================================================================
-
 export type ApprovalStatus = Infer<typeof approvalStatusValidator>;
 export type ApprovalPriority = Infer<typeof approvalPriorityValidator>;
 export type ApprovalResourceType = Infer<typeof approvalResourceTypeValidator>;
 export type ApprovalItem = Infer<typeof approvalItemValidator>;
 
-// =============================================================================
-// MANUAL TYPES (no corresponding validator)
-// =============================================================================
-
-/**
- * Metadata for integration operation approvals
- */
 export interface IntegrationOperationMetadata {
   integrationId: string;
   integrationName: string;
@@ -43,9 +27,6 @@ export interface IntegrationOperationMetadata {
   executionResult?: unknown;
 }
 
-/**
- * Metadata for workflow creation approvals
- */
 export interface WorkflowCreationMetadata {
   workflowName: string;
   workflowDescription?: string;

@@ -8,6 +8,7 @@ export const initializeDefaultWorkflows = action({
   args: {
     organizationId: v.string(),
   },
+  returns: v.array(v.id('wfDefinitions')),
   handler: async (ctx, args) => {
     return saveDefaultWorkflows(ctx, args);
   },

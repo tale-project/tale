@@ -212,7 +212,7 @@ export const checkRagJobStatus = internalAction({
     const maxAttempts = 50;
 
     const document = await ctx.runQuery(
-      internal.documents.queries.getDocumentById,
+      internal.documents.queries.getDocumentByIdRaw,
       { documentId: args.documentId },
     );
 
@@ -250,8 +250,6 @@ export const checkRagJobStatus = internalAction({
 
     try {
       const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(10000),
       });
 
@@ -444,9 +442,8 @@ export const retryRagIndexing = action({
         return { success: false, error: 'Unauthenticated' };
       }
 
-      // Get document and verify access
       const document = await ctx.runQuery(
-        internal.documents.queries.getDocumentById,
+        internal.documents.queries.getDocumentByIdRaw,
         { documentId: args.documentId },
       );
 

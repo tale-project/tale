@@ -1,7 +1,3 @@
-/**
- * Business logic for creating a new email provider
- */
-
 import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 import { saveRelatedWorkflows } from './save_related_workflows';
@@ -73,16 +69,11 @@ interface CreateProviderDependencies {
   }) => Promise<Doc<'emailProviders'>['_id']>;
 }
 
-/**
- * Main logic for creating a new email provider
- * Handles encryption of sensitive credentials
- */
 export async function createProviderLogic(
   ctx: ActionCtx,
   args: CreateProviderArgs,
   deps: CreateProviderDependencies,
 ): Promise<Doc<'emailProviders'>['_id']> {
-  // Encrypt password if provided
   let passwordAuth = undefined;
   if (args.passwordAuth) {
     let passEncrypted: string;
@@ -101,7 +92,6 @@ export async function createProviderLogic(
     };
   }
 
-  // Encrypt OAuth2 credentials if provided
   let oauth2Auth = undefined;
   if (args.oauth2Auth) {
     let clientSecretEncrypted: string;
@@ -124,7 +114,6 @@ export async function createProviderLogic(
     };
   }
 
-  // Call internal mutation to insert the provider
   const providerId = await deps.createInternal({
     organizationId: args.organizationId,
     name: args.name,
@@ -139,7 +128,6 @@ export async function createProviderLogic(
     metadata: args.metadata,
   });
 
-  // Save related workflows for this email provider (only if IMAP is configured)
   if (args.imapConfig && args.passwordAuth) {
     const workflowIds = await saveRelatedWorkflows(ctx, {
       organizationId: args.organizationId,

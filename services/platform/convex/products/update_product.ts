@@ -1,10 +1,6 @@
-/**
- * Update an existing product (public API)
- */
-
-import { MutationCtx } from '../_generated/server';
-import { Doc, Id } from '../_generated/dataModel';
-import { ProductStatus, ProductTranslation } from './types';
+import type { MutationCtx } from '../_generated/server';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { ProductStatus, ProductTranslation } from './types';
 
 export interface UpdateProductArgs {
   productId: Id<'products'>;
@@ -35,7 +31,6 @@ export async function updateProduct(
     lastUpdated: now,
   };
 
-  // Only update fields that are provided
   if (args.name !== undefined) updates.name = args.name;
   if (args.description !== undefined) updates.description = args.description;
   if (args.imageUrl !== undefined) updates.imageUrl = args.imageUrl;
@@ -46,7 +41,7 @@ export async function updateProduct(
   if (args.tags !== undefined) updates.tags = args.tags;
   if (args.status !== undefined) updates.status = args.status;
   if (args.translations !== undefined) updates.translations = args.translations;
-  if (args.metadata !== undefined) updates.metadata = args.metadata as any;
+  if (args.metadata !== undefined) updates.metadata = args.metadata as Doc<'products'>['metadata'];
 
   await ctx.db.patch(args.productId, updates);
   return args.productId;

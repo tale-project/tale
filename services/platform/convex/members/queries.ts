@@ -1,15 +1,9 @@
-/**
- * Members Queries
- *
- * Internal and public queries for member operations.
- * Member data is stored in Better Auth's `member` table.
- */
-
 import { v } from 'convex/values';
 import { internalQuery, query } from '../_generated/server';
 import { components } from '../_generated/api';
 import { authComponent } from '../auth';
 import { getOrganizationMember, getUserOrganizations } from '../lib/rls';
+import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
 
 interface BetterAuthTeam {
   _id: string;
@@ -25,12 +19,6 @@ interface BetterAuthTeamMember {
   createdAt?: number | null;
 }
 
-interface BetterAuthFindManyResult<T> {
-  page: T[];
-  continueCursor?: string;
-  isDone?: boolean;
-}
-
 const VALID_ROLES = ['disabled', 'member', 'editor', 'developer', 'admin'] as const;
 type ValidRole = (typeof VALID_ROLES)[number];
 
@@ -38,43 +26,29 @@ function isValidRole(role: string): role is ValidRole {
   return VALID_ROLES.includes(role as ValidRole);
 }
 
-/**
- * Get a member's role in an organization (internal query)
- * Returns the role string or null if the member doesn't exist
- */
-export const getMemberRoleInternal = internalQuery({
+export const getMemberRole = internalQuery({
   args: {
     userId: v.string(),
     organizationId: v.string(),
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
-    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: {
-        cursor: null,
-        numItems: 1,
+    const result: BetterAuthFindManyResult<BetterAuthMember> = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+          { field: 'userId', value: args.userId, operator: 'eq' },
+        ],
       },
-      where: [
-        { field: 'organizationId', value: args.organizationId, operator: 'eq' },
-        { field: 'userId', value: args.userId, operator: 'eq' },
-      ],
-    });
+    );
 
-    const member = result?.page?.[0];
-     
-    return (member as any)?.role ?? null;
+    return result?.page?.[0]?.role ?? null;
   },
 });
 
-// =============================================================================
-// PUBLIC QUERIES (for frontend via api.queries.member.*)
-// =============================================================================
-
-/**
- * Get the current user's member context for an organization.
- * Returns the member's role and organization ID.
- */
 export const getCurrentMemberContext = query({
   args: { organizationId: v.string() },
   returns: v.union(
@@ -118,7 +92,6 @@ export const getCurrentMemberContext = query({
       }
 
       const role = isValidRole(member.role) ? member.role : 'member';
-      const isAdmin = role === 'admin';
 
       return {
         memberId: member._id,
@@ -127,7 +100,7 @@ export const getCurrentMemberContext = query({
         role,
         createdAt: member.createdAt,
         displayName: authUser.name,
-        isAdmin,
+        isAdmin: role === 'admin',
       };
     } catch {
       return null;
@@ -135,9 +108,6 @@ export const getCurrentMemberContext = query({
   },
 });
 
-/**
- * List all members of an organization.
- */
 export const listByOrganization = query({
   args: { organizationId: v.string() },
   returns: v.array(
@@ -162,7 +132,6 @@ export const listByOrganization = query({
       return [];
     }
 
-    // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
         userId: String(authUser._id),
@@ -173,36 +142,25 @@ export const listByOrganization = query({
       return [];
     }
 
-    // Query all members of the organization
-    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: {
-        cursor: null,
-        numItems: 100,
+    const result: BetterAuthFindManyResult<BetterAuthMember> = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 100 },
+        where: [{ field: 'organizationId', value: args.organizationId, operator: 'eq' }],
       },
-      where: [
-        {
-          field: 'organizationId',
-          value: args.organizationId,
-          operator: 'eq',
-        },
-      ],
-    });
+    );
 
     if (!result || result.page.length === 0) {
       return [];
     }
 
-    // Get user details for each member
-    const members = await Promise.all(
-      result.page.map(async (member: any) => {
-        const userResult = await ctx.runQuery(
-          components.betterAuth.adapter.findOne,
-          {
-            model: 'user',
-            where: [{ field: '_id', value: member.userId, operator: 'eq' }],
-          },
-        );
+    return Promise.all(
+      result.page.map(async (member) => {
+        const userResult = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+          model: 'user',
+          where: [{ field: '_id', value: member.userId, operator: 'eq' }],
+        });
 
         return {
           _id: member._id,
@@ -215,14 +173,9 @@ export const listByOrganization = query({
         };
       }),
     );
-
-    return members;
   },
 });
 
-/**
- * Get user ID by email.
- */
 export const getUserIdByEmail = query({
   args: { email: v.string() },
   returns: v.union(v.string(), v.null()),
@@ -239,26 +192,14 @@ export const getUserIdByEmail = query({
 
     const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
       model: 'user',
-      paginationOpts: {
-        cursor: null,
-        numItems: 1,
-      },
-      where: [
-        {
-          field: 'email',
-          value: args.email,
-          operator: 'eq',
-        },
-      ],
+      paginationOpts: { cursor: null, numItems: 1 },
+      where: [{ field: 'email', value: args.email, operator: 'eq' }],
     });
 
     return result?.page?.[0]?._id ?? null;
   },
 });
 
-/**
- * Get all organizations for the current user.
- */
 export const getUserOrganizationsList = query({
   args: {},
   returns: v.array(
