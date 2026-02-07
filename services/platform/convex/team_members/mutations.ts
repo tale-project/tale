@@ -17,11 +17,45 @@ export const addMember = mutation({
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
+    const callerMember = await getOrganizationMember(ctx, args.organizationId, {
       userId: String(authUser._id),
       email: authUser.email,
       name: authUser.name,
     });
+
+    if (callerMember.role !== 'admin' && callerMember.role !== 'owner') {
+      throw new Error('Only admins can add team members');
+    }
+
+    const targetOrgMember = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+          { field: 'userId', value: args.userId, operator: 'eq' },
+        ],
+      },
+    );
+    if (!targetOrgMember?.page?.[0]) {
+      throw new Error('User is not a member of this organization');
+    }
+
+    const existingTeamMember = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'teamMember',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'teamId', value: args.teamId, operator: 'eq' },
+          { field: 'userId', value: args.userId, operator: 'eq' },
+        ],
+      },
+    );
+    if (existingTeamMember?.page?.length) {
+      throw new Error('User is already a member of this team');
+    }
 
     const input = {
       model: 'teamMember' as const,
