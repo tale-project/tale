@@ -1,11 +1,6 @@
-/**
- * Workflow Execution Queries
- */
-
 import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { queryWithRLS } from '../lib/rls';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { getExecution as getExecutionLogic } from '../workflows/executions/get_execution';
 import { getRawExecution as getRawExecutionLogic } from '../workflows/executions/get_raw_execution';
 import { listExecutionsCursor as listExecutionsCursorHelper } from '../workflows/executions/list_executions_cursor';
@@ -20,7 +15,7 @@ export const getExecution = internalQuery({
     if (!result) return null;
     return {
       ...result,
-      variables: result.variables as Record<string, unknown>,
+      variables: result.variables,
     };
   },
 });

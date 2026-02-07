@@ -1,12 +1,7 @@
-/**
- * Update execution status
- */
-
 import type { MutationCtx } from '../../_generated/server';
 import type {
   UpdateExecutionStatusArgs,
   WorkflowExecution,
-  ExecutionStatus,
 } from './types';
 
 type ExecutionUpdateData = Partial<
@@ -23,7 +18,7 @@ export async function updateExecutionStatus(
   args: UpdateExecutionStatusArgs,
 ): Promise<null> {
   const updates: ExecutionUpdateData = {
-    status: args.status as ExecutionStatus,
+    status: args.status,
     updatedAt: Date.now(),
   };
 

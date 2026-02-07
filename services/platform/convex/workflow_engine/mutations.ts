@@ -1,8 +1,7 @@
 import { mutation } from '../_generated/server';
 import { v } from 'convex/values';
-import type { Id } from '../_generated/dataModel';
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
-import * as EngineHelpers from './helpers/engine';
+import { handleStartWorkflow } from './helpers/engine/start_workflow_handler';
 import { workflowManager } from './engine';
 
 export const startWorkflow = mutation({
@@ -14,7 +13,7 @@ export const startWorkflow = mutation({
 		triggerData: v.optional(jsonValueValidator),
 	},
 	returns: v.id('wfExecutions'),
-	handler: async (ctx, args): Promise<Id<'wfExecutions'>> => {
-		return await EngineHelpers.handleStartWorkflow(ctx, args, workflowManager);
+	handler: async (ctx, args) => {
+		return await handleStartWorkflow(ctx, args, workflowManager);
 	},
 });

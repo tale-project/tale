@@ -63,12 +63,13 @@ export const validateStep = queryWithRLS({
     const errors = [...stepResult.errors];
     const warnings = [...stepResult.warnings];
 
-    if (args.wfDefinitionId) {
+    const defId = args.wfDefinitionId;
+    if (defId) {
       const stepsForCircularCheck = [];
       for await (const step of ctx.db
         .query('wfStepDefs')
         .withIndex('by_definition', (q) =>
-          q.eq('wfDefinitionId', args.wfDefinitionId!),
+          q.eq('wfDefinitionId', defId),
         )) {
         stepsForCircularCheck.push({
           stepSlug: step.stepSlug,
