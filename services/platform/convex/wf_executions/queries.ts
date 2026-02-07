@@ -13,10 +13,7 @@ export const getExecution = internalQuery({
   handler: async (ctx, args) => {
     const result = await getExecutionLogic(ctx, args.executionId);
     if (!result) return null;
-    return {
-      ...result,
-      variables: result.variables,
-    };
+    return result;
   },
 });
 
