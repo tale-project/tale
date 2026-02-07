@@ -8,6 +8,7 @@
       "presets": {
         "custom": "Custom",
         "today": "Today",
+        "last7Days": "Last 7 days",
         "last14Days": "Last 14 days",
         "last30Days": "Last 30 days",
         "last3Months": "Last 3 months",
@@ -100,6 +101,14 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "archived": "Archived"
+    },
+    "triggerSource": {
+      "schedule": "Schedule",
+      "manual": "Manual",
+      "event": "Event",
+      "webhook": "Webhook",
+      "api": "API",
+      "system": "System"
     },
     "validation": {
       "required": "{field} is required",
@@ -1044,7 +1053,6 @@
     },
     "triggers": {
       "title": "Triggers",
-      "tabsLabel": "Trigger type selection",
       "schedules": {
         "title": "Schedules",
         "createButton": "Add schedule",

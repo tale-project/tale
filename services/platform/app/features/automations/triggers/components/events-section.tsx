@@ -7,7 +7,6 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Button } from '@/app/components/ui/primitives/button';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -19,6 +18,7 @@ import {
   useDeleteEventSubscription,
 } from '../hooks/use-trigger-mutations';
 import { EventCreateDialog } from './event-create-dialog';
+import { CollapsibleSection } from './collapsible-section';
 import {
   EVENT_TYPES,
   getFilterFieldsForEventType,
@@ -250,7 +250,11 @@ export function EventsSection({
   );
 
   return (
-    <Stack gap={4} className="pt-4">
+    <CollapsibleSection
+      id="events"
+      icon={Zap}
+      title={t('triggers.events.title')}
+    >
       <DataTable
         columns={columns}
         data={subscriptions ?? []}
@@ -262,7 +266,7 @@ export function EventsSection({
           description: t('triggers.events.emptyDescription'),
         }}
         actionMenu={
-          <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(true)}>
             <Plus className="size-4 mr-2" />
             {t('triggers.events.createButton')}
           </Button>
@@ -299,6 +303,6 @@ export function EventsSection({
         isDeleting={isDeleting}
         onDelete={handleDelete}
       />
-    </Stack>
+    </CollapsibleSection>
   );
 }

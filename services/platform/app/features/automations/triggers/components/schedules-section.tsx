@@ -7,7 +7,6 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Button } from '@/app/components/ui/primitives/button';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Plus, Calendar, Pencil, Trash2 } from 'lucide-react';
@@ -15,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 import { useToast } from '@/app/hooks/use-toast';
 import { useToggleSchedule, useDeleteSchedule } from '../hooks/use-trigger-mutations';
 import { ScheduleCreateDialog } from './schedule-create-dialog';
+import { CollapsibleSection } from './collapsible-section';
 
 interface SchedulesSectionProps {
   workflowRootId: Id<'wfDefinitions'>;
@@ -162,7 +162,12 @@ export function SchedulesSection({
   );
 
   return (
-    <Stack gap={4} className="pt-4">
+    <CollapsibleSection
+      id="schedules"
+      icon={Calendar}
+      title={t('triggers.schedules.title')}
+      defaultOpen
+    >
       <DataTable
         columns={columns}
         data={schedules ?? []}
@@ -174,7 +179,7 @@ export function SchedulesSection({
           description: t('triggers.schedules.emptyDescription'),
         }}
         actionMenu={
-          <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(true)}>
             <Plus className="size-4 mr-2" />
             {t('triggers.schedules.createButton')}
           </Button>
@@ -204,6 +209,6 @@ export function SchedulesSection({
         isDeleting={isDeleting}
         onDelete={handleDelete}
       />
-    </Stack>
+    </CollapsibleSection>
   );
 }

@@ -29,7 +29,7 @@ function ExecutionsPage() {
       organizationId={organizationId}
       searchTerm={query}
       status={status ? [status] : undefined}
-      triggeredBy={triggeredBy ? [triggeredBy] : undefined}
+      triggeredBy={triggeredBy}
       dateFrom={dateFrom}
       dateTo={dateTo}
     />

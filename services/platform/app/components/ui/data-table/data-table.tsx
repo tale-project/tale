@@ -57,6 +57,7 @@ import type {
   DataTableSortingConfig,
 } from './use-data-table';
 import type { DateRange } from 'react-day-picker';
+import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
 
 export interface DataTableProps<TData> {
   /** Column definitions */
@@ -125,6 +126,7 @@ export interface DataTableProps<TData> {
     from?: Date;
     to?: Date;
     onChange: (range: DateRange | undefined) => void;
+    presets?: DatePreset[];
   };
   /** Whether filters are loading */
   isFiltersLoading?: boolean;

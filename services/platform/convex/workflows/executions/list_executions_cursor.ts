@@ -17,6 +17,28 @@ export async function listExecutionsCursor(
   ctx: QueryCtx,
   args: ListExecutionsCursorArgs,
 ): Promise<CursorPaginatedExecutionsResult> {
+  const emptyResult: CursorPaginatedExecutionsResult = {
+    page: [],
+    isDone: true,
+    continueCursor: '',
+  };
+
+  // Exact ID lookup — returns the single matching execution or empty result.
+  // All other filters (status, date, triggeredBy) are ignored when searching.
+  if (args.searchTerm) {
+    const normalizedId = ctx.db.normalizeId(
+      'wfExecutions',
+      args.searchTerm.trim(),
+    );
+    if (!normalizedId) return emptyResult;
+
+    const execution = await ctx.db.get(normalizedId);
+    if (!execution || execution.wfDefinitionId !== args.wfDefinitionId) {
+      return emptyResult;
+    }
+    return { page: [execution], isDone: true, continueCursor: '' };
+  }
+
   const numItems = args.numItems ?? DEFAULT_PAGE_SIZE;
 
   // Parse date filters
@@ -25,65 +47,53 @@ export async function listExecutionsCursor(
     : undefined;
   const toDate = args.dateTo ? new Date(args.dateTo).getTime() : undefined;
 
-  // Pre-compute filter sets for O(1) lookups
-  const searchLower = args.searchTerm?.toLowerCase();
   const statusSet = args.status?.length ? new Set(args.status) : null;
-  const triggeredBySet = args.triggeredBy?.length
-    ? new Set(args.triggeredBy.map((t) => t.toLowerCase()))
-    : null;
 
-  // Build query with optimal index for date filtering
-  const baseQuery = ctx.db
-    .query('wfExecutions')
-    .withIndex('by_definition_startedAt', (q) => {
-      if (fromDate !== undefined && toDate !== undefined) {
-        return q
-          .eq('wfDefinitionId', args.wfDefinitionId)
-          .gte('startedAt', fromDate)
-          .lte('startedAt', toDate);
-      }
+  // When triggeredBy is provided, use the compound index for fully indexed
+  // filtering (wfDefinitionId + triggeredBy + startedAt).
+  // Otherwise fall back to the date-only index.
+  const baseQuery = args.triggeredBy
+    ? ctx.db
+        .query('wfExecutions')
+        .withIndex('by_definition_triggeredBy_startedAt', (q) => {
+          const base = q
+            .eq('wfDefinitionId', args.wfDefinitionId)
+            .eq('triggeredBy', args.triggeredBy!);
 
-      if (fromDate !== undefined) {
-        return q
-          .eq('wfDefinitionId', args.wfDefinitionId)
-          .gte('startedAt', fromDate);
-      }
+          if (fromDate !== undefined && toDate !== undefined) {
+            return base.gte('startedAt', fromDate).lte('startedAt', toDate);
+          }
+          if (fromDate !== undefined) return base.gte('startedAt', fromDate);
+          if (toDate !== undefined) return base.lte('startedAt', toDate);
+          return base;
+        })
+        .order('desc')
+    : ctx.db
+        .query('wfExecutions')
+        .withIndex('by_definition_startedAt', (q) => {
+          if (fromDate !== undefined && toDate !== undefined) {
+            return q
+              .eq('wfDefinitionId', args.wfDefinitionId)
+              .gte('startedAt', fromDate)
+              .lte('startedAt', toDate);
+          }
+          if (fromDate !== undefined) {
+            return q
+              .eq('wfDefinitionId', args.wfDefinitionId)
+              .gte('startedAt', fromDate);
+          }
+          if (toDate !== undefined) {
+            return q
+              .eq('wfDefinitionId', args.wfDefinitionId)
+              .lte('startedAt', toDate);
+          }
+          return q.eq('wfDefinitionId', args.wfDefinitionId);
+        })
+        .order('desc');
 
-      if (toDate !== undefined) {
-        return q
-          .eq('wfDefinitionId', args.wfDefinitionId)
-          .lte('startedAt', toDate);
-      }
-
-      return q.eq('wfDefinitionId', args.wfDefinitionId);
-    })
-    .order('desc');
-
-  // Filter function for non-indexed fields
-  const filter = (execution: WorkflowExecution): boolean => {
-    // Status filter
-    if (statusSet && !statusSet.has(execution.status)) {
-      return false;
-    }
-
-    // Search filter (search in execution ID)
-    if (
-      searchLower &&
-      !String(execution._id).toLowerCase().includes(searchLower)
-    ) {
-      return false;
-    }
-
-    // Triggered by filter
-    if (triggeredBySet) {
-      const execTriggeredBy = String(execution.triggeredBy ?? '').toLowerCase();
-      if (!triggeredBySet.has(execTriggeredBy)) {
-        return false;
-      }
-    }
-
-    return true;
-  };
+  const filter = statusSet
+    ? (execution: WorkflowExecution) => statusSet.has(execution.status)
+    : undefined;
 
   // Use paginateWithFilter for early termination
   // wfExecutions documents are large (variables, workflowConfig, input, output fields),

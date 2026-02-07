@@ -7,7 +7,6 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Button } from '@/app/components/ui/primitives/button';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Plus, Webhook, Copy, Check, Trash2 } from 'lucide-react';
@@ -21,6 +20,7 @@ import {
   useDeleteWebhook,
 } from '../hooks/use-trigger-mutations';
 import { SecretRevealDialog } from './secret-reveal-dialog';
+import { CollapsibleSection } from './collapsible-section';
 
 interface WebhooksSectionProps {
   workflowRootId: Id<'wfDefinitions'>;
@@ -222,7 +222,11 @@ export function WebhooksSection({
   );
 
   return (
-    <Stack gap={4} className="pt-4">
+    <CollapsibleSection
+      id="webhooks"
+      icon={Webhook}
+      title={t('triggers.webhooks.title')}
+    >
       <DataTable
         columns={columns}
         data={webhooks ?? []}
@@ -234,7 +238,7 @@ export function WebhooksSection({
           description: t('triggers.webhooks.emptyDescription'),
         }}
         actionMenu={
-          <Button size="sm" onClick={handleCreate} disabled={isCreating}>
+          <Button variant="outline" size="sm" onClick={handleCreate} disabled={isCreating}>
             <Plus className="size-4 mr-2" />
             {t('triggers.webhooks.createButton')}
           </Button>
@@ -266,6 +270,6 @@ export function WebhooksSection({
         isDeleting={isDeleting}
         onDelete={handleDelete}
       />
-    </Stack>
+    </CollapsibleSection>
   );
 }

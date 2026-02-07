@@ -12,7 +12,7 @@ export const listExecutionsCursor = queryWithRLS({
     dateFrom: v.optional(v.string()),
     dateTo: v.optional(v.string()),
     searchTerm: v.optional(v.string()),
-    triggeredBy: v.optional(v.array(v.string())),
+    triggeredBy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await listExecutionsCursorHelper(ctx, {
