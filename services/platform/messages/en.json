@@ -849,7 +849,12 @@
         "testFailed": "Connection failed",
         "testFailedDescription": "Failed to validate SSO credentials",
         "testError": "An error occurred while testing the connection",
-        "testPassed": "Valid"
+        "testPassed": "Valid",
+        "roleAdmin": "Admin",
+        "roleDeveloper": "Developer",
+        "roleEditor": "Editor",
+        "roleMember": "Member",
+        "roleDisabled": "Disabled"
       }
     },
     "form": {
@@ -1705,6 +1710,13 @@
       "documents": "Documents",
       "oneDrive": "OneDrive",
       "uploads": "Uploads"
+    },
+    "sourceType": {
+      "oneDriveSynced": "OneDrive (synced)",
+      "oneDrive": "OneDrive",
+      "sharePointSynced": "SharePoint (synced)",
+      "sharePoint": "SharePoint",
+      "uploaded": "Uploaded"
     },
     "preview": {
       "loading": "Loading…",
