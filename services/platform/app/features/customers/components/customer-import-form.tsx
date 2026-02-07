@@ -18,7 +18,10 @@ import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { toast } from '@/app/hooks/use-toast';
-import { isSpreadsheet, SPREADSHEET_IMPORT_ACCEPT } from '@/lib/shared/file-types';
+import {
+  isSpreadsheet,
+  SPREADSHEET_IMPORT_ACCEPT,
+} from '@/lib/shared/file-types';
 
 interface CustomerImportFormProps {
   hideTabs?: boolean;

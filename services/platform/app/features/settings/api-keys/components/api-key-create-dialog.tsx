@@ -42,10 +42,22 @@ export function ApiKeyCreateDialog({
 
   const expiresOptions = useMemo(
     () => [
-      { value: '604800', label: tSettings('apiKeys.form.expiresOptions.7days') },
-      { value: '2592000', label: tSettings('apiKeys.form.expiresOptions.30days') },
-      { value: '7776000', label: tSettings('apiKeys.form.expiresOptions.90days') },
-      { value: '31536000', label: tSettings('apiKeys.form.expiresOptions.1year') },
+      {
+        value: '604800',
+        label: tSettings('apiKeys.form.expiresOptions.7days'),
+      },
+      {
+        value: '2592000',
+        label: tSettings('apiKeys.form.expiresOptions.30days'),
+      },
+      {
+        value: '7776000',
+        label: tSettings('apiKeys.form.expiresOptions.90days'),
+      },
+      {
+        value: '31536000',
+        label: tSettings('apiKeys.form.expiresOptions.1year'),
+      },
       { value: '0', label: tSettings('apiKeys.form.expiresOptions.never') },
     ],
     [tSettings],
@@ -77,7 +89,8 @@ export function ApiKeyCreateDialog({
   const onSubmit = async (data: ApiKeyFormData) => {
     setIsSubmitting(true);
     try {
-      const expiresIn = data.expiresIn === '0' ? undefined : parseInt(data.expiresIn, 10);
+      const expiresIn =
+        data.expiresIn === '0' ? undefined : parseInt(data.expiresIn, 10);
 
       const result = await createKey({
         name: data.name,

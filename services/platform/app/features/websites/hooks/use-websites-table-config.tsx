@@ -44,7 +44,9 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       size: 256,
       cell: ({ row }) => (
         <div className="max-w-sm truncate text-xs text-muted-foreground">
-          {row.original.description ? `"${row.original.description}"` : tTables('cells.empty')}
+          {row.original.description
+            ? `"${row.original.description}"`
+            : tTables('cells.empty')}
         </div>
       ),
     },
@@ -65,7 +67,11 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
     },
     {
       accessorKey: 'scanInterval',
-      header: () => <span className="text-right w-full block">{tTables('headers.interval')}</span>,
+      header: () => (
+        <span className="text-right w-full block">
+          {tTables('headers.interval')}
+        </span>
+      ),
       size: 96,
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground text-right w-full block">

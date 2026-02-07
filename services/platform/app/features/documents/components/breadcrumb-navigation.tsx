@@ -15,7 +15,10 @@ export function BreadcrumbNavigation({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const location = useLocation();
-  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const search = useSearch({ strict: false }) as Record<
+    string,
+    string | undefined
+  >;
 
   const rawSegments = currentFolderPath
     ? currentFolderPath.split('/').filter(Boolean)
