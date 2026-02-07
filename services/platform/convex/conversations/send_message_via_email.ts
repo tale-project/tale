@@ -122,7 +122,13 @@ export async function sendMessageViaEmail(
     throw new Error('Conversation not found');
   }
 
-  const provider = await resolveProvider(ctx, conversation, args.organizationId);
+  if (conversation.organizationId !== args.organizationId) {
+    throw new Error('Conversation does not belong to organization');
+  }
+
+  const organizationId = conversation.organizationId;
+
+  const provider = await resolveProvider(ctx, conversation, organizationId);
   const senderEmail = extractSenderEmail(provider);
 
   const messageMetadata: Record<string, unknown> = {
@@ -141,7 +147,7 @@ export async function sendMessageViaEmail(
 
   const now = Date.now();
   const messageId = await ctx.db.insert('conversationMessages', {
-    organizationId: args.organizationId,
+    organizationId,
     conversationId: args.conversationId,
     providerId: provider._id,
     channel: 'email',
@@ -154,7 +160,7 @@ export async function sendMessageViaEmail(
 
   const emailPayload = {
     messageId,
-    organizationId: args.organizationId,
+    organizationId,
     providerId: provider._id,
     from: senderEmail,
     to: args.to,
@@ -188,7 +194,7 @@ export async function sendMessageViaEmail(
     },
   });
 
-  const auditContext = await buildAuditContext(ctx, args.organizationId);
+  const auditContext = await buildAuditContext(ctx, organizationId);
 
   const pendingApproval = await ctx.db
     .query('approvals')
