@@ -27,7 +27,7 @@ export async function upsertToneOfVoice(
     await ctx.db.patch(existing._id, {
       generatedTone: args.generatedTone,
       lastUpdated: now,
-      metadata: args.metadata,
+      ...(args.metadata !== undefined && { metadata: args.metadata }),
     });
     return existing._id;
   }
@@ -36,6 +36,6 @@ export async function upsertToneOfVoice(
     organizationId: args.organizationId,
     generatedTone: args.generatedTone,
     lastUpdated: now,
-    metadata: args.metadata,
+    ...(args.metadata !== undefined && { metadata: args.metadata }),
   });
 }
