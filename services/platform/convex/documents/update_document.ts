@@ -79,5 +79,9 @@ export async function updateDocument(
     }
   }
 
-  await ctx.db.patch(args.documentId, updateData as Record<string, never>);
+  const cleanUpdateData = Object.fromEntries(
+    Object.entries(updateData).filter(([_, value]) => value !== undefined),
+  );
+
+  await ctx.db.patch(args.documentId, cleanUpdateData);
 }
