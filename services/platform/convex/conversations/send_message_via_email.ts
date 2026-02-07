@@ -46,7 +46,7 @@ function extractSenderEmail(provider: Doc<'emailProviders'>): string {
     return provider.passwordAuth.user;
   }
   if (provider.authMethod === 'oauth2' && provider.metadata) {
-    const oauth2User = provider.metadata.oauth2_user;
+    const oauth2User = (provider.metadata as Record<string, unknown>).oauth2_user;
     if (oauth2User && typeof oauth2User === 'string') {
       return oauth2User;
     }
