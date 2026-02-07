@@ -189,7 +189,7 @@ export const getConversation = queryWithRLS({
   args: {
     conversationId: v.id('conversations'),
   },
-  returns: v.union(v.null(), internalConversationRecordValidator),
+  returns: v.union(internalConversationRecordValidator, v.null()),
   handler: async (ctx, args) => {
     return await ctx.db.get(args.conversationId);
   },
