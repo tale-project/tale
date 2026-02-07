@@ -244,21 +244,22 @@ export const getMyTeams = query({
     }
 
     const teamIds = membershipsResult.page.map((m) => m.teamId);
-    const teams: Array<{ id: string; name: string }> = [];
 
-    for (const teamId of teamIds) {
-      const teamResult: BetterAuthFindManyResult<BetterAuthTeam> = await ctx.runQuery(
-        components.betterAuth.adapter.findMany,
-        {
+    const teamResults: BetterAuthFindManyResult<BetterAuthTeam>[] = await Promise.all(
+      teamIds.map((teamId) =>
+        ctx.runQuery(components.betterAuth.adapter.findMany, {
           model: 'team',
           paginationOpts: { cursor: null, numItems: 1 },
           where: [
             { field: '_id', operator: 'eq', value: teamId },
             { field: 'organizationId', operator: 'eq', value: args.organizationId },
           ],
-        },
-      );
+        }),
+      ),
+    );
 
+    const teams: Array<{ id: string; name: string }> = [];
+    for (const teamResult of teamResults) {
       if (teamResult && teamResult.page.length > 0) {
         const team = teamResult.page[0];
         teams.push({
