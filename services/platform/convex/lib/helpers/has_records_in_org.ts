@@ -28,5 +28,9 @@ export async function hasRecordsInOrg(
       const r = await db.query('websites').withIndex('by_organizationId', (q) => q.eq('organizationId', organizationId)).first();
       return r !== null;
     }
+    default: {
+      const _exhaustive: never = table;
+      throw new Error(`Unhandled org table: ${_exhaustive}`);
+    }
   }
 }
