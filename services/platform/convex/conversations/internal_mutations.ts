@@ -161,7 +161,7 @@ export const backfillLastMessageAt = internalMutation({
       : await ctx.db.query('conversations').take(batchSize);
 
     let processed = 0;
-    let lastId: string | null = null;
+    let lastId: Id<'conversations'> | null = null;
 
     for (const conv of conversations) {
       lastId = conv._id;
@@ -194,7 +194,7 @@ export const backfillLastMessageAt = internalMutation({
 
     return {
       processed,
-      nextCursor: lastId as Id<'conversations'> | null,
+      nextCursor: lastId,
       done: conversations.length < batchSize,
     };
   },
