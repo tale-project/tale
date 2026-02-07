@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { components } from '../_generated/api';
 import { authComponent } from '../auth';
+import { getOrganizationMember } from '../lib/rls';
 
 export const listByTeam = query({
   args: {
@@ -19,8 +20,31 @@ export const listByTeam = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    let authUser;
+    try {
+      authUser = await authComponent.getAuthUser(ctx);
+    } catch {
+      return [];
+    }
     if (!authUser) {
+      return [];
+    }
+
+    const team = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: 'team',
+      where: [{ field: '_id', value: args.teamId, operator: 'eq' }],
+    });
+    if (!team || typeof team.organizationId !== 'string') {
+      return [];
+    }
+
+    try {
+      await getOrganizationMember(ctx, team.organizationId, {
+        userId: String(authUser._id),
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch {
       return [];
     }
 
