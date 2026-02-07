@@ -21,9 +21,9 @@ export type ListIntegrationsInternalRef = FunctionReference<
 >;
 
 export function getGetBasicInfoInternalRef(): GetBasicInfoInternalRef {
-  return createRef<GetBasicInfoInternalRef>('internal', ['integrations', 'queries', 'getBasicInfoInternal']);
+  return createRef<GetBasicInfoInternalRef>('internal', ['integrations', 'internal_queries', 'getBasicInfoInternal']);
 }
 
 export function getListIntegrationsInternalRef(): ListIntegrationsInternalRef {
-  return createRef<ListIntegrationsInternalRef>('internal', ['integrations', 'queries', 'listInternal']);
+  return createRef<ListIntegrationsInternalRef>('internal', ['integrations', 'internal_queries', 'listInternal']);
 }
