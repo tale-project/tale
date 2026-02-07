@@ -19,6 +19,21 @@ export const getDocumentById = query({
       return { success: false, error: 'Unauthenticated' };
     }
 
+    const document = await ctx.db.get(args.documentId);
+    if (!document) {
+      return { success: false, error: 'Document not found' };
+    }
+
+    try {
+      await getOrganizationMember(ctx, document.organizationId, {
+        userId: String(authUser._id),
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch {
+      return { success: false, error: 'Access denied' };
+    }
+
     return await DocumentsHelpers.getDocumentByIdTransformed(ctx, args.documentId);
   },
 });
