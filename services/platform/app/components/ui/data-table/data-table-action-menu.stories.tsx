@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { Plus, Download, Trash2, Edit, Copy, MoreHorizontal } from 'lucide-react';
+import {
+  Plus,
+  Download,
+  Trash2,
+  Edit,
+  Copy,
+  MoreHorizontal,
+} from 'lucide-react';
 import { DataTableActionMenu } from './data-table-action-menu';
 
 const meta: Meta<typeof DataTableActionMenu> = {
@@ -37,7 +44,14 @@ import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-a
   argTypes: {
     variant: {
       control: 'select',
-      options: ['default', 'destructive', 'outline', 'secondary', 'ghost', 'link'],
+      options: [
+        'default',
+        'destructive',
+        'outline',
+        'secondary',
+        'ghost',
+        'link',
+      ],
     },
     align: {
       control: 'select',
@@ -140,11 +154,7 @@ export const WithoutIcon: Story = {
 export const AllVariants: Story = {
   render: () => (
     <div className="flex flex-wrap gap-4 items-center">
-      <DataTableActionMenu
-        label="Default"
-        icon={Plus}
-        onClick={() => {}}
-      />
+      <DataTableActionMenu label="Default" icon={Plus} onClick={() => {}} />
       <DataTableActionMenu
         label="Outline"
         icon={Download}
@@ -163,11 +173,7 @@ export const AllVariants: Story = {
         variant="destructive"
         onClick={() => {}}
       />
-      <DataTableActionMenu
-        label="Ghost"
-        variant="ghost"
-        onClick={() => {}}
-      />
+      <DataTableActionMenu label="Ghost" variant="ghost" onClick={() => {}} />
     </div>
   ),
   parameters: {
@@ -210,7 +216,8 @@ export const WithChildren: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'When children are provided, they render directly instead of the default button/dropdown.',
+        story:
+          'When children are provided, they render directly instead of the default button/dropdown.',
       },
     },
   },

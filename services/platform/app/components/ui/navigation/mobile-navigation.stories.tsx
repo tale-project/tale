@@ -228,7 +228,8 @@ export const Open: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Drawer shown in its open state with the Conversations section expanded.',
+        story:
+          'Drawer shown in its open state with the Conversations section expanded.',
       },
     },
   },
@@ -293,7 +294,8 @@ export const NoActiveItem: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'All items in their default inactive state with sub-items collapsed.',
+        story:
+          'All items in their default inactive state with sub-items collapsed.',
       },
     },
   },

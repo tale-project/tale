@@ -38,11 +38,7 @@ const sampleItems: NavItemData[] = [
   { label: 'Automations', icon: Network },
 ];
 
-function NavigationItemVisual({
-  item,
-}: {
-  item: NavItemData;
-}) {
+function NavigationItemVisual({ item }: { item: NavItemData }) {
   const Icon = item.icon;
 
   return (
@@ -191,7 +187,9 @@ export const AdminRole: Story = {
 
 export const MemberRole: Story = {
   render: () => (
-    <SidebarShell items={sampleItems.filter((item) => item.label !== 'Automations')} />
+    <SidebarShell
+      items={sampleItems.filter((item) => item.label !== 'Automations')}
+    />
   ),
   parameters: {
     docs: {

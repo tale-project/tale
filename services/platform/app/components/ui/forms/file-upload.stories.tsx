@@ -107,10 +107,15 @@ export const MultipleFiles: Story = {
         </FileUpload.Root>
         {files.length > 0 && (
           <div className="mt-4">
-            <p className="text-sm font-medium mb-1">{files.length} file(s) selected:</p>
+            <p className="text-sm font-medium mb-1">
+              {files.length} file(s) selected:
+            </p>
             <ul className="space-y-1">
               {files.map((name, i) => (
-                <li key={`${name}-${i}`} className="text-sm text-muted-foreground">
+                <li
+                  key={`${name}-${i}`}
+                  className="text-sm text-muted-foreground"
+                >
                   {name}
                 </li>
               ))}
@@ -140,9 +145,7 @@ export const Disabled: Story = {
           className="relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/15 p-8 opacity-50 cursor-not-allowed"
         >
           <ImagePlus className="size-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            Upload is disabled
-          </p>
+          <p className="text-sm text-muted-foreground">Upload is disabled</p>
           <FileUpload.Overlay className="rounded-lg" />
         </FileUpload.DropZone>
       </FileUpload.Root>
@@ -178,7 +181,8 @@ export const NonClickable: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Drop zone that only accepts drag-and-drop, not click-to-browse.',
+        story:
+          'Drop zone that only accepts drag-and-drop, not click-to-browse.',
       },
     },
   },
@@ -200,12 +204,8 @@ export const CustomAccept: Story = {
             className="relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/25 p-8 hover:border-muted-foreground/50 transition-colors cursor-pointer"
           >
             <Upload className="size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Upload documents
-            </p>
-            <p className="text-xs text-muted-foreground">
-              PDF, DOC, DOCX
-            </p>
+            <p className="text-sm text-muted-foreground">Upload documents</p>
+            <p className="text-xs text-muted-foreground">PDF, DOC, DOCX</p>
             <FileUpload.Overlay className="rounded-lg" />
           </FileUpload.DropZone>
         </FileUpload.Root>
@@ -243,7 +243,10 @@ export const CustomOverlayLabel: Story = {
           <p className="text-sm text-muted-foreground">
             Try dragging a file over this area
           </p>
-          <FileUpload.Overlay className="rounded-lg" label="Release to upload your file" />
+          <FileUpload.Overlay
+            className="rounded-lg"
+            label="Release to upload your file"
+          />
         </FileUpload.DropZone>
       </FileUpload.Root>
     </div>
@@ -286,7 +289,8 @@ export const WithCustomInputId: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Circular upload zone for avatar-style uploads with a custom input ID.',
+        story:
+          'Circular upload zone for avatar-style uploads with a custom input ID.',
       },
     },
   },

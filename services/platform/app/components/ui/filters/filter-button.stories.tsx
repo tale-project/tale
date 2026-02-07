@@ -52,7 +52,8 @@ export const ActiveFilters: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'When filters are active, a blue indicator dot appears and the border becomes primary-colored.',
+        story:
+          'When filters are active, a blue indicator dot appears and the border becomes primary-colored.',
       },
     },
   },
@@ -80,7 +81,8 @@ export const LoadingWithActiveFilters: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'When loading with active filters, the spinner is shown but the indicator dot is hidden.',
+        story:
+          'When loading with active filters, the spinner is shown but the indicator dot is hidden.',
       },
     },
   },

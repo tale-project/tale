@@ -83,13 +83,25 @@ export const Default: Story = {
     const [roleValues, setRoleValues] = useState<string[]>([]);
 
     const filters: FilterConfig[] = [
-      { ...sampleFilters[0], selectedValues: statusValues, onChange: setStatusValues },
-      { ...sampleFilters[1], selectedValues: roleValues, onChange: setRoleValues },
+      {
+        ...sampleFilters[0],
+        selectedValues: statusValues,
+        onChange: setStatusValues,
+      },
+      {
+        ...sampleFilters[1],
+        selectedValues: roleValues,
+        onChange: setRoleValues,
+      },
     ];
 
     return (
       <DataTableFilters
-        search={{ value: search, onChange: setSearch, placeholder: 'Search users...' }}
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: 'Search users...',
+        }}
         filters={filters}
         onClearAll={() => {
           setSearch('');
@@ -107,7 +119,11 @@ export const SearchOnly: Story = {
 
     return (
       <DataTableFilters
-        search={{ value: search, onChange: setSearch, placeholder: 'Search products...' }}
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: 'Search products...',
+        }}
       />
     );
   },
@@ -126,8 +142,16 @@ export const FiltersOnly: Story = {
     const [roleValues, setRoleValues] = useState<string[]>([]);
 
     const filters: FilterConfig[] = [
-      { ...sampleFilters[0], selectedValues: statusValues, onChange: setStatusValues },
-      { ...sampleFilters[1], selectedValues: roleValues, onChange: setRoleValues },
+      {
+        ...sampleFilters[0],
+        selectedValues: statusValues,
+        onChange: setStatusValues,
+      },
+      {
+        ...sampleFilters[1],
+        selectedValues: roleValues,
+        onChange: setRoleValues,
+      },
     ];
 
     return <DataTableFilters filters={filters} />;
@@ -148,13 +172,25 @@ export const WithActiveFilters: Story = {
     const [roleValues, setRoleValues] = useState<string[]>(['admin', 'member']);
 
     const filters: FilterConfig[] = [
-      { ...sampleFilters[0], selectedValues: statusValues, onChange: setStatusValues },
-      { ...sampleFilters[1], selectedValues: roleValues, onChange: setRoleValues },
+      {
+        ...sampleFilters[0],
+        selectedValues: statusValues,
+        onChange: setStatusValues,
+      },
+      {
+        ...sampleFilters[1],
+        selectedValues: roleValues,
+        onChange: setRoleValues,
+      },
     ];
 
     return (
       <DataTableFilters
-        search={{ value: search, onChange: setSearch, placeholder: 'Search users...' }}
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: 'Search users...',
+        }}
         filters={filters}
         onClearAll={() => {
           setSearch('');
@@ -167,7 +203,8 @@ export const WithActiveFilters: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Filter bar with pre-selected filters showing the active state indicator and clear button.',
+        story:
+          'Filter bar with pre-selected filters showing the active state indicator and clear button.',
       },
     },
   },
@@ -178,7 +215,11 @@ export const WithGridLayout: Story = {
     const [categoryValues, setCategoryValues] = useState<string[]>([]);
 
     const filters: FilterConfig[] = [
-      { ...gridFilter, selectedValues: categoryValues, onChange: setCategoryValues },
+      {
+        ...gridFilter,
+        selectedValues: categoryValues,
+        onChange: setCategoryValues,
+      },
     ];
 
     return <DataTableFilters filters={filters} />;
@@ -203,7 +244,11 @@ export const Loading: Story = {
 
     return (
       <DataTableFilters
-        search={{ value: search, onChange: setSearch, placeholder: 'Search...' }}
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: 'Search...',
+        }}
         filters={filters}
         isLoading
       />
@@ -212,7 +257,8 @@ export const Loading: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Filter bar in a loading state, showing a spinner on the filter button.',
+        story:
+          'Filter bar in a loading state, showing a spinner on the filter button.',
       },
     },
   },
@@ -224,7 +270,11 @@ export const WithChildren: Story = {
 
     return (
       <DataTableFilters
-        search={{ value: search, onChange: setSearch, placeholder: 'Search...' }}
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: 'Search...',
+        }}
       >
         <span className="text-sm text-muted-foreground">3 results</span>
       </DataTableFilters>
@@ -233,7 +283,8 @@ export const WithChildren: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Filter bar with additional children rendered alongside the filters.',
+        story:
+          'Filter bar with additional children rendered alongside the filters.',
       },
     },
   },
