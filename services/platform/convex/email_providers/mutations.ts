@@ -1,13 +1,9 @@
-/**
- * Email Providers Public Mutations
- */
-
 import { v } from 'convex/values';
 import { mutation } from '../_generated/server';
-import { deleteProvider as deleteProviderHelper } from './delete_provider';
-import { updateProvider as updateProviderHelper } from './update_provider';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
+import { deleteProvider as deleteProviderHelper } from './delete_provider';
+import { updateProvider as updateProviderHelper } from './update_provider';
 
 export const deleteProvider = mutation({
   args: {
@@ -16,7 +12,7 @@ export const deleteProvider = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     const provider = await ctx.db.get(args.providerId);
@@ -44,7 +40,7 @@ export const setDefault = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     const provider = await ctx.db.get(args.providerId);
@@ -85,7 +81,7 @@ export const updateProvider = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     const provider = await ctx.db.get(args.providerId);

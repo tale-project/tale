@@ -3,7 +3,7 @@
  */
 
 import { ActionCtx } from '../../../_generated/server';
-import { internal, api } from '../../../_generated/api';
+import { internal } from '../../../_generated/api';
 import type { Id, Doc } from '../../../_generated/dataModel';
 import { Infer } from 'convex/values';
 import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
@@ -20,7 +20,7 @@ export async function triggerWorkflowById(
   ctx: ActionCtx,
   args: TriggerWorkflowByIdArgs,
 ): Promise<string> {
-  const workflow = (await ctx.runQuery(internal.wf_definitions.queries.getWorkflowInternal, {
+  const workflow = (await ctx.runQuery(internal.wf_definitions.internal_queries.resolveWorkflow, {
     wfDefinitionId: args.wfDefinitionId,
   })) as unknown as Doc<'wfDefinitions'> | null;
 
@@ -37,7 +37,7 @@ export async function triggerWorkflowById(
   }
 
   const handle: string = await ctx.runMutation(
-    api.workflow_engine.engine.startWorkflow,
+    internal.workflow_engine.internal_mutations.startWorkflow,
     {
       organizationId: workflow.organizationId,
       wfDefinitionId: args.wfDefinitionId,

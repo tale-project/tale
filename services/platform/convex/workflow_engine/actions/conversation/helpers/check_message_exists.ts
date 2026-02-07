@@ -26,7 +26,7 @@ export async function checkMessageExists(
   organizationId: string,
   externalMessageId: string,
 ): Promise<ExistingMessage | null> {
-  return (await ctx.runQuery(internal.conversations.queries.getMessageByExternalId, {
+  return (await ctx.runQuery(internal.conversations.internal_queries.getMessageByExternalId, {
     organizationId,
     externalMessageId,
   })) as ExistingMessage | null;

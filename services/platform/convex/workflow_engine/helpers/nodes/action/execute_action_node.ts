@@ -31,7 +31,7 @@ async function resolveSecretsInParams(
 ): Promise<unknown> {
   if (isSecureWrapper(value)) {
     const decrypted = (await ctx.runAction!(
-      internal.lib.crypto.actions.decryptStringInternal,
+      internal.lib.crypto.internal_actions.decryptString,
       {
         jwe: value.jwe,
       },

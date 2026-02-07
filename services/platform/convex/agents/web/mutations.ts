@@ -1,17 +1,15 @@
 /**
  * Web Agent Mutations
- *
- * Public mutations for the Web Agent.
- * Allows direct chat with the web agent from the frontend.
  */
 
 import { v } from 'convex/values';
 import { mutation } from '../../_generated/server';
-import { authComponent } from '../../auth';
-import { startAgentChat } from '../../lib/agent_chat';
-import { WEB_AGENT_INSTRUCTIONS } from './agent';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import type { ToolName } from '../../agent_tools/tool_registry';
+import { authComponent } from '../../auth';
+import { startAgentChat } from '../../lib/agent_chat';
+import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
+import { WEB_AGENT_INSTRUCTIONS } from './agent';
 
 const WEB_AGENT_TOOL_NAMES: ToolName[] = ['web', 'request_human_input'];
 
@@ -49,6 +47,7 @@ export const chatWithWebAgent = mutation({
       throw new Error('Unauthenticated');
     }
 
+    const { model, provider } = getDefaultAgentRuntimeConfig();
     return startAgentChat({
       ctx,
       agentType: 'web',
@@ -58,8 +57,8 @@ export const chatWithWebAgent = mutation({
       maxSteps: args.maxSteps,
       attachments: args.attachments,
       agentConfig: WEB_AGENT_CONFIG,
-      model: process.env.OPENAI_MODEL || '',
-      provider: 'openai',
+      model,
+      provider,
       debugTag: '[WebAgent]',
       enableStreaming: true,
     });

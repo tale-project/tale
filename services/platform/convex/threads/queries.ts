@@ -1,21 +1,11 @@
-/**
- * Threads Queries
- *
- * Public queries for thread operations.
- * These queries are used by the frontend via api.queries.threads.*
- */
-
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
-import { listThreads } from './list_threads';
-import { getThreadMessagesStreaming } from './get_thread_messages_streaming';
-import { threadListItemValidator, threadStatusValidator } from './validators';
+import { listThreads as listThreadsHelper } from './list_threads';
+import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
+import { threadStatusValidator } from './validators';
 
-/**
- * List all active threads for the current user.
- */
-export const listThreadsQuery = query({
+export const listThreads = query({
   args: {
     search: v.optional(v.string()),
   },
@@ -39,20 +29,14 @@ export const listThreadsQuery = query({
       return [];
     }
 
-    return await listThreads(ctx, {
+    return await listThreadsHelper(ctx, {
       userId: String(authUser._id),
       search: args.search,
     });
   },
 });
 
-// Re-export with the name the frontend expects
-export { listThreadsQuery as listThreads };
-
-/**
- * Get messages for a thread with streaming support.
- */
-export const getThreadMessagesStreamingQuery = query({
+export const getThreadMessagesStreaming = query({
   args: {
     threadId: v.string(),
     paginationOpts: v.object({
@@ -102,13 +86,10 @@ export const getThreadMessagesStreamingQuery = query({
       };
     }
 
-    return await getThreadMessagesStreaming(ctx, {
+    return await getThreadMessagesStreamingHelper(ctx, {
       threadId: args.threadId,
       paginationOpts: args.paginationOpts,
       streamArgs: args.streamArgs,
     });
   },
 });
-
-// Re-export with the name the frontend expects
-export { getThreadMessagesStreamingQuery as getThreadMessagesStreaming };

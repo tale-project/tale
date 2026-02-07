@@ -1,36 +1,9 @@
-/**
- * Threads Mutations
- *
- * Internal and public mutations for thread operations.
- */
-
 import { v } from 'convex/values';
-import { internalMutation, mutation } from '../_generated/server';
-import { getOrCreateSubThread } from './get_or_create_sub_thread';
+import { mutation } from '../_generated/server';
 import { createChatThread as createChatThreadHelper } from './create_chat_thread';
 import { deleteChatThread as deleteChatThreadHelper } from './delete_chat_thread';
 import { updateChatThread as updateChatThreadHelper } from './update_chat_thread';
 import { authComponent } from '../auth';
-
-export const getOrCreateSubThreadAtomic = internalMutation({
-  args: {
-    parentThreadId: v.string(),
-    subAgentType: v.string(),
-    userId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    return await getOrCreateSubThread(
-      ctx,
-      args.parentThreadId,
-      args.subAgentType as any,
-      args.userId,
-    );
-  },
-});
-
-// =============================================================================
-// PUBLIC MUTATIONS
-// =============================================================================
 
 export const createChatThread = mutation({
   args: {

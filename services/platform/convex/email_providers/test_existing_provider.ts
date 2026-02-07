@@ -1,8 +1,3 @@
-/**
- * Test connection for an existing email provider
- * Business logic for testing provider credentials and connection
- */
-
 import type { Doc } from '../_generated/dataModel';
 
 export interface TestExistingProviderArgs {
@@ -15,9 +10,6 @@ export interface TestResult {
   imap: { success: boolean; latencyMs: number; error?: string };
 }
 
-/**
- * Helper to determine if an error is a network error
- */
 export function isNetworkError(error?: string): boolean {
   if (!error) return false;
   const networkErrorPatterns = [
@@ -33,9 +25,6 @@ export function isNetworkError(error?: string): boolean {
   );
 }
 
-/**
- * Determine if provider should be marked as active based on test results
- */
 export function shouldProviderBeActive(
   result: TestResult,
   authMethod: string,
@@ -52,9 +41,6 @@ export function shouldProviderBeActive(
   );
 }
 
-/**
- * Generate warning messages from test results
- */
 export function generateWarnings(
   result: TestResult,
   authMethod: string,
@@ -117,11 +103,6 @@ export interface ProviderForTesting {
   metadata?: Record<string, unknown>;
 }
 
-/**
- * Validate provider has required configuration for testing
- * - IMAP is always required for receiving emails
- * - SMTP is only required if sendMethod is 'smtp' (not 'api')
- */
 export function validateProviderForTesting(provider: ProviderForTesting): void {
   if (!provider.imapConfig) {
     throw new Error('Provider missing IMAP configuration');
@@ -131,9 +112,6 @@ export function validateProviderForTesting(provider: ProviderForTesting): void {
   }
 }
 
-/**
- * Check if OAuth2 token needs refresh
- */
 export function needsTokenRefresh(
   tokenExpiry?: number,
   bufferSeconds: number = 300,
@@ -143,9 +121,6 @@ export function needsTokenRefresh(
   return currentTime >= tokenExpiry - bufferSeconds;
 }
 
-/**
- * Get OAuth2 user email from provider metadata
- */
 export function getOAuth2UserEmail(metadata?: Record<string, unknown>): string {
   const userEmail = metadata?.oauth2_user;
   if (!userEmail || typeof userEmail !== 'string') {

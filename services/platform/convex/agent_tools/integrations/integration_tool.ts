@@ -69,8 +69,8 @@ Write operations create approval cards. Use integration_batch for multiple paral
         // Delegate to the existing integration action logic via internal action wrapper
         // This reuses all validation, credential decryption, and execution logic
         const result = await ctx.runAction(
-          internal.agent_tools.integrations.execute_integration_internal
-            .executeIntegrationInternal,
+          internal.agent_tools.integrations.internal_actions
+            .executeIntegration,
           {
             organizationId,
             integrationName: args.integrationName,

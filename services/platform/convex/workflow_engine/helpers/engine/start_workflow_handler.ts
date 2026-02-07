@@ -1,17 +1,8 @@
-/**
- * Start workflow handler - business logic for starting workflows
- */
-
 import type { MutationCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
 import { snakeCase } from 'lodash';
 import type { WorkflowManager } from '@convex-dev/workflow';
 import { executeWorkflowStart } from './execute_workflow_start';
-import { Infer } from 'convex/values';
-import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
-
-type ConvexJsonValue = Infer<typeof jsonValueValidator>;
-
 import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
@@ -68,12 +59,12 @@ export async function handleStartWorkflow(
     rootWfDefinitionId,
     status: 'pending',
     currentStepSlug: '',
-    input: (args.input || {}) as ConvexJsonValue,
+    input: args.input || {},
     variables: '{}',
     startedAt: Date.now(),
     updatedAt: Date.now(),
     triggeredBy: args.triggeredBy,
-    triggerData: args.triggerData as ConvexJsonValue,
+    triggerData: args.triggerData,
     metadata: '{}',
     workflowSlug,
   });

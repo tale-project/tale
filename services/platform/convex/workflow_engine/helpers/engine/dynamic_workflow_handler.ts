@@ -72,7 +72,7 @@ export async function handleDynamicWorkflow(
   const executionId = args.executionId;
 
   if (stepDefinitions.length === 0) {
-    await step.runAction(internal.workflow_engine.engine.serializeAndCompleteExecution, {
+    await step.runAction(internal.workflow_engine.internal_actions.serializeAndCompleteExecution, {
       executionId,
     });
     return;
@@ -110,7 +110,7 @@ export async function handleDynamicWorkflow(
     const retryBehavior = buildRetryBehaviorFromPolicy(effectiveRetryPolicy);
 
     const stepResult = await step.runAction(
-      internal.workflow_engine.engine.executeStep,
+      internal.workflow_engine.internal_actions.executeStep,
       {
         organizationId: stepDef.organizationId,
         executionId: executionId,
@@ -161,7 +161,7 @@ export async function handleDynamicWorkflow(
       const errorMsg = `Next step '${nextStepSlug}' not found in workflow steps (from '${stepDef.stepSlug}'). Available steps: ${Array.from(stepMap.keys()).join(', ')}`;
 
       // Mark execution as failed before throwing
-      await step.runMutation(internal.wf_executions.mutations.failExecution, {
+      await step.runMutation(internal.wf_executions.internal_mutations.failExecution, {
         executionId,
         error: errorMsg,
       });
@@ -172,7 +172,7 @@ export async function handleDynamicWorkflow(
     currentStepSlug = nextStepSlug;
   }
 
-  await step.runAction(internal.workflow_engine.engine.serializeAndCompleteExecution, {
+  await step.runAction(internal.workflow_engine.internal_actions.serializeAndCompleteExecution, {
     executionId,
   });
 }

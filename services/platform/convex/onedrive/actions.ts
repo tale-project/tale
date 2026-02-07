@@ -1,19 +1,13 @@
 'use node';
 
-/**
- * OneDrive Public Actions
- * Thin wrappers that delegate to implementation files
- */
-
 import { v } from 'convex/values';
-import { action, internalAction } from '../_generated/server';
+import { action } from '../_generated/server';
 import { withMicrosoftToken } from './with_microsoft_token';
-import { importFiles as importFilesImpl, type ImportItem, type ImportFilesResult } from './import_files';
+import { importFiles as importFilesImpl, type ImportItem } from './import_files';
 import { listSharePointSites as listSharePointSitesImpl } from './list_sharepoint_sites';
 import { listSharePointDrives as listSharePointDrivesImpl } from './list_sharepoint_drives';
 import { listSharePointFiles as listSharePointFilesImpl } from './list_sharepoint_files';
 import { listFiles as listFilesImpl } from './list_files';
-import { downloadAndStoreFile as downloadAndStoreFileImpl } from './download_and_store_file';
 import { createImportFilesDeps } from './import_files_deps';
 import {
   oneDriveItemValidator,
@@ -42,24 +36,6 @@ export const listFiles = action({
   },
 });
 
-export const downloadAndStoreFile = internalAction({
-  args: {
-    itemId: v.string(),
-    token: v.string(),
-  },
-  returns: v.object({
-    success: v.boolean(),
-    storageId: v.optional(v.string()),
-    mimeType: v.optional(v.string()),
-    error: v.optional(v.string()),
-  }),
-  handler: async (ctx, args) => {
-    return await downloadAndStoreFileImpl(args, {
-      storeFile: async (blob) => ctx.storage.store(blob),
-    });
-  },
-});
-
 export const importFiles = action({
   args: {
     items: v.array(importItemValidator),
@@ -76,7 +52,7 @@ export const importFiles = action({
     skippedCount: v.number(),
     error: v.optional(v.string()),
   }),
-  handler: async (ctx, args): Promise<ImportFilesResult & { error?: string }> => {
+  handler: async (ctx, args) => {
     const tokenResult = await withMicrosoftToken(ctx);
     if (!tokenResult.success) {
       return {

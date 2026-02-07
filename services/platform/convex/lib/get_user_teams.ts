@@ -139,7 +139,7 @@ export async function getSearchableDatasetNames(
  * Internal query to get searchable dataset names for a user.
  * This is exposed as an internalQuery so it can be called from agent tools.
  */
-export const getSearchableDatasetsInternal = internalQuery({
+export const getSearchableDatasets = internalQuery({
   args: {
     userId: v.string(),
   },

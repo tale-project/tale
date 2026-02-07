@@ -32,7 +32,7 @@ export async function getDocumentInfo(
     throw new Error('recordId is required');
   }
 
-  const document = await ctx.runQuery?.(internal.documents.queries.getDocumentById, {
+  const document = await ctx.runQuery?.(internal.documents.internal_queries.getDocumentByIdRaw, {
     documentId: params.recordId as Id<'documents'>,
   });
 

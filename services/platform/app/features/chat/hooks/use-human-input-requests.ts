@@ -48,7 +48,7 @@ export function useHumanInputRequests(threadId: string | undefined) {
  */
 export function useSubmitHumanInputResponse() {
   const submitMutation = useMutation(
-    api.agent_tools.human_input.submit_human_input_response.submitHumanInputResponse,
+    api.agent_tools.human_input.mutations.submitHumanInputResponse,
   );
 
   return {

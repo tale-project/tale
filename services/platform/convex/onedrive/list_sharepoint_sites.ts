@@ -1,9 +1,3 @@
-/**
- * SharePoint Sites List
- *
- * Lists SharePoint sites the user has access to via Microsoft Graph API.
- */
-
 export interface SharePointSite {
   id: string;
   name: string;

@@ -23,7 +23,7 @@ export async function readWorkflowExamples(
 
   try {
     const allWorkflows = (await ctx.runQuery(
-      internal.wf_definitions.queries.listWorkflows,
+      internal.wf_definitions.internal_queries.listWorkflows,
       {
         organizationId,
       },
@@ -46,7 +46,7 @@ export async function readWorkflowExamples(
     const examples = await Promise.all(
       matchingWorkflows.slice(0, limit).map(async (wf) => {
         const steps = (await ctx.runQuery(
-          internal.wf_step_defs.queries.listWorkflowSteps,
+          internal.wf_step_defs.internal_queries.listWorkflowSteps,
           {
             wfDefinitionId: wf._id,
           },

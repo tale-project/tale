@@ -17,7 +17,7 @@ export async function executeStepByType(
 ): Promise<StepExecutionResult> {
   switch (stepDef.stepType) {
     case 'trigger':
-      return await ctx.runAction(internal.workflow_engine.nodes.executeTriggerNode, {
+      return await ctx.runAction(internal.workflow_engine.internal_actions.executeTriggerNode, {
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'trigger' as const,
@@ -29,7 +29,7 @@ export async function executeStepByType(
       });
 
     case 'llm':
-      return await ctx.runAction(internal.workflow_engine.nodes.executeLLMNode, {
+      return await ctx.runAction(internal.workflow_engine.internal_actions.executeLLMNode, {
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'llm' as const,
@@ -42,7 +42,7 @@ export async function executeStepByType(
       });
 
     case 'condition':
-      return await ctx.runAction(internal.workflow_engine.nodes.executeConditionNode, {
+      return await ctx.runAction(internal.workflow_engine.internal_actions.executeConditionNode, {
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'condition' as const,
@@ -53,7 +53,7 @@ export async function executeStepByType(
       });
 
     case 'action':
-      return await ctx.runAction(internal.workflow_engine.nodes.executeActionNode, {
+      return await ctx.runAction(internal.workflow_engine.internal_actions.executeActionNode, {
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'action' as const,
@@ -65,7 +65,7 @@ export async function executeStepByType(
       });
 
     case 'loop':
-      return await ctx.runAction(internal.workflow_engine.nodes.executeLoopNode, {
+      return await ctx.runAction(internal.workflow_engine.internal_actions.executeLoopNode, {
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'loop' as const,

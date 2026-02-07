@@ -53,7 +53,7 @@ function IntegrationApprovalCardComponent({
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const updateApprovalStatus = useMutation(api.approvals.mutations.updateApprovalStatusPublic);
+  const updateApprovalStatus = useMutation(api.approvals.mutations.updateApprovalStatus);
   const executeApprovedOperation = useAction(
     api.approvals.actions.executeApprovedIntegrationOperation
   );

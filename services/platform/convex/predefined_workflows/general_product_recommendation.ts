@@ -1,4 +1,6 @@
-const generalProductRecommendationWorkflow = {
+import type { PredefinedWorkflowDefinition } from '../workflows/definitions/types';
+
+const generalProductRecommendationWorkflow: PredefinedWorkflowDefinition = {
   workflowConfig: {
     name: 'General Product Recommendation',
     description:

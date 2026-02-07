@@ -1,9 +1,3 @@
-/**
- * List products by organization with cursor-based pagination
- *
- * Uses Convex's native .paginate() for optimal performance.
- */
-
 import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 import type { CursorPaginatedResult } from '../lib/pagination';

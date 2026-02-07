@@ -18,7 +18,7 @@ import {
   handleToolError,
   type ToolResponse,
 } from './helpers/tool_response';
-import { getDocumentAgentGenerateResponseRef } from '../../lib/function_refs';
+import { internal } from '../../_generated/api';
 
 const DOCUMENT_CONTEXT_MAPPING = {
   fileId: 'file_id',
@@ -95,7 +95,7 @@ EXAMPLES:
         );
 
         const result = await ctx.runAction(
-          getDocumentAgentGenerateResponseRef(),
+          internal.agents.document.internal_actions.generateResponse,
           {
             threadId: subThreadId,
             userId,

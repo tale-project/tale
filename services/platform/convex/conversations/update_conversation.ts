@@ -1,12 +1,10 @@
-/**
- * Update a conversation (business logic)
- */
-
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import type { ConversationStatus, ConversationPriority } from './types';
 import * as AuditLogHelpers from '../audit_logs/helpers';
-import { getAuthenticatedUser } from '../lib/rls/auth/get_authenticated_user';
+import { buildAuditContext } from '../lib/helpers/build_audit_context';
+
+const UPDATABLE_FIELDS = ['subject', 'status', 'priority', 'type'] as const;
 
 export async function updateConversation(
   ctx: MutationCtx,
@@ -25,19 +23,18 @@ export async function updateConversation(
   }
 
   const previousState: Record<string, unknown> = {};
-  if (args.subject !== undefined) previousState.subject = conversation.subject;
-  if (args.status !== undefined) previousState.status = conversation.status;
-  if (args.priority !== undefined) previousState.priority = conversation.priority;
-  if (args.type !== undefined) previousState.type = conversation.type;
-
-  // Build update object with only provided fields
   const updateData: Record<string, unknown> = {};
-  if (args.subject !== undefined) updateData.subject = args.subject;
-  if (args.status !== undefined) updateData.status = args.status;
-  if (args.priority !== undefined) updateData.priority = args.priority;
-  if (args.type !== undefined) updateData.type = args.type;
+  const newState: Record<string, unknown> = {};
+
+  for (const field of UPDATABLE_FIELDS) {
+    if (args[field] !== undefined) {
+      previousState[field] = conversation[field];
+      updateData[field] = args[field];
+      newState[field] = args[field];
+    }
+  }
+
   if (args.metadata !== undefined) {
-    // Merge metadata to preserve existing fields
     const existingMetadata =
       (conversation.metadata as Record<string, unknown>) || {};
     updateData.metadata = {
@@ -48,21 +45,9 @@ export async function updateConversation(
 
   await ctx.db.patch(args.conversationId, updateData);
 
-  const newState: Record<string, unknown> = {};
-  if (args.subject !== undefined) newState.subject = args.subject;
-  if (args.status !== undefined) newState.status = args.status;
-  if (args.priority !== undefined) newState.priority = args.priority;
-  if (args.type !== undefined) newState.type = args.type;
-
-  const authUser = await getAuthenticatedUser(ctx);
   await AuditLogHelpers.logSuccess(
     ctx,
-    {
-      organizationId: conversation.organizationId,
-      actor: authUser
-        ? { id: authUser.userId, email: authUser.email, type: 'user' as const }
-        : { id: 'system', type: 'system' as const },
-    },
+    await buildAuditContext(ctx, conversation.organizationId),
     'update_conversation',
     'data',
     'conversation',

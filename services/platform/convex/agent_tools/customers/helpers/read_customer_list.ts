@@ -18,7 +18,7 @@ export async function readCustomerList(
   const cursor = args.cursor ?? null;
 
   const result = await ctx.runQuery(
-    internal.customers.internal_queries.query_customers.queryCustomersInternal,
+    internal.customers.internal_queries.queryCustomers,
     {
       organizationId,
       paginationOpts: {

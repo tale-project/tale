@@ -1,31 +1,25 @@
-/**
- * Bulk reopen conversations (business logic)
- */
-
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import type { BulkOperationResult } from './types';
 import * as AuditLogHelpers from '../audit_logs/helpers';
-import { getAuthenticatedUser } from '../lib/rls/auth/get_authenticated_user';
+import { buildAuditContext } from '../lib/helpers/build_audit_context';
 
 export async function bulkReopenConversations(
   ctx: MutationCtx,
-  conversationIds: Array<Id<'conversations'>>,
+  args: { conversationIds: Array<Id<'conversations'>> },
 ): Promise<BulkOperationResult> {
-  // Batch fetch all conversations in parallel
   const conversations = await Promise.all(
-    conversationIds.map((id) => ctx.db.get(id)),
+    args.conversationIds.map((id) => ctx.db.get(id)),
   );
 
-  // Build patches for valid conversations
   const patches: Array<{
     id: Id<'conversations'>;
     patch: Record<string, unknown>;
   }> = [];
   const errors: string[] = [];
 
-  for (let i = 0; i < conversationIds.length; i++) {
-    const conversationId = conversationIds[i];
+  for (let i = 0; i < args.conversationIds.length; i++) {
+    const conversationId = args.conversationIds[i];
     const conversation = conversations[i];
 
     if (!conversation) {
@@ -33,8 +27,9 @@ export async function bulkReopenConversations(
       continue;
     }
 
-    const metadata = (conversation.metadata as Record<string, unknown>) || {};
-    const { _resolved_at, _resolved_by, ...restMetadata } = metadata;
+    const metadata =
+      (conversation.metadata as Record<string, unknown>) || {};
+    const { resolved_at: _, resolved_by: __, ...restMetadata } = metadata;
 
     patches.push({
       id: conversationId,
@@ -45,35 +40,29 @@ export async function bulkReopenConversations(
     });
   }
 
-  // Apply all patches in parallel
   const results = await Promise.allSettled(
     patches.map(({ id, patch }) => ctx.db.patch(id, patch)),
   );
 
-  // Count successes and failures from patch results
   let successCount = 0;
   for (let i = 0; i < results.length; i++) {
-    const result = results[i];
-    if (result.status === 'fulfilled') {
+    if (results[i].status === 'fulfilled') {
       successCount++;
     } else {
+      const reason = (results[i] as PromiseRejectedResult).reason;
       errors.push(
-        `Failed to reopen ${patches[i].id}: ${result.reason instanceof Error ? result.reason.message : 'Unknown error'}`,
+        `Failed to reopen ${patches[i].id}: ${reason instanceof Error ? reason.message : 'Unknown error'}`,
       );
     }
   }
 
+  const failedCount = args.conversationIds.length - successCount;
+
   const firstValidConversation = conversations.find((c) => c !== null);
   if (firstValidConversation) {
-    const authUser = await getAuthenticatedUser(ctx);
     await AuditLogHelpers.logSuccess(
       ctx,
-      {
-        organizationId: firstValidConversation.organizationId,
-        actor: authUser
-          ? { id: authUser.userId, email: authUser.email, type: 'user' as const }
-          : { id: 'system', type: 'system' as const },
-      },
+      await buildAuditContext(ctx, firstValidConversation.organizationId),
       'bulk_reopen_conversations',
       'data',
       'conversation',
@@ -82,17 +71,13 @@ export async function bulkReopenConversations(
       undefined,
       undefined,
       {
-        conversationIds: conversationIds.map(String),
-        count: conversationIds.length,
+        conversationIds: args.conversationIds.map(String),
+        count: args.conversationIds.length,
         successCount,
-        failedCount: conversationIds.length - successCount,
+        failedCount,
       },
     );
   }
 
-  return {
-    successCount,
-    failedCount: conversationIds.length - successCount,
-    errors,
-  };
+  return { successCount, failedCount, errors };
 }

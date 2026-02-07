@@ -1,92 +1,40 @@
 /**
  * Documents Queries
- *
- * Internal and public queries for document operations.
  */
 
 import { v } from 'convex/values';
-import { internalQuery, query } from '../_generated/server';
+import { query } from '../_generated/server';
 import * as DocumentsHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import { documentItemValidator, sourceProviderValidator } from './validators';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
-/**
- * Get a document by ID (internal query)
- */
-export const getDocumentById = internalQuery({
-  args: {
-    documentId: v.id('documents'),
-  },
-  handler: async (ctx, args) => {
-    return await DocumentsHelpers.getDocumentById(ctx, args.documentId);
-  },
-});
-
-/**
- * List documents by extension (internal query)
- */
-export const listDocumentsByExtension = internalQuery({
-  args: {
-    organizationId: v.string(),
-    extension: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    return await DocumentsHelpers.listDocumentsByExtension(ctx, args);
-  },
-});
-
-/**
- * Query documents with pagination (internal query)
- */
-export const queryDocuments = internalQuery({
-  args: {
-    organizationId: v.string(),
-    sourceProvider: v.optional(sourceProviderValidator),
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
-  },
-  handler: async (ctx, args) => {
-    return await DocumentsHelpers.queryDocuments(ctx, args);
-  },
-});
-
-/**
- * Find document by external ID (internal query)
- */
-export const findDocumentByExternalId = internalQuery({
-  args: {
-    organizationId: v.string(),
-    externalItemId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await DocumentsHelpers.findDocumentByExternalId(ctx, args);
-  },
-});
-
-// =============================================================================
-// PUBLIC QUERIES (for frontend via api.documents.queries.*)
-// =============================================================================
-
-/**
- * Get a document by ID (public query).
- */
-export const getDocumentByIdPublic = query({
+export const getDocumentById = query({
   args: {
     documentId: v.id('documents'),
   },
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      return { success: false, error: 'Unauthorized' };
+      return { success: false, error: 'Unauthenticated' };
     }
 
-    return await DocumentsHelpers.getDocumentByIdPublic(ctx, args.documentId);
+    const document = await ctx.db.get(args.documentId);
+    if (!document) {
+      return { success: false, error: 'Document not found' };
+    }
+
+    try {
+      await getOrganizationMember(ctx, document.organizationId, {
+        userId: String(authUser._id),
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch {
+      return { success: false, error: 'Access denied' };
+    }
+
+    return await DocumentsHelpers.getDocumentByIdTransformed(ctx, args.documentId);
   },
 });
 
@@ -101,10 +49,9 @@ export const getDocumentByPath = query({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      return { success: false, error: 'Unauthorized' };
+      return { success: false, error: 'Unauthenticated' };
     }
 
-    // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
         userId: String(authUser._id),
@@ -122,7 +69,7 @@ export const getDocumentByPath = query({
 /**
  * Get documents with cursor-based pagination (public query).
  */
-export const getDocumentsCursor = query({
+export const listDocuments = query({
   args: {
     organizationId: v.string(),
     numItems: v.optional(v.number()),
@@ -136,7 +83,6 @@ export const getDocumentsCursor = query({
       return { page: [], isDone: true, continueCursor: '' };
     }
 
-    // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
         userId: String(authUser._id),

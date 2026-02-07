@@ -20,7 +20,7 @@ import {
   handleToolError,
   type ToolResponseWithApproval,
 } from './helpers/tool_response';
-import { getWorkflowAgentGenerateResponseRef } from '../../lib/function_refs';
+import { internal } from '../../_generated/api';
 
 const WORKFLOW_CONTEXT_MAPPING = {
   workflowId: 'target_workflow_id',
@@ -95,7 +95,7 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
         );
 
         const result = await ctx.runAction(
-          getWorkflowAgentGenerateResponseRef(),
+          internal.agents.workflow.internal_actions.generateResponse,
           {
             threadId: subThreadId,
             userId,

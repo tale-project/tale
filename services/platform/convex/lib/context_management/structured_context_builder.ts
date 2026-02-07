@@ -120,7 +120,7 @@ export async function buildStructuredContext(
 
   // 2. Query related approvals for this thread
   const approvals = await ctx.runQuery(
-    internal.approvals.queries.getApprovalsForThreadInternal,
+    internal.approvals.internal_queries.getApprovalsForThread,
     { threadId },
   );
 

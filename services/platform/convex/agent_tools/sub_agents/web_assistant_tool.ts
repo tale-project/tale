@@ -18,7 +18,7 @@ import {
   handleToolError,
   type ToolResponse,
 } from './helpers/tool_response';
-import { getWebAgentGenerateResponseRef } from '../../lib/function_refs';
+import { internal } from '../../_generated/api';
 
 const WEB_CONTEXT_MAPPING = {
   url: 'url',
@@ -84,7 +84,7 @@ RIGHT: { userRequest: "What is the shipping policy on https://example.com" } ←
         );
 
         const result = await ctx.runAction(
-          getWebAgentGenerateResponseRef(),
+          internal.agents.web.internal_actions.generateResponse,
           {
             threadId: subThreadId,
             userId,

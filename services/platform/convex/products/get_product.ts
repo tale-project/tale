@@ -1,10 +1,6 @@
-/**
- * Get a single product by ID (public API)
- */
-
-import { QueryCtx } from '../_generated/server';
-import { Id } from '../_generated/dataModel';
-import { ProductItem } from './types';
+import type { QueryCtx } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import type { ProductItem } from './types';
 
 export async function getProduct(
   ctx: QueryCtx,

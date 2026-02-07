@@ -47,7 +47,7 @@ export function useExecutionsTableConfig() {
     columns,
     searchPlaceholder: tCommon('search.placeholder'),
     stickyLayout: true as const,
-    pageSize: 10,
+    pageSize: 30,
     defaultSort: 'startedAt' as const,
     defaultSortDesc: true,
     infiniteScroll: true as const,

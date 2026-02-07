@@ -4,7 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { Id, Doc } from '../_generated/dataModel';
-import { api } from '../_generated/api';
+import { internal } from '../_generated/api';
 
 /**
  * Trigger a manual rescan of a website
@@ -51,12 +51,8 @@ export async function rescanWebsite(
     throw new Error('Attached workflowId missing from website metadata');
   }
 
-  if (!workflowId) {
-    throw new Error('Attached workflow not found for this website');
-  }
-
   // Start the workflow immediately using the engine executor directly
-  await ctx.runMutation(api.workflow_engine.engine.startWorkflow, {
+  await ctx.runMutation(internal.workflow_engine.internal_mutations.startWorkflow, {
     organizationId: website.organizationId,
     wfDefinitionId: workflowId,
     input: { websiteId: website._id, domain: normalizedDomain },

@@ -2,22 +2,7 @@ import { GenericQueryCtx } from 'convex/server';
 import { DataModel, Id } from '../_generated/dataModel';
 import { authComponent } from '../auth';
 import { components } from '../_generated/api';
-import type { PlatformRole, RoleMappingRule } from './types';
-
-type EntraIdFeatures = {
-	enableOneDriveAccess?: boolean;
-	autoProvisionTeam?: boolean;
-	excludeGroups?: string[];
-};
-
-type GoogleWorkspaceFeatures = {
-	enableGoogleDriveAccess?: boolean;
-};
-
-type ProviderFeatures = {
-	entraId?: EntraIdFeatures;
-	googleWorkspace?: GoogleWorkspaceFeatures;
-};
+import type { PlatformRole, ProviderFeatures, RoleMappingRule } from '@/lib/shared/schemas/sso_providers';
 
 type GetResult = {
 	_id: Id<'ssoProviders'>;
@@ -60,7 +45,7 @@ export async function get(ctx: GenericQueryCtx<DataModel>): Promise<GetResult> {
 				where: [{ field: 'userId', value: String(authUser._id), operator: 'eq' }],
 			},
 		);
-		organizationId = (memberResult?.page?.[0]?.organizationId as string) || null;
+		organizationId = memberResult?.page?.[0]?.organizationId ? String(memberResult.page[0].organizationId) : null;
 	}
 
 	if (!organizationId) {

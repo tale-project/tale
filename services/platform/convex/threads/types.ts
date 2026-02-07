@@ -1,9 +1,3 @@
-/**
- * Type definitions for threads domain
- *
- * Threads use the Agent Component for storage.
- */
-
 import type { Infer } from 'convex/values';
 import type { PaginationOptions } from 'convex/server';
 import type { syncStreams, UIMessage, StreamArgs } from '@convex-dev/agent';
@@ -14,18 +8,10 @@ import {
   toolStatusValidator,
 } from './validators';
 
-// =============================================================================
-// INFERRED TYPES (from validators)
-// =============================================================================
-
 export type ChatType = Infer<typeof chatTypeValidator>;
 export type MessageRole = Infer<typeof messageRoleValidator>;
 export type ThreadStatus = Infer<typeof threadStatusValidator>;
 export type ToolStatus = Infer<typeof toolStatusValidator>;
-
-// =============================================================================
-// INTERFACE TYPES
-// =============================================================================
 
 export interface Thread {
   _id: string;

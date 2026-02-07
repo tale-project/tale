@@ -1,4 +1,3 @@
-import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 
 interface UpdateOAuth2ProviderArgs {
@@ -36,7 +35,6 @@ interface UpdateOAuth2ProviderDependencies {
 }
 
 export async function updateOAuth2ProviderLogic(
-  _ctx: ActionCtx,
   args: UpdateOAuth2ProviderArgs,
   deps: UpdateOAuth2ProviderDependencies,
 ): Promise<null> {

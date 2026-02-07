@@ -44,7 +44,7 @@ function HumanInputRequestCardComponent({
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
 
   const submitResponse = useMutation(
-    api.agent_tools.human_input.submit_human_input_response.submitHumanInputResponse,
+    api.agent_tools.human_input.mutations.submitHumanInputResponse,
   );
 
   const isPending = status === 'pending';

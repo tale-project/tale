@@ -2,22 +2,7 @@ import { GenericActionCtx } from 'convex/server';
 import { DataModel } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
 import { validateSsoConfig } from './validate_sso_config';
-import type { PlatformRole, RoleMappingRule } from './types';
-
-type EntraIdFeatures = {
-	enableOneDriveAccess?: boolean;
-	autoProvisionTeam?: boolean;
-	excludeGroups?: string[];
-};
-
-type GoogleWorkspaceFeatures = {
-	enableGoogleDriveAccess?: boolean;
-};
-
-type ProviderFeatures = {
-	entraId?: EntraIdFeatures;
-	googleWorkspace?: GoogleWorkspaceFeatures;
-};
+import type { PlatformRole, ProviderFeatures, RoleMappingRule } from '@/lib/shared/schemas/sso_providers';
 
 type UpsertSsoProviderArgs = {
 	organizationId: string;
@@ -33,7 +18,7 @@ type UpsertSsoProviderArgs = {
 };
 
 export async function upsertSsoProvider(ctx: GenericActionCtx<DataModel>, args: UpsertSsoProviderArgs): Promise<string> {
-	const authUser: { _id: string; email: string; name: string } | null = await ctx.runQuery(
+	const authUser = await ctx.runQuery(
 		internal.sso_providers.internal_queries.getAuthUser,
 		{},
 	);
@@ -41,7 +26,7 @@ export async function upsertSsoProvider(ctx: GenericActionCtx<DataModel>, args: 
 		throw new Error('Unauthenticated');
 	}
 
-	const callerRole: string | null = await ctx.runQuery(internal.sso_providers.internal_queries.getCallerRole, {
+	const callerRole = await ctx.runQuery(internal.sso_providers.internal_queries.getCallerRole, {
 		organizationId: args.organizationId,
 		userId: authUser._id,
 	});
@@ -68,11 +53,11 @@ export async function upsertSsoProvider(ctx: GenericActionCtx<DataModel>, args: 
 			throw new Error(validation.error || 'Invalid SSO configuration');
 		}
 
-		clientIdEncrypted = await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, {
+		clientIdEncrypted = await ctx.runAction(internal.lib.crypto.internal_actions.encryptString, {
 			plaintext: args.clientId,
 		});
 
-		clientSecretEncrypted = await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, {
+		clientSecretEncrypted = await ctx.runAction(internal.lib.crypto.internal_actions.encryptString, {
 			plaintext: args.clientSecret,
 		});
 	} else if (existingProvider) {
@@ -82,7 +67,7 @@ export async function upsertSsoProvider(ctx: GenericActionCtx<DataModel>, args: 
 		throw new Error('Client secret is required for new SSO configuration');
 	}
 
-	const providerId: string = await ctx.runMutation(internal.sso_providers.internal_mutations.upsertProvider, {
+	const providerId = await ctx.runMutation(internal.sso_providers.internal_mutations.upsertProvider, {
 		organizationId: args.organizationId,
 		providerId: args.providerId,
 		issuer: args.issuer,

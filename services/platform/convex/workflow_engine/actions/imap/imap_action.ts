@@ -61,7 +61,7 @@ export const imapAction: ActionDefinition<ImapActionParams> = {
         : undefined;
 
     const messages = await _ctx.runAction!(
-      internal.node_only.imap.retrieve_imap_emails.retrieveImapEmails,
+      internal.node_only.imap.internal_actions.retrieveImapEmails,
       {
         credentials,
         mailbox,

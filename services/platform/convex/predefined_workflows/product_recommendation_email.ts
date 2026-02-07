@@ -37,7 +37,9 @@
  * - Can be scheduled or triggered manually
  */
 
-const productRecommendationEmailWorkflow = {
+import type { PredefinedWorkflowDefinition } from '../workflows/definitions/types';
+
+const productRecommendationEmailWorkflow: PredefinedWorkflowDefinition = {
   workflowConfig: {
     name: 'Product Recommendation Email',
     description:

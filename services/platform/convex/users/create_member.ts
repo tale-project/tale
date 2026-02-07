@@ -38,7 +38,7 @@ export async function createMember(
   // Verify the current user is authenticated and is an admin
   const authUser = await authComponent.getAuthUser(ctx);
   if (!authUser) {
-    throw new Error('Not authenticated');
+    throw new Error('Unauthenticated');
   }
 
   // Check if the current user is an admin/owner of the organization (Better Auth)

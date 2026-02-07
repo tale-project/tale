@@ -10,7 +10,9 @@
  * 4. If no, finish (nothing to do)
  */
 
-const documentRagSyncWorkflow = {
+import type { PredefinedWorkflowDefinition } from '../workflows/definitions/types';
+
+const documentRagSyncWorkflow: PredefinedWorkflowDefinition = {
   workflowConfig: {
     name: 'Document RAG Sync',
     description: 'Find one unprocessed document and upload it to RAG service',

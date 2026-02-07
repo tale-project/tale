@@ -1,9 +1,5 @@
-/**
- * Upsert a product translation (create or update) (public API)
- */
-
-import { MutationCtx } from '../_generated/server';
-import { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
 
 export interface UpsertProductTranslationArgs {
   productId: Id<'products'>;
@@ -25,11 +21,10 @@ export async function upsertProductTranslation(
   }
 
   const now = Date.now();
-  const translations = product.translations || [];
+  const translations = [...(product.translations || [])];
 
-  // Find existing translation for this language
   const existingIndex = translations.findIndex(
-    (t: { language: string }) => t.language === args.language,
+    (t) => t.language === args.language,
   );
 
   const newTranslation = {
@@ -38,24 +33,21 @@ export async function upsertProductTranslation(
     description: args.description,
     category: args.category,
     tags: args.tags,
-    metadata: args.metadata as any,
+    metadata: args.metadata,
     lastUpdated: now,
     createdAt: existingIndex >= 0 ? translations[existingIndex].createdAt : now,
   };
 
   if (existingIndex >= 0) {
-    // Update existing translation
-    translations[existingIndex] = newTranslation as any;
+    translations[existingIndex] = newTranslation;
   } else {
-    // Add new translation
-    translations.push(newTranslation as any);
+    translations.push(newTranslation);
   }
 
   await ctx.db.patch(args.productId, {
-    translations,
+    translations: translations as typeof product.translations,
     lastUpdated: now,
   });
 
   return args.productId;
 }
-

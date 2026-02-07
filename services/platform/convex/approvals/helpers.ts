@@ -1,15 +1,8 @@
-/**
- * Approvals Helpers - Business Logic
- *
- * Consolidated business logic functions for approvals domain.
- */
-
 import type { QueryCtx, MutationCtx } from '../_generated/server';
 import type { Id, Doc } from '../_generated/dataModel';
 import { components } from '../_generated/api';
 import type {
   ApprovalItem,
-  ApprovalResourceType,
   CreateApprovalArgs,
   UpdateApprovalStatusArgs,
   GetApprovalHistoryArgs,
@@ -20,10 +13,6 @@ import type {
 } from './types';
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
-
-// =============================================================================
-// QUERY HELPERS
-// =============================================================================
 
 export async function getApproval(
   ctx: QueryCtx,
@@ -256,10 +245,6 @@ export async function listApprovalsByOrganization(
   result.sort((a, b) => b._creationTime - a._creationTime);
   return result;
 }
-
-// =============================================================================
-// MUTATION HELPERS
-// =============================================================================
 
 export async function createApproval(
   ctx: MutationCtx,

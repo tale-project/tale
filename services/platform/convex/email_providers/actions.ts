@@ -2,8 +2,10 @@
 
 import { v } from 'convex/values';
 import { action } from '../_generated/server';
-import { internal, api } from '../_generated/api';
+import { internal } from '../_generated/api';
 import { authComponent } from '../auth';
+import { encryptString } from '../lib/crypto/encrypt_string';
+import { decryptString } from '../lib/crypto/decrypt_string';
 import { createProviderLogic } from './create_provider_logic';
 import { createOAuth2ProviderLogic } from './create_oauth2_provider_logic';
 import { updateOAuth2ProviderLogic } from './update_oauth2_provider_logic';
@@ -19,9 +21,9 @@ import {
   passwordAuthValidator,
 } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-import type { Id, Doc } from '../_generated/dataModel';
-import type { TestResult } from './test_existing_provider';
+import type { Id } from '../_generated/dataModel';
 import type { EmailProviderVendor } from '../../lib/shared/schemas/email_providers';
+import type { TestResult } from './test_existing_provider';
 
 export const create = action({
   args: {
@@ -47,30 +49,15 @@ export const create = action({
   handler: async (ctx, args): Promise<Id<'emailProviders'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     return await createProviderLogic(ctx, args, {
-      encryptString: async (plaintext: string): Promise<string> => {
-        return await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, { plaintext });
-      },
+      encryptString,
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
           internal.email_providers.internal_mutations.createProvider,
-          {
-            organizationId: params.organizationId,
-            name: params.name,
-            vendor: params.vendor as 'gmail' | 'outlook' | 'smtp' | 'resend' | 'other',
-            authMethod: params.authMethod as 'password' | 'oauth2',
-            sendMethod: params.sendMethod,
-            passwordAuth: params.passwordAuth,
-            oauth2Auth: params.oauth2Auth,
-            smtpConfig: params.smtpConfig,
-            imapConfig: params.imapConfig,
-            isDefault: params.isDefault,
-             
-            metadata: params.metadata as any,
-          },
+          params,
         );
       },
     });
@@ -102,29 +89,15 @@ export const createOAuth2Provider = action({
   handler: async (ctx, args): Promise<Id<'emailProviders'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     return await createOAuth2ProviderLogic(ctx, args, {
-      encryptString: async (plaintext: string): Promise<string> => {
-        return await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, { plaintext });
-      },
+      encryptString,
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
           internal.email_providers.internal_mutations.createProvider,
-          {
-            organizationId: params.organizationId,
-            name: params.name,
-            vendor: params.vendor as 'gmail' | 'outlook' | 'smtp' | 'resend' | 'other',
-            authMethod: params.authMethod as 'password' | 'oauth2',
-            sendMethod: params.sendMethod,
-            oauth2Auth: params.oauth2Auth,
-            smtpConfig: params.smtpConfig,
-            imapConfig: params.imapConfig,
-            isDefault: params.isDefault,
-             
-            metadata: params.metadata as any,
-          },
+          params,
         );
       },
     });
@@ -137,16 +110,16 @@ export const generateOAuth2AuthUrl = action({
     organizationId: v.string(),
     redirectUri: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<{ authUrl: string }> => {
+  handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     const authUrl = await generateOAuth2AuthUrlLogic(ctx, args, {
-      getProvider: async (providerId: Id<'emailProviders'>): Promise<Doc<'emailProviders'> | null> => {
+      getProvider: async (providerId) => {
         return await ctx.runQuery(
-          internal.email_providers.internal_queries.getProviderById,
+          internal.email_providers.internal_queries.get,
           { providerId },
         );
       },
@@ -170,16 +143,14 @@ export const storeOAuth2Tokens = action({
     expiresIn: v.optional(v.number()),
     scope: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<null> => {
+  handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
-    return await storeOAuth2TokensLogic(ctx, args, {
-      encryptString: async (plaintext: string): Promise<string> => {
-        return await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, { plaintext });
-      },
+    return await storeOAuth2TokensLogic(args, {
+      encryptString,
       updateTokens: async (params) => {
         await ctx.runMutation(
           internal.email_providers.internal_mutations.updateOAuth2Tokens,
@@ -212,7 +183,7 @@ export const testConnection = action({
   handler: async (ctx, args): Promise<TestResult> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     return await ctx.runAction(
@@ -230,7 +201,7 @@ export const testExistingProvider = action({
     return await testExistingProviderLogic(ctx, args.providerId, {
       getProvider: async (providerId) => {
         return await ctx.runQuery(
-          internal.email_providers.internal_queries.getProviderById,
+          internal.email_providers.internal_queries.get,
           { providerId },
         );
       },
@@ -249,15 +220,13 @@ export const testExistingProvider = action({
           },
         );
       },
-      decryptString: async (encrypted) => {
-        return await ctx.runAction(internal.lib.crypto.actions.decryptStringInternal, { jwe: encrypted });
-      },
+      decryptString,
       refreshToken: async (params) => {
-        return await ctx.runAction(api.oauth2.refreshToken, params);
+        return await ctx.runAction(internal.oauth2.refreshToken, params);
       },
       storeTokens: async (params) => {
         return await ctx.runAction(
-          api.email_providers.actions.storeOAuth2Tokens,
+          internal.email_providers.internal_actions.storeOAuth2Tokens,
           params,
         );
       },
@@ -284,16 +253,14 @@ export const updateOAuth2Provider = action({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
-    return await updateOAuth2ProviderLogic(ctx, args, {
-      encryptString: async (plaintext: string): Promise<string> => {
-        return await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, { plaintext });
-      },
-      getProvider: async (providerId: Id<'emailProviders'>): Promise<Doc<'emailProviders'> | null> => {
+    return await updateOAuth2ProviderLogic(args, {
+      encryptString,
+      getProvider: async (providerId) => {
         return await ctx.runQuery(
-          internal.email_providers.internal_queries.getProviderById,
+          internal.email_providers.internal_queries.get,
           { providerId },
         );
       },

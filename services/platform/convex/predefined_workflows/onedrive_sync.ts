@@ -15,7 +15,9 @@
  * 7. Record as processed
  */
 
-const onedriveSyncWorkflow = {
+import type { PredefinedWorkflowDefinition } from '../workflows/definitions/types';
+
+const onedriveSyncWorkflow: PredefinedWorkflowDefinition = {
   workflowConfig: {
     name: 'OneDrive Sync',
     description:

@@ -12,10 +12,8 @@ import {
   OAuth2Auth,
   ConnectionConfig,
   Capabilities,
-  ApiKeyAuthEncrypted,
-  BasicAuthEncrypted,
-  OAuth2AuthEncrypted,
 } from './types';
+import { encryptCredentials } from './encrypt_credentials';
 import { testShopifyConnection } from './test_shopify_connection';
 import { testCirculyConnection } from './test_circuly_connection';
 
@@ -35,71 +33,6 @@ export interface UpdateIntegrationLogicArgs {
   capabilities?: Capabilities;
   errorMessage?: string;
   metadata?: ConvexJsonRecord;
-}
-
-/**
- * Encrypt credentials helper
- */
-async function encryptCredentials(
-  ctx: ActionCtx,
-  args: UpdateIntegrationLogicArgs,
-): Promise<{
-  apiKeyAuth?: ApiKeyAuthEncrypted;
-  basicAuth?: BasicAuthEncrypted;
-  oauth2Auth?: OAuth2AuthEncrypted;
-}> {
-  let apiKeyAuth = undefined;
-  let basicAuth = undefined;
-  let oauth2Auth = undefined;
-
-  if (args.apiKeyAuth) {
-    const keyEncrypted = await ctx.runAction(
-      internal.lib.crypto.actions.encryptStringInternal,
-      {
-        plaintext: args.apiKeyAuth.key,
-      },
-    );
-    apiKeyAuth = {
-      keyEncrypted,
-      keyPrefix: args.apiKeyAuth.keyPrefix,
-    };
-  }
-
-  if (args.basicAuth) {
-    const passwordEncrypted = await ctx.runAction(
-      internal.lib.crypto.actions.encryptStringInternal,
-      {
-        plaintext: args.basicAuth.password,
-      },
-    );
-    basicAuth = {
-      username: args.basicAuth.username,
-      passwordEncrypted,
-    };
-  }
-
-  if (args.oauth2Auth) {
-    const accessTokenEncrypted = await ctx.runAction(
-      internal.lib.crypto.actions.encryptStringInternal,
-      {
-        plaintext: args.oauth2Auth.accessToken,
-      },
-    );
-    const refreshTokenEncrypted = args.oauth2Auth.refreshToken
-      ? await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, {
-          plaintext: args.oauth2Auth.refreshToken,
-        })
-      : undefined;
-
-    oauth2Auth = {
-      accessTokenEncrypted,
-      refreshTokenEncrypted,
-      tokenExpiry: args.oauth2Auth.tokenExpiry,
-      scopes: args.oauth2Auth.scopes,
-    };
-  }
-
-  return { apiKeyAuth, basicAuth, oauth2Auth };
 }
 
 /**
@@ -161,7 +94,7 @@ export async function updateIntegrationLogic(
   args: UpdateIntegrationLogicArgs,
 ): Promise<void> {
   // Get integration (with RLS check)
-  const integration = await ctx.runQuery(api.integrations.queries.get.get, {
+  const integration = await ctx.runQuery(api.integrations.queries.get, {
     integrationId: args.integrationId,
   });
 
@@ -170,16 +103,13 @@ export async function updateIntegrationLogic(
   }
 
   // Encrypt credentials
-  const { apiKeyAuth, basicAuth, oauth2Auth } = await encryptCredentials(
-    ctx,
-    args,
-  );
+  const { apiKeyAuth, basicAuth, oauth2Auth } = await encryptCredentials(args);
 
   // Run health check if credentials changed
   await runHealthCheckIfNeeded(integration, args);
 
   // Update integration
-  await ctx.runMutation(internal.integrations.internal_mutations.update_integration_internal.updateIntegrationInternal, {
+  await ctx.runMutation(internal.integrations.internal_mutations.updateIntegration, {
     integrationId: args.integrationId,
     status: args.status,
     isActive: args.isActive,

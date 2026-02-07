@@ -23,7 +23,7 @@ export async function readCustomerById(
   const customerId = args.customerId as Id<'customers'>;
 
   const customer = await ctx.runQuery(
-    internal.customers.internal_queries.get_by_id.getCustomerById_internal,
+    internal.customers.internal_queries.getCustomerById,
     { customerId },
   );
 

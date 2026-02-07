@@ -34,14 +34,18 @@ export async function paginateWithFilter<T extends GenericDocument>(
     numItems: number;
     cursor: string | null;
     filter?: (item: T) => boolean;
+    maxScanItems?: number;
   },
 ): Promise<CursorPaginatedResult<T>> {
-  const { numItems, cursor, filter } = options;
+  const { numItems, cursor, filter, maxScanItems = 500 } = options;
   const items: T[] = [];
   let foundCursor = cursor === null;
   let hasMore = false;
+  let scanned = 0;
 
   for await (const item of query) {
+    scanned++;
+
     // Skip until we find the cursor position
     if (!foundCursor) {
       if (item._id === cursor) {
@@ -52,6 +56,9 @@ export async function paginateWithFilter<T extends GenericDocument>(
 
     // Apply filter if provided
     if (filter && !filter(item)) {
+      if (scanned >= maxScanItems) {
+        break;
+      }
       continue;
     }
 
@@ -61,6 +68,10 @@ export async function paginateWithFilter<T extends GenericDocument>(
     if (items.length > numItems) {
       hasMore = true;
       items.pop(); // Remove the extra item
+      break;
+    }
+
+    if (scanned >= maxScanItems) {
       break;
     }
   }

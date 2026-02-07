@@ -25,7 +25,7 @@ export async function readCustomerByEmail(
   });
 
   const customer = await ctx.runQuery(
-    internal.customers.internal_queries.get_by_email.getCustomerByEmailInternal,
+    internal.customers.internal_queries.getCustomerByEmail,
     {
       organizationId,
       email: args.email,

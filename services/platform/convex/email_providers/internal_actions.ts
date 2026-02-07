@@ -1,14 +1,10 @@
 'use node';
 
-/**
- * Email Providers Internal Actions
- */
-
 import { v } from 'convex/values';
 import { internalAction } from '../_generated/server';
 import { internal } from '../_generated/api';
-import { sendMessageViaAPI } from './send_message_via_api';
-import { sendMessageViaSMTP } from './send_message_via_smtp';
+import { sendMessageViaAPI as sendMessageViaAPIHandler } from './send_message_via_api';
+import { sendMessageViaSMTP as sendMessageViaSMTPHandler } from './send_message_via_smtp';
 import { testNewProviderConnectionLogic } from './test_new_provider_connection_logic';
 import { storeOAuth2TokensLogic } from './store_oauth2_tokens_logic';
 import { encryptString } from '../lib/crypto/encrypt_string';
@@ -66,7 +62,7 @@ async function verifyImapConnection(params: VerifyImapConnectionParams): Promise
   await client.logout();
 }
 
-export const sendMessageViaAPIInternal = internalAction({
+export const sendMessageViaAPI = internalAction({
   args: {
     messageId: v.id('conversationMessages'),
     organizationId: v.string(),
@@ -85,11 +81,11 @@ export const sendMessageViaAPIInternal = internalAction({
     retryCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    return await sendMessageViaAPI(ctx, args);
+    return await sendMessageViaAPIHandler(ctx, args);
   },
 });
 
-export const sendMessageViaSMTPInternal = internalAction({
+export const sendMessageViaSMTP = internalAction({
   args: {
     messageId: v.id('conversationMessages'),
     organizationId: v.string(),
@@ -108,7 +104,7 @@ export const sendMessageViaSMTPInternal = internalAction({
     retryCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    return await sendMessageViaSMTP(ctx, args);
+    return await sendMessageViaSMTPHandler(ctx, args);
   },
 });
 
@@ -234,7 +230,7 @@ export const handleOAuth2Callback = internalAction({
     // Fetch the email provider to get OAuth config
     // Using explicit unknown type to avoid deep type instantiation issues
     const rawProvider: unknown = await ctx.runQuery(
-      internal.email_providers.internal_queries.getInternal,
+      internal.email_providers.internal_queries.get,
       { providerId: args.emailProviderId },
     );
 
@@ -326,7 +322,7 @@ export const handleOAuth2Callback = internalAction({
 
     // Get provider details for organizationId and check if IMAP is configured
     const providerForWorkflow = (await ctx.runQuery(
-      internal.email_providers.internal_queries.getInternal,
+      internal.email_providers.internal_queries.get,
       { providerId: args.emailProviderId },
     )) as { organizationId: string; imapConfig?: unknown } | null;
 
@@ -352,7 +348,7 @@ export const handleOAuth2Callback = internalAction({
   },
 });
 
-export const storeOAuth2TokensInternal = internalAction({
+export const storeOAuth2Tokens = internalAction({
   args: {
     emailProviderId: v.id('emailProviders'),
     accessToken: v.string(),
@@ -361,11 +357,9 @@ export const storeOAuth2TokensInternal = internalAction({
     expiresIn: v.optional(v.number()),
     scope: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<null> => {
-    return await storeOAuth2TokensLogic(ctx, args, {
-      encryptString: async (plaintext: string): Promise<string> => {
-        return await encryptString(plaintext);
-      },
+  handler: async (ctx, args) => {
+    return await storeOAuth2TokensLogic(args, {
+      encryptString,
       updateTokens: async (params) => {
         await ctx.runMutation(
           internal.email_providers.internal_mutations.updateOAuth2Tokens,

@@ -16,7 +16,7 @@ export async function createOrganization(
   // Ensure user is authenticated
   const authUser = await authComponent.getAuthUser(ctx);
   if (!authUser) {
-    throw new Error('Not authenticated');
+    throw new Error('Unauthenticated');
   }
 
   // This project now uses Better Auth's Organizations plugin.

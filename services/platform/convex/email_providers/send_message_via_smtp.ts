@@ -10,7 +10,7 @@
  */
 
 import type { ActionCtx } from '../_generated/server';
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import {
   decryptAndRefreshOAuth2Token,
@@ -50,12 +50,12 @@ export async function sendMessageViaSMTP(
     // Get email provider (use default if not specified)
     let provider: unknown;
     if (args.providerId) {
-      provider = await ctx.runQuery(internal.email_providers.internal_queries.getInternal, {
+      provider = await ctx.runQuery(internal.email_providers.internal_queries.get, {
         providerId: args.providerId,
       });
     } else {
       provider = await ctx.runQuery(
-        internal.email_providers.internal_queries.getDefaultInternal,
+        internal.email_providers.internal_queries.getDefault,
         {
           organizationId: args.organizationId,
         },
@@ -93,13 +93,13 @@ export async function sendMessageViaSMTP(
       const passwordAuth = await decryptPasswordAuth(
         typedProvider.passwordAuth,
         async (jwe) =>
-          await ctx.runAction(internal.lib.crypto.actions.decryptStringInternal, {
+          await ctx.runAction(internal.lib.crypto.internal_actions.decryptString, {
             jwe,
           }),
       );
 
       result = await ctx.runAction(
-        internal.node_only.smtp.send_email.sendEmail,
+        internal.node_only.smtp.internal_actions.sendEmail,
         {
           smtpConfig: typedProvider.smtpConfig,
           passwordAuth,
@@ -126,11 +126,11 @@ export async function sendMessageViaSMTP(
         typedProvider._id,
         typedProvider.oauth2Auth,
         async (jwe) =>
-          await ctx.runAction(internal.lib.crypto.actions.decryptStringInternal, {
+          await ctx.runAction(internal.lib.crypto.internal_actions.decryptString, {
             jwe,
           }),
         async ({ provider, clientId, clientSecret, refreshToken, tokenUrl }) =>
-          await ctx.runAction(api.oauth2.refreshToken, {
+          await ctx.runAction(internal.oauth2.refreshToken, {
             provider,
             clientId,
             clientSecret,
@@ -145,7 +145,7 @@ export async function sendMessageViaSMTP(
           expiresIn,
           scope,
         }) =>
-          await ctx.runAction(api.email_providers.actions.storeOAuth2Tokens, {
+          await ctx.runAction(internal.email_providers.internal_actions.storeOAuth2Tokens, {
             emailProviderId,
             accessToken,
             refreshToken,
@@ -169,7 +169,7 @@ export async function sendMessageViaSMTP(
       }
 
       result = await ctx.runAction(
-        internal.node_only.smtp.send_email.sendEmail,
+        internal.node_only.smtp.internal_actions.sendEmail,
         {
           smtpConfig: typedProvider.smtpConfig,
           oauth2Auth: {
@@ -197,7 +197,7 @@ export async function sendMessageViaSMTP(
 
     // Update the conversation message with the external message ID
     await ctx.runMutation(
-      internal.conversations.mutations.updateConversationMessageInternal,
+      internal.conversations.internal_mutations.updateConversationMessage,
       {
         messageId: args.messageId,
         externalMessageId: result.messageId,
@@ -236,7 +236,7 @@ export async function sendMessageViaSMTP(
 
       // Update message with retry info (stays in 'queued' state)
       await ctx.runMutation(
-        internal.conversations.mutations.updateConversationMessageInternal,
+        internal.conversations.internal_mutations.updateConversationMessage,
         {
           messageId: args.messageId,
           retryCount: nextRetryCount,
@@ -250,7 +250,7 @@ export async function sendMessageViaSMTP(
       // Schedule retry with exponential backoff
       await ctx.scheduler.runAfter(
         delayMs,
-        internal.email_providers.internal_actions.sendMessageViaSMTPInternal,
+        internal.email_providers.internal_actions.sendMessageViaSMTP,
         {
           messageId: args.messageId,
           organizationId: args.organizationId,
@@ -281,7 +281,7 @@ export async function sendMessageViaSMTP(
     });
 
     await ctx.runMutation(
-      internal.conversations.mutations.updateConversationMessageInternal,
+      internal.conversations.internal_mutations.updateConversationMessage,
       {
         messageId: args.messageId,
         deliveryState: 'failed',

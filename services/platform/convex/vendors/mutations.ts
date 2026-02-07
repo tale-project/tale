@@ -83,6 +83,7 @@ export const deleteVendor = mutationWithRLS({
   args: {
     vendorId: v.id('vendors'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const vendor = await ctx.db.get(args.vendorId);
     if (!vendor) {
@@ -90,7 +91,7 @@ export const deleteVendor = mutationWithRLS({
     }
 
     await ctx.db.delete(args.vendorId);
-    return { success: true };
+    return null;
   },
 });
 
@@ -156,7 +157,7 @@ export const bulkCreateVendors = mutationWithRLS({
         results.errors.push({
           index: i,
           error: error instanceof Error ? error.message : 'Unknown error',
-          vendor: vendorData as ConvexJsonValue,
+          vendor: vendorData,
         });
       }
     }
