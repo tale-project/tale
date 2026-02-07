@@ -15,8 +15,9 @@ import { publishDraft as publishDraftLogic } from '../workflows/definitions/publ
 import { saveWorkflowWithSteps as saveWorkflowWithStepsHelper } from '../workflows/definitions/save_workflow_with_steps';
 import { updateWorkflow as updateWorkflowHelper } from '../workflows/definitions/update_workflow';
 import { updateWorkflowStatus as updateWorkflowStatusHelper } from '../workflows/definitions/update_workflow_status';
-import { workflowConfigValidator, workflowUpdateValidator } from '../workflows/definitions/validators';
+import { workflowConfigValidator, workflowStatusValidator, workflowUpdateValidator } from '../workflows/definitions/validators';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
+import { stepTypeValidator } from '../workflows/steps/validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 const workflowConfigArg = v.object({
@@ -31,13 +32,7 @@ const stepsConfigArg = v.array(
   v.object({
     stepSlug: v.string(),
     name: v.string(),
-    stepType: v.union(
-      v.literal('trigger'),
-      v.literal('llm'),
-      v.literal('condition'),
-      v.literal('action'),
-      v.literal('loop'),
-    ),
+    stepType: stepTypeValidator,
     order: v.number(),
     config: stepConfigValidator,
     nextSteps: v.record(v.string(), v.string()),
@@ -146,7 +141,7 @@ export const updateWorkflowMetadata = mutationWithRLS({
 export const updateWorkflowStatus = internalMutation({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
-    status: v.string(),
+    status: workflowStatusValidator,
     updatedBy: v.string(),
   },
   handler: async (ctx, args) => {

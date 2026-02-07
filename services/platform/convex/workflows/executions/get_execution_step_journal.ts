@@ -1,5 +1,5 @@
 import type { QueryCtx } from '../../_generated/server';
-import type { Id, Doc } from '../../_generated/dataModel';
+import type { Id } from '../../_generated/dataModel';
 import { components } from '../../_generated/api';
 
 const workflow = components.workflow;
@@ -12,48 +12,45 @@ export async function getExecutionStepJournal(
   ctx: QueryCtx,
   args: GetExecutionStepJournalArgs,
 ): Promise<Array<unknown>> {
-  const execution = (await ctx.db.get(
-    args.executionId,
-  )) as Doc<'wfExecutions'> | null;
+  const execution = await ctx.db.get(args.executionId);
   if (!execution) return [];
 
-  const metadata = execution.metadata
-    ? (JSON.parse(execution.metadata) as Record<string, unknown>)
+  const metadata: Record<string, unknown> = execution.metadata
+    ? JSON.parse(execution.metadata)
     : {};
-  const history: string[] = Array.isArray(metadata.componentWorkflowIds)
-    ? (metadata.componentWorkflowIds as string[])
+  const rawIds = Array.isArray(metadata.componentWorkflowIds)
+    ? metadata.componentWorkflowIds.filter((x: unknown): x is string => typeof x === 'string')
     : [];
   const idsOrdered: string[] = Array.from(
     new Set([
-      ...history,
+      ...rawIds,
       ...(execution.componentWorkflowId ? [execution.componentWorkflowId] : []),
     ]),
   );
 
   if (idsOrdered.length === 0) return [];
 
-  // Load all journals in parallel
   const journals = await Promise.all(
     idsOrdered.map((wid) =>
       ctx.runQuery(workflow.journal.load, { workflowId: wid }),
     ),
   );
 
-  // Combine and sort entries, preserving workflow order
-  const combined: Array<{ stepNumber?: number } & Record<string, unknown>> = [];
+  const combined: Array<Record<string, unknown>> = [];
   for (let i = 0; i < idsOrdered.length; i++) {
     const wid = idsOrdered[i];
     const entries = journals[i].journalEntries || [];
-    const sorted = (
-      entries as Array<{ stepNumber?: number } & Record<string, unknown>>
-    )
+    const sorted = entries
       .slice()
-      .sort((a, b) => (a.stepNumber ?? 0) - (b.stepNumber ?? 0));
+      .sort((a: Record<string, unknown>, b: Record<string, unknown>) =>
+        (typeof a.stepNumber === 'number' ? a.stepNumber : 0) -
+        (typeof b.stepNumber === 'number' ? b.stepNumber : 0),
+      );
 
     for (const e of sorted) {
       combined.push({ ...e, _componentWorkflowId: wid });
     }
   }
 
-  return combined as unknown as Array<unknown>;
+  return combined;
 }

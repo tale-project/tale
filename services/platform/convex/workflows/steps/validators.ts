@@ -14,6 +14,12 @@ export const stepTypeValidator = v.union(
   v.literal('loop'),
 );
 
+export const editModeValidator = v.union(
+  v.literal('visual'),
+  v.literal('json'),
+  v.literal('ai'),
+);
+
 export const stepDefValidator = v.object({
   organizationId: v.string(),
   wfDefinitionId: v.id('wfDefinitions'),

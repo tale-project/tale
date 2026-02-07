@@ -5,6 +5,7 @@ import { createStep as createStepHelper } from '../workflows/steps/create_step';
 import { updateStep as updateStepHelper } from '../workflows/steps/update_step';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
+import { editModeValidator, stepTypeValidator } from '../workflows/steps/validators';
 import { auditStepChange } from './audit';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 
@@ -22,7 +23,7 @@ export const updateStep = mutationWithRLS({
   args: {
     stepRecordId: v.id('wfStepDefs'),
     updates: jsonRecordValidator,
-    editMode: v.union(v.literal('visual'), v.literal('json'), v.literal('ai')),
+    editMode: editModeValidator,
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
@@ -37,7 +38,7 @@ export const updateStep = mutationWithRLS({
       name: existing.name,
       stepType: existing.stepType,
       order: existing.order,
-      config: existing.config as Record<string, unknown>,
+      config: existing.config,
       nextSteps: existing.nextSteps,
     };
 
@@ -52,7 +53,7 @@ export const updateStep = mutationWithRLS({
         name: updated.name,
         stepType: updated.stepType,
         order: updated.order,
-        config: updated.config as Record<string, unknown>,
+        config: updated.config,
         nextSteps: updated.nextSteps,
       };
 
@@ -77,17 +78,11 @@ export const createStep = mutationWithRLS({
     wfDefinitionId: v.id('wfDefinitions'),
     stepSlug: v.string(),
     name: v.string(),
-    stepType: v.union(
-      v.literal('trigger'),
-      v.literal('llm'),
-      v.literal('condition'),
-      v.literal('action'),
-      v.literal('loop'),
-    ),
+    stepType: stepTypeValidator,
     order: v.number(),
     config: stepConfigValidator,
     nextSteps: v.record(v.string(), v.string()),
-    editMode: v.union(v.literal('visual'), v.literal('json'), v.literal('ai')),
+    editMode: editModeValidator,
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
@@ -116,7 +111,7 @@ export const createStep = mutationWithRLS({
         name: step.name,
         stepType: step.stepType,
         order: step.order,
-        config: step.config as Record<string, unknown>,
+        config: step.config,
         nextSteps: step.nextSteps,
       };
 

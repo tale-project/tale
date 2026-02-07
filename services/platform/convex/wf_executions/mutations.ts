@@ -1,7 +1,3 @@
-/**
- * Workflow Execution Mutations
- */
-
 import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';

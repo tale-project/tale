@@ -2,13 +2,12 @@ import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { queryWithRLS } from '../lib/rls';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import { getActiveVersion as getActiveVersionHelper } from '../workflows/definitions/get_active_version';
 import { getWorkflowByName as getWorkflowByNameHelper } from '../workflows/definitions/get_workflow_by_name';
 import { listWorkflows as listWorkflowsHelper } from '../workflows/definitions/list_workflows';
 import { executeDryRun } from '../workflow_engine/execution/dry_run_executor';
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
-
-import type { QueryCtx } from '../_generated/server';
 
 type WorkflowDefinition = Doc<'wfDefinitions'>;
 
@@ -101,10 +100,6 @@ export const listAutomations = queryWithRLS({
     organizationId: v.string(),
     searchTerm: v.optional(v.string()),
     status: v.optional(v.array(v.string())),
-    paginationOpts: v.object({
-      cursor: v.union(v.string(), v.null()),
-      numItems: v.number(),
-    }),
   },
   handler: async (ctx, args) => {
     const query = ctx.db
