@@ -14,7 +14,7 @@
  * - Context window building and token estimation
  */
 
-import { components } from '../../_generated/api';
+import { components, internal } from '../../_generated/api';
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
 import type { ModelMessage } from 'ai';
 import {
@@ -25,13 +25,6 @@ import {
 import { onAgentComplete } from '../agent_completion';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
-import {
-  getLinkApprovalsToMessageRef,
-  getStartStreamRef,
-  getAppendToStreamRef,
-  getCompleteStreamRef,
-  getErrorStreamRef,
-} from '../function_refs';
 import { startRagPrefetch, type RagPrefetchCache } from '../rag_prefetch';
 import type {
   GenerateResponseConfig,
@@ -104,7 +97,7 @@ export async function generateAgentResponse(
 
     // Start stream if streamId provided
     if (streamId) {
-      await ctx.runMutation(getStartStreamRef(), { streamId });
+      await ctx.runMutation(internal.streaming.internal_mutations.startStream, { streamId });
     }
 
     // Start RAG prefetch immediately (non-blocking) if:
@@ -512,7 +505,7 @@ export async function generateAgentResponse(
             messagesInSameOrder[0] || latestAssistantMessage;
 
           const linkedCount = await ctx.runMutation(
-            getLinkApprovalsToMessageRef(),
+            internal.approvals.internal_mutations.linkApprovalsToMessage,
             {
               threadId,
               messageId: firstMessageInOrder._id,
@@ -534,11 +527,11 @@ export async function generateAgentResponse(
 
     // Complete stream if streamId provided
     if (streamId && responseResult.text) {
-      await ctx.runMutation(getAppendToStreamRef(), {
+      await ctx.runMutation(internal.streaming.internal_mutations.appendToStream, {
         streamId,
         text: responseResult.text,
       });
-      await ctx.runMutation(getCompleteStreamRef(), { streamId });
+      await ctx.runMutation(internal.streaming.internal_mutations.completeStream, { streamId });
     }
 
     return responseResult;
@@ -557,7 +550,7 @@ export async function generateAgentResponse(
     // Mark stream as errored
     if (streamId) {
       try {
-        await ctx.runMutation(getErrorStreamRef(), { streamId });
+        await ctx.runMutation(internal.streaming.internal_mutations.errorStream, { streamId });
       } catch (streamError) {
         console.error(
           '[generateAgentResponse] Failed to mark stream as errored:',

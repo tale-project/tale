@@ -2,6 +2,7 @@
 
 import { v } from 'convex/values';
 import { internalAction } from '../../_generated/server';
+import { internal } from '../../_generated/api';
 import { agentResponseReturnsValidator, generateAgentResponse } from '../../lib/agent_response';
 import { processAttachments } from '../../lib/attachments/index';
 import {
@@ -12,7 +13,6 @@ import {
   OUTPUT_RESERVE,
 } from '../../lib/context_management';
 import { createDebugLog } from '../../lib/debug_log';
-import { getListIntegrationsInternalRef } from '../../lib/function_refs';
 import { createChatAgent, CHAT_AGENT_INSTRUCTIONS } from './agent';
 
 const debugLog = createDebugLog('DEBUG_ROUTING_AGENT', '[RoutingAgent]');
@@ -80,7 +80,7 @@ export const beforeContextHook = internalAction({
     const { threadId, organizationId } = args;
 
     // Load integrations list
-    const integrationsList = await ctx.runQuery(getListIntegrationsInternalRef(), {
+    const integrationsList: Record<string, unknown>[] = await ctx.runQuery(internal.integrations.internal_queries.listInternal, {
       organizationId,
     });
 

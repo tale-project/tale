@@ -3,13 +3,12 @@
 import { v } from 'convex/values';
 import { saveMessage } from '@convex-dev/agent';
 import { action } from '../../_generated/server';
-import { components } from '../../_generated/api';
+import { components, internal } from '../../_generated/api';
 import {
   buildMultiModalContent,
   registerFilesWithAgent,
   type FileAttachment,
 } from '../../lib/attachments';
-import { getResolveWorkflowRef } from '../../lib/function_refs';
 import { authComponent } from '../../auth';
 import { generateWorkflowResponse } from './generate_response';
 
@@ -43,7 +42,7 @@ export const chatWithWorkflowAssistant = action({
     try {
       const additionalContext: Record<string, string> = {};
       if (args.workflowId) {
-        const workflow = await ctx.runQuery(getResolveWorkflowRef(), {
+        const workflow = await ctx.runQuery(internal.wf_definitions.internal_queries.resolveWorkflow, {
           wfDefinitionId: args.workflowId,
         });
         if (workflow) {

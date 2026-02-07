@@ -12,7 +12,7 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-import { components } from '../../_generated/api';
+import { components, internal } from '../../_generated/api';
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import {
   computeDeduplicationState,
@@ -20,7 +20,6 @@ import {
 } from '../message_deduplication';
 import { persistentStreaming } from '../../streaming/helpers';
 import { getUserTeamIds } from '../get_user_teams';
-import { getRunAgentGenerationRef } from '../function_refs';
 import { createDebugLog } from '../debug_log';
 import type { AgentType } from '../context_management/constants';
 import type { FileAttachment } from '../attachments';
@@ -174,7 +173,7 @@ export async function startAgentChat(
     threadId,
     timestamp: new Date().toISOString(),
   });
-  await ctx.scheduler.runAfter(0, getRunAgentGenerationRef(), {
+  await ctx.scheduler.runAfter(0, internal.lib.agent_chat.internal_actions.runAgentGeneration, {
     agentType,
     agentConfig,
     model,

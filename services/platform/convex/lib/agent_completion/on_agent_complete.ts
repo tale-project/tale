@@ -8,11 +8,10 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { components } from '../../_generated/api';
+import { components, internal } from '../../_generated/api';
 import { listMessages } from '@convex-dev/agent';
 
 import { createDebugLog } from '../debug_log';
-import { getSaveMessageMetadataRef } from './function_refs';
 
 const debugLog = createDebugLog('DEBUG_AGENT_COMPLETION', '[AgentCompletion]');
 
@@ -111,7 +110,7 @@ export async function onAgentComplete(
         const firstMessageInResponse = messagesInCurrentResponse[0];
 
         if (firstMessageInResponse) {
-          await ctx.runMutation(getSaveMessageMetadataRef(), {
+          await ctx.runMutation(internal.message_metadata.internal_mutations.saveMessageMetadata, {
             messageId: firstMessageInResponse._id,
             threadId,
             model: result.model,
