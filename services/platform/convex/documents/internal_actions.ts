@@ -125,13 +125,10 @@ export const generatePptx = internalAction({
     fileName: v.string(),
     slidesContent: v.array(slideContentValidator),
     branding: pptxBrandingValidator,
-    templateStorageId: v.optional(v.id('_storage')),
+    templateStorageId: v.id('_storage'),
   },
   handler: async (ctx, args) => {
-    return await DocumentsHelpers.generatePptx(ctx, {
-      ...args,
-      templateStorageId: args.templateStorageId!,
-    });
+    return await DocumentsHelpers.generatePptx(ctx, args);
   },
 });
 
