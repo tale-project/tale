@@ -99,7 +99,7 @@ function AutomationDetailLayout() {
     wfDefinitionId: automationId,
   });
   const steps = useQuery(
-    api.wf_step_defs.get_workflow_steps_public.getWorkflowStepsPublic,
+    api.wf_step_defs.queries.getWorkflowStepsPublic,
     {
       wfDefinitionId: automationId,
     },

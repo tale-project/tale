@@ -18,7 +18,7 @@ export async function getDecryptedCredentialsLogic(
   ctx: ActionCtx,
   args: GetDecryptedCredentialsArgs,
 ): Promise<DecryptedCredentials> {
-  const integration = await ctx.runQuery(api.integrations.queries.get.get, {
+  const integration = await ctx.runQuery(api.integrations.queries.get, {
     integrationId: args.integrationId,
   });
 

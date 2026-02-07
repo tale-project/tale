@@ -453,7 +453,7 @@ export function OneDriveImportDialog({
 
   // Fetch user's teams via Convex query (only in settings stage)
   const teamsResult = useConvexQuery(
-    api.member.getMyTeams,
+    api.members.queries.getMyTeams,
     stage === 'settings' ? { organizationId } : 'skip',
   );
   const teams = teamsResult?.teams ?? null;

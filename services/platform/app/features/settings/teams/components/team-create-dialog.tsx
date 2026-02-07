@@ -32,7 +32,7 @@ export function TeamCreateDialog({
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const addMember = useMutation(api.team_members.addMember);
+  const addMember = useMutation(api.team_members.mutations.addMember);
 
   const nameRequiredError = tSettings('teams.teamNameRequired');
   const schema = useMemo(

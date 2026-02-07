@@ -1,13 +1,9 @@
-/**
- * Public mutation to delete an integration
- */
-
 import { v } from 'convex/values';
-import { mutation } from '../../_generated/server';
-import { authComponent } from '../../auth';
-import * as AuditLogHelpers from '../../audit_logs/helpers';
-import { getOrganizationMember } from '../../lib/rls';
-import { deleteIntegration as deleteIntegrationHelper } from '../delete_integration';
+import { mutation } from '../_generated/server';
+import { authComponent } from '../auth';
+import * as AuditLogHelpers from '../audit_logs/helpers';
+import { getOrganizationMember } from '../lib/rls';
+import { deleteIntegration as deleteIntegrationHelper } from './delete_integration';
 
 export const deleteIntegration = mutation({
   args: {

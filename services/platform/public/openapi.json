@@ -81,56 +81,6 @@
         }
       }
     },
-    "/api/run/agent_tools/human_input/submit_human_input_response/submitHumanInputResponse": {
-      "post": {
-        "summary": "Calls a mutation at the path agent_tools/human_input/submit_human_input_response.js:submitHumanInputResponse",
-        "tags": [
-          "mutation"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_agent_tools.human_input.submit_human_input_response.submitHumanInputResponse"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_agent_tools.human_input.submit_human_input_response.submitHumanInputResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/run/agents/chat/mutations/chatWithAgent": {
       "post": {
         "summary": "Calls a mutation at the path agents/chat/mutations.js:chatWithAgent",
@@ -2931,56 +2881,6 @@
         }
       }
     },
-    "/api/run/file/mutations/generateUploadUrl": {
-      "post": {
-        "summary": "Calls a mutation at the path file/mutations.js:generateUploadUrl",
-        "tags": [
-          "mutation"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_file.mutations.generateUploadUrl"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_file.mutations.generateUploadUrl"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/run/files/queries/getFileUrl": {
       "post": {
         "summary": "Calls a query at the path files/queries.js:getFileUrl",
@@ -3031,259 +2931,9 @@
         }
       }
     },
-    "/api/run/improve_message/improveMessage": {
+    "/api/run/integrations/queries/get": {
       "post": {
-        "summary": "Calls a action at the path improve_message.js:improveMessage",
-        "tags": [
-          "action"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_improve_message.improveMessage"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_improve_message.improveMessage"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/integrations/actions/create/create": {
-      "post": {
-        "summary": "Calls a action at the path integrations/actions/create.js:create",
-        "tags": [
-          "action"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_integrations.actions.create.create"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_integrations.actions.create.create"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/integrations/actions/test_connection/testConnection": {
-      "post": {
-        "summary": "Calls a action at the path integrations/actions/test_connection.js:testConnection",
-        "tags": [
-          "action"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_integrations.actions.test_connection.testConnection"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_integrations.actions.test_connection.testConnection"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/integrations/actions/update/update": {
-      "post": {
-        "summary": "Calls a action at the path integrations/actions/update.js:update",
-        "tags": [
-          "action"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_integrations.actions.update.update"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_integrations.actions.update.update"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/integrations/mutations/delete_integration/deleteIntegration": {
-      "post": {
-        "summary": "Calls a mutation at the path integrations/mutations/delete_integration.js:deleteIntegration",
-        "tags": [
-          "mutation"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_integrations.mutations.delete_integration.deleteIntegration"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_integrations.mutations.delete_integration.deleteIntegration"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/integrations/queries/get/get": {
-      "post": {
-        "summary": "Calls a query at the path integrations/queries/get.js:get",
+        "summary": "Calls a query at the path integrations/queries.js:get",
         "tags": [
           "query"
         ],
@@ -3291,7 +2941,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request_integrations.queries.get.get"
+                "$ref": "#/components/schemas/Request_integrations.queries.get"
               }
             }
           },
@@ -3303,7 +2953,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Response_integrations.queries.get.get"
+                  "$ref": "#/components/schemas/Response_integrations.queries.get"
                 }
               }
             }
@@ -3331,9 +2981,9 @@
         }
       }
     },
-    "/api/run/integrations/queries/get_by_name/getByName": {
+    "/api/run/integrations/queries/getByName": {
       "post": {
-        "summary": "Calls a query at the path integrations/queries/get_by_name.js:getByName",
+        "summary": "Calls a query at the path integrations/queries.js:getByName",
         "tags": [
           "query"
         ],
@@ -3341,7 +2991,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request_integrations.queries.get_by_name.getByName"
+                "$ref": "#/components/schemas/Request_integrations.queries.getByName"
               }
             }
           },
@@ -3353,7 +3003,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Response_integrations.queries.get_by_name.getByName"
+                  "$ref": "#/components/schemas/Response_integrations.queries.getByName"
                 }
               }
             }
@@ -3381,9 +3031,9 @@
         }
       }
     },
-    "/api/run/integrations/queries/list/list": {
+    "/api/run/integrations/queries/list": {
       "post": {
-        "summary": "Calls a query at the path integrations/queries/list.js:list",
+        "summary": "Calls a query at the path integrations/queries.js:list",
         "tags": [
           "query"
         ],
@@ -3391,7 +3041,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request_integrations.queries.list.list"
+                "$ref": "#/components/schemas/Request_integrations.queries.list"
               }
             }
           },
@@ -3403,107 +3053,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Response_integrations.queries.list.list"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/member/getMyTeams": {
-      "post": {
-        "summary": "Calls a query at the path member.js:getMyTeams",
-        "tags": [
-          "query"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_member.getMyTeams"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_member.getMyTeams"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/member/listByOrganization": {
-      "post": {
-        "summary": "Calls a query at the path member.js:listByOrganization",
-        "tags": [
-          "query"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_member.listByOrganization"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_member.listByOrganization"
+                  "$ref": "#/components/schemas/Response_integrations.queries.list"
                 }
               }
             }
@@ -3904,6 +3454,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Response_members.queries.getUserOrganizationsList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/members/queries/getMyTeams": {
+      "post": {
+        "summary": "Calls a query at the path members/queries.js:getMyTeams",
+        "tags": [
+          "query"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_members.queries.getMyTeams"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_members.queries.getMyTeams"
                 }
               }
             }
@@ -4681,206 +4281,6 @@
         }
       }
     },
-    "/api/run/sso_providers/mutations/upsert": {
-      "post": {
-        "summary": "Calls a action at the path sso_providers/mutations.js:upsert",
-        "tags": [
-          "action"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_sso_providers.mutations.upsert"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_sso_providers.mutations.upsert"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/sso_providers/mutations/remove": {
-      "post": {
-        "summary": "Calls a action at the path sso_providers/mutations.js:remove",
-        "tags": [
-          "action"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_sso_providers.mutations.remove"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_sso_providers.mutations.remove"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/sso_providers/mutations/testConfig": {
-      "post": {
-        "summary": "Calls a action at the path sso_providers/mutations.js:testConfig",
-        "tags": [
-          "action"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_sso_providers.mutations.testConfig"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_sso_providers.mutations.testConfig"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/sso_providers/mutations/testExistingConfig": {
-      "post": {
-        "summary": "Calls a action at the path sso_providers/mutations.js:testExistingConfig",
-        "tags": [
-          "action"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_sso_providers.mutations.testExistingConfig"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_sso_providers.mutations.testExistingConfig"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/run/sso_providers/queries/get": {
       "post": {
         "summary": "Calls a query at the path sso_providers/queries.js:get",
@@ -5004,256 +4404,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Response_sso_providers.queries.getMicrosoftToken"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/sso_providers/queries/getWithClientId": {
-      "post": {
-        "summary": "Calls a action at the path sso_providers/queries.js:getWithClientId",
-        "tags": [
-          "action"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_sso_providers.queries.getWithClientId"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_sso_providers.queries.getWithClientId"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/sso_providers/queries/getSsoCredentialsForEmail": {
-      "post": {
-        "summary": "Calls a action at the path sso_providers/queries.js:getSsoCredentialsForEmail",
-        "tags": [
-          "action"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_sso_providers.queries.getSsoCredentialsForEmail"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_sso_providers.queries.getSsoCredentialsForEmail"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/team_members/listByTeam": {
-      "post": {
-        "summary": "Calls a query at the path team_members.js:listByTeam",
-        "tags": [
-          "query"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_team_members.listByTeam"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_team_members.listByTeam"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/team_members/addMember": {
-      "post": {
-        "summary": "Calls a mutation at the path team_members.js:addMember",
-        "tags": [
-          "mutation"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_team_members.addMember"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_team_members.addMember"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/team_members/removeMember": {
-      "post": {
-        "summary": "Calls a mutation at the path team_members.js:removeMember",
-        "tags": [
-          "mutation"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_team_members.removeMember"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_team_members.removeMember"
                 }
               }
             }
@@ -5481,56 +4631,6 @@
         }
       }
     },
-    "/api/run/threads/queries/listThreadsQuery": {
-      "post": {
-        "summary": "Calls a query at the path threads/queries.js:listThreadsQuery",
-        "tags": [
-          "query"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_threads.queries.listThreadsQuery"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_threads.queries.listThreadsQuery"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/run/threads/queries/getThreadMessagesStreaming": {
       "post": {
         "summary": "Calls a query at the path threads/queries.js:getThreadMessagesStreaming",
@@ -5554,56 +4654,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Response_threads.queries.getThreadMessagesStreaming"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/run/threads/queries/getThreadMessagesStreamingQuery": {
-      "post": {
-        "summary": "Calls a query at the path threads/queries.js:getThreadMessagesStreamingQuery",
-        "tags": [
-          "query"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_threads.queries.getThreadMessagesStreamingQuery"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_threads.queries.getThreadMessagesStreamingQuery"
                 }
               }
             }
@@ -7481,56 +6531,6 @@
         }
       }
     },
-    "/api/run/wf_step_defs/get_workflow_steps_public/getWorkflowStepsPublic": {
-      "post": {
-        "summary": "Calls a query at the path wf_step_defs/get_workflow_steps_public.js:getWorkflowStepsPublic",
-        "tags": [
-          "query"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Request_wf_step_defs.get_workflow_steps_public.getWorkflowStepsPublic"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Convex executed your request and returned a result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_wf_step_defs.get_workflow_steps_public.getWorkflowStepsPublic"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Failed operation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Convex Internal Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FailedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/run/wf_step_defs/mutations/createStepPublic": {
       "post": {
         "summary": "Calls a mutation at the path wf_step_defs/mutations.js:createStepPublic",
@@ -7631,6 +6631,56 @@
         }
       }
     },
+    "/api/run/wf_step_defs/queries/getWorkflowStepsPublic": {
+      "post": {
+        "summary": "Calls a query at the path wf_step_defs/queries.js:getWorkflowStepsPublic",
+        "tags": [
+          "query"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_wf_step_defs.queries.getWorkflowStepsPublic"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_wf_step_defs.queries.getWorkflowStepsPublic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/run/wf_step_defs/queries/validateStep": {
       "post": {
         "summary": "Calls a query at the path wf_step_defs/queries.js:validateStep",
@@ -7681,9 +6731,9 @@
         }
       }
     },
-    "/api/run/workflow_engine/engine/startWorkflow": {
+    "/api/run/agent_tools/human_input/mutations/submitHumanInputResponse": {
       "post": {
-        "summary": "Calls a mutation at the path workflow_engine/engine.js:startWorkflow",
+        "summary": "Calls a mutation at the path agent_tools/human_input/mutations.js:submitHumanInputResponse",
         "tags": [
           "mutation"
         ],
@@ -7691,7 +6741,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Request_workflow_engine.engine.startWorkflow"
+                "$ref": "#/components/schemas/Request_agent_tools.human_input.mutations.submitHumanInputResponse"
               }
             }
           },
@@ -7703,7 +6753,807 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Response_workflow_engine.engine.startWorkflow"
+                  "$ref": "#/components/schemas/Response_agent_tools.human_input.mutations.submitHumanInputResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/files/mutations/generateUploadUrl": {
+      "post": {
+        "summary": "Calls a mutation at the path files/mutations.js:generateUploadUrl",
+        "tags": [
+          "mutation"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_files.mutations.generateUploadUrl"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_files.mutations.generateUploadUrl"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/improve_message/actions/improveMessage": {
+      "post": {
+        "summary": "Calls a action at the path improve_message/actions.js:improveMessage",
+        "tags": [
+          "action"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_improve_message.actions.improveMessage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_improve_message.actions.improveMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/integrations/actions/testConnection": {
+      "post": {
+        "summary": "Calls a action at the path integrations/actions.js:testConnection",
+        "tags": [
+          "action"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_integrations.actions.testConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_integrations.actions.testConnection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/integrations/actions/update": {
+      "post": {
+        "summary": "Calls a action at the path integrations/actions.js:update",
+        "tags": [
+          "action"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_integrations.actions.update"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_integrations.actions.update"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/integrations/actions/create": {
+      "post": {
+        "summary": "Calls a action at the path integrations/actions.js:create",
+        "tags": [
+          "action"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_integrations.actions.create"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_integrations.actions.create"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/integrations/mutations/deleteIntegration": {
+      "post": {
+        "summary": "Calls a mutation at the path integrations/mutations.js:deleteIntegration",
+        "tags": [
+          "mutation"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_integrations.mutations.deleteIntegration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_integrations.mutations.deleteIntegration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/sso_providers/actions/getWithClientId": {
+      "post": {
+        "summary": "Calls a action at the path sso_providers/actions.js:getWithClientId",
+        "tags": [
+          "action"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_sso_providers.actions.getWithClientId"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_sso_providers.actions.getWithClientId"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/sso_providers/actions/getSsoCredentialsForEmail": {
+      "post": {
+        "summary": "Calls a action at the path sso_providers/actions.js:getSsoCredentialsForEmail",
+        "tags": [
+          "action"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_sso_providers.actions.getSsoCredentialsForEmail"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_sso_providers.actions.getSsoCredentialsForEmail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/sso_providers/actions/upsert": {
+      "post": {
+        "summary": "Calls a action at the path sso_providers/actions.js:upsert",
+        "tags": [
+          "action"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_sso_providers.actions.upsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_sso_providers.actions.upsert"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/sso_providers/actions/remove": {
+      "post": {
+        "summary": "Calls a action at the path sso_providers/actions.js:remove",
+        "tags": [
+          "action"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_sso_providers.actions.remove"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_sso_providers.actions.remove"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/sso_providers/actions/testConfig": {
+      "post": {
+        "summary": "Calls a action at the path sso_providers/actions.js:testConfig",
+        "tags": [
+          "action"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_sso_providers.actions.testConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_sso_providers.actions.testConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/sso_providers/actions/testExistingConfig": {
+      "post": {
+        "summary": "Calls a action at the path sso_providers/actions.js:testExistingConfig",
+        "tags": [
+          "action"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_sso_providers.actions.testExistingConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_sso_providers.actions.testExistingConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/team_members/mutations/addMember": {
+      "post": {
+        "summary": "Calls a mutation at the path team_members/mutations.js:addMember",
+        "tags": [
+          "mutation"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_team_members.mutations.addMember"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_team_members.mutations.addMember"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/team_members/mutations/removeMember": {
+      "post": {
+        "summary": "Calls a mutation at the path team_members/mutations.js:removeMember",
+        "tags": [
+          "mutation"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_team_members.mutations.removeMember"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_team_members.mutations.removeMember"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/team_members/queries/listByTeam": {
+      "post": {
+        "summary": "Calls a query at the path team_members/queries.js:listByTeam",
+        "tags": [
+          "query"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_team_members.queries.listByTeam"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_team_members.queries.listByTeam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Failed operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Convex Internal Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FailedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/run/workflow_engine/mutations/startWorkflow": {
+      "post": {
+        "summary": "Calls a mutation at the path workflow_engine/mutations.js:startWorkflow",
+        "tags": [
+          "mutation"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request_workflow_engine.mutations.startWorkflow"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Convex executed your request and returned a result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_workflow_engine.mutations.startWorkflow"
                 }
               }
             }
@@ -7774,78 +7624,6 @@
           },
           "value": {
             "type": "boolean"
-          }
-        }
-      },
-      "Request_agent_tools.human_input.submit_human_input_response.submitHumanInputResponse": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "approvalId",
-              "response"
-            ],
-            "properties": {
-              "approvalId": {
-                "type": "string",
-                "description": "ID from table \"approvals\""
-              },
-              "response": {
-                "oneOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      "Response_agent_tools.human_input.submit_human_input_response.submitHumanInputResponse": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "object",
-            "required": [
-              "success"
-            ],
-            "properties": {
-              "streamId": {
-                "type": "string"
-              },
-              "success": {
-                "type": "boolean"
-              },
-              "threadId": {
-                "type": "string"
-              }
-            }
           }
         }
       },
@@ -14058,41 +13836,6 @@
           "value": {}
         }
       },
-      "Request_file.mutations.generateUploadUrl": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object"
-          }
-        }
-      },
-      "Response_file.mutations.generateUploadUrl": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "string"
-          }
-        }
-      },
       "Request_files.queries.getFileUrl": {
         "type": "object",
         "required": [
@@ -14138,373 +13881,7 @@
           }
         }
       },
-      "Request_improve_message.improveMessage": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "originalMessage"
-            ],
-            "properties": {
-              "instruction": {
-                "type": "string"
-              },
-              "originalMessage": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_improve_message.improveMessage": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "object",
-            "required": [
-              "improvedMessage"
-            ],
-            "properties": {
-              "error": {
-                "type": "string"
-              },
-              "improvedMessage": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Request_integrations.actions.create.create": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "authMethod",
-              "name",
-              "organizationId",
-              "title"
-            ],
-            "properties": {
-              "apiKeyAuth": {
-                "type": "object",
-                "required": [
-                  "key"
-                ],
-                "properties": {
-                  "key": {
-                    "type": "string"
-                  },
-                  "keyPrefix": {
-                    "type": "string"
-                  }
-                }
-              },
-              "authMethod": {
-                "oneOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "api_key"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "bearer_token"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "basic_auth"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "oauth2"
-                    ]
-                  }
-                ]
-              },
-              "basicAuth": {
-                "type": "object",
-                "required": [
-                  "password",
-                  "username"
-                ],
-                "properties": {
-                  "password": {
-                    "type": "string"
-                  },
-                  "username": {
-                    "type": "string"
-                  }
-                }
-              },
-              "capabilities": {
-                "type": "object",
-                "properties": {
-                  "canPush": {
-                    "type": "boolean"
-                  },
-                  "canSync": {
-                    "type": "boolean"
-                  },
-                  "canWebhook": {
-                    "type": "boolean"
-                  },
-                  "syncFrequency": {
-                    "type": "string"
-                  }
-                }
-              },
-              "connectionConfig": {
-                "type": "object",
-                "properties": {
-                  "apiEndpoint": {
-                    "type": "string"
-                  },
-                  "apiVersion": {
-                    "type": "string"
-                  },
-                  "domain": {
-                    "type": "string"
-                  },
-                  "rateLimit": {
-                    "type": "number"
-                  },
-                  "timeout": {
-                    "type": "number"
-                  }
-                }
-              },
-              "description": {
-                "type": "string"
-              },
-              "metadata": {},
-              "name": {
-                "type": "string"
-              },
-              "oauth2Auth": {
-                "type": "object",
-                "required": [
-                  "accessToken"
-                ],
-                "properties": {
-                  "accessToken": {
-                    "type": "string"
-                  },
-                  "refreshToken": {
-                    "type": "string"
-                  },
-                  "scopes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "tokenExpiry": {
-                    "type": "number"
-                  }
-                }
-              },
-              "organizationId": {
-                "type": "string"
-              },
-              "sqlConnectionConfig": {
-                "type": "object",
-                "required": [
-                  "database",
-                  "engine",
-                  "server"
-                ],
-                "properties": {
-                  "database": {
-                    "type": "string"
-                  },
-                  "engine": {
-                    "oneOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "mssql"
-                        ]
-                      },
-                      {
-                        "type": "string",
-                        "enum": [
-                          "postgres"
-                        ]
-                      },
-                      {
-                        "type": "string",
-                        "enum": [
-                          "mysql"
-                        ]
-                      }
-                    ]
-                  },
-                  "options": {
-                    "type": "object",
-                    "properties": {
-                      "connectionTimeout": {
-                        "type": "number"
-                      },
-                      "encrypt": {
-                        "type": "boolean"
-                      },
-                      "requestTimeout": {
-                        "type": "number"
-                      },
-                      "trustServerCertificate": {
-                        "type": "boolean"
-                      }
-                    }
-                  },
-                  "port": {
-                    "type": "number"
-                  },
-                  "readOnly": {
-                    "type": "boolean"
-                  },
-                  "security": {
-                    "type": "object",
-                    "properties": {
-                      "maxConnectionPoolSize": {
-                        "type": "number"
-                      },
-                      "maxResultRows": {
-                        "type": "number"
-                      },
-                      "queryTimeoutMs": {
-                        "type": "number"
-                      }
-                    }
-                  },
-                  "server": {
-                    "type": "string"
-                  }
-                }
-              },
-              "sqlOperations": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "name",
-                    "query"
-                  ],
-                  "properties": {
-                    "description": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "operationType": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "enum": [
-                            "read"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "write"
-                          ]
-                        }
-                      ]
-                    },
-                    "parametersSchema": {},
-                    "query": {
-                      "type": "string"
-                    },
-                    "requiresApproval": {
-                      "type": "boolean"
-                    },
-                    "title": {
-                      "type": "string"
-                    }
-                  }
-                }
-              },
-              "title": {
-                "type": "string"
-              },
-              "type": {
-                "oneOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "rest_api"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "sql"
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      "Response_integrations.actions.create.create": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "string",
-            "description": "ID from table \"integrations\""
-          }
-        }
-      },
-      "Request_integrations.actions.test_connection.testConnection": {
+      "Request_integrations.queries.get": {
         "type": "object",
         "required": [
           "args"
@@ -14524,232 +13901,7 @@
           }
         }
       },
-      "Response_integrations.actions.test_connection.testConnection": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "object",
-            "required": [
-              "message",
-              "success"
-            ],
-            "properties": {
-              "message": {
-                "type": "string"
-              },
-              "success": {
-                "type": "boolean"
-              }
-            }
-          }
-        }
-      },
-      "Request_integrations.actions.update.update": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "integrationId"
-            ],
-            "properties": {
-              "apiKeyAuth": {
-                "type": "object",
-                "required": [
-                  "key"
-                ],
-                "properties": {
-                  "key": {
-                    "type": "string"
-                  },
-                  "keyPrefix": {
-                    "type": "string"
-                  }
-                }
-              },
-              "basicAuth": {
-                "type": "object",
-                "required": [
-                  "password",
-                  "username"
-                ],
-                "properties": {
-                  "password": {
-                    "type": "string"
-                  },
-                  "username": {
-                    "type": "string"
-                  }
-                }
-              },
-              "capabilities": {
-                "type": "object",
-                "properties": {
-                  "canPush": {
-                    "type": "boolean"
-                  },
-                  "canSync": {
-                    "type": "boolean"
-                  },
-                  "canWebhook": {
-                    "type": "boolean"
-                  },
-                  "syncFrequency": {
-                    "type": "string"
-                  }
-                }
-              },
-              "connectionConfig": {
-                "type": "object",
-                "properties": {
-                  "apiEndpoint": {
-                    "type": "string"
-                  },
-                  "apiVersion": {
-                    "type": "string"
-                  },
-                  "domain": {
-                    "type": "string"
-                  },
-                  "rateLimit": {
-                    "type": "number"
-                  },
-                  "timeout": {
-                    "type": "number"
-                  }
-                }
-              },
-              "errorMessage": {
-                "type": "string"
-              },
-              "integrationId": {
-                "type": "string",
-                "description": "ID from table \"integrations\""
-              },
-              "isActive": {
-                "type": "boolean"
-              },
-              "metadata": {},
-              "oauth2Auth": {
-                "type": "object",
-                "required": [
-                  "accessToken"
-                ],
-                "properties": {
-                  "accessToken": {
-                    "type": "string"
-                  },
-                  "refreshToken": {
-                    "type": "string"
-                  },
-                  "scopes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "tokenExpiry": {
-                    "type": "number"
-                  }
-                }
-              },
-              "status": {
-                "oneOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "active"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "inactive"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "error"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "testing"
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      "Response_integrations.actions.update.update": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "Request_integrations.mutations.delete_integration.deleteIntegration": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "integrationId"
-            ],
-            "properties": {
-              "integrationId": {
-                "type": "string",
-                "description": "ID from table \"integrations\""
-              }
-            }
-          }
-        }
-      },
-      "Response_integrations.mutations.delete_integration.deleteIntegration": {
+      "Response_integrations.queries.get": {
         "type": "object",
         "required": [
           "status"
@@ -14771,49 +13923,7 @@
           "value": {}
         }
       },
-      "Request_integrations.queries.get.get": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "integrationId"
-            ],
-            "properties": {
-              "integrationId": {
-                "type": "string",
-                "description": "ID from table \"integrations\""
-              }
-            }
-          }
-        }
-      },
-      "Response_integrations.queries.get.get": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {}
-        }
-      },
-      "Request_integrations.queries.get_by_name.getByName": {
+      "Request_integrations.queries.getByName": {
         "type": "object",
         "required": [
           "args"
@@ -14836,7 +13946,7 @@
           }
         }
       },
-      "Response_integrations.queries.get_by_name.getByName": {
+      "Response_integrations.queries.getByName": {
         "type": "object",
         "required": [
           "status"
@@ -15276,7 +14386,7 @@
           }
         }
       },
-      "Request_integrations.queries.list.list": {
+      "Request_integrations.queries.list": {
         "type": "object",
         "required": [
           "args"
@@ -15298,7 +14408,7 @@
           }
         }
       },
-      "Response_integrations.queries.list.list": {
+      "Response_integrations.queries.list": {
         "type": "object",
         "required": [
           "status"
@@ -15318,148 +14428,6 @@
             "type": "object"
           },
           "value": {}
-        }
-      },
-      "Request_member.getMyTeams": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "organizationId"
-            ],
-            "properties": {
-              "organizationId": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_member.getMyTeams": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "object",
-            "required": [
-              "teams"
-            ],
-            "properties": {
-              "teams": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "id",
-                    "name"
-                  ],
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "Request_member.listByOrganization": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "organizationId"
-            ],
-            "properties": {
-              "organizationId": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_member.listByOrganization": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "_id",
-                "createdAt",
-                "organizationId",
-                "role",
-                "userId"
-              ],
-              "properties": {
-                "_id": {
-                  "type": "string"
-                },
-                "createdAt": {
-                  "type": "number"
-                },
-                "displayName": {
-                  "type": "string"
-                },
-                "email": {
-                  "type": "string"
-                },
-                "organizationId": {
-                  "type": "string"
-                },
-                "role": {
-                  "type": "string"
-                },
-                "userId": {
-                  "type": "string"
-                }
-              }
-            }
-          }
         }
       },
       "Request_members.mutations.addMember": {
@@ -15984,6 +14952,72 @@
                 },
                 "role": {
                   "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Request_members.queries.getMyTeams": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "organizationId"
+            ],
+            "properties": {
+              "organizationId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Response_members.queries.getMyTeams": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "object",
+            "required": [
+              "teams"
+            ],
+            "properties": {
+              "teams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -17346,371 +16380,6 @@
           "value": {}
         }
       },
-      "Request_sso_providers.mutations.upsert": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "autoProvisionRole",
-              "clientId",
-              "defaultRole",
-              "issuer",
-              "organizationId",
-              "providerId",
-              "roleMappingRules",
-              "scopes"
-            ],
-            "properties": {
-              "autoProvisionRole": {
-                "type": "boolean"
-              },
-              "clientId": {
-                "type": "string"
-              },
-              "clientSecret": {
-                "type": "string"
-              },
-              "defaultRole": {
-                "oneOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "admin"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "developer"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "editor"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "member"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "disabled"
-                    ]
-                  }
-                ]
-              },
-              "issuer": {
-                "type": "string"
-              },
-              "organizationId": {
-                "type": "string"
-              },
-              "providerFeatures": {
-                "type": "object",
-                "properties": {
-                  "entraId": {
-                    "type": "object",
-                    "properties": {
-                      "autoProvisionTeam": {
-                        "type": "boolean"
-                      },
-                      "enableOneDriveAccess": {
-                        "type": "boolean"
-                      },
-                      "excludeGroups": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  },
-                  "googleWorkspace": {
-                    "type": "object",
-                    "properties": {
-                      "enableGoogleDriveAccess": {
-                        "type": "boolean"
-                      }
-                    }
-                  }
-                }
-              },
-              "providerId": {
-                "type": "string"
-              },
-              "roleMappingRules": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "pattern",
-                    "source",
-                    "targetRole"
-                  ],
-                  "properties": {
-                    "pattern": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "enum": [
-                            "jobTitle"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "appRole"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "group"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "claim"
-                          ]
-                        }
-                      ]
-                    },
-                    "targetRole": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "enum": [
-                            "admin"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "developer"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "editor"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "member"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "disabled"
-                          ]
-                        }
-                      ]
-                    }
-                  }
-                }
-              },
-              "scopes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      },
-      "Response_sso_providers.mutations.upsert": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "string"
-          }
-        }
-      },
-      "Request_sso_providers.mutations.remove": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "organizationId"
-            ],
-            "properties": {
-              "organizationId": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_sso_providers.mutations.remove": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "Request_sso_providers.mutations.testConfig": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "clientId",
-              "clientSecret",
-              "issuer"
-            ],
-            "properties": {
-              "clientId": {
-                "type": "string"
-              },
-              "clientSecret": {
-                "type": "string"
-              },
-              "issuer": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_sso_providers.mutations.testConfig": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "object",
-            "required": [
-              "valid"
-            ],
-            "properties": {
-              "error": {
-                "type": "string"
-              },
-              "valid": {
-                "type": "boolean"
-              }
-            }
-          }
-        }
-      },
-      "Request_sso_providers.mutations.testExistingConfig": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object"
-          }
-        }
-      },
-      "Response_sso_providers.mutations.testExistingConfig": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "object",
-            "required": [
-              "valid"
-            ],
-            "properties": {
-              "error": {
-                "type": "string"
-              },
-              "valid": {
-                "type": "boolean"
-              }
-            }
-          }
-        }
-      },
       "Request_sso_providers.queries.get": {
         "type": "object",
         "required": [
@@ -18036,466 +16705,6 @@
           }
         }
       },
-      "Request_sso_providers.queries.getWithClientId": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object"
-          }
-        }
-      },
-      "Response_sso_providers.queries.getWithClientId": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "object",
-            "required": [
-              "_id",
-              "autoProvisionRole",
-              "clientId",
-              "createdAt",
-              "defaultRole",
-              "issuer",
-              "organizationId",
-              "providerId",
-              "roleMappingRules",
-              "scopes",
-              "updatedAt"
-            ],
-            "properties": {
-              "_id": {
-                "type": "string",
-                "description": "ID from table \"ssoProviders\""
-              },
-              "autoProvisionRole": {
-                "type": "boolean"
-              },
-              "clientId": {
-                "type": "string"
-              },
-              "createdAt": {
-                "type": "number"
-              },
-              "defaultRole": {
-                "oneOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "admin"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "developer"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "editor"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "member"
-                    ]
-                  },
-                  {
-                    "type": "string",
-                    "enum": [
-                      "disabled"
-                    ]
-                  }
-                ]
-              },
-              "issuer": {
-                "type": "string"
-              },
-              "organizationId": {
-                "type": "string"
-              },
-              "providerFeatures": {
-                "type": "object",
-                "properties": {
-                  "entraId": {
-                    "type": "object",
-                    "properties": {
-                      "autoProvisionTeam": {
-                        "type": "boolean"
-                      },
-                      "enableOneDriveAccess": {
-                        "type": "boolean"
-                      },
-                      "excludeGroups": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  },
-                  "googleWorkspace": {
-                    "type": "object",
-                    "properties": {
-                      "enableGoogleDriveAccess": {
-                        "type": "boolean"
-                      }
-                    }
-                  }
-                }
-              },
-              "providerId": {
-                "type": "string"
-              },
-              "roleMappingRules": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": [
-                    "pattern",
-                    "source",
-                    "targetRole"
-                  ],
-                  "properties": {
-                    "pattern": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "enum": [
-                            "jobTitle"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "appRole"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "group"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "claim"
-                          ]
-                        }
-                      ]
-                    },
-                    "targetRole": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "enum": [
-                            "admin"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "developer"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "editor"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "member"
-                          ]
-                        },
-                        {
-                          "type": "string",
-                          "enum": [
-                            "disabled"
-                          ]
-                        }
-                      ]
-                    }
-                  }
-                }
-              },
-              "scopes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "updatedAt": {
-                "type": "number"
-              }
-            },
-            "nullable": true
-          }
-        }
-      },
-      "Request_sso_providers.queries.getSsoCredentialsForEmail": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "organizationId"
-            ],
-            "properties": {
-              "organizationId": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_sso_providers.queries.getSsoCredentialsForEmail": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "object",
-            "required": [
-              "clientId",
-              "clientSecret",
-              "tenantId"
-            ],
-            "properties": {
-              "clientId": {
-                "type": "string"
-              },
-              "clientSecret": {
-                "type": "string"
-              },
-              "tenantId": {
-                "type": "string"
-              }
-            },
-            "nullable": true
-          }
-        }
-      },
-      "Request_team_members.listByTeam": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "teamId"
-            ],
-            "properties": {
-              "teamId": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_team_members.listByTeam": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "_id",
-                "joinedAt",
-                "role",
-                "teamId",
-                "userId"
-              ],
-              "properties": {
-                "_id": {
-                  "type": "string"
-                },
-                "displayName": {
-                  "type": "string"
-                },
-                "email": {
-                  "type": "string"
-                },
-                "joinedAt": {
-                  "type": "number"
-                },
-                "role": {
-                  "type": "string"
-                },
-                "teamId": {
-                  "type": "string"
-                },
-                "userId": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      },
-      "Request_team_members.addMember": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "organizationId",
-              "teamId",
-              "userId"
-            ],
-            "properties": {
-              "organizationId": {
-                "type": "string"
-              },
-              "role": {
-                "type": "string"
-              },
-              "teamId": {
-                "type": "string"
-              },
-              "userId": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_team_members.addMember": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {}
-        }
-      },
-      "Request_team_members.removeMember": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "organizationId",
-              "teamMemberId"
-            ],
-            "properties": {
-              "organizationId": {
-                "type": "string"
-              },
-              "teamMemberId": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_team_members.removeMember": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
       "Request_threads.mutations.createChatThread": {
         "type": "object",
         "required": [
@@ -18728,84 +16937,6 @@
           }
         }
       },
-      "Request_threads.queries.listThreadsQuery": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "properties": {
-              "search": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_threads.queries.listThreadsQuery": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "_creationTime",
-                "_id",
-                "status"
-              ],
-              "properties": {
-                "_creationTime": {
-                  "type": "number"
-                },
-                "_id": {
-                  "type": "string"
-                },
-                "status": {
-                  "oneOf": [
-                    {
-                      "type": "string",
-                      "enum": [
-                        "active"
-                      ]
-                    },
-                    {
-                      "type": "string",
-                      "enum": [
-                        "archived"
-                      ]
-                    }
-                  ]
-                },
-                "title": {
-                  "type": "string"
-                },
-                "userId": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      },
       "Request_threads.queries.getThreadMessagesStreaming": {
         "type": "object",
         "required": [
@@ -18910,131 +17041,6 @@
         }
       },
       "Response_threads.queries.getThreadMessagesStreaming": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {}
-        }
-      },
-      "Request_threads.queries.getThreadMessagesStreamingQuery": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "paginationOpts",
-              "threadId"
-            ],
-            "properties": {
-              "paginationOpts": {
-                "type": "object",
-                "required": [
-                  "cursor",
-                  "numItems"
-                ],
-                "properties": {
-                  "cursor": {
-                    "type": "string",
-                    "nullable": true
-                  },
-                  "endCursor": {
-                    "type": "string",
-                    "nullable": true
-                  },
-                  "id": {
-                    "type": "number"
-                  },
-                  "maximumBytesRead": {
-                    "type": "number"
-                  },
-                  "maximumRowsRead": {
-                    "type": "number"
-                  },
-                  "numItems": {
-                    "type": "number"
-                  }
-                }
-              },
-              "streamArgs": {
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "required": [
-                      "kind"
-                    ],
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "enum": [
-                          "list"
-                        ]
-                      },
-                      "startOrder": {
-                        "type": "number"
-                      }
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "required": [
-                      "cursors",
-                      "kind"
-                    ],
-                    "properties": {
-                      "cursors": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "required": [
-                            "cursor",
-                            "streamId"
-                          ],
-                          "properties": {
-                            "cursor": {
-                              "type": "number"
-                            },
-                            "streamId": {
-                              "type": "string"
-                            }
-                          }
-                        }
-                      },
-                      "kind": {
-                        "type": "string",
-                        "enum": [
-                          "deltas"
-                        ]
-                      }
-                    }
-                  }
-                ]
-              },
-              "threadId": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Response_threads.queries.getThreadMessagesStreamingQuery": {
         "type": "object",
         "required": [
           "status"
@@ -21895,48 +19901,6 @@
           "value": {}
         }
       },
-      "Request_wf_step_defs.get_workflow_steps_public.getWorkflowStepsPublic": {
-        "type": "object",
-        "required": [
-          "args"
-        ],
-        "properties": {
-          "args": {
-            "type": "object",
-            "required": [
-              "wfDefinitionId"
-            ],
-            "properties": {
-              "wfDefinitionId": {
-                "type": "string",
-                "description": "ID from table \"wfDefinitions\""
-              }
-            }
-          }
-        }
-      },
-      "Response_wf_step_defs.get_workflow_steps_public.getWorkflowStepsPublic": {
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "success",
-              "error"
-            ]
-          },
-          "errorMessage": {
-            "type": "string"
-          },
-          "errorData": {
-            "type": "object"
-          },
-          "value": {}
-        }
-      },
       "Request_wf_step_defs.mutations.createStepPublic": {
         "type": "object",
         "required": [
@@ -22535,6 +20499,48 @@
           "value": {}
         }
       },
+      "Request_wf_step_defs.queries.getWorkflowStepsPublic": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "wfDefinitionId"
+            ],
+            "properties": {
+              "wfDefinitionId": {
+                "type": "string",
+                "description": "ID from table \"wfDefinitions\""
+              }
+            }
+          }
+        }
+      },
+      "Response_wf_step_defs.queries.getWorkflowStepsPublic": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {}
+        }
+      },
       "Request_wf_step_defs.queries.validateStep": {
         "type": "object",
         "required": [
@@ -22592,7 +20598,1572 @@
           "value": {}
         }
       },
-      "Request_workflow_engine.engine.startWorkflow": {
+      "Request_agent_tools.human_input.mutations.submitHumanInputResponse": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "approvalId",
+              "response"
+            ],
+            "properties": {
+              "approvalId": {
+                "type": "string",
+                "description": "ID from table \"approvals\""
+              },
+              "response": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Response_agent_tools.human_input.mutations.submitHumanInputResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "object",
+            "required": [
+              "success"
+            ],
+            "properties": {
+              "streamId": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "threadId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Request_files.mutations.generateUploadUrl": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object"
+          }
+        }
+      },
+      "Response_files.mutations.generateUploadUrl": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "Request_improve_message.actions.improveMessage": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "originalMessage"
+            ],
+            "properties": {
+              "instruction": {
+                "type": "string"
+              },
+              "originalMessage": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Response_improve_message.actions.improveMessage": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "object",
+            "required": [
+              "improvedMessage"
+            ],
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "improvedMessage": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Request_integrations.actions.testConnection": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "integrationId"
+            ],
+            "properties": {
+              "integrationId": {
+                "type": "string",
+                "description": "ID from table \"integrations\""
+              }
+            }
+          }
+        }
+      },
+      "Response_integrations.actions.testConnection": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "object",
+            "required": [
+              "message",
+              "success"
+            ],
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "Request_integrations.actions.update": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "integrationId"
+            ],
+            "properties": {
+              "apiKeyAuth": {
+                "type": "object",
+                "required": [
+                  "key"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "keyPrefix": {
+                    "type": "string"
+                  }
+                }
+              },
+              "basicAuth": {
+                "type": "object",
+                "required": [
+                  "password",
+                  "username"
+                ],
+                "properties": {
+                  "password": {
+                    "type": "string"
+                  },
+                  "username": {
+                    "type": "string"
+                  }
+                }
+              },
+              "capabilities": {
+                "type": "object",
+                "properties": {
+                  "canPush": {
+                    "type": "boolean"
+                  },
+                  "canSync": {
+                    "type": "boolean"
+                  },
+                  "canWebhook": {
+                    "type": "boolean"
+                  },
+                  "syncFrequency": {
+                    "type": "string"
+                  }
+                }
+              },
+              "connectionConfig": {
+                "type": "object",
+                "properties": {
+                  "apiEndpoint": {
+                    "type": "string"
+                  },
+                  "apiVersion": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "type": "string"
+                  },
+                  "rateLimit": {
+                    "type": "number"
+                  },
+                  "timeout": {
+                    "type": "number"
+                  }
+                }
+              },
+              "errorMessage": {
+                "type": "string"
+              },
+              "integrationId": {
+                "type": "string",
+                "description": "ID from table \"integrations\""
+              },
+              "isActive": {
+                "type": "boolean"
+              },
+              "metadata": {},
+              "oauth2Auth": {
+                "type": "object",
+                "required": [
+                  "accessToken"
+                ],
+                "properties": {
+                  "accessToken": {
+                    "type": "string"
+                  },
+                  "refreshToken": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "tokenExpiry": {
+                    "type": "number"
+                  }
+                }
+              },
+              "status": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "active"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "inactive"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "error"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "testing"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Response_integrations.actions.update": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Request_integrations.actions.create": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "authMethod",
+              "name",
+              "organizationId",
+              "title"
+            ],
+            "properties": {
+              "apiKeyAuth": {
+                "type": "object",
+                "required": [
+                  "key"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "keyPrefix": {
+                    "type": "string"
+                  }
+                }
+              },
+              "authMethod": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "api_key"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "bearer_token"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "basic_auth"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "oauth2"
+                    ]
+                  }
+                ]
+              },
+              "basicAuth": {
+                "type": "object",
+                "required": [
+                  "password",
+                  "username"
+                ],
+                "properties": {
+                  "password": {
+                    "type": "string"
+                  },
+                  "username": {
+                    "type": "string"
+                  }
+                }
+              },
+              "capabilities": {
+                "type": "object",
+                "properties": {
+                  "canPush": {
+                    "type": "boolean"
+                  },
+                  "canSync": {
+                    "type": "boolean"
+                  },
+                  "canWebhook": {
+                    "type": "boolean"
+                  },
+                  "syncFrequency": {
+                    "type": "string"
+                  }
+                }
+              },
+              "connectionConfig": {
+                "type": "object",
+                "properties": {
+                  "apiEndpoint": {
+                    "type": "string"
+                  },
+                  "apiVersion": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "type": "string"
+                  },
+                  "rateLimit": {
+                    "type": "number"
+                  },
+                  "timeout": {
+                    "type": "number"
+                  }
+                }
+              },
+              "description": {
+                "type": "string"
+              },
+              "metadata": {},
+              "name": {
+                "type": "string"
+              },
+              "oauth2Auth": {
+                "type": "object",
+                "required": [
+                  "accessToken"
+                ],
+                "properties": {
+                  "accessToken": {
+                    "type": "string"
+                  },
+                  "refreshToken": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "tokenExpiry": {
+                    "type": "number"
+                  }
+                }
+              },
+              "organizationId": {
+                "type": "string"
+              },
+              "sqlConnectionConfig": {
+                "type": "object",
+                "required": [
+                  "database",
+                  "engine",
+                  "server"
+                ],
+                "properties": {
+                  "database": {
+                    "type": "string"
+                  },
+                  "engine": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "mssql"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "postgres"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "mysql"
+                        ]
+                      }
+                    ]
+                  },
+                  "options": {
+                    "type": "object",
+                    "properties": {
+                      "connectionTimeout": {
+                        "type": "number"
+                      },
+                      "encrypt": {
+                        "type": "boolean"
+                      },
+                      "requestTimeout": {
+                        "type": "number"
+                      },
+                      "trustServerCertificate": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "port": {
+                    "type": "number"
+                  },
+                  "readOnly": {
+                    "type": "boolean"
+                  },
+                  "security": {
+                    "type": "object",
+                    "properties": {
+                      "maxConnectionPoolSize": {
+                        "type": "number"
+                      },
+                      "maxResultRows": {
+                        "type": "number"
+                      },
+                      "queryTimeoutMs": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "server": {
+                    "type": "string"
+                  }
+                }
+              },
+              "sqlOperations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "query"
+                  ],
+                  "properties": {
+                    "description": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "operationType": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "read"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "write"
+                          ]
+                        }
+                      ]
+                    },
+                    "parametersSchema": {},
+                    "query": {
+                      "type": "string"
+                    },
+                    "requiresApproval": {
+                      "type": "boolean"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "rest_api"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "sql"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Response_integrations.actions.create": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "string",
+            "description": "ID from table \"integrations\""
+          }
+        }
+      },
+      "Request_integrations.mutations.deleteIntegration": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "integrationId"
+            ],
+            "properties": {
+              "integrationId": {
+                "type": "string",
+                "description": "ID from table \"integrations\""
+              }
+            }
+          }
+        }
+      },
+      "Response_integrations.mutations.deleteIntegration": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {}
+        }
+      },
+      "Request_sso_providers.actions.getWithClientId": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object"
+          }
+        }
+      },
+      "Response_sso_providers.actions.getWithClientId": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "object",
+            "required": [
+              "_id",
+              "autoProvisionRole",
+              "clientId",
+              "createdAt",
+              "defaultRole",
+              "issuer",
+              "organizationId",
+              "providerId",
+              "roleMappingRules",
+              "scopes",
+              "updatedAt"
+            ],
+            "properties": {
+              "_id": {
+                "type": "string",
+                "description": "ID from table \"ssoProviders\""
+              },
+              "autoProvisionRole": {
+                "type": "boolean"
+              },
+              "clientId": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "defaultRole": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "admin"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "developer"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "editor"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "member"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "disabled"
+                    ]
+                  }
+                ]
+              },
+              "issuer": {
+                "type": "string"
+              },
+              "organizationId": {
+                "type": "string"
+              },
+              "providerFeatures": {
+                "type": "object",
+                "properties": {
+                  "entraId": {
+                    "type": "object",
+                    "properties": {
+                      "autoProvisionTeam": {
+                        "type": "boolean"
+                      },
+                      "enableOneDriveAccess": {
+                        "type": "boolean"
+                      },
+                      "excludeGroups": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "googleWorkspace": {
+                    "type": "object",
+                    "properties": {
+                      "enableGoogleDriveAccess": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              },
+              "providerId": {
+                "type": "string"
+              },
+              "roleMappingRules": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "pattern",
+                    "source",
+                    "targetRole"
+                  ],
+                  "properties": {
+                    "pattern": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "jobTitle"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "appRole"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "group"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "claim"
+                          ]
+                        }
+                      ]
+                    },
+                    "targetRole": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "admin"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "developer"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "editor"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "member"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "disabled"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "scopes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "updatedAt": {
+                "type": "number"
+              }
+            },
+            "nullable": true
+          }
+        }
+      },
+      "Request_sso_providers.actions.getSsoCredentialsForEmail": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "organizationId"
+            ],
+            "properties": {
+              "organizationId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Response_sso_providers.actions.getSsoCredentialsForEmail": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "object",
+            "required": [
+              "clientId",
+              "clientSecret",
+              "tenantId"
+            ],
+            "properties": {
+              "clientId": {
+                "type": "string"
+              },
+              "clientSecret": {
+                "type": "string"
+              },
+              "tenantId": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          }
+        }
+      },
+      "Request_sso_providers.actions.upsert": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "autoProvisionRole",
+              "clientId",
+              "defaultRole",
+              "issuer",
+              "organizationId",
+              "providerId",
+              "roleMappingRules",
+              "scopes"
+            ],
+            "properties": {
+              "autoProvisionRole": {
+                "type": "boolean"
+              },
+              "clientId": {
+                "type": "string"
+              },
+              "clientSecret": {
+                "type": "string"
+              },
+              "defaultRole": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "admin"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "developer"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "editor"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "member"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "disabled"
+                    ]
+                  }
+                ]
+              },
+              "issuer": {
+                "type": "string"
+              },
+              "organizationId": {
+                "type": "string"
+              },
+              "providerFeatures": {
+                "type": "object",
+                "properties": {
+                  "entraId": {
+                    "type": "object",
+                    "properties": {
+                      "autoProvisionTeam": {
+                        "type": "boolean"
+                      },
+                      "enableOneDriveAccess": {
+                        "type": "boolean"
+                      },
+                      "excludeGroups": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "googleWorkspace": {
+                    "type": "object",
+                    "properties": {
+                      "enableGoogleDriveAccess": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              },
+              "providerId": {
+                "type": "string"
+              },
+              "roleMappingRules": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "pattern",
+                    "source",
+                    "targetRole"
+                  ],
+                  "properties": {
+                    "pattern": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "jobTitle"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "appRole"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "group"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "claim"
+                          ]
+                        }
+                      ]
+                    },
+                    "targetRole": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "admin"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "developer"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "editor"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "member"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "disabled"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "scopes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Response_sso_providers.actions.upsert": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "Request_sso_providers.actions.remove": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "organizationId"
+            ],
+            "properties": {
+              "organizationId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Response_sso_providers.actions.remove": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Request_sso_providers.actions.testConfig": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "clientId",
+              "clientSecret",
+              "issuer"
+            ],
+            "properties": {
+              "clientId": {
+                "type": "string"
+              },
+              "clientSecret": {
+                "type": "string"
+              },
+              "issuer": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Response_sso_providers.actions.testConfig": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "object",
+            "required": [
+              "valid"
+            ],
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "valid": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "Request_sso_providers.actions.testExistingConfig": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object"
+          }
+        }
+      },
+      "Response_sso_providers.actions.testExistingConfig": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "object",
+            "required": [
+              "valid"
+            ],
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "valid": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "Request_team_members.mutations.addMember": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "organizationId",
+              "teamId",
+              "userId"
+            ],
+            "properties": {
+              "organizationId": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "teamId": {
+                "type": "string"
+              },
+              "userId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Response_team_members.mutations.addMember": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {}
+        }
+      },
+      "Request_team_members.mutations.removeMember": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "organizationId",
+              "teamMemberId"
+            ],
+            "properties": {
+              "organizationId": {
+                "type": "string"
+              },
+              "teamMemberId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Response_team_members.mutations.removeMember": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Request_team_members.queries.listByTeam": {
+        "type": "object",
+        "required": [
+          "args"
+        ],
+        "properties": {
+          "args": {
+            "type": "object",
+            "required": [
+              "teamId"
+            ],
+            "properties": {
+              "teamId": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Response_team_members.queries.listByTeam": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "errorData": {
+            "type": "object"
+          },
+          "value": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "_id",
+                "joinedAt",
+                "role",
+                "teamId",
+                "userId"
+              ],
+              "properties": {
+                "_id": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "joinedAt": {
+                  "type": "number"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "teamId": {
+                  "type": "string"
+                },
+                "userId": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Request_workflow_engine.mutations.startWorkflow": {
         "type": "object",
         "required": [
           "args"
@@ -22622,7 +22193,7 @@
           }
         }
       },
-      "Response_workflow_engine.engine.startWorkflow": {
+      "Response_workflow_engine.mutations.startWorkflow": {
         "type": "object",
         "required": [
           "status"

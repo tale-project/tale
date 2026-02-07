@@ -16,7 +16,7 @@ export interface Team {
  */
 export function useListTeams(organizationId: string | undefined) {
   const result = useQuery(
-    api.member.getMyTeams,
+    api.members.queries.getMyTeams,
     organizationId ? { organizationId } : 'skip',
   );
 

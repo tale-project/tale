@@ -24,7 +24,7 @@ export async function testConnectionLogic(
   ctx: ActionCtx,
   args: TestConnectionLogicArgs,
 ): Promise<TestConnectionResult> {
-  const integration = await ctx.runQuery(api.integrations.queries.get.get, {
+  const integration = await ctx.runQuery(api.integrations.queries.get, {
     integrationId: args.integrationId,
   });
 

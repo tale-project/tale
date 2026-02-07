@@ -101,7 +101,7 @@ export const executeBatchIntegrationInternal = internalAction({
 
     // 1. Load integration config ONCE
     const integration = await ctx.runQuery(
-      internal.integrations.queries.getByName,
+      internal.integrations.internal_queries.getByName,
       { organizationId, name: integrationName },
     );
 

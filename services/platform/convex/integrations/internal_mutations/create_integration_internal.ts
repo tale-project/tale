@@ -1,7 +1,3 @@
-/**
- * Internal mutation to create an integration
- */
-
 import { v } from 'convex/values';
 import { internalMutation } from '../../_generated/server';
 import { createIntegrationInternal as createIntegrationInternalHelper } from '../create_integration_internal';

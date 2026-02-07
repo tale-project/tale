@@ -67,15 +67,15 @@ function IntegrationsPage() {
   const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
-  const shopify = useQuery(api.integrations.queries.get_by_name.getByName, {
+  const shopify = useQuery(api.integrations.queries.getByName, {
     organizationId,
     name: 'shopify',
   });
-  const circuly = useQuery(api.integrations.queries.get_by_name.getByName, {
+  const circuly = useQuery(api.integrations.queries.getByName, {
     organizationId,
     name: 'circuly',
   });
-  const protel = useQuery(api.integrations.queries.get_by_name.getByName, {
+  const protel = useQuery(api.integrations.queries.getByName, {
     organizationId,
     name: 'protel',
   });
