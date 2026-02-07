@@ -271,7 +271,10 @@ export function DocumentsClient({
           <HStack gap={2} justify="center">
             {row.original.sourceProvider === 'onedrive' &&
               row.original.sourceMode === 'auto' && (
-                <div className="relative" title={tDocuments('sourceType.oneDriveSynced')}>
+                <div
+                  className="relative"
+                  title={tDocuments('sourceType.oneDriveSynced')}
+                >
                   <OneDriveIcon className="size-6" />
                   <RefreshCw className="size-4 text-background absolute bottom-0 right-0.5 p-0.5 rounded-full bg-foreground" />
                 </div>
@@ -284,7 +287,10 @@ export function DocumentsClient({
               )}
             {row.original.sourceProvider === 'sharepoint' &&
               row.original.sourceMode === 'auto' && (
-                <div className="relative" title={tDocuments('sourceType.sharePointSynced')}>
+                <div
+                  className="relative"
+                  title={tDocuments('sourceType.sharePointSynced')}
+                >
                   <SharePointIcon className="size-6" />
                   <RefreshCw className="size-4 text-background absolute bottom-0 right-0.5 p-0.5 rounded-full bg-foreground" />
                 </div>
