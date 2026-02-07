@@ -1,9 +1,10 @@
 import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-value';
 import type { CompleteExecutionArgs } from './types';
 
 type CompleteExecutionData = {
-  output: unknown;
+  output: ConvexJsonValue;
   outputStorageId?: Id<'_storage'>;
   variables?: string;
   variablesStorageId?: Id<'_storage'>;
