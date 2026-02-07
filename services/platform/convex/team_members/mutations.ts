@@ -27,6 +27,14 @@ export const addMember = mutation({
       throw new Error('Only admins can add team members');
     }
 
+    const team = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: 'team',
+      where: [{ field: '_id', value: args.teamId, operator: 'eq' }],
+    });
+    if (!team || String(team.organizationId) !== args.organizationId) {
+      throw new Error('Team not found in this organization');
+    }
+
     const targetOrgMember = await ctx.runQuery(
       components.betterAuth.adapter.findMany,
       {
