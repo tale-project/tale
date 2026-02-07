@@ -1,27 +1,9 @@
 import { v } from 'convex/values';
-import { internalMutation, mutation } from '../_generated/server';
-import { getOrCreateSubThread } from './get_or_create_sub_thread';
+import { mutation } from '../_generated/server';
 import { createChatThread as createChatThreadHelper } from './create_chat_thread';
 import { deleteChatThread as deleteChatThreadHelper } from './delete_chat_thread';
 import { updateChatThread as updateChatThreadHelper } from './update_chat_thread';
 import { authComponent } from '../auth';
-import { subAgentTypeValidator } from './validators';
-
-export const getOrCreateSubThreadAtomic = internalMutation({
-  args: {
-    parentThreadId: v.string(),
-    subAgentType: subAgentTypeValidator,
-    userId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    return await getOrCreateSubThread(
-      ctx,
-      args.parentThreadId,
-      args.subAgentType,
-      args.userId,
-    );
-  },
-});
 
 export const createChatThread = mutation({
   args: {

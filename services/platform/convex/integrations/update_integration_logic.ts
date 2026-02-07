@@ -109,7 +109,7 @@ export async function updateIntegrationLogic(
   await runHealthCheckIfNeeded(integration, args);
 
   // Update integration
-  await ctx.runMutation(internal.integrations.internal_mutations.update_integration_internal.updateIntegrationInternal, {
+  await ctx.runMutation(internal.integrations.internal_mutations.updateIntegration, {
     integrationId: args.integrationId,
     status: args.status,
     isActive: args.isActive,

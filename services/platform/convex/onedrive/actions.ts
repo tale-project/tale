@@ -1,14 +1,13 @@
 'use node';
 
 import { v } from 'convex/values';
-import { action, internalAction } from '../_generated/server';
+import { action } from '../_generated/server';
 import { withMicrosoftToken } from './with_microsoft_token';
 import { importFiles as importFilesImpl, type ImportItem } from './import_files';
 import { listSharePointSites as listSharePointSitesImpl } from './list_sharepoint_sites';
 import { listSharePointDrives as listSharePointDrivesImpl } from './list_sharepoint_drives';
 import { listSharePointFiles as listSharePointFilesImpl } from './list_sharepoint_files';
 import { listFiles as listFilesImpl } from './list_files';
-import { downloadAndStoreFile as downloadAndStoreFileImpl } from './download_and_store_file';
 import { createImportFilesDeps } from './import_files_deps';
 import {
   oneDriveItemValidator,
@@ -34,24 +33,6 @@ export const listFiles = action({
       return { success: false, error: tokenResult.error };
     }
     return await listFilesImpl(tokenResult.token, args.folderId, args.search);
-  },
-});
-
-export const downloadAndStoreFile = internalAction({
-  args: {
-    itemId: v.string(),
-    token: v.string(),
-  },
-  returns: v.object({
-    success: v.boolean(),
-    storageId: v.optional(v.string()),
-    mimeType: v.optional(v.string()),
-    error: v.optional(v.string()),
-  }),
-  handler: async (ctx, args) => {
-    return await downloadAndStoreFileImpl(args, {
-      storeFile: async (blob) => ctx.storage.store(blob),
-    });
   },
 });
 

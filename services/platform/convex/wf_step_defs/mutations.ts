@@ -1,5 +1,4 @@
 import { v } from 'convex/values';
-import { internalMutation } from '../_generated/server';
 import { mutationWithRLS } from '../lib/rls';
 import { createStep as createStepHelper } from '../workflows/steps/create_step';
 import { updateStep as updateStepHelper } from '../workflows/steps/update_step';
@@ -8,16 +7,6 @@ import { stepConfigValidator } from '../workflow_engine/types/nodes';
 import { editModeValidator, stepTypeValidator } from '../workflows/steps/validators';
 import { auditStepChange } from './audit';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
-
-export const patchStep = internalMutation({
-  args: {
-    stepRecordId: v.id('wfStepDefs'),
-    updates: jsonRecordValidator,
-  },
-  handler: async (ctx, args) => {
-    return await updateStepHelper(ctx, args);
-  },
-});
 
 export const updateStep = mutationWithRLS({
   args: {

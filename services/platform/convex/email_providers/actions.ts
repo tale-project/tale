@@ -119,7 +119,7 @@ export const generateOAuth2AuthUrl = action({
     const authUrl = await generateOAuth2AuthUrlLogic(ctx, args, {
       getProvider: async (providerId) => {
         return await ctx.runQuery(
-          internal.email_providers.internal_queries.getInternal,
+          internal.email_providers.internal_queries.get,
           { providerId },
         );
       },
@@ -201,7 +201,7 @@ export const testExistingProvider = action({
     return await testExistingProviderLogic(ctx, args.providerId, {
       getProvider: async (providerId) => {
         return await ctx.runQuery(
-          internal.email_providers.internal_queries.getInternal,
+          internal.email_providers.internal_queries.get,
           { providerId },
         );
       },
@@ -226,7 +226,7 @@ export const testExistingProvider = action({
       },
       storeTokens: async (params) => {
         return await ctx.runAction(
-          internal.email_providers.internal_actions.storeOAuth2TokensInternal,
+          internal.email_providers.internal_actions.storeOAuth2Tokens,
           params,
         );
       },
@@ -260,7 +260,7 @@ export const updateOAuth2Provider = action({
       encryptString,
       getProvider: async (providerId) => {
         return await ctx.runQuery(
-          internal.email_providers.internal_queries.getInternal,
+          internal.email_providers.internal_queries.get,
           { providerId },
         );
       },

@@ -6,7 +6,6 @@
  */
 
 import { v } from 'convex/values';
-import { internalQuery } from '../_generated/server';
 import { queryWithRLS } from '../lib/rls';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
 import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
@@ -14,7 +13,6 @@ import * as ConversationsHelpers from './helpers';
 import {
   conversationWithMessagesValidator,
   conversationStatusValidator,
-  conversationPriorityValidator,
   conversationItemValidator,
 } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
@@ -38,143 +36,6 @@ const internalConversationRecordValidator = v.object({
   metadata: v.optional(jsonRecordValidator),
 });
 
-const internalMessageRecordValidator = v.object({
-  _id: v.id('conversationMessages'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  conversationId: v.id('conversations'),
-  providerId: v.optional(v.id('emailProviders')),
-  channel: v.string(),
-  direction: v.union(v.literal('inbound'), v.literal('outbound')),
-  externalMessageId: v.optional(v.string()),
-  deliveryState: v.union(
-    v.literal('queued'),
-    v.literal('sent'),
-    v.literal('delivered'),
-    v.literal('failed'),
-  ),
-  content: v.string(),
-  sentAt: v.optional(v.number()),
-  deliveredAt: v.optional(v.number()),
-  metadata: v.optional(jsonRecordValidator),
-});
-
-// =============================================================================
-// INTERNAL QUERIES (without RLS)
-// =============================================================================
-
-export const getConversationById = internalQuery({
-  args: {
-    conversationId: v.id('conversations'),
-  },
-  returns: v.union(internalConversationRecordValidator, v.null()),
-  handler: async (ctx, args) => {
-    return await ConversationsHelpers.getConversationById(
-      ctx,
-      args.conversationId,
-    );
-  },
-});
-
-export const getConversationByExternalMessageId = internalQuery({
-  args: {
-    organizationId: v.string(),
-    externalMessageId: v.string(),
-  },
-  returns: v.union(internalConversationRecordValidator, v.null()),
-  handler: async (ctx, args) => {
-    return await ConversationsHelpers.getConversationByExternalMessageId(
-      ctx,
-      args.organizationId,
-      args.externalMessageId,
-    );
-  },
-});
-
-export const getMessageByExternalId = internalQuery({
-  args: {
-    organizationId: v.string(),
-    externalMessageId: v.string(),
-  },
-  returns: v.union(internalMessageRecordValidator, v.null()),
-  handler: async (ctx, args) => {
-    return await ConversationsHelpers.getMessageByExternalId(
-      ctx,
-      args.organizationId,
-      args.externalMessageId,
-    );
-  },
-});
-
-export const queryConversations = internalQuery({
-  args: {
-    organizationId: v.string(),
-    customerId: v.optional(v.id('customers')),
-    status: v.optional(conversationStatusValidator),
-    priority: v.optional(conversationPriorityValidator),
-    channel: v.optional(v.string()),
-    direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-    paginationOpts: cursorPaginationOptsValidator,
-  },
-  returns: v.object({
-    page: v.array(internalConversationRecordValidator),
-    isDone: v.boolean(),
-    continueCursor: v.string(),
-  }),
-  handler: async (ctx, args) => {
-    return await ConversationsHelpers.queryConversations(ctx, args);
-  },
-});
-
-export const queryConversationMessages = internalQuery({
-  args: {
-    organizationId: v.string(),
-    conversationId: v.optional(v.id('conversations')),
-    channel: v.optional(v.string()),
-    direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-    paginationOpts: cursorPaginationOptsValidator,
-  },
-  returns: v.object({
-    page: v.array(internalMessageRecordValidator),
-    isDone: v.boolean(),
-    continueCursor: v.string(),
-  }),
-  handler: async (ctx, args) => {
-    return await ConversationsHelpers.queryConversationMessages(ctx, args);
-  },
-});
-
-export const queryLatestMessageByDeliveryState = internalQuery({
-  args: {
-    organizationId: v.string(),
-    channel: v.string(),
-    direction: v.union(v.literal('inbound'), v.literal('outbound')),
-    deliveryState: v.union(
-      v.literal('queued'),
-      v.literal('sent'),
-      v.literal('delivered'),
-      v.literal('failed'),
-    ),
-    providerId: v.optional(v.id('emailProviders')),
-  },
-  returns: v.object({
-    message: v.union(internalMessageRecordValidator, v.null()),
-  }),
-  handler: async (ctx, args) => {
-    return await ConversationsHelpers.queryLatestMessageByDeliveryState(
-      ctx,
-      args,
-    );
-  },
-});
-
-// =============================================================================
-// PUBLIC QUERIES (with RLS)
-// =============================================================================
-
-/**
- * Check if organization has any conversations (fast count query for empty state detection)
- */
 export const hasConversations = queryWithRLS({
   args: {
     organizationId: v.string(),

@@ -20,7 +20,7 @@ export async function triggerWorkflowById(
   ctx: ActionCtx,
   args: TriggerWorkflowByIdArgs,
 ): Promise<string> {
-  const workflow = (await ctx.runQuery(internal.wf_definitions.queries.resolveWorkflow, {
+  const workflow = (await ctx.runQuery(internal.wf_definitions.internal_queries.resolveWorkflow, {
     wfDefinitionId: args.wfDefinitionId,
   })) as unknown as Doc<'wfDefinitions'> | null;
 
@@ -37,7 +37,7 @@ export async function triggerWorkflowById(
   }
 
   const handle: string = await ctx.runMutation(
-    internal.workflow_engine.mutations.internalStartWorkflow,
+    internal.workflow_engine.internal_mutations.startWorkflow,
     {
       organizationId: workflow.organizationId,
       wfDefinitionId: args.wfDefinitionId,

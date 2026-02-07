@@ -1,11 +1,8 @@
 import { v } from 'convex/values';
-import { internalQuery } from '../_generated/server';
 import { queryWithRLS } from '../lib/rls';
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { getActiveVersion as getActiveVersionHelper } from '../workflows/definitions/get_active_version';
-import { getWorkflowByName as getWorkflowByNameHelper } from '../workflows/definitions/get_workflow_by_name';
-import { listWorkflows as listWorkflowsHelper } from '../workflows/definitions/list_workflows';
 import { executeDryRun } from '../workflow_engine/execution/dry_run_executor';
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 
@@ -36,35 +33,6 @@ export const getWorkflow = queryWithRLS({
   },
 });
 
-export const resolveWorkflow = internalQuery({
-  args: {
-    wfDefinitionId: v.id('wfDefinitions'),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.wfDefinitionId);
-  },
-});
-
-export const getActiveVersion = internalQuery({
-  args: {
-    organizationId: v.string(),
-    name: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await getActiveVersionHelper(ctx, args);
-  },
-});
-
-export const getWorkflowByName = internalQuery({
-  args: {
-    organizationId: v.string(),
-    name: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await getWorkflowByNameHelper(ctx, args);
-  },
-});
-
 export const listVersions = queryWithRLS({
   args: {
     organizationId: v.string(),
@@ -72,26 +40,6 @@ export const listVersions = queryWithRLS({
   },
   handler: async (ctx, args) => {
     return await queryVersionsByOrgAndName(ctx, args.organizationId, args.name);
-  },
-});
-
-export const listVersionsByName = internalQuery({
-  args: {
-    organizationId: v.string(),
-    name: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await queryVersionsByOrgAndName(ctx, args.organizationId, args.name);
-  },
-});
-
-export const listWorkflows = internalQuery({
-  args: {
-    organizationId: v.string(),
-    status: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    return await listWorkflowsHelper(ctx, args);
   },
 });
 

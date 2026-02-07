@@ -21,7 +21,7 @@ export async function createApproval(
   },
 ): Promise<CreateApprovalResult> {
   const approvalId: Id<'approvals'> = await ctx.runMutation(
-    internal.approvals.mutations.createApproval,
+    internal.approvals.internal_mutations.createApproval,
     {
       organizationId: params.organizationId,
       resourceType: params.resourceType as ApprovalResourceType,
@@ -38,7 +38,7 @@ export async function createApproval(
 
   // Fetch and return the full created entity
   const createdApproval = await ctx.runQuery(
-    internal.approvals.queries.getApprovalById,
+    internal.approvals.internal_queries.getApprovalById,
     { approvalId },
   );
 

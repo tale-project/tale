@@ -120,7 +120,7 @@ export const integrationAction: ActionDefinition<{
 
       // Create approval and return approval result instead of executing
       const approvalId = await ctx.runMutation!(
-        internal.agent_tools.integrations.create_integration_approval
+        internal.agent_tools.integrations.internal_mutations
           .createIntegrationApproval,
         {
           organizationId,
@@ -156,8 +156,8 @@ export const integrationAction: ActionDefinition<{
     debugLog(`Executing ${name}.${operation} (v${connectorConfig.version})`);
 
     const result = (await ctx.runAction!(
-      internal.node_only.integration_sandbox.execute_integration_internal
-        .executeIntegrationInternal,
+      internal.node_only.integration_sandbox.internal_actions
+        .executeIntegration,
       {
         code: connectorConfig.code,
         operation,

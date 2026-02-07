@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { internalQuery, query } from '../_generated/server';
+import { query } from '../_generated/server';
 import * as ApprovalsHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
@@ -8,31 +8,6 @@ import {
   approvalStatusValidator,
   approvalResourceTypeValidator,
 } from './validators';
-
-export const getApprovalById = internalQuery({
-  args: {
-    approvalId: v.id('approvals'),
-  },
-  handler: async (ctx, args) => {
-    return await ApprovalsHelpers.getApproval(ctx, args.approvalId);
-  },
-});
-
-export const getApprovalsForThread = internalQuery({
-  args: {
-    threadId: v.string(),
-  },
-  returns: v.array(approvalItemValidator),
-  handler: async (ctx, args) => {
-    const approvals = [];
-    for await (const approval of ctx.db
-      .query('approvals')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
-      approvals.push(approval);
-    }
-    return approvals;
-  },
-});
 
 export const listApprovalsByOrganization = query({
   args: {

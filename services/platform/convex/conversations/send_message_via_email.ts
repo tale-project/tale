@@ -178,8 +178,8 @@ export async function sendMessageViaEmail(
 
   const sendMethod = provider.sendMethod || 'smtp';
   const sendAction = sendMethod === 'api'
-    ? internal.email_providers.internal_actions.sendMessageViaAPIInternal
-    : internal.email_providers.internal_actions.sendMessageViaSMTPInternal;
+    ? internal.email_providers.internal_actions.sendMessageViaAPI
+    : internal.email_providers.internal_actions.sendMessageViaSMTP;
 
   await ctx.scheduler.runAfter(0, sendAction, emailPayload);
 

@@ -21,5 +21,5 @@ export type CreateHumanInputRequestRef = FunctionReference<
 >;
 
 export function getCreateHumanInputRequestRef(): CreateHumanInputRequestRef {
-  return createRef<CreateHumanInputRequestRef>('internal', ['agent_tools', 'human_input', 'create_human_input_request', 'createHumanInputRequest']);
+  return createRef<CreateHumanInputRequestRef>('internal', ['agent_tools', 'human_input', 'internal_mutations', 'createHumanInputRequest']);
 }

@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 
-export const getDefaultInternal = internalQuery({
+export const getDefault = internalQuery({
   args: {
     organizationId: v.string(),
   },
@@ -15,7 +15,7 @@ export const getDefaultInternal = internalQuery({
   },
 });
 
-export const getInternal = internalQuery({
+export const get = internalQuery({
   args: {
     providerId: v.id('emailProviders'),
   },

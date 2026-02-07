@@ -1,14 +1,9 @@
 'use node';
 
-/**
- * Workflow Agent Convex Actions
- */
-
 import { v } from 'convex/values';
 import { saveMessage } from '@convex-dev/agent';
-import { action, internalAction } from '../../_generated/server';
+import { action } from '../../_generated/server';
 import { components } from '../../_generated/api';
-import { agentResponseReturnsValidator } from '../../lib/agent_response';
 import {
   buildMultiModalContent,
   registerFilesWithAgent,
@@ -17,31 +12,6 @@ import {
 import { getResolveWorkflowRef } from '../../lib/function_refs';
 import { authComponent } from '../../auth';
 import { generateWorkflowResponse } from './generate_response';
-
-export const generateResponse = internalAction({
-  args: {
-    threadId: v.string(),
-    userId: v.optional(v.string()),
-    organizationId: v.string(),
-    promptMessage: v.string(),
-    additionalContext: v.optional(v.record(v.string(), v.string())),
-    parentThreadId: v.optional(v.string()),
-    delegationMode: v.optional(v.boolean()),
-  },
-  returns: agentResponseReturnsValidator,
-  handler: async (ctx, args) => {
-    return generateWorkflowResponse({
-      ctx,
-      threadId: args.threadId,
-      userId: args.userId,
-      organizationId: args.organizationId,
-      promptMessage: args.promptMessage,
-      additionalContext: args.additionalContext,
-      parentThreadId: args.parentThreadId,
-      delegationMode: args.delegationMode,
-    });
-  },
-});
 
 export const chatWithWorkflowAssistant = action({
   args: {

@@ -52,7 +52,7 @@ export async function rescanWebsite(
   }
 
   // Start the workflow immediately using the engine executor directly
-  await ctx.runMutation(internal.workflow_engine.mutations.internalStartWorkflow, {
+  await ctx.runMutation(internal.workflow_engine.internal_mutations.startWorkflow, {
     organizationId: website.organizationId,
     wfDefinitionId: workflowId,
     input: { websiteId: website._id, domain: normalizedDomain },

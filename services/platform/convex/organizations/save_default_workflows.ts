@@ -64,7 +64,7 @@ export async function saveDefaultWorkflows(
 
   const results = await Promise.all(
     payloads.map((payload) =>
-      ctx.runMutation(internal.wf_definitions.mutations.provisionWorkflowWithSteps, {
+      ctx.runMutation(internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps, {
         organizationId: args.organizationId,
         ...payload,
       }),
@@ -75,7 +75,7 @@ export async function saveDefaultWorkflows(
 
   await Promise.all(
     workflowIds.map((workflowId: Id<'wfDefinitions'>) =>
-      ctx.runMutation(internal.wf_definitions.mutations.updateWorkflowStatus, {
+      ctx.runMutation(internal.wf_definitions.internal_mutations.updateWorkflowStatus, {
         wfDefinitionId: workflowId,
         status: 'active',
         updatedBy: 'system',

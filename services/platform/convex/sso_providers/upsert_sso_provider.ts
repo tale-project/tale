@@ -53,11 +53,11 @@ export async function upsertSsoProvider(ctx: GenericActionCtx<DataModel>, args: 
 			throw new Error(validation.error || 'Invalid SSO configuration');
 		}
 
-		clientIdEncrypted = await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, {
+		clientIdEncrypted = await ctx.runAction(internal.lib.crypto.internal_actions.encryptString, {
 			plaintext: args.clientId,
 		});
 
-		clientSecretEncrypted = await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, {
+		clientSecretEncrypted = await ctx.runAction(internal.lib.crypto.internal_actions.encryptString, {
 			plaintext: args.clientSecret,
 		});
 	} else if (existingProvider) {

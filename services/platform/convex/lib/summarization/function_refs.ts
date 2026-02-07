@@ -30,5 +30,5 @@ export type AutoSummarizeIfNeededRef = FunctionReference<
  * ```
  */
 export function getAutoSummarizeRef(): AutoSummarizeIfNeededRef {
-  return createRef<AutoSummarizeIfNeededRef>('internal', ['lib', 'summarization', 'actions', 'autoSummarizeIfNeeded']);
+  return createRef<AutoSummarizeIfNeededRef>('internal', ['lib', 'summarization', 'internal_actions', 'autoSummarizeIfNeeded']);
 }

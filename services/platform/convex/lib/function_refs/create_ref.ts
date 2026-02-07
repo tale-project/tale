@@ -23,13 +23,13 @@ const internalRecord: Record<string, unknown> = internal;
  * Creates a type-safe function reference getter.
  *
  * @param apiType - 'api' for public functions, 'internal' for internal functions
- * @param path - Array of path segments to the function (e.g., ['streaming', 'mutations', 'startStream'])
+ * @param path - Array of path segments to the function (e.g., ['streaming', 'internal_mutations', 'startStream'])
  * @returns A function reference of the specified type
  *
  * @example
  * ```ts
  * type StartStreamRef = FunctionReference<'mutation', 'internal', { streamId: string }, void>;
- * const getStartStreamRef = () => createRef<StartStreamRef>('internal', ['streaming', 'mutations', 'startStream']);
+ * const getStartStreamRef = () => createRef<StartStreamRef>('internal', ['streaming', 'internal_mutations', 'startStream']);
  * ```
  */
 export function createRef<

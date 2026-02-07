@@ -37,5 +37,5 @@ export function getGetApprovalsForThreadRef(): GetApprovalsForThreadRef {
 }
 
 export function getLinkApprovalsToMessageRef(): LinkApprovalsToMessageRef {
-  return createRef<LinkApprovalsToMessageRef>('internal', ['approvals', 'mutations', 'linkApprovalsToMessage']);
+  return createRef<LinkApprovalsToMessageRef>('internal', ['approvals', 'internal_mutations', 'linkApprovalsToMessage']);
 }

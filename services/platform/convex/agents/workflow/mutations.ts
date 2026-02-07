@@ -69,7 +69,7 @@ export const chatWithWorkflowAgent = mutation({
     }
 
     const userRole = await ctx.runQuery(
-      internal.members.queries.getMemberRole,
+      internal.members.internal_queries.getMemberRole,
       { userId: String(authUser._id), organizationId: args.organizationId },
     );
 

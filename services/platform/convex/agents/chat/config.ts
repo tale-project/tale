@@ -45,9 +45,9 @@ export function getChatAgentRuntimeConfig() {
 }
 
 // Function references for hooks - using makeFunctionReference for type-safe path construction
-const beforeContextHookRef = makeFunctionReference<'action'>('agents/chat/hooks:beforeContextHook');
-const beforeGenerateHookRef = makeFunctionReference<'action'>('agents/chat/hooks:beforeGenerateHook');
-const onErrorHookRef = makeFunctionReference<'action'>('agents/chat/hooks:onErrorHook');
+const beforeContextHookRef = makeFunctionReference<'action'>('agents/chat/internal_actions:beforeContextHook');
+const beforeGenerateHookRef = makeFunctionReference<'action'>('agents/chat/internal_actions:beforeGenerateHook');
+const onErrorHookRef = makeFunctionReference<'action'>('agents/chat/internal_actions:onErrorHook');
 
 /**
  * Create FunctionHandles for chat agent hooks.

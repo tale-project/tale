@@ -1,80 +1,14 @@
 /**
  * Documents Queries
- *
- * Internal and public queries for document operations.
  */
 
 import { v } from 'convex/values';
-import { internalQuery, query } from '../_generated/server';
+import { query } from '../_generated/server';
 import * as DocumentsHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import { sourceProviderValidator } from './validators';
 
-/**
- * Get a raw document by ID (internal query)
- */
-export const getDocumentByIdRaw = internalQuery({
-  args: {
-    documentId: v.id('documents'),
-  },
-  handler: async (ctx, args) => {
-    return await DocumentsHelpers.getDocumentById(ctx, args.documentId);
-  },
-});
-
-/**
- * List documents by extension (internal query)
- */
-export const listDocumentsByExtension = internalQuery({
-  args: {
-    organizationId: v.string(),
-    extension: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    return await DocumentsHelpers.listDocumentsByExtension(ctx, args);
-  },
-});
-
-/**
- * Query documents with pagination (internal query)
- */
-export const queryDocuments = internalQuery({
-  args: {
-    organizationId: v.string(),
-    sourceProvider: v.optional(sourceProviderValidator),
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
-  },
-  handler: async (ctx, args) => {
-    return await DocumentsHelpers.queryDocuments(ctx, args);
-  },
-});
-
-/**
- * Find document by external ID (internal query)
- */
-export const findDocumentByExternalId = internalQuery({
-  args: {
-    organizationId: v.string(),
-    externalItemId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await DocumentsHelpers.findDocumentByExternalId(ctx, args);
-  },
-});
-
-// =============================================================================
-// PUBLIC QUERIES (for frontend via api.documents.queries.*)
-// =============================================================================
-
-/**
- * Get a document by ID with auth and transformation (public query).
- */
 export const getDocumentById = query({
   args: {
     documentId: v.id('documents'),

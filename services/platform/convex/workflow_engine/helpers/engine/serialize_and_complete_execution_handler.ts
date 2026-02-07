@@ -27,7 +27,7 @@ export async function handleSerializeAndCompleteExecution(
 
   // Get current execution to retrieve variables and existing storage IDs
   const execution = await ctx.runQuery(
-    internal.wf_executions.queries.getRawExecution,
+    internal.wf_executions.internal_queries.getRawExecution,
     { executionId: args.executionId },
   );
 
@@ -58,7 +58,7 @@ export async function handleSerializeAndCompleteExecution(
   });
 
   // Call the mutation with pre-serialized data
-  await ctx.runMutation(internal.wf_executions.mutations.completeExecution, {
+  await ctx.runMutation(internal.wf_executions.internal_mutations.completeExecution, {
     executionId: args.executionId,
     output: outputParsed,
     outputStorageId,

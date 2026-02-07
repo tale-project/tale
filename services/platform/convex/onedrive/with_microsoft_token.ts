@@ -15,7 +15,7 @@ export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
   const userId = String(authUser._id);
 
   const tokenResult = await ctx.runQuery(
-    internal.onedrive.queries.getUserToken,
+    internal.onedrive.internal_queries.getUserToken,
     { userId },
   );
 
@@ -30,7 +30,7 @@ export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
     }
 
     const newTokenResult = await ctx.runQuery(
-      internal.onedrive.queries.getUserToken,
+      internal.onedrive.internal_queries.getUserToken,
       { userId },
     );
 

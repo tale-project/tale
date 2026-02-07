@@ -85,7 +85,7 @@ export async function createIntegrationLogic(
   // Create integration - type assertions needed due to schema mismatches between shared types and mutation
   // The generated API types need regeneration (run `npx convex dev`)
   const integrationId: Id<'integrations'> = await (ctx.runMutation as any)(
-    internal.integrations.internal_mutations.create_integration_internal.createIntegrationInternal,
+    internal.integrations.internal_mutations.createIntegration,
     {
       organizationId: args.organizationId,
       name: args.name,
@@ -122,7 +122,7 @@ export async function createIntegrationLogic(
   debugLog(`Integration Create Saved ${workflowIds.length} related workflows`);
 
   try {
-    await ctx.runMutation(internal.audit_logs.mutations.createAuditLog, {
+    await ctx.runMutation(internal.audit_logs.internal_mutations.createAuditLog, {
       organizationId: args.organizationId,
       actorId: 'system',
       actorType: 'system' as AuditLogActorType,

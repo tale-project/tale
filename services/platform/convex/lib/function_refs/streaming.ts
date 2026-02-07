@@ -34,17 +34,17 @@ export type ErrorStreamRef = FunctionReference<
 >;
 
 export function getStartStreamRef(): StartStreamRef {
-  return createRef<StartStreamRef>('internal', ['streaming', 'mutations', 'startStream']);
+  return createRef<StartStreamRef>('internal', ['streaming', 'internal_mutations', 'startStream']);
 }
 
 export function getCompleteStreamRef(): CompleteStreamRef {
-  return createRef<CompleteStreamRef>('internal', ['streaming', 'mutations', 'completeStream']);
+  return createRef<CompleteStreamRef>('internal', ['streaming', 'internal_mutations', 'completeStream']);
 }
 
 export function getAppendToStreamRef(): AppendToStreamRef {
-  return createRef<AppendToStreamRef>('internal', ['streaming', 'mutations', 'appendToStream']);
+  return createRef<AppendToStreamRef>('internal', ['streaming', 'internal_mutations', 'appendToStream']);
 }
 
 export function getErrorStreamRef(): ErrorStreamRef {
-  return createRef<ErrorStreamRef>('internal', ['streaming', 'mutations', 'errorStream']);
+  return createRef<ErrorStreamRef>('internal', ['streaming', 'internal_mutations', 'errorStream']);
 }

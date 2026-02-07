@@ -12,7 +12,7 @@ async function fetchProduct(
   productId: Id<'products'>,
 ): Promise<Doc<'products'> | null> {
   // @ts-ignore TS2589: Convex API type instantiation is excessively deep
-  return ctx.runQuery(internal.products.queries.getProductById, {
+  return ctx.runQuery(internal.products.internal_queries.getProductById, {
     productId,
   });
 }

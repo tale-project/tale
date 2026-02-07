@@ -218,7 +218,7 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
 
       case 'get_by_id': {
         const { internal } = await import('../../../_generated/api');
-        return await ctx.runQuery(internal.conversations.queries.getConversationById, {
+        return await ctx.runQuery(internal.conversations.internal_queries.getConversationById, {
           conversationId: params.conversationId,
         });
       }

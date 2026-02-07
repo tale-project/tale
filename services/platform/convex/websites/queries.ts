@@ -1,44 +1,11 @@
 import { v } from 'convex/values';
-import { internalQuery, query } from '../_generated/server';
+import { query } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
-import * as WebsitesHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
 import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
 
-export const getWebsite = internalQuery({
-  args: {
-    websiteId: v.id('websites'),
-  },
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.getWebsite(ctx, args.websiteId);
-  },
-});
-
-export const getWebsiteByDomain = internalQuery({
-  args: {
-    organizationId: v.string(),
-    domain: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.getWebsiteByDomain(ctx, args);
-  },
-});
-
-export const getWebsitePageByUrl = internalQuery({
-  args: {
-    organizationId: v.string(),
-    url: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.getPageByUrl(ctx, args);
-  },
-});
-
-/**
- * Check if organization has any websites.
- */
 export const hasWebsites = query({
   args: {
     organizationId: v.string(),

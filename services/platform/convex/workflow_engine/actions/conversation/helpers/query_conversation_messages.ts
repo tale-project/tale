@@ -16,7 +16,7 @@ export async function queryConversationMessages(
   },
 ) {
   const result = await ctx.runQuery(
-    internal.conversations.queries.queryConversationMessages,
+    internal.conversations.internal_queries.queryConversationMessages,
     {
       organizationId: params.organizationId!,
       conversationId: params.conversationId,

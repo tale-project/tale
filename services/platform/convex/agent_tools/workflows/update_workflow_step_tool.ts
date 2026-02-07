@@ -249,7 +249,7 @@ Please try again with a properly structured JSON object. Ensure all field names 
 
       // stepRecordId comes from LLM, cast to expected ID type
       const updatedStep = (await ctx.runMutation(
-        internal.wf_step_defs.mutations.patchStep,
+        internal.wf_step_defs.internal_mutations.patchStep,
         {
           stepRecordId: args.stepRecordId as Id<'wfStepDefs'>,
           updates: sanitizedUpdates,

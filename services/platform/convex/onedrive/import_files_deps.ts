@@ -20,16 +20,16 @@ export function createImportFilesDeps(ctx: ActionCtx): ImportFilesDependencies {
       downloadFile(itemId, token, siteId, driveId),
     findDocumentByExternalId: async (findArgs) => {
       const doc = await ctx.runQuery(
-        internal.documents.queries.findDocumentByExternalId,
+        internal.documents.internal_queries.findDocumentByExternalId,
         findArgs,
       );
       return doc ? { _id: doc._id, contentHash: doc.contentHash } : null;
     },
     storeFile: async (blob) => ctx.storage.store(blob),
     createDocument: async (createArgs) =>
-      ctx.runMutation(internal.documents.mutations.createDocumentInternal, createArgs),
+      ctx.runMutation(internal.documents.internal_mutations.createDocument, createArgs),
     updateDocument: async (updateArgs) => {
-      await ctx.runMutation(internal.documents.mutations.updateDocumentInternal, updateArgs);
+      await ctx.runMutation(internal.documents.internal_mutations.updateDocument, updateArgs);
     },
   };
 }

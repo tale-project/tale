@@ -26,7 +26,7 @@ export async function readAllWorkflows(
 
   try {
     const allWorkflows = (await ctx.runQuery(
-      internal.wf_definitions.queries.listWorkflows,
+      internal.wf_definitions.internal_queries.listWorkflows,
       {
         organizationId,
         status: args.status,
@@ -41,7 +41,7 @@ export async function readAllWorkflows(
 
         if (includeStepCount) {
           const steps = (await ctx.runQuery(
-            internal.wf_step_defs.queries.listWorkflowSteps,
+            internal.wf_step_defs.internal_queries.listWorkflowSteps,
             {
               wfDefinitionId: wf._id,
             },

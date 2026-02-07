@@ -49,7 +49,7 @@ export type OnChatCompleteRef = FunctionReference<
 >;
 
 export function getOnChatCompleteRef(): OnChatCompleteRef {
-  return createRef<OnChatCompleteRef>('internal', ['agents', 'chat', 'mutations', 'onChatComplete']);
+  return createRef<OnChatCompleteRef>('internal', ['agents', 'chat', 'internal_mutations', 'onChatComplete']);
 }
 
 interface FileAttachment {
@@ -110,5 +110,5 @@ export type RunAgentGenerationRef = FunctionReference<
 >;
 
 export function getRunAgentGenerationRef(): RunAgentGenerationRef {
-  return createRef<RunAgentGenerationRef>('internal', ['lib', 'agent_chat', 'actions', 'runAgentGeneration']);
+  return createRef<RunAgentGenerationRef>('internal', ['lib', 'agent_chat', 'internal_actions', 'runAgentGeneration']);
 }

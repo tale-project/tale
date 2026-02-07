@@ -54,7 +54,7 @@ export async function deleteWorkflow(
   // Schedule the first batch of execution deletions
   await ctx.scheduler.runAfter(
     0,
-    internal.wf_definitions.mutations.batchDeleteWorkflowExecutions,
+    internal.wf_definitions.internal_mutations.batchDeleteWorkflowExecutions,
     {
       wfDefinitionIds: versionIds,
       currentIndex: 0,
@@ -112,7 +112,7 @@ async function scheduleCleanupBatch(
   for (const id of componentWorkflowIds) {
     await ctx.scheduler.runAfter(
       10_000,
-      internal.workflow_engine.engine.cleanupComponentWorkflow,
+      internal.workflow_engine.internal_mutations.cleanupComponentWorkflow,
       { workflowId: id as unknown as WorkflowId },
     );
   }

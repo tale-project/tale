@@ -49,21 +49,21 @@ type IntegrationGenerateResponseRef = FunctionReference<
 >;
 
 export function getWebAgentGenerateResponseRef(): GenerateResponseRef {
-  return createRef<GenerateResponseRef>('internal', ['agents', 'web', 'actions', 'generateResponse']);
+  return createRef<GenerateResponseRef>('internal', ['agents', 'web', 'internal_actions', 'generateResponse']);
 }
 
 export function getCrmAgentGenerateResponseRef(): GenerateResponseRef {
-  return createRef<GenerateResponseRef>('internal', ['agents', 'crm', 'actions', 'generateResponse']);
+  return createRef<GenerateResponseRef>('internal', ['agents', 'crm', 'internal_actions', 'generateResponse']);
 }
 
 export function getDocumentAgentGenerateResponseRef(): GenerateResponseRef {
-  return createRef<GenerateResponseRef>('internal', ['agents', 'document', 'actions', 'generateResponse']);
+  return createRef<GenerateResponseRef>('internal', ['agents', 'document', 'internal_actions', 'generateResponse']);
 }
 
 export function getIntegrationAgentGenerateResponseRef(): IntegrationGenerateResponseRef {
-  return createRef<IntegrationGenerateResponseRef>('internal', ['agents', 'integration', 'actions', 'generateResponse']);
+  return createRef<IntegrationGenerateResponseRef>('internal', ['agents', 'integration', 'internal_actions', 'generateResponse']);
 }
 
 export function getWorkflowAgentGenerateResponseRef(): WorkflowGenerateResponseRef {
-  return createRef<WorkflowGenerateResponseRef>('internal', ['agents', 'workflow', 'actions', 'generateResponse']);
+  return createRef<WorkflowGenerateResponseRef>('internal', ['agents', 'workflow', 'internal_actions', 'generateResponse']);
 }
