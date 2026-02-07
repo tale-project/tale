@@ -474,14 +474,12 @@ async function executeRestApiBatch(
   messageId: string | undefined,
   startTime: number,
 ) {
-  const { integrationAction: integrationActionModule } = await import('../../workflow_engine/actions/integration/integration_action');
-
   const results = await Promise.allSettled(
     operations.map(async (op) => {
       const opStartTime = Date.now();
 
       try {
-        const result = await integrationActionModule.execute(
+        const result = await integrationAction.execute(
           ctx,
           {
             name: integration.name,
