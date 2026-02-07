@@ -248,10 +248,14 @@ export function ExecutionsClient({
       },
       {
         id: 'duration',
-        header: tTables('headers.duration'),
+        header: () => (
+          <span className="text-right w-full block">
+            {tTables('headers.duration')}
+          </span>
+        ),
         size: 128,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground text-right w-full block">
             {calculateDuration(row.original)}
           </span>
         ),

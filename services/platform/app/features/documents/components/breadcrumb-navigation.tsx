@@ -15,7 +15,10 @@ export function BreadcrumbNavigation({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const location = useLocation();
-  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const search = useSearch({ strict: false }) as Record<
+    string,
+    string | undefined
+  >;
 
   const rawSegments = currentFolderPath
     ? currentFolderPath.split('/').filter(Boolean)
@@ -75,7 +78,7 @@ export function BreadcrumbNavigation({
       {/* Back Arrow */}
       <button
         onClick={() => navigateToPath('')}
-        className="shrink-0 size-4 text-muted-foreground hover:text-foreground/90 transition-colors"
+        className="shrink-0 size-4 text-muted-foreground hover:text-foreground/90 transition-colors cursor-pointer"
         aria-label={tCommon('aria.backTo', { page: t('breadcrumb.documents') })}
       >
         <ChevronLeft className="size-4" />
@@ -84,7 +87,7 @@ export function BreadcrumbNavigation({
       {/* Documents Root */}
       <button
         onClick={() => navigateToPath('')}
-        className="font-medium text-xs text-muted-foreground hover:text-foreground/90 transition-colors whitespace-nowrap"
+        className="font-medium text-xs text-muted-foreground hover:text-foreground/90 transition-colors whitespace-nowrap cursor-pointer"
       >
         {t('breadcrumb.documents')}
       </button>
@@ -115,7 +118,7 @@ export function BreadcrumbNavigation({
             ) : (
               <button
                 onClick={() => navigateToPath(segmentObj.originalPath)}
-                className="font-medium text-xs text-muted-foreground hover:text-foreground/90 transition-colors whitespace-nowrap"
+                className="font-medium text-xs text-muted-foreground hover:text-foreground/90 transition-colors whitespace-nowrap cursor-pointer"
                 style={{ fontFamily: 'Inter, sans-serif' }}
               >
                 {displayName}
