@@ -5,11 +5,10 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-import { components } from '../../_generated/api';
+import { components, internal } from '../../_generated/api';
 import { listMessages } from '@convex-dev/agent';
 
 import { createDebugLog } from '../../lib/debug_log';
-import { getSaveMessageMetadataRef } from '../../lib/agent_completion/function_refs';
 
 const debugLog = createDebugLog('DEBUG_ROUTING_AGENT', '[RoutingAgent]');
 
@@ -117,7 +116,7 @@ export async function onChatComplete(
     const firstMessageInResponse = messagesInCurrentResponse[0];
 
     if (firstMessageInResponse && result.usage) {
-      await ctx.runMutation(getSaveMessageMetadataRef(), {
+      await ctx.runMutation(internal.message_metadata.internal_mutations.saveMessageMetadata, {
         messageId: firstMessageInResponse._id,
         threadId: result.threadId,
         model: result.model,

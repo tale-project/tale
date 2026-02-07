@@ -54,7 +54,7 @@ function ConfigurationPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const workflow = useQuery(api.wf_definitions.queries.getWorkflowPublic, {
+  const workflow = useQuery(api.wf_definitions.queries.getWorkflow, {
     wfDefinitionId: automationId,
   });
 

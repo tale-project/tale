@@ -20,6 +20,7 @@ export async function getCallerRole(
     ],
   });
 
-  const member = memberRes?.page?.[0] as { role?: string } | undefined;
-  return member?.role?.toLowerCase() ?? null;
+  const member = memberRes?.page?.[0];
+  const role = member?.role;
+  return typeof role === 'string' ? role.toLowerCase() : null;
 }

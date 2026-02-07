@@ -1,13 +1,14 @@
 'use node';
 
 /**
- * OAuth2 Public Actions
+ * OAuth2 Internal Actions
  *
  * Provides OAuth2 token refresh and user email retrieval actions.
+ * These are internal-only to prevent abuse as a token refresh proxy.
  */
 
 import { v } from 'convex/values';
-import { action } from './_generated/server';
+import { internalAction } from './_generated/server';
 
 interface RefreshTokenResult {
   accessToken: string;
@@ -17,7 +18,7 @@ interface RefreshTokenResult {
   scope?: string;
 }
 
-export const refreshToken = action({
+export const refreshToken = internalAction({
   args: {
     provider: v.string(),
     clientId: v.string(),
@@ -78,6 +79,7 @@ export const refreshToken = action({
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: body,
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
@@ -104,7 +106,7 @@ export const refreshToken = action({
   },
 });
 
-export const getUserEmail = action({
+export const getUserEmail = internalAction({
   args: {
     provider: v.string(),
     accessToken: v.string(),
@@ -119,6 +121,7 @@ export const getUserEmail = action({
           headers: {
             Authorization: `Bearer ${args.accessToken}`,
           },
+          signal: AbortSignal.timeout(10_000),
         },
       );
 
@@ -137,6 +140,7 @@ export const getUserEmail = action({
         headers: {
           Authorization: `Bearer ${args.accessToken}`,
         },
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {

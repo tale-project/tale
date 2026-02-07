@@ -14,7 +14,7 @@ export async function getSsoCredentialsForEmail(
 	ctx: GenericActionCtx<DataModel>,
 	args: { organizationId: string },
 ): Promise<GetSsoCredentialsForEmailResult> {
-	const authUser: { _id: string } | null = await ctx.runQuery(
+	const authUser = await ctx.runQuery(
 		internal.sso_providers.internal_queries.getAuthUser,
 		{},
 	);

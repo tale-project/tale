@@ -12,7 +12,7 @@ import { deleteWorkflow as deleteWorkflowModel } from '../workflows/definitions/
 export async function deleteWebsite(
   ctx: MutationCtx,
   websiteId: Id<'websites'>,
-): Promise<{ success: boolean }> {
+): Promise<null> {
   const website = await ctx.db.get(websiteId);
   if (!website) {
     throw new Error('Website not found');
@@ -28,5 +28,5 @@ export async function deleteWebsite(
   }
 
   await ctx.db.delete(websiteId);
-  return { success: true };
+  return null;
 }

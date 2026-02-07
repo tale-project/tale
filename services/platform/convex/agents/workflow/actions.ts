@@ -1,51 +1,16 @@
 'use node';
 
-/**
- * Workflow Agent Convex Actions
- *
- * Public and internal action entry points for the Workflow Agent.
- * - chatWithWorkflowAssistant: Public action for the automation assistant UI
- * - generateResponse: Internal action called by the workflow_assistant tool
- */
-
 import { v } from 'convex/values';
 import { saveMessage } from '@convex-dev/agent';
-import { action, internalAction } from '../../_generated/server';
-import { components } from '../../_generated/api';
-import { authComponent } from '../../auth';
-import { agentResponseReturnsValidator } from '../../lib/agent_response';
+import { action } from '../../_generated/server';
+import { components, internal } from '../../_generated/api';
 import {
-  registerFilesWithAgent,
   buildMultiModalContent,
+  registerFilesWithAgent,
   type FileAttachment,
 } from '../../lib/attachments';
+import { authComponent } from '../../auth';
 import { generateWorkflowResponse } from './generate_response';
-import { getGetWorkflowInternalRef } from '../../lib/function_refs';
-
-export const generateResponse = internalAction({
-  args: {
-    threadId: v.string(),
-    userId: v.optional(v.string()),
-    organizationId: v.string(),
-    promptMessage: v.string(),
-    additionalContext: v.optional(v.record(v.string(), v.string())),
-    parentThreadId: v.optional(v.string()),
-    delegationMode: v.optional(v.boolean()),
-  },
-  returns: agentResponseReturnsValidator,
-  handler: async (ctx, args) => {
-    return generateWorkflowResponse({
-      ctx,
-      threadId: args.threadId,
-      userId: args.userId,
-      organizationId: args.organizationId,
-      promptMessage: args.promptMessage,
-      additionalContext: args.additionalContext,
-      parentThreadId: args.parentThreadId,
-      delegationMode: args.delegationMode,
-    });
-  },
-});
 
 export const chatWithWorkflowAssistant = action({
   args: {
@@ -74,26 +39,22 @@ export const chatWithWorkflowAssistant = action({
       return { success: false, error: 'Unauthenticated' };
     }
 
-    const { threadId, organizationId, workflowId, message, attachments } = args;
-
     try {
-      // Build additional context for the task
       const additionalContext: Record<string, string> = {};
-      if (workflowId) {
-        const workflow = await ctx.runQuery(getGetWorkflowInternalRef(), {
-          wfDefinitionId: workflowId,
+      if (args.workflowId) {
+        const workflow = await ctx.runQuery(internal.wf_definitions.internal_queries.resolveWorkflow, {
+          wfDefinitionId: args.workflowId,
         });
         if (workflow) {
-          additionalContext.target_workflow_id = String(workflowId);
+          additionalContext.target_workflow_id = String(args.workflowId);
           additionalContext.target_workflow_name = workflow.name;
         }
       }
 
       let promptMessageId: string | undefined;
 
-      // Handle attachments: register files and save message with file parts
-      if (attachments && attachments.length > 0) {
-        const fileAttachments: FileAttachment[] = attachments.map((a) => ({
+      if (args.attachments && args.attachments.length > 0) {
+        const fileAttachments: FileAttachment[] = args.attachments.map((a) => ({
           fileId: a.fileId as FileAttachment['fileId'],
           fileName: a.fileName,
           fileType: a.fileType,
@@ -107,13 +68,13 @@ export const chatWithWorkflowAssistant = action({
 
         const { contentParts } = buildMultiModalContent(
           registeredFiles,
-          message,
+          args.message,
         );
 
         const fileIds = registeredFiles.map((f) => f.agentFileId);
 
         const { messageId } = await saveMessage(ctx, components.agent, {
-          threadId,
+          threadId: args.threadId,
           message: {
             role: 'user',
             content: contentParts,
@@ -125,10 +86,10 @@ export const chatWithWorkflowAssistant = action({
 
       await generateWorkflowResponse({
         ctx,
-        threadId,
+        threadId: args.threadId,
         userId: String(authUser._id),
-        organizationId,
-        promptMessage: message,
+        organizationId: args.organizationId,
+        promptMessage: args.message,
         additionalContext:
           Object.keys(additionalContext).length > 0
             ? additionalContext

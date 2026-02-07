@@ -1,7 +1,3 @@
-/**
- * Delete an email provider
- */
-
 import type { MutationCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 

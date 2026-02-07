@@ -14,7 +14,7 @@ const crons = cronJobs();
 crons.cron(
   'scan scheduled workflows (minutely)',
   '*/1 * * * *',
-  internal.workflow_engine.scheduler.scanAndTrigger,
+  internal.workflow_engine.internal_actions.scanAndTrigger,
   {},
 );
 
@@ -22,7 +22,7 @@ crons.cron(
 crons.cron(
   'audit log retention cleanup (daily)',
   '0 3 * * *',
-  internal.audit_logs.mutations.runRetentionCleanup,
+  internal.audit_logs.internal_mutations.runRetentionCleanup,
   {},
 );
 

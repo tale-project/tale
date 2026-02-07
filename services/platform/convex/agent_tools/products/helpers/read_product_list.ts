@@ -27,7 +27,7 @@ export async function readProductList(
   const cursor = args.cursor ?? null;
 
   // @ts-ignore TS2589: Convex API type instantiation is excessively deep
-  const result = (await ctx.runQuery(internal.products.queries.queryProducts, {
+  const result = (await ctx.runQuery(internal.products.internal_queries.queryProducts, {
     organizationId,
     status: args.status,
     minStock: args.minStock,

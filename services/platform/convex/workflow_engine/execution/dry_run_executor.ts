@@ -69,13 +69,13 @@ function simulateStepOutput(
       };
 
     case 'condition': {
-      const expression = step.config.expression as string | undefined;
+      const expression = typeof step.config.expression === 'string' ? step.config.expression : '';
       return {
         output: {
           type: 'condition',
           data: {
             passed: true,
-            expression: expression || '',
+            expression,
             message: '[Simulated condition - assumed true]',
           },
         },
@@ -84,12 +84,12 @@ function simulateStepOutput(
     }
 
     case 'action': {
-      const actionType = step.config.type as string | undefined;
+      const actionType = typeof step.config.type === 'string' ? step.config.type : 'unknown';
       return {
         output: {
           type: 'action',
           data: {
-            actionType: actionType || 'unknown',
+            actionType,
             result: '[Simulated action result]',
             mocked: true,
           },
@@ -136,9 +136,9 @@ export function executeDryRun(
   const stepDefs: StepDef[] = steps.map((s) => ({
     stepSlug: s.stepSlug,
     name: s.name,
-    stepType: s.stepType as StepType,
+    stepType: s.stepType,
     order: s.order,
-    config: s.config as Record<string, unknown>,
+    config: s.config,
     nextSteps: s.nextSteps,
   }));
 

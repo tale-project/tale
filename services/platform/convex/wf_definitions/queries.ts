@@ -1,16 +1,30 @@
 import { v } from 'convex/values';
-import { internalQuery } from '../_generated/server';
 import { queryWithRLS } from '../lib/rls';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import { getActiveVersion as getActiveVersionHelper } from '../workflows/definitions/get_active_version';
-import { getWorkflowByName as getWorkflowByNameHelper } from '../workflows/definitions/get_workflow_by_name';
-import { listWorkflows as listWorkflowsHelper } from '../workflows/definitions/list_workflows';
 import { executeDryRun } from '../workflow_engine/execution/dry_run_executor';
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 
 type WorkflowDefinition = Doc<'wfDefinitions'>;
 
-export const getWorkflowPublic = queryWithRLS({
+async function queryVersionsByOrgAndName(
+  ctx: { db: QueryCtx['db'] },
+  organizationId: string,
+  name: string,
+) {
+  const versions: WorkflowDefinition[] = [];
+  for await (const version of ctx.db
+    .query('wfDefinitions')
+    .withIndex('by_org_and_name', (q) =>
+      q.eq('organizationId', organizationId).eq('name', name),
+    )) {
+    versions.push(version);
+  }
+  return versions.sort((a, b) => b.versionNumber - a.versionNumber);
+}
+
+export const getWorkflow = queryWithRLS({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
   },
@@ -19,108 +33,53 @@ export const getWorkflowPublic = queryWithRLS({
   },
 });
 
-export const getWorkflowInternal = internalQuery({
-  args: {
-    wfDefinitionId: v.id('wfDefinitions'),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.wfDefinitionId);
-  },
-});
-
-export const getActiveVersion = internalQuery({
+export const listVersions = queryWithRLS({
   args: {
     organizationId: v.string(),
     name: v.string(),
   },
   handler: async (ctx, args) => {
-    return await getActiveVersionHelper(ctx, args);
+    return await queryVersionsByOrgAndName(ctx, args.organizationId, args.name);
   },
 });
 
-export const getWorkflowByName = internalQuery({
-  args: {
-    organizationId: v.string(),
-    name: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await getWorkflowByNameHelper(ctx, args);
-  },
-});
-
-export const listVersionsPublic = queryWithRLS({
-  args: {
-    organizationId: v.string(),
-    name: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const versions: WorkflowDefinition[] = [];
-    for await (const version of ctx.db
-      .query('wfDefinitions')
-      .withIndex('by_org_and_name', (q) =>
-        q.eq('organizationId', args.organizationId).eq('name', args.name),
-      )) {
-      versions.push(version);
-    }
-
-    return versions.sort((a, b) => b.versionNumber - a.versionNumber);
-  },
-});
-
-export const listVersions = internalQuery({
-  args: {
-    organizationId: v.string(),
-    name: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const versions: WorkflowDefinition[] = [];
-    for await (const version of ctx.db
-      .query('wfDefinitions')
-      .withIndex('by_org_and_name', (q) =>
-        q.eq('organizationId', args.organizationId).eq('name', args.name),
-      )) {
-      versions.push(version);
-    }
-
-    return versions.sort((a, b) => b.versionNumber - a.versionNumber);
-  },
-});
-
-export const listWorkflows = internalQuery({
-  args: {
-    organizationId: v.string(),
-    status: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    return await listWorkflowsHelper(ctx, args);
-  },
-});
-
-export const getAutomations = queryWithRLS({
+export const listAutomations = queryWithRLS({
   args: {
     organizationId: v.string(),
     searchTerm: v.optional(v.string()),
     status: v.optional(v.array(v.string())),
-    paginationOpts: v.object({
-      cursor: v.union(v.string(), v.null()),
-      numItems: v.number(),
-    }),
   },
   handler: async (ctx, args) => {
     const query = ctx.db
       .query('wfDefinitions')
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId));
 
-    const allItems: WorkflowDefinition[] = [];
+    const rootItems: WorkflowDefinition[] = [];
+    const rootNames = new Set<string>();
     for await (const item of query) {
       if (item.parentVersionId !== undefined) {
         continue;
       }
+      rootItems.push(item);
+      rootNames.add(item.name);
+    }
 
-      const activeVersion = await getActiveVersionHelper(ctx, {
-        organizationId: args.organizationId,
-        name: item.name,
-      });
+    const activeVersionMap = new Map<string, WorkflowDefinition>();
+    await Promise.all(
+      [...rootNames].map(async (name) => {
+        const version = await getActiveVersionHelper(ctx, {
+          organizationId: args.organizationId,
+          name,
+        });
+        if (version) {
+          activeVersionMap.set(name, version);
+        }
+      }),
+    );
+
+    const allItems: WorkflowDefinition[] = [];
+    for (const item of rootItems) {
+      const activeVersion = activeVersionMap.get(item.name) ?? null;
       const effectiveStatus = activeVersion ? 'active' : 'draft';
 
       if (args.status && args.status.length > 0) {

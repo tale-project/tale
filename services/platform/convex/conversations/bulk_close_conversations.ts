@@ -1,12 +1,8 @@
-/**
- * Bulk close conversations (business logic)
- */
-
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import type { BulkOperationResult } from './types';
 import * as AuditLogHelpers from '../audit_logs/helpers';
-import { getAuthenticatedUser } from '../lib/rls/auth/get_authenticated_user';
+import { buildAuditContext } from '../lib/helpers/build_audit_context';
 
 export async function bulkCloseConversations(
   ctx: MutationCtx,
@@ -15,12 +11,10 @@ export async function bulkCloseConversations(
     resolvedBy?: string;
   },
 ): Promise<BulkOperationResult> {
-  // Batch fetch all conversations in parallel
   const conversations = await Promise.all(
     args.conversationIds.map((id) => ctx.db.get(id)),
   );
 
-  // Build patches for valid conversations
   const patches: Array<{
     id: Id<'conversations'>;
     patch: Record<string, unknown>;
@@ -51,35 +45,29 @@ export async function bulkCloseConversations(
     });
   }
 
-  // Apply all patches in parallel
   const results = await Promise.allSettled(
     patches.map(({ id, patch }) => ctx.db.patch(id, patch)),
   );
 
-  // Count successes and failures from patch results
   let successCount = 0;
   for (let i = 0; i < results.length; i++) {
-    const result = results[i];
-    if (result.status === 'fulfilled') {
+    if (results[i].status === 'fulfilled') {
       successCount++;
     } else {
+      const reason = (results[i] as PromiseRejectedResult).reason;
       errors.push(
-        `Failed to close ${patches[i].id}: ${result.reason instanceof Error ? result.reason.message : 'Unknown error'}`,
+        `Failed to close ${patches[i].id}: ${reason instanceof Error ? reason.message : 'Unknown error'}`,
       );
     }
   }
 
+  const failedCount = args.conversationIds.length - successCount;
+
   const firstValidConversation = conversations.find((c) => c !== null);
   if (firstValidConversation) {
-    const authUser = await getAuthenticatedUser(ctx);
     await AuditLogHelpers.logSuccess(
       ctx,
-      {
-        organizationId: firstValidConversation.organizationId,
-        actor: authUser
-          ? { id: authUser.userId, email: authUser.email, type: 'user' as const }
-          : { id: 'system', type: 'system' as const },
-      },
+      await buildAuditContext(ctx, firstValidConversation.organizationId),
       'bulk_close_conversations',
       'data',
       'conversation',
@@ -91,14 +79,10 @@ export async function bulkCloseConversations(
         conversationIds: args.conversationIds.map(String),
         count: args.conversationIds.length,
         successCount,
-        failedCount: args.conversationIds.length - successCount,
+        failedCount,
       },
     );
   }
 
-  return {
-    successCount,
-    failedCount: args.conversationIds.length - successCount,
-    errors,
-  };
+  return { successCount, failedCount, errors };
 }

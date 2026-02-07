@@ -51,7 +51,7 @@ export async function getOrCreateSubThread(
 
   // Delegate to atomic internal mutation to prevent race conditions
   // The mutation handles read-check-create-update in a single transaction
-  return await ctx.runMutation(internal.threads.mutations.getOrCreateSubThreadAtomic, {
+  return await ctx.runMutation(internal.threads.internal_mutations.getOrCreateSubThreadAtomic, {
     parentThreadId,
     subAgentType,
     userId,

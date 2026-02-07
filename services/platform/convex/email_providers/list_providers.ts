@@ -1,7 +1,3 @@
-/**
- * List all email providers for an organization
- */
-
 import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 

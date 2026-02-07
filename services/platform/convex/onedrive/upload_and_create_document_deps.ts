@@ -14,7 +14,7 @@ export function createUploadAndCreateDocDeps(ctx: ActionCtx): UploadAndCreateDoc
     storageStore: async (blob) => ctx.storage.store(blob),
     createDocument: async (args) => {
       const documentId = await ctx.runMutation(
-        internal.documents.mutations.createDocumentInternal,
+        internal.documents.internal_mutations.createDocument,
         {
           organizationId: args.organizationId,
           title: args.title,
@@ -27,7 +27,7 @@ export function createUploadAndCreateDocDeps(ctx: ActionCtx): UploadAndCreateDoc
       return { documentId };
     },
     updateDocument: async (args) => {
-      await ctx.runMutation(internal.documents.mutations.updateDocumentInternal, {
+      await ctx.runMutation(internal.documents.internal_mutations.updateDocument, {
         documentId: args.documentId,
         title: args.title,
         fileId: args.fileId,

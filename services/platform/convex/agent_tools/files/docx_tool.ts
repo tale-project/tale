@@ -190,7 +190,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
         try {
           const documents = await ctx.runQuery(
-            internal.documents.queries.listDocumentsByExtension,
+            internal.documents.internal_queries.listDocumentsByExtension,
             {
               organizationId,
               extension: 'docx',
@@ -300,7 +300,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         // If templateStorageId is provided, use template-based generation
         if (args.templateStorageId) {
           const result = await ctx.runAction(
-            internal.documents.actions.generateDocxFromTemplateInternal,
+            internal.documents.internal_actions.generateDocxFromTemplate,
             {
               fileName: args.fileName,
               content: {
@@ -326,7 +326,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
         // Otherwise, generate from scratch
         const result = await ctx.runAction(
-          internal.documents.actions.generateDocxInternal,
+          internal.documents.internal_actions.generateDocx,
           {
             fileName: args.fileName,
             content: {

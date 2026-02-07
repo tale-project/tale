@@ -64,7 +64,8 @@ export function RagStatusBadge({
     [t],
   );
 
-  const handleRetry = async () => {
+  const handleRetry = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!documentId) {
       toast({
         title: t('rag.toast.documentIdRequired'),
@@ -135,7 +136,10 @@ export function RagStatusBadge({
       <>
         <button
           type="button"
-          onClick={() => setIsCompletedDialogOpen(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsCompletedDialogOpen(true);
+          }}
           className="cursor-pointer"
           aria-label={t('rag.dialog.indexed.title')}
         >
@@ -168,7 +172,10 @@ export function RagStatusBadge({
       <span className="inline-flex items-center gap-1.5">
         <button
           type="button"
-          onClick={() => setIsFailedDialogOpen(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsFailedDialogOpen(true);
+          }}
           className="cursor-pointer"
           aria-label={t('rag.dialog.failed.title')}
         >

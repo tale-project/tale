@@ -10,8 +10,3 @@ export {
   type AutoSummarizeIfNeededArgs,
   type AutoSummarizeIfNeededResult,
 } from './auto_summarize';
-
-export {
-  getAutoSummarizeRef,
-  type AutoSummarizeIfNeededRef,
-} from './function_refs';

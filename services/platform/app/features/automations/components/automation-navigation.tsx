@@ -61,7 +61,7 @@ export function AutomationNavigation({
 
   // Fetch all versions of this automation
   const versions = useQuery(
-    api.wf_definitions.queries.listVersionsPublic,
+    api.wf_definitions.queries.listVersions,
     automation?.name && organizationId
       ? {
           organizationId: organizationId,

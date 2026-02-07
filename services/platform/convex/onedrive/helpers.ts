@@ -1,7 +1,3 @@
-/**
- * OneDrive Model - Business logic for OneDrive operations
- */
-
 export * from './validators';
 export * from './get_user_token';
 export * from './refresh_token';

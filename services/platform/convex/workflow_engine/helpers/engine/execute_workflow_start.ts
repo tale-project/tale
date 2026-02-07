@@ -134,7 +134,7 @@ export async function executeWorkflowStart(
     {
       // Type assertion: our onComplete handler accepts jsonValueValidator which is compatible
       // with the workflow component's OnCompleteArgs at runtime, but not at compile time
-      onComplete: internal.workflow_engine.engine.onWorkflowComplete as any,
+      onComplete: internal.workflow_engine.internal_mutations.onWorkflowComplete as any,
       context: { executionId: args.executionId },
     },
   );

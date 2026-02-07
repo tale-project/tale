@@ -1,17 +1,7 @@
-/**
- * Organizations domain queries
- *
- * Public query operations for organizations.
- */
-
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { getOrganization as getOrganizationHelper } from './get_organization';
 
-/**
- * Get an organization by ID.
- * Returns null if not found or user doesn't have access.
- */
 export const getOrganization = query({
   args: { id: v.string() },
   returns: v.union(

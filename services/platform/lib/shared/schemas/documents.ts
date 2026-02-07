@@ -307,6 +307,5 @@ export type RetryRagIndexingResponse = z.infer<typeof retryRagIndexingResponseSc
 export const createDocumentFromUploadResponseSchema = z.object({
 	success: z.boolean(),
 	documentId: z.string().optional(),
-	error: z.string().optional(),
 });
 export type CreateDocumentFromUploadResponse = z.infer<typeof createDocumentFromUploadResponseSchema>;

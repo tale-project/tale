@@ -1,12 +1,12 @@
 /**
  * Provision and publish a Website Scan workflow for a website.
  *
- * Model-layer helper invoked by internal.websites.mutations.provisionWebsiteScanWorkflow.
+ * Model-layer helper invoked by internal.websites.internal_mutations.provisionWebsiteScanWorkflow.
  */
 
 import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import websiteScanWorkflow from '../predefined_workflows/website_scan';
 import { toPredefinedWorkflowPayload } from '../workflows/definitions/types';
 import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
@@ -88,7 +88,7 @@ export async function provisionWebsiteScanWorkflow(
   );
 
   const saved = await ctx.runMutation(
-    internal.wf_definitions.mutations.createWorkflowWithSteps,
+    internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps,
     {
       organizationId: args.organizationId,
       ...payload,
@@ -96,14 +96,14 @@ export async function provisionWebsiteScanWorkflow(
   );
 
   // Newly created workflows start as drafts; publish immediately.
-  await ctx.runMutation(internal.wf_definitions.mutations.publishDraft, {
+  await ctx.runMutation(internal.wf_definitions.internal_mutations.provisionPublishDraft, {
     wfDefinitionId: saved.workflowId,
     publishedBy: 'system',
     changeLog: 'Auto-created and published from website creation',
   });
 
   const current = await ctx.runQuery(
-    internal.websites.queries.getWebsiteInternal,
+    internal.websites.internal_queries.getWebsite,
     {
       websiteId: args.websiteId,
     },
@@ -114,7 +114,7 @@ export async function provisionWebsiteScanWorkflow(
       unknown
     >;
 
-  await ctx.runMutation(internal.websites.mutations.updateWebsiteInternal, {
+  await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
     websiteId: args.websiteId,
     metadata: { ...existingMeta, workflowId: saved.workflowId },
   });
@@ -122,11 +122,12 @@ export async function provisionWebsiteScanWorkflow(
   if (args.autoTriggerInitialScan === true) {
     // Optimistically update the website's scanned time so the UI reflects
     // that an initial scan has been queued, similar to manual rescans.
-    await ctx.runMutation(internal.websites.mutations.updateWebsiteInternal, {
+    await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
       websiteId: args.websiteId,
+      lastScannedAt: Date.now(),
     });
 
-    await ctx.scheduler.runAfter(0, api.workflow_engine.engine.startWorkflow, {
+    await ctx.scheduler.runAfter(0, internal.workflow_engine.internal_mutations.startWorkflow, {
       organizationId: args.organizationId,
       wfDefinitionId: saved.workflowId,
       input: { websiteId: args.websiteId, domain: websiteDomain },

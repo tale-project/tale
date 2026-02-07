@@ -11,6 +11,7 @@ import { internal } from '../_generated/api';
 import { listFolderContents as listFolderContentsImpl } from './list_folder_contents';
 import { readFile as readFileImpl } from './read_file';
 import { refreshToken as refreshTokenImpl } from './refresh_token';
+import { downloadAndStoreFile as downloadAndStoreFileImpl } from './download_and_store_file';
 import { uploadAndCreateDocument as uploadAndCreateDocumentImpl } from './upload_and_create_document';
 import { createUploadAndCreateDocDeps } from './upload_and_create_document_deps';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
@@ -90,6 +91,24 @@ export const refreshToken = internalAction({
     });
 
     return { success: true, accessToken: result.accessToken };
+  },
+});
+
+export const downloadAndStoreFile = internalAction({
+  args: {
+    itemId: v.string(),
+    token: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    storageId: v.optional(v.string()),
+    mimeType: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    return await downloadAndStoreFileImpl(args, {
+      storeFile: async (blob) => ctx.storage.store(blob),
+    });
   },
 });
 

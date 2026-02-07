@@ -18,7 +18,7 @@ import {
   handleToolError,
   type ToolResponse,
 } from './helpers/tool_response';
-import { getCrmAgentGenerateResponseRef } from '../../lib/function_refs';
+import { internal } from '../../_generated/api';
 
 const CRM_CONTEXT_MAPPING = {
   customerId: 'customer_id',
@@ -101,7 +101,7 @@ EXAMPLES:
           isNew ? '(new)' : '(reused)',
         );
 
-        const result = await ctx.runAction(getCrmAgentGenerateResponseRef(), {
+        const result = await ctx.runAction(internal.agents.crm.internal_actions.generateResponse, {
           threadId: subThreadId,
           userId,
           organizationId,

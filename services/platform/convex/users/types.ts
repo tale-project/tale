@@ -1,15 +1,4 @@
-/**
- * Type definitions for users domain
- *
- * Users use Better Auth for storage.
- */
-
-// Re-export from shared schemas
 export type { Role } from '../../lib/shared/schemas/users';
-
-// =============================================================================
-// INTERFACE TYPES
-// =============================================================================
 
 export interface CreateUserWithoutSessionArgs {
   email: string;
@@ -50,7 +39,3 @@ export interface AddMemberInternalResult {
   memberId: string;
 }
 
-export interface UpdateUserPasswordArgs {
-  currentPassword: string;
-  newPassword: string;
-}

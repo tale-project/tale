@@ -1,9 +1,3 @@
-/**
- * SharePoint Drives (Document Libraries) List
- *
- * Lists document libraries within a SharePoint site via Microsoft Graph API.
- */
-
 export interface SharePointDrive {
   id: string;
   name: string;

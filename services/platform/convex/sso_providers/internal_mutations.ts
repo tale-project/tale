@@ -4,42 +4,11 @@ import { upsertProvider as upsertProviderFn } from './upsert_provider';
 import { removeProvider as removeProviderFn } from './remove_provider';
 import { findOrCreateSsoUser as findOrCreateSsoUserFn } from './find_or_create_sso_user';
 import { createUserSession as createUserSessionFn } from './create_user_session';
-
-const platformRoleValidator = v.union(
-	v.literal('admin'),
-	v.literal('developer'),
-	v.literal('editor'),
-	v.literal('member'),
-	v.literal('disabled'),
-);
-
-const roleMappingSourceValidator = v.union(
-	v.literal('jobTitle'),
-	v.literal('appRole'),
-	v.literal('group'),
-	v.literal('claim'),
-);
-
-const roleMappingRuleValidator = v.object({
-	source: roleMappingSourceValidator,
-	pattern: v.string(),
-	targetRole: platformRoleValidator,
-});
-
-const entraIdFeaturesValidator = v.object({
-	enableOneDriveAccess: v.optional(v.boolean()),
-	autoProvisionTeam: v.optional(v.boolean()),
-	excludeGroups: v.optional(v.array(v.string())),
-});
-
-const googleWorkspaceFeaturesValidator = v.object({
-	enableGoogleDriveAccess: v.optional(v.boolean()),
-});
-
-const providerFeaturesValidator = v.object({
-	entraId: v.optional(entraIdFeaturesValidator),
-	googleWorkspace: v.optional(googleWorkspaceFeaturesValidator),
-});
+import {
+	platformRoleValidator,
+	roleMappingRuleValidator,
+	providerFeaturesValidator,
+} from './validators';
 
 export const upsertProvider = internalMutation({
 	args: {

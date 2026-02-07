@@ -1,10 +1,3 @@
-/**
- * Convex validators for approval operations
- *
- * Note: Some schemas use jsonRecordSchema which contains z.lazy() for recursive types.
- * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
- */
-
 import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
 import {
@@ -14,12 +7,10 @@ import {
 } from '../../lib/shared/schemas/approvals';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
-// Simple schemas without z.lazy()
 export const approvalStatusValidator = zodToConvex(approvalStatusSchema);
 export const approvalPriorityValidator = zodToConvex(approvalPrioritySchema);
 export const approvalResourceTypeValidator = zodToConvex(approvalResourceTypeSchema);
 
-// Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
 export const approvalItemValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),

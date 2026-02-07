@@ -6,5 +6,5 @@ export interface UseDeleteIntegrationParams {
 }
 
 export function useDeleteIntegration({ integrationName }: UseDeleteIntegrationParams) {
-  return useMutation(api.integrations.mutations.delete_integration.deleteIntegration);
+  return useMutation(api.integrations.mutations.deleteIntegration);
 }

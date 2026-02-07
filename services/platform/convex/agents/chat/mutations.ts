@@ -1,18 +1,15 @@
 /**
  * Routing Agent Mutations
- *
- * Public and internal mutations for routing agent operations.
  */
 
 import { v } from 'convex/values';
-import { internalMutation, mutation } from '../../_generated/server';
-import { startAgentChat } from '../../lib/agent_chat';
-import { onChatComplete as onChatCompleteHelper } from './on_chat_complete';
+import { mutation } from '../../_generated/server';
 import { authComponent } from '../../auth';
+import { startAgentChat } from '../../lib/agent_chat';
 import {
   CHAT_AGENT_CONFIG,
-  getChatAgentRuntimeConfig,
   createChatHookHandles,
+  getChatAgentRuntimeConfig,
 } from './config';
 
 export const chatWithAgent = mutation({
@@ -42,7 +39,6 @@ export const chatWithAgent = mutation({
       throw new Error('Unauthenticated');
     }
 
-    // Get runtime config and create FunctionHandles for hooks
     const runtimeConfig = getChatAgentRuntimeConfig();
     const hooks = await createChatHookHandles(ctx);
 
@@ -61,68 +57,5 @@ export const chatWithAgent = mutation({
       enableStreaming: runtimeConfig.enableStreaming,
       hooks,
     });
-  },
-});
-
-export const onChatComplete = internalMutation({
-  args: {
-    result: v.object({
-      threadId: v.string(),
-      text: v.string(),
-      model: v.string(),
-      provider: v.string(),
-      totalTokens: v.optional(v.number()),
-      inputTokens: v.optional(v.number()),
-      outputTokens: v.optional(v.number()),
-      reasoningTokens: v.optional(v.number()),
-      stepCount: v.optional(v.number()),
-      finishReason: v.optional(v.string()),
-      durationMs: v.optional(v.number()),
-      timeToFirstTokenMs: v.optional(v.number()),
-      usage: v.optional(
-        v.object({
-          inputTokens: v.optional(v.number()),
-          outputTokens: v.optional(v.number()),
-          totalTokens: v.optional(v.number()),
-          reasoningTokens: v.optional(v.number()),
-          cachedInputTokens: v.optional(v.number()),
-        }),
-      ),
-      toolCalls: v.optional(
-        v.array(
-          v.object({
-            toolName: v.string(),
-            status: v.string(),
-          }),
-        ),
-      ),
-      reasoning: v.optional(v.string()),
-      subAgentUsage: v.optional(
-        v.array(
-          v.object({
-            toolName: v.string(),
-            model: v.optional(v.string()),
-            provider: v.optional(v.string()),
-            inputTokens: v.optional(v.number()),
-            outputTokens: v.optional(v.number()),
-            totalTokens: v.optional(v.number()),
-          }),
-        ),
-      ),
-      contextWindow: v.optional(v.string()),
-      contextStats: v.optional(
-        v.object({
-          totalTokens: v.number(),
-          messageCount: v.number(),
-          approvalCount: v.number(),
-          hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
-          hasRag: v.boolean(),
-          hasIntegrations: v.boolean(),
-        }),
-      ),
-    }),
-  },
-  handler: async (ctx, args) => {
-    return await onChatCompleteHelper(ctx, args);
   },
 });

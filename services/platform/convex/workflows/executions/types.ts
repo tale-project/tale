@@ -3,6 +3,7 @@
  */
 
 import type { Doc, Id } from '../../_generated/dataModel';
+import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-value';
 
 // =============================================================================
 // MANUAL TYPES (these rely on Doc types, not validators)
@@ -31,7 +32,7 @@ export interface UpdateExecutionStatusArgs {
 
 export interface CompleteExecutionArgs {
   executionId: Doc<'wfExecutions'>['_id'];
-  output: unknown;
+  output: ConvexJsonValue;
   outputStorageId?: Id<'_storage'>;
   variablesSerialized?: string;
   variablesStorageId?: Id<'_storage'>;

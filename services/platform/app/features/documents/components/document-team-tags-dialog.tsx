@@ -49,7 +49,7 @@ function DocumentTeamTagsDialogContent({
 
   // Fetch only teams that the current user belongs to
   const teamsResult = useQuery(
-    api.member.getMyTeams,
+    api.members.queries.getMyTeams,
     organizationId ? { organizationId } : 'skip',
   );
   const teams = teamsResult?.teams ?? null;

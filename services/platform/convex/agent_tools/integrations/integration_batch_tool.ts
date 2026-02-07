@@ -78,8 +78,8 @@ Max 10 operations. Use 'id' field to identify results.`,
 
       try {
         const result = await ctx.runAction(
-          internal.agent_tools.integrations.execute_batch_integration_internal
-            .executeBatchIntegrationInternal,
+          internal.agent_tools.integrations.internal_actions
+            .executeBatchIntegration,
           {
             organizationId,
             integrationName: args.integrationName,

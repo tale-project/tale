@@ -1,15 +1,22 @@
-/**
- * Members Mutations
- *
- * Public mutations for member operations.
- */
-
 import { v } from 'convex/values';
 import { mutation } from '../_generated/server';
 import { components } from '../_generated/api';
 import { authComponent } from '../auth';
 import * as AuditLogHelpers from '../audit_logs/helpers';
+import type { BetterAuthMember, BetterAuthUser, BetterAuthCreateResult, BetterAuthFindManyResult } from './types';
 import { memberRoleValidator } from './validators';
+
+function findOneMember(res: BetterAuthFindManyResult<BetterAuthMember> | undefined) {
+  return res?.page?.[0];
+}
+
+function findOneUser(res: BetterAuthFindManyResult<BetterAuthUser> | undefined) {
+  return res?.page?.[0];
+}
+
+function isBetterAuthCreateResult(value: unknown): value is BetterAuthCreateResult {
+  return typeof value === 'object' && value !== null && '_id' in value;
+}
 
 export const addMember = mutation({
   args: {
@@ -24,39 +31,42 @@ export const addMember = mutation({
       throw new Error('Unauthenticated');
     }
 
-    const callerMemberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [
-        { field: 'organizationId', value: args.organizationId, operator: 'eq' },
-        { field: 'userId', value: String(authUser._id), operator: 'eq' },
-      ],
-    });
-    const callerMember = callerMemberRes?.page?.[0] as { role?: string } | undefined;
-    if ((callerMember?.role ?? '').toLowerCase() !== 'admin') {
+    const callerMember = findOneMember(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+          { field: 'userId', value: String(authUser._id), operator: 'eq' },
+        ],
+      }),
+    );
+    if (callerMember?.role?.toLowerCase() !== 'admin') {
       throw new Error('Only Admins can add members');
     }
 
-    const targetUserRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'user',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: '_id', value: args.userId, operator: 'eq' }],
-    });
-    const targetUser = targetUserRes?.page?.[0] as { email?: string; name?: string } | undefined;
+    const targetUser = findOneUser(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'user',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: '_id', value: args.userId, operator: 'eq' }],
+      }),
+    );
 
+    const role = (args.role ?? 'member').toLowerCase();
     const created = await ctx.runMutation(components.betterAuth.adapter.create, {
       input: {
         model: 'member',
         data: {
           organizationId: args.organizationId,
           userId: args.userId,
-          role: (args.role ?? 'member').toLowerCase(),
+          role,
           createdAt: Date.now(),
         },
       },
     });
 
-    const memberId = String((created as { _id?: string })?._id ?? created);
+    const memberId = String(isBetterAuthCreateResult(created) ? created._id : created);
 
     await AuditLogHelpers.logSuccess(
       ctx,
@@ -65,7 +75,7 @@ export const addMember = mutation({
         actor: {
           id: String(authUser._id),
           email: authUser.email,
-          role: callerMember?.role,
+          role: callerMember.role,
           type: 'user',
         },
       },
@@ -75,10 +85,7 @@ export const addMember = mutation({
       memberId,
       targetUser?.email ?? targetUser?.name ?? args.userId,
       undefined,
-      {
-        userId: args.userId,
-        role: (args.role ?? 'member').toLowerCase(),
-      },
+      { userId: args.userId, role },
     );
 
     return memberId;
@@ -96,43 +103,40 @@ export const removeMember = mutation({
       throw new Error('Unauthenticated');
     }
 
-    const memberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
-    });
-    const member = memberRes?.page?.[0] as {
-      organizationId?: string;
-      userId?: string;
-      role?: string;
-    } | undefined;
+    const member = findOneMember(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
+      }),
+    );
     if (!member?.organizationId) {
       throw new Error('Member not found');
     }
 
-    const callerMemberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [
-        { field: 'organizationId', value: member.organizationId, operator: 'eq' },
-        { field: 'userId', value: String(authUser._id), operator: 'eq' },
-      ],
-    });
-    const callerMember = callerMemberRes?.page?.[0] as { role?: string } | undefined;
-    if ((callerMember?.role ?? '').toLowerCase() !== 'admin') {
+    const callerMember = findOneMember(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'organizationId', value: member.organizationId, operator: 'eq' },
+          { field: 'userId', value: String(authUser._id), operator: 'eq' },
+        ],
+      }),
+    );
+    if (callerMember?.role?.toLowerCase() !== 'admin') {
       throw new Error('Only Admins can remove members');
     }
 
-    let targetUserEmail: string | undefined;
-    if (member.userId) {
-      const targetUserRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-        model: 'user',
-        paginationOpts: { cursor: null, numItems: 1 },
-        where: [{ field: '_id', value: member.userId, operator: 'eq' }],
-      });
-      const targetUser = targetUserRes?.page?.[0] as { email?: string } | undefined;
-      targetUserEmail = targetUser?.email;
-    }
+    const targetUser = member.userId
+      ? findOneUser(
+          await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'user',
+            paginationOpts: { cursor: null, numItems: 1 },
+            where: [{ field: '_id', value: member.userId, operator: 'eq' }],
+          }),
+        )
+      : undefined;
 
     await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
       input: {
@@ -156,7 +160,7 @@ export const removeMember = mutation({
       'member',
       'member',
       args.memberId,
-      targetUserEmail ?? member.userId,
+      targetUser?.email ?? member.userId,
       { userId: member.userId, role: member.role },
       undefined,
     );
@@ -177,50 +181,47 @@ export const updateMemberRole = mutation({
       throw new Error('Unauthenticated');
     }
 
-    const memberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
-    });
-    const member = memberRes?.page?.[0] as {
-      organizationId?: string;
-      userId?: string;
-      role?: string;
-    } | undefined;
+    const member = findOneMember(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
+      }),
+    );
     if (!member?.organizationId) {
       throw new Error('Member not found');
     }
 
-    const callerMemberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [
-        { field: 'organizationId', value: member.organizationId, operator: 'eq' },
-        { field: 'userId', value: String(authUser._id), operator: 'eq' },
-      ],
-    });
-    const callerMember = callerMemberRes?.page?.[0] as { role?: string } | undefined;
-    if ((callerMember?.role ?? '').toLowerCase() !== 'admin') {
+    const callerMember = findOneMember(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'organizationId', value: member.organizationId, operator: 'eq' },
+          { field: 'userId', value: String(authUser._id), operator: 'eq' },
+        ],
+      }),
+    );
+    if (callerMember?.role?.toLowerCase() !== 'admin') {
       throw new Error('Only Admins can update member roles');
     }
 
-    let targetUserEmail: string | undefined;
-    if (member.userId) {
-      const targetUserRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-        model: 'user',
-        paginationOpts: { cursor: null, numItems: 1 },
-        where: [{ field: '_id', value: member.userId, operator: 'eq' }],
-      });
-      const targetUser = targetUserRes?.page?.[0] as { email?: string } | undefined;
-      targetUserEmail = targetUser?.email;
-    }
+    const targetUser = member.userId
+      ? findOneUser(
+          await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'user',
+            paginationOpts: { cursor: null, numItems: 1 },
+            where: [{ field: '_id', value: member.userId, operator: 'eq' }],
+          }),
+        )
+      : undefined;
 
     const previousRole = member.role;
     const newRole = args.role.toLowerCase();
 
     await ctx.runMutation(components.betterAuth.adapter.updateMany, {
       input: {
-        model: 'member' as const,
+        model: 'member',
         where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
         update: { role: newRole },
       },
@@ -242,7 +243,7 @@ export const updateMemberRole = mutation({
       'member',
       'member',
       args.memberId,
-      targetUserEmail ?? member.userId,
+      targetUser?.email ?? member.userId,
       { role: previousRole },
       { role: newRole },
     );
@@ -263,45 +264,48 @@ export const updateMemberDisplayName = mutation({
       throw new Error('Unauthenticated');
     }
 
-    const memberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
-    });
-    const member = memberRes?.page?.[0] as { userId?: string; organizationId?: string } | undefined;
+    const member = findOneMember(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
+      }),
+    );
     if (!member?.userId || !member.organizationId) {
       throw new Error('Member not found');
     }
 
-    const targetUserRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'user',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: '_id', value: member.userId, operator: 'eq' }],
-    });
-    const targetUser = targetUserRes?.page?.[0] as { email?: string; name?: string } | undefined;
+    const targetUser = findOneUser(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'user',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: '_id', value: member.userId, operator: 'eq' }],
+      }),
+    );
     const previousName = targetUser?.name;
 
     let callerRole: string | undefined;
     const isOwnProfile = String(authUser._id) === member.userId;
     if (!isOwnProfile) {
-      const callerMemberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-        model: 'member',
-        paginationOpts: { cursor: null, numItems: 1 },
-        where: [
-          { field: 'organizationId', value: member.organizationId, operator: 'eq' },
-          { field: 'userId', value: String(authUser._id), operator: 'eq' },
-        ],
-      });
-      const callerMember = callerMemberRes?.page?.[0] as { role?: string } | undefined;
+      const callerMember = findOneMember(
+        await ctx.runQuery(components.betterAuth.adapter.findMany, {
+          model: 'member',
+          paginationOpts: { cursor: null, numItems: 1 },
+          where: [
+            { field: 'organizationId', value: member.organizationId, operator: 'eq' },
+            { field: 'userId', value: String(authUser._id), operator: 'eq' },
+          ],
+        }),
+      );
       callerRole = callerMember?.role;
-      if ((callerMember?.role ?? '').toLowerCase() !== 'admin') {
+      if (callerMember?.role?.toLowerCase() !== 'admin') {
         throw new Error('Only Admins can update other members names');
       }
     }
 
     await ctx.runMutation(components.betterAuth.adapter.updateMany, {
       input: {
-        model: 'user' as const,
+        model: 'user',
         where: [{ field: '_id', value: member.userId, operator: 'eq' }],
         update: { name: args.displayName },
       },

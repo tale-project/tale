@@ -86,9 +86,12 @@ export async function listExecutionsCursor(
   };
 
   // Use paginateWithFilter for early termination
+  // wfExecutions documents are large (variables, workflowConfig, input, output fields),
+  // so use a conservative scan limit to stay under Convex's 16MB read limit
   return paginateWithFilter(baseQuery, {
     numItems,
     cursor: args.cursor,
     filter,
+    maxScanItems: 100,
   });
 }

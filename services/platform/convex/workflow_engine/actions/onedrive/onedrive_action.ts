@@ -143,7 +143,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
       case 'get_user_token': {
         // Get Microsoft Graph token for the specific user
         const result = await ctx.runQuery!(
-          internal.onedrive.queries.getUserToken,
+          internal.onedrive.internal_queries.getUserToken,
           {
             userId: params.userId, // Required by validator
           },
@@ -270,7 +270,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             page: DocumentRecord[];
             isDone: boolean;
             continueCursor: string;
-          } = await ctx.runQuery!(internal.documents.queries.queryDocuments, {
+          } = await ctx.runQuery!(internal.documents.internal_queries.queryDocuments, {
             organizationId,
             sourceProvider: 'onedrive',
             paginationOpts: { numItems: 100, cursor },

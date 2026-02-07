@@ -131,7 +131,7 @@ BEST PRACTICES:
           );
         }
         // Get the step by ID using internal query
-        const stepDoc = await ctx.runQuery(internal.wf_step_defs.queries.getStepById, {
+        const stepDoc = await ctx.runQuery(internal.wf_step_defs.internal_queries.getStepById, {
           stepId: args.stepId as Id<'wfStepDefs'>,
         });
         if (!stepDoc) {

@@ -13,7 +13,7 @@ export async function deleteOrganizationLogo(
   // Ensure user is authenticated
   const authUser = await authComponent.getAuthUser(ctx);
   if (!authUser) {
-    throw new Error('Not authenticated');
+    throw new Error('Unauthenticated');
   }
 
   // Validate access; actual org updates are managed via Better Auth client APIs

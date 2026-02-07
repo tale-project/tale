@@ -76,7 +76,7 @@ CRITICAL:
 
       try {
         const result = await ctx.runAction(
-          internal.node_only.documents.generate_excel_internal.generateExcelInternal,
+          internal.node_only.documents.internal_actions.generateExcel,
           {
             fileName: args.fileName,
             sheets: args.sheets,

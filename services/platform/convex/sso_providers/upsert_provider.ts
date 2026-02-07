@@ -1,22 +1,7 @@
 import { GenericMutationCtx } from 'convex/server';
 import { DataModel } from '../_generated/dataModel';
 import * as AuditLogHelpers from '../audit_logs/helpers';
-import type { PlatformRole, RoleMappingRule } from './types';
-
-type EntraIdFeatures = {
-	enableOneDriveAccess?: boolean;
-	autoProvisionTeam?: boolean;
-	excludeGroups?: string[];
-};
-
-type GoogleWorkspaceFeatures = {
-	enableGoogleDriveAccess?: boolean;
-};
-
-type ProviderFeatures = {
-	entraId?: EntraIdFeatures;
-	googleWorkspace?: GoogleWorkspaceFeatures;
-};
+import type { PlatformRole, ProviderFeatures, RoleMappingRule } from '@/lib/shared/schemas/sso_providers';
 
 type UpsertProviderArgs = {
 	organizationId: string;

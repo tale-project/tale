@@ -20,7 +20,9 @@
  * conversations, while preserving them for historical reference.
  */
 
-const conversationAutoArchiveWorkflow = {
+import type { PredefinedWorkflowDefinition } from '../workflows/definitions/types';
+
+const conversationAutoArchiveWorkflow: PredefinedWorkflowDefinition = {
   workflowConfig: {
     name: 'Conversation Auto-Archive',
     description:

@@ -112,7 +112,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
 
       try {
         // Update document with ragInfo = queued
-        await ctx.runMutation(internal.documents.mutations.updateDocumentRagInfo, {
+        await ctx.runMutation(internal.documents.internal_mutations.updateDocumentRagInfo, {
           documentId,
           ragInfo: {
             status: 'queued',
@@ -123,7 +123,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         // Schedule first status check in 10 seconds
         await ctx.scheduler.runAfter(
           10 * 1000,
-          internal.documents.actions.checkRagJobStatus,
+          internal.documents.internal_actions.checkRagJobStatus,
           { documentId, attempt: 1 },
         );
       } catch (error) {

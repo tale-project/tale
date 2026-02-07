@@ -275,7 +275,7 @@ export async function createConversationFromSentEmail(
       : 'outbound';
 
     const created = await ctx.runMutation(
-      internal.conversations.mutations.createConversationWithMessage,
+      internal.conversations.internal_mutations.createConversationWithMessage,
       {
         organizationId: params.organizationId,
         customerId: customerResult.customerId,

@@ -13,7 +13,7 @@ export async function queryLatestMessageByDeliveryState(
   },
 ) {
   const result = await ctx.runQuery(
-    internal.conversations.queries.queryLatestMessageByDeliveryState,
+    internal.conversations.internal_queries.queryLatestMessageByDeliveryState,
     {
       organizationId: params.organizationId,
       channel: params.channel,

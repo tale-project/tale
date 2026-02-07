@@ -138,9 +138,9 @@ export function ExecutionsClient({
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       cursor: undefined,
-      numItems: 1000,
+      numItems: pageSize,
     }),
-    [amId, searchTerm, status, triggeredBy, dateFrom, dateTo],
+    [amId, searchTerm, status, triggeredBy, dateFrom, dateTo, pageSize],
   );
 
   const executionsResult = useQuery(

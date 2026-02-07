@@ -182,7 +182,7 @@ Built-in validation checks stepTypes, required fields, and nextSteps references.
 
       try {
         const result = await ctx.runMutation(
-          internal.wf_definitions.mutations.saveWorkflowWithSteps,
+          internal.wf_definitions.internal_mutations.saveWorkflowWithSteps,
           mutationArgs,
         );
 

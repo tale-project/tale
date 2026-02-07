@@ -1,8 +1,3 @@
-/**
- * Business logic for storing OAuth2 tokens
- */
-
-import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 
 interface StoreOAuth2TokensArgs {
@@ -26,28 +21,20 @@ interface StoreOAuth2TokensDependencies {
   }) => Promise<void>;
 }
 
-/**
- * Main logic for storing OAuth2 tokens
- * Handles encryption and expiry calculation
- */
 export async function storeOAuth2TokensLogic(
-  ctx: ActionCtx,
   args: StoreOAuth2TokensArgs,
   deps: StoreOAuth2TokensDependencies,
 ): Promise<null> {
-  // Encrypt tokens
   const accessTokenEncrypted = await deps.encryptString(args.accessToken);
 
   const refreshTokenEncrypted = args.refreshToken
     ? await deps.encryptString(args.refreshToken)
     : undefined;
 
-  // Calculate expiry timestamp
   const tokenExpiry = args.expiresIn
     ? Math.floor(Date.now() / 1000) + args.expiresIn
     : undefined;
 
-  // Update provider with encrypted tokens
   await deps.updateTokens({
     emailProviderId: args.emailProviderId,
     accessTokenEncrypted,

@@ -119,7 +119,7 @@ export function ApprovalsClient({
   const pageSize = 10;
 
   const approvalsResult = useQuery(
-    api.approvals.queries.getApprovalsByOrganization,
+    api.approvals.queries.listApprovalsByOrganization,
     {
       organizationId,
       status: status === 'pending' ? 'pending' : undefined,

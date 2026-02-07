@@ -1,12 +1,5 @@
-/**
- * Websites Mutations
- *
- * Internal and public mutations for website operations.
- */
-
 import { v } from 'convex/values';
-import { internalMutation, internalAction, mutation } from '../_generated/server';
-import { jsonRecordValidator, jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
+import { mutation } from '../_generated/server';
 import * as WebsitesHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
@@ -16,86 +9,6 @@ const websiteStatusValidator = v.union(
   v.literal('inactive'),
   v.literal('error'),
 );
-
-/**
- * Create a website (internal mutation for workflow engine)
- */
-export const createWebsiteInternal = internalMutation({
-  args: {
-    organizationId: v.string(),
-    domain: v.string(),
-    title: v.optional(v.string()),
-    description: v.optional(v.string()),
-    scanInterval: v.string(),
-    status: v.optional(websiteStatusValidator),
-    metadata: v.optional(jsonRecordValidator),
-  },
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.createWebsite(ctx, args);
-  },
-});
-
-/**
- * Update a website (internal mutation)
- */
-export const updateWebsiteInternal = internalMutation({
-  args: {
-    websiteId: v.id('websites'),
-    domain: v.optional(v.string()),
-    title: v.optional(v.string()),
-    description: v.optional(v.string()),
-    scanInterval: v.optional(v.string()),
-    lastScannedAt: v.optional(v.number()),
-    status: v.optional(websiteStatusValidator),
-    metadata: v.optional(jsonRecordValidator),
-  },
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.updateWebsite(ctx, args);
-  },
-});
-
-/**
- * Bulk upsert website pages (internal mutation)
- */
-export const bulkUpsertPagesInternal = internalMutation({
-  args: {
-    organizationId: v.string(),
-    websiteId: v.string(),
-    pages: v.array(
-      v.object({
-        url: v.string(),
-        title: v.optional(v.string()),
-        content: v.optional(v.string()),
-        wordCount: v.optional(v.number()),
-        metadata: v.optional(jsonRecordValidator),
-        structuredData: v.optional(jsonRecordValidator),
-      }),
-    ),
-  },
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.bulkUpsertPages(ctx, args);
-  },
-});
-
-/**
- * Provision a website scan workflow (internal action)
- */
-export const provisionWebsiteScanWorkflow = internalAction({
-  args: {
-    organizationId: v.string(),
-    websiteId: v.id('websites'),
-    domain: v.string(),
-    scanInterval: v.string(),
-    autoTriggerInitialScan: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.provisionWebsiteScanWorkflow(ctx, args);
-  },
-});
-
-// =============================================================================
-// PUBLIC MUTATIONS (for frontend via api.websites.mutations.*)
-// =============================================================================
 
 export const createWebsite = mutation({
   args: {

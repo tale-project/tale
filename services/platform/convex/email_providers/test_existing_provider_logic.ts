@@ -1,11 +1,7 @@
-/**
- * Main business logic for testing an existing email provider
- */
-
 import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 import type { ProviderForTesting, TestResult } from './test_existing_provider';
-import { api } from '../_generated/api';
+import { internal } from '../_generated/api';
 import {
   validateProviderForTesting,
   getOAuth2UserEmail,
@@ -67,16 +63,11 @@ interface TestExistingProviderDependencies {
   ) => Promise<void>;
 }
 
-/**
- * Main orchestration logic for testing an existing provider
- * This function contains all the business logic, making the action a thin wrapper
- */
 export async function testExistingProviderLogic(
   ctx: ActionCtx,
   providerId: Doc<'emailProviders'>['_id'],
   deps: TestExistingProviderDependencies,
 ): Promise<TestResult> {
-  // Get the provider
   const provider = await deps.getProvider(providerId);
 
   if (!provider) {
@@ -84,8 +75,6 @@ export async function testExistingProviderLogic(
   }
 
   const providerData = provider as ProviderForTesting;
-
-  // Validate provider configuration
   validateProviderForTesting(providerData);
 
   const accountType = providerData.metadata?.accountType as
@@ -94,18 +83,15 @@ export async function testExistingProviderLogic(
     | 'both'
     | undefined;
 
-  // Decrypt credentials based on auth method
   let passwordAuth: { user: string; pass: string } | undefined;
   let oauth2Auth: { user: string; accessToken: string } | undefined;
 
   if (providerData.authMethod === 'password' && providerData.passwordAuth) {
-    // Decrypt password using model function
     passwordAuth = await decryptPasswordAuth(
       providerData.passwordAuth,
       deps.decryptString,
     );
   } else if (providerData.authMethod === 'oauth2' && providerData.oauth2Auth) {
-    // Decrypt and potentially refresh OAuth2 token (for Outlook/Gmail resources)
     const tokenResult = await decryptAndRefreshOAuth2Token(
       ctx,
       providerId,
@@ -115,25 +101,23 @@ export async function testExistingProviderLogic(
       deps.storeTokens,
     );
 
-    // Resolve user email, persist in metadata if missing
     let userEmail: string;
     try {
       userEmail = getOAuth2UserEmail(providerData.metadata);
     } catch (_e) {
-      // Try deriving the user email now
       let derivedEmail: string | null = null;
       try {
         if (
           providerData.oauth2Auth.provider === 'microsoft' &&
           providerData.oauth2Auth.refreshTokenEncrypted
         ) {
-          // Decrypt refresh token and client secret to mint a Graph token
           const refreshToken = await deps.decryptString(
             providerData.oauth2Auth.refreshTokenEncrypted,
           );
           const clientSecret = await deps.decryptString(
             providerData.oauth2Auth.clientSecretEncrypted,
           );
+          // Microsoft requires a separate Graph API token for user email lookup
           const graphTokens = await deps.refreshToken({
             provider: providerData.oauth2Auth.provider,
             clientId: providerData.oauth2Auth.clientId,
@@ -143,13 +127,12 @@ export async function testExistingProviderLogic(
             accountType,
             tokenUrl: providerData.oauth2Auth.tokenUrl,
           });
-          derivedEmail = await ctx.runAction(api.oauth2.getUserEmail, {
+          derivedEmail = await ctx.runAction(internal.oauth2.getUserEmail, {
             provider: providerData.oauth2Auth.provider,
             accessToken: graphTokens.accessToken,
           });
         } else {
-          // For other providers, try with the current resource token
-          derivedEmail = await ctx.runAction(api.oauth2.getUserEmail, {
+          derivedEmail = await ctx.runAction(internal.oauth2.getUserEmail, {
             provider: providerData.oauth2Auth.provider,
             accessToken: tokenResult.accessToken,
           });
@@ -168,7 +151,6 @@ export async function testExistingProviderLogic(
       }
 
       userEmail = derivedEmail;
-      // Persist to metadata for future runs
       await deps.setMetadata(providerId, {
         oauth2_user: userEmail,
         oauth2_user_updatedAt: new Date().toISOString(),
@@ -183,28 +165,22 @@ export async function testExistingProviderLogic(
     throw new Error('Invalid authentication configuration');
   }
 
-  // Update status to 'testing'
   await deps.updateStatus(providerId, 'testing');
-
-  // Test the connection
   debugLog(`Testing connection for provider ${providerId}...`);
 
   let result: TestResult;
 
-  // If sendMethod is 'api', skip SMTP test (use Graph API for sending)
+  // When sendMethod is 'api', skip SMTP test since Graph API handles sending
   if (providerData.sendMethod === 'api') {
-    // Only test IMAP connection
     const imapOnlyResult = await deps.testConnection({
       vendor: providerData.vendor,
       authMethod: providerData.authMethod,
       passwordAuth,
       oauth2Auth,
-      // Use a dummy SMTP config since we won't actually test it
       smtpConfig: { host: 'localhost', port: 587, secure: false },
       imapConfig: providerData.imapConfig!,
     });
 
-    // Override SMTP result to indicate it was skipped (API sending)
     result = {
       success: imapOnlyResult.imap.success,
       smtp: { success: true, latencyMs: 0, error: undefined },
@@ -221,20 +197,18 @@ export async function testExistingProviderLogic(
     });
   }
 
-  // Log the result
   if (result.success) {
-    debugLog(`✓ Connection test successful for provider ${providerId}`, {
+    debugLog(`Connection test successful for provider ${providerId}`, {
       smtpLatency: result.smtp.latencyMs,
       imapLatency: result.imap.latencyMs,
     });
   } else {
-    console.error(`✗ Connection test failed for provider ${providerId}`, {
+    console.error(`Connection test failed for provider ${providerId}`, {
       smtp: result.smtp.success ? 'OK' : `Failed: ${result.smtp.error}`,
       imap: result.imap.success ? 'OK' : `Failed: ${result.imap.error}`,
     });
   }
 
-  // Update provider status based on test result
   const shouldBeActive = shouldProviderBeActive(
     result,
     providerData.authMethod,

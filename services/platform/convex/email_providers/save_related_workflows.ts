@@ -59,7 +59,7 @@ export async function saveRelatedWorkflows(
   // Check all existing workflows in parallel
   const existingWorkflows = await Promise.all(
     workflowsToSave.map(({ def }) =>
-      ctx.runQuery(internal.wf_definitions.queries.getWorkflowByName, {
+      ctx.runQuery(internal.wf_definitions.internal_queries.getWorkflowByName, {
         organizationId: args.organizationId,
         name: def.workflowConfig.name,
       }),
@@ -116,7 +116,7 @@ export async function saveRelatedWorkflows(
     // Create all new workflows in parallel
     const results = await Promise.all(
       payloads.map((payload) =>
-        ctx.runMutation(internal.wf_definitions.mutations.createWorkflowWithSteps, {
+        ctx.runMutation(internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps, {
           organizationId: args.organizationId,
           ...payload,
         }),
@@ -128,7 +128,7 @@ export async function saveRelatedWorkflows(
     // Activate all new workflows in parallel
     await Promise.all(
       newWorkflowIds.map((workflowId: Id<'wfDefinitions'>) =>
-        ctx.runMutation(internal.wf_definitions.mutations.updateWorkflowStatus, {
+        ctx.runMutation(internal.wf_definitions.internal_mutations.updateWorkflowStatus, {
           wfDefinitionId: workflowId,
           status: 'active',
           updatedBy: 'system',

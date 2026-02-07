@@ -1,10 +1,5 @@
-/**
- * Create a new product (internal operation)
- */
-
-import { MutationCtx } from '../_generated/server';
-
-import { CreateProductResult, ProductStatus } from './types';
+import type { MutationCtx } from '../_generated/server';
+import type { CreateProductResult, ProductStatus } from './types';
 
 export interface CreateProductArgs {
   organizationId: string;

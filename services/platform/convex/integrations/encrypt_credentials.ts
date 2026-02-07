@@ -2,18 +2,24 @@
  * Helper to encrypt credentials for integrations.
  */
 
-import { ActionCtx } from '../_generated/server';
-import { internal } from '../_generated/api';
-import {
+import { encryptString } from '../lib/crypto/encrypt_string';
+import type {
+  ApiKeyAuth,
+  BasicAuth,
+  OAuth2Auth,
   ApiKeyAuthEncrypted,
   BasicAuthEncrypted,
   OAuth2AuthEncrypted,
 } from './types';
-import type { CreateIntegrationLogicArgs } from './create_integration_logic';
+
+export interface EncryptableCredentials {
+  apiKeyAuth?: ApiKeyAuth;
+  basicAuth?: BasicAuth;
+  oauth2Auth?: OAuth2Auth;
+}
 
 export async function encryptCredentials(
-  ctx: ActionCtx,
-  args: CreateIntegrationLogicArgs,
+  args: EncryptableCredentials,
 ): Promise<{
   apiKeyAuth?: ApiKeyAuthEncrypted;
   basicAuth?: BasicAuthEncrypted;
@@ -24,9 +30,7 @@ export async function encryptCredentials(
   let oauth2Auth = undefined;
 
   if (args.apiKeyAuth) {
-    const keyEncrypted = await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, {
-      plaintext: args.apiKeyAuth.key,
-    });
+    const keyEncrypted = await encryptString(args.apiKeyAuth.key);
     apiKeyAuth = {
       keyEncrypted,
       keyPrefix: args.apiKeyAuth.keyPrefix,
@@ -34,12 +38,7 @@ export async function encryptCredentials(
   }
 
   if (args.basicAuth) {
-    const passwordEncrypted = await ctx.runAction(
-      internal.lib.crypto.actions.encryptStringInternal,
-      {
-        plaintext: args.basicAuth.password,
-      },
-    );
+    const passwordEncrypted = await encryptString(args.basicAuth.password);
     basicAuth = {
       username: args.basicAuth.username,
       passwordEncrypted,
@@ -47,16 +46,9 @@ export async function encryptCredentials(
   }
 
   if (args.oauth2Auth) {
-    const accessTokenEncrypted = await ctx.runAction(
-      internal.lib.crypto.actions.encryptStringInternal,
-      {
-        plaintext: args.oauth2Auth.accessToken,
-      },
-    );
+    const accessTokenEncrypted = await encryptString(args.oauth2Auth.accessToken);
     const refreshTokenEncrypted = args.oauth2Auth.refreshToken
-      ? await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, {
-          plaintext: args.oauth2Auth.refreshToken,
-        })
+      ? await encryptString(args.oauth2Auth.refreshToken)
       : undefined;
 
     oauth2Auth = {

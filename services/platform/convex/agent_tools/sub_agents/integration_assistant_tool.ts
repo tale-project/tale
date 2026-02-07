@@ -21,10 +21,7 @@ import {
   handleToolError,
   type ToolResponseWithApproval,
 } from './helpers/tool_response';
-import {
-  getListIntegrationsInternalRef,
-  getIntegrationAgentGenerateResponseRef,
-} from '../../lib/function_refs';
+import { internal } from '../../_generated/api';
 
 const INTEGRATION_CONTEXT_MAPPING = {
   integrationName: 'target_integration',
@@ -90,7 +87,7 @@ EXAMPLES:
 
       try {
         const integrationsList = await ctx.runQuery(
-          getListIntegrationsInternalRef(),
+          internal.integrations.internal_queries.listInternal,
           { organizationId },
         );
         const integrationsInfo = formatIntegrationsForContext(integrationsList);
@@ -115,7 +112,7 @@ EXAMPLES:
         );
 
         const result = await ctx.runAction(
-          getIntegrationAgentGenerateResponseRef(),
+          internal.agents.integration.internal_actions.generateResponse,
           {
             threadId: subThreadId,
             userId,

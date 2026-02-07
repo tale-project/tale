@@ -18,7 +18,7 @@ export async function getMicrosoftToken(
     return null;
   }
 
-  const userId = (authUser as { id?: string; _id?: string }).id ?? authUser._id;
+  const userId = String(authUser._id);
   const accountRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
     model: 'account',
     paginationOpts: { cursor: null, numItems: 1 },
@@ -28,22 +28,20 @@ export async function getMicrosoftToken(
     ],
   });
 
-  const account = accountRes?.page?.[0] as {
-    accessToken?: string;
-    refreshToken?: string;
-    accessTokenExpiresAt?: number;
-  } | undefined;
+  const account = accountRes?.page?.[0];
 
   if (!account) {
     return null;
   }
 
-  const expiresAt = account.accessTokenExpiresAt ?? null;
+  const accessToken = typeof account.accessToken === 'string' ? account.accessToken : null;
+  const refreshToken = typeof account.refreshToken === 'string' ? account.refreshToken : null;
+  const expiresAt = typeof account.accessTokenExpiresAt === 'number' ? account.accessTokenExpiresAt : null;
   const isExpired = expiresAt ? Date.now() > expiresAt : true;
 
   return {
-    accessToken: account.accessToken ?? null,
-    refreshToken: account.refreshToken ?? null,
+    accessToken,
+    refreshToken,
     expiresAt,
     isExpired,
   };

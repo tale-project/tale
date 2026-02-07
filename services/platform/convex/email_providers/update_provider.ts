@@ -1,7 +1,3 @@
-/**
- * Update an email provider
- */
-
 import type { MutationCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 import type { SmtpConfig, ImapConfig, EmailProviderStatus } from './types';
@@ -36,7 +32,6 @@ export async function updateProvider(
     throw new Error('Email provider not found');
   }
 
-  // If setting as default, unset other defaults in parallel
   if (args.isDefault) {
     const providerIdsToUnset: Array<Doc<'emailProviders'>['_id']> = [];
     for await (const existingProvider of ctx.db
@@ -53,8 +48,6 @@ export async function updateProvider(
     );
   }
 
-  // Build update object with only provided fields
-  // Use Partial<Doc<>> to avoid type assertion on patch
   const updateData: Partial<Doc<'emailProviders'>> = {};
   if (args.name !== undefined) updateData.name = args.name;
   if (args.isDefault !== undefined) updateData.isDefault = args.isDefault;

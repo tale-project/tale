@@ -139,7 +139,7 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
       // Create an approval for the workflow creation
       try {
         const approvalId = await ctx.runMutation(
-          internal.agent_tools.workflows.create_workflow_approval
+          internal.agent_tools.workflows.internal_mutations
             .createWorkflowCreationApproval,
           {
             organizationId,

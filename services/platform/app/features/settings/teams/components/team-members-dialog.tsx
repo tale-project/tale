@@ -34,19 +34,19 @@ export function TeamMembersDialog({
 
   // Fetch organization members from Convex (skip when dialog is closed)
   const orgMembers = useQuery(
-    api.member.listByOrganization,
+    api.members.queries.listByOrganization,
     open ? { organizationId } : 'skip'
   );
 
   // Fetch team members directly from Convex
   const teamMembers = useQuery(
-    api.team_members.listByTeam,
+    api.team_members.queries.listByTeam,
     open ? { teamId: team.id } : 'skip'
   );
 
   // Convex mutations for team member management
-  const addTeamMember = useMutation(api.team_members.addMember);
-  const removeTeamMember = useMutation(api.team_members.removeMember);
+  const addTeamMember = useMutation(api.team_members.mutations.addMember);
+  const removeTeamMember = useMutation(api.team_members.mutations.removeMember);
 
   const isLoading = teamMembers === undefined;
 

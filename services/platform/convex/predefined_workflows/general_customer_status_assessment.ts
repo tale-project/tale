@@ -1,4 +1,6 @@
-const generalCustomerStatusAssessmentWorkflow = {
+import type { PredefinedWorkflowDefinition } from '../workflows/definitions/types';
+
+const generalCustomerStatusAssessmentWorkflow: PredefinedWorkflowDefinition = {
   workflowConfig: {
     name: 'General Customer Status Assessment',
     description:

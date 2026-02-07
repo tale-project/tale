@@ -52,7 +52,7 @@ Returns operation names and types. Use 'operation' param to get parameter detail
 
       // Fetch the specific integration
       const integration = await ctx.runQuery(
-        internal.integrations.queries.getByName,
+        internal.integrations.internal_queries.getByName,
         { organizationId, name: args.integrationName },
       );
 

@@ -13,7 +13,7 @@ import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { getCreateHumanInputRequestRef } from '../../lib/function_refs';
+import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
 const optionSchema = z.object({
@@ -151,7 +151,7 @@ Call this tool with:
 
       try {
         const requestId = await ctx.runMutation(
-          getCreateHumanInputRequestRef(),
+          internal.agent_tools.human_input.internal_mutations.createHumanInputRequest,
           {
             organizationId,
             threadId,

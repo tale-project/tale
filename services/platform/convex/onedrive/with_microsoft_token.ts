@@ -1,7 +1,3 @@
-/**
- * With Microsoft Token - Helper for authentication and token handling
- */
-
 import type { ActionCtx } from '../_generated/server';
 import { internal } from '../_generated/api';
 import { authComponent } from '../auth';
@@ -10,13 +6,6 @@ export type TokenResult =
   | { success: true; token: string; userId: string }
   | { success: false; error: string };
 
-/**
- * Common helper for authentication and Microsoft token handling.
- * Handles:
- * - User authentication check
- * - Token retrieval
- * - Token refresh if needed
- */
 export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
   const authUser = await authComponent.getAuthUser(ctx);
   if (!authUser) {
@@ -26,7 +15,7 @@ export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
   const userId = String(authUser._id);
 
   const tokenResult = await ctx.runQuery(
-    internal.onedrive.queries.getUserToken,
+    internal.onedrive.internal_queries.getUserToken,
     { userId },
   );
 
@@ -41,7 +30,7 @@ export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
     }
 
     const newTokenResult = await ctx.runQuery(
-      internal.onedrive.queries.getUserToken,
+      internal.onedrive.internal_queries.getUserToken,
       { userId },
     );
 

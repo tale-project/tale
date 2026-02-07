@@ -15,46 +15,18 @@
  *   warnings and missing user messages.
  */
 
-import { QueryCtx } from '../_generated/server';
 import { components } from '../_generated/api';
-import {
-  listUIMessages,
-  syncStreams,
-  type StreamArgs,
-  type UIMessage,
-} from '@convex-dev/agent';
-import type { PaginationOptions } from 'convex/server';
-
-export interface StreamingMessagesResult {
-  page: UIMessage[];
-  isDone: boolean;
-  continueCursor: string;
-  streams: Awaited<ReturnType<typeof syncStreams>>;
-}
+import { QueryCtx } from '../_generated/server';
+import { listUIMessages, syncStreams } from '@convex-dev/agent';
+import type { GetThreadMessagesStreamingArgs, StreamingMessagesResult } from './types';
 
 export async function getThreadMessagesStreaming(
   ctx: QueryCtx,
-  args: {
-    threadId: string;
-    paginationOpts: PaginationOptions;
-    streamArgs: StreamArgs | undefined;
-  },
+  args: GetThreadMessagesStreamingArgs,
 ): Promise<StreamingMessagesResult> {
-  // Fetch messages and streams concurrently for better performance.
-  // - listUIMessages: handles MessageDoc -> UIMessage conversion with proper grouping
-  //   (Note: numItems refers to MessageDocs, not UIMessages, so we may get fewer UIMessages)
-  // - syncStreams: fetches streaming deltas for real-time updates
-  //
   // Only include 'streaming' status - NOT 'finished'. Including 'finished' causes
-  // duplicate messages because:
-  // - listUIMessages returns merged UIMessage with stepOrder from first MessageDoc
-  // - syncStreams returns stream with stepOrder from the stream metadata
-  // - dedupeMessages uses (order, stepOrder) to detect duplicates
-  // - Different stepOrder values = both are kept = duplicate display
-  //
-  // The SDK's useUIMessages already handles the streaming->finished transition:
-  // stream data is preserved in frontend state until listUIMessages returns the
-  // persisted version, then dedupeMessages replaces streaming with success status.
+  // duplicate messages because listUIMessages and syncStreams use different stepOrder
+  // values, so dedupeMessages treats them as distinct entries.
   const [result, streams] = await Promise.all([
     listUIMessages(ctx, components.agent, {
       threadId: args.threadId,

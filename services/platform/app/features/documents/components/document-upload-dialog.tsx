@@ -36,7 +36,7 @@ export function DocumentUploadDialog({
 
   // Fetch user's teams via Convex query
   const teamsResult = useQuery(
-    api.member.getMyTeams,
+    api.members.queries.getMyTeams,
     open ? { organizationId } : 'skip',
   );
   const teams = teamsResult?.teams ?? null;

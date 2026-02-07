@@ -1,7 +1,3 @@
-/**
- * Shared types for email provider connection testing helpers.
- */
-
 import type {
   EmailProviderAuthMethod,
   EmailProviderVendor,
@@ -23,7 +19,6 @@ export interface VerifySmtpConnectionParams {
   auth: Record<string, unknown>;
 }
 
-// Minimal auth shape compatible with ImapFlow's expected `auth` object.
 export interface ImapAuth {
   user: string;
   pass?: string;

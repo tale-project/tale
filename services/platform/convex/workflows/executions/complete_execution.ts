@@ -1,11 +1,7 @@
-/**
- * Complete execution
- */
-
 import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
-import type { CompleteExecutionArgs } from './types';
 import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-value';
+import type { CompleteExecutionArgs } from './types';
 
 type CompleteExecutionData = {
   output: ConvexJsonValue;
@@ -28,7 +24,7 @@ export async function completeExecution(
 
   const updates: CompleteExecutionData = {
     status: 'completed',
-    output: args.output as ConvexJsonValue,
+    output: args.output,
     outputStorageId: args.outputStorageId,
     completedAt: Date.now(),
     updatedAt: Date.now(),
