@@ -7,6 +7,7 @@ export const getApprovalById = internalQuery({
   args: {
     approvalId: v.id('approvals'),
   },
+  returns: v.union(approvalItemValidator, v.null()),
   handler: async (ctx, args) => {
     return await ApprovalsHelpers.getApproval(ctx, args.approvalId);
   },
