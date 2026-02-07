@@ -105,6 +105,14 @@ export const removeMember = mutation({
 
     const teamId = String(memberToRemove.teamId);
 
+    const team = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: 'team',
+      where: [{ field: '_id', value: teamId, operator: 'eq' }],
+    });
+    if (!team || String(team.organizationId) !== args.organizationId) {
+      throw new Error('Team not found in this organization');
+    }
+
     await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
       input: {
         model: 'teamMember',
