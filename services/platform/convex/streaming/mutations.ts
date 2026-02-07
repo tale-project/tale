@@ -16,7 +16,7 @@ export const updateStreamStatus = internalMutation({
   },
   handler: async (ctx, args) => {
     await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
-      streamId: args.streamId as any,
+      streamId: args.streamId,
       status: args.status,
     });
   },
@@ -28,7 +28,7 @@ export const startStream = internalMutation({
   },
   handler: async (ctx, args) => {
     await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
-      streamId: args.streamId as any,
+      streamId: args.streamId,
       status: 'streaming',
     });
   },
@@ -41,7 +41,7 @@ export const appendToStream = internalMutation({
   },
   handler: async (ctx, args) => {
     await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
-      streamId: args.streamId as any,
+      streamId: args.streamId,
       text: args.text,
       final: false,
     });
@@ -54,7 +54,7 @@ export const completeStream = internalMutation({
   },
   handler: async (ctx, args) => {
     await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
-      streamId: args.streamId as any,
+      streamId: args.streamId,
       status: 'done',
     });
   },
@@ -66,7 +66,7 @@ export const errorStream = internalMutation({
   },
   handler: async (ctx, args) => {
     await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
-      streamId: args.streamId as any,
+      streamId: args.streamId,
       status: 'error',
     });
   },
