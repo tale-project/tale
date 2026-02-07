@@ -65,10 +65,10 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
     },
     {
       accessorKey: 'scanInterval',
-      header: () => tTables('headers.interval'),
+      header: () => <span className="text-right w-full block">{tTables('headers.interval')}</span>,
       size: 96,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-muted-foreground text-right w-full block">
           {row.original.scanInterval}
         </span>
       ),

@@ -160,6 +160,7 @@ export function ApiKeyCreateDialog({
               size="sm"
               onClick={handleCopyKey}
               className="absolute right-2 top-1/2 -translate-y-1/2"
+              aria-label={tCommon('actions.copy')}
             >
               {copied ? (
                 <Check className="size-4 text-green-500" />

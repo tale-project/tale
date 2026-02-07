@@ -186,6 +186,7 @@ export function CustomerImportForm({
                   variant="outline"
                   size="icon"
                   onClick={() => setValue('file', null)}
+                  aria-label={tCommon('actions.remove')}
                 >
                   <Trash2 className="size-4" />
                 </Button>
