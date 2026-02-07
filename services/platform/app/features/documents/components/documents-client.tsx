@@ -271,32 +271,38 @@ export function DocumentsClient({
           <HStack gap={2} justify="center">
             {row.original.sourceProvider === 'onedrive' &&
               row.original.sourceMode === 'auto' && (
-                <div className="relative" title="OneDrive (synced)">
+                <div
+                  className="relative"
+                  title={tDocuments('sourceType.oneDriveSynced')}
+                >
                   <OneDriveIcon className="size-6" />
                   <RefreshCw className="size-4 text-background absolute bottom-0 right-0.5 p-0.5 rounded-full bg-foreground" />
                 </div>
               )}
             {row.original.sourceProvider === 'onedrive' &&
               row.original.sourceMode === 'manual' && (
-                <div title="OneDrive">
+                <div title={tDocuments('sourceType.oneDrive')}>
                   <OneDriveIcon className="size-6" />
                 </div>
               )}
             {row.original.sourceProvider === 'sharepoint' &&
               row.original.sourceMode === 'auto' && (
-                <div className="relative" title="SharePoint (synced)">
+                <div
+                  className="relative"
+                  title={tDocuments('sourceType.sharePointSynced')}
+                >
                   <SharePointIcon className="size-6" />
                   <RefreshCw className="size-4 text-background absolute bottom-0 right-0.5 p-0.5 rounded-full bg-foreground" />
                 </div>
               )}
             {row.original.sourceProvider === 'sharepoint' &&
               row.original.sourceMode === 'manual' && (
-                <div title="SharePoint">
+                <div title={tDocuments('sourceType.sharePoint')}>
                   <SharePointIcon className="size-6" />
                 </div>
               )}
             {row.original.sourceProvider === 'upload' && (
-              <div title="Uploaded">
+              <div title={tDocuments('sourceType.uploaded')}>
                 <Monitor className="size-6" />
               </div>
             )}
