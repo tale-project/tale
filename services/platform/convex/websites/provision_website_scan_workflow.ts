@@ -124,6 +124,7 @@ export async function provisionWebsiteScanWorkflow(
     // that an initial scan has been queued, similar to manual rescans.
     await ctx.runMutation(internal.websites.mutations.patchWebsite, {
       websiteId: args.websiteId,
+      lastScannedAt: Date.now(),
     });
 
     await ctx.scheduler.runAfter(0, api.workflow_engine.mutations.startWorkflow, {
