@@ -59,18 +59,17 @@ export const validateStep = queryWithRLS({
     const warnings = [...stepResult.warnings];
 
     if (args.wfDefinitionId) {
-      // eslint-disable-next-line no-restricted-syntax -- Need all steps for circular dependency validation
-      const allSteps = await ctx.db
+      const stepsForCircularCheck = [];
+      for await (const step of ctx.db
         .query('wfStepDefs')
         .withIndex('by_definition', (q) =>
           q.eq('wfDefinitionId', args.wfDefinitionId!),
-        )
-        .collect();
-
-      const stepsForCircularCheck = allSteps.map((step) => ({
-        stepSlug: step.stepSlug,
-        nextSteps: step.nextSteps,
-      }));
+        )) {
+        stepsForCircularCheck.push({
+          stepSlug: step.stepSlug,
+          nextSteps: step.nextSteps,
+        });
+      }
 
       const circularResult = validateCircularDependencies(
         stepsForCircularCheck,

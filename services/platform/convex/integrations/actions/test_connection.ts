@@ -18,7 +18,7 @@ export const testConnection = action({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     return await testConnectionLogic(ctx, args);

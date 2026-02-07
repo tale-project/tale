@@ -10,8 +10,7 @@ import * as DocumentsHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import { documentItemValidator, sourceProviderValidator } from './validators';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { sourceProviderValidator } from './validators';
 
 /**
  * Get a document by ID (internal query)
@@ -83,7 +82,7 @@ export const getDocumentByIdPublic = query({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      return { success: false, error: 'Unauthorized' };
+      return { success: false, error: 'Unauthenticated' };
     }
 
     return await DocumentsHelpers.getDocumentByIdPublic(ctx, args.documentId);
@@ -101,7 +100,7 @@ export const getDocumentByPath = query({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      return { success: false, error: 'Unauthorized' };
+      return { success: false, error: 'Unauthenticated' };
     }
 
     // Verify user has access to this organization
@@ -122,7 +121,7 @@ export const getDocumentByPath = query({
 /**
  * Get documents with cursor-based pagination (public query).
  */
-export const getDocumentsCursor = query({
+export const listDocuments = query({
   args: {
     organizationId: v.string(),
     numItems: v.optional(v.number()),

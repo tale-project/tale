@@ -97,7 +97,7 @@ export function DocumentsClient({
   );
 
   const documentsResult = useQuery(
-    api.documents.queries.getDocumentsCursor,
+    api.documents.queries.listDocuments,
     queryArgs,
   );
 

@@ -48,7 +48,16 @@ export const testConfig = action({
 		valid: v.boolean(),
 		error: v.optional(v.string()),
 	}),
-	handler: async (_ctx, args) => {
+	handler: async (ctx, args) => {
+		const authUser: { _id: string } | null = await ctx.runQuery(
+			internal.sso_providers.internal_queries.getAuthUser,
+			{},
+		);
+
+		if (!authUser) {
+			return { valid: false, error: 'Unauthenticated' };
+		}
+
 		const result = await validateSsoConfig(args);
 		return {
 			valid: result.valid,

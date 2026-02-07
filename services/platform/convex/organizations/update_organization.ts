@@ -20,7 +20,7 @@ export async function updateOrganization(
   // Ensure user is authenticated
   const authUser = await authComponent.getAuthUser(ctx);
   if (!authUser) {
-    throw new Error('Not authenticated');
+    throw new Error('Unauthenticated');
   }
 
   await validateOrganizationAccess(ctx, args.organizationId, [

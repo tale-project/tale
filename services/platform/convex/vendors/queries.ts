@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { queryWithRLS } from '../lib/rls';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
 import { dataSourceValidator } from '../lib/validators/common';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
@@ -34,13 +35,7 @@ export const hasVendors = queryWithRLS({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const firstVendor = await ctx.db
-      .query('vendors')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .first();
-    return firstVendor !== null;
+    return await hasRecordsInOrg(ctx.db, 'vendors', args.organizationId);
   },
 });
 

@@ -60,30 +60,42 @@ export const listByTeam = query({
       return [];
     }
 
-    const members = await Promise.all(
-       
-      result.page.map(async (member: any) => {
+    const seenUserIds = new Set<string>();
+    for (const m of result.page) {
+      seenUserIds.add(String((m as any).userId));
+    }
+    const uniqueUserIds = Array.from(seenUserIds);
+
+    const userMap = new Map<string, { name?: string; email?: string }>();
+    await Promise.all(
+      uniqueUserIds.map(async (userId) => {
         const userResult = await ctx.runQuery(
           components.betterAuth.adapter.findOne,
           {
             model: 'user',
-            where: [{ field: '_id', value: member.userId, operator: 'eq' }],
+            where: [{ field: '_id', value: userId, operator: 'eq' }],
           },
         );
-
-        return {
-          _id: member._id,
-          teamId: member.teamId,
-          userId: member.userId,
-          role: member.role || 'member',
-          joinedAt: member.createdAt,
-          displayName: userResult?.name,
-          email: userResult?.email,
-        };
+        if (userResult) {
+          const name = typeof userResult.name === 'string' ? userResult.name : undefined;
+          const email = typeof userResult.email === 'string' ? userResult.email : undefined;
+          userMap.set(userId, { name, email });
+        }
       }),
     );
 
-    return members;
+    return result.page.map((member: any) => {
+      const user = userMap.get(member.userId);
+      return {
+        _id: member._id,
+        teamId: member.teamId,
+        userId: member.userId,
+        role: member.role || 'member',
+        joinedAt: member.createdAt,
+        displayName: user?.name,
+        email: user?.email,
+      };
+    });
   },
 });
 
@@ -97,7 +109,7 @@ export const addMember = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     await getOrganizationMember(ctx, args.organizationId, {
@@ -106,15 +118,18 @@ export const addMember = mutation({
       name: authUser.name,
     });
 
-    const result = await ctx.runMutation(components.betterAuth.adapter.create, {
-      input: {
-        model: 'teamMember',
-        data: {
-          teamId: args.teamId,
-          userId: args.userId,
-          createdAt: Date.now(),
-        },
+    const createInput = {
+      model: 'teamMember' as const,
+      data: {
+        teamId: args.teamId,
+        userId: args.userId,
+        createdAt: Date.now(),
       },
+    };
+    // Better Auth's teamMember type omits role but the DB supports it (see listByTeam)
+    const dataWithRole = { ...createInput.data, role: args.role ?? 'member' };
+    const result = await ctx.runMutation(components.betterAuth.adapter.create, {
+      input: { ...createInput, data: dataWithRole } as typeof createInput,
     });
 
     return result;
@@ -126,10 +141,11 @@ export const removeMember = mutation({
     teamMemberId: v.string(),
     organizationId: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     await getOrganizationMember(ctx, args.organizationId, {
@@ -177,6 +193,6 @@ export const removeMember = mutation({
       });
     }
 
-    return { success: true };
+    return null;
   },
 });

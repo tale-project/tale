@@ -16,7 +16,7 @@ export const deleteIntegration = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      throw new Error('Not authenticated');
+      throw new Error('Unauthenticated');
     }
 
     const integration = await ctx.db.get(args.integrationId);

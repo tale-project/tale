@@ -9,15 +9,55 @@ import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { queryWithRLS } from '../lib/rls';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
 import * as ConversationsHelpers from './helpers';
 import {
   conversationWithMessagesValidator,
   conversationStatusValidator,
   conversationPriorityValidator,
-  conversationDocValidator,
   conversationItemValidator,
 } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+
+const internalConversationRecordValidator = v.object({
+  _id: v.id('conversations'),
+  _creationTime: v.number(),
+  organizationId: v.string(),
+  customerId: v.optional(v.id('customers')),
+  externalMessageId: v.optional(v.string()),
+  subject: v.optional(v.string()),
+  status: v.optional(conversationStatusValidator),
+  priority: v.optional(v.string()),
+  type: v.optional(v.string()),
+  channel: v.optional(v.string()),
+  direction: v.optional(
+    v.union(v.literal('inbound'), v.literal('outbound')),
+  ),
+  providerId: v.optional(v.id('emailProviders')),
+  lastMessageAt: v.optional(v.number()),
+  metadata: v.optional(jsonRecordValidator),
+});
+
+const internalMessageRecordValidator = v.object({
+  _id: v.id('conversationMessages'),
+  _creationTime: v.number(),
+  organizationId: v.string(),
+  conversationId: v.id('conversations'),
+  providerId: v.optional(v.id('emailProviders')),
+  channel: v.string(),
+  direction: v.union(v.literal('inbound'), v.literal('outbound')),
+  externalMessageId: v.optional(v.string()),
+  deliveryState: v.union(
+    v.literal('queued'),
+    v.literal('sent'),
+    v.literal('delivered'),
+    v.literal('failed'),
+  ),
+  content: v.string(),
+  sentAt: v.optional(v.number()),
+  deliveredAt: v.optional(v.number()),
+  metadata: v.optional(jsonRecordValidator),
+});
 
 // =============================================================================
 // INTERNAL QUERIES (without RLS)
@@ -27,27 +67,7 @@ export const getConversationById = internalQuery({
   args: {
     conversationId: v.id('conversations'),
   },
-  returns: v.union(
-    v.object({
-      _id: v.id('conversations'),
-      _creationTime: v.number(),
-      organizationId: v.string(),
-      customerId: v.optional(v.id('customers')),
-      externalMessageId: v.optional(v.string()),
-      subject: v.optional(v.string()),
-      status: v.optional(conversationStatusValidator),
-      priority: v.optional(v.string()),
-      type: v.optional(v.string()),
-      channel: v.optional(v.string()),
-      direction: v.optional(
-        v.union(v.literal('inbound'), v.literal('outbound')),
-      ),
-      providerId: v.optional(v.id('emailProviders')),
-      lastMessageAt: v.optional(v.number()),
-      metadata: v.optional(jsonRecordValidator),
-    }),
-    v.null(),
-  ),
+  returns: v.union(internalConversationRecordValidator, v.null()),
   handler: async (ctx, args) => {
     return await ConversationsHelpers.getConversationById(
       ctx,
@@ -61,27 +81,7 @@ export const getConversationByExternalMessageId = internalQuery({
     organizationId: v.string(),
     externalMessageId: v.string(),
   },
-  returns: v.union(
-    v.object({
-      _id: v.id('conversations'),
-      _creationTime: v.number(),
-      organizationId: v.string(),
-      customerId: v.optional(v.id('customers')),
-      externalMessageId: v.optional(v.string()),
-      subject: v.optional(v.string()),
-      status: v.optional(conversationStatusValidator),
-      priority: v.optional(v.string()),
-      type: v.optional(v.string()),
-      channel: v.optional(v.string()),
-      direction: v.optional(
-        v.union(v.literal('inbound'), v.literal('outbound')),
-      ),
-      providerId: v.optional(v.id('emailProviders')),
-      lastMessageAt: v.optional(v.number()),
-      metadata: v.optional(jsonRecordValidator),
-    }),
-    v.null(),
-  ),
+  returns: v.union(internalConversationRecordValidator, v.null()),
   handler: async (ctx, args) => {
     return await ConversationsHelpers.getConversationByExternalMessageId(
       ctx,
@@ -96,29 +96,7 @@ export const getMessageByExternalId = internalQuery({
     organizationId: v.string(),
     externalMessageId: v.string(),
   },
-  returns: v.union(
-    v.object({
-      _id: v.id('conversationMessages'),
-      _creationTime: v.number(),
-      organizationId: v.string(),
-      conversationId: v.id('conversations'),
-      providerId: v.optional(v.id('emailProviders')),
-      channel: v.string(),
-      direction: v.union(v.literal('inbound'), v.literal('outbound')),
-      externalMessageId: v.optional(v.string()),
-      deliveryState: v.union(
-        v.literal('queued'),
-        v.literal('sent'),
-        v.literal('delivered'),
-        v.literal('failed'),
-      ),
-      content: v.string(),
-      sentAt: v.optional(v.number()),
-      deliveredAt: v.optional(v.number()),
-      metadata: v.optional(jsonRecordValidator),
-    }),
-    v.null(),
-  ),
+  returns: v.union(internalMessageRecordValidator, v.null()),
   handler: async (ctx, args) => {
     return await ConversationsHelpers.getMessageByExternalId(
       ctx,
@@ -139,26 +117,7 @@ export const queryConversations = internalQuery({
     paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
-    page: v.array(
-      v.object({
-        _id: v.id('conversations'),
-        _creationTime: v.number(),
-        organizationId: v.string(),
-        customerId: v.optional(v.id('customers')),
-        externalMessageId: v.optional(v.string()),
-        subject: v.optional(v.string()),
-        status: v.optional(conversationStatusValidator),
-        priority: v.optional(v.string()),
-        type: v.optional(v.string()),
-        channel: v.optional(v.string()),
-        direction: v.optional(
-          v.union(v.literal('inbound'), v.literal('outbound')),
-        ),
-        providerId: v.optional(v.id('emailProviders')),
-        lastMessageAt: v.optional(v.number()),
-        metadata: v.optional(jsonRecordValidator),
-      }),
-    ),
+    page: v.array(internalConversationRecordValidator),
     isDone: v.boolean(),
     continueCursor: v.string(),
   }),
@@ -176,28 +135,7 @@ export const queryConversationMessages = internalQuery({
     paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
-    page: v.array(
-      v.object({
-        _id: v.id('conversationMessages'),
-        _creationTime: v.number(),
-        organizationId: v.string(),
-        conversationId: v.id('conversations'),
-        providerId: v.optional(v.id('emailProviders')),
-        channel: v.string(),
-        direction: v.union(v.literal('inbound'), v.literal('outbound')),
-        externalMessageId: v.optional(v.string()),
-        deliveryState: v.union(
-          v.literal('queued'),
-          v.literal('sent'),
-          v.literal('delivered'),
-          v.literal('failed'),
-        ),
-        content: v.string(),
-        sentAt: v.optional(v.number()),
-        deliveredAt: v.optional(v.number()),
-        metadata: v.optional(jsonRecordValidator),
-      }),
-    ),
+    page: v.array(internalMessageRecordValidator),
     isDone: v.boolean(),
     continueCursor: v.string(),
   }),
@@ -220,28 +158,7 @@ export const queryLatestMessageByDeliveryState = internalQuery({
     providerId: v.optional(v.id('emailProviders')),
   },
   returns: v.object({
-    message: v.union(
-      v.object({
-        _id: v.id('conversationMessages'),
-        _creationTime: v.number(),
-        organizationId: v.string(),
-        conversationId: v.id('conversations'),
-        channel: v.string(),
-        direction: v.union(v.literal('inbound'), v.literal('outbound')),
-        externalMessageId: v.optional(v.string()),
-        deliveryState: v.union(
-          v.literal('queued'),
-          v.literal('sent'),
-          v.literal('delivered'),
-          v.literal('failed'),
-        ),
-        content: v.string(),
-        sentAt: v.optional(v.number()),
-        deliveredAt: v.optional(v.number()),
-        metadata: v.optional(jsonRecordValidator),
-      }),
-      v.null(),
-    ),
+    message: v.union(internalMessageRecordValidator, v.null()),
   }),
   handler: async (ctx, args) => {
     return await ConversationsHelpers.queryLatestMessageByDeliveryState(
@@ -264,13 +181,7 @@ export const hasConversations = queryWithRLS({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const firstConversation = await ctx.db
-      .query('conversations')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .first();
-    return firstConversation !== null;
+    return await hasRecordsInOrg(ctx.db, 'conversations', args.organizationId);
   },
 });
 
@@ -278,26 +189,7 @@ export const getConversation = queryWithRLS({
   args: {
     conversationId: v.id('conversations'),
   },
-  returns: v.union(
-    v.null(),
-    v.object({
-      _id: v.id('conversations'),
-      _creationTime: v.number(),
-      organizationId: v.string(),
-      customerId: v.optional(v.id('customers')),
-      subject: v.optional(v.string()),
-      status: v.optional(conversationStatusValidator),
-      priority: v.optional(v.string()),
-      type: v.optional(v.string()),
-      channel: v.optional(v.string()),
-      direction: v.optional(
-        v.union(v.literal('inbound'), v.literal('outbound')),
-      ),
-      providerId: v.optional(v.id('emailProviders')),
-      lastMessageAt: v.optional(v.number()),
-      metadata: v.optional(jsonRecordValidator),
-    }),
-  ),
+  returns: v.union(v.null(), internalConversationRecordValidator),
   handler: async (ctx, args) => {
     return await ctx.db.get(args.conversationId);
   },

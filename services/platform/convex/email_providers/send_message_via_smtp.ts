@@ -10,7 +10,7 @@
  */
 
 import type { ActionCtx } from '../_generated/server';
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import {
   decryptAndRefreshOAuth2Token,
@@ -130,7 +130,7 @@ export async function sendMessageViaSMTP(
             jwe,
           }),
         async ({ provider, clientId, clientSecret, refreshToken, tokenUrl }) =>
-          await ctx.runAction(api.oauth2.refreshToken, {
+          await ctx.runAction(internal.oauth2.refreshToken, {
             provider,
             clientId,
             clientSecret,
@@ -145,7 +145,7 @@ export async function sendMessageViaSMTP(
           expiresIn,
           scope,
         }) =>
-          await ctx.runAction(api.email_providers.actions.storeOAuth2Tokens, {
+          await ctx.runAction(internal.email_providers.internal_actions.storeOAuth2TokensInternal, {
             emailProviderId,
             accessToken,
             refreshToken,

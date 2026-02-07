@@ -60,7 +60,7 @@ export const getApprovalsForThreadInternal = internalQuery({
 /**
  * Get approvals by organization with optional filters.
  */
-export const getApprovalsByOrganization = query({
+export const listApprovalsByOrganization = query({
   args: {
     organizationId: v.string(),
     status: v.optional(approvalStatusValidator),

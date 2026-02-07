@@ -6,7 +6,7 @@
 
 import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import { api, internal } from '../../../_generated/api';
+import { internal } from '../../../_generated/api';
 import type { Doc } from '../../../_generated/dataModel';
 import { decryptAndRefreshOAuth2Token } from '../../../email_providers/helpers';
 import type { Id } from '../../../_generated/dataModel';
@@ -162,7 +162,7 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
                 jwe,
               }),
             async (params) =>
-              await ctx.runAction!(api.oauth2.refreshToken, params),
+              await ctx.runAction!(internal.oauth2.refreshToken, params),
             async (params) =>
               await ctx.runAction!(
                 internal.email_providers.internal_actions.storeOAuth2TokensInternal,
