@@ -49,7 +49,7 @@ export async function createWorkflowWithSteps(
     category: undefined,
     config: args.workflowConfig.config ?? {},
     createdBy: 'system',
-    autoCreateFirstStep: false,
+    autoCreateFirstStep: args.stepsConfig.length === 0,
   });
 
   // Insert all steps in parallel

@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 import { action } from '../_generated/server';
 import { internal } from '../_generated/api';
 import { authComponent } from '../auth';
-import { ragAction } from '../workflow_engine/actions/rag/rag_action';
+import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 export const retryRagIndexing = action({
   args: {
