@@ -4,7 +4,8 @@ import { vWorkflowId } from '@convex-dev/workflow';
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import * as EngineHelpers from './helpers/engine';
 import { handleStartWorkflow } from './helpers/engine/start_workflow_handler';
-import { workflowManager } from './engine';
+import { getShardIndex, safeShardIndex } from './helpers/engine/shard';
+import { workflowManagers } from './engine';
 
 export const onWorkflowComplete = internalMutation({
 	args: {
@@ -22,11 +23,13 @@ export const onWorkflowComplete = internalMutation({
 export const cleanupComponentWorkflow = internalMutation({
 	args: {
 		workflowId: vWorkflowId,
+		shardIndex: v.optional(v.number()),
 	},
 	returns: v.null(),
 	handler: async (ctx, args) => {
+		const manager = workflowManagers[safeShardIndex(args.shardIndex)];
 		await EngineHelpers.cleanupComponentWorkflow(
-			workflowManager,
+			manager,
 			ctx,
 			args.workflowId,
 		);
@@ -44,6 +47,7 @@ export const startWorkflow = internalMutation({
 	},
 	returns: v.id('wfExecutions'),
 	handler: async (ctx, args) => {
-		return await handleStartWorkflow(ctx, args, workflowManager);
+		const shardIndex = getShardIndex(args.wfDefinitionId);
+		return await handleStartWorkflow(ctx, args, workflowManagers[shardIndex], shardIndex);
 	},
 });

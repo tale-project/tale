@@ -22,7 +22,14 @@
     "test:ui": "vitest --run --config vitest.ui.config.mjs",
     "test:ui:watch": "vitest --config vitest.ui.config.mjs",
     "storybook": "storybook dev -p 6006",
-    "storybook:build": "storybook build -o storybook-static"
+    "storybook:build": "storybook build -o storybook-static",
+    "stress-test": "npx tsx stress-tests/run-stress-test.ts",
+    "stress-test:concurrent": "npx tsx stress-tests/scenarios/concurrent-starts.ts",
+    "stress-test:sustained": "npx tsx stress-tests/scenarios/sustained-load.ts",
+    "stress-test:payload": "npx tsx stress-tests/scenarios/payload-pressure.ts",
+    "stress-test:loop": "npx tsx stress-tests/scenarios/loop-contention.ts",
+    "stress-test:scheduler": "npx tsx stress-tests/scenarios/scheduler-overlap.ts",
+    "stress-test:shard-compare": "npx tsx stress-tests/scenarios/shard-comparison.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "2.0.89",

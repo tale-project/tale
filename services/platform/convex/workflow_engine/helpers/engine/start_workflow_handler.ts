@@ -19,6 +19,7 @@ export async function handleStartWorkflow(
   ctx: MutationCtx,
   args: StartWorkflowArgs,
   workflowManager: WorkflowManager,
+  shardIndex = 0,
 ): Promise<Id<'wfExecutions'>> {
   // Validate database workflow definition
   const wfDefinition = await ctx.db.get(args.wfDefinitionId);
@@ -67,6 +68,7 @@ export async function handleStartWorkflow(
     triggerData: args.triggerData,
     metadata: '{}',
     workflowSlug,
+    shardIndex,
   });
 
   // Start workflow via shared helper to avoid extra nested mutations
@@ -83,6 +85,7 @@ export async function handleStartWorkflow(
     triggeredBy: args.triggeredBy,
     triggerData: args.triggerData,
     workflowManager,
+    shardIndex,
   });
 
   debugLog('startWorkflow Workflow scheduled successfully', {

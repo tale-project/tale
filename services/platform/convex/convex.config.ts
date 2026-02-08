@@ -9,6 +9,9 @@ import persistentTextStreaming from '@convex-dev/persistent-text-streaming/conve
 const app = defineApp();
 app.use(betterAuth);
 app.use(workflow);
+app.use(workflow, { name: 'workflow_1' });
+app.use(workflow, { name: 'workflow_2' });
+app.use(workflow, { name: 'workflow_3' });
 app.use(agent);
 app.use(rateLimiter);
 app.use(actionCache);

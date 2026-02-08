@@ -52,3 +52,6 @@ compose.yml
 
 # Storybook
 storybook-static/
+
+# Stress test reports
+stress-tests/report-*.json
