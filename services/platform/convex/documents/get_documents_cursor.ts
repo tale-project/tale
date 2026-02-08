@@ -20,6 +20,7 @@ export interface GetDocumentsCursorArgs {
   query?: string;
   folderPath?: string;
   userTeamIds?: string[];
+  filterTeamId?: string;
 }
 
 export interface CursorPaginatedDocumentsResult {
@@ -57,6 +58,22 @@ export async function getDocumentsCursor(
           args.userTeamIds!.includes(tag),
         );
         if (!hasAccess) {
+          return false;
+        }
+      }
+    }
+
+    // Team filter: when a specific team is selected, show only
+    // org-wide docs + docs belonging to/shared with the selected team
+    if (args.filterTeamId) {
+      if (doc.teamId !== undefined) {
+        if (doc.teamId !== null && doc.teamId !== args.filterTeamId) {
+          if (!doc.sharedWithTeamIds?.includes(args.filterTeamId)) {
+            return false;
+          }
+        }
+      } else if (doc.teamTags && doc.teamTags.length > 0) {
+        if (!doc.teamTags.includes(args.filterTeamId)) {
           return false;
         }
       }

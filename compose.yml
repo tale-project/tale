@@ -490,9 +490,8 @@ services:
     # Automatically restart the container if it crashes
     restart: unless-stopped
 
-    # Health check
-    # Docker will check if the proxy is healthy via /health endpoint on HTTP
-    # Using HTTP on localhost avoids SSL/IPv6 issues for internal health checks
+    # Health check via dedicated internal port (not exposed externally)
+    # Uses :2020 to avoid interfering with Caddy's ACME challenge handling on :80
     healthcheck:
       test:
         [
@@ -501,7 +500,7 @@ services:
           '--no-verbose',
           '--tries=1',
           '--spider',
-          'http://127.0.0.1:80/health',
+          'http://127.0.0.1:2020/health',
         ]
       interval: 30s
       timeout: 10s

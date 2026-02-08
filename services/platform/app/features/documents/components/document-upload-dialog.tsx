@@ -11,6 +11,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { api } from '@/convex/_generated/api';
 import { useDocumentUpload } from '../hooks/use-document-upload';
+import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 import { toast } from '@/app/hooks/use-toast';
@@ -31,8 +32,11 @@ export function DocumentUploadDialog({
 }: DocumentUploadDialogProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
+  const { selectedTeamId } = useTeamFilter();
 
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(
+    () => selectedTeamId ? new Set([selectedTeamId]) : new Set(),
+  );
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   // Fetch user's teams via Convex query

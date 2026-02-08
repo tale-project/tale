@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Clock, Search, Plus } from 'lucide-react';
-
 import { useT } from '@/lib/i18n/client';
 import { Button } from '@/app/components/ui/primitives/button';
 import {
@@ -174,6 +173,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+
       </div>
 
       <AdaptiveHeaderRoot className="md:hidden">

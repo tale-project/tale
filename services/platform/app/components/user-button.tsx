@@ -9,6 +9,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import {
   Tooltip,
@@ -24,6 +29,7 @@ import {
   Sun,
   Moon,
   UserCircle,
+  Building2,
 } from 'lucide-react';
 import { toast } from '@/app/hooks/use-toast';
 import { useNavigate, useParams } from '@tanstack/react-router';
@@ -33,6 +39,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { useTeamFilter } from '@/app/hooks/use-team-filter';
 
 export interface UserButtonProps {
   align?: 'start' | 'end';
@@ -51,11 +58,13 @@ export function UserButton({
   onNavigate,
 }: UserButtonProps) {
   const { t } = useT('auth');
+  const { t: tNav } = useT('navigation');
   const { user, signOut, isLoading: loading } = useAuth();
   const navigate = useNavigate();
   const params = useParams({ strict: false }) as { id?: string };
   const organizationId = params.id;
   const { theme, setTheme } = useTheme();
+  const { teams, selectedTeamId, setSelectedTeamId } = useTeamFilter();
 
   // Get member info to access display name
   // Skip query when user is not authenticated or organizationId is missing
@@ -169,6 +178,31 @@ export function UserButton({
               <Settings className="mr-3 size-4" />
               <span>{t('userButton.settings')}</span>
             </DropdownMenuItem>
+
+            {teams && teams.length > 0 && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="py-2.5">
+                  <Building2 className="mr-3 size-4" />
+                  <span>{tNav('teamFilter.label')}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup
+                    value={selectedTeamId ?? ''}
+                    onValueChange={(val) => setSelectedTeamId(val || null)}
+                  >
+                    <DropdownMenuRadioItem value="">
+                      {tNav('teamFilter.allTeams')}
+                    </DropdownMenuRadioItem>
+                    {teams.map((team) => (
+                      <DropdownMenuRadioItem key={team.id} value={team.id}>
+                        {team.name}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+
             <DropdownMenuSeparator />
           </>
         )}

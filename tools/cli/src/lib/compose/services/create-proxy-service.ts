@@ -20,7 +20,7 @@ export function createProxyService(
         "--no-verbose",
         "--tries=1",
         "--spider",
-        "http://127.0.0.1:80/health",
+        "http://127.0.0.1:2020/health",
       ],
       interval: "30s",
       timeout: "10s",

@@ -25,6 +25,7 @@ import { MicrosoftReauthButton } from './microsoft-reauth-button';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useT } from '@/lib/i18n/client';
+import { useTeamFilter } from '@/app/hooks/use-team-filter';
 
 // Normalized OneDrive item type returned by Convex action
 type OneDriveApiItem = {
@@ -414,6 +415,7 @@ export function OneDriveImportDialog({
 }: OneDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
+  const { selectedTeamId } = useTeamFilter();
 
   // OneDrive file listing via Convex action
   const listOneDriveFiles = useAction(api.onedrive.actions.listFiles);
@@ -425,7 +427,9 @@ export function OneDriveImportDialog({
 
   const [stage, setStage] = useState<Stage>('picker');
   const [importType, setImportType] = useState<ImportType>('one-time');
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(
+    () => selectedTeamId ? new Set([selectedTeamId]) : new Set(),
+  );
 
   // Source tab state
   const [sourceTab, setSourceTab] = useState<SourceTab>('onedrive');

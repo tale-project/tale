@@ -222,7 +222,12 @@
     "apiKeys": "API keys",
     "apiDocs": "API docs",
     "account": "Account",
-    "logs": "Logs"
+    "logs": "Logs",
+    "customAgents": "Custom agents",
+    "teamFilter": {
+      "allTeams": "All teams",
+      "label": "Team"
+    }
   },
   "knowledge": {
     "title": "Knowledge",
@@ -582,6 +587,78 @@
       "selectMember": "Select a member to add",
       "noMembersToAdd": "All organization members are already in this team",
       "noTeamMembers": "No members in this team yet"
+    },
+    "customAgents": {
+      "title": "Custom agents",
+      "description": "Create and manage custom AI agents with specialized instructions and tools",
+      "createAgent": "Create agent",
+      "searchAgent": "Search agents",
+      "noAgents": "No custom agents yet",
+      "noAgentsDescription": "Create your first custom agent to specialize AI behavior for your team.",
+      "columns": {
+        "displayName": "Name",
+        "modelPreset": "Model",
+        "tools": "Tools",
+        "version": "Version",
+        "team": "Team",
+        "orgWide": "Organization-wide"
+      },
+      "editAgent": "Edit agent",
+      "deleteAgent": "Delete agent",
+      "deleteConfirmation": "Are you sure you want to delete this agent? This action cannot be undone.",
+      "duplicateAgent": "Duplicate agent",
+      "versionHistory": "Version history",
+      "agentCreated": "Agent created",
+      "agentCreateFailed": "Failed to create agent",
+      "agentUpdated": "Agent updated",
+      "agentUpdateFailed": "Failed to update agent",
+      "agentDeleted": "Agent deleted",
+      "agentDeleteFailed": "Failed to delete agent",
+      "agentDuplicated": "Agent duplicated",
+      "agentDuplicateFailed": "Failed to duplicate agent",
+      "rolledBack": "Rolled back to version {version}",
+      "rollbackFailed": "Failed to roll back",
+      "form": {
+        "name": "Name",
+        "namePlaceholder": "my-agent",
+        "nameHelp": "Unique identifier (lowercase, hyphens allowed)",
+        "displayName": "Display name",
+        "displayNamePlaceholder": "My Agent",
+        "description": "Description",
+        "descriptionPlaceholder": "What does this agent do?",
+        "systemInstructions": "System instructions",
+        "systemInstructionsPlaceholder": "You are a helpful assistant that...",
+        "modelPreset": "Model preset",
+        "modelPresets": {
+          "fast": "Fast",
+          "standard": "Standard",
+          "advanced": "Advanced",
+          "vision": "Vision"
+        },
+        "temperature": "Temperature",
+        "maxTokens": "Max tokens",
+        "maxSteps": "Max steps",
+        "tools": "Tools",
+        "toolsDescription": "Select which tools this agent can use",
+        "noToolsSelected": "No tools selected",
+        "team": "Team",
+        "teamHelp": "Assign this agent to a team. Leave empty for organization-wide access.",
+        "teamNone": "Organization-wide",
+        "sharedWithTeams": "Share with additional teams",
+        "sharedWithTeamsHelp": "Select additional teams that can access this agent",
+        "includeKnowledge": "Include knowledge base",
+        "knowledgeTopK": "Knowledge results (top K)",
+        "changeDescription": "Change description",
+        "changeDescriptionPlaceholder": "What did you change?"
+      },
+      "versions": {
+        "title": "Version history",
+        "version": "Version {number}",
+        "current": "Current",
+        "rollback": "Rollback",
+        "rollingBack": "Rolling back...",
+        "noVersions": "No version history available"
+      }
     },
     "integrations": {
       "accessDenied": "You need Admin or Developer permissions to access integrations settings.",
@@ -1672,6 +1749,12 @@
       "generateExcel": "Generating Excel file",
       "contextSearch": "Searching for related topics"
     },
+    "agentSelector": {
+      "label": "Select agent",
+      "defaultAgent": "Default agent",
+      "defaultAgentDescription": "General-purpose AI assistant",
+      "usingAgent": "Using {name}"
+    },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
     "showHistory": "Show history",
@@ -2299,7 +2382,8 @@
     "apiKeys": "You need Admin or Developer permissions to manage API keys.",
     "apiDocs": "You need Admin or Developer permissions to access API documentation.",
     "organization": "You need Admin permissions to access organization settings.",
-    "teams": "You need Admin permissions to access team settings."
+    "teams": "You need Admin permissions to access team settings.",
+    "customAgents": "You need Admin or Developer permissions to manage custom agents."
   },
   "metadata": {
     "suffix": "Tale",

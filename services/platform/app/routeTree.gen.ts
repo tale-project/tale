@@ -33,6 +33,7 @@ import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization'
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs'
 import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations'
+import { Route as DashboardIdSettingsCustomAgentsRouteImport } from './routes/dashboard/$id/settings/custom-agents'
 import { Route as DashboardIdSettingsApiKeysRouteImport } from './routes/dashboard/$id/settings/api-keys'
 import { Route as DashboardIdSettingsAccountRouteImport } from './routes/dashboard/$id/settings/account'
 import { Route as DashboardIdConversationsStatusRouteImport } from './routes/dashboard/$id/conversations/$status'
@@ -174,6 +175,12 @@ const DashboardIdSettingsIntegrationsRoute =
     path: '/integrations',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any)
+const DashboardIdSettingsCustomAgentsRoute =
+  DashboardIdSettingsCustomAgentsRouteImport.update({
+    id: '/custom-agents',
+    path: '/custom-agents',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any)
 const DashboardIdSettingsApiKeysRoute =
   DashboardIdSettingsApiKeysRouteImport.update({
     id: '/api-keys',
@@ -292,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
+  '/dashboard/$id/settings/custom-agents': typeof DashboardIdSettingsCustomAgentsRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
@@ -326,6 +334,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
+  '/dashboard/$id/settings/custom-agents': typeof DashboardIdSettingsCustomAgentsRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
@@ -368,6 +377,7 @@ export interface FileRoutesById {
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
+  '/dashboard/$id/settings/custom-agents': typeof DashboardIdSettingsCustomAgentsRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
@@ -409,6 +419,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/conversations/$status'
     | '/dashboard/$id/settings/account'
     | '/dashboard/$id/settings/api-keys'
+    | '/dashboard/$id/settings/custom-agents'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
@@ -443,6 +454,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/conversations/$status'
     | '/dashboard/$id/settings/account'
     | '/dashboard/$id/settings/api-keys'
+    | '/dashboard/$id/settings/custom-agents'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
@@ -484,6 +496,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/conversations/$status'
     | '/dashboard/$id/settings/account'
     | '/dashboard/$id/settings/api-keys'
+    | '/dashboard/$id/settings/custom-agents'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
@@ -672,6 +685,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations'
       fullPath: '/dashboard/$id/settings/integrations'
       preLoaderRoute: typeof DashboardIdSettingsIntegrationsRouteImport
+      parentRoute: typeof DashboardIdSettingsRoute
+    }
+    '/dashboard/$id/settings/custom-agents': {
+      id: '/dashboard/$id/settings/custom-agents'
+      path: '/custom-agents'
+      fullPath: '/dashboard/$id/settings/custom-agents'
+      preLoaderRoute: typeof DashboardIdSettingsCustomAgentsRouteImport
       parentRoute: typeof DashboardIdSettingsRoute
     }
     '/dashboard/$id/settings/api-keys': {
@@ -895,6 +915,7 @@ const DashboardIdConversationsRouteWithChildren =
 interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsAccountRoute: typeof DashboardIdSettingsAccountRoute
   DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute
+  DashboardIdSettingsCustomAgentsRoute: typeof DashboardIdSettingsCustomAgentsRoute
   DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute
@@ -905,6 +926,7 @@ interface DashboardIdSettingsRouteChildren {
 const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsAccountRoute: DashboardIdSettingsAccountRoute,
   DashboardIdSettingsApiKeysRoute: DashboardIdSettingsApiKeysRoute,
+  DashboardIdSettingsCustomAgentsRoute: DashboardIdSettingsCustomAgentsRoute,
   DashboardIdSettingsIntegrationsRoute: DashboardIdSettingsIntegrationsRoute,
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,

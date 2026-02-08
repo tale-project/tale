@@ -7,6 +7,7 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
+import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 
 export const Route = createFileRoute('/dashboard/$id')({
   component: DashboardLayout,
@@ -22,27 +23,29 @@ function DashboardLayout() {
   );
 
   return (
-    <AdaptiveHeaderProvider>
-      <div className="flex flex-col md:flex-row size-full overflow-hidden">
-        <div className="md:hidden flex items-center gap-2 h-[--nav-size] p-2 bg-background">
-          <MobileNavigation
-            organizationId={organizationId}
-            role={memberContext?.role}
-          />
-          <AdaptiveHeaderSlot />
-        </div>
+    <TeamFilterProvider organizationId={organizationId}>
+      <AdaptiveHeaderProvider>
+        <div className="flex flex-col md:flex-row size-full overflow-hidden">
+          <div className="md:hidden flex items-center gap-2 h-[--nav-size] p-2 bg-background">
+            <MobileNavigation
+              organizationId={organizationId}
+              role={memberContext?.role}
+            />
+            <AdaptiveHeaderSlot />
+          </div>
 
-        <div className="hidden md:flex md:flex-[0_0_var(--nav-size)] h-full px-2">
-          <Navigation
-            organizationId={organizationId}
-            role={memberContext?.role}
-          />
-        </div>
+          <div className="hidden md:flex md:flex-[0_0_var(--nav-size)] h-full px-2">
+            <Navigation
+              organizationId={organizationId}
+              role={memberContext?.role}
+            />
+          </div>
 
-        <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden md:border-l border-border bg-background">
-          {isAuthLoading ? null : <Outlet />}
+          <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden md:border-l border-border bg-background">
+            {isAuthLoading ? null : <Outlet />}
+          </div>
         </div>
-      </div>
-    </AdaptiveHeaderProvider>
+      </AdaptiveHeaderProvider>
+    </TeamFilterProvider>
   );
 }

@@ -12,6 +12,7 @@ import { TOOL_NAMES, TOOL_REGISTRY_MAP } from '../agent_tools/tool_registry';
 export const listCustomAgents = query({
   args: {
     organizationId: v.string(),
+    filterTeamId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -27,9 +28,18 @@ export const listCustomAgents = query({
 
     const results = [];
     for await (const agent of agents) {
-      if (hasTeamAccess(agent, userTeamIds)) {
-        results.push(agent);
+      if (!hasTeamAccess(agent, userTeamIds)) continue;
+
+      if (args.filterTeamId && agent.teamId) {
+        if (
+          agent.teamId !== args.filterTeamId &&
+          !agent.sharedWithTeamIds?.includes(args.filterTeamId)
+        ) {
+          continue;
+        }
       }
+
+      results.push(agent);
     }
 
     return results;

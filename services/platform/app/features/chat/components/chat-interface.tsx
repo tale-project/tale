@@ -41,6 +41,7 @@ export function ChatInterface({
     clearChatState,
     pendingMessage,
     setPendingMessage,
+    selectedAgent,
   } = useChatLayout();
 
   const [inputValue, setInputValue] = useState('');
@@ -173,6 +174,7 @@ export function ChatInterface({
     onBeforeSend: () => {
       shouldScrollToAIRef.current = true;
     },
+    selectedAgent,
   });
 
   const handleSendMessage = async (
@@ -262,6 +264,7 @@ export function ChatInterface({
             onChange={setInputValue}
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
+            organizationId={organizationId}
           />
         </FileUpload.Root>
       </div>

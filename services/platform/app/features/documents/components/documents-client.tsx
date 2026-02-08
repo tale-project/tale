@@ -26,6 +26,7 @@ import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell'
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListTeams } from '@/app/features/settings/teams/hooks/use-list-teams';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { useTeamFilter } from '@/app/hooks/use-team-filter';
 
 interface DocumentsClientProps {
   organizationId: string;
@@ -85,15 +86,18 @@ export function DocumentsClient({
     );
   }, [teams]);
 
+  const { selectedTeamId } = useTeamFilter();
+
   const queryArgs = useMemo(
     () => ({
       organizationId,
       query: debouncedQuery || undefined,
       folderPath: currentFolderPath || undefined,
+      filterTeamId: selectedTeamId || undefined,
       cursor: null,
       numItems: 1000,
     }),
-    [organizationId, debouncedQuery, currentFolderPath],
+    [organizationId, debouncedQuery, currentFolderPath, selectedTeamId],
   );
 
   const documentsResult = useQuery(
