@@ -146,12 +146,12 @@ export function ChatSearchDialog({
                     close();
                   }}
                 >
-                  <div className="text-sm text-foreground truncate flex items-center gap-2 w-full">
-                    {chat.title}
-                    <div className="text-[0.625rem] text-muted-foreground truncate ml-auto">
+                  <div className="text-sm text-foreground flex items-center gap-2 w-full min-w-0">
+                    <span className="truncate">{chat.title}</span>
+                    <span className="text-[0.625rem] text-muted-foreground shrink-0 ml-auto">
                       {chat.createdAt &&
                         formatDateSmart(new Date(chat.createdAt) || '')}
-                    </div>
+                    </span>
                   </div>
                 </button>
               </li>
