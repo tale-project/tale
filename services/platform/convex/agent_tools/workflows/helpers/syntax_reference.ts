@@ -60,7 +60,7 @@ Process customers/products/conversations one at a time. Each execution handles O
 **Skeleton:**
 \`\`\`json
 [
-  { "stepSlug": "start", "stepType": "start", "config": { "type": "scheduled", "schedule": "0 */2 * * *", "timezone": "UTC" }, "nextSteps": { "success": "find_entity" } },
+  { "stepSlug": "start", "stepType": "start", "config": {}, "nextSteps": { "success": "find_entity" } },
   { "stepSlug": "find_entity", "stepType": "action", "config": { "type": "workflow_processing_records", "parameters": { "operation": "find_unprocessed", "tableName": "customers", "backoffHours": "{{backoffHours}}", "filterExpression": "status == \\"active\\"" } }, "nextSteps": { "success": "check_found" } },
   { "stepSlug": "check_found", "stepType": "condition", "config": { "expression": "steps.find_entity.output.data != null" }, "nextSteps": { "true": "extract_data", "false": "noop" } },
   { "stepSlug": "extract_data", "stepType": "action", "config": { "type": "set_variables", "parameters": { "variables": [{ "name": "entityId", "value": "{{steps.find_entity.output.data._id}}" }] } }, "nextSteps": { "success": "process" } },
