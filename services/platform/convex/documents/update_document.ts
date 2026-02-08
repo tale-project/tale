@@ -7,6 +7,7 @@ import type { Id } from '../_generated/dataModel';
 import _ from 'lodash';
 import { extractExtension } from './extract_extension';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { teamTagsToUnifiedFields } from './team_fields';
 
 export async function updateDocument(
   ctx: MutationCtx,
@@ -51,7 +52,12 @@ export async function updateDocument(
   if (args.mimeType !== undefined) updateData.mimeType = args.mimeType;
   if (args.sourceProvider !== undefined) updateData.sourceProvider = args.sourceProvider;
   if (args.externalItemId !== undefined) updateData.externalItemId = args.externalItemId;
-  if (args.teamTags !== undefined) updateData.teamTags = args.teamTags;
+  if (args.teamTags !== undefined) {
+    updateData.teamTags = args.teamTags;
+    const unifiedTeamFields = teamTagsToUnifiedFields(args.teamTags);
+    updateData.teamId = unifiedTeamFields.teamId;
+    updateData.sharedWithTeamIds = unifiedTeamFields.sharedWithTeamIds;
+  }
 
   if (args.extension !== undefined) {
     updateData.extension = args.extension;

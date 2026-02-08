@@ -5,6 +5,7 @@
 import type { MutationCtx } from '../_generated/server';
 import type { CreateDocumentArgs, CreateDocumentResult } from './types';
 import { extractExtension } from './extract_extension';
+import { teamTagsToUnifiedFields } from './team_fields';
 
 export async function createDocument(
   ctx: MutationCtx,
@@ -12,6 +13,9 @@ export async function createDocument(
 ): Promise<CreateDocumentResult> {
   // Auto-extract extension from title if not provided
   const extension = args.extension ?? extractExtension(args.title);
+
+  // Compute unified team fields from teamTags
+  const unifiedTeamFields = teamTagsToUnifiedFields(args.teamTags);
 
   const documentId = await ctx.db.insert('documents', {
     organizationId: args.organizationId,
@@ -26,6 +30,7 @@ export async function createDocument(
     externalItemId: args.externalItemId,
     contentHash: args.contentHash,
     teamTags: args.teamTags,
+    ...unifiedTeamFields,
     createdBy: args.createdBy,
   });
 

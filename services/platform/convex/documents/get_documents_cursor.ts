@@ -11,6 +11,7 @@ import type { DocumentItemResponse } from './types';
 import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../lib/pagination';
 import { getMetadataString } from '../lib/metadata/get_metadata_string';
 import { transformDocumentsBatch } from './transform_to_document_item';
+import { hasTeamAccess } from '../lib/team_access';
 
 export interface GetDocumentsCursorArgs {
   organizationId: string;
@@ -45,11 +46,14 @@ export async function getDocumentsCursor(
 
   // Filter function for search, folder path, and team access
   const filter = (doc: Doc<'documents'>): boolean => {
-    // Team-based access control
+    // Team-based access control (unified fields with teamTags fallback)
     if (args.userTeamIds !== undefined) {
-      const docTeamTags = doc.teamTags;
-      if (docTeamTags && docTeamTags.length > 0) {
-        const hasAccess = docTeamTags.some((tag) =>
+      if (doc.teamId !== undefined) {
+        if (!hasTeamAccess(doc, args.userTeamIds)) {
+          return false;
+        }
+      } else if (doc.teamTags && doc.teamTags.length > 0) {
+        const hasAccess = doc.teamTags.some((tag) =>
           args.userTeamIds!.includes(tag),
         );
         if (!hasAccess) {
