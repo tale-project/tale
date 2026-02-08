@@ -6,6 +6,7 @@ import { authComponent } from '../../auth';
 import { openai } from '../../lib/openai_provider';
 import { getEnvOrThrow } from '../../lib/get_or_throw';
 import { generateObject } from 'ai';
+import { CronExpressionParser } from 'cron-parser';
 import { z } from 'zod/v4';
 
 export const generateCronExpression = action({
@@ -55,6 +56,12 @@ Rules:
 - All times are in UTC unless the user specifies otherwise.`,
       prompt: input,
     });
+
+    try {
+      CronExpressionParser.parse(result.object.cronExpression);
+    } catch {
+      throw new Error('Generated schedule was invalid. Please try again.');
+    }
 
     return {
       cronExpression: result.object.cronExpression,
