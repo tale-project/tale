@@ -38,12 +38,7 @@ const circulySyncCustomersWorkflow = {
       name: 'start',
       stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual', // Can be changed to 'schedule' for automated sync
-        // For scheduled sync, uncomment below:
-        // schedule: '0 2 * * *', // Daily at 2 AM
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'fetch_customers' },
     },
 

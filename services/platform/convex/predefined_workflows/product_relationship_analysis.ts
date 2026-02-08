@@ -47,12 +47,7 @@ const productRelationshipAnalysisWorkflow = {
       name: 'start',
       stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual', // Can be changed to 'schedule' for automated analysis
-        // For scheduled analysis, uncomment below:
-        // schedule: '0 2 * * 0', // Weekly on Sunday at 2 AM
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'find_unprocessed_product' },
     },
 

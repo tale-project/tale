@@ -41,7 +41,7 @@ export const updateWorkflowStepTool = {
 • Escape quotes: \\" | Escape backslashes: \\\\ | Newlines: \\n
 
 **SYNTAX HELP:**
-workflow_examples(operation='get_syntax_reference', category='trigger|llm|action|condition|loop')`,
+workflow_examples(operation='get_syntax_reference', category='start|llm|action|condition|loop')`,
     args: z.object({
       stepRecordId: z
         .string()
@@ -50,10 +50,10 @@ workflow_examples(operation='get_syntax_reference', category='trigger|llm|action
         .object({
           name: z.string().optional().describe('New step name'),
           stepType: z
-            .enum(['start', 'trigger', 'llm', 'action', 'condition', 'loop'])
+            .enum(['start', 'llm', 'action', 'condition', 'loop'])
             .optional()
             .describe(
-              'New step type. Options: start (starts workflow - scheduled/manual/event), trigger (deprecated, use start), llm (AI agent with tools), action (database/API operations), condition (branching logic), loop (iterate over collections)',
+              'New step type. Options: start (workflow entry point, optional inputSchema), llm (AI agent with tools), action (database/API operations), condition (branching logic), loop (iterate over collections)',
             ),
           order: z.number().optional().describe('New order number'),
           config: z

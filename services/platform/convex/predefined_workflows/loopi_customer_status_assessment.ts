@@ -57,12 +57,7 @@ const loopiCustomerStatusAssessmentWorkflow = {
       name: 'Start',
       stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual', // Can be changed to 'schedule' for automated processing
-        // For scheduled processing, uncomment below:
-        // schedule: '*/5 * * * *', // Every 5 minutes
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'find_unprocessed_customer' },
     },
 

@@ -47,12 +47,7 @@ const conversationAutoArchiveWorkflow: PredefinedWorkflowDefinition = {
       name: 'Start',
       stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual', // Can be changed to 'schedule' for automated processing
-        // For scheduled archiving, uncomment below:
-        // schedule: '0 0 * * *', // Daily at midnight
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'find_stale_conversation' },
     },
 

@@ -6,7 +6,7 @@
  * and all existing steps will be replaced with the provided steps.
  *
  * Includes built-in validation that checks:
- * - Valid stepTypes (trigger, llm, action, condition, loop)
+ * - Valid stepTypes (start, llm, action, condition, loop)
  * - Required fields for each step type
  * - Valid nextSteps references
  * - Config structure for each step type
@@ -52,7 +52,7 @@ const stepConfigSchema = z.object({
     .string()
     .describe('Human-readable step name (e.g., "Find Inactive Customers").'),
   stepType: z
-    .enum(['start', 'trigger', 'llm', 'action', 'condition', 'loop'])
+    .enum(['start', 'llm', 'action', 'condition', 'loop'])
     .describe('Step type.'),
   order: z
     .number()
@@ -85,12 +85,12 @@ export const saveWorkflowDefinitionTool = {
 **STEP STRUCTURE:**
 Each step requires: stepSlug, name, stepType, order, config, nextSteps
 - stepSlug: snake_case unique identifier (e.g., "find_customers")
-- stepType: trigger | llm | action | condition | loop
+- stepType: start | llm | action | condition | loop
 - config: Configuration object (varies by stepType)
 - nextSteps: Route to next steps (e.g., {success: "next_step", failure: "error"})
 
 **KEY PATTERNS:**
-- Entity Processing: trigger -> find_unprocessed -> condition -> process -> record_processed
+- Entity Processing: start -> find_unprocessed -> condition -> process -> record_processed
 - Email Sending: See workflow_examples(operation='get_syntax_reference', category='email')
 - Use 'noop' in nextSteps to gracefully end workflow
 

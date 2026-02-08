@@ -35,9 +35,7 @@ const productRagSyncWorkflow = {
       name: 'start',
       stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual',
-      },
+      config: {},
       nextSteps: { success: 'find_unprocessed_product' },
     },
 

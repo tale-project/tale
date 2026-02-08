@@ -36,9 +36,7 @@ const documentRagSyncWorkflow: PredefinedWorkflowDefinition = {
       name: 'start',
       stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual',
-      },
+      config: {},
       nextSteps: { success: 'find_unprocessed_document' },
     },
 

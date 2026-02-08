@@ -71,8 +71,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
 
   const getStepTypeLabel = (stepType: Doc<'wfStepDefs'>['stepType']) => {
     const labels: Record<string, string> = {
-      start: t('stepTypes.trigger'),
-      trigger: t('stepTypes.trigger'),
+      start: t('stepTypes.start'),
       llm: t('stepTypes.llm'),
       condition: t('stepTypes.condition'),
       loop: t('stepTypes.loop'),

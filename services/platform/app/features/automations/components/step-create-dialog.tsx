@@ -33,7 +33,7 @@ interface CreateStepDialogProps {
 
 type FormData = {
   name: string;
-  stepType: Doc<'wfStepDefs'>['stepType'];
+  stepType: 'start' | 'llm' | 'condition' | 'action' | 'loop';
   config: string;
 };
 
@@ -41,9 +41,8 @@ const getDefaultTemplates = (
   stepType: Doc<'wfStepDefs'>['stepType'],
 ): { config: string } => {
   switch (stepType) {
-    case 'start':
-    case 'trigger': {
-      const cfg = { type: 'manual', context: {} };
+    case 'start': {
+      const cfg = {};
       return {
         config: JSON.stringify(cfg, null, 2),
       };
@@ -112,7 +111,7 @@ export function CreateStepDialog({
             /^[a-zA-Z_][a-zA-Z0-9_-]*$/,
             t('createStep.validation.nameFormat'),
           ),
-        stepType: z.enum(['start', 'trigger', 'llm', 'condition', 'action', 'loop']),
+        stepType: z.enum(['start', 'llm', 'condition', 'action', 'loop']),
         config: z.string(),
       }),
     [t],
@@ -196,7 +195,7 @@ export function CreateStepDialog({
   };
 
   const handleTypeChange = (value: string) => {
-    setValue('stepType', value as Doc<'wfStepDefs'>['stepType']);
+    setValue('stepType', value as FormData['stepType']);
   };
 
   return (

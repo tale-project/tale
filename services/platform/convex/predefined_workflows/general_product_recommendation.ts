@@ -23,9 +23,7 @@ const generalProductRecommendationWorkflow: PredefinedWorkflowDefinition = {
       name: 'Start',
       stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual',
-      },
+      config: {},
       nextSteps: { success: 'find_unprocessed_customer' },
     },
     {

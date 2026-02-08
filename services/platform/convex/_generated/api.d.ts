@@ -743,8 +743,6 @@ import type * as workflow_engine_helpers_nodes_loop_utils_create_loop_state from
 import type * as workflow_engine_helpers_nodes_loop_utils_get_input_data from "../workflow_engine/helpers/nodes/loop/utils/get_input_data.js";
 import type * as workflow_engine_helpers_nodes_loop_utils_get_loop_items from "../workflow_engine/helpers/nodes/loop/utils/get_loop_items.js";
 import type * as workflow_engine_helpers_nodes_loop_utils_is_loop_in_progress from "../workflow_engine/helpers/nodes/loop/utils/is_loop_in_progress.js";
-import type * as workflow_engine_helpers_nodes_trigger_execute_trigger_node from "../workflow_engine/helpers/nodes/trigger/execute_trigger_node.js";
-import type * as workflow_engine_helpers_nodes_trigger_process_trigger_config from "../workflow_engine/helpers/nodes/trigger/process_trigger_config.js";
 import type * as workflow_engine_helpers_scheduler_get_last_execution_time from "../workflow_engine/helpers/scheduler/get_last_execution_time.js";
 import type * as workflow_engine_helpers_scheduler_get_scheduled_workflows from "../workflow_engine/helpers/scheduler/get_scheduled_workflows.js";
 import type * as workflow_engine_helpers_scheduler_index from "../workflow_engine/helpers/scheduler/index.js";
@@ -775,7 +773,6 @@ import type * as workflow_engine_helpers_validation_steps_index from "../workflo
 import type * as workflow_engine_helpers_validation_steps_llm from "../workflow_engine/helpers/validation/steps/llm.js";
 import type * as workflow_engine_helpers_validation_steps_loop from "../workflow_engine/helpers/validation/steps/loop.js";
 import type * as workflow_engine_helpers_validation_steps_start from "../workflow_engine/helpers/validation/steps/start.js";
-import type * as workflow_engine_helpers_validation_steps_trigger from "../workflow_engine/helpers/validation/steps/trigger.js";
 import type * as workflow_engine_helpers_validation_types from "../workflow_engine/helpers/validation/types.js";
 import type * as workflow_engine_helpers_validation_validate_action_parameters from "../workflow_engine/helpers/validation/validate_action_parameters.js";
 import type * as workflow_engine_helpers_validation_validate_step_config from "../workflow_engine/helpers/validation/validate_step_config.js";
@@ -1644,8 +1641,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/nodes/loop/utils/get_input_data": typeof workflow_engine_helpers_nodes_loop_utils_get_input_data;
   "workflow_engine/helpers/nodes/loop/utils/get_loop_items": typeof workflow_engine_helpers_nodes_loop_utils_get_loop_items;
   "workflow_engine/helpers/nodes/loop/utils/is_loop_in_progress": typeof workflow_engine_helpers_nodes_loop_utils_is_loop_in_progress;
-  "workflow_engine/helpers/nodes/trigger/execute_trigger_node": typeof workflow_engine_helpers_nodes_trigger_execute_trigger_node;
-  "workflow_engine/helpers/nodes/trigger/process_trigger_config": typeof workflow_engine_helpers_nodes_trigger_process_trigger_config;
   "workflow_engine/helpers/scheduler/get_last_execution_time": typeof workflow_engine_helpers_scheduler_get_last_execution_time;
   "workflow_engine/helpers/scheduler/get_scheduled_workflows": typeof workflow_engine_helpers_scheduler_get_scheduled_workflows;
   "workflow_engine/helpers/scheduler/index": typeof workflow_engine_helpers_scheduler_index;
@@ -1676,7 +1671,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/steps/llm": typeof workflow_engine_helpers_validation_steps_llm;
   "workflow_engine/helpers/validation/steps/loop": typeof workflow_engine_helpers_validation_steps_loop;
   "workflow_engine/helpers/validation/steps/start": typeof workflow_engine_helpers_validation_steps_start;
-  "workflow_engine/helpers/validation/steps/trigger": typeof workflow_engine_helpers_validation_steps_trigger;
   "workflow_engine/helpers/validation/types": typeof workflow_engine_helpers_validation_types;
   "workflow_engine/helpers/validation/validate_action_parameters": typeof workflow_engine_helpers_validation_validate_action_parameters;
   "workflow_engine/helpers/validation/validate_step_config": typeof workflow_engine_helpers_validation_validate_step_config;

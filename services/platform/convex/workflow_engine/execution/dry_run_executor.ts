@@ -7,7 +7,7 @@
 
 import type { Doc } from '../../_generated/dataModel';
 
-type StepType = 'start' | 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+type StepType = Doc<'wfStepDefs'>['stepType'];
 
 interface StepDef {
   stepSlug: string;

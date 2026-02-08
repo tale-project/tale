@@ -1135,7 +1135,6 @@ function AutomationStepsInner({
                 // Color mapping matching icon backgrounds for consistency
                 switch (stepType) {
                   case 'start':
-                  case 'trigger':
                     return '#3b82f6'; // blue-500
                   case 'llm':
                     return '#a855f7'; // purple-500

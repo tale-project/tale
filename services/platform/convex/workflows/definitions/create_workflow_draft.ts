@@ -57,17 +57,17 @@ export async function createWorkflowDraft(
     rootVersionId: wfDefinitionId,
   });
 
-  // Optionally auto-create the first trigger step
+  // Optionally auto-create the first start step
   if (args.autoCreateFirstStep !== false) {
     await ctx.db.insert('wfStepDefs', {
       organizationId: args.organizationId,
       wfDefinitionId,
       stepSlug: 'start',
       name: 'Start',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
       nextSteps: {},
-      config: { type: 'manual' },
+      config: {},
       metadata: {},
     });
   }

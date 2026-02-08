@@ -6,7 +6,6 @@ import {
 } from '../../lib/shared/schemas/utils/json-value';
 import type { LLMNodeConfig } from './types';
 import {
-  triggerNodeConfigValidator,
   llmStepConfigValidator,
   actionNodeConfigValidator,
   conditionNodeConfigValidator,
@@ -18,7 +17,6 @@ import * as EngineHelpers from './helpers/engine';
 import * as LLMNodeHelpers from './helpers/nodes/llm/execute_llm_node';
 import * as LoopNodeHelpers from './helpers/nodes/loop/execute_loop_node';
 import * as SchedulerHelpers from './helpers/scheduler';
-import * as TriggerNodeHelpers from './helpers/nodes/trigger/execute_trigger_node';
 
 type LLMStepConfig = Infer<typeof llmStepConfigValidator>;
 
@@ -194,25 +192,3 @@ export const executeLLMNode = internalAction({
   },
 });
 
-export const executeTriggerNode = internalAction({
-  args: {
-    stepDef: v.object({
-      stepSlug: v.string(),
-      stepType: v.literal('trigger'),
-      config: triggerNodeConfigValidator,
-    }),
-    variables: v.any(),
-    executionId: v.union(v.string(), v.id('wfExecutions')),
-    threadId: v.optional(v.string()),
-  },
-  returns: stepExecutionResultValidator,
-  handler: async (_ctx, args) => {
-    const result = await TriggerNodeHelpers.executeTriggerNode(
-      args.stepDef.config,
-      args.variables,
-      args.executionId,
-      args.threadId,
-    );
-    return result as Infer<typeof stepExecutionResultValidator>;
-  },
-});

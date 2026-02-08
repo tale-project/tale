@@ -1244,6 +1244,7 @@
       }
     },
     "stepTypes": {
+      "start": "Start",
       "trigger": "Trigger",
       "llm": "LLM",
       "condition": "Condition",

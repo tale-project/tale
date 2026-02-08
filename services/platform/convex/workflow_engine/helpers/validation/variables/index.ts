@@ -31,7 +31,7 @@ export {
 export {
   conditionOutputSchema,
   loopOutputSchema,
-  triggerOutputSchema,
+  startOutputSchema,
   llmOutputSchema,
   getStepTypeOutputSchema,
   resolvePathInSchema,

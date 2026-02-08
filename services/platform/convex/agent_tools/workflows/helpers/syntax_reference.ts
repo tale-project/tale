@@ -39,8 +39,7 @@ Processing multiple entities (customers/products/conversations/approvals)?
 ❌ Missing "type" in action step → ✅ Action config requires "type" field
 
 **STEP TYPE QUICK REFERENCE:**
-- start: Start workflow (scheduled/manual/webhook/event) - use for new workflows
-- trigger: Start workflow (deprecated, use 'start' instead)
+- start: Workflow entry point (optional inputSchema for declaring inputs)
 - action: CRUD operations, set_variables, integrations, approvals
 - llm: AI decision-making and content generation (requires name + systemPrompt)
 - condition: JEXL expression branching (nextSteps: true/false)
@@ -49,7 +48,7 @@ Processing multiple entities (customers/products/conversations/approvals)?
 **NEXT STEPS:**
 1. Get pattern details: workflow_examples(operation='get_syntax_reference', category='common_patterns')
 2. Study similar workflow: workflow_examples(operation='get_predefined', workflowKey='...')
-3. Get step syntax: workflow_examples(operation='get_syntax_reference', category='trigger|llm|action|condition|loop')`,
+3. Get step syntax: workflow_examples(operation='get_syntax_reference', category='start|llm|action|condition|loop')`,
 
   common_patterns: `## COMMON WORKFLOW PATTERNS
 
@@ -94,7 +93,7 @@ AI analyzes data, outputs JSON, then condition branches based on result.
 ### Pattern 4: Data Sync with Pagination
 Sync external data sources (Shopify, IMAP) with cursor-based pagination.
 
-**Structure:** trigger → fetch_page → loop_items → upsert_each → check_next_page → [true] update_cursor → fetch_page
+**Structure:** start → fetch_page → loop_items → upsert_each → check_next_page → [true] update_cursor → fetch_page
 
 **Integration Fetch:**
 \`\`\`json
@@ -109,43 +108,38 @@ Sync external data sources (Shopify, IMAP) with cursor-based pagination.
 ### Pattern 5: RAG Sync
 Upload documents/products/customers to knowledge base.
 
-**Structure:** trigger → find_unprocessed → condition → prepare_content → upload_to_rag → update_metadata → record_processed
+**Structure:** start → find_unprocessed → condition → prepare_content → upload_to_rag → update_metadata → record_processed
 
 **RAG Upload Action:**
 \`\`\`json
 { "stepSlug": "upload_to_rag", "stepType": "action", "config": { "type": "rag", "parameters": { "operation": "upload", "content": "{{documentContent}}", "metadata": { "sourceId": "{{documentId}}", "sourceType": "document" } } }, "nextSteps": { "success": "record_processed" } }
 \`\`\``,
 
-  trigger: `## Start/Trigger Step (stepType: 'start' or 'trigger')
+  start: `## Start Step (stepType: 'start')
 
-Use 'start' for new workflows. 'trigger' is deprecated but still supported.
-
-Config: { type: 'manual'|'scheduled'|'webhook'|'event', inputs?, schedule?, timezone?, context? }
+Config: { inputSchema?: { properties: { [name]: { type, description? } }, required?: string[] } }
 NextSteps: { success: 'next_step_slug' }
 
-**Scheduled Start Example:**
-\`\`\`json
-{
-  "type": "scheduled",
-  "schedule": "0 */2 * * *",
-  "timezone": "UTC"
-}
-\`\`\`
+The start step defines the workflow entry point and optionally declares an input schema.
+Trigger sources (schedules, webhooks, API keys, events) are configured separately — not in step config.
 
-**Manual Start Example:**
+**Start with Input Schema:**
 \`\`\`json
 {
-  "type": "manual",
-  "inputs": {
-    "customerId": { "type": "string", "required": true }
+  "inputSchema": {
+    "properties": {
+      "customerId": { "type": "string", "description": "Customer to process" },
+      "priority": { "type": "number", "description": "Processing priority" }
+    },
+    "required": ["customerId"]
   }
 }
 \`\`\`
 
-**Cron Schedule Reference:**
-- "0 */2 * * *" = every 2 hours
-- "0 9 * * *" = daily at 9 AM
-- "0 0 * * 1" = weekly on Monday`,
+**Minimal Start (no input schema):**
+\`\`\`json
+{}
+\`\`\``,
 
   llm: `## LLM Step (stepType: 'llm')
 
@@ -481,7 +475,7 @@ export function getSyntaxReference(opts: { category: string }): {
 const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
   quick_start: '⭐ START HERE: Decision tree and common mistakes to avoid',
   common_patterns: '⭐ Pattern skeletons: Entity Processing, Email, LLM Analysis, Data Sync, RAG',
-  trigger: 'Trigger step configuration (manual, scheduled, webhook)',
+  start: 'Start step configuration (workflow entry point with optional inputSchema)',
   llm: 'LLM step configuration (AI agent with tools)',
   action: 'Action step types and parameters',
   condition: 'Condition step with JEXL expressions',
