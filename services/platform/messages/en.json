@@ -2006,7 +2006,6 @@
     "addButton": "Add product",
     "editProduct": "Edit product",
     "deleteProduct": "Delete product",
-    "noImage": "No image",
     "importMenu": {
       "importProducts": "Import products",
       "fromDevice": "From your device",
