@@ -3,7 +3,7 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-import type { Id } from '../../_generated/dataModel';
+import type { Doc, Id } from '../../_generated/dataModel';
 import type { StepConfig } from '../../workflow_engine/types/nodes';
 import type { WorkflowConfig } from './types';
 
@@ -19,7 +19,7 @@ export interface SaveManualConfigurationArgs {
   stepsConfig: Array<{
     stepSlug: string;
     name: string;
-    stepType: 'start' | 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+    stepType: Doc<'wfStepDefs'>['stepType'];
     order: number;
     config: StepConfig;
     nextSteps: Record<string, string>;

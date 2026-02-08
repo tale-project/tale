@@ -37,8 +37,7 @@ export function TriggersClient({
     );
   }
 
-  const workflowRootId = (workflow.rootVersionId ??
-    workflow._id) as Id<'wfDefinitions'>;
+  const workflowRootId = workflow.rootVersionId ?? workflow._id;
 
   return (
     <div className="py-6 px-4 w-full">
