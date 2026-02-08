@@ -42,8 +42,12 @@ export function validateStartStep(config: Record<string, unknown>): ValidationRe
       }
     }
 
-    if (schema.required !== undefined && !Array.isArray(schema.required)) {
-      errors.push('Start step "inputSchema.required" must be an array if provided');
+    if (schema.required !== undefined) {
+      if (!Array.isArray(schema.required)) {
+        errors.push('Start step "inputSchema.required" must be an array if provided');
+      } else if (!(schema.required as unknown[]).every((item) => typeof item === 'string')) {
+        errors.push('Start step "inputSchema.required" must be an array of strings');
+      }
     }
   }
 
