@@ -61,6 +61,41 @@ function mapProduct(product: Doc<'products'>): ProductCursorItem {
   };
 }
 
+function buildQuery(ctx: QueryCtx, args: GetProductsCursorArgs) {
+  const { organizationId } = args;
+
+  if (args.status !== undefined) {
+    return {
+      query: ctx.db
+        .query('products')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', organizationId).eq('status', args.status!),
+        ),
+      indexedFields: { status: true } as const,
+    };
+  }
+
+  if (args.category !== undefined) {
+    return {
+      query: ctx.db
+        .query('products')
+        .withIndex('by_organizationId_and_category', (q) =>
+          q.eq('organizationId', organizationId).eq('category', args.category!),
+        ),
+      indexedFields: { category: true } as const,
+    };
+  }
+
+  return {
+    query: ctx.db
+      .query('products')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', organizationId),
+      ),
+    indexedFields: {} as const,
+  };
+}
+
 export async function getProductsCursor(
   ctx: QueryCtx,
   args: GetProductsCursorArgs,
@@ -68,61 +103,25 @@ export async function getProductsCursor(
   const numItems = args.numItems ?? DEFAULT_PAGE_SIZE;
   const searchQuery = args.searchQuery?.trim().toLowerCase() ?? '';
 
-  // Pre-compute filter sets
-  const statusFilter = args.status;
-  const categoryFilter = args.category;
+  const { query, indexedFields } = buildQuery(ctx, args);
 
-  // Select the best index based on available filters
-  let query;
+  const needsCategoryFilter = !('category' in indexedFields) && args.category !== undefined;
+  const needsSearch = searchQuery.length > 0;
+  const needsFilter = needsCategoryFilter || needsSearch;
 
-  if (statusFilter !== undefined) {
-    query = ctx.db
-      .query('products')
-      .withIndex('by_organizationId_and_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', statusFilter),
-      );
-  } else if (categoryFilter !== undefined) {
-    query = ctx.db
-      .query('products')
-      .withIndex('by_organizationId_and_category', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('category', categoryFilter),
-      );
-  } else {
-    query = ctx.db
-      .query('products')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      );
-  }
-
-  // Filter function for fields not covered by the selected index
-  const filter = (product: Doc<'products'>): boolean => {
-    // Category filter (if not using category index)
-    if (
-      statusFilter !== undefined &&
-      categoryFilter !== undefined &&
-      product.category !== categoryFilter
-    ) {
-      return false;
-    }
-
-    // Search filter (search in name and description)
-    if (searchQuery) {
-      const nameMatch = product.name?.toLowerCase().includes(searchQuery);
-      const descMatch = product.description?.toLowerCase().includes(searchQuery);
-      const categoryMatch = product.category?.toLowerCase().includes(searchQuery);
-
-      if (!nameMatch && !descMatch && !categoryMatch) {
-        return false;
+  const filter = needsFilter
+    ? (product: Doc<'products'>): boolean => {
+        if (needsCategoryFilter && product.category !== args.category) return false;
+        if (needsSearch) {
+          const nameMatch = product.name?.toLowerCase().includes(searchQuery);
+          const descMatch = product.description?.toLowerCase().includes(searchQuery);
+          const categoryMatch = product.category?.toLowerCase().includes(searchQuery);
+          if (!nameMatch && !descMatch && !categoryMatch) return false;
+        }
+        return true;
       }
-    }
+    : undefined;
 
-    return true;
-  };
-
-  // Use paginateWithFilter for early termination
   const result = await paginateWithFilter(query.order('desc'), {
     numItems,
     cursor: args.cursor,

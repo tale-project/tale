@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useRef } from 'react';
 import { Mail, ClipboardList, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -185,6 +186,126 @@ function ConversationsListSkeleton() {
   );
 }
 
+interface ConversationRowProps {
+  conversation: Conversation;
+  isSelected: boolean;
+  isChecked: boolean;
+  onSelect?: (conversation: Conversation) => void;
+  onCheck?: (conversationId: string, checked: boolean) => void;
+  formatDateSmart: (date: string | Date) => string;
+  t: (key: string) => string;
+  tDialogs: (key: string) => string;
+}
+
+const ConversationRow = memo(function ConversationRow({
+  conversation,
+  isSelected,
+  isChecked,
+  onSelect,
+  onCheck,
+  formatDateSmart,
+  t,
+  tDialogs,
+}: ConversationRowProps) {
+  const handleClick = (event: React.MouseEvent) => {
+    if ((event.target as HTMLElement).closest('[data-state]')) return;
+    onSelect?.(conversation);
+  };
+
+  const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
+    if (typeof checked === 'boolean') {
+      onCheck?.(conversation.id, checked);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        'w-full text-left p-4 hover:bg-secondary/20 cursor-pointer transition-colors relative',
+        isSelected && 'bg-muted',
+      )}
+      onClick={handleClick}
+      aria-pressed={isSelected}
+    >
+      {isSelected && (
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
+      )}
+      <div className="flex items-start gap-3">
+        <div className="flex items-center mt-1">
+          <Checkbox
+            checked={isChecked}
+            onCheckedChange={handleCheckboxChange}
+            aria-label={tDialogs('selectConversation')}
+          />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between mb-1.5">
+            <h3 className="text-sm font-medium text-foreground truncate flex-1 tracking-tight">
+              {conversation?.title || conversation.customer?.name || 'Unknown'}
+            </h3>
+            <span className="text-xs text-muted-foreground ml-4 flex-shrink-0 tracking-tight font-medium">
+              {formatDateSmart(conversation.last_message_at || '')}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between mb-3 gap-2">
+            <p className="text-sm text-muted-foreground truncate flex-1 tracking-tight">
+              {getLastMessagePreview(conversation)}
+            </p>
+            {conversation.unread_count > 0 && (
+              <div className="bg-blue-600 text-primary-foreground text-xs h-5 min-w-5 rounded-full px-1 py-2 leading-none flex items-center justify-center flex-shrink-0">
+                {conversation.unread_count}
+              </div>
+            )}
+          </div>
+
+          <HStack gap={2}>
+            {conversation.priority &&
+              conversation.status === 'open' &&
+              conversation.priority !== 'medium' &&
+              conversation.priority in priorityConfig && (
+                <Badge
+                  dot
+                  className="min-w-fit"
+                  variant={
+                    priorityConfig[
+                      conversation.priority as keyof typeof priorityConfig
+                    ].variant
+                  }
+                >
+                  {t(
+                    priorityConfig[
+                      conversation.priority as keyof typeof priorityConfig
+                    ].translationKey,
+                  )}
+                </Badge>
+              )}
+
+            {conversation.type && conversation.type in categoryConfig && (
+              <Badge
+                variant="outline"
+                icon={
+                  categoryConfig[
+                    conversation.type as keyof typeof categoryConfig
+                  ].icon
+                }
+              >
+                {t(
+                  categoryConfig[
+                    conversation.type as keyof typeof categoryConfig
+                  ].translationKey,
+                )}
+              </Badge>
+            )}
+          </HStack>
+        </div>
+      </div>
+    </button>
+  );
+});
+
 export function ConversationsList({
   conversations,
   selectedConversationId,
@@ -196,141 +317,32 @@ export function ConversationsList({
   const { t } = useT('conversations');
   const { t: tDialogs } = useT('dialogs');
 
-  // Show skeleton when conversations is undefined (loading)
+  const tRef = useRef(t);
+  tRef.current = t;
+  const tDialogsRef = useRef(tDialogs);
+  tDialogsRef.current = tDialogs;
+
+  const stableT = useRef(((key: string) => tRef.current(key)) as (key: string) => string).current;
+  const stableTDialogs = useRef(((key: string) => tDialogsRef.current(key)) as (key: string) => string).current;
+
   if (conversations === undefined) {
     return <ConversationsListSkeleton />;
   }
 
-  const handleConversationClick = (
-    conversation: Conversation,
-    event: React.MouseEvent,
-  ) => {
-    // Prevent conversation selection if clicking on checkbox
-    if ((event.target as HTMLElement).closest('[data-state]')) {
-      return;
-    }
-    onConversationSelect?.(conversation);
-  };
-
-  const handleKeyDown = (
-    conversation: Conversation,
-    event: React.KeyboardEvent,
-  ) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onConversationSelect?.(conversation);
-    }
-  };
-
-  const handleCheckboxChange = (
-    conversationId: string,
-    checked: boolean | 'indeterminate',
-  ) => {
-    if (typeof checked === 'boolean') {
-      onConversationCheck?.(conversationId, checked);
-    }
-  };
-
   return (
     <div className="divide-y divide-border border-b">
       {conversations.map((conversation) => (
-        <div
+        <ConversationRow
           key={conversation.id}
-          className={cn(
-            'p-4 hover:bg-secondary/20 cursor-pointer transition-colors relative',
-            selectedConversationId === conversation.id && 'bg-muted',
-          )}
-          onClick={(event) => handleConversationClick(conversation, event)}
-          onKeyDown={(event) => handleKeyDown(conversation, event)}
-          tabIndex={0}
-          role="button"
-          aria-pressed={selectedConversationId === conversation.id}
-        >
-          {/* Blue indicator for selected conversation - no layout shift */}
-          {selectedConversationId === conversation.id && (
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
-          )}
-          <div className="flex items-start gap-3">
-            {/* Checkbox */}
-            <div className="flex items-center mt-1">
-              <Checkbox
-                checked={isConversationSelected?.(conversation.id) || false}
-                onCheckedChange={(checked) =>
-                  handleCheckboxChange(conversation.id, checked)
-                }
-                aria-label={tDialogs('selectConversation')}
-              />
-            </div>
-
-            {/* Conversation Details */}
-            <div className="flex-1 min-w-0">
-              {/* Header with title and timestamp */}
-              <div className="flex items-start justify-between mb-1.5">
-                <h3 className="text-sm font-medium text-foreground truncate flex-1 tracking-tight">
-                  {conversation?.title || conversation.customer?.name || 'Unknown'}
-                </h3>
-                <span className="text-xs text-muted-foreground ml-4 flex-shrink-0 tracking-tight font-medium">
-                  {formatDateSmart(conversation.last_message_at || '')}
-                </span>
-              </div>
-
-              {/* Last message preview with unread message count */}
-              <div className="flex items-center justify-between mb-3 gap-2">
-                <p className="text-sm text-muted-foreground truncate flex-1 tracking-tight">
-                  {getLastMessagePreview(conversation)}
-                </p>
-                {conversation.unread_count > 0 && (
-                  <div className="bg-blue-600 text-primary-foreground text-xs h-5 min-w-5 rounded-full px-1 py-2 leading-none flex items-center justify-center flex-shrink-0">
-                    {conversation.unread_count}
-                  </div>
-                )}
-              </div>
-
-              {/* Badges */}
-              <HStack gap={2}>
-                {/* Priority badge */}
-                {conversation.priority &&
-                  conversation.status === 'open' &&
-                  conversation.priority !== 'medium' &&
-                  conversation.priority in priorityConfig && (
-                    <Badge
-                      dot
-                      className="min-w-fit"
-                      variant={
-                        priorityConfig[
-                          conversation.priority as keyof typeof priorityConfig
-                        ].variant
-                      }
-                    >
-                      {t(
-                        priorityConfig[
-                          conversation.priority as keyof typeof priorityConfig
-                        ].translationKey,
-                      )}
-                    </Badge>
-                  )}
-
-                {/* Type badge */}
-                {conversation.type && conversation.type in categoryConfig && (
-                  <Badge
-                    variant="outline"
-                    icon={
-                      categoryConfig[
-                        conversation.type as keyof typeof categoryConfig
-                      ].icon
-                    }
-                  >
-                    {t(
-                      categoryConfig[
-                        conversation.type as keyof typeof categoryConfig
-                      ].translationKey,
-                    )}
-                  </Badge>
-                )}
-              </HStack>
-            </div>
-          </div>
-        </div>
+          conversation={conversation}
+          isSelected={selectedConversationId === conversation.id}
+          isChecked={isConversationSelected?.(conversation.id) || false}
+          onSelect={onConversationSelect}
+          onCheck={onConversationCheck}
+          formatDateSmart={formatDateSmart}
+          t={stableT}
+          tDialogs={stableTDialogs}
+        />
       ))}
     </div>
   );

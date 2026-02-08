@@ -36,65 +36,60 @@ export async function registerFilesWithAgent(
   ctx: ActionCtx,
   attachments: FileAttachment[],
 ): Promise<RegisteredFile[]> {
-  const registeredFiles: RegisteredFile[] = [];
+  const results = await Promise.all(
+    attachments.map(async (attachment): Promise<RegisteredFile | null> => {
+      try {
+        const [blob, fileUrl] = await Promise.all([
+          ctx.storage.get(attachment.fileId),
+          ctx.storage.getUrl(attachment.fileId),
+        ]);
 
-  for (const attachment of attachments) {
-    try {
-      // Get file from storage
-      const blob = await ctx.storage.get(attachment.fileId);
-      if (!blob) {
-        debugLog(`File not found in storage: ${attachment.fileId}`);
-        continue;
+        if (!blob) {
+          debugLog(`File not found in storage: ${attachment.fileId}`);
+          return null;
+        }
+        if (!fileUrl) {
+          debugLog(`Could not get URL for file: ${attachment.fileId}`);
+          return null;
+        }
+
+        const hash = await computeSha256(blob);
+
+        const { fileId: agentFileId } = await ctx.runMutation(
+          components.agent.files.addFile,
+          {
+            storageId: attachment.fileId as string,
+            hash,
+            mimeType: attachment.fileType,
+            filename: attachment.fileName,
+          },
+        );
+
+        const { imagePart, filePart } = await getFile(
+          ctx,
+          components.agent,
+          agentFileId,
+        );
+
+        return {
+          agentFileId,
+          storageId: attachment.fileId,
+          imagePart,
+          filePart,
+          fileUrl,
+          attachment,
+          isImage: attachment.fileType.startsWith('image/'),
+        };
+      } catch (error) {
+        console.error(
+          `[attachments] Failed to register file ${attachment.fileName}:`,
+          error,
+        );
+        return null;
       }
+    }),
+  );
 
-      // Get file URL for non-image files
-      const fileUrl = await ctx.storage.getUrl(attachment.fileId);
-      if (!fileUrl) {
-        debugLog(`Could not get URL for file: ${attachment.fileId}`);
-        continue;
-      }
-
-      // Compute hash for the file
-      const hash = await computeSha256(blob);
-
-      // Register the file with the agent component
-      const { fileId: agentFileId } = await ctx.runMutation(
-        components.agent.files.addFile,
-        {
-          storageId: attachment.fileId as string,
-          hash,
-          mimeType: attachment.fileType,
-          filename: attachment.fileName,
-        },
-      );
-
-      // Get the proper image/file parts from the agent
-      const { imagePart, filePart } = await getFile(
-        ctx,
-        components.agent,
-        agentFileId,
-      );
-
-      // Determine if this is an image file
-      const isImage = attachment.fileType.startsWith('image/');
-
-      registeredFiles.push({
-        agentFileId,
-        storageId: attachment.fileId,
-        imagePart,
-        filePart,
-        fileUrl,
-        attachment,
-        isImage,
-      });
-    } catch (error) {
-      console.error(
-        `[attachments] Failed to register file ${attachment.fileName}:`,
-        error,
-      );
-    }
-  }
-
-  return registeredFiles;
+  return results.filter((r): r is RegisteredFile => r !== null);
 }
 

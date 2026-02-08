@@ -673,15 +673,11 @@ class CogneeService:
                     )
 
             # Add document to each target dataset
-            # For multi-team uploads, the document is added to each team's dataset
-            total_chunks_created = 0
-            result = None
-            added_datasets: list[str] = []
-
-            for current_dataset in target_datasets:
+            # For multi-team uploads, datasets are processed in parallel for faster ingestion
+            async def _process_dataset(current_dataset: str) -> tuple[str, Any, int]:
+                """Process a single dataset: add + cognify. Returns (dataset_name, result, chunks)."""
                 logger.info(
-                    f"Adding document to dataset '{current_dataset}' "
-                    f"({target_datasets.index(current_dataset) + 1}/{len(target_datasets)})"
+                    f"Adding document to dataset '{current_dataset}'"
                 )
 
                 # Get user context for multi-tenant isolation.
@@ -691,11 +687,9 @@ class CogneeService:
                 cognee_user = None
                 team_id = extract_team_id_from_dataset(current_dataset)
                 if team_id:
-                    # Team dataset: use team service user for shared access
                     cognee_user = await get_or_create_team_context(team_id)
                     logger.info(f"Using team service user for team_id={team_id}")
                 elif user_id:
-                    # User dataset: use individual user for private access
                     cognee_user = await get_or_create_user_for_context(user_id)
                     if cognee_user:
                         logger.info(f"Using user context for user_id={user_id}")
@@ -711,7 +705,7 @@ class CogneeService:
                     if cognee_user:
                         add_kwargs["user"] = cognee_user
 
-                    result = await asyncio.wait_for(
+                    ds_result = await asyncio.wait_for(
                         cognee.add(file_to_ingest, **add_kwargs),
                         timeout=timeout_seconds,
                     )
@@ -728,10 +722,9 @@ class CogneeService:
                 logger.info(f"cognee.add() completed for {document_id or 'unknown'} in dataset {current_dataset}")
 
                 # Process the document with incremental loading to only process new/updated data.
-                # This avoids reprocessing the entire dataset on each call.
                 # Wrap cognee.cognify() with timeout (remaining time from original timeout)
                 elapsed_so_far = time.time() - start_time
-                remaining_timeout = max(60, timeout_seconds - elapsed_so_far)  # At least 60s for cognify
+                remaining_timeout = max(60, timeout_seconds - elapsed_so_far)
 
                 logger.info(
                     f"Starting cognee.cognify() for {document_id or 'unknown'} in dataset {current_dataset} "
@@ -749,21 +742,15 @@ class CogneeService:
                 ):
                     with attempt:
                         try:
-                            # Build cognify kwargs
                             cognify_kwargs: dict[str, Any] = {
                                 "datasets": [current_dataset],
                                 "incremental_loading": True,
-                                # Explicitly set chunk_size to override cognee's default (8191)
-                                # Smaller chunks improve retrieval precision for RAG
                                 "chunk_size": settings.chunk_size,
                             }
 
-                            # Add custom prompt for English identifier enforcement
-                            # This helps FalkorDB compatibility (Cypher parser requires ASCII)
                             custom_prompt = settings.graph_extraction_prompt or DEFAULT_GRAPH_EXTRACTION_PROMPT
                             cognify_kwargs["custom_prompt"] = custom_prompt
 
-                            # Pass user context for multi-tenant isolation
                             if cognee_user:
                                 cognify_kwargs["user"] = cognee_user
 
@@ -787,12 +774,27 @@ class CogneeService:
                             logger.error(error_msg)
                             raise TimeoutError(error_msg)
 
-                # Track chunks created for this dataset
-                _, dataset_chunks = normalize_add_result(result, document_id)
-                total_chunks_created += dataset_chunks
-                added_datasets.append(current_dataset)
+                _, dataset_chunks = normalize_add_result(ds_result, document_id)
+                return current_dataset, ds_result, dataset_chunks
 
-            # End of loop over target_datasets
+            # Process all datasets concurrently, collecting per-task errors
+            dataset_results = await asyncio.gather(
+                *[_process_dataset(ds) for ds in target_datasets],
+                return_exceptions=True,
+            )
+
+            total_chunks_created = 0
+            result = None
+            added_datasets: list[str] = []
+            for ds_result_or_err in dataset_results:
+                if isinstance(ds_result_or_err, BaseException):
+                    logger.error(f"Dataset processing failed: {ds_result_or_err}")
+                    continue
+                ds_name, ds_result, ds_chunks = ds_result_or_err
+                added_datasets.append(ds_name)
+                total_chunks_created += ds_chunks
+                if result is None:
+                    result = ds_result
             processing_time = (time.time() - start_time) * 1000
             logger.info(
                 f"Document added to {len(added_datasets)} dataset(s) in {processing_time:.2f}ms: "
@@ -1006,29 +1008,6 @@ class CogneeService:
 
                         raw_results.extend(dataset_chunks)
                         logger.debug(f"Dataset '{dataset}' returned {len(dataset_chunks)} chunks")
-            else:
-                # No datasets specified - search globally
-                global_search_kwargs: dict[str, Any] = {
-                    "query_type": cognee_search_type,
-                    "top_k": effective_top_k,
-                    "system_prompt": system_prompt,
-                }
-                if explicit_user:
-                    global_search_kwargs["user"] = explicit_user
-
-                global_results = await cognee.search(query, **global_search_kwargs)
-                # Extract actual chunks from cognee's nested structure
-                for item in global_results or []:
-                    if isinstance(item, dict) and "search_result" in item:
-                        search_results = item.get("search_result", [])
-                        if search_results:
-                            # Handle both nested [[chunk]] and flat [chunk] structures
-                            if isinstance(search_results[0], list):
-                                raw_results.extend(search_results[0])
-                            else:
-                                raw_results.extend(search_results)
-                    else:
-                        raw_results.append(item)
 
             # Normalize results - cognee.search may return strings or dicts
             normalized_results = normalize_search_results(raw_results)

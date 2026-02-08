@@ -91,15 +91,13 @@ export const listConversations = queryWithRLS({
           .withIndex('by_org_status_lastMessageAt', (q) =>
             q.eq('organizationId', args.organizationId).eq('status', args.status),
           )
-          .order('desc')
       : ctx.db
           .query('conversations')
           .withIndex('by_organizationId', (q) =>
             q.eq('organizationId', args.organizationId),
-          )
-          .order('desc');
+          );
 
-    const result = await query.paginate(args.paginationOpts);
+    const result = await query.order('desc').paginate(args.paginationOpts);
 
     const transformedPage = await Promise.all(
       result.page.map((conversation) =>

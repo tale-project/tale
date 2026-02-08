@@ -25,6 +25,54 @@ export interface QueryProductsArgs {
   };
 }
 
+function buildQuery(ctx: QueryCtx, args: QueryProductsArgs) {
+  const { organizationId } = args;
+
+  if (args.externalId !== undefined && !Array.isArray(args.externalId)) {
+    return {
+      query: ctx.db
+        .query('products')
+        .withIndex('by_organizationId_and_externalId', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('externalId', args.externalId as string | number),
+        ),
+      indexedFields: { externalId: true } as const,
+    };
+  }
+
+  if (args.status !== undefined) {
+    return {
+      query: ctx.db
+        .query('products')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', organizationId).eq('status', args.status!),
+        ),
+      indexedFields: { status: true } as const,
+    };
+  }
+
+  if (args.category !== undefined) {
+    return {
+      query: ctx.db
+        .query('products')
+        .withIndex('by_organizationId_and_category', (q) =>
+          q.eq('organizationId', organizationId).eq('category', args.category!),
+        ),
+      indexedFields: { category: true } as const,
+    };
+  }
+
+  return {
+    query: ctx.db
+      .query('products')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', organizationId),
+      ),
+    indexedFields: {} as const,
+  };
+}
+
 export async function queryProducts(
   ctx: QueryCtx,
   args: QueryProductsArgs,
@@ -86,58 +134,25 @@ export async function queryProducts(
     };
   }
 
-  // Select the best index based on available filters
-  let query;
-  let indexUsed: 'externalId' | 'status' | 'category' | 'organizationId';
+  const { query, indexedFields } = buildQuery(ctx, args);
 
-  if (args.externalId !== undefined) {
-    const singleExternalId = args.externalId as string | number;
-    query = ctx.db
-      .query('products')
-      .withIndex('by_organizationId_and_externalId', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('externalId', singleExternalId),
-      );
-    indexUsed = 'externalId';
-  } else if (args.status !== undefined) {
-    query = ctx.db
-      .query('products')
-      .withIndex('by_organizationId_and_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', args.status),
-      );
-    indexUsed = 'status';
-  } else if (args.category !== undefined) {
-    query = ctx.db
-      .query('products')
-      .withIndex('by_organizationId_and_category', (q) =>
-        q.eq('organizationId', args.organizationId).eq('category', args.category),
-      );
-    indexUsed = 'category';
-  } else {
-    query = ctx.db
-      .query('products')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      );
-    indexUsed = 'organizationId';
-  }
+  const needsStatusFilter = !('status' in indexedFields) && args.status !== undefined;
+  const needsCategoryFilter = !('category' in indexedFields) && args.category !== undefined;
+  const needsMinStockFilter = args.minStock !== undefined;
+  const needsFilter = needsStatusFilter || needsCategoryFilter || needsMinStockFilter;
 
-  // Create filter for fields not covered by the selected index
-  const filter = (product: Doc<'products'>): boolean => {
-    if (indexUsed === 'externalId') {
-      if (args.status !== undefined && product.status !== args.status) return false;
-      if (args.category !== undefined && product.category !== args.category) return false;
-    } else if (indexUsed === 'status') {
-      if (args.category !== undefined && product.category !== args.category) return false;
-    }
-    if (args.minStock !== undefined) {
-      if (product.stock === undefined || product.stock === null || product.stock < args.minStock) {
-        return false;
+  const filter = needsFilter
+    ? (product: Doc<'products'>): boolean => {
+        if (needsStatusFilter && product.status !== args.status) return false;
+        if (needsCategoryFilter && product.category !== args.category) return false;
+        if (needsMinStockFilter) {
+          if (product.stock === undefined || product.stock === null || product.stock < args.minStock!) {
+            return false;
+          }
+        }
+        return true;
       }
-    }
-    return true;
-  };
+    : undefined;
 
   return paginateWithFilter(query.order('desc'), {
     numItems,

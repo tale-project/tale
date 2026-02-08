@@ -19,6 +19,7 @@ from ..models import (
 from ..services import job_store_db as job_store
 from ..services.cognee import cognee_service
 from ..secret_scanner import scan_file_for_secrets
+from ..services.cognee.utils import sanitize_team_id
 from ..utils import cleanup_memory
 
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
@@ -44,8 +45,6 @@ def _parse_team_ids(team_ids: str | None, *, required: bool = False) -> list[str
                 detail="At least one valid team_id is required",
             )
         return None
-
-    from app.services.cognee.utils import sanitize_team_id
 
     result: list[str] = []
     for tid in team_ids.split(","):

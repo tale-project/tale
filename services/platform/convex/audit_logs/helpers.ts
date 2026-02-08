@@ -8,8 +8,6 @@ import type {
   ActivitySummary,
   AuditLogItem,
   AuditLogCategory,
-  AuditLogActorType,
-  AuditLogStatus,
   AuditContext,
 } from './types';
 
@@ -267,6 +265,82 @@ export async function logDenied(
   });
 }
 
+function buildAuditLogQuery(
+  ctx: QueryCtx,
+  organizationId: string,
+  filter: ListAuditLogsArgs['filter'] & {},
+) {
+  if (filter.category && filter.startDate) {
+    return {
+      query: ctx.db
+        .query('auditLogs')
+        .withIndex('by_org_category_timestamp', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('category', filter.category!)
+            .gte('timestamp', filter.startDate!),
+        ),
+      indexedFields: { category: true, startDate: true } as const,
+    };
+  }
+
+  if (filter.resourceType && filter.startDate) {
+    return {
+      query: ctx.db
+        .query('auditLogs')
+        .withIndex('by_org_resourceType_timestamp', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('resourceType', filter.resourceType!)
+            .gte('timestamp', filter.startDate!),
+        ),
+      indexedFields: { resourceType: true, startDate: true } as const,
+    };
+  }
+
+  if (filter.category) {
+    return {
+      query: ctx.db
+        .query('auditLogs')
+        .withIndex('by_organizationId_and_category', (q) =>
+          q.eq('organizationId', organizationId).eq('category', filter.category!),
+        ),
+      indexedFields: { category: true } as const,
+    };
+  }
+
+  if (filter.actorId) {
+    return {
+      query: ctx.db
+        .query('auditLogs')
+        .withIndex('by_organizationId_and_actorId', (q) =>
+          q.eq('organizationId', organizationId).eq('actorId', filter.actorId!),
+        ),
+      indexedFields: { actorId: true } as const,
+    };
+  }
+
+  if (filter.resourceType) {
+    return {
+      query: ctx.db
+        .query('auditLogs')
+        .withIndex('by_organizationId_and_resourceType', (q) =>
+          q.eq('organizationId', organizationId).eq('resourceType', filter.resourceType!),
+        ),
+      indexedFields: { resourceType: true } as const,
+    };
+  }
+
+  return {
+    query: ctx.db
+      .query('auditLogs')
+      .withIndex('by_organizationId_and_timestamp', (q) =>
+        q.eq('organizationId', organizationId),
+      ),
+    indexedFields: {} as const,
+  };
+}
+
 export async function listAuditLogs(
   ctx: QueryCtx,
   args: ListAuditLogsArgs,
@@ -274,51 +348,8 @@ export async function listAuditLogs(
   const limit = args.limit ?? 50;
   const filter = args.filter ?? {};
 
-  let query;
-
-  if (filter.category && filter.startDate) {
-    query = ctx.db
-      .query('auditLogs')
-      .withIndex('by_org_category_timestamp', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('category', filter.category!)
-          .gte('timestamp', filter.startDate!),
-      );
-  } else if (filter.resourceType && filter.startDate) {
-    query = ctx.db
-      .query('auditLogs')
-      .withIndex('by_org_resourceType_timestamp', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('resourceType', filter.resourceType!)
-          .gte('timestamp', filter.startDate!),
-      );
-  } else if (filter.category) {
-    query = ctx.db
-      .query('auditLogs')
-      .withIndex('by_organizationId_and_category', (q) =>
-        q.eq('organizationId', args.organizationId).eq('category', filter.category!),
-      );
-  } else if (filter.actorId) {
-    query = ctx.db
-      .query('auditLogs')
-      .withIndex('by_organizationId_and_actorId', (q) =>
-        q.eq('organizationId', args.organizationId).eq('actorId', filter.actorId!),
-      );
-  } else if (filter.resourceType) {
-    query = ctx.db
-      .query('auditLogs')
-      .withIndex('by_organizationId_and_resourceType', (q) =>
-        q.eq('organizationId', args.organizationId).eq('resourceType', filter.resourceType!),
-      );
-  } else {
-    query = ctx.db
-      .query('auditLogs')
-      .withIndex('by_organizationId_and_timestamp', (q) =>
-        q.eq('organizationId', args.organizationId),
-      );
-  }
+  const { query, indexedFields } = buildAuditLogQuery(ctx, args.organizationId, filter);
+  const startDateHandledByIndex = 'startDate' in indexedFields;
 
   const logs: AuditLogItem[] = [];
   const startCursor = args.cursor;
@@ -336,7 +367,7 @@ export async function listAuditLogs(
       continue;
     }
 
-    if (filter.startDate && log.timestamp < filter.startDate) {
+    if (!startDateHandledByIndex && filter.startDate && log.timestamp < filter.startDate) {
       break;
     }
 

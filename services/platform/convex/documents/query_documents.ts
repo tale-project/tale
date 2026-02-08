@@ -1,12 +1,6 @@
-/**
- * Query documents with cursor-based pagination and filtering
- *
- * Uses Convex's native .paginate() for optimal performance.
- */
-
 import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
-import type { CursorPaginatedResult } from '../lib/pagination';
+import { paginateWithFilter, type CursorPaginatedResult } from '../lib/pagination';
 
 export interface QueryDocumentsArgs {
   organizationId: string;
@@ -17,19 +11,9 @@ export interface QueryDocumentsArgs {
   };
 }
 
-export async function queryDocuments(
-  ctx: QueryCtx,
-  args: QueryDocumentsArgs,
-): Promise<CursorPaginatedResult<Doc<'documents'>>> {
-  // Select index based on available filters
-  let query = ctx.db
-    .query('documents')
-    .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', args.organizationId),
-    );
-
+function buildQuery(ctx: QueryCtx, args: QueryDocumentsArgs) {
   if (args.sourceProvider !== undefined) {
-    query = ctx.db
+    return ctx.db
       .query('documents')
       .withIndex('by_organizationId_and_sourceProvider', (q) =>
         q
@@ -38,11 +22,19 @@ export async function queryDocuments(
       );
   }
 
-  const result = await query.paginate(args.paginationOpts);
+  return ctx.db
+    .query('documents')
+    .withIndex('by_organizationId', (q) =>
+      q.eq('organizationId', args.organizationId),
+    );
+}
 
-  return {
-    page: result.page,
-    isDone: result.isDone,
-    continueCursor: result.continueCursor,
-  };
+export async function queryDocuments(
+  ctx: QueryCtx,
+  args: QueryDocumentsArgs,
+): Promise<CursorPaginatedResult<Doc<'documents'>>> {
+  return paginateWithFilter(buildQuery(ctx, args).order('desc'), {
+    numItems: args.paginationOpts.numItems,
+    cursor: args.paginationOpts.cursor,
+  });
 }

@@ -2,20 +2,18 @@
  * message-helpers - Utilities for processing and formatting chat messages
  */
 
+const IMAGES_MARKER_RE =
+  /\n\n\[IMAGES\] The user has (attached|also attached) the following images:[\s\S]*$/;
+const ATTACHMENTS_MARKER_RE =
+  /\n\n\[ATTACHMENTS\] The user has attached the following files\. Use the appropriate tool to read them:[\s\S]*$/;
+
 /**
  * Strip internal prompt markers from user messages.
  * These markers are added for the AI but should not be displayed to users.
  */
 function stripInternalMarkers(content: string): string {
-  // Strip [IMAGES] markers and everything after them
-  const imagesMarker =
-    /\n\n\[IMAGES\] The user has (attached|also attached) the following images:[\s\S]*$/;
-  content = content.replace(imagesMarker, '');
-
-  // Strip [ATTACHMENTS] markers and everything after them
-  const attachmentsMarker =
-    /\n\n\[ATTACHMENTS\] The user has attached the following files\. Use the appropriate tool to read them:[\s\S]*$/;
-  content = content.replace(attachmentsMarker, '');
+  content = content.replace(IMAGES_MARKER_RE, '');
+  content = content.replace(ATTACHMENTS_MARKER_RE, '');
 
   return content.trim();
 }

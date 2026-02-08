@@ -145,19 +145,31 @@ async function removeStaleTeamMemberships(
 	}
 
 	let removedCount = 0;
-	const currentTeamNamesLower = currentTeamNames.map((n) => n.toLowerCase());
+	const currentTeamNamesLower = new Set(currentTeamNames.map((n) => n.toLowerCase()));
+
+	// Batch-fetch all teams for the org to avoid N+1 queries per membership
+	const teamsResult = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+		model: 'team',
+		paginationOpts: { cursor: null, numItems: 100 },
+		where: [{ field: 'organizationId', value: organizationId, operator: 'eq' }],
+	});
+	const teamById = new Map<string, { name: string; organizationId: string }>();
+	if (teamsResult) {
+		for (const team of teamsResult.page) {
+			teamById.set(team._id, { name: team.name, organizationId: team.organizationId });
+		}
+	}
 
 	for (const membership of userMembershipsResult.page) {
-		const teamResult = await ctx.runQuery(components.betterAuth.adapter.findOne, {
-			model: 'team',
-			where: [{ field: '_id', value: membership.teamId, operator: 'eq' }],
-		});
-
-		if (!teamResult || teamResult.organizationId !== organizationId) {
+		const team = teamById.get(membership.teamId);
+		if (!team) {
+			console.debug(
+				`[SSO] Missing team in teamById: teamId=${membership.teamId}, userId=${userId}, page.length=${userMembershipsResult.page.length}`,
+			);
 			continue;
 		}
 
-		if (!currentTeamNamesLower.includes(teamResult.name.toLowerCase())) {
+		if (!currentTeamNamesLower.has(team.name.toLowerCase())) {
 			await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
 				input: {
 					model: 'teamMember',
