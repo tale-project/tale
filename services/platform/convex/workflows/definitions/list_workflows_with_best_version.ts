@@ -26,9 +26,15 @@ export async function listWorkflowsWithBestVersion(
   ctx: QueryCtx,
   args: ListWorkflowsWithBestVersionArgs,
 ): Promise<WorkflowDefinition[]> {
-  const query = ctx.db
-    .query('wfDefinitions')
-    .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId));
+  const query = args.status
+    ? ctx.db
+        .query('wfDefinitions')
+        .withIndex('by_org_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', args.status!),
+        )
+    : ctx.db
+        .query('wfDefinitions')
+        .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId));
 
   const workflowMap = new Map<string, WorkflowDefinition>();
   const searchLower = args.search?.trim().toLowerCase();
@@ -36,11 +42,6 @@ export async function listWorkflowsWithBestVersion(
   // Use async iteration with inline filtering and aggregation
   for await (const wf of query) {
     const workflow = wf as WorkflowDefinition;
-
-    // Filter by status if provided
-    if (args.status && workflow.status !== args.status) {
-      continue;
-    }
 
     // Filter by search term if provided (matches name or description)
     if (searchLower) {

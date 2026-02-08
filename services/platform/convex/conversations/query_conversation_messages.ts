@@ -22,51 +22,62 @@ export interface QueryConversationMessagesArgs {
   };
 }
 
-export async function queryConversationMessages(
-  ctx: QueryCtx,
-  args: QueryConversationMessagesArgs,
-): Promise<CursorPaginatedResult<Doc<'conversationMessages'>>> {
-  // Select the best index based on available filters
-  let query;
-  let indexUsed: 'conversationId' | 'org_channel_direction' | 'organizationId';
-
+function buildQuery(ctx: QueryCtx, args: QueryConversationMessagesArgs) {
   if (args.conversationId !== undefined) {
-    query = ctx.db
-      .query('conversationMessages')
-      .withIndex('by_conversationId_and_deliveredAt', (q) =>
-        q.eq('conversationId', args.conversationId!),
-      )
-      .order('asc');
-    indexUsed = 'conversationId';
-  } else if (args.channel !== undefined && args.direction !== undefined) {
-    query = ctx.db
-      .query('conversationMessages')
-      .withIndex('by_org_channel_direction_deliveredAt', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('channel', args.channel!)
-          .eq('direction', args.direction!),
-      )
-      .order('asc');
-    indexUsed = 'org_channel_direction';
-  } else {
-    query = ctx.db
+    return {
+      query: ctx.db
+        .query('conversationMessages')
+        .withIndex('by_conversationId_and_deliveredAt', (q) =>
+          q.eq('conversationId', args.conversationId!),
+        )
+        .order('asc' as const),
+      indexedFields: { conversationId: true } as const,
+    };
+  }
+
+  if (args.channel !== undefined && args.direction !== undefined) {
+    return {
+      query: ctx.db
+        .query('conversationMessages')
+        .withIndex('by_org_channel_direction_deliveredAt', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('channel', args.channel!)
+            .eq('direction', args.direction!),
+        )
+        .order('asc' as const),
+      indexedFields: { channel: true, direction: true } as const,
+    };
+  }
+
+  return {
+    query: ctx.db
       .query('conversationMessages')
       .withIndex('by_organizationId_and_deliveredAt', (q) =>
         q.eq('organizationId', args.organizationId),
       )
-      .order('asc');
-    indexUsed = 'organizationId';
-  }
-
-  // Create filter for fields not covered by the selected index
-  const filter = (msg: Doc<'conversationMessages'>): boolean => {
-    if (indexUsed === 'conversationId') {
-      if (args.channel !== undefined && msg.channel !== args.channel) return false;
-      if (args.direction !== undefined && msg.direction !== args.direction) return false;
-    }
-    return true;
+      .order('asc' as const),
+    indexedFields: {} as const,
   };
+}
+
+export async function queryConversationMessages(
+  ctx: QueryCtx,
+  args: QueryConversationMessagesArgs,
+): Promise<CursorPaginatedResult<Doc<'conversationMessages'>>> {
+  const { query, indexedFields } = buildQuery(ctx, args);
+
+  const needsChannelFilter = !('channel' in indexedFields) && args.channel !== undefined;
+  const needsDirectionFilter = !('direction' in indexedFields) && args.direction !== undefined;
+  const needsFilter = needsChannelFilter || needsDirectionFilter;
+
+  const filter = needsFilter
+    ? (msg: Doc<'conversationMessages'>): boolean => {
+        if (needsChannelFilter && msg.channel !== args.channel) return false;
+        if (needsDirectionFilter && msg.direction !== args.direction) return false;
+        return true;
+      }
+    : undefined;
 
   return paginateWithFilter(query, {
     numItems: args.paginationOpts.numItems,

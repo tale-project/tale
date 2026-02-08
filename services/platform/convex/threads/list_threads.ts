@@ -1,18 +1,13 @@
-import { QueryCtx } from '../_generated/server';
+import type { QueryCtx } from '../_generated/server';
 import { components } from '../_generated/api';
 import type { Thread, ListThreadsArgs } from './types';
 
 function isGeneralThread(summary?: string): boolean {
-  if (!summary) return false;
+  if (!summary || !summary.includes('"general"')) return false;
 
   try {
     const parsed: unknown = JSON.parse(summary);
-
-    if (parsed && typeof parsed === 'object' && 'chatType' in parsed) {
-      return parsed.chatType === 'general';
-    }
-
-    return false;
+    return parsed !== null && typeof parsed === 'object' && 'chatType' in parsed && parsed.chatType === 'general';
   } catch {
     return false;
   }
@@ -34,24 +29,25 @@ export async function listThreads(
     },
   );
 
-  const filtered = result.page.filter((thread) => {
-    if (thread.status !== 'active' || !isGeneralThread(thread.summary)) {
-      return false;
-    }
+  const threads: Thread[] = [];
+  for (const thread of result.page) {
+    // Cheapest check first: skip non-active threads before JSON parsing
+    if (thread.status !== 'active') continue;
+    if (!isGeneralThread(thread.summary)) continue;
 
     if (searchLower) {
       const title = thread.title?.toLowerCase() ?? '';
-      return title.includes(searchLower);
+      if (!title.includes(searchLower)) continue;
     }
 
-    return true;
-  });
+    threads.push({
+      _id: thread._id,
+      _creationTime: thread._creationTime,
+      title: thread.title,
+      status: thread.status,
+      userId: thread.userId,
+    });
+  }
 
-  return filtered.map((thread) => ({
-    _id: thread._id,
-    _creationTime: thread._creationTime,
-    title: thread.title,
-    status: thread.status,
-    userId: thread.userId,
-  }));
+  return threads;
 }

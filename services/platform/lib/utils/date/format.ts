@@ -220,3 +220,4 @@ export function formatDateHeader(
  * Export dayjs instance for direct use when needed
  */
 export { default as dayjs } from './dayjs-setup';
+export { loadDayjsLocale, isDayjsLocaleLoaded } from './dayjs-setup';

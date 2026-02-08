@@ -6,12 +6,43 @@ This module provides functions to:
 - Create HNSW indexes on vector tables for fast similarity search
 """
 
+from __future__ import annotations
+
 import os
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
 from loguru import logger
 
 from ...config import settings
+
+
+@asynccontextmanager
+async def _pg_connection() -> AsyncGenerator[object, None]:
+    """Connect to PostgreSQL using the configured database URL.
+
+    Raises:
+        ImportError: If asyncpg is not installed.
+        ValueError: If the database scheme is not PostgreSQL.
+    """
+    import asyncpg
+
+    parsed = urlparse(settings.get_database_url())
+    if parsed.scheme not in ("postgresql", "postgres"):
+        raise ValueError(f"Unsupported database scheme: {parsed.scheme}")
+
+    conn = await asyncpg.connect(
+        host=parsed.hostname or "localhost",
+        port=parsed.port or 5432,
+        database=parsed.path.lstrip("/") if parsed.path else "",
+        user=parsed.username or "",
+        password=parsed.password or "",
+    )
+    try:
+        yield conn
+    finally:
+        await conn.close()
 
 
 async def ensure_vector_hnsw_indexes() -> dict:
@@ -29,28 +60,7 @@ async def ensure_vector_hnsw_indexes() -> dict:
     result = {"created": [], "existing": 0, "errors": []}
 
     try:
-        import asyncpg
-
-        db_url = settings.get_database_url()
-        parsed = urlparse(db_url)
-
-        if parsed.scheme not in ("postgresql", "postgres"):
-            logger.debug(
-                "Unsupported database scheme '{}', skipping HNSW index creation",
-                parsed.scheme,
-            )
-            return result
-
-        conn = await asyncpg.connect(
-            host=parsed.hostname or "localhost",
-            port=parsed.port or 5432,
-            database=parsed.path.lstrip("/") if parsed.path else "",
-            user=parsed.username or "",
-            password=parsed.password or "",
-        )
-
-        try:
-            # Find all tables with vector columns
+        async with _pg_connection() as conn:
             vector_columns = await conn.fetch(
                 """
                 SELECT
@@ -76,7 +86,6 @@ async def ensure_vector_hnsw_indexes() -> dict:
                 column_name = row["column_name"]
                 index_name = f"{table_name}_{column_name}_hnsw_idx"
 
-                # Check if index already exists
                 exists = await conn.fetchval(
                     """
                     SELECT EXISTS (
@@ -92,7 +101,6 @@ async def ensure_vector_hnsw_indexes() -> dict:
                     result["existing"] += 1
                     continue
 
-                # Create HNSW index
                 try:
                     logger.info(
                         "Creating HNSW index: {} on {}.{}",
@@ -100,8 +108,6 @@ async def ensure_vector_hnsw_indexes() -> dict:
                         table_name,
                         column_name,
                     )
-                    # Use cosine distance (most common for embeddings)
-                    # m=16, ef_construction=64 are good defaults
                     await conn.execute(
                         f'CREATE INDEX "{index_name}" ON "{table_name}" '
                         f'USING hnsw ("{column_name}" vector_cosine_ops) '
@@ -113,9 +119,6 @@ async def ensure_vector_hnsw_indexes() -> dict:
                     error_msg = f"Failed to create index {index_name}: {e}"
                     logger.error(error_msg)
                     result["errors"].append(error_msg)
-
-        finally:
-            await conn.close()
 
         if result["created"]:
             logger.info(
@@ -134,6 +137,8 @@ async def ensure_vector_hnsw_indexes() -> dict:
             "asyncpg not available, skipping HNSW index creation. "
             "Install asyncpg to enable automatic index management."
         )
+    except ValueError as e:
+        logger.debug("Skipping HNSW index creation: {}", e)
     except Exception as e:
         logger.error("HNSW index creation failed: {}", e)
         result["errors"].append(str(e))
@@ -165,35 +170,7 @@ async def migrate_vector_dimensions() -> None:
         raise
 
     try:
-        import asyncpg
-
-        # Parse database URL using urlparse for robustness
-        db_url = settings.get_database_url()
-        parsed = urlparse(db_url)
-
-        if parsed.scheme not in ("postgresql", "postgres"):
-            logger.warning(
-                "Unsupported database URL scheme '{}', skipping vector dimension migration",
-                parsed.scheme,
-            )
-            return
-
-        user = parsed.username or ""
-        password = parsed.password or ""
-        host = parsed.hostname or "localhost"
-        port = parsed.port or 5432
-        db = parsed.path.lstrip("/") if parsed.path else ""
-
-        conn = await asyncpg.connect(
-            host=host,
-            port=port,
-            database=db,
-            user=user,
-            password=password,
-        )
-
-        try:
-            # Find all tables with vector columns and their dimensions
+        async with _pg_connection() as conn:
             vector_tables = await conn.fetch(
                 """
                 SELECT
@@ -215,13 +192,11 @@ async def migrate_vector_dimensions() -> None:
                 )
                 return
 
-            # Parse dimensions from data_type like "vector(3072)"
             mismatched_tables = []
             for row in vector_tables:
                 table_name = row["table_name"]
                 data_type = row["data_type"]
 
-                # Extract dimension from "vector(N)"
                 if "(" in data_type and ")" in data_type:
                     dim_str = data_type.split("(")[1].split(")")[0]
                     try:
@@ -250,7 +225,6 @@ async def migrate_vector_dimensions() -> None:
                 )
                 return
 
-            # Log and drop mismatched tables
             logger.warning(
                 "Found {} vector table(s) with mismatched dimensions:",
                 len(mismatched_tables),
@@ -264,7 +238,6 @@ async def migrate_vector_dimensions() -> None:
                     info["expected"],
                 )
 
-            # Drop mismatched tables
             dropped_count = 0
             for info in mismatched_tables:
                 table_name = info["table"]
@@ -283,17 +256,15 @@ async def migrate_vector_dimensions() -> None:
                 expected_dimensions,
             )
 
-        finally:
-            await conn.close()
-
     except ImportError:
         logger.warning(
             "asyncpg not available, skipping vector dimension migration. "
             "Install asyncpg to enable automatic dimension migration."
         )
+    except ValueError as e:
+        logger.warning("Skipping vector dimension migration: {}", e)
     except Exception as e:
         logger.error("Vector dimension migration failed: {}", e)
-        # Don't raise - allow service to continue, user may want to fix manually
 
 
 async def cleanup_legacy_site_packages_data() -> None:
@@ -451,28 +422,7 @@ async def ensure_original_content_hash_column() -> bool:
         True if the column was created, False if it already existed.
     """
     try:
-        import asyncpg
-
-        db_url = settings.get_database_url()
-        parsed = urlparse(db_url)
-
-        if parsed.scheme not in ("postgresql", "postgres"):
-            logger.debug(
-                "Unsupported database scheme '{}', skipping original_content_hash migration",
-                parsed.scheme,
-            )
-            return False
-
-        conn = await asyncpg.connect(
-            host=parsed.hostname or "localhost",
-            port=parsed.port or 5432,
-            database=parsed.path.lstrip("/") if parsed.path else "",
-            user=parsed.username or "",
-            password=parsed.password or "",
-        )
-
-        try:
-            # Check if column already exists
+        async with _pg_connection() as conn:
             exists = await conn.fetchval("""
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.columns
@@ -484,23 +434,21 @@ async def ensure_original_content_hash_column() -> bool:
                 logger.debug("Column 'original_content_hash' already exists in data table")
                 return False
 
-            # Add the column
             await conn.execute("""
                 ALTER TABLE data ADD COLUMN original_content_hash VARCHAR
             """)
             logger.info("Added 'original_content_hash' column to data table for deduplication")
             return True
 
-        finally:
-            await conn.close()
-
     except ImportError:
         logger.debug(
             "asyncpg not available, skipping original_content_hash migration"
         )
         return False
+    except ValueError as e:
+        logger.debug("Skipping original_content_hash migration: {}", e)
+        return False
     except Exception as e:
-        # Table might not exist yet on first run
         if "does not exist" in str(e).lower() or "undefinedtable" in str(type(e).__name__).lower():
             logger.debug(
                 "Data table does not exist yet, skipping original_content_hash migration (normal on first run)"

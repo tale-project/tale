@@ -205,8 +205,8 @@ export function AutomationTester({
                   {t('tester.dryRun.errors')}:
                 </p>
                 <ul className="text-xs text-destructive space-y-0.5">
-                  {dryRunResult.errors.map((err, i) => (
-                    <li key={i}>• {err}</li>
+                  {dryRunResult.errors.map((err) => (
+                    <li key={err}>• {err}</li>
                   ))}
                 </ul>
               </div>
@@ -218,8 +218,8 @@ export function AutomationTester({
                   {t('tester.dryRun.warnings')}:
                 </p>
                 <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-0.5">
-                  {dryRunResult.warnings.map((warn, i) => (
-                    <li key={i}>• {warn}</li>
+                  {dryRunResult.warnings.map((warn) => (
+                    <li key={warn}>• {warn}</li>
                   ))}
                 </ul>
               </div>

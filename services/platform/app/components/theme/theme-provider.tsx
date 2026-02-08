@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useState,
   useCallback,
   type ReactNode,
@@ -90,11 +91,10 @@ export function ThemeProvider({
     [updateResolvedTheme],
   );
 
-  const value: ThemeContextValue = {
-    theme,
-    resolvedTheme,
-    setTheme,
-  };
+  const value = useMemo<ThemeContextValue>(
+    () => ({ theme, resolvedTheme, setTheme }),
+    [theme, resolvedTheme, setTheme],
+  );
 
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

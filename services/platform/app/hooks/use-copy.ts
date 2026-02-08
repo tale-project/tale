@@ -61,6 +61,12 @@ function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
   const { t: tCommon } = useT('common');
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Store toast and translation in refs to keep the copy callback stable
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+  const tCommonRef = useRef(tCommon);
+  tCommonRef.current = tCommon;
+
   // Clean up timeout on unmount
   useEffect(() => {
     return () => {
@@ -93,8 +99,8 @@ function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
         console.error('Copy to clipboard failed:', err);
 
         if (showErrorToast) {
-          toast({
-            title: tCommon('errors.failedToCopy'),
+          toastRef.current({
+            title: tCommonRef.current('errors.failedToCopy'),
             variant: 'destructive',
           });
         }
@@ -103,7 +109,7 @@ function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
         return false;
       }
     },
-    [copiedDuration, onSuccess, onError, showErrorToast, toast, tCommon]
+    [copiedDuration, onSuccess, onError, showErrorToast],
   );
 
   const reset = useCallback(() => {

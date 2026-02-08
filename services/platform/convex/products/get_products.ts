@@ -93,6 +93,44 @@ function mapProduct(product: Doc<'products'>) {
   };
 }
 
+function buildIterationQuery(
+  ctx: QueryCtx,
+  args: { organizationId: string; status?: ProductStatus; category?: string },
+) {
+  const { organizationId } = args;
+
+  if (args.status !== undefined) {
+    return {
+      query: ctx.db
+        .query('products')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', organizationId).eq('status', args.status!),
+        ),
+      indexedFields: { status: true } as const,
+    };
+  }
+
+  if (args.category !== undefined) {
+    return {
+      query: ctx.db
+        .query('products')
+        .withIndex('by_organizationId_and_category', (q) =>
+          q.eq('organizationId', organizationId).eq('category', args.category!),
+        ),
+      indexedFields: { category: true } as const,
+    };
+  }
+
+  return {
+    query: ctx.db
+      .query('products')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', organizationId),
+      ),
+    indexedFields: {} as const,
+  };
+}
+
 export async function getProducts(
   ctx: QueryCtx,
   args: GetProductsArgs,
@@ -190,22 +228,14 @@ async function getProductsWithSearch(
   const descriptionMatches: Array<Doc<'products'>> = [];
 
   // Query for description matches using async iteration
-  const baseQuery =
-    status !== undefined
-      ? ctx.db
-          .query('products')
-          .withIndex('by_organizationId_and_status', (q) =>
-            q.eq('organizationId', organizationId).eq('status', status),
-          )
-      : ctx.db
-          .query('products')
-          .withIndex('by_organizationId', (q) =>
-            q.eq('organizationId', organizationId),
-          );
+  const { query: baseQuery, indexedFields } = buildIterationQuery(ctx, {
+    organizationId,
+    status,
+  });
 
   for await (const product of baseQuery) {
     if (nameMatchIds.has(product._id)) continue;
-    if (category !== undefined && product.category !== category) continue;
+    if (!('category' in indexedFields) && category !== undefined && product.category !== category) continue;
     if (product.description?.toLowerCase().includes(searchQuery)) {
       descriptionMatches.push(product);
     }
@@ -307,37 +337,17 @@ async function getProductsWithIteration(
     sortOrder,
   } = args;
 
-  // Build base query with best available index
-  let query;
-  if (status !== undefined) {
-    query = ctx.db
-      .query('products')
-      .withIndex('by_organizationId_and_status', (q) =>
-        q.eq('organizationId', organizationId).eq('status', status),
-      );
-  } else if (category !== undefined) {
-    query = ctx.db
-      .query('products')
-      .withIndex('by_organizationId_and_category', (q) =>
-        q.eq('organizationId', organizationId).eq('category', category),
-      );
-  } else {
-    query = ctx.db
-      .query('products')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', organizationId),
-      );
-  }
+  const { query, indexedFields } = buildIterationQuery(ctx, {
+    organizationId,
+    status,
+    category,
+  });
 
+  const needsCategoryFilter = !('category' in indexedFields) && category !== undefined;
   const matchingProducts: Array<Doc<'products'>> = [];
 
   for await (const product of query) {
-    // Apply category filter if both status and category are specified
-    if (
-      status !== undefined &&
-      category !== undefined &&
-      product.category !== category
-    ) {
+    if (needsCategoryFilter && product.category !== category) {
       continue;
     }
 

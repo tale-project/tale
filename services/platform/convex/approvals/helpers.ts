@@ -3,6 +3,8 @@ import type { Id, Doc } from '../_generated/dataModel';
 import { components } from '../_generated/api';
 import type {
   ApprovalItem,
+  ApprovalStatus,
+  ApprovalResourceType,
   CreateApprovalArgs,
   UpdateApprovalStatusArgs,
   GetApprovalHistoryArgs,
@@ -171,16 +173,38 @@ export async function listApprovalsByOrganization(
 
   const result: Array<ApprovalItem> = [];
 
-  if (args.status === 'pending') {
-    const query = ctx.db
+  // Use the 3-field index when a single resourceType + known status is provided
+  const singleResourceType =
+    resourceTypes.length === 1 ? resourceTypes[0] : undefined;
+
+  const buildQuery = (status: ApprovalStatus) => {
+    if (singleResourceType) {
+      return ctx.db
+        .query('approvals')
+        .withIndex('by_org_status_resourceType', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('status', status)
+            .eq('resourceType', singleResourceType as ApprovalResourceType),
+        )
+        .order('desc');
+    }
+    return ctx.db
       .query('approvals')
       .withIndex('by_org_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', 'pending'),
+        q.eq('organizationId', args.organizationId).eq('status', status),
       )
       .order('desc');
+  };
+
+  // When using the 3-field index, resourceType is already filtered by the index
+  const needsResourceTypeFilter = resourceTypeSet && !singleResourceType;
+
+  if (args.status === 'pending') {
+    const query = buildQuery('pending');
 
     for await (const approval of query) {
-      if (resourceTypeSet && !resourceTypeSet.has(approval.resourceType)) {
+      if (needsResourceTypeFilter && !resourceTypeSet.has(approval.resourceType)) {
         continue;
       }
 
@@ -196,15 +220,10 @@ export async function listApprovalsByOrganization(
     return result;
   }
 
-  const approvedQuery = ctx.db
-    .query('approvals')
-    .withIndex('by_org_status', (q) =>
-      q.eq('organizationId', args.organizationId).eq('status', 'approved'),
-    )
-    .order('desc');
+  const approvedQuery = buildQuery('approved');
 
   for await (const approval of approvedQuery) {
-    if (resourceTypeSet && !resourceTypeSet.has(approval.resourceType)) {
+    if (needsResourceTypeFilter && !resourceTypeSet.has(approval.resourceType)) {
       continue;
     }
 
@@ -219,15 +238,10 @@ export async function listApprovalsByOrganization(
     }
   }
 
-  const rejectedQuery = ctx.db
-    .query('approvals')
-    .withIndex('by_org_status', (q) =>
-      q.eq('organizationId', args.organizationId).eq('status', 'rejected'),
-    )
-    .order('desc');
+  const rejectedQuery = buildQuery('rejected');
 
   for await (const approval of rejectedQuery) {
-    if (resourceTypeSet && !resourceTypeSet.has(approval.resourceType)) {
+    if (needsResourceTypeFilter && !resourceTypeSet.has(approval.resourceType)) {
       continue;
     }
 

@@ -382,8 +382,8 @@ export function AutomationSidePanel({
                   {t('sidePanel.validationErrors')}
                 </div>
                 <ul className="text-xs text-destructive space-y-1">
-                  {errors.map((error, i) => (
-                    <li key={i}>• {error}</li>
+                  {errors.map((error) => (
+                    <li key={error}>• {error}</li>
                   ))}
                 </ul>
               </div>
@@ -396,8 +396,8 @@ export function AutomationSidePanel({
                   {t('sidePanel.validationWarnings')}
                 </div>
                 <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-1">
-                  {warnings.map((warning, i) => (
-                    <li key={i}>• {warning}</li>
+                  {warnings.map((warning) => (
+                    <li key={warning}>• {warning}</li>
                   ))}
                 </ul>
               </div>
