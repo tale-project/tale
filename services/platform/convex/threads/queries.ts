@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls';
 import { listThreads as listThreadsHelper } from './list_threads';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
 import { threadStatusValidator } from './validators';
@@ -19,18 +19,13 @@ export const listThreads = query({
     }),
   ),
   handler: async (ctx, args) => {
-    let authUser;
-    try {
-      authUser = await authComponent.getAuthUser(ctx);
-    } catch {
-      return [];
-    }
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
     }
 
     return await listThreadsHelper(ctx, {
-      userId: String(authUser._id),
+      userId: authUser.userId,
       search: args.search,
     });
   },
@@ -66,17 +61,7 @@ export const getThreadMessagesStreaming = query({
     ),
   },
   handler: async (ctx, args) => {
-    let authUser;
-    try {
-      authUser = await authComponent.getAuthUser(ctx);
-    } catch {
-      return {
-        page: [],
-        isDone: true,
-        continueCursor: '',
-        streams: { value: null },
-      };
-    }
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return {
         page: [],

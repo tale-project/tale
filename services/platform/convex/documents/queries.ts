@@ -5,8 +5,7 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import * as DocumentsHelpers from './helpers';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { getUserTeamIds } from '../lib/get_user_teams';
 
 export const getDocumentById = query({
@@ -14,7 +13,7 @@ export const getDocumentById = query({
     documentId: v.id('documents'),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return { success: false, error: 'Unauthenticated' };
     }
@@ -25,11 +24,7 @@ export const getDocumentById = query({
     }
 
     try {
-      await getOrganizationMember(ctx, document.organizationId, {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, document.organizationId, authUser);
     } catch {
       return { success: false, error: 'Access denied' };
     }
@@ -47,17 +42,13 @@ export const getDocumentByPath = query({
     storagePath: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return { success: false, error: 'Unauthenticated' };
     }
 
     try {
-      await getOrganizationMember(ctx, args.organizationId, {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, args.organizationId, authUser);
     } catch {
       return { success: false, error: 'Access denied' };
     }
@@ -78,22 +69,18 @@ export const listDocuments = query({
     folderPath: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return { page: [], isDone: true, continueCursor: '' };
     }
 
     try {
-      await getOrganizationMember(ctx, args.organizationId, {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, args.organizationId, authUser);
     } catch {
       return { page: [], isDone: true, continueCursor: '' };
     }
 
-    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
 
     return await DocumentsHelpers.getDocumentsCursor(ctx, {
       ...args,

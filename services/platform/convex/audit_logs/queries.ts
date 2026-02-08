@@ -1,7 +1,6 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import * as AuditLogHelpers from './helpers';
 import {
   auditLogFilterValidator,
@@ -20,16 +19,12 @@ export const listAuditLogs = query({
     nextCursor: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
     return await AuditLogHelpers.listAuditLogs(ctx, {
       organizationId: args.organizationId,
@@ -49,16 +44,12 @@ export const getResourceAuditTrail = query({
   },
   returns: v.array(auditLogItemValidator),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
     return await AuditLogHelpers.getResourceAuditTrail(ctx, {
       organizationId: args.organizationId,
@@ -91,16 +82,12 @@ export const getActivitySummary = query({
     ),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    await getOrganizationMember(ctx, args.organizationId, authUser);
 
     return await AuditLogHelpers.getActivitySummary(ctx, {
       organizationId: args.organizationId,

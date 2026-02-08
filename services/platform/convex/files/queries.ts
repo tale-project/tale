@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
+import { getAuthUserIdentity } from '../lib/rls';
 
 export const getFileUrl = query({
   args: {
@@ -8,7 +8,7 @@ export const getFileUrl = query({
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
 
     try {
