@@ -19,6 +19,8 @@ const siteUrl = process.env.SITE_URL || 'http://127.0.0.1:3000';
 // Centralize table-keyed permissions used by RLS and the org plugin
 // Only includes resources that exist in schema.ts
 const platformResourceStatements = {
+  customAgents: ['read', 'write'],
+  customAgentVersions: ['read', 'write'],
   documents: ['read', 'write'],
   products: ['read', 'write'],
   customers: ['read', 'write'],
@@ -50,6 +52,8 @@ const ac = createAccessControl(platformStatements);
 const admin = ac.newRole({
   ...adminAc.statements,
 
+  customAgents: ['read', 'write'],
+  customAgentVersions: ['read', 'write'],
   documents: ['read', 'write'],
   products: ['read', 'write'],
   customers: ['read', 'write'],
@@ -72,6 +76,8 @@ const admin = ac.newRole({
 });
 
 const developer = ac.newRole({
+  customAgents: ['read', 'write'],
+  customAgentVersions: ['read', 'write'],
   documents: ['read', 'write'],
   products: ['read', 'write'],
   customers: ['read', 'write'],
@@ -94,6 +100,8 @@ const developer = ac.newRole({
 });
 
 const editor = ac.newRole({
+  customAgents: ['read', 'write'],
+  customAgentVersions: ['read', 'write'],
   documents: ['read', 'write'],
   products: ['read', 'write'],
   customers: ['read', 'write'],
@@ -118,6 +126,8 @@ const editor = ac.newRole({
 });
 
 const member = ac.newRole({
+  customAgents: ['read'],
+  customAgentVersions: ['read'],
   documents: ['read'],
   products: ['read'],
   customers: ['read'],
@@ -141,6 +151,8 @@ const member = ac.newRole({
 });
 
 const disabled = ac.newRole({
+  customAgents: [],
+  customAgentVersions: [],
   documents: [],
   products: [],
   customers: [],

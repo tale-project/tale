@@ -2,6 +2,7 @@ export * from './accounts';
 export * from './approvals';
 export * from './common';
 export * from './conversations';
+export * from './custom_agents';
 export * from './customers';
 export * from './documents';
 export * from './email_providers';
