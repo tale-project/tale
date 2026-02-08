@@ -306,15 +306,17 @@ export function EmailPreview({ html, className, style }: EmailPreviewProps) {
               line-height: 1.5;
               word-wrap: break-word;
               overflow-wrap: break-word;
-              /* Default email background and text color for emails without explicit styling */
               background-color: white;
               color: black;
-              /* Add padding to create visual separation from container */
               padding: 1rem;
               border-radius: 0.375rem;
-              /* Prevent content from expanding beyond container */
               overflow-x: auto;
               max-width: 100%;
+            }
+
+            .dark [data-preview-sandbox] {
+              background-color: hsl(var(--card));
+              color: hsl(var(--card-foreground));
             }
 
             /* Responsive images - use inline-block so they respect parent text-align */
@@ -341,9 +343,12 @@ export function EmailPreview({ html, className, style }: EmailPreviewProps) {
 
             /* Ensure links are visible */
             [data-preview-sandbox] a {
-              color: inherit;
               text-decoration: underline;
               color: #0561e6;
+            }
+
+            .dark [data-preview-sandbox] a {
+              color: #6db3f8;
             }
 
             [data-preview-sandbox] p {
