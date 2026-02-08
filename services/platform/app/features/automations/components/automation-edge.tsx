@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -42,8 +43,7 @@ export function AutomationEdge({
   data,
   type = 'smoothstep',
 }: AutomationEdgeProps) {
-  // Use appropriate path function based on edge type
-  const [edgePath, defaultLabelX, defaultLabelY] = (() => {
+  const [edgePath, defaultLabelX, defaultLabelY] = useMemo(() => {
     if (type === 'smoothstep' || type === 'default') {
       return getSmoothStepPath({
         sourceX,
@@ -62,7 +62,6 @@ export function AutomationEdge({
         targetY,
       });
     }
-    // bezier (or fallback)
     return getBezierPath({
       sourceX,
       sourceY,
@@ -71,42 +70,34 @@ export function AutomationEdge({
       targetY,
       targetPosition,
     });
-  })();
+  }, [type, sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition]);
 
-  // Calculate smart label position
-  const calculateLabelPosition = () => {
+  const { labelX, labelY } = useMemo(() => {
     const labelPosition = data?.labelPosition || 'center';
-    let labelX = defaultLabelX;
-    let labelY = defaultLabelY;
+    let lx = defaultLabelX;
+    let ly = defaultLabelY;
 
-    // Adjust position based on labelPosition setting
     if (labelPosition === 'source') {
-      // Position label 25% from source
-      labelX = sourceX + (targetX - sourceX) * 0.25;
-      labelY = sourceY + (targetY - sourceY) * 0.25;
+      lx = sourceX + (targetX - sourceX) * 0.25;
+      ly = sourceY + (targetY - sourceY) * 0.25;
     } else if (labelPosition === 'target') {
-      // Position label 75% toward target
-      labelX = sourceX + (targetX - sourceX) * 0.75;
-      labelY = sourceY + (targetY - sourceY) * 0.75;
+      lx = sourceX + (targetX - sourceX) * 0.75;
+      ly = sourceY + (targetY - sourceY) * 0.75;
     }
 
-    // Special handling for backward connections
     if (data?.isBackwardConnection) {
-      // Offset label to the side for backward connections to avoid overlap
-      const offsetX = 30; // Offset to the right
-      labelX += offsetX;
+      lx += 30;
     }
 
-    // Apply manual offset if provided
-    if (data?.labelOffset) {
-      labelX += data.labelOffset.x;
-      labelY += data.labelOffset.y;
+    if (data?.labelOffset?.x) {
+      lx += data.labelOffset.x;
+    }
+    if (data?.labelOffset?.y) {
+      ly += data.labelOffset.y;
     }
 
-    return { labelX, labelY };
-  };
-
-  const { labelX, labelY } = calculateLabelPosition();
+    return { labelX: lx, labelY: ly };
+  }, [defaultLabelX, defaultLabelY, sourceX, sourceY, targetX, targetY, data?.labelPosition, data?.isBackwardConnection, data?.labelOffset?.x, data?.labelOffset?.y]);
 
   return (
     <>

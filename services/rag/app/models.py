@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.services.cognee.utils import sanitize_team_id
+
 
 def _validate_and_sanitize_tenant_ids(
     user_id: str | None,
@@ -28,8 +30,6 @@ def _validate_and_sanitize_tenant_ids(
 
     if not team_ids:
         return None
-
-    from app.services.cognee.utils import sanitize_team_id
 
     sanitized_ids: list[str] = []
     for tid in team_ids:

@@ -2,7 +2,8 @@
  * Query customers with flexible filtering and pagination support (business logic)
  *
  * Uses cursor-based pagination optimized for infinite scroll / load more patterns.
- * Filters are applied in memory after index narrowing for flexibility.
+ * Selects the most specific index based on provided filters, then applies
+ * remaining filters in memory via paginateWithFilter.
  */
 
 import type { QueryCtx } from '../_generated/server';
@@ -23,73 +24,85 @@ export interface QueryCustomersArgs {
   };
 }
 
+function buildQuery(ctx: QueryCtx, args: QueryCustomersArgs) {
+  const { organizationId } = args;
+
+  return {
+    query: ctx.db
+      .query('customers')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', organizationId),
+      )
+      .order('desc'),
+    indexedFields: {} as const,
+  };
+}
+
 export async function queryCustomers(
   ctx: QueryCtx,
   args: QueryCustomersArgs,
 ): Promise<CursorPaginatedResult<Doc<'customers'>>> {
-  // Build the base query with index
-  const query = ctx.db
-    .query('customers')
-    .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', args.organizationId),
-    )
-    .order('desc');
+  const { query, indexedFields } = buildQuery(ctx, args);
 
-  // Pre-compute filter sets for O(1) lookups
-  const statusSet = args.status
-    ? new Set(Array.isArray(args.status) ? args.status : [args.status])
-    : null;
-  const sourceSet = args.source
-    ? new Set(Array.isArray(args.source) ? args.source : [args.source])
-    : null;
+  // Pre-compute filter sets for O(1) lookups (only for non-indexed fields)
+  const statusSet =
+    !('status' in indexedFields) && args.status
+      ? new Set(Array.isArray(args.status) ? args.status : [args.status])
+      : null;
+  const sourceSet =
+    !('source' in indexedFields) && args.source
+      ? new Set(Array.isArray(args.source) ? args.source : [args.source])
+      : null;
   const localeSet =
-    args.locale && args.locale.length > 0 ? new Set(args.locale) : null;
+    !('locale' in indexedFields) && args.locale && args.locale.length > 0
+      ? new Set(args.locale)
+      : null;
+  const needsExternalIdFilter =
+    !('externalId' in indexedFields) && args.externalId !== undefined;
   const searchLower = args.searchTerm?.toLowerCase();
 
-  // Create filter function
-  const filter = (customer: Doc<'customers'>): boolean => {
-    // ExternalId filter
-    if (args.externalId !== undefined && customer.externalId !== args.externalId) {
-      return false;
-    }
+  const needsFilter =
+    statusSet || sourceSet || localeSet || needsExternalIdFilter || searchLower;
 
-    // Status filter
-    if (statusSet && statusSet.size > 0) {
-      if (!customer.status || !statusSet.has(customer.status)) {
-        return false;
+  const filter = needsFilter
+    ? (customer: Doc<'customers'>): boolean => {
+        if (needsExternalIdFilter && customer.externalId !== args.externalId) {
+          return false;
+        }
+
+        if (statusSet && statusSet.size > 0) {
+          if (!customer.status || !statusSet.has(customer.status)) {
+            return false;
+          }
+        }
+
+        if (sourceSet && sourceSet.size > 0) {
+          if (!customer.source || !sourceSet.has(customer.source)) {
+            return false;
+          }
+        }
+
+        if (localeSet) {
+          if (!customer.locale || !localeSet.has(customer.locale)) {
+            return false;
+          }
+        }
+
+        if (searchLower) {
+          const nameMatch = customer.name?.toLowerCase().includes(searchLower);
+          const emailMatch = customer.email?.toLowerCase().includes(searchLower);
+          const externalIdMatch = customer.externalId
+            ? String(customer.externalId).toLowerCase().includes(searchLower)
+            : false;
+          if (!nameMatch && !emailMatch && !externalIdMatch) {
+            return false;
+          }
+        }
+
+        return true;
       }
-    }
+    : undefined;
 
-    // Source filter
-    if (sourceSet && sourceSet.size > 0) {
-      if (!customer.source || !sourceSet.has(customer.source)) {
-        return false;
-      }
-    }
-
-    // Locale filter
-    if (localeSet) {
-      if (!customer.locale || !localeSet.has(customer.locale)) {
-        return false;
-      }
-    }
-
-    // Search term filter
-    if (searchLower) {
-      const nameMatch = customer.name?.toLowerCase().includes(searchLower);
-      const emailMatch = customer.email?.toLowerCase().includes(searchLower);
-      const externalIdMatch = customer.externalId
-        ? String(customer.externalId).toLowerCase().includes(searchLower)
-        : false;
-      if (!nameMatch && !emailMatch && !externalIdMatch) {
-        return false;
-      }
-    }
-
-    return true;
-  };
-
-  // Use optimized pagination helper
   return paginateWithFilter(query, {
     numItems: args.paginationOpts.numItems,
     cursor: args.paginationOpts.cursor,

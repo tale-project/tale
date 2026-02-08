@@ -422,6 +422,10 @@ export function ApprovalsClient({
       return (
         <Stack gap={1}>
           {list.map((p, index) => {
+            const id =
+              safeGetString(p, 'productId', '') ||
+              safeGetString(p, 'id', '') ||
+              String(index);
             const name =
               safeGetString(p, 'name', '') ||
               safeGetString(p, 'productName', '');
@@ -431,7 +435,7 @@ export function ApprovalsClient({
               '/assets/placeholder-image.png';
 
             return (
-              <HStack key={index} gap={2}>
+              <HStack key={id} gap={2}>
                 <div className="size-5 bg-muted rounded flex-shrink-0 overflow-hidden">
                   <Image
                     src={image}

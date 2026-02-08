@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type RefObject, type MutableRefObject } from 'react';
+import { useEffect, useRef, type RefObject, type MutableRefObject } from 'react';
 
 type RefInput =
   | RefObject<HTMLElement | null>
@@ -10,6 +10,9 @@ type RefInput =
 /**
  * Hook that calls a callback whenever the observed element(s) resize.
  * Also optionally listens to window resize events.
+ *
+ * The callback is stored in a ref so the observer remains stable regardless of
+ * whether the caller wraps it with useCallback.
  *
  * @param refs - Single ref, array of refs, or MutableRefObject with array of elements
  * @param callback - Function to call when resize occurs
@@ -26,14 +29,19 @@ export function useResizeObserver(
   } = {},
 ) {
   const { listenToWindow = false, deps = [] } = options;
+  const callbackRef = useRef(callback);
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
 
   // Window resize listener
   useEffect(() => {
     if (!listenToWindow) return;
 
-    window.addEventListener('resize', callback);
-    return () => window.removeEventListener('resize', callback);
-  }, [callback, listenToWindow]);
+    const handler = () => callbackRef.current();
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, [listenToWindow]);
 
   // ResizeObserver
   useEffect(() => {
@@ -57,7 +65,7 @@ export function useResizeObserver(
     if (validElements.length === 0) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      callback();
+      callbackRef.current();
     });
 
     validElements.forEach((element) => {
@@ -68,5 +76,5 @@ export function useResizeObserver(
       resizeObserver.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [callback, ...deps]);
+  }, [...deps]);
 }

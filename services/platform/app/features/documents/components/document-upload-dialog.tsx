@@ -12,6 +12,7 @@ import { useT } from '@/lib/i18n/client';
 import { api } from '@/convex/_generated/api';
 import { useDocumentUpload } from '../hooks/use-document-upload';
 import { cn } from '@/lib/utils/cn';
+import { formatBytes } from '@/lib/utils/format/number';
 import { toast } from '@/app/hooks/use-toast';
 import { DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_MAX_FILE_SIZE } from '@/lib/shared/file-types';
 
@@ -127,12 +128,6 @@ export function DocumentUploadDialog({
     [selectedFiles, selectedTeams, uploadFiles],
   );
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
   const hasFiles = selectedFiles.length > 0;
 
   return (
@@ -193,7 +188,7 @@ export function DocumentUploadDialog({
                     {file.name}
                   </span>
                   <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap leading-6">
-                    {formatFileSize(file.size)}
+                    {formatBytes(file.size)}
                   </span>
                   <Button
                     type="button"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { X } from 'lucide-react';
@@ -30,6 +30,8 @@ export function ChatSearchDialog({
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const selectedIndexRef = useRef(selectedIndex);
+  selectedIndexRef.current = selectedIndex;
   const inputRef = useRef<HTMLInputElement>(null);
 
   const debouncedQuery = useDebounce(query, 300);
@@ -37,12 +39,19 @@ export function ChatSearchDialog({
   const threadsData = useQuery(api.threads.queries.listThreads, {
     search: debouncedQuery || undefined,
   });
-  const chats =
-    threadsData?.map((thread) => ({
-      _id: thread._id,
-      title: thread.title ?? t('searchChat.untitledChat'),
-      createdAt: thread._creationTime,
-    })) || [];
+
+  const chats = useMemo(
+    () =>
+      threadsData?.map((thread) => ({
+        _id: thread._id,
+        title: thread.title ?? t('searchChat.untitledChat'),
+        createdAt: thread._creationTime,
+        formattedDate: thread._creationTime
+          ? formatDateSmart(new Date(thread._creationTime))
+          : '',
+      })) ?? [],
+    [threadsData, t, formatDateSmart],
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -68,30 +77,34 @@ export function ChatSearchDialog({
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [isOpen, onOpenChange]);
 
+  // Reset selection when results change (debounced query), not on every keystroke
   useEffect(() => {
     if (isOpen) setSelectedIndex(-1);
-  }, [isOpen, query]);
+  }, [isOpen, debouncedQuery]);
 
-  const close = () => onOpenChange(false);
+  const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex((i) => Math.min(i + 1, chats.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter' && chats[selectedIndex]) {
-      navigate({
-        to: '/dashboard/$id/chat/$threadId',
-        params: { id: organizationId, threadId: chats[selectedIndex]._id },
-      });
-      onOpenChange(false);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      onOpenChange(false);
-    }
-  };
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.min(i + 1, chats.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === 'Enter' && chats[selectedIndexRef.current]) {
+        navigate({
+          to: '/dashboard/$id/chat/$threadId',
+          params: { id: organizationId, threadId: chats[selectedIndexRef.current]._id },
+        });
+        onOpenChange(false);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onOpenChange(false);
+      }
+    },
+    [chats, navigate, organizationId, onOpenChange],
+  );
 
   return (
     <Dialog
@@ -149,8 +162,7 @@ export function ChatSearchDialog({
                   <div className="text-sm text-foreground flex items-center gap-2 w-full min-w-0">
                     <span className="truncate">{chat.title}</span>
                     <span className="text-[0.625rem] text-muted-foreground shrink-0 ml-auto">
-                      {chat.createdAt &&
-                        formatDateSmart(new Date(chat.createdAt) || '')}
+                      {chat.formattedDate}
                     </span>
                   </div>
                 </button>

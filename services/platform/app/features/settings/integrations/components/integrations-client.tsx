@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
 import { CirculyIcon } from '@/app/components/icons/circuly-icon';
 import { ProtelIcon } from '@/app/components/icons/protel-icon';
@@ -57,32 +57,35 @@ export function IntegrationsClient({
 }: IntegrationsClientProps) {
   const { t } = useT('settings');
 
-  const integrations = [
-    {
-      id: 'shopify',
-      name: 'Shopify',
-      description: t('integrations.shopify.description'),
-      icon: ShopifyIcon,
-    },
-    {
-      id: 'circuly',
-      name: 'Circuly',
-      description: t('integrations.circuly.description'),
-      icon: CirculyIcon,
-    },
-    {
-      id: 'protel',
-      name: 'Protel PMS',
-      description: t('integrations.protel.description'),
-      icon: ProtelIcon,
-    },
-    {
-      id: 'email',
-      name: t('integrations.email.name'),
-      description: t('integrations.email.description'),
-      icon: Mail,
-    },
-  ];
+  const integrations = useMemo(
+    () => [
+      {
+        id: 'shopify',
+        name: 'Shopify',
+        description: t('integrations.shopify.description'),
+        icon: ShopifyIcon,
+      },
+      {
+        id: 'circuly',
+        name: 'Circuly',
+        description: t('integrations.circuly.description'),
+        icon: CirculyIcon,
+      },
+      {
+        id: 'protel',
+        name: 'Protel PMS',
+        description: t('integrations.protel.description'),
+        icon: ProtelIcon,
+      },
+      {
+        id: 'email',
+        name: t('integrations.email.name'),
+        description: t('integrations.email.description'),
+        icon: Mail,
+      },
+    ],
+    [t],
+  );
 
   const emailProviderCount = emailProviders?.length || 0;
 
@@ -122,36 +125,39 @@ export function IntegrationsClient({
     }
   }, [tab]);
 
-  const handleSwitchToggle = (integrationId: string, checked: boolean) => {
-    switch (integrationId) {
-      case 'shopify':
-        if (checked) {
-          setShopifyDialogOpen(true);
-        } else {
-          setShopifyDisconnectDialogOpen(true);
-        }
-        break;
-      case 'circuly':
-        if (checked) {
-          setCirculyDialogOpen(true);
-        } else {
-          setCirculyDisconnectDialogOpen(true);
-        }
-        break;
-      case 'protel':
-        if (checked) {
-          setProtelDialogOpen(true);
-        } else {
-          setProtelDisconnectDialogOpen(true);
-        }
-        break;
-      case 'email':
-        setEmailDialogOpen(true);
-        break;
-    }
-  };
+  const handleSwitchToggle = useCallback(
+    (integrationId: string, checked: boolean) => {
+      switch (integrationId) {
+        case 'shopify':
+          if (checked) {
+            setShopifyDialogOpen(true);
+          } else {
+            setShopifyDisconnectDialogOpen(true);
+          }
+          break;
+        case 'circuly':
+          if (checked) {
+            setCirculyDialogOpen(true);
+          } else {
+            setCirculyDisconnectDialogOpen(true);
+          }
+          break;
+        case 'protel':
+          if (checked) {
+            setProtelDialogOpen(true);
+          } else {
+            setProtelDisconnectDialogOpen(true);
+          }
+          break;
+        case 'email':
+          setEmailDialogOpen(true);
+          break;
+      }
+    },
+    [],
+  );
 
-  const handleManageClick = (integrationId: string) => {
+  const handleManageClick = useCallback((integrationId: string) => {
     switch (integrationId) {
       case 'protel':
         setProtelDialogOpen(true);
@@ -160,7 +166,7 @@ export function IntegrationsClient({
         setEmailDialogOpen(true);
         break;
     }
-  };
+  }, []);
 
   const handleShopifyConnect = async (data: {
     domain: string;
@@ -170,44 +176,40 @@ export function IntegrationsClient({
       throw new Error(t('integrations.errors.organizationRequired'));
     }
 
-    try {
-      let integrationId: Id<'integrations'>;
+    let integrationId: Id<'integrations'>;
 
-      if (shopifyIntegration) {
-        await updateIntegration({
-          integrationId: shopifyIntegration._id,
-          apiKeyAuth: {
-            key: data.accessToken,
-          },
-          connectionConfig: {
-            domain: data.domain,
-          },
-          status: 'testing',
-          isActive: false,
-        });
-        integrationId = shopifyIntegration._id;
-      } else {
-        const payload = {
-          organizationId: organizationId,
-          name: 'shopify',
-          title: t('integrations.shopify.title'),
-          authMethod: 'api_key' as const,
-          apiKeyAuth: {
-            key: data.accessToken,
-          },
-          connectionConfig: {
-            domain: data.domain,
-          },
-        };
-        integrationId = await createIntegration(payload);
-      }
+    if (shopifyIntegration) {
+      await updateIntegration({
+        integrationId: shopifyIntegration._id,
+        apiKeyAuth: {
+          key: data.accessToken,
+        },
+        connectionConfig: {
+          domain: data.domain,
+        },
+        status: 'testing',
+        isActive: false,
+      });
+      integrationId = shopifyIntegration._id;
+    } else {
+      const payload = {
+        organizationId: organizationId,
+        name: 'shopify',
+        title: t('integrations.shopify.title'),
+        authMethod: 'api_key' as const,
+        apiKeyAuth: {
+          key: data.accessToken,
+        },
+        connectionConfig: {
+          domain: data.domain,
+        },
+      };
+      integrationId = await createIntegration(payload);
+    }
 
-      const testResult = await testConnection({ integrationId });
-      if (!testResult.success) {
-        throw new Error(testResult.message);
-      }
-    } catch (error) {
-      throw error;
+    const testResult = await testConnection({ integrationId });
+    if (!testResult.success) {
+      throw new Error(testResult.message);
     }
   };
 
@@ -240,32 +242,28 @@ export function IntegrationsClient({
       throw new Error(t('integrations.errors.organizationRequired'));
     }
 
-    try {
-      if (circulyIntegration) {
-        await updateIntegration({
-          integrationId: circulyIntegration._id,
-          basicAuth: {
-            username: data.username,
-            password: data.password,
-          },
-          status: 'active',
-          isActive: true,
-        });
-      } else {
-        const payload = {
-          organizationId: organizationId,
-          name: 'circuly',
-          title: t('integrations.circuly.title'),
-          authMethod: 'basic_auth' as const,
-          basicAuth: {
-            username: data.username,
-            password: data.password,
-          },
-        };
-        await createIntegration(payload);
-      }
-    } catch (error) {
-      throw error;
+    if (circulyIntegration) {
+      await updateIntegration({
+        integrationId: circulyIntegration._id,
+        basicAuth: {
+          username: data.username,
+          password: data.password,
+        },
+        status: 'active',
+        isActive: true,
+      });
+    } else {
+      const payload = {
+        organizationId: organizationId,
+        name: 'circuly',
+        title: t('integrations.circuly.title'),
+        authMethod: 'basic_auth' as const,
+        basicAuth: {
+          username: data.username,
+          password: data.password,
+        },
+      };
+      await createIntegration(payload);
     }
   };
 
@@ -302,41 +300,43 @@ export function IntegrationsClient({
     password: string;
   }) => {
     if (!organizationId) {
-      throw new Error('Organization ID is required');
+      throw new Error(t('integrations.errors.organizationRequired'));
     }
 
-    try {
-      if (protelIntegration) {
-        await updateIntegration({
-          integrationId: protelIntegration._id,
-          basicAuth: {
-            username: data.username,
-            password: data.password,
-          },
-          status: 'active',
-          isActive: true,
-        });
-      } else {
-        await createIntegration({
-          organizationId: organizationId,
-          name: 'protel',
-          title: 'Protel PMS',
-          authMethod: 'basic_auth' as const,
-          basicAuth: {
-            username: data.username,
-            password: data.password,
-          },
-          type: 'sql',
-          sqlConnectionConfig: {
-            engine: 'mssql',
-            server: data.server,
-            port: data.port,
-            database: data.database,
-          },
-        });
-      }
-    } catch (error) {
-      throw error;
+    if (protelIntegration) {
+      await updateIntegration({
+        integrationId: protelIntegration._id,
+        basicAuth: {
+          username: data.username,
+          password: data.password,
+        },
+        sqlConnectionConfig: {
+          engine: 'mssql',
+          server: data.server,
+          port: data.port,
+          database: data.database,
+        },
+        status: 'active',
+        isActive: true,
+      });
+    } else {
+      await createIntegration({
+        organizationId: organizationId,
+        name: 'protel',
+        title: 'Protel PMS',
+        authMethod: 'basic_auth' as const,
+        basicAuth: {
+          username: data.username,
+          password: data.password,
+        },
+        type: 'sql',
+        sqlConnectionConfig: {
+          engine: 'mssql',
+          server: data.server,
+          port: data.port,
+          database: data.database,
+        },
+      });
     }
   };
 

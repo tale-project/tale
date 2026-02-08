@@ -16,7 +16,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { Home, Loader2, Database, Users } from 'lucide-react';
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
-import { formatFileSize } from '@/lib/utils/onedrive-helpers';
+import { formatBytes } from '@/lib/utils/format/number';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useQuery } from '@tanstack/react-query';
 import { useAction, useQuery as useConvexQuery } from 'convex/react';
@@ -352,7 +352,7 @@ function OneDriveFileTable({
         ),
         cell: ({ row }) => (
           <div className="text-sm text-muted-foreground text-right whitespace-nowrap">
-            {row.original.size ? formatFileSize(row.original.size) : ''}
+            {row.original.size ? formatBytes(row.original.size) : ''}
           </div>
         ),
       },

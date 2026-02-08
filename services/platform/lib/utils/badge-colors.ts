@@ -27,10 +27,16 @@ type RoleBadgeVariant = NonNullable<
   VariantProps<typeof roleBadgeVariants>['role']
 >;
 
+const validRoles = new Set<RoleBadgeVariant>([
+  'admin',
+  'developer',
+  'member',
+  'viewer',
+]);
+
 export function getRoleBadgeClasses(role?: string | null): string {
   const normalizedRole = (role || '').toLowerCase() as RoleBadgeVariant;
-  const validRoles: RoleBadgeVariant[] = ['admin', 'developer', 'member', 'viewer'];
-  if (validRoles.includes(normalizedRole)) {
+  if (validRoles.has(normalizedRole)) {
     return roleBadgeVariants({ role: normalizedRole });
   }
   return roleBadgeVariants({ role: 'member' });

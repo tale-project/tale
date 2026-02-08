@@ -34,22 +34,12 @@ export async function getLastExecutionTimes(
   ctx: QueryCtx,
   args: { wfDefinitionIds: Id<'wfDefinitions'>[] },
 ): Promise<Map<Id<'wfDefinitions'>, number | null>> {
-  const result = new Map<Id<'wfDefinitions'>, number | null>();
+  const entries = await Promise.all(
+    args.wfDefinitionIds.map(async (wfDefinitionId) => {
+      const last = await getLastExecutionTime(ctx, { wfDefinitionId });
+      return [wfDefinitionId, last] as const;
+    }),
+  );
 
-  // Query each workflow's last execution individually
-  // This is more efficient than loading all executions and filtering
-  // because it uses the index efficiently and only reads the first result
-  for (const wfDefinitionId of args.wfDefinitionIds) {
-    const last = await ctx.db
-      .query('wfExecutions')
-      .withIndex('by_definition_startedAt', (q) =>
-        q.eq('wfDefinitionId', wfDefinitionId),
-      )
-      .order('desc')
-      .first();
-
-    result.set(wfDefinitionId, last ? last.startedAt : null);
-  }
-
-  return result;
+  return new Map(entries);
 }
