@@ -300,7 +300,7 @@ export function IntegrationsClient({
     password: string;
   }) => {
     if (!organizationId) {
-      throw new Error('Organization ID is required');
+      throw new Error(t('integrations.errors.organizationRequired'));
     }
 
     if (protelIntegration) {
@@ -309,6 +309,12 @@ export function IntegrationsClient({
         basicAuth: {
           username: data.username,
           password: data.password,
+        },
+        sqlConnectionConfig: {
+          engine: 'mssql',
+          server: data.server,
+          port: data.port,
+          database: data.database,
         },
         status: 'active',
         isActive: true,

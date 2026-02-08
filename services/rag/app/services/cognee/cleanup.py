@@ -11,7 +11,11 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    import asyncpg
 
 from loguru import logger
 
@@ -19,7 +23,7 @@ from ...config import settings
 
 
 @asynccontextmanager
-async def _pg_connection() -> AsyncGenerator[object, None]:
+async def _pg_connection() -> "AsyncGenerator[asyncpg.Connection, None]":
     """Connect to PostgreSQL using the configured database URL.
 
     Raises:
@@ -38,6 +42,7 @@ async def _pg_connection() -> AsyncGenerator[object, None]:
         database=parsed.path.lstrip("/") if parsed.path else "",
         user=parsed.username or "",
         password=parsed.password or "",
+        timeout=10,
     )
     try:
         yield conn

@@ -162,7 +162,12 @@ async function removeStaleTeamMemberships(
 
 	for (const membership of userMembershipsResult.page) {
 		const team = teamById.get(membership.teamId);
-		if (!team) continue;
+		if (!team) {
+			console.debug(
+				`[SSO] Missing team in teamById: teamId=${membership.teamId}, userId=${userId}, page.length=${userMembershipsResult.page.length}`,
+			);
+			continue;
+		}
 
 		if (!currentTeamNamesLower.has(team.name.toLowerCase())) {
 			await ctx.runMutation(components.betterAuth.adapter.deleteOne, {

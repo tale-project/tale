@@ -27,62 +27,6 @@ export interface QueryCustomersArgs {
 function buildQuery(ctx: QueryCtx, args: QueryCustomersArgs) {
   const { organizationId } = args;
 
-  // Pick the most selective index based on provided single-value filters
-  const singleStatus =
-    args.status && !Array.isArray(args.status) ? args.status : null;
-  const singleSource =
-    args.source && !Array.isArray(args.source) ? args.source : null;
-  const singleLocale =
-    args.locale && args.locale.length === 1 ? args.locale[0] : null;
-
-  if (args.externalId !== undefined) {
-    return {
-      query: ctx.db
-        .query('customers')
-        .withIndex('by_organizationId_and_externalId', (q) =>
-          q.eq('organizationId', organizationId).eq('externalId', args.externalId!),
-        )
-        .order('desc'),
-      indexedFields: { externalId: true } as const,
-    };
-  }
-
-  if (singleStatus) {
-    return {
-      query: ctx.db
-        .query('customers')
-        .withIndex('by_organizationId_and_status', (q) =>
-          q.eq('organizationId', organizationId).eq('status', singleStatus),
-        )
-        .order('desc'),
-      indexedFields: { status: true } as const,
-    };
-  }
-
-  if (singleSource) {
-    return {
-      query: ctx.db
-        .query('customers')
-        .withIndex('by_organizationId_and_source', (q) =>
-          q.eq('organizationId', organizationId).eq('source', singleSource),
-        )
-        .order('desc'),
-      indexedFields: { source: true } as const,
-    };
-  }
-
-  if (singleLocale) {
-    return {
-      query: ctx.db
-        .query('customers')
-        .withIndex('by_organizationId_and_locale', (q) =>
-          q.eq('organizationId', organizationId).eq('locale', singleLocale),
-        )
-        .order('desc'),
-      indexedFields: { locale: true } as const,
-    };
-  }
-
   return {
     query: ctx.db
       .query('customers')

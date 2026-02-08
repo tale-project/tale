@@ -777,18 +777,24 @@ class CogneeService:
                 _, dataset_chunks = normalize_add_result(ds_result, document_id)
                 return current_dataset, ds_result, dataset_chunks
 
-            # Process all datasets concurrently
+            # Process all datasets concurrently, collecting per-task errors
             dataset_results = await asyncio.gather(
                 *[_process_dataset(ds) for ds in target_datasets],
+                return_exceptions=True,
             )
 
             total_chunks_created = 0
             result = None
             added_datasets: list[str] = []
-            for ds_name, ds_result, ds_chunks in dataset_results:
+            for ds_result_or_err in dataset_results:
+                if isinstance(ds_result_or_err, BaseException):
+                    logger.error(f"Dataset processing failed: {ds_result_or_err}")
+                    continue
+                ds_name, ds_result, ds_chunks = ds_result_or_err
                 added_datasets.append(ds_name)
                 total_chunks_created += ds_chunks
-                result = ds_result
+                if result is None:
+                    result = ds_result
             processing_time = (time.time() - start_time) * 1000
             logger.info(
                 f"Document added to {len(added_datasets)} dataset(s) in {processing_time:.2f}ms: "

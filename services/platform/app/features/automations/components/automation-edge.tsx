@@ -89,13 +89,15 @@ export function AutomationEdge({
       lx += 30;
     }
 
-    if (data?.labelOffset) {
+    if (data?.labelOffset?.x) {
       lx += data.labelOffset.x;
+    }
+    if (data?.labelOffset?.y) {
       ly += data.labelOffset.y;
     }
 
     return { labelX: lx, labelY: ly };
-  }, [defaultLabelX, defaultLabelY, sourceX, sourceY, targetX, targetY, data?.labelPosition, data?.isBackwardConnection, data?.labelOffset]);
+  }, [defaultLabelX, defaultLabelY, sourceX, sourceY, targetX, targetY, data?.labelPosition, data?.isBackwardConnection, data?.labelOffset?.x, data?.labelOffset?.y]);
 
   return (
     <>

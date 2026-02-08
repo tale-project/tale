@@ -30,7 +30,7 @@ function buildQuery(ctx: QueryCtx, args: QueryConversationMessagesArgs) {
         .withIndex('by_conversationId_and_deliveredAt', (q) =>
           q.eq('conversationId', args.conversationId!),
         )
-        .order('asc' as const),
+        .order('asc'),
       indexedFields: { conversationId: true } as const,
     };
   }
@@ -45,7 +45,7 @@ function buildQuery(ctx: QueryCtx, args: QueryConversationMessagesArgs) {
             .eq('channel', args.channel!)
             .eq('direction', args.direction!),
         )
-        .order('asc' as const),
+        .order('asc'),
       indexedFields: { channel: true, direction: true } as const,
     };
   }
@@ -56,7 +56,7 @@ function buildQuery(ctx: QueryCtx, args: QueryConversationMessagesArgs) {
       .withIndex('by_organizationId_and_deliveredAt', (q) =>
         q.eq('organizationId', args.organizationId),
       )
-      .order('asc' as const),
+      .order('asc'),
     indexedFields: {} as const,
   };
 }

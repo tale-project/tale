@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 import { Mail, ClipboardList, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -212,13 +212,6 @@ const ConversationRow = memo(function ConversationRow({
     onSelect?.(conversation);
   };
 
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onSelect?.(conversation);
-    }
-  };
-
   const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
     if (typeof checked === 'boolean') {
       onCheck?.(conversation.id, checked);
@@ -226,15 +219,13 @@ const ConversationRow = memo(function ConversationRow({
   };
 
   return (
-    <div
+    <button
+      type="button"
       className={cn(
-        'p-4 hover:bg-secondary/20 cursor-pointer transition-colors relative',
+        'w-full text-left p-4 hover:bg-secondary/20 cursor-pointer transition-colors relative',
         isSelected && 'bg-muted',
       )}
       onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
-      role="button"
       aria-pressed={isSelected}
     >
       {isSelected && (
@@ -311,7 +302,7 @@ const ConversationRow = memo(function ConversationRow({
           </HStack>
         </div>
       </div>
-    </div>
+    </button>
   );
 });
 
@@ -325,6 +316,14 @@ export function ConversationsList({
   const { formatDateSmart } = useFormatDate();
   const { t } = useT('conversations');
   const { t: tDialogs } = useT('dialogs');
+
+  const tRef = useRef(t);
+  tRef.current = t;
+  const tDialogsRef = useRef(tDialogs);
+  tDialogsRef.current = tDialogs;
+
+  const stableT = useRef(((key: string) => tRef.current(key)) as (key: string) => string).current;
+  const stableTDialogs = useRef(((key: string) => tDialogsRef.current(key)) as (key: string) => string).current;
 
   if (conversations === undefined) {
     return <ConversationsListSkeleton />;
@@ -341,8 +340,8 @@ export function ConversationsList({
           onSelect={onConversationSelect}
           onCheck={onConversationCheck}
           formatDateSmart={formatDateSmart}
-          t={t}
-          tDialogs={tDialogs}
+          t={stableT}
+          tDialogs={stableTDialogs}
         />
       ))}
     </div>

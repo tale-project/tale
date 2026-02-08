@@ -72,7 +72,7 @@ const pendingLoads = new Map<string, Promise<void>>();
  * de-duplicated.
  */
 export function loadDayjsLocale(locale: string): Promise<void> {
-  const key = locale.toLowerCase().replace('_', '-');
+  const key = locale.toLowerCase().replace(/_/g, '-');
   if (loadedLocales.has(key)) return Promise.resolve();
 
   const existing = pendingLoads.get(key);
@@ -85,7 +85,6 @@ export function loadDayjsLocale(locale: string): Promise<void> {
   const promise = importFn()
     .then(() => {
       loadedLocales.add(key);
-      if (key !== base) loadedLocales.add(base);
     })
     .catch(() => {
       // Locale import failed — fall back to 'en' silently
@@ -99,7 +98,7 @@ export function loadDayjsLocale(locale: string): Promise<void> {
 }
 
 export function isDayjsLocaleLoaded(locale: string): boolean {
-  const key = locale.toLowerCase().replace('_', '-');
+  const key = locale.toLowerCase().replace(/_/g, '-');
   return loadedLocales.has(key);
 }
 

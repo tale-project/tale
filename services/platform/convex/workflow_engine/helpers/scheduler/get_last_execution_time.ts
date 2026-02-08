@@ -36,14 +36,8 @@ export async function getLastExecutionTimes(
 ): Promise<Map<Id<'wfDefinitions'>, number | null>> {
   const entries = await Promise.all(
     args.wfDefinitionIds.map(async (wfDefinitionId) => {
-      const last = await ctx.db
-        .query('wfExecutions')
-        .withIndex('by_definition_startedAt', (q) =>
-          q.eq('wfDefinitionId', wfDefinitionId),
-        )
-        .order('desc')
-        .first();
-      return [wfDefinitionId, last ? last.startedAt : null] as const;
+      const last = await getLastExecutionTime(ctx, { wfDefinitionId });
+      return [wfDefinitionId, last] as const;
     }),
   );
 

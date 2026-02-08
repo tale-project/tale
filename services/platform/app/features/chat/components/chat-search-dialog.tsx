@@ -30,6 +30,8 @@ export function ChatSearchDialog({
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const selectedIndexRef = useRef(selectedIndex);
+  selectedIndexRef.current = selectedIndex;
   const inputRef = useRef<HTMLInputElement>(null);
 
   const debouncedQuery = useDebounce(query, 300);
@@ -90,10 +92,10 @@ export function ChatSearchDialog({
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
-      } else if (e.key === 'Enter' && chats[selectedIndex]) {
+      } else if (e.key === 'Enter' && chats[selectedIndexRef.current]) {
         navigate({
           to: '/dashboard/$id/chat/$threadId',
-          params: { id: organizationId, threadId: chats[selectedIndex]._id },
+          params: { id: organizationId, threadId: chats[selectedIndexRef.current]._id },
         });
         onOpenChange(false);
       } else if (e.key === 'Escape') {
@@ -101,7 +103,7 @@ export function ChatSearchDialog({
         onOpenChange(false);
       }
     },
-    [chats, selectedIndex, navigate, organizationId, onOpenChange],
+    [chats, navigate, organizationId, onOpenChange],
   );
 
   return (

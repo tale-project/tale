@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { isValidLocale } from '@/lib/utils/intl/is-valid-locale';
 import { loadDayjsLocale } from '@/lib/utils/date/format';
 
@@ -12,8 +12,11 @@ function detectLocale(defaultLocale: string) {
   if (browserLocale && isValidLocale(browserLocale)) return browserLocale;
 
   if (browserLocale) {
-    const fallbackLocale = `${browserLocale.split('-')[0]}-US`;
-    if (isValidLocale(fallbackLocale)) return fallbackLocale;
+    const base = browserLocale.split('-')[0];
+    if (base === 'en') {
+      const fallbackLocale = `${base}-US`;
+      if (isValidLocale(fallbackLocale)) return fallbackLocale;
+    }
   }
 
   return defaultLocale;
@@ -23,11 +26,11 @@ function detectLocale(defaultLocale: string) {
  * Hook for managing locale state with browser detection and validation
  */
 export function useLocale(defaultLocale = 'en-US') {
-  const [locale, setLocaleState] = useState(() => {
-    const detected = detectLocale(defaultLocale);
-    loadDayjsLocale(detected);
-    return detected;
-  });
+  const [locale, setLocaleState] = useState(() => detectLocale(defaultLocale));
+
+  useEffect(() => {
+    loadDayjsLocale(locale).then(() => setLocaleState(locale));
+  }, []);
 
   const setLocale = useCallback(
     (newLocale: string) => {

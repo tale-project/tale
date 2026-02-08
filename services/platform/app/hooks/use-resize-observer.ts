@@ -30,7 +30,9 @@ export function useResizeObserver(
 ) {
   const { listenToWindow = false, deps = [] } = options;
   const callbackRef = useRef(callback);
-  callbackRef.current = callback;
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
 
   // Window resize listener
   useEffect(() => {
