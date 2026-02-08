@@ -1,8 +1,7 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import * as ApprovalsHelpers from './helpers';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import {
   approvalItemValidator,
   approvalStatusValidator,
@@ -21,17 +20,13 @@ export const listApprovalsByOrganization = query({
   },
   returns: v.array(approvalItemValidator),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
     }
 
     try {
-      await getOrganizationMember(ctx, args.organizationId, {
-        userId: authUser._id,
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, args.organizationId, authUser);
     } catch {
       return [];
     }
@@ -47,7 +42,7 @@ export const getPendingIntegrationApprovalsForThread = query({
   },
   returns: v.array(approvalItemValidator),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
     }
@@ -78,7 +73,7 @@ export const getWorkflowCreationApprovalsForThread = query({
   },
   returns: v.array(approvalItemValidator),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
     }
@@ -109,7 +104,7 @@ export const getHumanInputRequestsForThread = query({
   },
   returns: v.array(approvalItemValidator),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
     }

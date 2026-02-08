@@ -1,8 +1,7 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
 import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
 
@@ -12,18 +11,13 @@ export const hasWebsites = query({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return false;
     }
 
-    // Verify user has access to this organization
     try {
-      await getOrganizationMember(ctx, args.organizationId, {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, args.organizationId, authUser);
     } catch {
       return false;
     }
@@ -43,18 +37,13 @@ export const listWebsites = query({
   handler: async (ctx, args) => {
     const emptyResult = { page: [] as Doc<'websites'>[], isDone: true as const, continueCursor: '' };
 
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return emptyResult;
     }
 
-    // Verify user has access to this organization
     try {
-      await getOrganizationMember(ctx, args.organizationId, {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, args.organizationId, authUser);
     } catch {
       return emptyResult;
     }

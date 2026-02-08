@@ -1,7 +1,6 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { getIntegration } from './get_integration';
 import { getIntegrationByName } from './get_integration_by_name';
 import { listIntegrations } from './list_integrations';
@@ -13,7 +12,7 @@ export const get = query({
   },
   returns: v.union(integrationDocValidator, v.null()),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return null;
     }
@@ -24,11 +23,7 @@ export const get = query({
     }
 
     try {
-      await getOrganizationMember(ctx, integration.organizationId, {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, integration.organizationId, authUser);
     } catch {
       return null;
     }
@@ -44,17 +39,13 @@ export const getByName = query({
   },
   returns: v.union(integrationDocValidator, v.null()),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return null;
     }
 
     try {
-      await getOrganizationMember(ctx, args.organizationId, {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, args.organizationId, authUser);
     } catch {
       return null;
     }
@@ -70,17 +61,13 @@ export const list = query({
   },
   returns: v.array(integrationDocValidator),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
     }
 
     try {
-      await getOrganizationMember(ctx, args.organizationId, {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, args.organizationId, authUser);
     } catch {
       return [];
     }

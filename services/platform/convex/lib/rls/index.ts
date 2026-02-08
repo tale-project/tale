@@ -7,6 +7,7 @@ export * from './errors';
 export * from './validators';
 export * from './auth/require_authenticated_user';
 export * from './auth/get_authenticated_user';
+export * from './auth/get_auth_user_identity';
 export * from './organization/get_organization_member';
 export * from './organization/get_user_organizations';
 export * from './organization/validate_organization_access';
