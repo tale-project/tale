@@ -30,14 +30,9 @@ const workflowRagSyncWorkflow = {
     {
       stepSlug: 'start',
       name: 'Start Workflow RAG Sync',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual',
-        // For scheduled sync, uncomment below:
-        // schedule: '0 0 * * *', // Daily at midnight
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'upload_workflows' },
     },
 

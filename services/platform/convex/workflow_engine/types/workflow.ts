@@ -51,7 +51,7 @@ export interface WorkflowStep {
   wfDefinitionId: string;
   stepSlug: string;
   name: string;
-  stepType: 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+  stepType: 'start' | 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
   order: number;
   config: unknown;
   nextSteps: Record<string, string>;
@@ -137,6 +137,7 @@ export const workflowStepValidator = v.object({
   stepSlug: v.string(),
   name: v.string(),
   stepType: v.union(
+    v.literal('start'),
     v.literal('trigger'),
     v.literal('agent'),
     v.literal('llm'),

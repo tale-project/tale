@@ -88,7 +88,7 @@ export async function handleDynamicWorkflow(
 
   let currentStepSlug =
     args.resumeFromStepSlug ??
-    (stepDefinitions.find((s) => s.stepType === 'trigger')?.stepSlug ||
+    (stepDefinitions.find((s) => s.stepType === 'start' || s.stepType === 'trigger')?.stepSlug ||
       stepDefinitions[0]?.stepSlug);
 
   while (currentStepSlug) {

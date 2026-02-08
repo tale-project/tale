@@ -39,6 +39,7 @@ interface WorkflowCreationApprovalCardProps {
 // Pure helper function - moved outside component to avoid recreation on each render
 const getStepTypeBadgeVariant = (stepType: string): 'blue' | 'green' | 'orange' | 'yellow' | 'outline' => {
   switch (stepType) {
+    case 'start':
     case 'trigger':
       return 'blue';
     case 'llm':

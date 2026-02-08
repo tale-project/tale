@@ -5,6 +5,7 @@
 import type { MutationCtx } from '../_generated/server';
 import type { CreateConversationArgs } from './types';
 import * as AuditLogHelpers from '../audit_logs/helpers';
+import { emitEvent } from '../workflows/triggers/emit_event';
 
 export async function createConversation(
   ctx: MutationCtx,
@@ -43,6 +44,17 @@ export async function createConversation(
       priority: args.priority ?? 'medium',
     },
   );
+
+  await emitEvent(ctx, {
+    organizationId: args.organizationId,
+    eventType: 'conversation.created',
+    eventData: {
+      conversationId: conversationId as string,
+      channel: args.channel,
+      direction: args.direction,
+      customerId: args.customerId as string | undefined,
+    },
+  });
 
   return {
     success: true,

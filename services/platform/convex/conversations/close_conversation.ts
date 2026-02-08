@@ -2,6 +2,7 @@ import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
+import { emitEvent } from '../workflows/triggers/emit_event';
 
 export async function closeConversation(
   ctx: MutationCtx,
@@ -38,4 +39,14 @@ export async function closeConversation(
     { status: previousStatus },
     { status: 'closed', resolvedBy: args.resolvedBy },
   );
+
+  await emitEvent(ctx, {
+    organizationId: conversation.organizationId,
+    eventType: 'conversation.closed',
+    eventData: {
+      conversationId: args.conversationId as string,
+      previousStatus,
+      resolvedBy: args.resolvedBy,
+    },
+  });
 }

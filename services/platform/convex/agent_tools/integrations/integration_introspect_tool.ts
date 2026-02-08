@@ -17,7 +17,7 @@ import type {
   OperationDetailResult,
 } from './types';
 import { getPredefinedIntegration } from '../../predefined_integrations';
-import { getIntrospectionOperations } from '../../workflow_engine/actions/integration/helpers/get_introspection_operations';
+import { getIntrospectionOperations } from '../../workflow_engine/action_defs/integration/helpers/get_introspection_operations';
 import { isSqlIntegration } from '../../integrations/helpers';
 
 const integrationIntrospectArgs = z.object({

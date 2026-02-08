@@ -24,19 +24,19 @@ export async function createStep(
     );
   }
 
-  // Enforce single trigger step per workflow at the model layer
-  if (args.stepType === 'trigger') {
-    const existingTrigger = await ctx.db
+  // Enforce single start step per workflow at the model layer
+  if (args.stepType === 'start') {
+    const existingStart = await ctx.db
       .query('wfStepDefs')
       .withIndex('by_definition', (q) =>
         q.eq('wfDefinitionId', args.wfDefinitionId),
       )
-      .filter((q) => q.eq(q.field('stepType'), 'trigger'))
+      .filter((q) => q.eq(q.field('stepType'), 'start'))
       .first();
 
-    if (existingTrigger !== null) {
+    if (existingStart !== null) {
       throw new Error(
-        'Workflow already has a trigger step. Only one trigger per workflow is allowed.',
+        'Workflow already has a start step. Only one start step per workflow is allowed.',
       );
     }
   }

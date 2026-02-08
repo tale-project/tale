@@ -5,13 +5,13 @@
 import type { StepType } from '../constants';
 import type { ValidationResult } from '../types';
 
-export * from './trigger';
+export * from './start';
 export * from './llm';
 export * from './condition';
 export * from './action';
 export * from './loop';
 
-import { validateTriggerStep } from './trigger';
+import { validateStartStep } from './start';
 import { validateLlmStep } from './llm';
 import { validateConditionStep } from './condition';
 import { validateActionStep } from './action';
@@ -24,7 +24,7 @@ const stepValidators: Record<
   StepType,
   (config: Record<string, unknown>) => ValidationResult
 > = {
-  trigger: validateTriggerStep,
+  start: validateStartStep,
   llm: validateLlmStep,
   condition: validateConditionStep,
   action: validateActionStep,

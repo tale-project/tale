@@ -49,6 +49,7 @@ export const ACTION_ICON_MAP: Record<string, LucideIcon> = {
 };
 
 export const STEP_TYPE_ICON_MAP: Record<string, LucideIcon> = {
+  start: Zap,
   trigger: Zap,
   llm: Cpu,
   condition: HelpCircle,

@@ -65,6 +65,7 @@ export const createWorkflowCreationApproval = internalMutation({
 				stepSlug: v.string(),
 				name: v.string(),
 				stepType: v.union(
+					v.literal('start'),
 					v.literal('trigger'),
 					v.literal('llm'),
 					v.literal('action'),

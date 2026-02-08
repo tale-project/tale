@@ -37,14 +37,9 @@ const shopifySyncProductsWorkflow = {
     {
       stepSlug: 'trigger_start',
       name: 'Start Products Sync',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual', // Can be changed to 'schedule' for automated sync
-        // For scheduled sync, uncomment below:
-        // schedule: '0 */6 * * *', // Every 6 hours
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'fetch_products' },
     },
 

@@ -7,6 +7,7 @@ import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-valu
 import { stepConfigValidator } from '../../workflow_engine/types/nodes';
 
 export const stepTypeValidator = v.union(
+  v.literal('start'),
   v.literal('trigger'),
   v.literal('llm'),
   v.literal('condition'),

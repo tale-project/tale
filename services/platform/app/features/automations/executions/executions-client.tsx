@@ -25,7 +25,7 @@ interface ExecutionsClientProps {
   organizationId: string;
   searchTerm?: string;
   status?: string[];
-  triggeredBy?: string[];
+  triggeredBy?: string;
   dateFrom?: string;
   dateTo?: string;
 }
@@ -133,8 +133,7 @@ export function ExecutionsClient({
       wfDefinitionId: amId,
       searchTerm: searchTerm || undefined,
       status: status && status.length > 0 ? status : undefined,
-      triggeredBy:
-        triggeredBy && triggeredBy.length > 0 ? triggeredBy : undefined,
+      triggeredBy: triggeredBy || undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       cursor: undefined,
@@ -288,7 +287,7 @@ export function ExecutionsClient({
       search: {
         query: value || undefined,
         status: status?.[0],
-        triggeredBy: triggeredBy?.[0],
+        triggeredBy: triggeredBy,
         dateFrom,
         dateTo,
       },
@@ -303,13 +302,30 @@ export function ExecutionsClient({
         search: {
           query: searchTerm,
           status: values[0] || undefined,
-          triggeredBy: triggeredBy?.[0],
+          triggeredBy: triggeredBy,
           dateFrom,
           dateTo,
         },
       });
     },
     [navigate, organizationId, amId, searchTerm, triggeredBy, dateFrom, dateTo],
+  );
+
+  const handleTriggeredByChange = useCallback(
+    (values: string[]) => {
+      navigate({
+        to: '/dashboard/$id/automations/$amId/executions',
+        params: { id: organizationId, amId },
+        search: {
+          query: searchTerm,
+          status: status?.[0],
+          triggeredBy: values[0] || undefined,
+          dateFrom,
+          dateTo,
+        },
+      });
+    },
+    [navigate, organizationId, amId, searchTerm, status, dateFrom, dateTo],
   );
 
   const handleDateRangeChange = (
@@ -321,7 +337,7 @@ export function ExecutionsClient({
       search: {
         query: searchTerm,
         status: status?.[0],
-        triggeredBy: triggeredBy?.[0],
+        triggeredBy: triggeredBy,
         dateFrom: range?.from
           ? formatISO(range.from, { representation: 'date' })
           : undefined,
@@ -354,8 +370,23 @@ export function ExecutionsClient({
         selectedValues: status ?? [],
         onChange: handleStatusChange,
       },
+      {
+        key: 'triggeredBy',
+        title: tTables('headers.triggeredBy'),
+        multiSelect: false,
+        options: [
+          { value: 'schedule', label: tCommon('triggerSource.schedule') },
+          { value: 'manual', label: tCommon('triggerSource.manual') },
+          { value: 'event', label: tCommon('triggerSource.event') },
+          { value: 'webhook', label: tCommon('triggerSource.webhook') },
+          { value: 'api', label: tCommon('triggerSource.api') },
+          { value: 'system', label: tCommon('triggerSource.system') },
+        ],
+        selectedValues: triggeredBy ? [triggeredBy] : [],
+        onChange: handleTriggeredByChange,
+      },
     ],
-    [status, tTables, tCommon, handleStatusChange],
+    [status, triggeredBy, tTables, tCommon, handleStatusChange, handleTriggeredByChange],
   );
 
   const list = useListPage({
@@ -395,6 +426,7 @@ export function ExecutionsClient({
         from: dateFrom ? parseISO(dateFrom) : undefined,
         to: dateTo ? parseISO(dateTo) : undefined,
         onChange: handleDateRangeChange,
+        presets: ['today', 'last7Days', 'last30Days', 'allTime'],
       }}
       emptyState={{
         title: tCommon('search.noResults'),

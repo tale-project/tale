@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
+import { usePaginatedQuery } from 'convex/react';
 import { Workflow } from 'lucide-react';
 import { type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
@@ -11,19 +11,14 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { AutomationsActionMenu } from './automations-action-menu';
 import { useAutomationsTableConfig } from './use-automations-table-config';
 import { useT } from '@/lib/i18n/client';
-import { AutomationsTableSkeleton } from './automations-table-skeleton';
 import { useListPage } from '@/app/hooks/use-list-page';
 
 interface AutomationsClientProps {
   organizationId: string;
-  searchTerm?: string;
-  status?: string[];
 }
 
 export function AutomationsClient({
   organizationId,
-  searchTerm,
-  status,
 }: AutomationsClientProps) {
   const navigate = useNavigate();
   const { t: tTables } = useT('tables');
@@ -33,18 +28,10 @@ export function AutomationsClient({
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useAutomationsTableConfig();
 
-  const queryArgs = useMemo(
-    () => ({
-      organizationId,
-      searchTerm: searchTerm || undefined,
-      status: status && status.length > 0 ? status : undefined,
-    }),
-    [organizationId, searchTerm, status],
-  );
-
-  const automationsResult = useQuery(
+  const paginatedResult = usePaginatedQuery(
     api.wf_definitions.queries.listAutomations,
-    queryArgs,
+    { organizationId },
+    { initialNumItems: pageSize },
   );
 
   const handleRowClick = useCallback(
@@ -57,72 +44,37 @@ export function AutomationsClient({
     [navigate, organizationId],
   );
 
-  const handleSearchChange = useCallback(
-    (value: string) => {
-      navigate({
-        to: '/dashboard/$id/automations',
-        params: { id: organizationId },
-        search: { query: value || undefined, status: status?.[0] },
-      });
-    },
-    [navigate, organizationId, status],
-  );
-
-  const handleStatusChange = useCallback(
-    (values: string[]) => {
-      navigate({
-        to: '/dashboard/$id/automations',
-        params: { id: organizationId },
-        search: { query: searchTerm, status: values[0] || undefined },
-      });
-    },
-    [navigate, organizationId, searchTerm],
-  );
-
-  const handleClearFilters = useCallback(() => {
-    navigate({
-      to: '/dashboard/$id/automations',
-      params: { id: organizationId },
-      search: {},
-    });
-  }, [navigate, organizationId]);
-
-  const filterConfigs = useMemo(
-    () => [
-      {
-        key: 'status',
-        title: tTables('headers.status'),
-        options: [
-          { value: 'active', label: tCommon('status.published') },
-          { value: 'draft', label: tCommon('status.draft') },
-        ],
-        selectedValues: status ?? [],
-        onChange: handleStatusChange,
-      },
-    ],
-    [status, tTables, tCommon, handleStatusChange],
-  );
-
   const list = useListPage({
-    dataSource: {
-      type: 'query',
-      data: automationsResult ?? undefined,
-    },
+    dataSource: { type: 'paginated', ...paginatedResult },
     pageSize,
     search: {
-      value: searchTerm ?? '',
-      onChange: handleSearchChange,
+      fields: ['name', 'description'],
       placeholder: searchPlaceholder,
     },
     filters: {
-      configs: filterConfigs,
-      onClear: handleClearFilters,
+      definitions: [
+        {
+          key: 'status',
+          title: tTables('headers.status'),
+          options: [
+            { value: 'active', label: tCommon('status.published') },
+            { value: 'draft', label: tCommon('status.draft') },
+            { value: 'archived', label: tCommon('status.archived') },
+          ],
+        },
+      ],
     },
   });
 
-  if (automationsResult === undefined) {
-    return <AutomationsTableSkeleton organizationId={organizationId} />;
-  }
+  // Auto-load remaining pages when filtering reduces visible results
+  useEffect(() => {
+    if (
+      list.filteredCount < list.totalCount &&
+      paginatedResult.status === 'CanLoadMore'
+    ) {
+      paginatedResult.loadMore(pageSize);
+    }
+  }, [list.filteredCount, list.totalCount, paginatedResult, pageSize]);
 
   return (
     <DataTable

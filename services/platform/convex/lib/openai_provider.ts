@@ -29,10 +29,19 @@ function getOpenAIProvider() {
   return _openaiInstance;
 }
 
-export const openai = new Proxy({} as ReturnType<typeof createOpenAI>, {
-  get(target, prop) {
-    const provider = getOpenAIProvider();
-    return provider[prop as keyof typeof provider];
+type OpenAIProvider = ReturnType<typeof createOpenAI>;
+
+export const openai: OpenAIProvider = new Proxy(
+  Object.assign(function () {}, {}) as unknown as OpenAIProvider,
+  {
+    apply(_target, _thisArg, args) {
+      const provider = getOpenAIProvider();
+      return (provider as Function).apply(null, args);
+    },
+    get(_target, prop) {
+      const provider = getOpenAIProvider();
+      return provider[prop as keyof typeof provider];
+    },
   },
-});
+);
 

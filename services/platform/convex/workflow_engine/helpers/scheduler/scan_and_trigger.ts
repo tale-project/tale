@@ -1,5 +1,6 @@
 /**
- * Helper function to scan for workflows that need to be triggered based on their schedule
+ * Helper function to scan for workflows that need to be triggered based on their schedule.
+ * Reads from the wfSchedules table via getScheduledWorkflows.
  */
 
 import { ActionCtx } from '../../../_generated/server';
@@ -16,14 +17,14 @@ interface ScheduledWorkflow {
   organizationId: string;
   name: string;
   schedule: string;
-  timezone?: string;
+  timezone: string;
+  scheduleId: Id<'wfSchedules'>;
 }
 
 export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
   try {
     debugLog('Starting scheduled workflow scan...');
 
-    // Get all active workflows with schedule triggers (from first trigger step)
     const scheduled = await ctx.runQuery(
       internal.workflow_engine.internal_queries.getScheduledWorkflows,
       {},
@@ -31,8 +32,6 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
 
     debugLog(`Found ${scheduled.length} scheduled workflows`);
 
-    // OPTIMIZATION: Batch load last execution times for all scheduled workflows
-    // to avoid N+1 query problem
     const wfDefinitionIds = scheduled.map((wf: ScheduledWorkflow) => wf.wfDefinitionId);
     const lastExecutionTimesObj = await ctx.runQuery(
       internal.workflow_engine.internal_queries.getLastExecutionTimes,
@@ -47,14 +46,14 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
       name,
       schedule,
       timezone,
+      scheduleId,
     } of scheduled) {
       try {
-        // Get last execution time from batch-loaded object (serialized Map)
         const lastExecutionMs = lastExecutionTimesObj[wfDefinitionId];
 
         const shouldTrigger = await shouldTriggerWorkflow(
           schedule,
-          timezone || 'UTC',
+          timezone,
           typeof lastExecutionMs === 'number' ? lastExecutionMs : null,
         );
 
@@ -63,7 +62,6 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
             `Triggering scheduled workflow: ${name} (${wfDefinitionId})`,
           );
 
-          // Start workflow execution using the engine executor directly
           await ctx.runMutation(internal.workflow_engine.internal_mutations.startWorkflow, {
             organizationId,
             wfDefinitionId,
@@ -76,11 +74,15 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
             },
           });
 
+          await ctx.runMutation(
+            internal.workflows.triggers.internal_mutations.updateScheduleLastTriggered,
+            { scheduleId, lastTriggeredAt: Date.now() },
+          );
+
           triggeredCount++;
         }
       } catch (error) {
         console.error(`Failed to trigger workflow ${wfDefinitionId}:`, error);
-        // Continue with other workflows even if one fails
       }
     }
 

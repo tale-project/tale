@@ -50,15 +50,9 @@ const emailSyncSentImapWorkflow = {
     {
       stepSlug: 'start',
       name: 'start',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual',
-        // For scheduled sync, change to:
-        // type: 'scheduled',
-        // schedule: '*/15 * * * *', // Every 15 minutes
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'get_default_email_provider' },
     },
 

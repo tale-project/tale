@@ -7,6 +7,7 @@ import type { Id } from '../../_generated/dataModel';
 import { validateWorkflowSteps } from '../../workflow_engine/helpers/validation/validate_workflow_steps';
 import type { WorkflowConfig, WorkflowType } from './types';
 import type { StepConfig } from '../../workflow_engine/types/nodes';
+import type { Doc } from '../../_generated/dataModel';
 
 export interface SaveWorkflowWithStepsArgs {
   organizationId: string;
@@ -20,7 +21,7 @@ export interface SaveWorkflowWithStepsArgs {
   stepsConfig: Array<{
     stepSlug: string;
     name: string;
-    stepType: 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+    stepType: Doc<'wfStepDefs'>['stepType'];
     order: number;
     config: StepConfig;
     nextSteps: Record<string, string>;

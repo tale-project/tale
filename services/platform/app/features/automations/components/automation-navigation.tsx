@@ -5,6 +5,7 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { usePublishAutomationDraft } from '../hooks/use-publish-automation-draft';
 import { useCreateDraftFromActive } from '../hooks/use-create-draft-from-active';
+import { useUnpublishAutomation } from '../hooks/use-unpublish-automation';
 import { useAutomationVersionNavigation } from '../hooks/use-automation-version-navigation';
 import { Button } from '@/app/components/ui/primitives/button';
 import {
@@ -23,10 +24,10 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import {
   ChevronDown,
+  CircleStop,
   MoreVertical,
   Upload,
   Pencil,
-  RotateCcw,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -55,9 +56,11 @@ export function AutomationNavigation({
   const { user } = useAuth();
   const [isPublishing, setIsPublishing] = useState(false);
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
   const publishAutomation = usePublishAutomationDraft();
   const createDraftFromActive = useCreateDraftFromActive();
+  const unpublishAutomation = useUnpublishAutomation();
 
   // Fetch all versions of this automation
   const versions = useQuery(
@@ -85,6 +88,10 @@ export function AutomationNavigation({
           label: t('configuration.title'),
           href: `/dashboard/${organizationId}/automations/${automationId}/configuration`,
         },
+        {
+          label: t('triggers.title'),
+          href: `/dashboard/${organizationId}/automations/${automationId}/triggers`,
+        },
       ]
     : [];
 
@@ -109,10 +116,7 @@ export function AutomationNavigation({
       });
 
       toast({
-        title:
-          automation?.status === 'archived'
-            ? t('navigation.toast.rolledBack')
-            : t('navigation.toast.published'),
+        title: t('navigation.toast.published'),
         variant: 'success',
       });
     } catch (error) {
@@ -177,6 +181,40 @@ export function AutomationNavigation({
     }
   };
 
+  const handleUnpublish = async () => {
+    if (!automationId || !user?.userId) {
+      toast({
+        title: t('navigation.toast.unableToDeactivate'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUnpublishing(true);
+    try {
+      await unpublishAutomation({
+        wfDefinitionId: automationId as Id<'wfDefinitions'>,
+        updatedBy: user.userId,
+      });
+
+      toast({
+        title: t('navigation.toast.deactivated'),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('Failed to unpublish automation:', error);
+      toast({
+        title:
+          error instanceof Error
+            ? error.message
+            : t('navigation.toast.deactivateFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUnpublishing(false);
+    }
+  };
+
   return (
     <TabNavigation
       items={navigationItems}
@@ -220,7 +258,8 @@ export function AutomationNavigation({
 
         {/* Desktop: Show buttons directly */}
         <div className="hidden md:flex items-center gap-4">
-          {automation?.status === 'draft' && (
+          {(automation?.status === 'draft' ||
+            automation?.status === 'archived') && (
             <Button onClick={handlePublish} disabled={isPublishing} size="sm">
               {isPublishing
                 ? t('navigation.publishing')
@@ -229,27 +268,27 @@ export function AutomationNavigation({
           )}
 
           {automation?.status === 'active' && (
-            <Button
-              onClick={handleCreateDraft}
-              disabled={isCreatingDraft}
-              size="sm"
-              variant="outline"
-            >
-              {tCommon('actions.edit')}
-            </Button>
-          )}
-
-          {automation?.status === 'archived' && (
-            <Button
-              onClick={handlePublish}
-              disabled={isPublishing}
-              size="sm"
-              variant="secondary"
-            >
-              {isPublishing
-                ? t('navigation.rollingBack')
-                : t('navigation.rollback')}
-            </Button>
+            <>
+              <Button
+                onClick={handleUnpublish}
+                disabled={isUnpublishing}
+                size="sm"
+                variant="outline"
+              >
+                <CircleStop className="mr-1.5 size-3.5" aria-hidden="true" />
+                {isUnpublishing
+                  ? tCommon('actions.deactivating')
+                  : tCommon('actions.deactivate')}
+              </Button>
+              <Button
+                onClick={handleCreateDraft}
+                disabled={isCreatingDraft}
+                size="sm"
+                variant="outline"
+              >
+                {tCommon('actions.edit')}
+              </Button>
+            </>
           )}
         </div>
 
@@ -269,7 +308,8 @@ export function AutomationNavigation({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
-              {automation?.status === 'draft' && (
+              {(automation?.status === 'draft' ||
+                automation?.status === 'archived') && (
                 <DropdownMenuItem
                   onClick={handlePublish}
                   disabled={isPublishing}
@@ -281,24 +321,24 @@ export function AutomationNavigation({
                 </DropdownMenuItem>
               )}
               {automation?.status === 'active' && (
-                <DropdownMenuItem
-                  onClick={handleCreateDraft}
-                  disabled={isCreatingDraft}
-                >
-                  <Pencil className="mr-2 size-4" />
-                  {tCommon('actions.edit')}
-                </DropdownMenuItem>
-              )}
-              {automation?.status === 'archived' && (
-                <DropdownMenuItem
-                  onClick={handlePublish}
-                  disabled={isPublishing}
-                >
-                  <RotateCcw className="mr-2 size-4" />
-                  {isPublishing
-                    ? t('navigation.rollingBack')
-                    : t('navigation.rollback')}
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem
+                    onClick={handleUnpublish}
+                    disabled={isUnpublishing}
+                  >
+                    <CircleStop className="mr-2 size-4" />
+                    {isUnpublishing
+                      ? tCommon('actions.deactivating')
+                      : tCommon('actions.deactivate')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={handleCreateDraft}
+                    disabled={isCreatingDraft}
+                  >
+                    <Pencil className="mr-2 size-4" />
+                    {tCommon('actions.edit')}
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>

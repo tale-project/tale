@@ -11,10 +11,15 @@ import {
   PopoverTrigger,
 } from '@/app/components/ui/overlays/popover';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from '@/app/components/ui/forms/radio-group';
 import { FilterButton } from '@/app/components/ui/filters/filter-button';
 import { FilterSection } from '@/app/components/ui/filters/filter-section';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import type { DateRange } from 'react-day-picker';
+import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n/client';
 import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
@@ -47,6 +52,8 @@ export interface FilterConfig {
   onChange: (values: string[]) => void;
   /** Whether to show options in a grid layout */
   grid?: boolean;
+  /** Whether multiple options can be selected (default: true) */
+  multiSelect?: boolean;
 }
 
 export interface DataTableFiltersProps {
@@ -71,6 +78,8 @@ export interface DataTableFiltersProps {
     to?: Date;
     /** Callback when date range changes */
     onChange: (range: DateRange | undefined) => void;
+    /** Which presets to show in the dropdown */
+    presets?: DatePreset[];
   };
   /** Whether filters are loading */
   isLoading?: boolean;
@@ -194,54 +203,77 @@ export function DataTableFilters({
                   )}
                 </div>
 
-                {filters.map((filter) => (
-                  <FilterSection
-                    key={filter.key}
-                    title={filter.title}
-                    isExpanded={expandedSections[filter.key] ?? false}
-                    onToggle={() =>
-                      setExpandedSections((prev) => ({
-                        ...prev,
-                        [filter.key]: !prev[filter.key],
-                      }))
-                    }
-                    active={filter.selectedValues.length > 0}
-                  >
-                    <div
-                      className={
-                        filter.grid ? 'grid grid-cols-2 gap-2' : 'space-y-2'
+                {filters.map((filter) => {
+                  const isMultiSelect = filter.multiSelect !== false;
+                  return (
+                    <FilterSection
+                      key={filter.key}
+                      title={filter.title}
+                      isExpanded={expandedSections[filter.key] ?? false}
+                      onToggle={() =>
+                        setExpandedSections((prev) => ({
+                          ...prev,
+                          [filter.key]: !prev[filter.key],
+                        }))
                       }
+                      active={filter.selectedValues.length > 0}
                     >
-                      {filter.options.map((option) => {
-                        const checkboxId = `filter-${filter.key}-${option.value}`;
-                        return (
-                          <label
-                            key={option.value}
-                            htmlFor={checkboxId}
-                            className="flex items-center gap-2 cursor-pointer"
-                          >
-                            <Checkbox
-                              id={checkboxId}
-                              checked={filter.selectedValues.includes(
-                                option.value,
-                              )}
-                              onCheckedChange={(checked) =>
-                                handleFilterChange(
-                                  filter,
-                                  option.value,
-                                  !!checked,
-                                )
-                              }
+                      {isMultiSelect ? (
+                        <div
+                          className={
+                            filter.grid
+                              ? 'grid grid-cols-2 gap-2'
+                              : 'space-y-2'
+                          }
+                        >
+                          {filter.options.map((option) => {
+                            const checkboxId = `filter-${filter.key}-${option.value}`;
+                            return (
+                              <label
+                                key={option.value}
+                                htmlFor={checkboxId}
+                                className="flex items-center gap-2 cursor-pointer"
+                              >
+                                <Checkbox
+                                  id={checkboxId}
+                                  checked={filter.selectedValues.includes(
+                                    option.value,
+                                  )}
+                                  onCheckedChange={(checked) =>
+                                    handleFilterChange(
+                                      filter,
+                                      option.value,
+                                      !!checked,
+                                    )
+                                  }
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  {option.label}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <RadioGroup
+                          value={filter.selectedValues[0] ?? ''}
+                          onValueChange={(value) =>
+                            filter.onChange(value ? [value] : [])
+                          }
+                          className="space-y-2"
+                        >
+                          {filter.options.map((option) => (
+                            <RadioGroupItem
+                              key={option.value}
+                              value={option.value}
+                              label={option.label}
                             />
-                            <span className="text-sm text-muted-foreground">
-                              {option.label}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </FilterSection>
-                ))}
+                          ))}
+                        </RadioGroup>
+                      )}
+                    </FilterSection>
+                  );
+                })}
               </PopoverContent>
             </Popover>
           )}
@@ -259,6 +291,7 @@ export function DataTableFilters({
             <DatePickerWithRange
               defaultDate={{ from: dateRange.from, to: dateRange.to }}
               onChange={dateRange.onChange}
+              presets={dateRange.presets}
             />
           </SuspenseBoundary>
         )}

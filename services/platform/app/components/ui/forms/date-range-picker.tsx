@@ -32,8 +32,9 @@ import {
 import { useT } from '@/lib/i18n/client';
 import styles from './date-range-picker.module.css';
 
-type DatePreset =
+export type DatePreset =
   | 'today'
+  | 'last7Days'
   | 'last14Days'
   | 'last30Days'
   | 'last3Months'
@@ -49,6 +50,8 @@ const getPresetDateRange = (preset: DatePreset): DateRange => {
   switch (preset) {
     case 'today':
       return { from: today, to: today };
+    case 'last7Days':
+      return { from: subDays(today, 6), to: today };
     case 'last14Days':
       return { from: subDays(today, 13), to: today };
     case 'last30Days':
@@ -68,8 +71,9 @@ const getPresetDateRange = (preset: DatePreset): DateRange => {
   }
 };
 
-const ALL_PRESETS: DatePreset[] = [
+const DEFAULT_PRESETS: DatePreset[] = [
   'today',
+  'last7Days',
   'last14Days',
   'last30Days',
   'last3Months',
@@ -83,13 +87,14 @@ const ALL_PRESETS: DatePreset[] = [
 const detectPresetFromRange = (
   start: Date | null,
   end: Date | null,
+  activePresets: DatePreset[] = DEFAULT_PRESETS,
 ): DatePreset | null => {
   if (!start || !end) return null;
 
   const startNormalized = startOfDay(start);
   const endNormalized = startOfDay(end);
 
-  for (const preset of ALL_PRESETS) {
+  for (const preset of activePresets) {
     const range = getPresetDateRange(preset);
     if (
       range.from &&
@@ -111,6 +116,7 @@ export interface DatePickerWithRangeProps extends Omit<
   onChange: (date: DateRange | undefined) => void;
   defaultDate?: DateRange;
   isLoading?: boolean;
+  presets?: DatePreset[];
 }
 
 interface DateInputHeaderProps {
@@ -243,6 +249,7 @@ export function DatePickerWithRange({
   onChange,
   defaultDate,
   isLoading = false,
+  presets = DEFAULT_PRESETS,
 }: DatePickerWithRangeProps) {
   const { t } = useT('common');
 
@@ -253,19 +260,12 @@ export function DatePickerWithRange({
     defaultDate?.to ? startOfDay(defaultDate.to) : null,
   );
 
-  const presetOptions: { key: DatePreset; label: string }[] = [
-    { key: 'today', label: t('datePicker.presets.today') },
-    { key: 'last14Days', label: t('datePicker.presets.last14Days') },
-    { key: 'last30Days', label: t('datePicker.presets.last30Days') },
-    { key: 'last3Months', label: t('datePicker.presets.last3Months') },
-    { key: 'last12Months', label: t('datePicker.presets.last12Months') },
-    { key: 'monthToDate', label: t('datePicker.presets.monthToDate') },
-    { key: 'quarterToDate', label: t('datePicker.presets.quarterToDate') },
-    { key: 'yearToDate', label: t('datePicker.presets.yearToDate') },
-    { key: 'allTime', label: t('datePicker.presets.allTime') },
-  ];
+  const presetOptions = presets.map((key) => ({
+    key,
+    label: t(`datePicker.presets.${key}`),
+  }));
 
-  const detectedPreset = detectPresetFromRange(startDate, endDate);
+  const detectedPreset = detectPresetFromRange(startDate, endDate, presets);
 
   const presetLabel = detectedPreset
     ? (presetOptions.find((o) => o.key === detectedPreset)?.label ??

@@ -2,6 +2,7 @@ import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
+import { emitEvent } from '../workflows/triggers/emit_event';
 
 type DeliveryState = 'queued' | 'sent' | 'delivered' | 'failed';
 
@@ -123,6 +124,18 @@ export async function addMessageToConversation(
       sender: args.sender,
     },
   );
+
+  await emitEvent(ctx, {
+    organizationId: args.organizationId,
+    eventType: 'conversation.message_received',
+    eventData: {
+      conversationId: args.conversationId as string,
+      messageId: messageId as string,
+      direction,
+      isCustomer: args.isCustomer,
+      sender: args.sender,
+    },
+  });
 
   return args.conversationId;
 }

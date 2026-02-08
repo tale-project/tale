@@ -4,6 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { DataSource } from '../../lib/shared/schemas/common';
+import { emitEvent } from '../workflows/triggers/emit_event';
 
 export interface CreateCustomerArgs {
   organizationId: string;
@@ -38,6 +39,12 @@ export async function createCustomer(
     externalId: args.externalId,
      
     metadata: args.metadata as any,
+  });
+
+  await emitEvent(ctx, {
+    organizationId: args.organizationId,
+    eventType: 'customer.created',
+    eventData: { customerId: customerId as string, name: args.name, email: args.email },
   });
 
   return {

@@ -25,36 +25,8 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/http_api/, ''),
       },
-      // Proxy Convex Dashboard API calls to the Convex backend
-      '/convex-dashboard-api': {
-        target: 'http://127.0.0.1:3210',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/convex-dashboard-api/, '/api'),
-      },
-      // Handle WebSocket and API calls through dashboard proxy path
-      '/api/convex-dashboard-proxy/api': {
-        target: 'http://127.0.0.1:3210',
-        changeOrigin: true,
-        rewrite: (path) =>
-          path.replace(/^\/api\/convex-dashboard-proxy\/api/, '/api'),
-      },
-      // Proxy better-auth requests to Convex HTTP endpoint
-      '/api/auth': {
-        target: 'http://127.0.0.1:3211',
-        changeOrigin: true,
-      },
-      // Proxy SSO requests to Convex HTTP endpoint
-      '/api/sso': {
-        target: 'http://127.0.0.1:3211',
-        changeOrigin: true,
-      },
-      // Proxy documents API requests to Convex HTTP endpoint
-      '/api/documents': {
-        target: 'http://127.0.0.1:3211',
-        changeOrigin: true,
-      },
-      // Proxy API run requests (OpenAPI/Swagger) to Convex HTTP endpoint for cookie-to-bearer auth
-      '/api/run': {
+      // Proxy all /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
+      '/api': {
         target: 'http://127.0.0.1:3211',
         changeOrigin: true,
       },

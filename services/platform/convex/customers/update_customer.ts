@@ -5,6 +5,7 @@
 import type { MutationCtx } from '../_generated/server';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { DataSource } from '../../lib/shared/schemas/common';
+import { emitEvent } from '../workflows/triggers/emit_event';
 
 export interface UpdateCustomerArgs {
   customerId: Id<'customers'>;
@@ -81,5 +82,12 @@ export async function updateCustomer(
   );
 
   await ctx.db.patch(customerId, cleanUpdateData);
+
+  await emitEvent(ctx, {
+    organizationId: existingCustomer.organizationId,
+    eventType: 'customer.updated',
+    eventData: { customerId: customerId as string },
+  });
+
   return await ctx.db.get(customerId);
 }

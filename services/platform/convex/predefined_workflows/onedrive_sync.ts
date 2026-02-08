@@ -39,15 +39,9 @@ const onedriveSyncWorkflow: PredefinedWorkflowDefinition = {
     {
       stepSlug: 'start',
       name: 'start',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual',
-        // For scheduled sync, uncomment below:
-        // type: 'schedule',
-        // schedule: '0 */1 * * *', // Every hour
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'find_sync_config' },
     },
 

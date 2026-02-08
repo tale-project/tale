@@ -46,7 +46,7 @@ const stepConfigSchema = z.object({
     .string()
     .describe('Human-readable step name (e.g., "Find Inactive Customers").'),
   stepType: z
-    .enum(['trigger', 'llm', 'action', 'condition', 'loop'])
+    .enum(['start', 'llm', 'action', 'condition', 'loop'])
     .describe('Step type.'),
   order: z
     .number()
