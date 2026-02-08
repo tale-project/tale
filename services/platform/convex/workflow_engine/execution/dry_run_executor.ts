@@ -38,7 +38,11 @@ export interface DryRunResult {
 }
 
 function findStartStep(steps: StepDef[]): StepDef | null {
-  return steps.find((s) => s.stepType === 'start' || s.stepType === 'trigger') || null;
+  return (
+    steps.find((s) => s.stepType === 'start') ??
+    steps.find((s) => s.stepType === 'trigger') ??
+    null
+  );
 }
 
 function findStepBySlug(steps: StepDef[], slug: string): StepDef | null {
