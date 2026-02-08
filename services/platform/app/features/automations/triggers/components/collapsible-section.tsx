@@ -24,24 +24,24 @@ export function CollapsibleSection({
 
   return (
     <section aria-labelledby={headingId}>
-      <button
-        type="button"
-        aria-expanded={isOpen}
-        aria-controls={`${id}-content`}
-        className="flex w-full items-center gap-2 select-none py-1"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <ChevronRight
-          className={cn(
-            'size-3.5 text-muted-foreground transition-transform duration-200',
-            isOpen && 'rotate-90',
-          )}
-        />
-        <Icon className="size-4 text-muted-foreground" />
-        <h3 id={headingId} className="text-sm font-medium text-foreground">
-          {title}
-        </h3>
-      </button>
+      <h3 id={headingId} className="text-sm font-medium text-foreground">
+        <button
+          type="button"
+          aria-expanded={isOpen}
+          aria-controls={`${id}-content`}
+          className="flex w-full items-center gap-2 select-none py-1"
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          <ChevronRight
+            className={cn(
+              'size-3.5 text-muted-foreground transition-transform duration-200',
+              isOpen && 'rotate-90',
+            )}
+          />
+          <Icon className="size-4 text-muted-foreground" />
+          <span>{title}</span>
+        </button>
+      </h3>
       {isOpen && (
         <div id={`${id}-content`} className="mt-3">
           {children}
