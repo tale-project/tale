@@ -1144,7 +1144,9 @@
           "updated": "Event trigger updated",
           "deleted": "Event trigger deleted",
           "enabled": "Event trigger enabled",
-          "disabled": "Event trigger disabled"
+          "disabled": "Event trigger disabled",
+          "toggleError": "Failed to toggle event subscription",
+          "deleteError": "Failed to delete event subscription"
         },
         "editTitle": "Edit event trigger",
         "deleteTitle": "Delete event trigger",

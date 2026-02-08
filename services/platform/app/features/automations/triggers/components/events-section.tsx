@@ -87,7 +87,7 @@ export function EventsSection({
         });
       } catch {
         toast({
-          title: 'Failed to toggle event subscription',
+          title: t('triggers.events.toast.toggleError'),
           variant: 'destructive',
         });
       }
@@ -107,7 +107,7 @@ export function EventsSection({
       setDeleteTarget(null);
     } catch {
       toast({
-        title: 'Failed to delete event subscription',
+        title: t('triggers.events.toast.deleteError'),
         variant: 'destructive',
       });
     } finally {
