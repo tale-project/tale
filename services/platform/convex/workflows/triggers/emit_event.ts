@@ -11,7 +11,7 @@ interface EmitEventArgs {
 export async function emitEvent(ctx: MutationCtx, args: EmitEventArgs) {
   await ctx.scheduler.runAfter(
     0,
-    internal.workflows.triggers.process_event.processEvent,
+    internal.workflows.triggers.internal_mutations.processEvent,
     {
       organizationId: args.organizationId,
       eventType: args.eventType,
@@ -23,7 +23,7 @@ export async function emitEvent(ctx: MutationCtx, args: EmitEventArgs) {
 export async function emitEventFromAction(ctx: ActionCtx, args: EmitEventArgs) {
   await ctx.scheduler.runAfter(
     0,
-    internal.workflows.triggers.process_event.processEvent,
+    internal.workflows.triggers.internal_mutations.processEvent,
     {
       organizationId: args.organizationId,
       eventType: args.eventType,

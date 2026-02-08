@@ -264,7 +264,6 @@ import type * as email_providers_validators from "../email_providers/validators.
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
 import type * as http from "../http.js";
-import type * as http_streaming from "../http/streaming.js";
 import type * as integrations_actions from "../integrations/actions.js";
 import type * as integrations_create_integration_internal from "../integrations/create_integration_internal.js";
 import type * as integrations_create_integration_logic from "../integrations/create_integration_logic.js";
@@ -895,12 +894,12 @@ import type * as workflows_triggers_emit_event from "../workflows/triggers/emit_
 import type * as workflows_triggers_event_types from "../workflows/triggers/event_types.js";
 import type * as workflows_triggers_helpers_crypto from "../workflows/triggers/helpers/crypto.js";
 import type * as workflows_triggers_helpers_validate from "../workflows/triggers/helpers/validate.js";
+import type * as workflows_triggers_http_actions from "../workflows/triggers/http_actions.js";
 import type * as workflows_triggers_internal_mutations from "../workflows/triggers/internal_mutations.js";
 import type * as workflows_triggers_internal_queries from "../workflows/triggers/internal_queries.js";
 import type * as workflows_triggers_mutations from "../workflows/triggers/mutations.js";
 import type * as workflows_triggers_process_event from "../workflows/triggers/process_event.js";
 import type * as workflows_triggers_queries from "../workflows/triggers/queries.js";
-import type * as workflows_triggers_webhook_http from "../workflows/triggers/webhook_http.js";
 import type * as workflows_validators from "../workflows/validators.js";
 
 import type {
@@ -1166,7 +1165,6 @@ declare const fullApi: ApiFromModules<{
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
   http: typeof http;
-  "http/streaming": typeof http_streaming;
   "integrations/actions": typeof integrations_actions;
   "integrations/create_integration_internal": typeof integrations_create_integration_internal;
   "integrations/create_integration_logic": typeof integrations_create_integration_logic;
@@ -1797,12 +1795,12 @@ declare const fullApi: ApiFromModules<{
   "workflows/triggers/event_types": typeof workflows_triggers_event_types;
   "workflows/triggers/helpers/crypto": typeof workflows_triggers_helpers_crypto;
   "workflows/triggers/helpers/validate": typeof workflows_triggers_helpers_validate;
+  "workflows/triggers/http_actions": typeof workflows_triggers_http_actions;
   "workflows/triggers/internal_mutations": typeof workflows_triggers_internal_mutations;
   "workflows/triggers/internal_queries": typeof workflows_triggers_internal_queries;
   "workflows/triggers/mutations": typeof workflows_triggers_mutations;
   "workflows/triggers/process_event": typeof workflows_triggers_process_event;
   "workflows/triggers/queries": typeof workflows_triggers_queries;
-  "workflows/triggers/webhook_http": typeof workflows_triggers_webhook_http;
   "workflows/validators": typeof workflows_validators;
 }>;
 

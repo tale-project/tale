@@ -18,7 +18,7 @@ import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
 import {
   webhookHandler,
   webhookOptionsHandler,
-} from './workflows/triggers/webhook_http';
+} from './workflows/triggers/http_actions';
 import {
   apiTriggerHandler,
   apiTriggerOptionsHandler,

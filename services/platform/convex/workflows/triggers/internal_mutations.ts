@@ -1,5 +1,6 @@
 import { internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
+import { processEventHandler } from './process_event';
 
 export const updateScheduleLastTriggered = internalMutation({
   args: {
@@ -59,4 +60,14 @@ export const createTriggerLog = internalMutation({
       receivedAt: Date.now(),
     });
   },
+});
+
+export const processEvent = internalMutation({
+  args: {
+    organizationId: v.string(),
+    eventType: v.string(),
+    eventData: v.optional(v.any()),
+  },
+  returns: v.null(),
+  handler: processEventHandler,
 });

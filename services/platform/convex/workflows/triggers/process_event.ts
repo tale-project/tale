@@ -1,6 +1,5 @@
-import { internalMutation } from '../../_generated/server';
 import { internal } from '../../_generated/api';
-import { v } from 'convex/values';
+import type { MutationCtx } from '../../_generated/server';
 import { getActiveWorkflowVersion } from './queries';
 
 function matchesFilter(
@@ -25,60 +24,58 @@ function isSelfTrigger(
   return !!sourceRoot && sourceRoot === subscriptionWorkflowRootId;
 }
 
-export const processEvent = internalMutation({
-  args: {
-    organizationId: v.string(),
-    eventType: v.string(),
-    eventData: v.optional(v.any()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const subscriptions = ctx.db
-      .query('wfEventSubscriptions')
-      .withIndex('by_org_eventType', (q) =>
-        q.eq('organizationId', args.organizationId).eq('eventType', args.eventType),
-      );
+interface ProcessEventArgs {
+  organizationId: string;
+  eventType: string;
+  eventData?: Record<string, unknown>;
+}
 
-    const eventData = args.eventData as Record<string, unknown> | undefined;
+export async function processEventHandler(ctx: MutationCtx, args: ProcessEventArgs) {
+  const subscriptions = ctx.db
+    .query('wfEventSubscriptions')
+    .withIndex('by_org_eventType', (q) =>
+      q.eq('organizationId', args.organizationId).eq('eventType', args.eventType),
+    );
 
-    for await (const sub of subscriptions) {
-      if (!sub.isActive) continue;
+  const eventData = args.eventData as Record<string, unknown> | undefined;
 
-      if (isSelfTrigger(args.eventType, eventData, sub.workflowRootId)) continue;
+  for await (const sub of subscriptions) {
+    if (!sub.isActive) continue;
 
-      if (!matchesFilter(eventData, sub.eventFilter)) continue;
+    if (isSelfTrigger(args.eventType, eventData, sub.workflowRootId)) continue;
 
-      const activeVersion = await getActiveWorkflowVersion(ctx, sub.workflowRootId);
-      if (!activeVersion) continue;
+    if (!matchesFilter(eventData, sub.eventFilter)) continue;
 
-      await ctx.scheduler.runAfter(
-        0,
-        internal.workflow_engine.internal_mutations.startWorkflow,
-        {
-          organizationId: args.organizationId,
-          wfDefinitionId: activeVersion._id,
-          input: args.eventData ?? {},
-          triggeredBy: 'event',
-          triggerData: {
-            triggerType: 'event',
-            eventType: args.eventType,
-            subscriptionId: sub._id,
-            timestamp: Date.now(),
-          },
-        },
-      );
+    const activeVersion = await getActiveWorkflowVersion(ctx, sub.workflowRootId);
+    if (!activeVersion) continue;
 
-      await ctx.db.patch(sub._id, { lastTriggeredAt: Date.now() });
-
-      await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.workflow_engine.internal_mutations.startWorkflow,
+      {
         organizationId: args.organizationId,
-        workflowRootId: sub.workflowRootId,
         wfDefinitionId: activeVersion._id,
-        triggerType: 'event',
-        status: 'accepted',
-      });
-    }
+        input: args.eventData ?? {},
+        triggeredBy: 'event',
+        triggerData: {
+          triggerType: 'event',
+          eventType: args.eventType,
+          subscriptionId: sub._id,
+          timestamp: Date.now(),
+        },
+      },
+    );
 
-    return null;
-  },
-});
+    await ctx.db.patch(sub._id, { lastTriggeredAt: Date.now() });
+
+    await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
+      organizationId: args.organizationId,
+      workflowRootId: sub.workflowRootId,
+      wfDefinitionId: activeVersion._id,
+      triggerType: 'event',
+      status: 'accepted',
+    });
+  }
+
+  return null;
+}
