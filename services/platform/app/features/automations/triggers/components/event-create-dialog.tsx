@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from 'convex/react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { useToast } from '@/app/hooks/use-toast';
@@ -57,9 +58,14 @@ export function EventCreateDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (editing && open) {
-      setSelectedEventType(editing.eventType);
-      setFilterValues(editing.eventFilter ?? {});
+    if (open) {
+      if (editing) {
+        setSelectedEventType(editing.eventType);
+        setFilterValues(editing.eventFilter ?? {});
+      } else {
+        setSelectedEventType('');
+        setFilterValues({});
+      }
     }
   }, [editing, open]);
 
@@ -285,6 +291,23 @@ function FilterFieldInput({
         value={selectValue}
         onValueChange={handleChange}
       />
+    );
+  }
+
+  if (field.inputType === 'text') {
+    return (
+      <Input
+        label={field.label}
+        placeholder={field.label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.warn(
+      `FilterFieldInput: unsupported inputType "${field.inputType}" for field "${field.key}"`,
     );
   }
 
