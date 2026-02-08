@@ -1,7 +1,7 @@
 /**
  * Workflow Engine - Convex Function Definitions
  *
- * This file contains the workflow manager and dynamic workflow definition.
+ * This file contains the workflow managers and dynamic workflow definitions.
  * Internal mutations are in internal_mutations.ts.
  * Internal actions are in internal_actions.ts.
  */
@@ -13,9 +13,16 @@ import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 
 import * as EngineHelpers from './helpers/engine';
 
-export const workflowManager = new WorkflowManager(components.workflow);
+export const workflowManagers = [
+	new WorkflowManager(components.workflow),
+	new WorkflowManager(components.workflow_1),
+	new WorkflowManager(components.workflow_2),
+	new WorkflowManager(components.workflow_3),
+];
 
-export const dynamicWorkflow = workflowManager.define({
+export const workflowManager = workflowManagers[0];
+
+const dynamicWorkflowDef = {
 	args: {
 		organizationId: v.string(),
 		executionId: v.id('wfExecutions'),
@@ -28,7 +35,12 @@ export const dynamicWorkflow = workflowManager.define({
 		resumeVariables: v.optional(jsonValueValidator),
 		threadId: v.optional(v.string()),
 	},
-	handler: async (step, args): Promise<void> => {
+	handler: async (step: any, args: any): Promise<void> => {
 		await EngineHelpers.handleDynamicWorkflow(step, args);
 	},
-});
+};
+
+export const dynamicWorkflow = workflowManagers[0].define(dynamicWorkflowDef);
+export const dynamicWorkflow1 = workflowManagers[1].define(dynamicWorkflowDef);
+export const dynamicWorkflow2 = workflowManagers[2].define(dynamicWorkflowDef);
+export const dynamicWorkflow3 = workflowManagers[3].define(dynamicWorkflowDef);

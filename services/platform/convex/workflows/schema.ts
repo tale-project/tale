@@ -133,6 +133,7 @@ export const wfExecutionsTable = defineTable({
   updatedAt: v.number(),
   completedAt: v.optional(v.number()),
   componentWorkflowId: v.optional(v.string()),
+  shardIndex: v.optional(v.number()),
   threadId: v.optional(v.string()),
   variables: v.optional(v.string()),
   variablesStorageId: v.optional(v.id('_storage')),

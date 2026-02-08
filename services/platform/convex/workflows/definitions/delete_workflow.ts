@@ -18,7 +18,7 @@ import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import type { WorkflowId } from '@convex-dev/workflow';
 import { internal } from '../../_generated/api';
-import { workflowManager } from '../../workflow_engine/engine';
+import { workflowManagers } from '../../workflow_engine/engine';
 
 const EXECUTION_BATCH_SIZE = 10;
 const AUDIT_LOG_BATCH_SIZE = 500;
@@ -69,11 +69,13 @@ export async function cancelAndDeleteExecutionsBatch(
   wfDefinitionId: Id<'wfDefinitions'>,
 ): Promise<{ hasMore: boolean }> {
   let processedCount = 0;
-  const componentWorkflowIdsToCleanup: string[] = [];
+  const cleanupEntries: { workflowId: string; shardIndex: number }[] = [];
 
   for await (const execution of ctx.db
     .query('wfExecutions')
     .withIndex('by_definition', (q) => q.eq('wfDefinitionId', wfDefinitionId))) {
+    const shardIndex = execution.shardIndex ?? 0;
+
     if (execution.componentWorkflowId) {
       const componentWorkflowId =
         execution.componentWorkflowId as unknown as WorkflowId;
@@ -81,25 +83,27 @@ export async function cancelAndDeleteExecutionsBatch(
         execution.status !== 'completed' && execution.status !== 'failed';
 
       if (isInProgress) {
-        // Cancel any in-progress underlying component workflow.
-        await workflowManager.cancel(ctx, componentWorkflowId);
+        const manager = workflowManagers[shardIndex];
+        await manager.cancel(ctx, componentWorkflowId);
       }
 
-      // Collect for async cleanup (avoid inline cleanup() to stay under read limit)
-      componentWorkflowIdsToCleanup.push(execution.componentWorkflowId);
+      cleanupEntries.push({
+        workflowId: execution.componentWorkflowId,
+        shardIndex,
+      });
     }
 
     await ctx.db.delete(execution._id);
     processedCount++;
 
     if (processedCount >= EXECUTION_BATCH_SIZE) {
-      await scheduleCleanupBatch(ctx, componentWorkflowIdsToCleanup);
+      await scheduleCleanupBatch(ctx, cleanupEntries);
       return { hasMore: true };
     }
   }
 
-  if (componentWorkflowIdsToCleanup.length > 0) {
-    await scheduleCleanupBatch(ctx, componentWorkflowIdsToCleanup);
+  if (cleanupEntries.length > 0) {
+    await scheduleCleanupBatch(ctx, cleanupEntries);
   }
 
   return { hasMore: false };
@@ -107,13 +111,13 @@ export async function cancelAndDeleteExecutionsBatch(
 
 async function scheduleCleanupBatch(
   ctx: MutationCtx,
-  componentWorkflowIds: string[],
+  entries: { workflowId: string; shardIndex: number }[],
 ): Promise<void> {
-  for (const id of componentWorkflowIds) {
+  for (const { workflowId, shardIndex } of entries) {
     await ctx.scheduler.runAfter(
       10_000,
       internal.workflow_engine.internal_mutations.cleanupComponentWorkflow,
-      { workflowId: id as unknown as WorkflowId },
+      { workflowId: workflowId as unknown as WorkflowId, shardIndex },
     );
   }
 }
