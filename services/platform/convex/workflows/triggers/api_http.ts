@@ -161,7 +161,7 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
     executionId,
     workflowRootId: apiKeyRecord.workflowRootId,
     versionId: activeVersionId,
-  }, 200);
+  }, 202);
 });
 
 export const apiTriggerOptionsHandler = httpAction(async () => {
