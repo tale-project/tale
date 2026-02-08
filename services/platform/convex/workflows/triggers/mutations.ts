@@ -337,15 +337,16 @@ export const createEventSubscription = mutation({
       ? args.eventFilter
       : undefined;
 
-    return await ctx.db.insert('wfEventSubscriptions', {
+    const insertData = {
       organizationId: args.organizationId,
       workflowRootId: args.workflowRootId,
       eventType: args.eventType,
-      eventFilter: cleanFilter,
       isActive: true,
       createdAt: Date.now(),
       createdBy: authUser.email ?? String(authUser._id),
-    });
+      ...(cleanFilter !== undefined && { eventFilter: cleanFilter }),
+    };
+    return await ctx.db.insert('wfEventSubscriptions', insertData);
   },
 });
 
@@ -372,7 +373,10 @@ export const updateEventSubscription = mutation({
       ? args.eventFilter
       : undefined;
 
-    await ctx.db.patch(args.subscriptionId, { eventFilter: cleanFilter });
+    await ctx.db.patch(
+      args.subscriptionId,
+      cleanFilter !== undefined ? { eventFilter: cleanFilter } : {},
+    );
     return null;
   },
 });
