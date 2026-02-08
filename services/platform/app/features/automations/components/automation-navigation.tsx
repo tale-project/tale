@@ -183,6 +183,10 @@ export function AutomationNavigation({
 
   const handleUnpublish = async () => {
     if (!automationId || !user?.userId) {
+      toast({
+        title: t('navigation.toast.unableToDeactivate'),
+        variant: 'destructive',
+      });
       return;
     }
 

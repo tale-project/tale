@@ -1015,6 +1015,7 @@
         "publishFailed": "Failed to publish automation",
         "deactivated": "Automation deactivated successfully",
         "deactivateFailed": "Failed to deactivate automation",
+        "unableToDeactivate": "Unable to deactivate automation",
         "unableToCreateDraft": "Unable to create draft",
         "draftCreated": "Draft created for editing",
         "navigatingToExisting": "Navigating to existing draft",
