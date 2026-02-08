@@ -74,9 +74,9 @@ export function SecretRevealDialog({
         </div>
         {secrets.map((secret, index) => (
           <Stack key={secret.label} gap={1}>
-            <label className="text-sm font-medium text-foreground">
+            <span className="text-sm font-medium text-foreground">
               {secret.label}
-            </label>
+            </span>
             <div className="relative">
               <code className="block w-full p-3 pr-12 bg-muted rounded-md font-mono text-sm break-all">
                 {secret.value}
