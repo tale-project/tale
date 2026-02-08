@@ -6,6 +6,7 @@ import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
 import { useCreateThread } from './use-create-thread';
 import { useUpdateThread } from './use-update-thread';
 import { useChatWithAgent } from './use-chat-with-agent';
+import { useChatWithBuiltinAgent } from './use-chat-with-builtin-agent';
 import { useChatWithCustomAgent } from './use-chat-with-custom-agent';
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
@@ -42,6 +43,7 @@ export function useSendMessage({
   const createThread = useCreateThread();
   const updateThread = useUpdateThread();
   const chatWithAgent = useChatWithAgent();
+  const chatWithBuiltinAgent = useChatWithBuiltinAgent();
   const chatWithCustomAgent = useChatWithCustomAgent();
 
   const sendMessage = useCallback(
@@ -112,9 +114,17 @@ export function useSendMessage({
         }
 
         // Send message with optimistic update
-        if (selectedAgent) {
+        if (selectedAgent?.type === 'custom') {
           await chatWithCustomAgent({
             customAgentId: selectedAgent._id,
+            threadId: currentThreadId,
+            organizationId,
+            message: sanitizedContent,
+            attachments: mutationAttachments,
+          });
+        } else if (selectedAgent?.type === 'builtin') {
+          await chatWithBuiltinAgent({
+            builtinAgentType: selectedAgent._id,
             threadId: currentThreadId,
             organizationId,
             message: sanitizedContent,
@@ -148,6 +158,7 @@ export function useSendMessage({
       createThread,
       updateThread,
       chatWithAgent,
+      chatWithBuiltinAgent,
       chatWithCustomAgent,
       selectedAgent,
       navigate,

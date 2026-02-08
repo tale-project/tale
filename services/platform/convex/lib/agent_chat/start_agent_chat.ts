@@ -184,7 +184,7 @@ export async function startAgentChat(
     threadId,
     organizationId,
     userId: thread?.userId,
-    promptMessage: trimmedMessage,
+    promptMessage: messageContent,
     attachments: actionAttachments,
     streamId: streamId || undefined,
     promptMessageId,

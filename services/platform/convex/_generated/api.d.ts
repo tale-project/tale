@@ -90,6 +90,7 @@ import type * as agent_tools_workflows_save_workflow_definition_tool from "../ag
 import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_tools/workflows/update_workflow_step_tool.js";
 import type * as agent_tools_workflows_workflow_examples_tool from "../agent_tools/workflows/workflow_examples_tool.js";
 import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/workflows/workflow_read_tool.js";
+import type * as agents_builtin_agents from "../agents/builtin_agents.js";
 import type * as agents_chat_agent from "../agents/chat/agent.js";
 import type * as agents_chat_config from "../agents/chat/config.js";
 import type * as agents_chat_internal_actions from "../agents/chat/internal_actions.js";
@@ -996,6 +997,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/update_workflow_step_tool": typeof agent_tools_workflows_update_workflow_step_tool;
   "agent_tools/workflows/workflow_examples_tool": typeof agent_tools_workflows_workflow_examples_tool;
   "agent_tools/workflows/workflow_read_tool": typeof agent_tools_workflows_workflow_read_tool;
+  "agents/builtin_agents": typeof agents_builtin_agents;
   "agents/chat/agent": typeof agents_chat_agent;
   "agents/chat/config": typeof agents_chat_config;
   "agents/chat/internal_actions": typeof agents_chat_internal_actions;

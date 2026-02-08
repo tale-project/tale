@@ -10,6 +10,7 @@ import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { startAgentChat } from '../lib/agent_chat';
 import { getDefaultAgentRuntimeConfig } from '../lib/agent_runtime_config';
+import { createChatHookHandles } from '../agents/chat/config';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
 import { toSerializableConfig } from './config';
@@ -54,6 +55,7 @@ export const chatWithCustomAgent = mutation({
 
     const agentConfig = toSerializableConfig(agent);
     const { model, provider } = getDefaultAgentRuntimeConfig();
+    const hooks = await createChatHookHandles(ctx);
 
     return startAgentChat({
       ctx,
@@ -68,6 +70,7 @@ export const chatWithCustomAgent = mutation({
       provider,
       debugTag: `[CustomAgent:${agent.name}]`,
       enableStreaming: true,
+      hooks,
     });
   },
 });

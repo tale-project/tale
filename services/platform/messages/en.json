@@ -1751,9 +1751,39 @@
     },
     "agentSelector": {
       "label": "Select agent",
-      "defaultAgent": "Default agent",
+      "defaultAgent": "Assistant",
       "defaultAgentDescription": "General-purpose AI assistant",
-      "usingAgent": "Using {name}"
+      "usingAgent": "Using {name}",
+      "searchPlaceholder": "Search agents...",
+      "noResults": "No agents found",
+      "builtinSection": "Built-in agents",
+      "customSection": "Custom agents",
+      "builtinAgents": {
+        "chat": {
+          "name": "Assistant",
+          "description": "General-purpose AI assistant"
+        },
+        "web": {
+          "name": "Search",
+          "description": "Searches the web for the latest information"
+        },
+        "crm": {
+          "name": "Sales",
+          "description": "Looks up customer and product information"
+        },
+        "document": {
+          "name": "Docs",
+          "description": "Reads and creates documents (PDF, Word, Excel, etc.)"
+        },
+        "integration": {
+          "name": "Connect",
+          "description": "Connects and operates with external systems"
+        },
+        "workflow": {
+          "name": "Automate",
+          "description": "Creates automated workflows"
+        }
+      }
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
