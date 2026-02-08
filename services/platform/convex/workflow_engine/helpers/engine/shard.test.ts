@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getShardIndex, NUM_SHARDS } from './shard';
+import { getShardIndex, NUM_SHARDS, safeShardIndex } from './shard';
 
 describe('getShardIndex', () => {
   it('returns a value in [0, NUM_SHARDS)', () => {
@@ -60,5 +60,26 @@ describe('getShardIndex', () => {
 describe('NUM_SHARDS', () => {
   it('is 4', () => {
     expect(NUM_SHARDS).toBe(4);
+  });
+});
+
+describe('safeShardIndex', () => {
+  it('returns the value when in range', () => {
+    expect(safeShardIndex(0)).toBe(0);
+    expect(safeShardIndex(3)).toBe(3);
+  });
+
+  it('returns 0 for undefined', () => {
+    expect(safeShardIndex(undefined)).toBe(0);
+  });
+
+  it('returns 0 for out-of-range values', () => {
+    expect(safeShardIndex(-1)).toBe(0);
+    expect(safeShardIndex(4)).toBe(0);
+    expect(safeShardIndex(999)).toBe(0);
+  });
+
+  it('returns 0 for NaN', () => {
+    expect(safeShardIndex(NaN)).toBe(0);
   });
 });

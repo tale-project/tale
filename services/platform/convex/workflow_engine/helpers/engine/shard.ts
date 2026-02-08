@@ -16,3 +16,10 @@ export function getShardIndex(wfDefinitionId: string): number {
   }
   return hash % NUM_SHARDS;
 }
+
+export function safeShardIndex(index: number | undefined): number {
+  if (typeof index === 'number' && index >= 0 && index < NUM_SHARDS) {
+    return index;
+  }
+  return 0;
+}

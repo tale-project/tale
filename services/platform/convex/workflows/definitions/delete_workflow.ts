@@ -19,6 +19,7 @@ import type { Id } from '../../_generated/dataModel';
 import type { WorkflowId } from '@convex-dev/workflow';
 import { internal } from '../../_generated/api';
 import { workflowManagers } from '../../workflow_engine/engine';
+import { safeShardIndex } from '../../workflow_engine/helpers/engine/shard';
 
 const EXECUTION_BATCH_SIZE = 10;
 const AUDIT_LOG_BATCH_SIZE = 500;
@@ -74,7 +75,7 @@ export async function cancelAndDeleteExecutionsBatch(
   for await (const execution of ctx.db
     .query('wfExecutions')
     .withIndex('by_definition', (q) => q.eq('wfDefinitionId', wfDefinitionId))) {
-    const shardIndex = execution.shardIndex ?? 0;
+    const shardIndex = safeShardIndex(execution.shardIndex);
 
     if (execution.componentWorkflowId) {
       const componentWorkflowId =

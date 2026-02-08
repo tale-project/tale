@@ -20,6 +20,7 @@ import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-va
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
+import { safeShardIndex } from './shard';
 import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
@@ -127,7 +128,7 @@ export async function executeWorkflowStart(
     workflowType,
   });
 
-  const dynamicWorkflowRef = DYNAMIC_WORKFLOW_REFS[args.shardIndex ?? 0];
+  const dynamicWorkflowRef = DYNAMIC_WORKFLOW_REFS[safeShardIndex(args.shardIndex)];
   const componentWorkflowId = await args.workflowManager.start(
     ctx,
     dynamicWorkflowRef,
