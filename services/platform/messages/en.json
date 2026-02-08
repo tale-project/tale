@@ -1091,7 +1091,9 @@
           "updated": "Schedule updated",
           "deleted": "Schedule deleted",
           "enabled": "Schedule enabled",
-          "disabled": "Schedule disabled"
+          "disabled": "Schedule disabled",
+          "toggleError": "Failed to toggle schedule",
+          "deleteError": "Failed to delete schedule"
         },
         "deleteTitle": "Delete schedule",
         "deleteDescription": "This will permanently delete this schedule. This action cannot be undone."

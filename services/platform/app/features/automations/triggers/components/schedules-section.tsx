@@ -52,7 +52,7 @@ export function SchedulesSection({
         variant: 'success',
       });
     } catch {
-      toast({ title: 'Failed to toggle schedule', variant: 'destructive' });
+      toast({ title: t('triggers.schedules.toast.toggleError'), variant: 'destructive' });
     }
   }, [toggleSchedule, toast, t]);
 
@@ -67,7 +67,7 @@ export function SchedulesSection({
       });
       setDeleteTarget(null);
     } catch {
-      toast({ title: 'Failed to delete schedule', variant: 'destructive' });
+      toast({ title: t('triggers.schedules.toast.deleteError'), variant: 'destructive' });
     } finally {
       setIsDeleting(false);
     }
@@ -141,7 +141,7 @@ export function SchedulesSection({
               variant="ghost"
               size="sm"
               onClick={() => setEditSchedule(row.original)}
-              aria-label="Edit schedule"
+              aria-label={t('triggers.schedules.form.editTitle')}
             >
               <Pencil className="size-4" />
             </Button>
@@ -149,7 +149,7 @@ export function SchedulesSection({
               variant="ghost"
               size="sm"
               onClick={() => setDeleteTarget(row.original)}
-              aria-label="Delete schedule"
+              aria-label={t('triggers.schedules.deleteTitle')}
             >
               <Trash2 className="size-4" />
             </Button>
