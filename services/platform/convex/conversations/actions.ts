@@ -15,7 +15,7 @@ export const improveMessage = action({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      return { improvedMessage: args.originalMessage, error: 'Unauthenticated' };
+      throw new Error('Unauthenticated');
     }
 
     return improveMessageHandler(ctx, args);
