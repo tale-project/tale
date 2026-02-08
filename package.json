@@ -34,7 +34,7 @@
     "@convex-dev/eslint-plugin": "^1.1.1",
     "@types/node": "24.10.11",
     "@vitest/coverage-v8": "4.0.18",
-    "eslint": "9.39.2",
+    "eslint": "10.0.0",
     "eslint-plugin-unicorn": "^62.0.0",
     "knip": "^5.83.0",
     "patch-package": "^8.0.1",
