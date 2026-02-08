@@ -1,8 +1,7 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { components } from '../_generated/api';
-import { authComponent } from '../auth';
-import { getOrganizationMember } from '../lib/rls';
+import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 
 export const listByTeam = query({
   args: {
@@ -20,12 +19,7 @@ export const listByTeam = query({
     }),
   ),
   handler: async (ctx, args) => {
-    let authUser;
-    try {
-      authUser = await authComponent.getAuthUser(ctx);
-    } catch {
-      return [];
-    }
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
     }
@@ -39,11 +33,7 @@ export const listByTeam = query({
     }
 
     try {
-      await getOrganizationMember(ctx, team.organizationId, {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, team.organizationId, authUser);
     } catch {
       return [];
     }

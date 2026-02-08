@@ -7,7 +7,7 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { hasAnyUsers as hasAnyUsersHelper } from './helpers';
-import { getAuthenticatedUser } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls';
 
 /**
  * Check if any users exist in the system.
@@ -36,6 +36,6 @@ export const getCurrentUser = query({
     v.null(),
   ),
   handler: async (ctx) => {
-    return await getAuthenticatedUser(ctx);
+    return await getAuthUserIdentity(ctx);
   },
 });

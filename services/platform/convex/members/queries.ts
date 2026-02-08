@@ -1,8 +1,7 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { components } from '../_generated/api';
-import { authComponent } from '../auth';
-import { getOrganizationMember, getUserOrganizations } from '../lib/rls';
+import { getAuthUserIdentity, getOrganizationMember, getUserOrganizations } from '../lib/rls';
 import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
 
 interface BetterAuthTeam {
@@ -47,22 +46,13 @@ export const getCurrentMemberContext = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    let authUser;
-    try {
-      authUser = await authComponent.getAuthUser(ctx);
-    } catch {
-      return null;
-    }
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return null;
     }
 
     try {
-      const member = await getOrganizationMember(ctx, args.organizationId, {
-        userId: authUser._id,
-        email: authUser.email,
-        name: authUser.name,
-      });
+      const member = await getOrganizationMember(ctx, args.organizationId, authUser);
 
       if (!member) {
         return null;
@@ -99,22 +89,13 @@ export const listByOrganization = query({
     }),
   ),
   handler: async (ctx, args) => {
-    let authUser;
-    try {
-      authUser = await authComponent.getAuthUser(ctx);
-    } catch {
-      return [];
-    }
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
     }
 
     try {
-      await getOrganizationMember(ctx, args.organizationId, {
-        userId: String(authUser._id),
-        email: authUser.email,
-        name: authUser.name,
-      });
+      await getOrganizationMember(ctx, args.organizationId, authUser);
     } catch {
       return [];
     }
@@ -157,12 +138,7 @@ export const getUserIdByEmail = query({
   args: { email: v.string() },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
-    let authUser;
-    try {
-      authUser = await authComponent.getAuthUser(ctx);
-    } catch {
-      return null;
-    }
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return null;
     }
@@ -186,21 +162,12 @@ export const getUserOrganizationsList = query({
     }),
   ),
   handler: async (ctx) => {
-    let authUser;
-    try {
-      authUser = await authComponent.getAuthUser(ctx);
-    } catch {
-      return [];
-    }
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
     }
 
-    const orgs = await getUserOrganizations(ctx, {
-      userId: authUser._id,
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const orgs = await getUserOrganizations(ctx, authUser);
 
     return orgs.map((o) => ({
       organizationId: o.organizationId,
@@ -222,12 +189,7 @@ export const getMyTeams = query({
     ),
   }),
   handler: async (ctx, args) => {
-    let authUser;
-    try {
-      authUser = await authComponent.getAuthUser(ctx);
-    } catch {
-      return { teams: [] };
-    }
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return { teams: [] };
     }
@@ -236,7 +198,7 @@ export const getMyTeams = query({
       await ctx.runQuery(components.betterAuth.adapter.findMany, {
         model: 'teamMember',
         paginationOpts: { cursor: null, numItems: 100 },
-        where: [{ field: 'userId', operator: 'eq', value: String(authUser._id) }],
+        where: [{ field: 'userId', operator: 'eq', value: authUser.userId }],
       });
 
     if (!membershipsResult || membershipsResult.page.length === 0) {

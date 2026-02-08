@@ -1,7 +1,7 @@
 import { GenericQueryCtx } from 'convex/server';
 import { DataModel, Id } from '../_generated/dataModel';
-import { authComponent } from '../auth';
 import { components } from '../_generated/api';
+import { getAuthUserIdentity } from '../lib/rls';
 import type { PlatformRole, ProviderFeatures, RoleMappingRule } from '@/lib/shared/schemas/sso_providers';
 
 type GetResult = {
@@ -19,7 +19,7 @@ type GetResult = {
 } | null;
 
 export async function get(ctx: GenericQueryCtx<DataModel>): Promise<GetResult> {
-	const authUser = await authComponent.getAuthUser(ctx);
+	const authUser = await getAuthUserIdentity(ctx);
 	if (!authUser) {
 		return null;
 	}
@@ -29,7 +29,7 @@ export async function get(ctx: GenericQueryCtx<DataModel>): Promise<GetResult> {
 		{
 			model: 'session',
 			paginationOpts: { cursor: null, numItems: 1 },
-			where: [{ field: 'userId', value: String(authUser._id), operator: 'eq' }],
+			where: [{ field: 'userId', value: authUser.userId, operator: 'eq' }],
 		},
 	);
 
@@ -42,7 +42,7 @@ export async function get(ctx: GenericQueryCtx<DataModel>): Promise<GetResult> {
 			{
 				model: 'member',
 				paginationOpts: { cursor: null, numItems: 1 },
-				where: [{ field: 'userId', value: String(authUser._id), operator: 'eq' }],
+				where: [{ field: 'userId', value: authUser.userId, operator: 'eq' }],
 			},
 		);
 		organizationId = memberResult?.page?.[0]?.organizationId ? String(memberResult.page[0].organizationId) : null;
