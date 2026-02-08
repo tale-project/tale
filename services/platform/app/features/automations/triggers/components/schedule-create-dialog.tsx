@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { CronExpressionParser } from 'cron-parser';
 import { Sparkles } from 'lucide-react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
@@ -72,8 +73,15 @@ export function ScheduleCreateDialog({
           .string()
           .trim()
           .min(1, 'Cron expression is required')
-          .regex(
-            /^(\S+\s+){4}\S+$/,
+          .refine(
+            (value) => {
+              try {
+                CronExpressionParser.parse(value);
+                return true;
+              } catch {
+                return false;
+              }
+            },
             'Must be a valid 5-field cron expression',
           ),
       }),
@@ -212,13 +220,12 @@ export function ScheduleCreateDialog({
             </Button>
           </div>
           {cronDescription && (
-            <p
+            <output
               className="text-xs text-muted-foreground"
-              role="status"
               aria-live="polite"
             >
               {cronDescription}
-            </p>
+            </output>
           )}
         </Stack>
 
