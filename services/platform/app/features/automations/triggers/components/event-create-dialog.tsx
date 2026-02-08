@@ -7,7 +7,6 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import type { Id } from '@/convex/_generated/dataModel';
 import { api } from '@/convex/_generated/api';
 import {
@@ -48,7 +47,6 @@ export function EventCreateDialog({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const { user } = useAuth();
   const createEventSubscription = useCreateEventSubscription();
   const updateEventSubscription = useUpdateEventSubscription();
 
@@ -138,7 +136,6 @@ export function EventCreateDialog({
           workflowRootId,
           eventType: selectedEventType,
           eventFilter: filterPayload,
-          createdBy: user?.email ?? 'unknown',
         });
         toast({
           title: t('triggers.events.toast.created'),

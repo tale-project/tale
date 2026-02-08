@@ -12,7 +12,6 @@ import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Plus, Webhook, Copy, Check, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from '@/app/hooks/use-toast';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useSiteUrl } from '@/lib/site-url-context';
 import {
   useCreateWebhook,
@@ -37,7 +36,6 @@ export function WebhooksSection({
 }: WebhooksSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
-  const { user } = useAuth();
 
   const webhooks = useQuery(api.workflows.triggers.queries.getWebhooks, {
     workflowRootId,
@@ -66,7 +64,6 @@ export function WebhooksSection({
       const result = await createWebhook({
         organizationId,
         workflowRootId,
-        createdBy: user?.email ?? 'unknown',
       });
       setCreatedUrl(getWebhookUrl(result.token));
       toast({
@@ -78,7 +75,7 @@ export function WebhooksSection({
     } finally {
       setIsCreating(false);
     }
-  }, [createWebhook, organizationId, workflowRootId, user, toast, t, getWebhookUrl]);
+  }, [createWebhook, organizationId, workflowRootId, toast, t, getWebhookUrl]);
 
   const handleToggle = useCallback(
     async (webhookId: Id<'wfWebhooks'>, isActive: boolean) => {

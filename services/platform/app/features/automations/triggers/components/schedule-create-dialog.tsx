@@ -11,7 +11,6 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import type { Id } from '@/convex/_generated/dataModel';
 import {
   useCreateSchedule,
@@ -55,7 +54,6 @@ export function ScheduleCreateDialog({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const { user } = useAuth();
   const createSchedule = useCreateSchedule();
   const updateSchedule = useUpdateSchedule();
   const generateCron = useGenerateCron();
@@ -145,7 +143,6 @@ export function ScheduleCreateDialog({
           workflowRootId,
           cronExpression: data.cronExpression,
           timezone: 'UTC',
-          createdBy: user?.email ?? 'unknown',
         });
         toast({
           title: t('triggers.schedules.toast.created'),
