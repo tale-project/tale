@@ -40,6 +40,7 @@ interface WorkflowCreationApprovalCardProps {
 const getStepTypeBadgeVariant = (stepType: string): 'blue' | 'green' | 'orange' | 'yellow' | 'outline' => {
   switch (stepType) {
     case 'start':
+    case 'trigger':
       return 'blue';
     case 'llm':
       return 'yellow';
