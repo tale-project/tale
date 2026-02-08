@@ -144,7 +144,9 @@ export function validateWorkflowDefinition(
   warnings.push(...circularDepResult.warnings);
 
   // Check for trigger or start step
-  const hasTrigger = stepsConfig.some((step) => step.stepType === 'start' || step.stepType === 'trigger');
+  const hasTrigger = stepsConfig.some(
+    (step) => step?.stepType === 'start' || step?.stepType === 'trigger',
+  );
   if (!hasTrigger) {
     warnings.push(
       'No start or trigger step found. Workflows should start with a start or trigger step.',
