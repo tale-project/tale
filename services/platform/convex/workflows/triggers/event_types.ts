@@ -86,7 +86,7 @@ export type EventType = keyof typeof EVENT_TYPES;
 export const VALID_EVENT_TYPES = Object.keys(EVENT_TYPES);
 
 export function isValidEventType(type: string): type is EventType {
-  return type in EVENT_TYPES;
+  return Object.prototype.hasOwnProperty.call(EVENT_TYPES, type);
 }
 
 export function getEventTypesByCategory() {
