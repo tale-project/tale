@@ -31,31 +31,31 @@
     "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
-    "@convex-dev/eslint-plugin": "^1.1.1",
+    "@convex-dev/eslint-plugin": "1.1.1",
     "@types/node": "24.10.11",
     "@vitest/coverage-v8": "4.0.18",
     "eslint": "9.39.2",
-    "eslint-plugin-unicorn": "^62.0.0",
-    "knip": "^5.83.0",
-    "patch-package": "^8.0.1",
+    "eslint-plugin-unicorn": "62.0.0",
+    "knip": "5.83.0",
+    "patch-package": "8.0.1",
     "postcss": "8.5.6",
     "turbo": "2.8.3",
     "typescript": "5.9.3",
-    "typescript-eslint": "^8.54.0",
+    "typescript-eslint": "8.54.0",
     "vitest": "4.0.18"
   },
   "optionalDependencies": {
-    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.18"
+    "@tailwindcss/oxide-linux-x64-gnu": "4.1.18"
   },
   "overrides": {
-    "react-is": "^19.2.4",
-    "magic-string": "^0.30.17",
+    "react-is": "19.2.4",
+    "magic-string": "0.30.21",
     "workbox-build": {
-      "source-map": "^0.7.0"
+      "source-map": "0.7.6"
     }
   },
   "dependencies": {
-    "intl-messageformat": "^10.7.18",
-    "react-is": "^19.2.4"
+    "intl-messageformat": "10.7.18",
+    "react-is": "19.2.4"
   }
 }
