@@ -1,9 +1,11 @@
 /**
- * Helper function to get all workflows that have schedule triggers
+ * Helper function to get all workflows that have schedule triggers.
+ * Reads from the wfSchedules table (version-agnostic triggers).
  */
 
 import { QueryCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
+import { getActiveWorkflowVersion } from '../../../workflows/triggers/queries';
 
 export interface ScheduledWorkflow {
   wfDefinitionId: Id<'wfDefinitions'>;
@@ -11,77 +13,29 @@ export interface ScheduledWorkflow {
   name: string;
   schedule: string;
   timezone: string;
+  scheduleId: Id<'wfSchedules'>;
 }
 
 export async function getScheduledWorkflows(
   ctx: QueryCtx,
 ): Promise<ScheduledWorkflow[]> {
-  // OPTIMIZATION: Batch load workflows and their trigger steps to avoid N+1 queries
-  // Load active workflows with pagination limit to prevent timeout
-  const MAX_WORKFLOWS = 100; // Limit to prevent timeout with many workflows
-
-  const activeWorkflows = await ctx.db
-    .query('wfDefinitions')
-    .withIndex('by_status', (q) => q.eq('status', 'active'))
-    .take(MAX_WORKFLOWS);
-
-  if (activeWorkflows.length === 0) {
-    return [];
-  }
-
-  // Batch load all trigger steps for active workflows
-  // Group by organization for efficient querying
-  const workflowIds = new Set(activeWorkflows.map((wf) => wf._id));
-  const orgIds = [...new Set(activeWorkflows.map((wf) => wf.organizationId))];
-
-  // Batch query trigger steps per organization in parallel
-  const orgStepsResults = await Promise.all(
-    orgIds.map((orgId) =>
-      // eslint-disable-next-line no-restricted-syntax -- Bounded by org count, need all trigger steps for batch lookup
-      ctx.db
-        .query('wfStepDefs')
-        .withIndex('by_organizationId_and_stepType_and_order', (q) =>
-          q.eq('organizationId', orgId).eq('stepType', 'trigger').eq('order', 1),
-        )
-        .collect(),
-    ),
-  );
-  const allFirstSteps = orgStepsResults.flat();
-
-  // Create a map of wfDefinitionId -> first step
-  const firstStepMap = new Map();
-  for (const step of allFirstSteps) {
-    if (workflowIds.has(step.wfDefinitionId) && step.order === 1) {
-      firstStepMap.set(step.wfDefinitionId, step);
-    }
-  }
-
-  // Build results without additional queries
   const results: ScheduledWorkflow[] = [];
 
-  for (const wf of activeWorkflows) {
-    const firstStep = firstStepMap.get(wf._id);
+  const MAX_SCHEDULES = 200;
+  const allSchedules = await ctx.db.query('wfSchedules').take(MAX_SCHEDULES);
+  for (const sched of allSchedules) {
+    if (!sched.isActive) continue;
 
-    if (!firstStep || firstStep.stepType !== 'trigger') continue;
-
-    const cfg = firstStep.config as {
-      type?: string;
-      schedule?: string;
-      timezone?: string;
-    };
-    const schedule: string | undefined =
-      cfg.type === 'scheduled' ? cfg.schedule : undefined;
-    if (!schedule || schedule.trim() === '') continue;
-
-    const timezone =
-      cfg.timezone && cfg.timezone.trim() !== '' ? cfg.timezone : 'UTC';
+    const activeVersion = await getActiveWorkflowVersion(ctx, sched.workflowRootId);
+    if (!activeVersion) continue;
 
     results.push({
-      wfDefinitionId: wf._id,
-      organizationId: wf.organizationId,
-      name: wf.name,
-      schedule,
-      timezone,
+      wfDefinitionId: activeVersion._id,
+      organizationId: sched.organizationId,
+      name: activeVersion.name,
+      schedule: sched.cronExpression,
+      timezone: sched.timezone,
+      scheduleId: sched._id,
     });
   }
 

@@ -36,7 +36,7 @@ const workflowExamplesArgs = z.object({
     .enum([
       'quick_start',
       'common_patterns',
-      'trigger',
+      'start',
       'llm',
       'action',
       'condition',
@@ -47,7 +47,7 @@ const workflowExamplesArgs = z.object({
     ])
     .optional()
     .describe(
-      "For 'get_syntax_reference': Category of syntax to retrieve. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: 'trigger', 'llm', 'action', 'condition', 'loop', 'email', 'entity_processing', 'variables'.",
+      "For 'get_syntax_reference': Category of syntax to retrieve. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: 'start', 'llm', 'action', 'condition', 'loop', 'email', 'entity_processing', 'variables'.",
     ),
 });
 
@@ -70,7 +70,7 @@ export const workflowExamplesTool: ToolDefinition = {
 **SYNTAX CATEGORIES (for get_syntax_reference):**
 • ⭐ 'quick_start': Decision tree, common mistakes, step type reference
 • ⭐ 'common_patterns': Pattern skeletons (Entity Processing, Email, LLM Analysis, Data Sync, RAG)
-• 'trigger': Trigger step config (manual, scheduled, webhook)
+• 'start': Start step config (workflow entry point with optional inputSchema)
 • 'llm': LLM step config (requires name + systemPrompt)
 • 'action': Action types (workflow_processing_records, customer, approval, etc.)
 • 'condition': JEXL condition expressions
@@ -96,7 +96,7 @@ export const workflowExamplesTool: ToolDefinition = {
             operation: 'get_syntax_reference',
             found: false,
             syntax:
-              "Missing required 'category'. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: trigger, llm, action, condition, loop, email, entity_processing, variables.",
+              "Missing required 'category'. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: start, llm, action, condition, loop, email, entity_processing, variables.",
           };
         }
         return getSyntaxReference({ category: args.category });

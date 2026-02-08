@@ -126,8 +126,8 @@ export interface ListExecutionsCursorArgs {
   searchTerm?: string;
   /** Filter by status values */
   status?: string[];
-  /** Filter by triggeredBy values */
-  triggeredBy?: string[];
+  /** Filter by triggeredBy value */
+  triggeredBy?: string;
   /** ISO date string for start of date range */
   dateFrom?: string;
   /** ISO date string for end of date range */

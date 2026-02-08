@@ -18,8 +18,8 @@ export * from './types';
 // STEP SLUG VALIDATION
 // =============================================================================
 
-/** Regex pattern for valid step slugs (snake_case with lowercase letters only) */
-const STEP_SLUG_PATTERN = /^[a-z]+(?:_[a-z]+)*$/;
+/** Regex pattern for valid step slugs (snake_case with lowercase letters, digits, and underscores) */
+const STEP_SLUG_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 
 /**
  * Validate a step slug format
@@ -31,7 +31,7 @@ function validateStepSlug(stepSlug: string | undefined): string[] {
     errors.push('Step slug is required');
   } else if (!STEP_SLUG_PATTERN.test(stepSlug)) {
     errors.push(
-      'Step slug must be snake_case and contain only lowercase letters and underscores (e.g., "first_step")'
+      'Step slug must be snake_case and contain only lowercase letters, digits, and underscores (e.g., "first_step", "step_1")'
     );
   }
 
@@ -63,7 +63,7 @@ export function validateStepConfig(stepDef: StepDefinitionInput): StepConfigVali
   // 3. Validate step type
   if (!stepDef.stepType) {
     errors.push(
-      `Step type is required. FIX: Add stepType = "trigger" | "llm" | "action" | "condition" | "loop"`,
+      `Step type is required. FIX: Add stepType = "start" | "llm" | "action" | "condition" | "loop"`,
     );
     return { valid: false, errors, warnings };
   }

@@ -61,14 +61,9 @@ const productRecommendationEmailWorkflow: PredefinedWorkflowDefinition = {
     {
       stepSlug: 'start',
       name: 'start',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual',
-        // For scheduled email generation, uncomment below:
-        // schedule: '0 10 * * *', // Every day at 10 AM
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'find_approved_approval' },
     },
 

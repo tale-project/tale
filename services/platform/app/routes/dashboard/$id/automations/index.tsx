@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { z } from 'zod';
 import { api } from '@/convex/_generated/api';
 import { AutomationsClient } from '@/app/features/automations/components/automations-client';
 import { AutomationsTableSkeleton } from '@/app/features/automations/components/automations-table-skeleton';
@@ -11,13 +10,7 @@ import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-a
 import { Workflow, Sparkles } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
-const searchSchema = z.object({
-  query: z.string().optional(),
-  status: z.string().optional(),
-});
-
 export const Route = createFileRoute('/dashboard/$id/automations/')({
-  validateSearch: searchSchema,
   component: AutomationsPage,
 });
 
@@ -45,7 +38,6 @@ function AutomationsEmptyState({ organizationId }: { organizationId: string }) {
 
 function AutomationsPage() {
   const { id: organizationId } = Route.useParams();
-  const { query, status } = Route.useSearch();
   const { t } = useT('accessDenied');
 
   const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
@@ -54,8 +46,6 @@ function AutomationsPage() {
   const hasAutomations = useQuery(api.wf_definitions.queries.hasAutomations, {
     organizationId,
   });
-
-  const hasFilters = query || status;
 
   if (memberContext === undefined || hasAutomations === undefined) {
     return (
@@ -70,17 +60,13 @@ function AutomationsPage() {
     return <AccessDenied message={t('automations')} />;
   }
 
-  if (!hasFilters && !hasAutomations) {
+  if (!hasAutomations) {
     return <AutomationsEmptyState organizationId={organizationId} />;
   }
 
   return (
     <ContentWrapper>
-      <AutomationsClient
-        organizationId={organizationId}
-        searchTerm={query}
-        status={status ? [status] : undefined}
-      />
+      <AutomationsClient organizationId={organizationId} />
     </ContentWrapper>
   );
 }

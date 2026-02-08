@@ -5,6 +5,7 @@
  */
 
 import type { ActionCtx } from '../../../_generated/server';
+import type { Doc } from '../../../_generated/dataModel';
 import { replaceVariables } from '../../../lib/variables/replace_variables';
 import { loadAndValidateExecution } from '../step_execution/load_and_validate_execution';
 import { initializeExecutionVariables } from '../step_execution/initialize_execution_variables';
@@ -21,7 +22,7 @@ export type ExecuteStepArgs = {
   organizationId: string;
   executionId: string;
   stepSlug: string;
-  stepType: 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+  stepType: Doc<'wfStepDefs'>['stepType'];
   stepName?: string;
   threadId?: string;
   initialInput?: unknown;

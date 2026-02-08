@@ -67,7 +67,8 @@ export const wfDefinitionsTable = defineTable({
   .index('by_org_and_name', ['organizationId', 'name'])
   .index('by_org_name_version', ['organizationId', 'name', 'versionNumber'])
   .index('by_org_name_status', ['organizationId', 'name', 'status'])
-  .index('by_rootVersionId', ['rootVersionId']);
+  .index('by_rootVersionId', ['rootVersionId'])
+  .index('by_org_versionNumber', ['organizationId', 'versionNumber']);
 
 export const wfStepDefsTable = defineTable({
   organizationId: v.string(),
@@ -76,6 +77,7 @@ export const wfStepDefsTable = defineTable({
   name: v.string(),
   description: v.optional(v.string()),
   stepType: v.union(
+    v.literal('start'),
     v.literal('trigger'),
     v.literal('llm'),
     v.literal('condition'),
@@ -147,8 +149,14 @@ export const wfExecutionsTable = defineTable({
   .index('by_org', ['organizationId'])
   .index('by_definition', ['wfDefinitionId'])
   .index('by_definition_startedAt', ['wfDefinitionId', 'startedAt'])
+  .index('by_definition_triggeredBy_startedAt', [
+    'wfDefinitionId',
+    'triggeredBy',
+    'startedAt',
+  ])
   .index('by_status', ['status'])
   .index('by_org_status', ['organizationId', 'status'])
+  .index('by_org_triggeredBy', ['organizationId', 'triggeredBy'])
   .index('by_component_workflow', ['componentWorkflowId']);
 
 export const workflowProcessingRecordsTable = defineTable({

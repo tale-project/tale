@@ -25,16 +25,21 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
       accessorKey: 'status',
       header: () => tTables('headers.status'),
       size: 140,
-      cell: ({ row }) => (
-        <Badge
-          dot
-          variant={row.original.status === 'active' ? 'green' : 'outline'}
-        >
-          {row.original.status === 'active'
-            ? t.common('status.published')
-            : t.common('status.draft')}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        const status = row.original.status;
+        return (
+          <Badge
+            dot
+            variant={status === 'active' ? 'green' : 'outline'}
+          >
+            {status === 'active'
+              ? t.common('status.published')
+              : status === 'archived'
+                ? t.common('status.archived')
+                : t.common('status.draft')}
+          </Badge>
+        );
+      },
     },
     {
       accessorKey: 'version',

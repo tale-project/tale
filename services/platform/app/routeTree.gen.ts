@@ -45,6 +45,7 @@ import { Route as DashboardIdKnowledgeToneOfVoiceRouteImport } from './routes/da
 import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashboard/$id/_knowledge/products'
 import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents'
 import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers'
+import { Route as DashboardIdAutomationsAmIdTriggersRouteImport } from './routes/dashboard/$id/automations/$amId/triggers'
 import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './routes/dashboard/$id/automations/$amId/executions'
 import { Route as DashboardIdAutomationsAmIdConfigurationRouteImport } from './routes/dashboard/$id/automations/$amId/configuration'
 
@@ -244,6 +245,12 @@ const DashboardIdKnowledgeCustomersRoute =
     path: '/customers',
     getParentRoute: () => DashboardIdKnowledgeRoute,
   } as any)
+const DashboardIdAutomationsAmIdTriggersRoute =
+  DashboardIdAutomationsAmIdTriggersRouteImport.update({
+    id: '/triggers',
+    path: '/triggers',
+    getParentRoute: () => DashboardIdAutomationsAmIdRoute,
+  } as any)
 const DashboardIdAutomationsAmIdExecutionsRoute =
   DashboardIdAutomationsAmIdExecutionsRouteImport.update({
     id: '/executions',
@@ -294,6 +301,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
+  '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -327,6 +335,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings': typeof DashboardIdSettingsIndexRoute
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
+  '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -368,6 +377,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
+  '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -408,6 +418,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/'
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
+    | '/dashboard/$id/automations/$amId/triggers'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -441,6 +452,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings'
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
+    | '/dashboard/$id/automations/$amId/triggers'
   id:
     | '__root__'
     | '/'
@@ -481,6 +493,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/'
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
+    | '/dashboard/$id/automations/$amId/triggers'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -745,6 +758,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdKnowledgeCustomersRouteImport
       parentRoute: typeof DashboardIdKnowledgeRoute
     }
+    '/dashboard/$id/automations/$amId/triggers': {
+      id: '/dashboard/$id/automations/$amId/triggers'
+      path: '/triggers'
+      fullPath: '/dashboard/$id/automations/$amId/triggers'
+      preLoaderRoute: typeof DashboardIdAutomationsAmIdTriggersRouteImport
+      parentRoute: typeof DashboardIdAutomationsAmIdRoute
+    }
     '/dashboard/$id/automations/$amId/executions': {
       id: '/dashboard/$id/automations/$amId/executions'
       path: '/executions'
@@ -809,6 +829,7 @@ const DashboardIdApprovalsRouteWithChildren =
 interface DashboardIdAutomationsAmIdRouteChildren {
   DashboardIdAutomationsAmIdConfigurationRoute: typeof DashboardIdAutomationsAmIdConfigurationRoute
   DashboardIdAutomationsAmIdExecutionsRoute: typeof DashboardIdAutomationsAmIdExecutionsRoute
+  DashboardIdAutomationsAmIdTriggersRoute: typeof DashboardIdAutomationsAmIdTriggersRoute
 }
 
 const DashboardIdAutomationsAmIdRouteChildren: DashboardIdAutomationsAmIdRouteChildren =
@@ -817,6 +838,8 @@ const DashboardIdAutomationsAmIdRouteChildren: DashboardIdAutomationsAmIdRouteCh
       DashboardIdAutomationsAmIdConfigurationRoute,
     DashboardIdAutomationsAmIdExecutionsRoute:
       DashboardIdAutomationsAmIdExecutionsRoute,
+    DashboardIdAutomationsAmIdTriggersRoute:
+      DashboardIdAutomationsAmIdTriggersRoute,
   }
 
 const DashboardIdAutomationsAmIdRouteWithChildren =

@@ -39,15 +39,9 @@ const websiteScanWorkflow = {
     {
       stepSlug: 'start',
       name: 'start',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual',
-        // For scheduled scan, change to:
-        // type: 'schedule',
-        // schedule: '0 */6 * * *', // Every 6 hours
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'fetch_main_page' },
     },
 

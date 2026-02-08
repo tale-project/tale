@@ -51,6 +51,7 @@ export {
 // =============================================================================
 
 export const stepTypeValidator = v.union(
+  v.literal('start'),
   v.literal('trigger'),
   v.literal('llm'),
   v.literal('condition'),

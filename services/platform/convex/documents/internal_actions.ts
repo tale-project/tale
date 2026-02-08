@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 import { internalAction } from '../_generated/server';
 import { internal } from '../_generated/api';
 import * as DocumentsHelpers from './helpers';
-import { ragAction } from '../workflow_engine/actions/rag/rag_action';
+import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),

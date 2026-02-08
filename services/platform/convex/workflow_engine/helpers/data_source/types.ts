@@ -1,7 +1,7 @@
 /**
  * Workflow Data Source Types
  */
-import type { Id } from '../../../_generated/dataModel';
+import type { Doc, Id } from '../../../_generated/dataModel';
 
 /**
  * Abstract interface for workflow data sources
@@ -65,7 +65,7 @@ export interface StepDefinition {
   wfDefinitionId: Id<'wfDefinitions'> | string;
   stepSlug: string;
   name: string;
-  stepType: 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+  stepType: Doc<'wfStepDefs'>['stepType'];
   order: number;
   config: unknown;
   nextSteps: Record<string, string>;

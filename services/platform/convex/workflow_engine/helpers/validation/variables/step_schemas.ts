@@ -44,14 +44,14 @@ export const loopOutputSchema: OutputSchema = {
 };
 
 // =============================================================================
-// TRIGGER STEP OUTPUT SCHEMA
+// START STEP OUTPUT SCHEMA
 // =============================================================================
 
-export const triggerOutputSchema: OutputSchema = {
-  description: 'Trigger initialization result',
+export const startOutputSchema: OutputSchema = {
+  description: 'Start step initialization result',
   fields: {
-    triggerType: { type: 'string', description: 'Type of trigger (manual, scheduled, etc.)' },
-    timestamp: { type: 'number', description: 'Trigger timestamp' },
+    type: { type: 'string', description: 'Output type identifier (always "start")' },
+    data: { type: 'string', description: 'Start message' },
   },
 };
 
@@ -80,7 +80,7 @@ export const llmOutputSchema: OutputSchema = {
  * All step outputs are wrapped in this structure
  */
 export interface StepOutputWrapper {
-  type: string; // 'action', 'llm', 'condition', 'loop', 'trigger'
+  type: string; // 'action', 'llm', 'condition', 'loop', 'start'
   data: unknown;
   meta?: Record<string, unknown>;
 }
@@ -89,15 +89,16 @@ export interface StepOutputWrapper {
  * Get the base output schema for a step type
  */
 export function getStepTypeOutputSchema(
-  stepType: 'trigger' | 'llm' | 'action' | 'condition' | 'loop',
+  stepType: string,
 ): OutputSchema {
   switch (stepType) {
     case 'condition':
       return conditionOutputSchema;
     case 'loop':
       return loopOutputSchema;
+    case 'start':
     case 'trigger':
-      return triggerOutputSchema;
+      return startOutputSchema;
     case 'llm':
       return llmOutputSchema;
     case 'action':

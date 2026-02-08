@@ -146,7 +146,7 @@ export function AutomationTester({
 
   const getStepTypeColor = (stepType: string) => {
     switch (stepType) {
-      case 'trigger':
+      case 'start':
         return 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300';
       case 'llm':
         return 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300';

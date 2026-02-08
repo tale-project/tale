@@ -5,6 +5,8 @@ import { createDraftFromActive as createDraftFromActiveHelper } from '../workflo
 import { deleteWorkflow as deleteWorkflowHelper } from '../workflows/definitions/delete_workflow';
 import { duplicateWorkflow as duplicateWorkflowHelper } from '../workflows/definitions/duplicate_workflow';
 import { publishDraft as publishDraftLogic } from '../workflows/definitions/publish_draft';
+import { republishWorkflow as republishWorkflowHelper } from '../workflows/definitions/republish_workflow';
+import { unpublishWorkflow as unpublishWorkflowHelper } from '../workflows/definitions/unpublish_workflow';
 import { updateWorkflow as updateWorkflowHelper } from '../workflows/definitions/update_workflow';
 import { workflowConfigValidator, workflowUpdateValidator } from '../workflows/definitions/validators';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
@@ -78,6 +80,26 @@ export const publishDraft = mutationWithRLS({
   },
   handler: async (ctx, args) => {
     return await publishDraftLogic(ctx, args);
+  },
+});
+
+export const republishWorkflow = mutationWithRLS({
+  args: {
+    wfDefinitionId: v.id('wfDefinitions'),
+    publishedBy: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await republishWorkflowHelper(ctx, args);
+  },
+});
+
+export const unpublishWorkflow = mutationWithRLS({
+  args: {
+    wfDefinitionId: v.id('wfDefinitions'),
+    updatedBy: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await unpublishWorkflowHelper(ctx, args);
   },
 });
 

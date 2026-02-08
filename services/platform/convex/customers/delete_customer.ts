@@ -4,6 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import { emitEvent } from '../workflows/triggers/emit_event';
 
 export async function deleteCustomer(
   ctx: MutationCtx,
@@ -13,6 +14,12 @@ export async function deleteCustomer(
   if (!customer) {
     throw new Error('Customer not found');
   }
+
+  await emitEvent(ctx, {
+    organizationId: customer.organizationId,
+    eventType: 'customer.deleted',
+    eventData: { customerId: customerId as string, name: customer.name, email: customer.email },
+  });
 
   await ctx.db.delete(customerId);
   return null;

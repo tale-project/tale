@@ -18,7 +18,7 @@
  * - validate_step_config.ts (add to switch statement)
  */
 export const VALID_STEP_TYPES = [
-  'trigger',
+  'start',
   'llm',
   'condition',
   'action',
@@ -34,21 +34,4 @@ export function isValidStepType(value: unknown): value is StepType {
   return typeof value === 'string' && VALID_STEP_TYPES.includes(value as StepType);
 }
 
-// =============================================================================
-// TRIGGER TYPES
-// =============================================================================
-
-/**
- * Valid trigger types for trigger steps.
- */
-export const VALID_TRIGGER_TYPES = ['manual', 'scheduled', 'webhook', 'event'] as const;
-
-export type TriggerType = (typeof VALID_TRIGGER_TYPES)[number];
-
-/**
- * Type guard to check if a value is a valid trigger type
- */
-export function isValidTriggerType(value: unknown): value is TriggerType {
-  return typeof value === 'string' && VALID_TRIGGER_TYPES.includes(value as TriggerType);
-}
 

@@ -10,7 +10,7 @@
  * 3. Required args for the specific operation are provided
  */
 
-import { getAction, listActionTypes } from '../../actions/action_registry';
+import { getAction, listActionTypes } from '../../action_defs/action_registry';
 
 export interface ActionParametersValidationResult {
   valid: boolean;

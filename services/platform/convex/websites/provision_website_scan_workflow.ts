@@ -82,8 +82,8 @@ export async function provisionWebsiteScanWorkflow(
       },
     },
     (step) =>
-      step.stepType === 'trigger'
-        ? { ...step, config: { type: 'scheduled', schedule, timezone } }
+      step.stepType === 'start' || step.stepType === 'trigger'
+        ? { ...step, config: { ...(step.config ?? {}), type: 'scheduled', schedule, timezone } }
         : step,
   );
 

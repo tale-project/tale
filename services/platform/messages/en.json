@@ -8,6 +8,7 @@
       "presets": {
         "custom": "Custom",
         "today": "Today",
+        "last7Days": "Last 7 days",
         "last14Days": "Last 14 days",
         "last30Days": "Last 30 days",
         "last3Months": "Last 3 months",
@@ -56,7 +57,12 @@
       "updating": "Updating...",
       "importing": "Importing...",
       "openMenu": "Open menu",
+      "publish": "Publish",
       "rename": "Rename",
+      "deactivate": "Deactivate",
+      "deactivating": "Deactivating...",
+      "activate": "Activate",
+      "activating": "Activating...",
       "logIn": "Log in"
     },
     "upload": {
@@ -95,6 +101,14 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "archived": "Archived"
+    },
+    "triggerSource": {
+      "schedule": "Schedule",
+      "manual": "Manual",
+      "event": "Event",
+      "webhook": "Webhook",
+      "api": "API",
+      "system": "System"
     },
     "validation": {
       "required": "{field} is required",
@@ -319,6 +333,8 @@
       "automationCreated": "Automation created successfully",
       "automationDuplicated": "Automation duplicated successfully",
       "automationRenamed": "Automation renamed successfully",
+      "automationDeactivated": "Automation deactivated successfully",
+      "automationPublished": "Automation published successfully",
       "exampleAdded": "Example added successfully",
       "exampleUpdated": "Example updated successfully",
       "toneGenerated": "Tone of voice generated successfully",
@@ -337,6 +353,8 @@
       "automationDuplicateFailed": "Failed to duplicate automation",
       "automationRenameFailed": "Failed to rename automation",
       "automationDeleteFailed": "Failed to delete automation",
+      "automationDeactivateFailed": "Failed to deactivate automation",
+      "automationPublishFailed": "Failed to publish automation",
       "exampleAddFailed": "Failed to add example",
       "exampleUpdateFailed": "Failed to update example",
       "exampleDeleteFailed": "Failed to delete example",
@@ -976,6 +994,10 @@
       "title": "Publish automation",
       "description": "Once published, this automation will run automatically whenever its triggers occur, and it cannot be changed."
     },
+    "deactivateDialog": {
+      "title": "Deactivate automation",
+      "description": "Are you sure you want to deactivate \"{name}\"? All triggers will stop firing until you activate it again."
+    },
     "createWithAI": "Create automation with AI",
     "searchPlaceholder": "Search automations...",
     "accessDenied": "You need Admin or Developer permissions to access automations.",
@@ -984,13 +1006,16 @@
       "archived": "Archived",
       "publish": "Publish",
       "publishing": "Publishing...",
-      "rollback": "Rollback",
-      "rollingBack": "Rolling back...",
+      "rollback": "Activate",
+      "rollingBack": "Activating...",
       "toast": {
         "unableToPublish": "Unable to publish automation",
         "published": "Automation published successfully",
-        "rolledBack": "Automation rolled back successfully",
+        "rolledBack": "Automation activated successfully",
         "publishFailed": "Failed to publish automation",
+        "deactivated": "Automation deactivated successfully",
+        "deactivateFailed": "Failed to deactivate automation",
+        "unableToDeactivate": "Unable to deactivate automation",
         "unableToCreateDraft": "Unable to create draft",
         "draftCreated": "Draft created for editing",
         "navigatingToExisting": "Navigating to existing draft",
@@ -1025,6 +1050,113 @@
       "notAvailable": {
         "title": "Saving not yet available",
         "message": "Saving workflow configuration is not yet wired to a public API. Please update this workflow via backend/admin tools for now."
+      }
+    },
+    "triggers": {
+      "title": "Triggers",
+      "schedules": {
+        "title": "Schedules",
+        "createButton": "Add schedule",
+        "emptyTitle": "No schedules",
+        "emptyDescription": "Create a schedule to automatically trigger this automation on a recurring basis.",
+        "columns": {
+          "cronExpression": "Cron expression",
+          "active": "Active",
+          "lastTriggered": "Last triggered",
+          "createdBy": "Created by"
+        },
+        "form": {
+          "title": "Create schedule",
+          "editTitle": "Edit schedule",
+          "cronExpression": "Cron expression",
+          "cronPlaceholder": "0 * * * *",
+          "cronHelp": "Standard 5-field cron format: minute hour day month weekday",
+          "timezoneNote": "All schedules run in UTC timezone.",
+          "presets": {
+            "every5Minutes": "Every 5 minutes",
+            "hourly": "Every hour",
+            "daily": "Every day",
+            "weekly": "Every week",
+            "monthly": "Every month"
+          },
+          "ai": {
+            "label": "Describe your schedule",
+            "placeholder": "e.g., every weekday at 9am, twice a day at 8am and 6pm",
+            "generateButton": "Generate",
+            "generateError": "Could not generate cron expression. Please try again or enter manually."
+          }
+        },
+        "toast": {
+          "created": "Schedule created",
+          "updated": "Schedule updated",
+          "deleted": "Schedule deleted",
+          "enabled": "Schedule enabled",
+          "disabled": "Schedule disabled",
+          "toggleError": "Failed to toggle schedule",
+          "deleteError": "Failed to delete schedule"
+        },
+        "deleteTitle": "Delete schedule",
+        "deleteDescription": "This will permanently delete this schedule. This action cannot be undone."
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "createButton": "Add webhook",
+        "emptyTitle": "No webhooks",
+        "emptyDescription": "Create a webhook to trigger this automation via HTTP POST requests.",
+        "columns": {
+          "url": "Webhook URL",
+          "active": "Active",
+          "lastTriggered": "Last triggered"
+        },
+        "createdTitle": "Webhook created",
+        "urlWarning": "Save this webhook URL. The token in the URL acts as the authentication credential.",
+        "webhookUrl": "Webhook URL",
+        "deleteTitle": "Delete webhook",
+        "deleteDescription": "This will permanently delete this webhook endpoint. Any integrations using this URL will stop working.",
+        "toast": {
+          "created": "Webhook created",
+          "deleted": "Webhook deleted",
+          "enabled": "Webhook enabled",
+          "disabled": "Webhook disabled",
+          "urlCopied": "Webhook URL copied"
+        }
+      },
+      "events": {
+        "title": "Events",
+        "createButton": "Add event trigger",
+        "emptyTitle": "No event triggers",
+        "emptyDescription": "Subscribe to system events to automatically trigger this automation when specific actions occur.",
+        "columns": {
+          "eventType": "Event type",
+          "active": "Active",
+          "lastTriggered": "Last triggered",
+          "createdBy": "Created by"
+        },
+        "form": {
+          "title": "Add event trigger",
+          "editTitle": "Edit event trigger",
+          "eventType": "Event type",
+          "eventTypePlaceholder": "Select an event type",
+          "filtersLabel": "Filters (optional)",
+          "filterAll": "All (no filter)",
+          "filterAllPlaceholder": "Select a filter value"
+        },
+        "toast": {
+          "created": "Event trigger created",
+          "updated": "Event trigger updated",
+          "deleted": "Event trigger deleted",
+          "enabled": "Event trigger enabled",
+          "disabled": "Event trigger disabled",
+          "toggleError": "Failed to toggle event subscription",
+          "deleteError": "Failed to delete event subscription"
+        },
+        "editTitle": "Edit event trigger",
+        "deleteTitle": "Delete event trigger",
+        "deleteDescription": "This will permanently delete this event trigger. The automation will no longer be triggered by this event."
+      },
+      "common": {
+        "never": "Never",
+        "copied": "Copied"
       }
     },
     "executions": {
@@ -1117,6 +1249,7 @@
       }
     },
     "stepTypes": {
+      "start": "Start",
       "trigger": "Trigger",
       "llm": "LLM",
       "condition": "Condition",

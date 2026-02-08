@@ -12,9 +12,10 @@ export const WORKFLOW_SYNTAX_COMPACT = `
 
 ## Step Types
 
-### trigger (stepType: 'trigger')
-Config: { type: 'manual'|'scheduled'|'webhook'|'event', inputs?, schedule?, context? }
+### start (stepType: 'start')
+Config: { inputSchema?: { properties: { [name]: { type, description? } }, required?: string[] } }
 NextSteps: { success: 'next_step' }
+Note: Trigger sources (schedules, webhooks, events) are configured separately, not in step config.
 
 ### llm (stepType: 'llm')
 Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?: JsonSchemaDefinition, contextVariables? }

@@ -1,16 +1,19 @@
 'use client';
 
 import { useMemo, useCallback, useState } from 'react';
-import { Copy, Pencil, Trash2 } from 'lucide-react';
+import { CircleStop, Copy, Pencil, Trash2, Upload } from 'lucide-react';
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { DeleteAutomationDialog } from './automation-delete-dialog';
 import { AutomationRenameDialog } from './automation-rename-dialog';
 import { useDuplicateAutomation } from '../hooks/use-duplicate-automation';
 import { useDeleteAutomation } from '../hooks/use-delete-automation';
+import { useRepublishAutomation } from '../hooks/use-republish-automation';
+import { useUnpublishAutomation } from '../hooks/use-unpublish-automation';
 import { useUpdateAutomation } from '../hooks/use-update-automation';
 import { toast } from '@/app/hooks/use-toast';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -24,14 +27,38 @@ export function AutomationRowActions({
   automation,
 }: AutomationRowActionsProps) {
   const { t: tCommon } = useT('common');
+  const { t: tAutomations } = useT('automations');
   const { t: tToast } = useT('toast');
   const { user } = useAuth();
-  const dialogs = useEntityRowDialogs(['delete', 'rename']);
+  const dialogs = useEntityRowDialogs(['delete', 'rename', 'unpublish']);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
   const duplicateAutomation = useDuplicateAutomation();
   const deleteAutomation = useDeleteAutomation();
+  const republishAutomation = useRepublishAutomation();
+  const unpublishAutomation = useUnpublishAutomation();
   const updateAutomation = useUpdateAutomation();
+
+  const handlePublish = useCallback(async () => {
+    if (!user) return;
+    try {
+      await republishAutomation({
+        wfDefinitionId: automation._id,
+        publishedBy: user.email ?? user.userId,
+      });
+      toast({
+        title: tToast('success.automationPublished'),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('Failed to publish automation:', error);
+      toast({
+        title: tToast('error.automationPublishFailed'),
+        variant: 'destructive',
+      });
+    }
+  }, [republishAutomation, automation._id, user, tToast]);
 
   const handleDuplicate = useCallback(async () => {
     try {
@@ -76,6 +103,30 @@ export function AutomationRowActions({
     [updateAutomation, automation._id, user, tToast],
   );
 
+  const handleUnpublishConfirm = useCallback(async () => {
+    if (!user) return;
+    setIsUnpublishing(true);
+    try {
+      await unpublishAutomation({
+        wfDefinitionId: automation._id,
+        updatedBy: user.userId,
+      });
+      dialogs.setOpen.unpublish(false);
+      toast({
+        title: tToast('success.automationDeactivated'),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('Failed to unpublish automation:', error);
+      toast({
+        title: tToast('error.automationDeactivateFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUnpublishing(false);
+    }
+  }, [unpublishAutomation, automation._id, user, dialogs.setOpen, tToast]);
+
   const handleDeleteConfirm = useCallback(async () => {
     setIsDeleting(true);
     try {
@@ -109,6 +160,20 @@ export function AutomationRowActions({
         onClick: dialogs.open.rename,
       },
       {
+        key: 'publish',
+        label: tCommon('actions.publish'),
+        icon: Upload,
+        onClick: handlePublish,
+        visible: automation.status === 'archived',
+      },
+      {
+        key: 'unpublish',
+        label: tCommon('actions.deactivate'),
+        icon: CircleStop,
+        onClick: dialogs.open.unpublish,
+        visible: automation.status === 'active',
+      },
+      {
         key: 'delete',
         label: tCommon('actions.delete'),
         icon: Trash2,
@@ -116,7 +181,7 @@ export function AutomationRowActions({
         destructive: true,
       },
     ],
-    [tCommon, handleDuplicate, dialogs.open],
+    [tCommon, handlePublish, handleDuplicate, dialogs.open, automation.status],
   );
 
   return (
@@ -128,6 +193,19 @@ export function AutomationRowActions({
         onOpenChange={dialogs.setOpen.rename}
         currentName={automation.name}
         onRename={handleRename}
+      />
+
+      <ConfirmDialog
+        open={dialogs.isOpen.unpublish}
+        onOpenChange={dialogs.setOpen.unpublish}
+        title={tAutomations('deactivateDialog.title')}
+        description={tAutomations('deactivateDialog.description', {
+          name: automation.name,
+        })}
+        confirmText={tCommon('actions.deactivate')}
+        loadingText={tCommon('actions.deactivating')}
+        isLoading={isUnpublishing}
+        onConfirm={handleUnpublishConfirm}
       />
 
       <DeleteAutomationDialog

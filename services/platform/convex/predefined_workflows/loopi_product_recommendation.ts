@@ -52,14 +52,9 @@ const loopiProductRecommendationWorkflow = {
     {
       stepSlug: 'start',
       name: 'start',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
-      config: {
-        type: 'manual', // Can be changed to 'schedule' for automated recommendations
-        // For scheduled recommendations, uncomment below:
-        // schedule: '0 9 * * 1', // Every Monday at 9 AM
-        // timezone: 'UTC',
-      },
+      config: {},
       nextSteps: { success: 'find_unprocessed_customer' },
     },
 

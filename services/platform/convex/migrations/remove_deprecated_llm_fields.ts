@@ -1,14 +1,5 @@
 /**
- * Workflow Migrations
- *
- * One-time migration scripts for workflow data.
- * Run these via the Convex dashboard or CLI.
- */
-
-import { internalMutation } from '../_generated/server';
-
-/**
- * Remove deprecated LLM config fields from workflow step definitions.
+ * Migration: Remove deprecated LLM config fields from workflow step definitions.
  *
  * These fields are no longer configurable in workflow definitions:
  * - temperature: auto-determined based on outputFormat (json→0.2, text→0.5)
@@ -17,9 +8,12 @@ import { internalMutation } from '../_generated/server';
  *
  * Run this migration once after deploying the updated schema.
  *
- * Usage (via Convex dashboard or CLI):
- *   npx convex run workflows/internal_mutations:removeDeprecatedLLMFields
+ * Usage:
+ *   npx convex run migrations/remove_deprecated_llm_fields:removeDeprecatedLLMFields
  */
+
+import { internalMutation } from '../_generated/server';
+
 export const removeDeprecatedLLMFields = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -41,7 +35,7 @@ export const removeDeprecatedLLMFields = internalMutation({
         continue;
       }
 
-      const { temperature, maxTokens, maxSteps, ...cleanConfig } = config;
+      const { temperature: _temperature, maxTokens: _maxTokens, maxSteps: _maxSteps, ...cleanConfig } = config;
       await ctx.db.patch(step._id, { config: cleanConfig });
       updated++;
       details.push({
