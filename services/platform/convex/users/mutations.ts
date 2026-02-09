@@ -46,13 +46,14 @@ export const createMember = mutation({
   args: {
     organizationId: v.string(),
     email: v.string(),
-    password: v.string(),
+    password: v.optional(v.string()),
     displayName: v.optional(v.string()),
     role: v.optional(roleValidator),
   },
   returns: v.object({
     userId: v.string(),
     memberId: v.string(),
+    isExistingUser: v.boolean(),
   }),
   handler: async (ctx, args) => {
     return await createMemberHelper(ctx, args);
