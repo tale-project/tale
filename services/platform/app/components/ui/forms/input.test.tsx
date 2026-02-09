@@ -41,24 +41,22 @@ describe('Input', () => {
       render(<Input type="password" label="Password" />);
       const input = screen.getByLabelText('Password');
       expect(input).toHaveAttribute('type', 'password');
-      // Translation mock returns the key as-is: "aria.showPassword"
-      expect(
-        screen.getByRole('button', { name: /showPassword/i }),
+expect(
+        screen.getByRole('button', { name: /show password/i }),
       ).toBeInTheDocument();
     });
 
     it('toggles password visibility', async () => {
       const { user } = render(<Input type="password" label="Password" />);
       const input = screen.getByLabelText('Password');
-      // Translation mock returns the key as-is
-      const toggle = screen.getByRole('button', { name: /showPassword/i });
+const toggle = screen.getByRole('button', { name: /show password/i });
 
       expect(input).toHaveAttribute('type', 'password');
 
       await user.click(toggle);
       expect(input).toHaveAttribute('type', 'text');
       expect(
-        screen.getByRole('button', { name: /hidePassword/i }),
+        screen.getByRole('button', { name: /hide password/i }),
       ).toBeInTheDocument();
 
       await user.click(toggle);
@@ -67,8 +65,7 @@ describe('Input', () => {
 
     it('password toggle has aria-pressed', async () => {
       const { user } = render(<Input type="password" label="Password" />);
-      // Translation mock returns the key as-is
-      const toggle = screen.getByRole('button', { name: /showPassword/i });
+const toggle = screen.getByRole('button', { name: /show password/i });
 
       expect(toggle).toHaveAttribute('aria-pressed', 'false');
 
