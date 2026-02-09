@@ -2,7 +2,7 @@ import type { QueuedMutation } from './types';
 
 import { db } from './db';
 
-export async function addToQueue(
+async function addToQueue(
   mutation: Omit<QueuedMutation, 'id' | 'timestamp' | 'retryCount' | 'status'>,
 ): Promise<string> {
   const id = crypto.randomUUID();
@@ -24,11 +24,11 @@ export async function getPendingMutations(): Promise<QueuedMutation[]> {
   return db.mutationQueue.where('status').equals('pending').sortBy('timestamp');
 }
 
-export async function getFailedMutations(): Promise<QueuedMutation[]> {
+async function getFailedMutations(): Promise<QueuedMutation[]> {
   return db.mutationQueue.where('status').equals('failed').toArray();
 }
 
-export async function getMutationById(
+async function getMutationById(
   id: string,
 ): Promise<QueuedMutation | undefined> {
   return db.mutationQueue.get(id);
@@ -59,7 +59,7 @@ export async function removeMutation(id: string): Promise<void> {
   await db.mutationQueue.delete(id);
 }
 
-export async function clearCompletedMutations(): Promise<number> {
+async function clearCompletedMutations(): Promise<number> {
   const pendingIds = await db.mutationQueue
     .where('status')
     .notEqual('pending')
@@ -75,11 +75,11 @@ export async function clearCompletedMutations(): Promise<number> {
   return pendingIds.length;
 }
 
-export async function clearAllMutations(): Promise<void> {
+async function clearAllMutations(): Promise<void> {
   await db.mutationQueue.clear();
 }
 
-export async function getQueueStats(): Promise<{
+async function getQueueStats(): Promise<{
   pending: number;
   processing: number;
   failed: number;
@@ -99,7 +99,7 @@ export async function getQueueStats(): Promise<{
   };
 }
 
-export async function retryFailedMutation(id: string): Promise<void> {
+async function retryFailedMutation(id: string): Promise<void> {
   await db.mutationQueue.update(id, {
     status: 'pending',
     error: undefined,
@@ -107,7 +107,7 @@ export async function retryFailedMutation(id: string): Promise<void> {
   await registerBackgroundSync();
 }
 
-export async function retryAllFailedMutations(): Promise<number> {
+async function retryAllFailedMutations(): Promise<number> {
   const failed = await getFailedMutations();
   await Promise.all(failed.map((m) => retryFailedMutation(m.id)));
   return failed.length;
@@ -131,7 +131,7 @@ async function registerBackgroundSync(): Promise<void> {
   }
 }
 
-export function subscribeToQueueChanges(
+function subscribeToQueueChanges(
   callback: (stats: { pending: number; failed: number }) => void,
 ): () => void {
   const updateStats = async () => {

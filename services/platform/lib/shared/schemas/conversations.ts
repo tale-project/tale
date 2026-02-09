@@ -2,20 +2,20 @@ import { z } from 'zod/v4';
 import { prioritySchema } from './common';
 import { jsonRecordSchema } from './utils/json-value';
 
-export const conversationStatusLiterals = ['open', 'closed', 'spam', 'archived'] as const;
+const conversationStatusLiterals = ['open', 'closed', 'spam', 'archived'] as const;
 export const conversationStatusSchema = z.enum(conversationStatusLiterals);
-export type ConversationStatus = z.infer<typeof conversationStatusSchema>;
+type ConversationStatus = z.infer<typeof conversationStatusSchema>;
 
 export const conversationPrioritySchema = prioritySchema;
-export type ConversationPriority = z.infer<typeof conversationPrioritySchema>;
+type ConversationPriority = z.infer<typeof conversationPrioritySchema>;
 
-export const messageStatusLiterals = ['queued', 'sent', 'delivered', 'failed'] as const;
+const messageStatusLiterals = ['queued', 'sent', 'delivered', 'failed'] as const;
 export const messageStatusSchema = z.enum(messageStatusLiterals);
-export type MessageStatus = z.infer<typeof messageStatusSchema>;
+type MessageStatus = z.infer<typeof messageStatusSchema>;
 
-export const messageDirectionLiterals = ['inbound', 'outbound'] as const;
+const messageDirectionLiterals = ['inbound', 'outbound'] as const;
 export const messageDirectionSchema = z.enum(messageDirectionLiterals);
-export type MessageDirection = z.infer<typeof messageDirectionSchema>;
+type MessageDirection = z.infer<typeof messageDirectionSchema>;
 
 export const attachmentSchema = z.object({
 	url: z.string(),
@@ -23,7 +23,7 @@ export const attachmentSchema = z.object({
 	contentType: z.string().optional(),
 	size: z.number().optional(),
 });
-export type Attachment = z.infer<typeof attachmentSchema>;
+type Attachment = z.infer<typeof attachmentSchema>;
 
 export const messageSchema = z.object({
 	id: z.string(),
@@ -34,7 +34,7 @@ export const messageSchema = z.object({
 	status: messageStatusSchema,
 	attachment: attachmentSchema.optional(),
 });
-export type Message = z.infer<typeof messageSchema>;
+type Message = z.infer<typeof messageSchema>;
 
 export const customerInfoSchema = z.object({
 	id: z.string(),
@@ -45,7 +45,7 @@ export const customerInfoSchema = z.object({
 	source: z.string().optional(),
 	created_at: z.string(),
 });
-export type CustomerInfo = z.infer<typeof customerInfoSchema>;
+type CustomerInfo = z.infer<typeof customerInfoSchema>;
 
 export const conversationItemSchema = z.object({
 	_id: z.string(),
@@ -78,28 +78,28 @@ export const conversationItemSchema = z.object({
 	customer: customerInfoSchema,
 	messages: z.array(messageSchema),
 });
-export type ConversationItem = z.infer<typeof conversationItemSchema>;
+type ConversationItem = z.infer<typeof conversationItemSchema>;
 
-export const conversationListResponseSchema = z.object({
+const conversationListResponseSchema = z.object({
 	conversations: z.array(conversationItemSchema),
 	total: z.number(),
 	page: z.number(),
 	limit: z.number(),
 	totalPages: z.number(),
 });
-export type ConversationListResponse = z.infer<typeof conversationListResponseSchema>;
+type ConversationListResponse = z.infer<typeof conversationListResponseSchema>;
 
 export const conversationWithMessagesSchema = conversationItemSchema;
-export type ConversationWithMessages = z.infer<typeof conversationWithMessagesSchema>;
+type ConversationWithMessages = z.infer<typeof conversationWithMessagesSchema>;
 
 export const bulkOperationResultSchema = z.object({
 	successCount: z.number(),
 	failedCount: z.number(),
 	errors: z.array(z.string()),
 });
-export type BulkOperationResult = z.infer<typeof bulkOperationResultSchema>;
+type BulkOperationResult = z.infer<typeof bulkOperationResultSchema>;
 
-export const conversationDocSchema = z.object({
+const conversationDocSchema = z.object({
 	_id: z.string(),
 	_creationTime: z.number(),
 	organizationId: z.string(),
@@ -115,4 +115,4 @@ export const conversationDocSchema = z.object({
 	lastMessageAt: z.number().optional(),
 	metadata: jsonRecordSchema.optional(),
 });
-export type ConversationDoc = z.infer<typeof conversationDocSchema>;
+type ConversationDoc = z.infer<typeof conversationDocSchema>;

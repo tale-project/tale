@@ -9,7 +9,7 @@ export function useT<N extends Namespace>(namespace: N) {
   return { t };
 }
 
-export function useLocale() {
+function useLocale() {
   const { i18n } = useTranslation();
   return i18n.language;
 }

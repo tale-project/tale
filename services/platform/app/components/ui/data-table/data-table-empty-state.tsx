@@ -21,7 +21,7 @@ export interface DataTableEmptyStateProps {
   className?: string;
 }
 
-export interface DataTableFilteredEmptyStateProps {
+interface DataTableFilteredEmptyStateProps {
   /** Title text */
   title: string;
   /** Description text */
@@ -77,7 +77,7 @@ export function DataTableEmptyState({
  * Includes header content (search/filters) and simpler styling.
  * Note: No action button since it's already in the header.
  */
-export function DataTableFilteredEmptyState({
+function DataTableFilteredEmptyState({
   title,
   description,
   headerContent,

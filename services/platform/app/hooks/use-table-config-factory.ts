@@ -138,4 +138,4 @@ export function createTableConfigHook<TTableName extends TableNames>(
   };
 }
 
-export type { TableConfig, CreateTableConfigOptions, ColumnBuilderContext };
+export type { TableConfig, CreateTableConfigOptions };

@@ -2,13 +2,13 @@ import { z } from 'zod/v4';
 
 export const sortOrderLiterals = ['asc', 'desc'] as const;
 export const sortOrderSchema = z.enum(sortOrderLiterals);
-export type SortOrder = z.infer<typeof sortOrderSchema>;
+type SortOrder = z.infer<typeof sortOrderSchema>;
 
-export const priorityLiterals = ['low', 'medium', 'high', 'urgent'] as const;
+const priorityLiterals = ['low', 'medium', 'high', 'urgent'] as const;
 export const prioritySchema = z.enum(priorityLiterals);
-export type Priority = z.infer<typeof prioritySchema>;
+type Priority = z.infer<typeof prioritySchema>;
 
-export const dataSourceLiterals = [
+const dataSourceLiterals = [
 	'manual_import',
 	'file_upload',
 	'api_import',

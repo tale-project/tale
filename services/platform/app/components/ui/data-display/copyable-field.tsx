@@ -89,7 +89,7 @@ export const CopyableField = React.memo(function CopyableField({
   );
 });
 
-export interface CopyableTextProps {
+interface CopyableTextProps {
   /** The value to display and copy */
   value: string;
   /** Additional className */

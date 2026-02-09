@@ -37,17 +37,17 @@ function updateSyncState(updates: Partial<OfflineState>): void {
   notifyListeners();
 }
 
-export function getSyncState(): OfflineState {
+function getSyncState(): OfflineState {
   return syncState;
 }
 
-export function subscribeSyncState(listener: SyncListener): () => void {
+function subscribeSyncState(listener: SyncListener): () => void {
   listeners.add(listener);
   listener(syncState);
   return () => listeners.delete(listener);
 }
 
-export async function processMutationQueue(
+async function processMutationQueue(
   convex: ConvexReactClient,
 ): Promise<{ processed: number; failed: number }> {
   if (syncState.isSyncing) {
@@ -164,7 +164,7 @@ export function initSyncManager(convex: ConvexReactClient): () => void {
   };
 }
 
-export async function forceSyncNow(
+async function forceSyncNow(
   convex: ConvexReactClient,
 ): Promise<{ processed: number; failed: number }> {
   if (!navigator.onLine) {

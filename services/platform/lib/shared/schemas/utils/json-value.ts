@@ -1,7 +1,7 @@
 import { z } from 'zod/v4';
 import { v, Infer } from 'convex/values';
 
-export type JsonValue =
+type JsonValue =
 	| string
 	| number
 	| boolean

@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils/cn';
 
 import { Input } from './input';
 
-export interface SearchInputProps extends Omit<
+interface SearchInputProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
   'size' | 'type'
 > {

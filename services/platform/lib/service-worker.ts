@@ -88,7 +88,7 @@ interface SyncRegistration extends ServiceWorkerRegistration {
   };
 }
 
-export async function registerBackgroundSync(
+async function registerBackgroundSync(
   tag: string = 'mutation-sync',
 ): Promise<boolean> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
@@ -111,7 +111,7 @@ export async function registerBackgroundSync(
   }
 }
 
-export async function isBackgroundSyncSupported(): Promise<boolean> {
+async function isBackgroundSyncSupported(): Promise<boolean> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return false;
   }
@@ -124,7 +124,7 @@ export async function isBackgroundSyncSupported(): Promise<boolean> {
   }
 }
 
-export function onServiceWorkerMessage(
+function onServiceWorkerMessage(
   callback: (event: MessageEvent) => void,
 ): () => void {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {

@@ -14,7 +14,7 @@ import {
 // MIME type constants
 // ---------------------------------------------------------------------------
 
-export const MIME_TYPES = {
+const MIME_TYPES = {
   // Images
   JPEG: 'image/jpeg',
   PNG: 'image/png',
@@ -39,37 +39,37 @@ export const MIME_TYPES = {
   PLAIN: 'text/plain',
 } as const;
 
-export type MimeType = (typeof MIME_TYPES)[keyof typeof MIME_TYPES];
+type MimeType = (typeof MIME_TYPES)[keyof typeof MIME_TYPES];
 
 // ---------------------------------------------------------------------------
 // Grouped MIME sets (for validation)
 // ---------------------------------------------------------------------------
 
-export const IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
+const IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.JPEG,
   MIME_TYPES.PNG,
   MIME_TYPES.GIF,
   MIME_TYPES.WEBP,
 ]);
 
-export const DOCUMENT_MIME_TYPES: ReadonlySet<string> = new Set([
+const DOCUMENT_MIME_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.PDF,
   MIME_TYPES.DOC,
   MIME_TYPES.DOCX,
 ]);
 
-export const PRESENTATION_MIME_TYPES: ReadonlySet<string> = new Set([
+const PRESENTATION_MIME_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.PPT,
   MIME_TYPES.PPTX,
 ]);
 
-export const SPREADSHEET_MIME_TYPES: ReadonlySet<string> = new Set([
+const SPREADSHEET_MIME_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.XLS,
   MIME_TYPES.XLSX,
   MIME_TYPES.CSV,
 ]);
 
-export const TEXT_MIME_TYPES: ReadonlySet<string> = new Set([
+const TEXT_MIME_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.PLAIN,
 ]);
 
@@ -91,7 +91,7 @@ export function isSpreadsheet(fileName: string): boolean {
   return lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv');
 }
 
-export function isParseable(fileName: string): boolean {
+function isParseable(fileName: string): boolean {
   const lower = fileName.toLowerCase();
   return lower.endsWith('.pdf') || lower.endsWith('.docx') || lower.endsWith('.pptx');
 }

@@ -3,7 +3,7 @@ import { jsonRecordSchema, jsonValueSchema } from './utils/json-value';
 import { dataSourceSchema } from './common';
 
 export const vendorSourceSchema = dataSourceSchema;
-export type VendorSource = z.infer<typeof vendorSourceSchema>;
+type VendorSource = z.infer<typeof vendorSourceSchema>;
 
 export const vendorAddressSchema = z.object({
 	street: z.string().optional(),
@@ -12,7 +12,7 @@ export const vendorAddressSchema = z.object({
 	country: z.string().optional(),
 	postalCode: z.string().optional(),
 });
-export type VendorAddress = z.infer<typeof vendorAddressSchema>;
+type VendorAddress = z.infer<typeof vendorAddressSchema>;
 
 export const vendorItemSchema = z.object({
 	_id: z.string(),
@@ -29,7 +29,7 @@ export const vendorItemSchema = z.object({
 	metadata: jsonRecordSchema.optional(),
 	notes: z.string().optional(),
 });
-export type VendorItem = z.infer<typeof vendorItemSchema>;
+type VendorItem = z.infer<typeof vendorItemSchema>;
 
 export const vendorInputSchema = z.object({
 	name: z.string().optional(),
@@ -43,7 +43,7 @@ export const vendorInputSchema = z.object({
 	metadata: jsonRecordSchema.optional(),
 	notes: z.string().optional(),
 });
-export type VendorInput = z.infer<typeof vendorInputSchema>;
+type VendorInput = z.infer<typeof vendorInputSchema>;
 
 export const vendorListResponseSchema = z.object({
 	items: z.array(vendorItemSchema),
@@ -54,18 +54,18 @@ export const vendorListResponseSchema = z.object({
 	hasNextPage: z.boolean(),
 	hasPreviousPage: z.boolean(),
 });
-export type VendorListResponse = z.infer<typeof vendorListResponseSchema>;
+type VendorListResponse = z.infer<typeof vendorListResponseSchema>;
 
-export const bulkCreateErrorItemSchema = z.object({
+const bulkCreateErrorItemSchema = z.object({
 	index: z.number(),
 	error: z.string(),
 	vendor: jsonValueSchema,
 });
-export type BulkCreateErrorItem = z.infer<typeof bulkCreateErrorItemSchema>;
+type BulkCreateErrorItem = z.infer<typeof bulkCreateErrorItemSchema>;
 
 export const bulkCreateVendorsResponseSchema = z.object({
 	success: z.number(),
 	failed: z.number(),
 	errors: z.array(bulkCreateErrorItemSchema),
 });
-export type BulkCreateVendorsResponse = z.infer<typeof bulkCreateVendorsResponseSchema>;
+type BulkCreateVendorsResponse = z.infer<typeof bulkCreateVendorsResponseSchema>;

@@ -1,7 +1,7 @@
 import { db } from './db';
 import { DEFAULT_CACHE_CONFIG, type CacheConfig } from './types';
 
-export function createCacheKey(
+function createCacheKey(
   queryName: string,
   organizationId: string,
   additionalParams?: Record<string, unknown>,
@@ -11,7 +11,7 @@ export function createCacheKey(
   return `${base}:${JSON.stringify(additionalParams)}`;
 }
 
-export async function getQueryCache<T>(key: string): Promise<T[] | null> {
+async function getQueryCache<T>(key: string): Promise<T[] | null> {
   const entry = await db.queryCache.get(key);
   if (!entry) return null;
 
@@ -24,7 +24,7 @@ export async function getQueryCache<T>(key: string): Promise<T[] | null> {
   return entry.data as T[];
 }
 
-export async function setQueryCache<T>(
+async function setQueryCache<T>(
   key: string,
   data: T[],
   organizationId: string,
@@ -45,14 +45,14 @@ export async function setQueryCache<T>(
   await enforceMaxEntries(organizationId);
 }
 
-export async function invalidateCache(pattern: string): Promise<number> {
+async function invalidateCache(pattern: string): Promise<number> {
   const allKeys = await db.queryCache.toCollection().primaryKeys();
   const matchingKeys = allKeys.filter((key) => key.includes(pattern));
   await db.queryCache.bulkDelete(matchingKeys);
   return matchingKeys.length;
 }
 
-export async function invalidateOrganizationCache(
+async function invalidateOrganizationCache(
   organizationId: string,
 ): Promise<number> {
   const count = await db.queryCache
@@ -65,13 +65,13 @@ export async function invalidateOrganizationCache(
   return count;
 }
 
-export async function getCacheAge(key: string): Promise<number | null> {
+async function getCacheAge(key: string): Promise<number | null> {
   const entry = await db.queryCache.get(key);
   if (!entry) return null;
   return Date.now() - entry.timestamp;
 }
 
-export async function isCacheStale(
+async function isCacheStale(
   key: string,
   maxAge: number = DEFAULT_CACHE_CONFIG.maxAge,
 ): Promise<boolean> {
@@ -80,7 +80,7 @@ export async function isCacheStale(
   return age > maxAge;
 }
 
-export async function getCacheStats(organizationId?: string): Promise<{
+async function getCacheStats(organizationId?: string): Promise<{
   totalEntries: number;
   oldestEntry: number | null;
   newestEntry: number | null;
@@ -120,7 +120,7 @@ async function enforceMaxEntries(
   }
 }
 
-export async function updateCacheItem<T>(
+async function updateCacheItem<T>(
   key: string,
   updater: (data: T[]) => T[],
 ): Promise<boolean> {
@@ -136,14 +136,11 @@ export async function updateCacheItem<T>(
   return true;
 }
 
-export async function appendToCacheItem<T>(
-  key: string,
-  item: T,
-): Promise<boolean> {
+async function appendToCacheItem<T>(key: string, item: T): Promise<boolean> {
   return updateCacheItem<T>(key, (data) => [...data, item]);
 }
 
-export async function removeCacheItemById<T extends { _id: string }>(
+async function removeCacheItemById<T extends { _id: string }>(
   key: string,
   id: string,
 ): Promise<boolean> {
@@ -152,7 +149,7 @@ export async function removeCacheItemById<T extends { _id: string }>(
   );
 }
 
-export async function updateCacheItemById<T extends { _id: string }>(
+async function updateCacheItemById<T extends { _id: string }>(
   key: string,
   id: string,
   updates: Partial<T>,

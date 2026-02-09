@@ -1,13 +1,13 @@
 import { z } from 'zod/v4';
 import { jsonRecordSchema } from './utils/json-value';
 
-export const productStatusLiterals = ['active', 'inactive', 'draft', 'archived'] as const;
+const productStatusLiterals = ['active', 'inactive', 'draft', 'archived'] as const;
 export const productStatusSchema = z.enum(productStatusLiterals);
-export type ProductStatus = z.infer<typeof productStatusSchema>;
+type ProductStatus = z.infer<typeof productStatusSchema>;
 
-export const productSortByLiterals = ['name', 'createdAt', 'lastUpdated', 'stock', 'price'] as const;
+const productSortByLiterals = ['name', 'createdAt', 'lastUpdated', 'stock', 'price'] as const;
 export const productSortBySchema = z.enum(productSortByLiterals);
-export type ProductSortBy = z.infer<typeof productSortBySchema>;
+type ProductSortBy = z.infer<typeof productSortBySchema>;
 
 export const productTranslationSchema = z.object({
 	language: z.string(),
@@ -19,7 +19,7 @@ export const productTranslationSchema = z.object({
 	createdAt: z.number().optional(),
 	lastUpdated: z.number(),
 });
-export type ProductTranslation = z.infer<typeof productTranslationSchema>;
+type ProductTranslation = z.infer<typeof productTranslationSchema>;
 
 export const productItemSchema = z.object({
 	id: z.string(),
@@ -38,7 +38,7 @@ export const productItemSchema = z.object({
 	translations: z.array(productTranslationSchema).optional(),
 	metadata: jsonRecordSchema.optional(),
 });
-export type ProductItem = z.infer<typeof productItemSchema>;
+type ProductItem = z.infer<typeof productItemSchema>;
 
 export const productListResponseSchema = z.object({
 	products: z.array(productItemSchema),
@@ -48,9 +48,9 @@ export const productListResponseSchema = z.object({
 	pageSize: z.number(),
 	error: z.string().optional(),
 });
-export type ProductListResponse = z.infer<typeof productListResponseSchema>;
+type ProductListResponse = z.infer<typeof productListResponseSchema>;
 
-export const productDocSchema = z.object({
+const productDocSchema = z.object({
 	_id: z.string(),
 	_creationTime: z.number(),
 	organizationId: z.string(),
@@ -68,9 +68,9 @@ export const productDocSchema = z.object({
 	externalId: z.union([z.string(), z.number()]).optional(),
 	metadata: jsonRecordSchema.optional(),
 });
-export type ProductDoc = z.infer<typeof productDocSchema>;
+type ProductDoc = z.infer<typeof productDocSchema>;
 
-export const createProductArgsSchema = z.object({
+const createProductArgsSchema = z.object({
 	organizationId: z.string(),
 	name: z.string(),
 	description: z.string().optional(),
@@ -84,9 +84,9 @@ export const createProductArgsSchema = z.object({
 	externalId: z.union([z.string(), z.number()]).optional(),
 	metadata: jsonRecordSchema.optional(),
 });
-export type CreateProductArgs = z.infer<typeof createProductArgsSchema>;
+type CreateProductArgs = z.infer<typeof createProductArgsSchema>;
 
-export const updateProductArgsSchema = z.object({
+const updateProductArgsSchema = z.object({
 	productId: z.string(),
 	name: z.string().optional(),
 	description: z.string().optional(),
@@ -100,4 +100,4 @@ export const updateProductArgsSchema = z.object({
 	translations: z.array(productTranslationSchema).optional(),
 	metadata: jsonRecordSchema.optional(),
 });
-export type UpdateProductArgs = z.infer<typeof updateProductArgsSchema>;
+type UpdateProductArgs = z.infer<typeof updateProductArgsSchema>;

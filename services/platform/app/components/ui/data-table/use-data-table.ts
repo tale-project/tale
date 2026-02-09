@@ -56,7 +56,7 @@ interface UseDataTableReturn {
   isPending: boolean;
 }
 
-export function useDataTable<T extends FilterDefinitions>(
+function useDataTable<T extends FilterDefinitions>(
   options: UseDataTableOptions<T>,
 ): UseDataTableReturn {
   const { urlFilters, search } = options;

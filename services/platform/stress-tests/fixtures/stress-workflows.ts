@@ -6,7 +6,7 @@
  * pass its ID via WORKFLOW_DEFINITION_ID or --workflow.
  */
 
-export interface StressScenarioConfig {
+interface StressScenarioConfig {
   name: string;
   description: string;
   concurrency: number;

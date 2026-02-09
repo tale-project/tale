@@ -70,7 +70,7 @@ interface FilePart {
   url: string;
 }
 
-export interface Message {
+interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;

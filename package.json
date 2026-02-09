@@ -27,7 +27,8 @@
     "test:watch": "turbo run test:watch",
     "test:coverage": "turbo run test:coverage",
     "typecheck": "turbo run typecheck",
-    "knip": "knip",
+    "knip": "knip --fix",
+    "knip:check": "knip",
     "setup": "turbo run setup",
     "docker:build": "turbo run docker:build",
     "docker:up": "docker compose up -d",
@@ -68,8 +69,5 @@
       "source-map": "^0.7.0"
     }
   },
-  "dependencies": {
-    "intl-messageformat": "^10.7.18",
-    "react-is": "^19.2.4"
-  }
+  "dependencies": {}
 }

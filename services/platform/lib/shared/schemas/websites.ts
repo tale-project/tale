@@ -1,9 +1,9 @@
 import { z } from 'zod/v4';
 import { jsonRecordSchema } from './utils/json-value';
 
-export const websiteStatusLiterals = ['active', 'inactive', 'error'] as const;
+const websiteStatusLiterals = ['active', 'inactive', 'error'] as const;
 export const websiteStatusSchema = z.enum(websiteStatusLiterals);
-export type WebsiteStatus = z.infer<typeof websiteStatusSchema>;
+type WebsiteStatus = z.infer<typeof websiteStatusSchema>;
 
 export const websiteSchema = z.object({
 	_id: z.string(),
@@ -18,7 +18,7 @@ export const websiteSchema = z.object({
 	metadata: jsonRecordSchema.optional(),
 });
 
-export type Website = z.infer<typeof websiteSchema>;
+type Website = z.infer<typeof websiteSchema>;
 
 export const websitePageSchema = z.object({
 	_id: z.string(),
@@ -34,4 +34,4 @@ export const websitePageSchema = z.object({
 	structuredData: jsonRecordSchema.optional(),
 });
 
-export type WebsitePage = z.infer<typeof websitePageSchema>;
+type WebsitePage = z.infer<typeof websitePageSchema>;

@@ -202,5 +202,3 @@ export const FileUpload = {
   Overlay,
   useContext: useFileUploadContext,
 };
-
-export type { FileUploadContextValue };

@@ -226,4 +226,4 @@ export function Dialog({
 // DialogClose - re-export for custom headers
 // =============================================================================
 
-export const DialogClose = DialogPrimitive.Close;
+const DialogClose = DialogPrimitive.Close;

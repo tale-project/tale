@@ -317,16 +317,4 @@ export function useListPage<TData>(
   };
 }
 
-export type {
-  UseListPageOptions,
-  UseListPageReturn,
-  ListPageTableProps,
-  PaginatedDataSource,
-  QueryDataSource,
-  DataSource,
-  ListFilterDefinition,
-  ManagedSearch,
-  ControlledSearch,
-  ManagedFilters,
-  ControlledFilters,
-};
+export type { UseListPageOptions, UseListPageReturn };

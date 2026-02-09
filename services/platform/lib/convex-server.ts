@@ -30,7 +30,7 @@ interface ServerOptions {
   token?: string;
 }
 
-export async function fetchQuery<Query extends FunctionReference<'query'>>(
+async function fetchQuery<Query extends FunctionReference<'query'>>(
   query: Query,
   args: FunctionArgs<Query>,
   options?: ServerOptions,

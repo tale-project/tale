@@ -95,7 +95,7 @@ const DATA_EXTENSIONS = new Set(['csv', 'tsv']);
 
 const TEXT_EXTENSIONS = new Set(['txt', 'log', 'text']);
 
-export const TEXT_FILE_EXTENSIONS = new Set([
+const TEXT_FILE_EXTENSIONS = new Set([
   ...CODE_EXTENSIONS,
   ...CONFIG_EXTENSIONS,
   ...MARKUP_EXTENSIONS,

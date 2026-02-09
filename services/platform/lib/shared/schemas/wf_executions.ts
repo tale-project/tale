@@ -3,7 +3,7 @@ import { jsonRecordSchema, jsonValueSchema } from './utils/json-value';
 import { sortOrderLiterals } from './common';
 
 export const executionSortOrderSchema = z.enum(sortOrderLiterals);
-export type ExecutionSortOrder = z.infer<typeof executionSortOrderSchema>;
+type ExecutionSortOrder = z.infer<typeof executionSortOrderSchema>;
 
 export const updateExecutionStatusArgsSchema = z.object({
 	executionId: z.string(),
@@ -13,7 +13,7 @@ export const updateExecutionStatusArgsSchema = z.object({
 	error: z.string().optional(),
 });
 
-export type UpdateExecutionStatusArgs = z.infer<typeof updateExecutionStatusArgsSchema>;
+type UpdateExecutionStatusArgs = z.infer<typeof updateExecutionStatusArgsSchema>;
 
 export const completeExecutionArgsSchema = z.object({
 	executionId: z.string(),
@@ -22,14 +22,14 @@ export const completeExecutionArgsSchema = z.object({
 	variablesStorageId: z.string().optional(),
 });
 
-export type CompleteExecutionArgs = z.infer<typeof completeExecutionArgsSchema>;
+type CompleteExecutionArgs = z.infer<typeof completeExecutionArgsSchema>;
 
 export const failExecutionArgsSchema = z.object({
 	executionId: z.string(),
 	error: z.string(),
 });
 
-export type FailExecutionArgs = z.infer<typeof failExecutionArgsSchema>;
+type FailExecutionArgs = z.infer<typeof failExecutionArgsSchema>;
 
 export const patchExecutionArgsSchema = z.object({
 	executionId: z.string(),
@@ -41,7 +41,7 @@ export const patchExecutionArgsSchema = z.object({
 	}),
 });
 
-export type PatchExecutionArgs = z.infer<typeof patchExecutionArgsSchema>;
+type PatchExecutionArgs = z.infer<typeof patchExecutionArgsSchema>;
 
 export const resumeExecutionArgsSchema = z.object({
 	executionId: z.string(),
@@ -50,21 +50,21 @@ export const resumeExecutionArgsSchema = z.object({
 	metadata: jsonRecordSchema.optional(),
 });
 
-export type ResumeExecutionArgs = z.infer<typeof resumeExecutionArgsSchema>;
+type ResumeExecutionArgs = z.infer<typeof resumeExecutionArgsSchema>;
 
 export const setComponentWorkflowArgsSchema = z.object({
 	executionId: z.string(),
 	componentWorkflowId: z.string(),
 });
 
-export type SetComponentWorkflowArgs = z.infer<typeof setComponentWorkflowArgsSchema>;
+type SetComponentWorkflowArgs = z.infer<typeof setComponentWorkflowArgsSchema>;
 
 export const updateExecutionMetadataArgsSchema = z.object({
 	executionId: z.string(),
 	metadata: jsonRecordSchema,
 });
 
-export type UpdateExecutionMetadataArgs = z.infer<typeof updateExecutionMetadataArgsSchema>;
+type UpdateExecutionMetadataArgs = z.infer<typeof updateExecutionMetadataArgsSchema>;
 
 export const updateExecutionVariablesArgsSchema = z.object({
 	executionId: z.string(),
@@ -72,7 +72,7 @@ export const updateExecutionVariablesArgsSchema = z.object({
 	variablesStorageId: z.string().optional(),
 });
 
-export type UpdateExecutionVariablesArgs = z.infer<typeof updateExecutionVariablesArgsSchema>;
+type UpdateExecutionVariablesArgs = z.infer<typeof updateExecutionVariablesArgsSchema>;
 
 export const listExecutionsArgsSchema = z.object({
 	wfDefinitionId: z.string(),
@@ -84,7 +84,7 @@ export const listExecutionsArgsSchema = z.object({
 	dateTo: z.string().optional(),
 });
 
-export type ListExecutionsArgs = z.infer<typeof listExecutionsArgsSchema>;
+type ListExecutionsArgs = z.infer<typeof listExecutionsArgsSchema>;
 
 export const listExecutionsPaginatedArgsSchema = z.object({
 	wfDefinitionId: z.string(),
@@ -100,7 +100,7 @@ export const listExecutionsPaginatedArgsSchema = z.object({
 	sortOrder: executionSortOrderSchema.optional(),
 });
 
-export type ListExecutionsPaginatedArgs = z.infer<typeof listExecutionsPaginatedArgsSchema>;
+type ListExecutionsPaginatedArgs = z.infer<typeof listExecutionsPaginatedArgsSchema>;
 
 export const listExecutionsCursorArgsSchema = z.object({
 	wfDefinitionId: z.string(),
@@ -113,4 +113,4 @@ export const listExecutionsCursorArgsSchema = z.object({
 	dateTo: z.string().optional(),
 });
 
-export type ListExecutionsCursorArgs = z.infer<typeof listExecutionsCursorArgsSchema>;
+type ListExecutionsCursorArgs = z.infer<typeof listExecutionsCursorArgsSchema>;

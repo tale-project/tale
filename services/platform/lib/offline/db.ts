@@ -20,7 +20,7 @@ class OfflineDatabase extends Dexie {
 
 export const db = new OfflineDatabase();
 
-export async function clearAllOfflineData(): Promise<void> {
+async function clearAllOfflineData(): Promise<void> {
   await Promise.all([
     db.queryCache.clear(),
     db.mutationQueue.clear(),
@@ -28,13 +28,11 @@ export async function clearAllOfflineData(): Promise<void> {
   ]);
 }
 
-export async function clearOrganizationData(
-  organizationId: string,
-): Promise<void> {
+async function clearOrganizationData(organizationId: string): Promise<void> {
   await db.queryCache.where('organizationId').equals(organizationId).delete();
 }
 
-export async function getOfflineStorageSize(): Promise<{
+async function getOfflineStorageSize(): Promise<{
   queryCache: number;
   mutationQueue: number;
   syncMeta: number;

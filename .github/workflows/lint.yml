@@ -58,4 +58,4 @@ jobs:
         run: npx turbo run lint format:check typecheck
 
       - name: Knip (unused code)
-        run: npm run knip
+        run: npm run knip:check

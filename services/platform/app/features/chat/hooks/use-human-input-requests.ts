@@ -48,7 +48,7 @@ export function useHumanInputRequests(threadId: string | undefined) {
 /**
  * Hook to submit a response to a human input request
  */
-export function useSubmitHumanInputResponse() {
+function useSubmitHumanInputResponse() {
   const submitMutation = useMutation(
     api.agent_tools.human_input.mutations.submitHumanInputResponse,
   );
