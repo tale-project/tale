@@ -96,7 +96,7 @@ export async function createConversationWithMessage(
       ...(args.initialMessage.attachment
         ? { attachment: args.initialMessage.attachment }
         : {}),
-      ...args.initialMessage.metadata,
+      ...(args.initialMessage.metadata as Record<string, unknown>),
     } as any,
   });
 

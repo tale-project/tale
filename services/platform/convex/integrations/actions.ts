@@ -62,6 +62,7 @@ export const update = action({
     oauth2Auth: v.optional(oauth2AuthValidator),
     connectionConfig: v.optional(connectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
+    sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     errorMessage: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
   },

@@ -33,6 +33,7 @@ export interface ImportFilesResult {
   successCount: number;
   failedCount: number;
   skippedCount: number;
+  error?: string;
 }
 
 interface FileMetadata {

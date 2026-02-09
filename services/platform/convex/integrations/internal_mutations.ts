@@ -86,6 +86,7 @@ export const updateIntegration = internalMutation({
     basicAuth: v.optional(basicAuthEncryptedValidator),
     oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
     connectionConfig: v.optional(connectionConfigValidator),
+    sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
     errorMessage: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),

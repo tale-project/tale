@@ -31,8 +31,8 @@ export async function updateWorkflow(
 
   // Properly merge metadata: existing metadata + updates.metadata + tracking fields
   const mergedMetadata = {
-    ...workflow.metadata,
-    ...args.updates.metadata,
+    ...(workflow.metadata as Record<string, unknown>),
+    ...(args.updates.metadata as Record<string, unknown>),
     updatedAt: Date.now(),
     updatedBy: args.updatedBy,
   };

@@ -50,7 +50,7 @@ async function run() {
 
     try {
       const executionId = await client.mutation(
-        api.workflow_engine.engine.startWorkflow,
+        api.workflow_engine.mutations.startWorkflow,
         {
           organizationId,
           wfDefinitionId: wfDefinitionId as never,

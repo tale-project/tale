@@ -95,7 +95,7 @@ async function startWorkflow(
   config: StressTestConfig,
 ): Promise<string> {
   const executionId = await client.mutation(
-    api.workflow_engine.engine.startWorkflow,
+    api.workflow_engine.mutations.startWorkflow,
     {
       organizationId: config.organizationId,
       wfDefinitionId: config.wfDefinitionId as any,

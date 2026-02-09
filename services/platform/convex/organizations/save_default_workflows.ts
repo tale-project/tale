@@ -77,7 +77,7 @@ export async function saveDefaultWorkflows(
           ? {
               ...step,
               config: {
-                ...step.config,
+                ...(step.config as Record<string, unknown>),
                 type: 'scheduled',
                 schedule,
                 timezone,

@@ -113,12 +113,12 @@ export function SSOConfigDialog({
     enableOneDriveAccess: boolean;
   } | null>(null);
 
-  const upsertSSOProvider = useAction(api.sso_providers.mutations.upsert);
-  const removeSSOProvider = useAction(api.sso_providers.mutations.remove);
-  const getFullConfig = useAction(api.sso_providers.queries.getWithClientId);
-  const testSSOConfig = useAction(api.sso_providers.mutations.testConfig);
+  const upsertSSOProvider = useAction(api.sso_providers.actions.upsert);
+  const removeSSOProvider = useAction(api.sso_providers.actions.remove);
+  const getFullConfig = useAction(api.sso_providers.actions.getWithClientId);
+  const testSSOConfig = useAction(api.sso_providers.actions.testConfig);
   const testExistingSSOConfig = useAction(
-    api.sso_providers.mutations.testExistingConfig,
+    api.sso_providers.actions.testExistingConfig,
   );
 
   const isConnected = !!existingProvider;
@@ -172,8 +172,8 @@ export function SSOConfigDialog({
             );
             const rules =
               config.roleMappingRules.length > 0
-                ? config.roleMappingRules.filter(
-                    (r): r is RoleMappingRule =>
+                ? (config.roleMappingRules as RoleMappingRule[]).filter(
+                    (r) =>
                       r.source === 'jobTitle' || r.source === 'appRole',
                   )
                 : DEFAULT_MAPPING_RULES;

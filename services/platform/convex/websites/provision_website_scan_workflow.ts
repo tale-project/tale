@@ -86,7 +86,7 @@ export async function provisionWebsiteScanWorkflow(
         ? {
             ...step,
             config: {
-              ...step.config,
+              ...(step.config as Record<string, unknown>),
               type: 'scheduled',
               schedule,
               timezone,

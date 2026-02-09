@@ -43,7 +43,7 @@ export async function initializeExecutionVariables(
   } else {
     // Initialize execution variables for the first time
     fullVariables = {
-      ...(args.resumeVariables ?? args.initialInput),
+      ...((args.resumeVariables ?? args.initialInput) as Record<string, unknown>),
       ...workflowConfig?.config?.variables,
       organizationId: args.organizationId,
       wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug

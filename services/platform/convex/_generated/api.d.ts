@@ -694,8 +694,8 @@ import type * as workflow_engine_action_defs_set_variables_action from "../workf
 import type * as workflow_engine_action_defs_tone_of_voice_tone_of_voice_action from "../workflow_engine/action_defs/tone_of_voice/tone_of_voice_action.js";
 import type * as workflow_engine_action_defs_website_helpers_types from "../workflow_engine/action_defs/website/helpers/types.js";
 import type * as workflow_engine_action_defs_website_website_action from "../workflow_engine/action_defs/website/website_action.js";
-import type * as workflow_engine_action_defs_websitePages_helpers_types from "../workflow_engine/action_defs/websitePages/helpers/types.js";
-import type * as workflow_engine_action_defs_websitePages_websitePages_action from "../workflow_engine/action_defs/websitePages/websitePages_action.js";
+import type * as workflow_engine_action_defs_website_pages_helpers_types from "../workflow_engine/action_defs/website_pages/helpers/types.js";
+import type * as workflow_engine_action_defs_website_pages_website_pages_action from "../workflow_engine/action_defs/website_pages/website_pages_action.js";
 import type * as workflow_engine_action_defs_workflow_helpers_types from "../workflow_engine/action_defs/workflow/helpers/types.js";
 import type * as workflow_engine_action_defs_workflow_helpers_upload_workflows from "../workflow_engine/action_defs/workflow/helpers/upload_workflows.js";
 import type * as workflow_engine_action_defs_workflow_workflow_action from "../workflow_engine/action_defs/workflow/workflow_action.js";
@@ -1594,8 +1594,8 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/tone_of_voice/tone_of_voice_action": typeof workflow_engine_action_defs_tone_of_voice_tone_of_voice_action;
   "workflow_engine/action_defs/website/helpers/types": typeof workflow_engine_action_defs_website_helpers_types;
   "workflow_engine/action_defs/website/website_action": typeof workflow_engine_action_defs_website_website_action;
-  "workflow_engine/action_defs/websitePages/helpers/types": typeof workflow_engine_action_defs_websitePages_helpers_types;
-  "workflow_engine/action_defs/websitePages/websitePages_action": typeof workflow_engine_action_defs_websitePages_websitePages_action;
+  "workflow_engine/action_defs/website_pages/helpers/types": typeof workflow_engine_action_defs_website_pages_helpers_types;
+  "workflow_engine/action_defs/website_pages/website_pages_action": typeof workflow_engine_action_defs_website_pages_website_pages_action;
   "workflow_engine/action_defs/workflow/helpers/types": typeof workflow_engine_action_defs_workflow_helpers_types;
   "workflow_engine/action_defs/workflow/helpers/upload_workflows": typeof workflow_engine_action_defs_workflow_helpers_upload_workflows;
   "workflow_engine/action_defs/workflow/workflow_action": typeof workflow_engine_action_defs_workflow_workflow_action;

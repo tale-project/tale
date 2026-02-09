@@ -31,7 +31,6 @@ function SignUpPage() {
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
 
-  // @ts-expect-error TS2589 - deep type instantiation in Convex queries
   const ssoConfig = useQuery(api.sso_providers.queries.isSsoConfigured, {});
 
   const signUpSchema = useMemo(

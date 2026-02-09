@@ -134,7 +134,7 @@ export function ApprovalsClient({
 
   const allApprovals = useMemo(() => approvalsResult ?? [], [approvalsResult]);
 
-  const list = useListPage({
+  const list = useListPage<ApprovalItem>({
     dataSource: {
       type: 'query',
       data: approvalsResult === undefined ? undefined : allApprovals,

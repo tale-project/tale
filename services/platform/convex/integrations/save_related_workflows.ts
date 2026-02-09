@@ -64,7 +64,7 @@ export async function saveRelatedWorkflows(
           ? {
               ...step,
               config: {
-                ...step.config,
+                ...(step.config as Record<string, unknown>),
                 type: 'scheduled',
                 schedule: schedule.schedule,
                 timezone: schedule.timezone,

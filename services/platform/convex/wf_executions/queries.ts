@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { queryWithRLS } from '../lib/rls';
 import { getExecutionStepJournal as getExecutionStepJournalHelper } from '../workflows/executions/get_execution_step_journal';
+import { getRawExecution as getRawExecutionHelper } from '../workflows/executions/get_raw_execution';
 import { listExecutionsCursor as listExecutionsCursorHelper } from '../workflows/executions/list_executions_cursor';
 
 export const listExecutionsCursor = queryWithRLS({
@@ -29,5 +30,14 @@ export const getExecutionStepJournal = queryWithRLS({
   },
   handler: async (ctx, args) => {
     return await getExecutionStepJournalHelper(ctx, args);
+  },
+});
+
+export const getRawExecution = queryWithRLS({
+  args: {
+    executionId: v.id('wfExecutions'),
+  },
+  handler: async (ctx, args) => {
+    return await getRawExecutionHelper(ctx, args.executionId);
   },
 });

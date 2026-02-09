@@ -16,7 +16,6 @@ export async function ssoDiscoverHandler(
       });
     }
 
-    // @ts-expect-error TS2589 - deep type instantiation in Convex queries
     const provider = await ctx.runQuery(
       internal.sso_providers.internal_queries.getSsoConfig,
       {},

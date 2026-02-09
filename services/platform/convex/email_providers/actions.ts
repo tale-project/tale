@@ -59,7 +59,11 @@ export const create = action({
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
           internal.email_providers.internal_mutations.createProvider,
-          params,
+          {
+            ...params,
+            vendor: params.vendor as EmailProviderVendor,
+            authMethod: params.authMethod as 'password' | 'oauth2',
+          },
         );
       },
     });
@@ -101,7 +105,11 @@ export const createOAuth2Provider = action({
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
           internal.email_providers.internal_mutations.createProvider,
-          params,
+          {
+            ...params,
+            vendor: params.vendor as EmailProviderVendor,
+            authMethod: params.authMethod as 'password' | 'oauth2',
+          },
         );
       },
     });

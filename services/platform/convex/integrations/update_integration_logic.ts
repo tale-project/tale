@@ -17,6 +17,7 @@ import {
   BasicAuth,
   OAuth2Auth,
   ConnectionConfig,
+  SqlConnectionConfig,
   Capabilities,
 } from './types';
 
@@ -30,6 +31,7 @@ export interface UpdateIntegrationLogicArgs {
   basicAuth?: BasicAuth;
   oauth2Auth?: OAuth2Auth;
   connectionConfig?: ConnectionConfig;
+  sqlConnectionConfig?: SqlConnectionConfig;
   capabilities?: Capabilities;
   errorMessage?: string;
   metadata?: ConvexJsonRecord;
@@ -119,6 +121,7 @@ export async function updateIntegrationLogic(
       basicAuth,
       oauth2Auth,
       connectionConfig: args.connectionConfig,
+      sqlConnectionConfig: args.sqlConnectionConfig,
       capabilities: args.capabilities,
       errorMessage: args.errorMessage,
       metadata: args.metadata,

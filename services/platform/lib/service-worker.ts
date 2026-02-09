@@ -78,7 +78,7 @@ export async function checkForServiceWorkerUpdate(): Promise<boolean> {
 }
 
 export function skipWaiting(waitingWorker: ServiceWorker): void {
-  waitingWorker.postMessage({ type: 'SKIP_WAITING' }, '/');
+  waitingWorker.postMessage({ type: 'SKIP_WAITING' });
 }
 
 interface SyncRegistration extends ServiceWorkerRegistration {

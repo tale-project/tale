@@ -113,9 +113,16 @@ export const TOOL_REGISTRY = [
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 /**
- * Derived object for O(1) lookups by tool name
+ * Derived object for O(1) lookups by tool name.
+ * Lazily computed to avoid circular dependency issues at module init time.
  */
-export const TOOL_REGISTRY_MAP: Record<ToolName, ToolDefinition> =
-  Object.fromEntries(
-    TOOL_REGISTRY.map((tool: ToolDefinition) => [tool.name, tool]),
-  ) as Record<ToolName, ToolDefinition>;
+let _toolRegistryMap: Record<ToolName, ToolDefinition> | null = null;
+
+export function getToolRegistryMap(): Record<ToolName, ToolDefinition> {
+  if (!_toolRegistryMap) {
+    _toolRegistryMap = Object.fromEntries(
+      TOOL_REGISTRY.map((tool: ToolDefinition) => [tool.name, tool]),
+    ) as Record<ToolName, ToolDefinition>;
+  }
+  return _toolRegistryMap;
+}
