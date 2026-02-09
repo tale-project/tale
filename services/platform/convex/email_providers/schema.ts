@@ -1,5 +1,6 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
+
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const emailProvidersTable = defineTable({

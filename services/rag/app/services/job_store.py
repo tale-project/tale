@@ -60,9 +60,8 @@ def _write_job(status: JobStatus) -> None:
     """Persist a JobStatus to disk."""
     path = _job_path(status.job_id)
     payload = status.model_dump()
-    with _LOCK:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f)
+    with _LOCK, open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f)
 
 
 def create_queued(job_id: str, document_id: str | None) -> JobStatus:
@@ -294,11 +293,11 @@ def get_job_stats() -> dict[str, Any]:
             oldest_by_state[state_key] = round(age_hours, 2)
 
         # Check if stale using default TTLs
-        if job.state == JobState.COMPLETED and age_hours > settings.job_completed_ttl_hours:
-            stale_count += 1
-        elif job.state == JobState.FAILED and age_hours > settings.job_failed_ttl_hours:
-            stale_count += 1
-        elif job.state in (JobState.QUEUED, JobState.RUNNING) and age_hours > settings.job_orphaned_ttl_hours:
+        if (
+            (job.state == JobState.COMPLETED and age_hours > settings.job_completed_ttl_hours)
+            or (job.state == JobState.FAILED and age_hours > settings.job_failed_ttl_hours)
+            or (job.state in (JobState.QUEUED, JobState.RUNNING) and age_hours > settings.job_orphaned_ttl_hours)
+        ):
             stale_count += 1
 
     return {

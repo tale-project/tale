@@ -1,15 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { ToneOfVoiceFormClient } from '@/app/features/tone-of-voice/components/tone-of-voice-form-client';
+
+import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
+import { ToneOfVoiceFormClient } from '@/app/features/tone-of-voice/components/tone-of-voice-form-client';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
-export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')({
-  component: ToneOfVoicePage,
-});
+export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')(
+  {
+    component: ToneOfVoicePage,
+  },
+);
 
 function ExampleMessagesSkeleton() {
   const { t } = useT('tables');
@@ -60,9 +63,12 @@ function ToneOfVoicePage() {
   const hasExamples = useQuery(api.tone_of_voice.queries.hasExampleMessages, {
     organizationId,
   });
-  const toneOfVoice = useQuery(api.tone_of_voice.queries.getToneOfVoiceWithExamples, {
-    organizationId,
-  });
+  const toneOfVoice = useQuery(
+    api.tone_of_voice.queries.getToneOfVoiceWithExamples,
+    {
+      organizationId,
+    },
+  );
 
   if (hasExamples === undefined || toneOfVoice === undefined) {
     return (

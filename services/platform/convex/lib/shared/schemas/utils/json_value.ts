@@ -33,4 +33,7 @@ export const jsonValueValidator = v.union(
   v.record(v.string(), jsonValueLevel1Validator),
 );
 
-export const jsonRecordValidator = v.record(v.string(), jsonValueLevel1Validator);
+export const jsonRecordValidator = v.record(
+  v.string(),
+  jsonValueLevel1Validator,
+);

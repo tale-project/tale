@@ -5,7 +5,7 @@ interface ServiceWorkerCallbacks {
 }
 
 export async function registerServiceWorker(
-  callbacks: ServiceWorkerCallbacks = {}
+  callbacks: ServiceWorkerCallbacks = {},
 ): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return null;
@@ -78,7 +78,7 @@ export async function checkForServiceWorkerUpdate(): Promise<boolean> {
 }
 
 export function skipWaiting(waitingWorker: ServiceWorker): void {
-  waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+  waitingWorker.postMessage({ type: 'SKIP_WAITING' }, '/');
 }
 
 interface SyncRegistration extends ServiceWorkerRegistration {
@@ -89,15 +89,15 @@ interface SyncRegistration extends ServiceWorkerRegistration {
 }
 
 export async function registerBackgroundSync(
-  tag: string = 'mutation-sync'
+  tag: string = 'mutation-sync',
 ): Promise<boolean> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return false;
   }
 
   try {
-    const registration =
-      (await navigator.serviceWorker.ready) as SyncRegistration;
+    const registration = (await navigator.serviceWorker
+      .ready) as SyncRegistration;
 
     if (!('sync' in registration)) {
       return false;
@@ -125,13 +125,12 @@ export async function isBackgroundSyncSupported(): Promise<boolean> {
 }
 
 export function onServiceWorkerMessage(
-  callback: (event: MessageEvent) => void
+  callback: (event: MessageEvent) => void,
 ): () => void {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return () => {};
   }
 
   navigator.serviceWorker.addEventListener('message', callback);
-  return () =>
-    navigator.serviceWorker.removeEventListener('message', callback);
+  return () => navigator.serviceWorker.removeEventListener('message', callback);
 }

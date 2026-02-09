@@ -5,10 +5,12 @@
  */
 
 import { v } from 'convex/values';
-import { mutation } from '../../_generated/server';
-import { internal } from '../../_generated/api';
-import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+
 import type { ToolName } from '../../agent_tools/tool_registry';
+import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+
+import { internal } from '../../_generated/api';
+import { mutation } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import { startAgentChat } from '../../lib/agent_chat';
 import { WORKFLOW_AGENT_CORE_INSTRUCTIONS } from './agent';
@@ -27,7 +29,9 @@ const WORKFLOW_AGENT_TOOL_NAMES: ToolName[] = [
 function getWorkflowAgentConfig() {
   const model = process.env.OPENAI_CODING_MODEL;
   if (!model) {
-    throw new Error('OPENAI_CODING_MODEL environment variable is not configured');
+    throw new Error(
+      'OPENAI_CODING_MODEL environment variable is not configured',
+    );
   }
 
   const config: SerializableAgentConfig = {
@@ -74,7 +78,9 @@ export const chatWithWorkflowAgent = mutation({
     );
 
     const normalizedRole = (userRole ?? 'member').toLowerCase();
-    if (!ALLOWED_ROLES.includes(normalizedRole as (typeof ALLOWED_ROLES)[number])) {
+    if (
+      !ALLOWED_ROLES.includes(normalizedRole as (typeof ALLOWED_ROLES)[number])
+    ) {
       throw new Error(
         `Access denied: The workflow assistant is only available to users with admin or developer roles. Your current role is "${normalizedRole}".`,
       );

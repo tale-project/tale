@@ -1,7 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
 import type { OnChangeFn } from '@tanstack/react-table';
+
+import { useMemo } from 'react';
+
 import type {
   FilterDefinitions,
   ParsedFilters,
@@ -75,7 +77,10 @@ export function useDataTable<T extends FilterDefinitions>(
     return {
       value,
       onChange: (newValue: string) =>
-        urlFilters.setFilter(searchKey, newValue as ParsedFilters<T>[typeof searchKey]),
+        urlFilters.setFilter(
+          searchKey,
+          newValue as ParsedFilters<T>[typeof searchKey],
+        ),
       placeholder: search?.placeholder,
       className: search?.className,
     };

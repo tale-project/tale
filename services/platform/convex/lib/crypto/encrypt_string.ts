@@ -1,4 +1,5 @@
 import { CompactEncrypt } from 'jose';
+
 import { getSecretKey } from './get_secret_key';
 
 /**

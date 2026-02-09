@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+
 import { cn } from '@/lib/utils/cn';
 
 interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -12,7 +13,10 @@ interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
-  ({ className, value = 0, max = 100, indicatorClassName, label, ...props }, ref) => {
+  (
+    { className, value = 0, max = 100, indicatorClassName, label, ...props },
+    ref,
+  ) => {
     const percentage = Math.min(Math.max((value / max) * 100, 0), 100);
 
     return (
@@ -43,4 +47,3 @@ export const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
 );
 
 Progress.displayName = 'Progress';
-

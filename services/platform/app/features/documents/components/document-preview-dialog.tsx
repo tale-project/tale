@@ -1,19 +1,22 @@
 'use client';
 
-import { useState } from 'react';
 import { useQuery } from 'convex/react';
+import { Download, X, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+
+import type { Id } from '@/convex/_generated/dataModel';
+
+import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { HStack } from '@/app/components/ui/layout/layout';
+import { Separator } from '@/app/components/ui/layout/separator';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { Download, X, Loader2 } from 'lucide-react';
-import { Separator } from '@/app/components/ui/layout/separator';
-import { DocumentPreview } from './document-preview';
 import { useToast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+
+import { DocumentPreview } from './document-preview';
 
 interface DocumentPreviewDialogProps {
   open: boolean;
@@ -129,15 +132,15 @@ export function DocumentPreviewDialog({
       title={displayName}
       size="wide"
       hideClose
-      className="h-[85vh] p-0 sm:p-0 overflow-hidden flex flex-col"
+      className="flex h-[85vh] flex-col overflow-hidden p-0 sm:p-0"
       customHeader={
-        <div className="flex flex-row items-center justify-between p-5 border-b max-h-[4.5rem]">
+        <div className="flex max-h-[4.5rem] flex-row items-center justify-between border-b p-5">
           <HStack gap={3} className="min-w-0">
             <div className="shrink-0">
               <DocumentIcon fileName={displayName} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-semibold leading-none tracking-tight truncate">
+              <h2 className="truncate text-base leading-none font-semibold tracking-tight">
                 {displayName}
               </h2>
             </div>
@@ -171,15 +174,15 @@ export function DocumentPreviewDialog({
     >
       {/* Body */}
       {isLoading && (
-        <div className="flex-1 grid place-items-center p-6">
-          <div className="text-sm text-muted-foreground">
+        <div className="grid flex-1 place-items-center p-6">
+          <div className="text-muted-foreground text-sm">
             {t('preview.loading')}
           </div>
         </div>
       )}
       {isError && (
-        <div className="flex-1 grid place-items-center p-6">
-          <div className="text-sm text-destructive">
+        <div className="grid flex-1 place-items-center p-6">
+          <div className="text-destructive text-sm">
             {queryError?.message || t('preview.failedToLoad')}
           </div>
         </div>

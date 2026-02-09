@@ -10,8 +10,10 @@ import {
   wrapDatabaseWriter,
   type RLSConfig,
 } from 'convex-helpers/server/rowLevelSecurity';
-import { mutation, type MutationCtx } from '../../../_generated/server';
+
 import type { DataModel } from '../../../_generated/dataModel';
+
+import { mutation, type MutationCtx } from '../../../_generated/server';
 import { getAuthenticatedUser } from '../auth/get_authenticated_user';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import { rlsRules } from './rls_rules';
@@ -36,13 +38,10 @@ export const mutationWithRLS = customMutation(
     const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
 
     return {
-      db: wrapDatabaseWriter<{ user: typeof user; userOrganizations: typeof userOrganizations }, DataModel>(
-        { user, userOrganizations },
-        ctx.db,
-        rules,
-        rlsConfig,
-      ),
+      db: wrapDatabaseWriter<
+        { user: typeof user; userOrganizations: typeof userOrganizations },
+        DataModel
+      >({ user, userOrganizations }, ctx.db, rules, rlsConfig),
     };
   }),
 );
-

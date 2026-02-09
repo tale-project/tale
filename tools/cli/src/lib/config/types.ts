@@ -4,12 +4,12 @@ export interface GlobalConfig {
 }
 
 export function isGlobalConfig(value: unknown): value is GlobalConfig {
-  if (typeof value !== "object" || value === null) {
+  if (typeof value !== 'object' || value === null) {
     return false;
   }
   const obj = value as Record<string, unknown>;
   return (
-    typeof obj.deployDir === "string" && typeof obj.configVersion === "number"
+    typeof obj.deployDir === 'string' && typeof obj.configVersion === 'number'
   );
 }
 

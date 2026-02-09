@@ -1,5 +1,5 @@
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 export interface UpsertProductTranslationArgs {
   productId: Id<'products'>;

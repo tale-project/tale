@@ -63,28 +63,23 @@ const generalCustomerStatusAssessmentWorkflow: PredefinedWorkflowDefinition = {
           variables: [
             {
               name: 'currentCustomer',
-              value:
-                '{{steps.find_unprocessed_customer.output.data}}',
+              value: '{{steps.find_unprocessed_customer.output.data}}',
             },
             {
               name: 'currentCustomerId',
-              value:
-                '{{steps.find_unprocessed_customer.output.data._id}}',
+              value: '{{steps.find_unprocessed_customer.output.data._id}}',
             },
             {
               name: 'currentCustomerName',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.name}}',
+              value: '{{steps.find_unprocessed_customer.output.data.name}}',
             },
             {
               name: 'currentCustomerEmail',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.email}}',
+              value: '{{steps.find_unprocessed_customer.output.data.email}}',
             },
             {
               name: 'currentCustomerStatus',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.status}}',
+              value: '{{steps.find_unprocessed_customer.output.data.status}}',
             },
           ],
         },
@@ -170,7 +165,8 @@ Return ONLY JSON in the exact shape described in the system prompt.`,
             churnReason: {
               type: 'string',
               nullable: true,
-              description: 'Reason for churn if status is churned, otherwise null',
+              description:
+                'Reason for churn if status is churned, otherwise null',
             },
             churnedAt: {
               type: 'number',

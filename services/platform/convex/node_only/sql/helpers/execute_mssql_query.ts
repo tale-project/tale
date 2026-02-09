@@ -5,8 +5,9 @@
  */
 
 import sql from 'mssql';
-import type { SqlExecutionParams, SqlExecutionResult } from '../types';
+
 import type { ConvexJsonValue } from '../../../../lib/shared/schemas/utils/json-value';
+import type { SqlExecutionParams, SqlExecutionResult } from '../types';
 
 /**
  * Extract all parameter names referenced in a SQL query (e.g., @paramName)
@@ -30,7 +31,9 @@ function extractQueryParameters(query: string): string[] {
 /**
  * Convert Date objects to timestamps for Convex compatibility
  */
-function convertDatesInData(data: Record<string, unknown>[]): Record<string, unknown>[] {
+function convertDatesInData(
+  data: Record<string, unknown>[],
+): Record<string, unknown>[] {
   return data.map((row) => {
     const convertedRow: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(row)) {

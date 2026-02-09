@@ -1,8 +1,14 @@
 import { v } from 'convex/values';
-import { query } from '../_generated/server';
-import { components } from '../_generated/api';
-import { getAuthUserIdentity, getOrganizationMember, getUserOrganizations } from '../lib/rls';
+
 import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
+
+import { components } from '../_generated/api';
+import { query } from '../_generated/server';
+import {
+  getAuthUserIdentity,
+  getOrganizationMember,
+  getUserOrganizations,
+} from '../lib/rls';
 
 interface BetterAuthTeam {
   _id: string;
@@ -18,7 +24,13 @@ interface BetterAuthTeamMember {
   createdAt?: number | null;
 }
 
-const VALID_ROLES = ['disabled', 'member', 'editor', 'developer', 'admin'] as const;
+const VALID_ROLES = [
+  'disabled',
+  'member',
+  'editor',
+  'developer',
+  'admin',
+] as const;
 type ValidRole = (typeof VALID_ROLES)[number];
 
 function isValidRole(role: string): role is ValidRole {
@@ -52,7 +64,11 @@ export const getCurrentMemberContext = query({
     }
 
     try {
-      const member = await getOrganizationMember(ctx, args.organizationId, authUser);
+      const member = await getOrganizationMember(
+        ctx,
+        args.organizationId,
+        authUser,
+      );
 
       if (!member) {
         return null;
@@ -100,14 +116,18 @@ export const listByOrganization = query({
       return [];
     }
 
-    const result: BetterAuthFindManyResult<BetterAuthMember> = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
+    const result: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
         model: 'member',
         paginationOpts: { cursor: null, numItems: 100 },
-        where: [{ field: 'organizationId', value: args.organizationId, operator: 'eq' }],
-      },
-    );
+        where: [
+          {
+            field: 'organizationId',
+            value: args.organizationId,
+            operator: 'eq',
+          },
+        ],
+      });
 
     if (!result || result.page.length === 0) {
       return [];
@@ -115,10 +135,13 @@ export const listByOrganization = query({
 
     return Promise.all(
       result.page.map(async (member) => {
-        const userResult = await ctx.runQuery(components.betterAuth.adapter.findOne, {
-          model: 'user',
-          where: [{ field: '_id', value: member.userId, operator: 'eq' }],
-        });
+        const userResult = await ctx.runQuery(
+          components.betterAuth.adapter.findOne,
+          {
+            model: 'user',
+            where: [{ field: '_id', value: member.userId, operator: 'eq' }],
+          },
+        );
 
         return {
           _id: member._id,
@@ -207,18 +230,23 @@ export const getMyTeams = query({
 
     const teamIds = membershipsResult.page.map((m) => m.teamId);
 
-    const teamResults: BetterAuthFindManyResult<BetterAuthTeam>[] = await Promise.all(
-      teamIds.map((teamId) =>
-        ctx.runQuery(components.betterAuth.adapter.findMany, {
-          model: 'team',
-          paginationOpts: { cursor: null, numItems: 1 },
-          where: [
-            { field: '_id', operator: 'eq', value: teamId },
-            { field: 'organizationId', operator: 'eq', value: args.organizationId },
-          ],
-        }),
-      ),
-    );
+    const teamResults: BetterAuthFindManyResult<BetterAuthTeam>[] =
+      await Promise.all(
+        teamIds.map((teamId) =>
+          ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'team',
+            paginationOpts: { cursor: null, numItems: 1 },
+            where: [
+              { field: '_id', operator: 'eq', value: teamId },
+              {
+                field: 'organizationId',
+                operator: 'eq',
+                value: args.organizationId,
+              },
+            ],
+          }),
+        ),
+      );
 
     const teams: Array<{ id: string; name: string }> = [];
     for (const teamResult of teamResults) {

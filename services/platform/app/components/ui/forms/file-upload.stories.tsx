@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { useState } from 'react';
+
 import { ImagePlus, Upload } from 'lucide-react';
+import { useState } from 'react';
+
 import { FileUpload } from './file-upload';
 
 const meta: Meta = {
@@ -57,13 +59,13 @@ export const Default: Story = {
             }
             accept="image/*"
             aria-label="Upload images"
-            className="relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/25 p-8 hover:border-muted-foreground/50 transition-colors cursor-pointer"
+            className="border-muted-foreground/25 hover:border-muted-foreground/50 relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 transition-colors"
           >
-            <ImagePlus className="size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
+            <ImagePlus className="text-muted-foreground size-8" />
+            <p className="text-muted-foreground text-sm">
               Drag and drop files here, or click to browse
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Supports: JPG, PNG, GIF
             </p>
             <FileUpload.Overlay className="rounded-lg" />
@@ -72,7 +74,7 @@ export const Default: Story = {
         {files.length > 0 && (
           <ul className="mt-4 space-y-1">
             {files.map((name) => (
-              <li key={name} className="text-sm text-foreground">
+              <li key={name} className="text-foreground text-sm">
                 {name}
               </li>
             ))}
@@ -96,10 +98,10 @@ export const MultipleFiles: Story = {
             }
             multiple
             aria-label="Upload multiple files"
-            className="relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/25 p-8 hover:border-muted-foreground/50 transition-colors cursor-pointer"
+            className="border-muted-foreground/25 hover:border-muted-foreground/50 relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 transition-colors"
           >
-            <Upload className="size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
+            <Upload className="text-muted-foreground size-8" />
+            <p className="text-muted-foreground text-sm">
               Drop multiple files here
             </p>
             <FileUpload.Overlay className="rounded-lg" />
@@ -107,14 +109,14 @@ export const MultipleFiles: Story = {
         </FileUpload.Root>
         {files.length > 0 && (
           <div className="mt-4">
-            <p className="text-sm font-medium mb-1">
+            <p className="mb-1 text-sm font-medium">
               {files.length} file(s) selected:
             </p>
             <ul className="space-y-1">
               {files.map((name, i) => (
                 <li
                   key={`${name}-${i}`}
-                  className="text-sm text-muted-foreground"
+                  className="text-muted-foreground text-sm"
                 >
                   {name}
                 </li>
@@ -142,10 +144,10 @@ export const Disabled: Story = {
           onFilesSelected={() => {}}
           disabled
           aria-label="Upload disabled"
-          className="relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/15 p-8 opacity-50 cursor-not-allowed"
+          className="border-muted-foreground/15 relative flex cursor-not-allowed flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 opacity-50"
         >
-          <ImagePlus className="size-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Upload is disabled</p>
+          <ImagePlus className="text-muted-foreground size-8" />
+          <p className="text-muted-foreground text-sm">Upload is disabled</p>
           <FileUpload.Overlay className="rounded-lg" />
         </FileUpload.DropZone>
       </FileUpload.Root>
@@ -167,10 +169,10 @@ export const NonClickable: Story = {
         <FileUpload.DropZone
           onFilesSelected={() => {}}
           clickable={false}
-          className="relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/25 p-8"
+          className="border-muted-foreground/25 relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8"
         >
-          <Upload className="size-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
+          <Upload className="text-muted-foreground size-8" />
+          <p className="text-muted-foreground text-sm">
             Drag and drop only (no click)
           </p>
           <FileUpload.Overlay className="rounded-lg" />
@@ -201,18 +203,18 @@ export const CustomAccept: Story = {
             }
             accept=".pdf,.doc,.docx"
             aria-label="Upload documents"
-            className="relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/25 p-8 hover:border-muted-foreground/50 transition-colors cursor-pointer"
+            className="border-muted-foreground/25 hover:border-muted-foreground/50 relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 transition-colors"
           >
-            <Upload className="size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Upload documents</p>
-            <p className="text-xs text-muted-foreground">PDF, DOC, DOCX</p>
+            <Upload className="text-muted-foreground size-8" />
+            <p className="text-muted-foreground text-sm">Upload documents</p>
+            <p className="text-muted-foreground text-xs">PDF, DOC, DOCX</p>
             <FileUpload.Overlay className="rounded-lg" />
           </FileUpload.DropZone>
         </FileUpload.Root>
         {files.length > 0 && (
           <ul className="mt-4 space-y-1">
             {files.map((name) => (
-              <li key={name} className="text-sm text-foreground">
+              <li key={name} className="text-foreground text-sm">
                 {name}
               </li>
             ))}
@@ -237,10 +239,10 @@ export const CustomOverlayLabel: Story = {
         <FileUpload.DropZone
           onFilesSelected={() => {}}
           aria-label="Upload files"
-          className="relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/25 p-8 hover:border-muted-foreground/50 transition-colors cursor-pointer"
+          className="border-muted-foreground/25 hover:border-muted-foreground/50 relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 transition-colors"
         >
-          <ImagePlus className="size-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
+          <ImagePlus className="text-muted-foreground size-8" />
+          <p className="text-muted-foreground text-sm">
             Try dragging a file over this area
           </p>
           <FileUpload.Overlay
@@ -274,14 +276,14 @@ export const WithCustomInputId: Story = {
             inputId="avatar-upload"
             accept="image/*"
             aria-label="Upload avatar"
-            className="relative flex items-center justify-center size-32 rounded-full border-2 border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors cursor-pointer"
+            className="border-muted-foreground/25 hover:border-muted-foreground/50 relative flex size-32 cursor-pointer items-center justify-center rounded-full border-2 border-dashed transition-colors"
           >
-            <ImagePlus className="size-6 text-muted-foreground" />
+            <ImagePlus className="text-muted-foreground size-6" />
             <FileUpload.Overlay className="rounded-full" />
           </FileUpload.DropZone>
         </FileUpload.Root>
         {files.length > 0 && (
-          <p className="mt-4 text-sm text-center text-foreground">{files[0]}</p>
+          <p className="text-foreground mt-4 text-center text-sm">{files[0]}</p>
         )}
       </div>
     );

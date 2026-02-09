@@ -4,11 +4,14 @@
  */
 
 import { FunctionReturnType } from 'convex/server';
+
 import { api } from '@/convex/_generated/api';
 
 // Extract the return type from getConversationWithMessages query
 export type ConversationWithMessages = NonNullable<
-  FunctionReturnType<typeof api.conversations.queries.getConversationWithMessages>
+  FunctionReturnType<
+    typeof api.conversations.queries.getConversationWithMessages
+  >
 >;
 
 // Extract nested types from the conversation

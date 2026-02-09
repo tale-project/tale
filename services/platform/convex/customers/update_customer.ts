@@ -2,9 +2,10 @@
  * Update an existing customer with validation (business logic for public API)
  */
 
-import type { MutationCtx } from '../_generated/server';
-import type { Doc, Id } from '../_generated/dataModel';
 import type { DataSource } from '../../lib/shared/schemas/common';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
 import { emitEvent } from '../workflows/triggers/emit_event';
 
 export interface UpdateCustomerArgs {
@@ -41,7 +42,8 @@ export async function updateCustomer(
   const checkEmailConflict =
     updateData.email && updateData.email !== existingCustomer.email;
   const checkExternalIdConflict =
-    updateData.externalId && updateData.externalId !== existingCustomer.externalId;
+    updateData.externalId &&
+    updateData.externalId !== existingCustomer.externalId;
 
   const [emailConflict, externalIdConflict] = await Promise.all([
     checkEmailConflict

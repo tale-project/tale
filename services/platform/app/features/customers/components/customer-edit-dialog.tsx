@@ -1,15 +1,17 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
-import { Doc, Id } from '@/convex/_generated/dataModel';
 import { toast } from '@/app/hooks/use-toast';
+import { Doc, Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+
 import { useUpdateCustomer } from '../hooks/use-update-customer';
 
 type CustomerFormData = {
@@ -52,11 +54,21 @@ export function CustomerEditDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tCommon('validation.required', { field: tCustomers('name') })),
+        name: z
+          .string()
+          .min(
+            1,
+            tCommon('validation.required', { field: tCustomers('name') }),
+          ),
         email: z.string().email(tCommon('validation.email')),
-        locale: z.string().min(1, tCommon('validation.required', { field: tCustomers('locale') })),
+        locale: z
+          .string()
+          .min(
+            1,
+            tCommon('validation.required', { field: tCustomers('locale') }),
+          ),
       }),
-    [tCustomers, tCommon]
+    [tCustomers, tCommon],
   );
 
   const {
@@ -149,7 +161,9 @@ export function CustomerEditDialog({
 
       <Select
         value={locale}
-        onValueChange={(value) => setValue('locale', value, { shouldDirty: true })}
+        onValueChange={(value) =>
+          setValue('locale', value, { shouldDirty: true })
+        }
         disabled={isSubmitting}
         id="locale"
         label={tCustomers('locale')}

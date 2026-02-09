@@ -1,20 +1,21 @@
 'use client';
 
-import { useNavigate } from '@tanstack/react-router';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useAuth } from '@/app/hooks/use-convex-auth';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Input } from '@/app/components/ui/forms/input';
-import { Form } from '@/app/components/ui/forms/form';
-import { VStack, Center } from '@/app/components/ui/layout/layout';
-import { toast } from '@/app/hooks/use-toast';
-import { authClient } from '@/lib/auth-client';
+import { useNavigate } from '@tanstack/react-router';
 import { useAction } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { useT } from '@/lib/i18n/client';
 import { useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+
+import { Form } from '@/app/components/ui/forms/form';
+import { Input } from '@/app/components/ui/forms/input';
+import { VStack, Center } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useAuth } from '@/app/hooks/use-convex-auth';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { authClient } from '@/lib/auth-client';
+import { useT } from '@/lib/i18n/client';
 
 type FormData = { name: string };
 
@@ -88,7 +89,7 @@ export function OrganizationFormClient() {
   return (
     <Center className="p-4">
       <VStack className="w-full max-w-[24rem]">
-        <h1 className="text-base text-center font-semibold mb-8">
+        <h1 className="mb-8 text-center text-base font-semibold">
           {t('organization.createOrganization')}
         </h1>
         <Form onSubmit={handleSubmit}>

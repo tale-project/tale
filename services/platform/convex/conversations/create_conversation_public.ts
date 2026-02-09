@@ -2,8 +2,8 @@
  * Create a new conversation (public API business logic)
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import type { ConversationStatus, ConversationPriority } from './types';
 
 export async function createConversationPublic(
@@ -30,7 +30,6 @@ export async function createConversationPublic(
     type: args.type || 'general',
     direction: args.direction,
 
-     
     metadata: (args.metadata || {}) as any,
   });
 

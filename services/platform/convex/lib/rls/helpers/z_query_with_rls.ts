@@ -5,12 +5,14 @@
 
 import { customCtx } from 'convex-helpers/server/customFunctions';
 import {
-	wrapDatabaseReader,
-	type RLSConfig,
+  wrapDatabaseReader,
+  type RLSConfig,
 } from 'convex-helpers/server/rowLevelSecurity';
 import { zCustomQuery } from 'convex-helpers/server/zod4';
-import { query, type QueryCtx } from '../../../_generated/server';
+
 import type { DataModel } from '../../../_generated/dataModel';
+
+import { query, type QueryCtx } from '../../../_generated/server';
 import { getAuthenticatedUser } from '../auth/get_authenticated_user';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import { rlsRules } from './rls_rules';
@@ -20,7 +22,7 @@ import { rlsRules } from './rls_rules';
  * By default, deny access to tables not explicitly listed in rules
  */
 const rlsConfig: RLSConfig = {
-	defaultPolicy: 'deny',
+  defaultPolicy: 'deny',
 };
 
 /**
@@ -42,19 +44,17 @@ const rlsConfig: RLSConfig = {
  * ```
  */
 export const zQueryWithRLS = zCustomQuery(
-	query,
-	customCtx(async (ctx: QueryCtx) => {
-		const rules = await rlsRules(ctx);
-		const user = await getAuthenticatedUser(ctx);
-		const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
+  query,
+  customCtx(async (ctx: QueryCtx) => {
+    const rules = await rlsRules(ctx);
+    const user = await getAuthenticatedUser(ctx);
+    const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
 
-		return {
-			db: wrapDatabaseReader<{ user: typeof user; userOrganizations: typeof userOrganizations }, DataModel>(
-				{ user, userOrganizations },
-				ctx.db,
-				rules,
-				rlsConfig,
-			),
-		};
-	}),
+    return {
+      db: wrapDatabaseReader<
+        { user: typeof user; userOrganizations: typeof userOrganizations },
+        DataModel
+      >({ user, userOrganizations }, ctx.db, rules, rlsConfig),
+    };
+  }),
 );

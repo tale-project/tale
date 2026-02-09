@@ -2,8 +2,8 @@
  * Delete an example message
  */
 
-import { MutationCtx } from '../_generated/server';
 import { Id } from '../_generated/dataModel';
+import { MutationCtx } from '../_generated/server';
 
 export async function deleteExampleMessage(
   ctx: MutationCtx,
@@ -17,4 +17,3 @@ export async function deleteExampleMessage(
   await ctx.db.delete(args.messageId);
   return null;
 }
-

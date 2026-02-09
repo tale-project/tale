@@ -1,6 +1,6 @@
-import { getContainerHealth } from "./get-container-health";
-import { isContainerRunning } from "./is-container-running";
-import * as logger from "../../utils/logger";
+import * as logger from '../../utils/logger';
+import { getContainerHealth } from './get-container-health';
+import { isContainerRunning } from './is-container-running';
 
 export interface HealthCheckOptions {
   timeout: number;
@@ -10,13 +10,15 @@ export interface HealthCheckOptions {
 
 export async function waitForHealthy(
   containerName: string,
-  options: HealthCheckOptions
+  options: HealthCheckOptions,
 ): Promise<boolean> {
   const { timeout, interval = 2000 } = options;
   const startTime = Date.now();
   const timeoutMs = timeout * 1000;
 
-  logger.info(`Waiting for ${containerName} to become healthy (timeout: ${timeout}s)`);
+  logger.info(
+    `Waiting for ${containerName} to become healthy (timeout: ${timeout}s)`,
+  );
 
   while (Date.now() - startTime < timeoutMs) {
     const isRunning = await isContainerRunning(containerName);
@@ -28,12 +30,12 @@ export async function waitForHealthy(
 
     const health = await getContainerHealth(containerName);
 
-    if (health === "healthy") {
+    if (health === 'healthy') {
       logger.success(`${containerName} is healthy`);
       return true;
     }
 
-    if (health === "unhealthy") {
+    if (health === 'unhealthy') {
       logger.error(`${containerName} is unhealthy`);
       return false;
     }

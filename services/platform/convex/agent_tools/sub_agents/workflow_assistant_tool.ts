@@ -8,19 +8,22 @@
  * Requires admin/developer role for access.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
-import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
-import { validateToolContext } from './helpers/validate_context';
+
+import { internal } from '../../_generated/api';
 import { buildAdditionalContext } from './helpers/build_additional_context';
 import { checkRoleAccess } from './helpers/check_role_access';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import {
   handleToolError,
   type ToolResponseWithApproval,
 } from './helpers/tool_response';
-import { internal } from '../../_generated/api';
+import { validateToolContext } from './helpers/validate_context';
 
 const WORKFLOW_CONTEXT_MAPPING = {
   workflowId: 'target_workflow_id',
@@ -112,7 +115,9 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
 
         const approvalMatch = result.text.match(/APPROVAL_CREATED:(\w+)/);
 
-        const outputResponse = result.text.replace(/APPROVAL_CREATED:\w+/g, '').trim();
+        const outputResponse = result.text
+          .replace(/APPROVAL_CREATED:\w+/g, '')
+          .trim();
 
         return {
           success: true,

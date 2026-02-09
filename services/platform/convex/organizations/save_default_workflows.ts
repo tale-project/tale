@@ -1,17 +1,18 @@
-import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
+
 import { internal } from '../_generated/api';
+import { createDebugLog } from '../lib/debug_log';
+import conversationAutoArchiveWorkflow from '../predefined_workflows/conversation_auto_archive';
 import documentRagSync from '../predefined_workflows/document_rag_sync';
-import onedriveSync from '../predefined_workflows/onedrive_sync';
 import generalCustomerStatusAssessmentWorkflow from '../predefined_workflows/general_customer_status_assessment';
 import generalProductRecommendationWorkflow from '../predefined_workflows/general_product_recommendation';
+import onedriveSync from '../predefined_workflows/onedrive_sync';
 import productRecommendationEmailWorkflow from '../predefined_workflows/product_recommendation_email';
-import conversationAutoArchiveWorkflow from '../predefined_workflows/conversation_auto_archive';
 import {
   toPredefinedWorkflowPayload,
   type PredefinedWorkflowDefinition,
 } from '../workflows/definitions/types';
-import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -26,10 +27,26 @@ const DEFAULT_WORKFLOWS: Array<{
 }> = [
   { workflow: documentRagSync, schedule: '*/20 * * * *', timezone: 'UTC' },
   { workflow: onedriveSync, schedule: '0 */1 * * *', timezone: 'UTC' },
-  { workflow: generalCustomerStatusAssessmentWorkflow, schedule: '0 */6 * * *', timezone: 'UTC' },
-  { workflow: generalProductRecommendationWorkflow, schedule: '0 */12 * * *', timezone: 'UTC' },
-  { workflow: productRecommendationEmailWorkflow, schedule: '0 10 * * *', timezone: 'UTC' },
-  { workflow: conversationAutoArchiveWorkflow, schedule: '0 0 * * *', timezone: 'UTC' },
+  {
+    workflow: generalCustomerStatusAssessmentWorkflow,
+    schedule: '0 */6 * * *',
+    timezone: 'UTC',
+  },
+  {
+    workflow: generalProductRecommendationWorkflow,
+    schedule: '0 */12 * * *',
+    timezone: 'UTC',
+  },
+  {
+    workflow: productRecommendationEmailWorkflow,
+    schedule: '0 10 * * *',
+    timezone: 'UTC',
+  },
+  {
+    workflow: conversationAutoArchiveWorkflow,
+    schedule: '0 0 * * *',
+    timezone: 'UTC',
+  },
 ];
 
 export async function saveDefaultWorkflows(
@@ -49,37 +66,53 @@ export async function saveDefaultWorkflows(
         config: {
           ...baseConfig,
           variables: {
-            ...((baseConfig as { variables?: Record<string, unknown> })
-              .variables ?? {}),
+            ...(baseConfig as { variables?: Record<string, unknown> })
+              .variables,
             organizationId: args.organizationId,
           },
         },
       },
       (step) =>
         step.stepType === 'start' || step.stepType === 'trigger'
-          ? { ...step, config: { ...(step.config ?? {}), type: 'scheduled', schedule, timezone } }
+          ? {
+              ...step,
+              config: {
+                ...step.config,
+                type: 'scheduled',
+                schedule,
+                timezone,
+              },
+            }
           : step,
     );
   });
 
   const results = await Promise.all(
     payloads.map((payload) =>
-      ctx.runMutation(internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps, {
-        organizationId: args.organizationId,
-        ...payload,
-      }),
+      ctx.runMutation(
+        internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps,
+        {
+          organizationId: args.organizationId,
+          ...payload,
+        },
+      ),
     ),
   );
 
-  const workflowIds = results.map((r: { workflowId: Id<'wfDefinitions'> }) => r.workflowId);
+  const workflowIds = results.map(
+    (r: { workflowId: Id<'wfDefinitions'> }) => r.workflowId,
+  );
 
   await Promise.all(
     workflowIds.map((workflowId: Id<'wfDefinitions'>) =>
-      ctx.runMutation(internal.wf_definitions.internal_mutations.updateWorkflowStatus, {
-        wfDefinitionId: workflowId,
-        status: 'active',
-        updatedBy: 'system',
-      }),
+      ctx.runMutation(
+        internal.wf_definitions.internal_mutations.updateWorkflowStatus,
+        {
+          wfDefinitionId: workflowId,
+          status: 'active',
+          updatedBy: 'system',
+        },
+      ),
     ),
   );
 

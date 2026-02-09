@@ -1,11 +1,12 @@
 'use client';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Stack, Grid } from '@/app/components/ui/layout/layout';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
-import { formatNumber } from '@/lib/utils/format/number';
+import { Stack, Grid } from '@/app/components/ui/layout/layout';
 import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
+import { formatNumber } from '@/lib/utils/format/number';
+
 import type { SubAgentUsage } from '../hooks/use-message-metadata';
 
 function formatAgentName(toolName: string): string {
@@ -42,7 +43,7 @@ export function SubAgentDetailsDialog({
       open={isOpen}
       onOpenChange={onOpenChange}
       title={t('subAgentDetails.title', { agent: agentName })}
-      className="sm:max-w-[600px] overflow-x-hidden"
+      className="overflow-x-hidden sm:max-w-[600px]"
     >
       <FieldGroup gap={4}>
         {usage.model && (
@@ -59,7 +60,7 @@ export function SubAgentDetailsDialog({
             <Grid cols={2} gap={2} className="text-sm">
               {usage.inputTokens !== undefined && (
                 <Stack gap={0}>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {t('messageInfo.input')}
                   </div>
                   <div className="font-medium">
@@ -69,7 +70,7 @@ export function SubAgentDetailsDialog({
               )}
               {usage.outputTokens !== undefined && (
                 <Stack gap={0}>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {t('messageInfo.output')}
                   </div>
                   <div className="font-medium">
@@ -78,7 +79,7 @@ export function SubAgentDetailsDialog({
                 </Stack>
               )}
               <Stack gap={0}>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-muted-foreground text-xs">
                   {t('messageInfo.total')}
                 </div>
                 <div className="font-medium">
@@ -87,7 +88,7 @@ export function SubAgentDetailsDialog({
               </Stack>
               {usage.durationMs !== undefined && (
                 <Stack gap={0}>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     {t('messageInfo.duration')}
                   </div>
                   <div className="font-medium">
@@ -101,7 +102,7 @@ export function SubAgentDetailsDialog({
 
         {usage.input && (
           <Field label={t('subAgentDetails.input')}>
-            <div className="text-sm bg-muted px-3 py-2 rounded max-h-40 overflow-y-auto break-all">
+            <div className="bg-muted max-h-40 overflow-y-auto rounded px-3 py-2 text-sm break-all">
               {usage.input}
             </div>
           </Field>
@@ -109,7 +110,7 @@ export function SubAgentDetailsDialog({
 
         {usage.output && (
           <Field label={t('subAgentDetails.output')}>
-            <div className="text-sm bg-muted px-3 py-2 rounded max-h-60 overflow-y-auto break-all">
+            <div className="bg-muted max-h-60 overflow-y-auto rounded px-3 py-2 text-sm break-all">
               {usage.output}
             </div>
           </Field>

@@ -1,4 +1,4 @@
-import * as logger from "./logger";
+import * as logger from './logger';
 
 export function getRequiredEnvVar(name: string): string {
   const value = process.env[name];

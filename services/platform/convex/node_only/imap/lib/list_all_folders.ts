@@ -55,7 +55,10 @@ export default async function listAllFolders(
       }
 
       // Skip special use folders that don't contain emails
-      if (mailbox.specialUse && NON_SELECTABLE_SPECIAL_USES.has(mailbox.specialUse)) {
+      if (
+        mailbox.specialUse &&
+        NON_SELECTABLE_SPECIAL_USES.has(mailbox.specialUse)
+      ) {
         return false;
       }
 

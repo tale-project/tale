@@ -2,12 +2,14 @@
 
 import { usePaginatedQuery } from 'convex/react';
 import { Store } from 'lucide-react';
-import { api } from '@/convex/_generated/api';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { VendorsActionMenu } from './vendors-action-menu';
-import { useVendorsTableConfig } from '../hooks/use-vendors-table-config';
-import { useT } from '@/lib/i18n/client';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+
+import { useVendorsTableConfig } from '../hooks/use-vendors-table-config';
+import { VendorsActionMenu } from './vendors-action-menu';
 
 export interface VendorsTableProps {
   organizationId: string;

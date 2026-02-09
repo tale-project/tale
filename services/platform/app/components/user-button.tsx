@@ -1,7 +1,19 @@
 'use client';
 
-import { useAuth } from '@/app/hooks/use-convex-auth';
-import { Button } from '@/app/components/ui/primitives/button';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { useQuery } from 'convex/react';
+import {
+  LogOut,
+  Settings,
+  HelpCircle,
+  Monitor,
+  Sun,
+  Moon,
+  UserCircle,
+} from 'lucide-react';
+
+import { useTheme } from '@/app/components/theme/theme-provider';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,23 +28,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/app/components/ui/overlays/tooltip';
-import {
-  LogOut,
-  Settings,
-  HelpCircle,
-  Monitor,
-  Sun,
-  Moon,
-  UserCircle,
-} from 'lucide-react';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
-import { useNavigate, useParams } from '@tanstack/react-router';
-import { useTheme } from '@/app/components/theme/theme-provider';
-import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 
 export interface UserButtonProps {
   align?: 'start' | 'end';
@@ -82,9 +83,7 @@ export function UserButton({
   };
 
   const displayName =
-    memberContext?.displayName ||
-    user?.name ||
-    t('userButton.defaultName');
+    memberContext?.displayName || user?.name || t('userButton.defaultName');
 
   const triggerContent = (
     <div
@@ -93,7 +92,7 @@ export function UserButton({
         label ? 'gap-3 px-3 py-2 w-full' : 'justify-center p-2',
       )}
     >
-      <UserCircle className="size-5 shrink-0 text-muted-foreground" />
+      <UserCircle className="text-muted-foreground size-5 shrink-0" />
       {label && <span className="text-sm font-medium">{label}</span>}
     </div>
   );
@@ -118,11 +117,11 @@ export function UserButton({
       )}
       <DropdownMenuContent className="w-64" align={align} forceMount>
         {/* User Info Header */}
-        <DropdownMenuLabel className="font-normal pb-3">
+        <DropdownMenuLabel className="pb-3 font-normal">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex flex-col gap-1 cursor-default">
+                <div className="flex cursor-default flex-col gap-1">
                   {loading || !user ? (
                     <>
                       <Skeleton className="h-4 w-32" />
@@ -130,11 +129,11 @@ export function UserButton({
                     </>
                   ) : (
                     <>
-                      <p className="text-sm font-semibold text-foreground">
+                      <p className="text-foreground text-sm font-semibold">
                         {displayName}
                       </p>
                       {displayName !== user.email && (
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-muted-foreground text-sm">
                           {user.email}
                         </p>
                       )}
@@ -173,7 +172,7 @@ export function UserButton({
           </>
         )}
 
-        <div className="flex items-center justify-between gap-2 rounded-lg bg-secondary/20 p-1">
+        <div className="bg-secondary/20 flex items-center justify-between gap-2 rounded-lg p-1">
           <Button
             variant={theme === 'system' ? 'secondary' : 'ghost'}
             size="sm"

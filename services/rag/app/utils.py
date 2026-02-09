@@ -39,4 +39,3 @@ def cleanup_memory(context: str | None = None) -> None:
     logger.debug(f"[RAG] Garbage collection freed {collected} objects")
     if context:
         _log_memory_snapshot(context)
-

@@ -37,4 +37,3 @@ export async function listDocumentsByExtension(
     metadata: doc.metadata,
   }));
 }
-

@@ -1,5 +1,5 @@
-import type { MutationCtx } from '../_generated/server';
 import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import type { ProductStatus, ProductTranslation } from './types';
 
 export interface UpdateProductArgs {
@@ -46,4 +46,3 @@ export async function updateProduct(
   await ctx.db.patch(args.productId, updates);
   return args.productId;
 }
-

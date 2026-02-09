@@ -23,7 +23,11 @@
  * @param fallback - Fallback value if extraction fails
  * @returns The string value or fallback
  */
-export function safeGetString(obj: unknown, key: string, fallback = ''): string {
+export function safeGetString(
+  obj: unknown,
+  key: string,
+  fallback = '',
+): string {
   if (typeof obj !== 'object' || obj === null) return fallback;
   const value = (obj as Record<string, unknown>)[key];
   return typeof value === 'string' ? value : fallback;
@@ -40,7 +44,7 @@ export function safeGetString(obj: unknown, key: string, fallback = ''): string 
 export function safeGetNumber(
   obj: unknown,
   key: string,
-  fallback?: number
+  fallback?: number,
 ): number | undefined {
   if (typeof obj !== 'object' || obj === null) return fallback;
   const value = (obj as Record<string, unknown>)[key];
@@ -58,7 +62,7 @@ export function safeGetNumber(
 export function safeGetArray<T>(
   obj: unknown,
   key: string,
-  fallback: T[] = []
+  fallback: T[] = [],
 ): T[] {
   if (typeof obj !== 'object' || obj === null) return fallback;
   const value = (obj as Record<string, unknown>)[key];

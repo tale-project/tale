@@ -105,28 +105,23 @@ const loopiProductRecommendationWorkflow = {
           variables: [
             {
               name: 'currentCustomer',
-              value:
-                '{{steps.find_unprocessed_customer.output.data}}',
+              value: '{{steps.find_unprocessed_customer.output.data}}',
             },
             {
               name: 'currentCustomerId',
-              value:
-                '{{steps.find_unprocessed_customer.output.data._id}}',
+              value: '{{steps.find_unprocessed_customer.output.data._id}}',
             },
             {
               name: 'currentCustomerName',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.name}}',
+              value: '{{steps.find_unprocessed_customer.output.data.name}}',
             },
             {
               name: 'currentCustomerEmail',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.email}}',
+              value: '{{steps.find_unprocessed_customer.output.data.email}}',
             },
             {
               name: 'currentCustomerStatus',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.status}}',
+              value: '{{steps.find_unprocessed_customer.output.data.status}}',
             },
             {
               name: 'customerProductIds',
@@ -377,7 +372,8 @@ DO NOT use the same confidence score for all recommendations.`,
                 properties: {
                   productId: {
                     type: 'string',
-                    description: 'The unique product identifier from the database',
+                    description:
+                      'The unique product identifier from the database',
                   },
                   productName: {
                     type: 'string',
@@ -460,8 +456,7 @@ DO NOT use the same confidence score for all recommendations.`,
       stepType: 'condition',
       order: 11,
       config: {
-        expression:
-          'steps.hydrate_recommendations.output.data|length > 0',
+        expression: 'steps.hydrate_recommendations.output.data|length > 0',
         description:
           'Check if AI generated any recommendations for this customer',
       },

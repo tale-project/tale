@@ -6,10 +6,11 @@
  */
 
 import { Agent } from '@convex-dev/agent';
+
 import { components } from '../../../_generated/api';
-import { openai } from '../../../lib/openai_provider';
 import { createDebugLog } from '../../../lib/debug_log';
 import { getEnvOrThrow, getEnvOptional } from '../../../lib/get_or_throw';
+import { openai } from '../../../lib/openai_provider';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[VisionAgent]');
 

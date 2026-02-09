@@ -4,9 +4,10 @@
 
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
 import type { AuthenticatedUser, OrganizationMember } from '../types';
-import { UnauthorizedError } from '../errors';
-import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
+
 import { components } from '../../../_generated/api';
+import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
+import { UnauthorizedError } from '../errors';
 
 /**
  * Get organization member for authenticated user from Better Auth's member table

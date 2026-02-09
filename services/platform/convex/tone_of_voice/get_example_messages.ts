@@ -2,8 +2,8 @@
  * Get example messages for a tone of voice
  */
 
-import { QueryCtx } from '../_generated/server';
 import { Id } from '../_generated/dataModel';
+import { QueryCtx } from '../_generated/server';
 import { ExampleMessage } from './types';
 
 export async function getExampleMessages(

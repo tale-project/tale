@@ -1,6 +1,7 @@
 import type { MutationCtx, ActionCtx } from '../../_generated/server';
-import { internal } from '../../_generated/api';
 import type { EventType } from './event_types';
+
+import { internal } from '../../_generated/api';
 
 interface EmitEventArgs {
   organizationId: string;

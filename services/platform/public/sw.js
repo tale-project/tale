@@ -1,3 +1,5 @@
+import { CacheableResponsePlugin } from 'workbox-cacheable-response';
+import { ExpirationPlugin } from 'workbox-expiration';
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
 import {
@@ -5,8 +7,6 @@ import {
   CacheFirst,
   NetworkFirst,
 } from 'workbox-strategies';
-import { ExpirationPlugin } from 'workbox-expiration';
-import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 
 const CACHE_NAMES = {
   static: 'static-resources-v1',
@@ -33,7 +33,7 @@ registerRoute(
         maxAgeSeconds: 30 * DAY_IN_SECONDS,
       }),
     ],
-  })
+  }),
 );
 
 registerRoute(
@@ -47,7 +47,7 @@ registerRoute(
         maxAgeSeconds: 60 * DAY_IN_SECONDS,
       }),
     ],
-  })
+  }),
 );
 
 registerRoute(
@@ -61,7 +61,7 @@ registerRoute(
         maxAgeSeconds: 365 * DAY_IN_SECONDS,
       }),
     ],
-  })
+  }),
 );
 
 const networkFirstHandler = new NetworkFirst({
@@ -76,9 +76,11 @@ const networkFirstHandler = new NetworkFirst({
   networkTimeoutSeconds: 3,
 });
 
-registerRoute(new NavigationRoute(networkFirstHandler, {
-  denylist: [/^\/_/, /\/api\//],
-}));
+registerRoute(
+  new NavigationRoute(networkFirstHandler, {
+    denylist: [/^\/_/, /\/api\//],
+  }),
+);
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
@@ -99,7 +101,6 @@ async function processMutationQueue() {
   }
 }
 
-
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
@@ -108,9 +109,9 @@ self.addEventListener('activate', (event) => {
         return Promise.all(
           cacheNames
             .filter((name) => !Object.values(CACHE_NAMES).includes(name))
-            .map((name) => caches.delete(name))
+            .map((name) => caches.delete(name)),
         );
       }),
-    ])
+    ]),
   );
 });

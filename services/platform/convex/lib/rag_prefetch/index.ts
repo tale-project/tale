@@ -8,9 +8,11 @@
  * and the first rag_search tool call uses the prefetched result.
  */
 
-import type { ActionCtx } from '../../_generated/server';
-import { components } from '../../_generated/api';
 import { listMessages } from '@convex-dev/agent';
+
+import type { ActionCtx } from '../../_generated/server';
+
+import { components } from '../../_generated/api';
 import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[RagPrefetch]');
@@ -125,15 +127,16 @@ async function getRecentMessagesForPrefetch(
     });
 
     return messagesResult.page
-      .filter((m) => m.message?.role === 'user' || m.message?.role === 'assistant')
+      .filter(
+        (m) => m.message?.role === 'user' || m.message?.role === 'assistant',
+      )
       .map((m) => ({
         role: m.message!.role as 'user' | 'assistant',
-        content: typeof m.message!.content === 'string'
-          ? m.message!.content
-          : '',
+        content:
+          typeof m.message!.content === 'string' ? m.message!.content : '',
       }))
       .filter((m) => m.content.length > 0)
-      .reverse();
+      .toReversed();
   } catch (error) {
     debugLog('Failed to get recent messages for prefetch', {
       threadId,
@@ -161,7 +164,10 @@ async function fetchRagGenerate(options: {
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), RAG_REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    RAG_REQUEST_TIMEOUT_MS,
+  );
 
   try {
     const response = await fetch(url, {
@@ -206,7 +212,9 @@ export interface StartRagPrefetchOptions {
  *   - consumed: false (set to true after first use)
  *   - timestamp: When the prefetch was started
  */
-export function startRagPrefetch(options: StartRagPrefetchOptions): RagPrefetchCache {
+export function startRagPrefetch(
+  options: StartRagPrefetchOptions,
+): RagPrefetchCache {
   const promise = (async (): Promise<string> => {
     debugLog('RAG prefetch started', {
       threadId: options.threadId,
@@ -251,7 +259,8 @@ export function startRagPrefetch(options: StartRagPrefetchOptions): RagPrefetchC
       return response;
     } catch (fetchError) {
       debugLog('RAG prefetch failed (non-fatal)', {
-        error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+        error:
+          fetchError instanceof Error ? fetchError.message : String(fetchError),
       });
       return '';
     }

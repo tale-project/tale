@@ -2,20 +2,19 @@
  * Action Node Executor - Helper Functions
  */
 
+import type { Id } from '../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../_generated/server';
+
+import { internal } from '../../../../_generated/api';
 import { ActionNodeConfig, StepExecutionResult } from '../../../types';
 import { getAction } from './get_action';
-import { internal } from '../../../../_generated/api';
-import type { ActionCtx } from '../../../../_generated/server';
-import type { Id } from '../../../../_generated/dataModel';
 
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
 
 // Secure wrapper type guard
-function isSecureWrapper(
-  val: unknown,
-): val is { __secure: true; jwe: string } {
+function isSecureWrapper(val: unknown): val is { __secure: true; jwe: string } {
   return (
     !!val &&
     typeof val === 'object' &&

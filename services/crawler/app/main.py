@@ -122,4 +122,3 @@ if __name__ == "__main__":
         workers=settings.workers,
         log_level=settings.log_level,
     )
-

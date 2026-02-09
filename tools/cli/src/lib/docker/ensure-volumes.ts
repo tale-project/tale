@@ -1,9 +1,9 @@
-import { PROJECT_NAME } from "../../utils/load-env";
-import { docker } from "./docker";
-import * as logger from "../../utils/logger";
+import { PROJECT_NAME } from '../../utils/load-env';
+import * as logger from '../../utils/logger';
+import { docker } from './docker';
 
 async function volumeExists(volumeName: string): Promise<boolean> {
-  const result = await docker("volume", "inspect", volumeName);
+  const result = await docker('volume', 'inspect', volumeName);
   return result.success;
 }
 
@@ -15,7 +15,7 @@ async function createVolume(volumeName: string): Promise<boolean> {
   }
 
   logger.info(`Creating volume: ${volumeName}`);
-  const result = await docker("volume", "create", volumeName);
+  const result = await docker('volume', 'create', volumeName);
   return result.success;
 }
 

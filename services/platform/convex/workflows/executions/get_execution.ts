@@ -2,8 +2,8 @@
  * Get execution by ID
  */
 
-import type { QueryCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { QueryCtx } from '../../_generated/server';
 import type { DeserializedWorkflowExecution } from './types';
 
 export async function getExecution(

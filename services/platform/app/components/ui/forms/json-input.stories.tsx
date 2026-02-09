@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { fn } from '@storybook/test';
 import { useState } from 'react';
-import { JsonInput } from './json-input';
 import { z } from 'zod';
+
+import { JsonInput } from './json-input';
 
 const meta: Meta<typeof JsonInput> = {
   title: 'Forms/JsonInput',
@@ -78,7 +80,7 @@ const sampleJson = JSON.stringify(
     tags: ['production', 'v1'],
   },
   null,
-  2
+  2,
 );
 
 export const Default: Story = {
@@ -114,7 +116,8 @@ export const WithDescription: Story = {
   args: {
     value: sampleJson,
     label: 'API Response',
-    description: 'Edit the JSON configuration below. Changes are validated in real-time.',
+    description:
+      'Edit the JSON configuration below. Changes are validated in real-time.',
     onChange: fn(),
   },
   decorators: [
@@ -143,7 +146,8 @@ export const Disabled: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Disabled state prevents editing but still shows the JSON viewer.',
+        story:
+          'Disabled state prevents editing but still shows the JSON viewer.',
       },
     },
   },
@@ -170,7 +174,8 @@ export const WithSchemaValidation: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Schema validation using Zod. Invalid JSON will show validation errors.',
+        story:
+          'Schema validation using Zod. Invalid JSON will show validation errors.',
       },
     },
   },
@@ -188,7 +193,7 @@ export const Interactive: Story = {
           label="Edit JSON"
           description="Click the Source button to edit, or click values in the tree view"
         />
-        <div className="p-2 bg-muted rounded text-xs">
+        <div className="bg-muted rounded p-2 text-xs">
           <strong>Current value length:</strong> {value.length} chars
         </div>
       </div>
@@ -227,7 +232,7 @@ export const ArrayData: Story = {
         { id: 3, name: 'Item 3' },
       ],
       null,
-      2
+      2,
     ),
     label: 'Array Data',
     onChange: fn(),

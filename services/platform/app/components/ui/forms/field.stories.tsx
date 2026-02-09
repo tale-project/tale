@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { Field, FieldGroup } from './field';
+
 import { Badge } from '../feedback/badge';
+import { Field, FieldGroup } from './field';
 
 const meta: Meta<typeof Field> = {
   title: 'Forms/Field',
@@ -115,21 +116,21 @@ export const DifferentGaps: Story = {
   render: () => (
     <div className="flex gap-8">
       <div>
-        <p className="text-xs text-muted-foreground mb-2">gap=2</p>
+        <p className="text-muted-foreground mb-2 text-xs">gap=2</p>
         <FieldGroup gap={2} className="w-48">
           <Field label="Name">John</Field>
           <Field label="Email">john@email.com</Field>
         </FieldGroup>
       </div>
       <div>
-        <p className="text-xs text-muted-foreground mb-2">gap=4 (default)</p>
+        <p className="text-muted-foreground mb-2 text-xs">gap=4 (default)</p>
         <FieldGroup gap={4} className="w-48">
           <Field label="Name">John</Field>
           <Field label="Email">john@email.com</Field>
         </FieldGroup>
       </div>
       <div>
-        <p className="text-xs text-muted-foreground mb-2">gap=6</p>
+        <p className="text-muted-foreground mb-2 text-xs">gap=6</p>
         <FieldGroup gap={6} className="w-48">
           <Field label="Name">John</Field>
           <Field label="Email">john@email.com</Field>
@@ -148,8 +149,8 @@ export const DifferentGaps: Story = {
 
 export const ProfileCard: Story = {
   render: () => (
-    <div className="w-80 p-4 border rounded-lg">
-      <h3 className="text-lg font-semibold mb-4">User Profile</h3>
+    <div className="w-80 rounded-lg border p-4">
+      <h3 className="mb-4 text-lg font-semibold">User Profile</h3>
       <FieldGroup gap={4}>
         <Field label="Name">John Doe</Field>
         <Field label="Email">john@example.com</Field>
@@ -176,15 +177,18 @@ export const WithCustomValue: Story = {
   render: () => (
     <FieldGroup gap={4} className="w-80">
       <Field label="Tags">
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex flex-wrap gap-1">
           <Badge variant="outline">React</Badge>
           <Badge variant="outline">TypeScript</Badge>
           <Badge variant="outline">Node.js</Badge>
         </div>
       </Field>
       <Field label="Progress">
-        <div className="w-full bg-muted rounded-full h-2">
-          <div className="bg-primary h-2 rounded-full" style={{ width: '75%' }} />
+        <div className="bg-muted h-2 w-full rounded-full">
+          <div
+            className="bg-primary h-2 rounded-full"
+            style={{ width: '75%' }}
+          />
         </div>
       </Field>
     </FieldGroup>

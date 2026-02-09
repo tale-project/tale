@@ -17,8 +17,9 @@
  * @returns Object containing matched customers array and count
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
+
 import { evaluateExpression } from '../lib/variables/evaluate_expression';
 
 export async function filterCustomers(

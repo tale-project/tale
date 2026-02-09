@@ -8,9 +8,10 @@
  * if the customer is not found, preventing accidental bulk updates.
  */
 
-import type { MutationCtx } from '../_generated/server';
-import type { Id } from '../_generated/dataModel';
 import { set, merge } from 'lodash';
+
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 interface UpdateCustomerMetadataResult {
   success: boolean;
@@ -64,7 +65,6 @@ export async function updateCustomerMetadata(
 
   // Update the customer with the new metadata
   await ctx.db.patch(customerId, {
-     
     metadata: updatedMetadata as any,
   });
 
@@ -73,4 +73,3 @@ export async function updateCustomerMetadata(
     customerId,
   };
 }
-

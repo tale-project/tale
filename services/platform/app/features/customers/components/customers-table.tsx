@@ -2,12 +2,14 @@
 
 import { usePaginatedQuery } from 'convex/react';
 import { Users } from 'lucide-react';
-import { api } from '@/convex/_generated/api';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { CustomersActionMenu } from './customers-action-menu';
-import { useCustomersTableConfig } from '../hooks/use-customers-table-config';
-import { useT } from '@/lib/i18n/client';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+
+import { useCustomersTableConfig } from '../hooks/use-customers-table-config';
+import { CustomersActionMenu } from './customers-action-menu';
 
 export interface CustomersTableProps {
   organizationId: string;

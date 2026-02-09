@@ -23,10 +23,10 @@
 */
 
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import { readFileSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import kill from 'tree-kill';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -273,7 +273,8 @@ async function main() {
     console.log('[dev] ✅ Code generation completed');
 
     // Step 5: Set CONVEX_URL for Vite proxy configuration
-    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL || 'http://127.0.0.1:3210';
+    const convexUrl =
+      process.env.NEXT_PUBLIC_CONVEX_URL || 'http://127.0.0.1:3210';
     process.env.CONVEX_URL = convexUrl;
     console.log(`[dev] ✅ Set CONVEX_URL=${convexUrl} for Vite proxy`);
 

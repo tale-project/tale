@@ -1,8 +1,9 @@
 import { v } from 'convex/values';
+
 import { queryWithRLS } from '../lib/rls';
-import { listWorkflowSteps as listWorkflowStepsHelper } from '../workflows/steps/list_workflow_steps';
-import { validateStepConfig } from '../workflow_engine/helpers/validation/validate_step_config';
 import { validateCircularDependencies } from '../workflow_engine/helpers/validation/circular_dependency_validator';
+import { validateStepConfig } from '../workflow_engine/helpers/validation/validate_step_config';
+import { listWorkflowSteps as listWorkflowStepsHelper } from '../workflows/steps/list_workflow_steps';
 
 export const getWorkflowSteps = queryWithRLS({
   args: {
@@ -39,9 +40,7 @@ export const validateStep = queryWithRLS({
       const stepsForCircularCheck = [];
       for await (const step of ctx.db
         .query('wfStepDefs')
-        .withIndex('by_definition', (q) =>
-          q.eq('wfDefinitionId', defId),
-        )) {
+        .withIndex('by_definition', (q) => q.eq('wfDefinitionId', defId))) {
         stepsForCircularCheck.push({
           stepSlug: step.stepSlug,
           nextSteps: step.nextSteps,

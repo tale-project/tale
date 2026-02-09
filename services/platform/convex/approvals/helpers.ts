@@ -1,6 +1,5 @@
-import type { QueryCtx, MutationCtx } from '../_generated/server';
 import type { Id, Doc } from '../_generated/dataModel';
-import { components } from '../_generated/api';
+import type { QueryCtx, MutationCtx } from '../_generated/server';
 import type {
   ApprovalItem,
   ApprovalStatus,
@@ -13,6 +12,8 @@ import type {
   RemoveRecommendedProductArgs,
   LinkApprovalsToMessageArgs,
 } from './types';
+
+import { components } from '../_generated/api';
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
@@ -204,7 +205,10 @@ export async function listApprovalsByOrganization(
     const query = buildQuery('pending');
 
     for await (const approval of query) {
-      if (needsResourceTypeFilter && !resourceTypeSet.has(approval.resourceType)) {
+      if (
+        needsResourceTypeFilter &&
+        !resourceTypeSet.has(approval.resourceType)
+      ) {
         continue;
       }
 
@@ -223,7 +227,10 @@ export async function listApprovalsByOrganization(
   const approvedQuery = buildQuery('approved');
 
   for await (const approval of approvedQuery) {
-    if (needsResourceTypeFilter && !resourceTypeSet.has(approval.resourceType)) {
+    if (
+      needsResourceTypeFilter &&
+      !resourceTypeSet.has(approval.resourceType)
+    ) {
       continue;
     }
 
@@ -241,7 +248,10 @@ export async function listApprovalsByOrganization(
   const rejectedQuery = buildQuery('rejected');
 
   for await (const approval of rejectedQuery) {
-    if (needsResourceTypeFilter && !resourceTypeSet.has(approval.resourceType)) {
+    if (
+      needsResourceTypeFilter &&
+      !resourceTypeSet.has(approval.resourceType)
+    ) {
       continue;
     }
 
@@ -337,7 +347,11 @@ export async function removeRecommendedProduct(
     : [];
 
   const updatedProducts = recommendedProducts.filter((product: unknown) => {
-    if (typeof product !== 'object' || product === null || Array.isArray(product)) {
+    if (
+      typeof product !== 'object' ||
+      product === null ||
+      Array.isArray(product)
+    ) {
       return true;
     }
     const id = (product as Record<string, unknown>)['productId'];
@@ -382,9 +396,7 @@ export async function linkApprovalsToMessage(
     }
   }
 
-  await Promise.all(
-    approvalIds.map((id) => ctx.db.patch(id, { messageId })),
-  );
+  await Promise.all(approvalIds.map((id) => ctx.db.patch(id, { messageId })));
 
   return approvalIds.length;
 }

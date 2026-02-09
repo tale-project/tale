@@ -5,9 +5,8 @@
  * enabling lib/ to be completely decoupled from agents/.
  */
 
-import type { AgentType } from '../context_management/constants';
 import type { ToolName } from '../../agent_tools/tool_registry';
-import type { FileAttachment } from '../attachments';
+import type { AgentType } from '../context_management/constants';
 
 /**
  * Serializable Agent configuration for creating agents.

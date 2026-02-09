@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { useState } from 'react';
-import { DeleteDialog } from './delete-dialog';
+
 import { Button } from '../primitives/button';
+import { DeleteDialog } from './delete-dialog';
 
 const meta: Meta<typeof DeleteDialog> = {
   title: 'Dialog/DeleteDialog',
@@ -224,9 +226,9 @@ export const WithChildren: Story = {
             setOpen(false);
           }}
         >
-          <div className="text-sm space-y-2">
+          <div className="space-y-2 text-sm">
             <p className="font-medium">The following will be deleted:</p>
-            <ul className="list-disc list-inside text-muted-foreground space-y-1">
+            <ul className="text-muted-foreground list-inside list-disc space-y-1">
               <li>All your projects and data</li>
               <li>Team memberships</li>
               <li>API keys and integrations</li>

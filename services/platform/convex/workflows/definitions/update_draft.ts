@@ -2,8 +2,8 @@
  * Update draft version (only drafts can be modified)
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { WorkflowDefinition, WorkflowConfig } from './types';
 
 export interface UpdateDraftArgs {
@@ -48,4 +48,3 @@ export async function updateDraft(
 
   return null;
 }
-

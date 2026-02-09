@@ -1,12 +1,12 @@
-import { ROTATABLE_SERVICES } from "../compose/types";
-import { containerExists } from "../docker/container-exists";
-import { removeContainer } from "../docker/remove-container";
-import { stopContainer } from "../docker/stop-container";
-import { getCurrentColor } from "../state/get-current-color";
-import { getOppositeColor } from "../state/get-opposite-color";
-import { withLock } from "../state/with-lock";
-import { PROJECT_NAME, type DeploymentEnv } from "../../utils/load-env";
-import * as logger from "../../utils/logger";
+import { PROJECT_NAME, type DeploymentEnv } from '../../utils/load-env';
+import * as logger from '../../utils/logger';
+import { ROTATABLE_SERVICES } from '../compose/types';
+import { containerExists } from '../docker/container-exists';
+import { removeContainer } from '../docker/remove-container';
+import { stopContainer } from '../docker/stop-container';
+import { getCurrentColor } from '../state/get-current-color';
+import { getOppositeColor } from '../state/get-opposite-color';
+import { withLock } from '../state/with-lock';
 
 interface CleanupOptions {
   env: DeploymentEnv;
@@ -15,12 +15,12 @@ interface CleanupOptions {
 export async function cleanup(options: CleanupOptions): Promise<void> {
   const { env } = options;
 
-  await withLock(env.DEPLOY_DIR, "cleanup", async () => {
-    logger.header("Cleaning Up Inactive Containers");
+  await withLock(env.DEPLOY_DIR, 'cleanup', async () => {
+    logger.header('Cleaning Up Inactive Containers');
 
     const currentColor = await getCurrentColor(env.DEPLOY_DIR);
     if (!currentColor) {
-      logger.info("No active deployment, nothing to clean up");
+      logger.info('No active deployment, nothing to clean up');
       return;
     }
 
@@ -47,7 +47,7 @@ export async function cleanup(options: CleanupOptions): Promise<void> {
     if (cleaned > 0) {
       logger.success(`Cleaned up ${cleaned} inactive container(s)`);
     } else {
-      logger.info("No inactive containers to clean up");
+      logger.info('No inactive containers to clean up');
     }
   });
 }

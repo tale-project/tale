@@ -5,11 +5,12 @@
  * This is necessary because mutations cannot use ctx.storage.store().
  */
 
-import type { ActionCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
+import type { ActionCtx } from '../../../_generated/server';
+
 import { internal } from '../../../_generated/api';
-import { serializeOutput } from '../serialization/serialize_output';
 import { createDebugLog } from '../../../lib/debug_log';
+import { serializeOutput } from '../serialization/serialize_output';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -58,11 +59,14 @@ export async function handleSerializeAndCompleteExecution(
   });
 
   // Call the mutation with pre-serialized data
-  await ctx.runMutation(internal.wf_executions.internal_mutations.completeExecution, {
-    executionId: args.executionId,
-    output: outputParsed,
-    outputStorageId,
-  });
+  await ctx.runMutation(
+    internal.wf_executions.internal_mutations.completeExecution,
+    {
+      executionId: args.executionId,
+      output: outputParsed,
+      outputStorageId,
+    },
+  );
 
   debugLog('serializeAndCompleteExecution Completed', {
     executionId: args.executionId,

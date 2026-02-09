@@ -1,25 +1,26 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { type Row } from '@tanstack/react-table';
 import { usePaginatedQuery } from 'convex/react';
 import { Workflow } from 'lucide-react';
-import { type Row } from '@tanstack/react-table';
-import { api } from '@/convex/_generated/api';
+import { useCallback, useEffect } from 'react';
+
 import type { Doc } from '@/convex/_generated/dataModel';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { useListPage } from '@/app/hooks/use-list-page';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+
 import { AutomationsActionMenu } from './automations-action-menu';
 import { useAutomationsTableConfig } from './use-automations-table-config';
-import { useT } from '@/lib/i18n/client';
-import { useListPage } from '@/app/hooks/use-list-page';
 
 interface AutomationsClientProps {
   organizationId: string;
 }
 
-export function AutomationsClient({
-  organizationId,
-}: AutomationsClientProps) {
+export function AutomationsClient({ organizationId }: AutomationsClientProps) {
   const navigate = useNavigate();
   const { t: tTables } = useT('tables');
   const { t: tCommon } = useT('common');
@@ -78,7 +79,7 @@ export function AutomationsClient({
 
   return (
     <DataTable
-      className="py-6 px-4"
+      className="px-4 py-6"
       columns={columns}
       onRowClick={handleRowClick}
       stickyLayout={stickyLayout}

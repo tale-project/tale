@@ -56,10 +56,7 @@ async def _process_pdf_document(
 
         # 2. Check if this is a scanned page (low text content)
         if len(direct_text) < MIN_TEXT_THRESHOLD and ocr_scanned_pages:
-            logger.debug(
-                f"Page {page_num + 1}: Low text ({len(direct_text)} chars), "
-                "sending to Vision API for OCR"
-            )
+            logger.debug(f"Page {page_num + 1}: Low text ({len(direct_text)} chars), sending to Vision API for OCR")
             ocr_text = await _ocr_page(page, semaphore)
             if ocr_text:
                 page_parts.append(ocr_text)
@@ -101,8 +98,7 @@ async def _process_pdf_document(
 
     combined_text = "\n\n".join(pages_text)
     logger.info(
-        f"PDF processing complete: {total_pages} pages, "
-        f"{len(combined_text)} chars, Vision API used: {vision_used}"
+        f"PDF processing complete: {total_pages} pages, {len(combined_text)} chars, Vision API used: {vision_used}"
     )
 
     return combined_text, vision_used
@@ -136,9 +132,7 @@ async def extract_text_from_pdf(
     logger.info(f"Processing PDF: {file_path.name}")
 
     with fitz.open(file_path) as doc:
-        return await _process_pdf_document(
-            doc, file_path.name, process_images, ocr_scanned_pages
-        )
+        return await _process_pdf_document(doc, file_path.name, process_images, ocr_scanned_pages)
 
 
 async def _ocr_page(
@@ -210,9 +204,7 @@ async def _extract_image_descriptions(
         width = base_image.get("width", 0)
         height = base_image.get("height", 0)
         if width * height < MIN_IMAGE_SIZE:
-            logger.debug(
-                f"Skipping small image ({width}x{height}) on page {page.number + 1}"
-            )
+            logger.debug(f"Skipping small image ({width}x{height}) on page {page.number + 1}")
             continue
 
         # Get image description with error handling to continue on failures
@@ -222,9 +214,7 @@ async def _extract_image_descriptions(
                 if description:
                     descriptions.append(description)
             except Exception as e:
-                logger.warning(
-                    f"Failed to describe image {img_index} on page {page.number + 1}: {e}"
-                )
+                logger.warning(f"Failed to describe image {img_index} on page {page.number + 1}: {e}")
                 continue
 
     return descriptions
@@ -251,6 +241,4 @@ async def extract_text_from_pdf_bytes(
     logger.info(f"Processing PDF from bytes: {filename}")
 
     with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
-        return await _process_pdf_document(
-            doc, filename, process_images, ocr_scanned_pages
-        )
+        return await _process_pdf_document(doc, filename, process_images, ocr_scanned_pages)

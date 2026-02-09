@@ -4,8 +4,8 @@
  * Tracks changes to workflow step definitions for debugging and compliance.
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 type EditMode = 'visual' | 'json' | 'ai';
 type ChangeType = 'created' | 'updated' | 'deleted';

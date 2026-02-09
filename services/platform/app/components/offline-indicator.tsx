@@ -24,10 +24,8 @@ export function OfflineIndicator({
     <div
       className={cn(
         'fixed top-0 left-0 right-0 z-50 flex items-center justify-center px-4 py-2 text-sm font-medium transition-colors',
-        isOnline
-          ? 'bg-green-500 text-white'
-          : 'bg-yellow-500 text-yellow-950',
-        className
+        isOnline ? 'bg-green-500 text-white' : 'bg-yellow-500 text-yellow-950',
+        className,
       )}
       role="status"
       aria-live="polite"
@@ -36,7 +34,7 @@ export function OfflineIndicator({
         <span
           className={cn(
             'h-2 w-2 rounded-full',
-            isOnline ? 'bg-white' : 'bg-yellow-950 animate-pulse'
+            isOnline ? 'bg-white' : 'bg-yellow-950 animate-pulse',
           )}
         />
         <span>

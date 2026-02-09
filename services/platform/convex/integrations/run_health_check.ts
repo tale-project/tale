@@ -3,11 +3,11 @@
  * Avoids try/catch; let errors propagate to fail creation when checks fail.
  */
 
-import { testShopifyConnection } from './test_shopify_connection';
-import { testCirculyConnection } from './test_circuly_connection';
 import type { CreateIntegrationLogicArgs } from './create_integration_logic';
 
 import { createDebugLog } from '../lib/debug_log';
+import { testCirculyConnection } from './test_circuly_connection';
+import { testShopifyConnection } from './test_shopify_connection';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 

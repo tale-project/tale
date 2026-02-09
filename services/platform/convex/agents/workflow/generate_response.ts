@@ -8,12 +8,13 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { createWorkflowAgent } from './agent';
+
 import {
   generateAgentResponse,
   type GenerateResponseResult,
 } from '../../lib/agent_response';
 import { WORKFLOW_AGENT_CORE_INSTRUCTIONS } from '../../workflow_engine/instructions/core_instructions';
+import { createWorkflowAgent } from './agent';
 
 export interface GenerateWorkflowResponseArgs {
   ctx: ActionCtx;

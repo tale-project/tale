@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
 import { Plus, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
-import { CreateAutomationDialog } from './automation-create-dialog';
 import { useT } from '@/lib/i18n/client';
+
+import { CreateAutomationDialog } from './automation-create-dialog';
 
 export interface AutomationsActionMenuProps {
   organizationId: string;
@@ -26,7 +28,11 @@ export function AutomationsActionMenu({
   return (
     <>
       <DataTableActionMenu
-        label={variant === 'ai' ? tAutomations('createWithAI') : tAutomations('createButton')}
+        label={
+          variant === 'ai'
+            ? tAutomations('createWithAI')
+            : tAutomations('createButton')
+        }
         icon={variant === 'ai' ? Sparkles : Plus}
         onClick={handleCreateAutomation}
       />

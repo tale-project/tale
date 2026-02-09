@@ -1,5 +1,7 @@
 'use client';
 
+import { cva, type VariantProps } from 'class-variance-authority';
+import { Eye, EyeOff, Info, XCircle } from 'lucide-react';
 import {
   InputHTMLAttributes,
   forwardRef,
@@ -7,11 +9,10 @@ import {
   useId,
   useEffect,
 } from 'react';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { Eye, EyeOff, Info, XCircle } from 'lucide-react';
 
-import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
 import { Label } from './label';
 
 const inputVariants = cva(
@@ -117,7 +118,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
                 show ? t('aria.hidePassword') : t('aria.showPassword')
               }
               aria-pressed={show}
-              className="absolute inset-y-0 right-2 my-auto inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors duration-150"
+              className="text-muted-foreground hover:text-foreground absolute inset-y-0 right-2 my-auto inline-flex size-6 items-center justify-center rounded-md transition-colors duration-150"
               onClick={() => setShow((v) => !v)}
             >
               {show ? (
@@ -132,7 +133,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
               id={errorId}
               role="alert"
               aria-live="polite"
-              className="text-sm text-destructive flex items-center gap-1.5"
+              className="text-destructive flex items-center gap-1.5 text-sm"
             >
               <XCircle className="size-4" aria-hidden="true" />
               {errorMessage}
@@ -171,7 +172,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
             id={errorId}
             role="alert"
             aria-live="polite"
-            className="text-sm text-destructive flex items-center gap-1.5"
+            className="text-destructive flex items-center gap-1.5 text-sm"
           >
             <Info className="size-4" aria-hidden="true" />
             {errorMessage}

@@ -3,6 +3,7 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
+
 import { internal } from '../../../_generated/api';
 import { errorResponse, type ToolResponse } from './tool_response';
 
@@ -25,10 +26,13 @@ export async function checkRoleAccess(
   organizationId: string,
   toolName: string,
 ): Promise<RoleCheckResult> {
-  const userRole = await ctx.runQuery(internal.members.internal_queries.getMemberRole, {
-    userId,
-    organizationId,
-  });
+  const userRole = await ctx.runQuery(
+    internal.members.internal_queries.getMemberRole,
+    {
+      userId,
+      organizationId,
+    },
+  );
 
   const normalizedRole = (userRole ?? 'member').toLowerCase();
 

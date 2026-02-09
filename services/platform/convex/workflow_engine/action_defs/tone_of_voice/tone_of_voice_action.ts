@@ -5,10 +5,11 @@
  */
 
 import { v } from 'convex/values';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import { internal } from '../../../_generated/api';
-import type { Doc } from '../../../_generated/dataModel';
 
+import type { Doc } from '../../../_generated/dataModel';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
+
+import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');

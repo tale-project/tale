@@ -1,12 +1,14 @@
 'use client';
 
-import { cn } from '@/lib/utils/cn';
-import { Image } from '@/app/components/ui/data-display/image';
-import type { Message as MessageType } from '../types';
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
 import { Clock, AlertCircle } from 'lucide-react';
+
+import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
+import { Image } from '@/app/components/ui/data-display/image';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
+import type { Message as MessageType } from '../types';
 
 interface MessageProps {
   message: MessageType;
@@ -66,7 +68,7 @@ export function Message({ message }: MessageProps) {
                       }
                       width={460}
                       height={300}
-                      className="rounded-lg w-full h-auto"
+                      className="h-auto w-full rounded-lg"
                     />
                   </div>
                 );

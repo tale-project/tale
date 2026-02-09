@@ -1,13 +1,15 @@
 'use client';
 
+import { X } from 'lucide-react';
+
 import { Image } from '@/app/components/ui/data-display/image';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { X } from 'lucide-react';
-import { RecommendedProduct, PreviousPurchase } from '../types/approval-detail';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
+
+import { RecommendedProduct, PreviousPurchase } from '../types/approval-detail';
 
 interface ProductCardProps {
   product?: RecommendedProduct;
@@ -31,29 +33,33 @@ export function ProductCard({
 
   if (type === 'recommended' && product) {
     return (
-      <HStack gap={3} align="start" className="p-3 border-b border-border last:border-b-0">
-        <div className="w-[72px] h-[72px] bg-muted rounded-lg overflow-hidden shrink-0">
+      <HStack
+        gap={3}
+        align="start"
+        className="border-border border-b p-3 last:border-b-0"
+      >
+        <div className="bg-muted h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg">
           <Image
             src={product.image}
             alt={product.name}
             width={72}
             height={72}
-            className="w-full h-full object-cover"
+            className="h-full w-full object-cover"
           />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <Stack gap={3}>
             <Stack gap={1}>
-              <h4 className="text-sm font-medium text-foreground leading-normal">
+              <h4 className="text-foreground text-sm leading-normal font-medium">
                 {product.name}
               </h4>
               {product.description && (
-                <p className="text-sm text-muted-foreground leading-5 line-clamp-2">
+                <p className="text-muted-foreground line-clamp-2 text-sm leading-5">
                   {product.description}
                 </p>
               )}
               {product.reasoning && (
-                <p className="text-sm text-muted-foreground leading-5">
+                <p className="text-muted-foreground text-sm leading-5">
                   {product.reasoning}
                 </p>
               )}
@@ -64,7 +70,9 @@ export function ProductCard({
               )}
               {product.confidence !== undefined && (
                 <Badge variant="outline">
-                  {t('confidenceBadge', { percent: Math.round(product.confidence * 100) })}
+                  {t('confidenceBadge', {
+                    percent: Math.round(product.confidence * 100),
+                  })}
                 </Badge>
               )}
             </HStack>
@@ -80,9 +88,9 @@ export function ProductCard({
             aria-label={t('actions.removeProduct', { name: product.name })}
           >
             {isRemoving ? (
-              <div className="animate-spin rounded-full size-4 border-b border-foreground" />
+              <div className="border-foreground size-4 animate-spin rounded-full border-b" />
             ) : (
-              <X className="size-4 text-muted-foreground hover:text-foreground" />
+              <X className="text-muted-foreground hover:text-foreground size-4" />
             )}
           </Button>
         )}
@@ -92,23 +100,23 @@ export function ProductCard({
 
   if (type === 'purchase' && purchase) {
     return (
-      <HStack gap={3} className="p-3 border-b border-border last:border-b-0">
+      <HStack gap={3} className="border-border border-b p-3 last:border-b-0">
         <HStack gap={2} className="flex-1">
-          <div className="size-10 bg-muted rounded-md overflow-hidden shrink-0">
+          <div className="bg-muted size-10 shrink-0 overflow-hidden rounded-md">
             <Image
               src={purchase.image}
               alt={purchase.productName}
               width={40}
               height={40}
-              className="w-full h-full object-cover"
+              className="h-full w-full object-cover"
             />
           </div>
           <Stack gap={1}>
-            <h4 className="text-sm font-medium text-foreground">
+            <h4 className="text-foreground text-sm font-medium">
               {purchase.productName}
             </h4>
             {purchase.purchaseDate && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {formatDate(purchase.purchaseDate)}
               </p>
             )}
@@ -118,7 +126,9 @@ export function ProductCard({
           <Badge
             variant={purchase.status === 'active' ? 'green' : 'destructive'}
           >
-            {purchase.status === 'active' ? t('productStatus.active') : t('productStatus.cancelled')}
+            {purchase.status === 'active'
+              ? t('productStatus.active')
+              : t('productStatus.cancelled')}
           </Badge>
         )}
       </HStack>

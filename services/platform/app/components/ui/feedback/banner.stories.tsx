@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
+import {
+  Info as InfoIcon,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+} from 'lucide-react';
 import { useState } from 'react';
-import { Info as InfoIcon, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+
 import { Banner } from './banner';
 
 const meta: Meta<typeof Banner> = {
@@ -147,7 +154,7 @@ export const Dismissible: Story = {
         {hidden && (
           <button
             onClick={() => setHidden(false)}
-            className="text-sm text-primary hover:underline"
+            className="text-primary text-sm hover:underline"
           >
             Show banner again
           </button>

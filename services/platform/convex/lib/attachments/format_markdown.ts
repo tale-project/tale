@@ -55,4 +55,3 @@ export async function formatAttachmentsAsMarkdown(
 
   return attachmentParts.join('\n\n');
 }
-

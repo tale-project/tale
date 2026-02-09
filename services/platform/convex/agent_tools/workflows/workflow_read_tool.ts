@@ -10,23 +10,25 @@
  * - operation = 'list_version_history': list all versions of a workflow
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
-import type { ToolDefinition } from '../types';
-import type { Id } from '../../_generated/dataModel';
-import { internal } from '../../_generated/api';
 
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
+import type { Id } from '../../_generated/dataModel';
+import type { ToolDefinition } from '../types';
 import type {
   WorkflowReadGetStructureResult,
   WorkflowReadListAllResult,
   WorkflowReadGetActiveVersionStepsResult,
   WorkflowReadListVersionHistoryResult,
 } from './helpers/types';
-import { readWorkflowStructure } from './helpers/read_workflow_structure';
-import { readAllWorkflows } from './helpers/read_all_workflows';
+
+import { internal } from '../../_generated/api';
 import { readActiveVersionSteps } from './helpers/read_active_version_steps';
+import { readAllWorkflows } from './helpers/read_all_workflows';
 import { readVersionHistory } from './helpers/read_version_history';
+import { readWorkflowStructure } from './helpers/read_workflow_structure';
 
 // Use a flat object schema instead of discriminatedUnion to ensure OpenAI-compatible JSON Schema
 // (discriminatedUnion produces anyOf/oneOf which some providers reject as "type: None")
@@ -126,14 +128,15 @@ BEST PRACTICES:
 
       if (args.operation === 'get_step') {
         if (!args.stepId) {
-          throw new Error(
-            "Missing required 'stepId' for get_step operation",
-          );
+          throw new Error("Missing required 'stepId' for get_step operation");
         }
         // Get the step by ID using internal query
-        const stepDoc = await ctx.runQuery(internal.wf_step_defs.internal_queries.getStepById, {
-          stepId: args.stepId as Id<'wfStepDefs'>,
-        });
+        const stepDoc = await ctx.runQuery(
+          internal.wf_step_defs.internal_queries.getStepById,
+          {
+            stepId: args.stepId as Id<'wfStepDefs'>,
+          },
+        );
         if (!stepDoc) {
           throw new Error(`Step not found: ${args.stepId}`);
         }

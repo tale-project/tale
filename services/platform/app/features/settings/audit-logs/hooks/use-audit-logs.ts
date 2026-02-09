@@ -1,6 +1,8 @@
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+
 import type { AuditLogFilter } from '@/convex/audit_logs/types';
+
+import { api } from '@/convex/_generated/api';
 
 export function useAuditLogs(
   organizationId: string,

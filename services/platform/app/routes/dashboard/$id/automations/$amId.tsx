@@ -5,30 +5,32 @@ import {
   Link,
 } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
+import { ChevronDown } from 'lucide-react';
 import { lazy, Suspense, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { api } from '@/convex/_generated/api';
+
 import type { Doc, Id } from '@/convex/_generated/dataModel';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Stack, Center } from '@/app/components/ui/layout/layout';
-import { Input } from '@/app/components/ui/forms/input';
+
+import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
+import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
+import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Button } from '@/app/components/ui/primitives/button';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { Input } from '@/app/components/ui/forms/input';
+import { Stack, Center } from '@/app/components/ui/layout/layout';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { ChevronDown } from 'lucide-react';
-import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
-import { StickyHeader } from '@/app/components/layout/sticky-header';
-import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
+import { Button } from '@/app/components/ui/primitives/button';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
-import { useUpdateAutomation } from '@/app/features/automations/hooks/use-update-automation';
 import { useAutomationVersionNavigation } from '@/app/features/automations/hooks/use-automation-version-navigation';
+import { useUpdateAutomation } from '@/app/features/automations/hooks/use-update-automation';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -51,8 +53,8 @@ export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
 
 function AutomationStepsSkeleton() {
   return (
-    <div className="flex justify-stretch size-full flex-1 max-h-full">
-      <div className="flex-[1_1_0] min-h-0 bg-background relative">
+    <div className="flex size-full max-h-full flex-1 justify-stretch">
+      <div className="bg-background relative min-h-0 flex-[1_1_0]">
         <div
           className="absolute inset-0 opacity-20"
           style={{
@@ -63,11 +65,11 @@ function AutomationStepsSkeleton() {
         />
         <Center className="absolute inset-0">
           <Stack gap={4} className="w-full max-w-sm text-center">
-            <Skeleton className="h-20 w-72 mx-auto rounded-lg" />
-            <Skeleton className="h-4 w-48 mx-auto" />
+            <Skeleton className="mx-auto h-20 w-72 rounded-lg" />
+            <Skeleton className="mx-auto h-4 w-48" />
           </Stack>
         </Center>
-        <div className="absolute bottom-4 right-4">
+        <div className="absolute right-4 bottom-4">
           <Skeleton className="h-32 w-48 rounded-lg" />
         </div>
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
@@ -98,12 +100,9 @@ function AutomationDetailLayout() {
   const automation = useQuery(api.wf_definitions.queries.getWorkflow, {
     wfDefinitionId: automationId,
   });
-  const steps = useQuery(
-    api.wf_step_defs.queries.getWorkflowSteps,
-    {
-      wfDefinitionId: automationId,
-    },
-  );
+  const steps = useQuery(api.wf_step_defs.queries.getWorkflowSteps, {
+    wfDefinitionId: automationId,
+  });
   const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
@@ -152,10 +151,10 @@ function AutomationDetailLayout() {
     location.pathname === `/dashboard/${organizationId}/automations/${amId}`;
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       <StickyHeader>
         <AdaptiveHeaderRoot standalone={false} className="gap-2">
-          <h1 className="text-base font-semibold truncate">
+          <h1 className="truncate text-base font-semibold">
             <Link
               to="/dashboard/$id/automations"
               params={{ id: organizationId }}
@@ -167,21 +166,14 @@ function AutomationDetailLayout() {
               {t('title')}&nbsp;&nbsp;
             </Link>
             {automation?.name && !editMode && (
-              <span
-                role="button"
-                tabIndex={0}
-                className="text-foreground cursor-pointer"
+              <button
+                type="button"
+                className="text-foreground font-inherit cursor-pointer appearance-none border-none bg-transparent p-0"
                 onClick={() => setEditMode(true)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setEditMode(true);
-                  }
-                }}
               >
                 <span className="hidden md:inline">/&nbsp;&nbsp;</span>
                 {automation?.name}
-              </span>
+              </button>
             )}
           </h1>
           {editMode && (
@@ -189,7 +181,7 @@ function AutomationDetailLayout() {
               {...register('name')}
               defaultValue={automation?.name ?? ''}
               autoFocus
-              className="w-fit h-6 text-sm"
+              className="h-6 w-fit text-sm"
               onBlur={handleSubmitAutomationName}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -223,7 +215,7 @@ function AutomationDetailLayout() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="md:hidden ml-auto text-sm h-8"
+                  className="ml-auto h-8 text-sm md:hidden"
                 >
                   {automation.version}
                   <ChevronDown className="ml-1 size-3" aria-hidden="true" />
@@ -236,7 +228,7 @@ function AutomationDetailLayout() {
                     onClick={() => navigateToVersion(version._id)}
                   >
                     <span>{version.version}</span>
-                    <span className="text-xs text-muted-foreground ml-1">
+                    <span className="text-muted-foreground ml-1 text-xs">
                       {version.status === 'draft' && tCommon('status.draft')}
                       {version.status === 'active' && tCommon('status.active')}
                       {version.status === 'archived' &&

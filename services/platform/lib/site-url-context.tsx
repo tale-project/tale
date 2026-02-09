@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
+
 import { getEnv } from '@/lib/env';
 
 interface SiteUrlContextValue {
@@ -23,7 +24,9 @@ export function SiteUrlProvider({ children }: SiteUrlProviderProps) {
     };
   }, []);
 
-  return <SiteUrlContext.Provider value={value}>{children}</SiteUrlContext.Provider>;
+  return (
+    <SiteUrlContext.Provider value={value}>{children}</SiteUrlContext.Provider>
+  );
 }
 
 export function useSiteUrl(): string {
@@ -47,4 +50,3 @@ export function useConvexUrl(): string {
   }
   return context.convexUrl;
 }
-

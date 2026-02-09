@@ -1,5 +1,6 @@
 'use client';
 
+import { ImagePlus } from 'lucide-react';
 import {
   createContext,
   useContext,
@@ -8,9 +9,9 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import { ImagePlus } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
+
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 interface FileUploadContextValue {
   isDragOver: boolean;
@@ -187,8 +188,8 @@ function Overlay({ className, label }: OverlayProps) {
         className,
       )}
     >
-      <ImagePlus className="size-8 text-muted-foreground" />
-      <span className="text-sm text-muted-foreground">
+      <ImagePlus className="text-muted-foreground size-8" />
+      <span className="text-muted-foreground text-sm">
         {label ?? t('upload.dropFilesHere')}
       </span>
     </div>

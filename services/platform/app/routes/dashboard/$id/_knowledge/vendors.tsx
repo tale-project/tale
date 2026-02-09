@@ -1,10 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { z } from 'zod';
-import { api } from '@/convex/_generated/api';
+
+import { VendorsEmptyState } from '@/app/features/vendors/components/vendors-empty-state';
 import { VendorsTable } from '@/app/features/vendors/components/vendors-table';
 import { VendorsTableSkeleton } from '@/app/features/vendors/components/vendors-table-skeleton';
-import { VendorsEmptyState } from '@/app/features/vendors/components/vendors-empty-state';
+import { api } from '@/convex/_generated/api';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -19,7 +20,9 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/vendors')({
 
 function VendorsPage() {
   const { id: organizationId } = Route.useParams();
-  const hasVendors = useQuery(api.vendors.queries.hasVendors, { organizationId });
+  const hasVendors = useQuery(api.vendors.queries.hasVendors, {
+    organizationId,
+  });
 
   if (hasVendors === undefined) {
     return <VendorsTableSkeleton organizationId={organizationId} />;

@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
 import { Plus, HardDrive, NotepadText } from 'lucide-react';
+import { useState, useCallback } from 'react';
+
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
-import { ImportVendorsDialog } from './vendors-import-dialog';
 import { useT } from '@/lib/i18n/client';
+
+import { ImportVendorsDialog } from './vendors-import-dialog';
 
 export type ImportMode = 'manual' | 'upload';
 

@@ -1,5 +1,6 @@
-import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
+
 import {
   approvalStatusSchema,
   approvalPrioritySchema,
@@ -9,7 +10,9 @@ import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const approvalStatusValidator = zodToConvex(approvalStatusSchema);
 export const approvalPriorityValidator = zodToConvex(approvalPrioritySchema);
-export const approvalResourceTypeValidator = zodToConvex(approvalResourceTypeSchema);
+export const approvalResourceTypeValidator = zodToConvex(
+  approvalResourceTypeSchema,
+);
 
 export const approvalItemValidator = v.object({
   _id: v.string(),

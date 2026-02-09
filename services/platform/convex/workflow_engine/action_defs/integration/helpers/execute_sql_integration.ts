@@ -4,19 +4,23 @@
  * Handles execution of SQL-based integrations
  */
 
+import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 import type { ActionCtx } from '../../../../_generated/server';
-import { internal } from '../../../../_generated/api';
 import type { SqlExecutionResult } from '../../../../node_only/sql/types';
+
+import { internal } from '../../../../_generated/api';
+import {
+  type SqlIntegration,
+  type SqlOperation,
+} from '../../../../integrations/types';
 import { createDebugLog } from '../../../../lib/debug_log';
-import { isIntrospectionOperation } from './is_introspection_operation';
-import { getIntrospectTablesQuery } from './get_introspect_tables_query';
-import { getIntrospectColumnsQuery } from './get_introspect_columns_query';
-import { getIntrospectionOperations } from './get_introspection_operations';
 import { decryptSqlCredentials } from './decrypt_sql_credentials';
 import { requiresApproval, getOperationType } from './detect_write_operation';
+import { getIntrospectColumnsQuery } from './get_introspect_columns_query';
+import { getIntrospectTablesQuery } from './get_introspect_tables_query';
+import { getIntrospectionOperations } from './get_introspection_operations';
+import { isIntrospectionOperation } from './is_introspection_operation';
 import { validateRequiredParameters } from './validate_required_parameters';
-import { type SqlIntegration, type SqlOperation } from '../../../../integrations/types';
-import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -96,9 +100,7 @@ export async function executeSqlIntegration(
     }
   } else {
     // User-defined operation
-    operationConfig = sqlOperations.find(
-      (op) => op.name === operation,
-    );
+    operationConfig = sqlOperations.find((op) => op.name === operation);
 
     if (!operationConfig) {
       const userOps = sqlOperations.map((op) => op.name);
@@ -197,14 +199,21 @@ export async function executeSqlIntegration(
   }
 
   // For write operations, check if any rows were affected
-  if (isWriteOperation && (result.rowCount === 0 || !result.data || (Array.isArray(result.data) && result.data.length === 0))) {
+  if (
+    isWriteOperation &&
+    (result.rowCount === 0 ||
+      !result.data ||
+      (Array.isArray(result.data) && result.data.length === 0))
+  ) {
     throw new Error(
       `Write operation "${operation}" completed but no rows were affected. ` +
-      `This may indicate the target record doesn't exist or doesn't match the operation's criteria.`
+        `This may indicate the target record doesn't exist or doesn't match the operation's criteria.`,
     );
   }
 
-  debugLog(`SQL query returned ${result.rowCount} rows in ${result.duration}ms`);
+  debugLog(
+    `SQL query returned ${result.rowCount} rows in ${result.duration}ms`,
+  );
 
   return {
     name: integration.name,

@@ -1,20 +1,25 @@
 'use client';
 
-import { useState, useCallback } from 'react';
 import { useQuery } from 'convex/react';
+import { Users, Upload, X, FileText } from 'lucide-react';
+import { useState, useCallback } from 'react';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Stack } from '@/app/components/ui/layout/layout';
-import { Users, Upload, X, FileText } from 'lucide-react';
 import { Button } from '@/app/components/ui/primitives/button';
-import { useT } from '@/lib/i18n/client';
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import { useDocumentUpload } from '../hooks/use-document-upload';
+import { useT } from '@/lib/i18n/client';
+import {
+  DOCUMENT_UPLOAD_ACCEPT,
+  DOCUMENT_MAX_FILE_SIZE,
+} from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
-import { toast } from '@/app/hooks/use-toast';
-import { DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_MAX_FILE_SIZE } from '@/lib/shared/file-types';
+
+import { useDocumentUpload } from '../hooks/use-document-upload';
 
 interface DocumentUploadDialogProps {
   open: boolean;
@@ -159,11 +164,11 @@ export function DocumentUploadDialog({
             )}
           >
             <FileUpload.Overlay className="rounded-lg" />
-            <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
+            <Upload className="text-muted-foreground mx-auto mb-2 size-8" />
             <p className="text-sm font-medium">
               {tCommon('upload.clickToUpload')}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-muted-foreground mt-1 text-xs">
               {tDocuments('upload.fromComputerDescription')}
             </p>
           </FileUpload.DropZone>
@@ -177,24 +182,24 @@ export function DocumentUploadDialog({
                 count: selectedFiles.length,
               })}
             </p>
-            <div className="max-h-32 overflow-y-auto space-y-1">
+            <div className="max-h-32 space-y-1 overflow-y-auto">
               {selectedFiles.map((file, index) => (
                 <div
                   key={`${file.name}-${index}`}
-                  className="flex items-start gap-2 p-2 rounded-md bg-muted/50"
+                  className="bg-muted/50 flex items-start gap-2 rounded-md p-2"
                 >
-                  <FileText className="size-4 text-muted-foreground shrink-0 mt-0.5" />
-                  <span className="text-sm wrap-anywhere flex-1 min-w-0">
+                  <FileText className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                  <span className="min-w-0 flex-1 text-sm wrap-anywhere">
                     {file.name}
                   </span>
-                  <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap leading-6">
+                  <span className="text-muted-foreground shrink-0 text-xs leading-6 whitespace-nowrap">
                     {formatBytes(file.size)}
                   </span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="size-6 p-0 shrink-0"
+                    className="size-6 shrink-0 p-0"
                     onClick={() => handleRemoveFile(index)}
                     disabled={isUploading}
                   >
@@ -209,10 +214,10 @@ export function DocumentUploadDialog({
 
         {/* Team selection */}
         <div>
-          <p className="text-sm font-medium mb-2">
+          <p className="mb-2 text-sm font-medium">
             {tDocuments('upload.selectTeams')}
           </p>
-          <p className="text-xs text-muted-foreground mb-3">
+          <p className="text-muted-foreground mb-3 text-xs">
             {tDocuments('upload.selectTeamsDescription')}
           </p>
 
@@ -224,8 +229,8 @@ export function DocumentUploadDialog({
             </div>
           ) : !teams || teams.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-4 text-center">
-              <Users className="size-6 text-muted-foreground/50 mb-2" />
-              <p className="text-sm text-muted-foreground">
+              <Users className="text-muted-foreground/50 mb-2 size-6" />
+              <p className="text-muted-foreground text-sm">
                 {tDocuments('upload.noTeamsAvailable')}
               </p>
             </div>
@@ -234,7 +239,7 @@ export function DocumentUploadDialog({
               {teams.map((team: { id: string; name: string }) => (
                 <div
                   key={team.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+                  className="bg-card hover:bg-accent/50 flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
                 >
                   <Checkbox
                     id={`upload-team-${team.id}`}
@@ -248,7 +253,7 @@ export function DocumentUploadDialog({
             </Stack>
           )}
 
-          <p className="text-xs text-muted-foreground mt-3">
+          <p className="text-muted-foreground mt-3 text-xs">
             {tDocuments('upload.allMembersHint')}
           </p>
         </div>

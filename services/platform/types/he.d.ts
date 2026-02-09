@@ -1,12 +1,12 @@
 // Type declarations for he (HTML entity encoder/decoder)
 // These types cover only the API used by this project
 
-declare module "he" {
+declare module 'he' {
   export interface DecodeOptions {
     isAttributeValue?: boolean;
     strict?: boolean;
   }
-  
+
   export interface EncodeOptions {
     useNamedReferences?: boolean;
     decimal?: boolean;

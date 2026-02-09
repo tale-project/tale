@@ -1,8 +1,9 @@
-import { db } from './db';
 import type { QueuedMutation } from './types';
 
+import { db } from './db';
+
 export async function addToQueue(
-  mutation: Omit<QueuedMutation, 'id' | 'timestamp' | 'retryCount' | 'status'>
+  mutation: Omit<QueuedMutation, 'id' | 'timestamp' | 'retryCount' | 'status'>,
 ): Promise<string> {
   const id = crypto.randomUUID();
   const queuedMutation: QueuedMutation = {
@@ -20,10 +21,7 @@ export async function addToQueue(
 }
 
 export async function getPendingMutations(): Promise<QueuedMutation[]> {
-  return db.mutationQueue
-    .where('status')
-    .equals('pending')
-    .sortBy('timestamp');
+  return db.mutationQueue.where('status').equals('pending').sortBy('timestamp');
 }
 
 export async function getFailedMutations(): Promise<QueuedMutation[]> {
@@ -31,7 +29,7 @@ export async function getFailedMutations(): Promise<QueuedMutation[]> {
 }
 
 export async function getMutationById(
-  id: string
+  id: string,
 ): Promise<QueuedMutation | undefined> {
   return db.mutationQueue.get(id);
 }
@@ -39,7 +37,7 @@ export async function getMutationById(
 export async function updateMutationStatus(
   id: string,
   status: QueuedMutation['status'],
-  error?: string
+  error?: string,
 ): Promise<void> {
   const updates: Partial<QueuedMutation> = { status };
   if (error) updates.error = error;
@@ -71,7 +69,7 @@ export async function clearCompletedMutations(): Promise<number> {
     pendingIds.filter(async (id) => {
       const m = await db.mutationQueue.get(id);
       return m?.status !== 'processing';
-    })
+    }),
   );
 
   return pendingIds.length;
@@ -122,7 +120,11 @@ async function registerBackgroundSync(): Promise<void> {
   ) {
     try {
       const registration = await navigator.serviceWorker.ready;
-      await (registration as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register('mutation-sync');
+      await (
+        registration as ServiceWorkerRegistration & {
+          sync: { register: (tag: string) => Promise<void> };
+        }
+      ).sync.register('mutation-sync');
     } catch {
       // Background sync not supported or failed
     }
@@ -130,7 +132,7 @@ async function registerBackgroundSync(): Promise<void> {
 }
 
 export function subscribeToQueueChanges(
-  callback: (stats: { pending: number; failed: number }) => void
+  callback: (stats: { pending: number; failed: number }) => void,
 ): () => void {
   const updateStats = async () => {
     const stats = await getQueueStats();

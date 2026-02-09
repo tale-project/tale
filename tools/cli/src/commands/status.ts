@@ -1,12 +1,13 @@
-import { Command } from "commander";
-import { ensureConfig } from "../lib/config/ensure-config";
-import { loadEnv } from "../utils/load-env";
-import * as logger from "../utils/logger";
-import { status } from "../lib/actions/status";
+import { Command } from 'commander';
+
+import { status } from '../lib/actions/status';
+import { ensureConfig } from '../lib/config/ensure-config';
+import { loadEnv } from '../utils/load-env';
+import * as logger from '../utils/logger';
 
 export function createStatusCommand(): Command {
-  return new Command("status")
-    .description("Show current deployment status")
+  return new Command('status')
+    .description('Show current deployment status')
     .action(async () => {
       try {
         const deployDir = await ensureConfig();

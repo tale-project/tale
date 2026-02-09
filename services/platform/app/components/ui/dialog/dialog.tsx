@@ -1,13 +1,13 @@
 'use client';
 
-import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { X } from 'lucide-react';
-
 import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils/cn';
+import { X } from 'lucide-react';
+import * as React from 'react';
+
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 // =============================================================================
 // Variants
@@ -44,7 +44,7 @@ function DialogCloseButton() {
   const { t } = useT('common');
   return (
     <DialogPrimitive.Close
-      className="inline-flex items-center justify-center rounded-lg p-2 text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex items-center justify-center rounded-lg p-2 transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none"
       aria-label={t('aria.close')}
       onClick={(e) => e.stopPropagation()}
     >
@@ -139,7 +139,7 @@ export function Dialog({
         <DialogPrimitive.Trigger asChild>{trigger}</DialogPrimitive.Trigger>
       )}
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80" />
         <DialogPrimitive.Content
           className={cn(dialogContentVariants({ size }), className)}
           {...(customHeader || !description
@@ -150,7 +150,7 @@ export function Dialog({
           }
         >
           {!hideClose && !customHeader && (
-            <div className="absolute right-4 top-4">
+            <div className="absolute top-4 right-4">
               <DialogCloseButton />
             </div>
           )}
@@ -190,11 +190,11 @@ export function Dialog({
                     headerActions && 'min-w-0',
                   )}
                 >
-                  <DialogPrimitive.Title className="text-base font-semibold leading-none tracking-tight">
+                  <DialogPrimitive.Title className="text-base leading-none font-semibold tracking-tight">
                     {title}
                   </DialogPrimitive.Title>
                   {description && (
-                    <DialogPrimitive.Description className="text-sm text-muted-foreground">
+                    <DialogPrimitive.Description className="text-muted-foreground text-sm">
                       {description}
                     </DialogPrimitive.Description>
                   )}

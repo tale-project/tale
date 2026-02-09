@@ -1,17 +1,25 @@
 import { v } from 'convex/values';
-import { internalMutation } from '../_generated/server';
+
 import { components } from '../_generated/api';
+import { internalMutation } from '../_generated/server';
 
 export const updateStreamStatus = internalMutation({
   args: {
     streamId: v.string(),
-    status: v.union(v.literal('streaming'), v.literal('done'), v.literal('error')),
+    status: v.union(
+      v.literal('streaming'),
+      v.literal('done'),
+      v.literal('error'),
+    ),
   },
   handler: async (ctx, args) => {
-    await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
-      streamId: args.streamId,
-      status: args.status,
-    });
+    await ctx.runMutation(
+      components.persistentTextStreaming.lib.setStreamStatus,
+      {
+        streamId: args.streamId,
+        status: args.status,
+      },
+    );
   },
 });
 
@@ -20,10 +28,13 @@ export const startStream = internalMutation({
     streamId: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
-      streamId: args.streamId,
-      status: 'streaming',
-    });
+    await ctx.runMutation(
+      components.persistentTextStreaming.lib.setStreamStatus,
+      {
+        streamId: args.streamId,
+        status: 'streaming',
+      },
+    );
   },
 });
 
@@ -46,10 +57,13 @@ export const completeStream = internalMutation({
     streamId: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
-      streamId: args.streamId,
-      status: 'done',
-    });
+    await ctx.runMutation(
+      components.persistentTextStreaming.lib.setStreamStatus,
+      {
+        streamId: args.streamId,
+        status: 'done',
+      },
+    );
   },
 });
 
@@ -58,9 +72,12 @@ export const errorStream = internalMutation({
     streamId: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
-      streamId: args.streamId,
-      status: 'error',
-    });
+    await ctx.runMutation(
+      components.persistentTextStreaming.lib.setStreamStatus,
+      {
+        streamId: args.streamId,
+        status: 'error',
+      },
+    );
   },
 });

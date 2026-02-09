@@ -9,7 +9,13 @@ import type { StepConfig } from '../../workflow_engine/types/nodes';
 // TYPES
 // =============================================================================
 
-export type StepType = 'start' | 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+export type StepType =
+  | 'start'
+  | 'trigger'
+  | 'llm'
+  | 'condition'
+  | 'action'
+  | 'loop';
 
 // =============================================================================
 // MANUAL TYPES (no corresponding validator)

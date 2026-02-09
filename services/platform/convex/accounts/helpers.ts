@@ -5,9 +5,10 @@
  */
 
 import type { QueryCtx, MutationCtx } from '../_generated/server';
+import type { OAuthAccount, UpdateTokensArgs } from './types';
+
 import { components } from '../_generated/api';
 import { authComponent } from '../auth';
-import type { OAuthAccount, UpdateTokensArgs } from './types';
 import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_ACCOUNTS', '[Accounts]');
@@ -201,9 +202,7 @@ export async function updateMicrosoftTokens(
       components.betterAuth.adapter.findMany,
       {
         model: 'account',
-        where: [
-          { field: 'accountId', value: args.accountId, operator: 'eq' },
-        ],
+        where: [{ field: 'accountId', value: args.accountId, operator: 'eq' }],
         paginationOpts: {
           cursor: null,
           numItems: 1,
@@ -218,9 +217,7 @@ export async function updateMicrosoftTokens(
     await ctx.runMutation(components.betterAuth.adapter.updateMany, {
       input: {
         model: 'account' as const,
-        where: [
-          { field: 'accountId', value: args.accountId, operator: 'eq' },
-        ],
+        where: [{ field: 'accountId', value: args.accountId, operator: 'eq' }],
         update: {
           accessToken: args.accessToken,
           accessTokenExpiresAt: args.accessTokenExpiresAt,
@@ -237,10 +234,9 @@ export async function updateMicrosoftTokens(
       },
     });
   } catch (error) {
-    console.error(
-      'updateMicrosoftTokens: Error updating tokens:',
-      error,
-    );
-    throw new Error('Failed to update Microsoft account tokens');
+    console.error('updateMicrosoftTokens: Error updating tokens:', error);
+    throw new Error('Failed to update Microsoft account tokens', {
+      cause: error,
+    });
   }
 }

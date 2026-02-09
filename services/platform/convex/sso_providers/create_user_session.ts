@@ -2,9 +2,10 @@
  * Create user session using Convex component adapter with Better Auth token format
  */
 
-import { MutationCtx } from '../_generated/server';
-import { components } from '../_generated/api';
 import { generateId } from 'better-auth';
+
+import { components } from '../_generated/api';
+import { MutationCtx } from '../_generated/server';
 
 type CreateUserSessionArgs = {
   userId: string;
@@ -41,8 +42,9 @@ export async function createUserSession(
     },
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sessionId = (createResult as any)?._id ?? (createResult as any)?.id;
+  const sessionId =
+    (createResult as { _id?: string; id?: string })?._id ??
+    (createResult as { _id?: string; id?: string })?.id;
 
   console.log('[createUserSession] Session created:', {
     id: sessionId,

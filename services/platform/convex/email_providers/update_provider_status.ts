@@ -13,4 +13,3 @@ export async function updateProviderStatus(
   await ctx.db.patch(providerId, patch);
   return null;
 }
-

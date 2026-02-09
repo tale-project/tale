@@ -1,5 +1,6 @@
-import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
+
 import {
   emailProviderVendorSchema,
   emailProviderAuthMethodSchema,
@@ -24,16 +25,26 @@ export {
   emailProviderDocSchema,
 } from '../../lib/shared/schemas/email_providers';
 
-export const emailProviderVendorValidator = zodToConvex(emailProviderVendorSchema);
-export const emailProviderAuthMethodValidator = zodToConvex(emailProviderAuthMethodSchema);
-export const emailProviderStatusValidator = zodToConvex(emailProviderStatusSchema);
+export const emailProviderVendorValidator = zodToConvex(
+  emailProviderVendorSchema,
+);
+export const emailProviderAuthMethodValidator = zodToConvex(
+  emailProviderAuthMethodSchema,
+);
+export const emailProviderStatusValidator = zodToConvex(
+  emailProviderStatusSchema,
+);
 export const sendMethodValidator = zodToConvex(sendMethodSchema);
 export const smtpConfigValidator = zodToConvex(smtpConfigSchema);
 export const imapConfigValidator = zodToConvex(imapConfigSchema);
 export const passwordAuthValidator = zodToConvex(passwordAuthSchema);
-export const passwordAuthEncryptedValidator = zodToConvex(passwordAuthEncryptedSchema);
+export const passwordAuthEncryptedValidator = zodToConvex(
+  passwordAuthEncryptedSchema,
+);
 export const oauth2AuthStoredValidator = zodToConvex(oauth2AuthStoredSchema);
-export const connectionTestResultValidator = zodToConvex(connectionTestResultSchema);
+export const connectionTestResultValidator = zodToConvex(
+  connectionTestResultSchema,
+);
 
 export const emailProviderDocValidator = v.object({
   _id: v.string(),

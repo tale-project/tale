@@ -1,6 +1,7 @@
 import { GenericQueryCtx } from 'convex/server';
-import { DataModel } from '../_generated/dataModel';
+
 import { components } from '../_generated/api';
+import { DataModel } from '../_generated/dataModel';
 
 type GetCallerRoleArgs = {
   organizationId: string;

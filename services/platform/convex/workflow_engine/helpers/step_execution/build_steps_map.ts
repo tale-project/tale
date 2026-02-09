@@ -2,11 +2,11 @@
  * Build steps map from execution and result
  */
 
-import { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 import { Id } from '../../../_generated/dataModel';
-import { StepDefinition, StepExecutionResult } from './types';
+import { ActionCtx } from '../../../_generated/server';
 import { deserializeVariablesInAction } from '../serialization/deserialize_variables';
+import { StepDefinition, StepExecutionResult } from './types';
 
 export async function buildStepsMap(
   ctx: ActionCtx,
@@ -50,7 +50,7 @@ export async function buildStepsMap(
       } else if (isRecord(parsed)) {
         existingVars = parsed;
       }
-    } catch (_err) {
+    } catch {
       // Ignore parse errors; treat as no existing vars
       existingVars = {};
     }

@@ -1,16 +1,18 @@
 'use client';
 
-import { useMemo } from 'react';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { useMemo } from 'react';
+
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
-import { VendorInfoDialog } from './vendor-info-dialog';
-import { VendorEditDialog } from './vendor-edit-dialog';
-import { VendorDeleteDialog } from './vendor-delete-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+
+import { VendorDeleteDialog } from './vendor-delete-dialog';
+import { VendorEditDialog } from './vendor-edit-dialog';
+import { VendorInfoDialog } from './vendor-info-dialog';
 
 interface VendorRowActionsProps {
   vendor: Doc<'vendors'>;
@@ -49,7 +51,7 @@ export function VendorRowActions({ vendor }: VendorRowActionsProps) {
         visible: canEdit,
       },
     ],
-    [t, tCommon, dialogs.open, canEdit]
+    [t, tCommon, dialogs.open, canEdit],
   );
 
   return (

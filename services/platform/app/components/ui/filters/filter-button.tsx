@@ -1,8 +1,9 @@
-import { Button } from '@/app/components/ui/primitives/button';
 import { Filter } from 'lucide-react';
 import { Loader2Icon } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
 import { ComponentProps } from 'react';
+
+import { Button } from '@/app/components/ui/primitives/button';
+import { cn } from '@/lib/utils/cn';
 
 interface FilterButtonProps extends ComponentProps<typeof Button> {
   hasActiveFilters: boolean;
@@ -28,12 +29,12 @@ export function FilterButton({
       {...restProps}
     >
       {isLoading ? (
-        <Loader2Icon className="size-4 text-muted-foreground animate-spin" />
+        <Loader2Icon className="text-muted-foreground size-4 animate-spin" />
       ) : (
-        <Filter className="size-4 text-muted-foreground" />
+        <Filter className="text-muted-foreground size-4" />
       )}
       {hasActiveFilters && !isLoading && (
-        <div className="absolute -top-1 -right-1 h-2 w-2 bg-blue-500 rounded-full" />
+        <div className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500" />
       )}
     </Button>
   );

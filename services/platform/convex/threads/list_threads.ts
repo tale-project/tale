@@ -1,13 +1,19 @@
 import type { QueryCtx } from '../_generated/server';
-import { components } from '../_generated/api';
 import type { Thread, ListThreadsArgs } from './types';
+
+import { components } from '../_generated/api';
 
 function isGeneralThread(summary?: string): boolean {
   if (!summary || !summary.includes('"general"')) return false;
 
   try {
     const parsed: unknown = JSON.parse(summary);
-    return parsed !== null && typeof parsed === 'object' && 'chatType' in parsed && parsed.chatType === 'general';
+    return (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      'chatType' in parsed &&
+      parsed.chatType === 'general'
+    );
   } catch {
     return false;
   }

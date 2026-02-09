@@ -1,19 +1,19 @@
-import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
 import type { ProviderForTesting, TestResult } from './test_existing_provider';
+
 import { internal } from '../_generated/api';
+import { createDebugLog } from '../lib/debug_log';
+import {
+  decryptPasswordAuth,
+  decryptAndRefreshOAuth2Token,
+} from './decrypt_and_refresh_oauth2';
 import {
   validateProviderForTesting,
   getOAuth2UserEmail,
   shouldProviderBeActive,
   generateWarnings,
 } from './test_existing_provider';
-import {
-  decryptPasswordAuth,
-  decryptAndRefreshOAuth2Token,
-} from './decrypt_and_refresh_oauth2';
-
-import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
 
@@ -147,6 +147,7 @@ export async function testExistingProviderLogic(
       if (!derivedEmail) {
         throw new Error(
           'OAuth2 provider missing user email. Please re-authorize the provider.',
+          { cause: _e },
         );
       }
 

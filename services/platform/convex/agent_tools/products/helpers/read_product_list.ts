@@ -1,7 +1,9 @@
 import type { ToolCtx } from '@convex-dev/agent';
-import { internal } from '../../../_generated/api';
+
 import type { ProductStatus } from '../../../products/types';
 import type { ProductReadListResult } from './types';
+
+import { internal } from '../../../_generated/api';
 import { defaultListFields } from './types';
 
 export interface ReadProductListArgs {
@@ -27,15 +29,18 @@ export async function readProductList(
   const cursor = args.cursor ?? null;
 
   // @ts-ignore TS2589: Convex API type instantiation is excessively deep
-  const result = (await ctx.runQuery(internal.products.internal_queries.queryProducts, {
-    organizationId,
-    status: args.status,
-    minStock: args.minStock,
-    paginationOpts: {
-      numItems,
-      cursor,
+  const result = (await ctx.runQuery(
+    internal.products.internal_queries.queryProducts,
+    {
+      organizationId,
+      status: args.status,
+      minStock: args.minStock,
+      paginationOpts: {
+        numItems,
+        cursor,
+      },
     },
-  })) as {
+  )) as {
     page: Array<Record<string, unknown>>;
     isDone: boolean;
     continueCursor: string;

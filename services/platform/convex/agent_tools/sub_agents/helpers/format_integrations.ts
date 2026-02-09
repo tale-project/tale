@@ -17,7 +17,9 @@ type Integration = Doc<'integrations'>;
  * This helps the AI understand which integration to use for domain-specific queries.
  * Operations should be retrieved via integration_introspect tool.
  */
-export function formatIntegrationsForContext(integrations: Integration[]): string {
+export function formatIntegrationsForContext(
+  integrations: Integration[],
+): string {
   if (!integrations || integrations.length === 0) {
     return 'No integrations are currently configured for this organization.';
   }
@@ -29,7 +31,9 @@ export function formatIntegrationsForContext(integrations: Integration[]): strin
 
       // Include title and description for domain context
       const title = integration.title || integration.name;
-      const description = integration.description ? ` - ${integration.description}` : '';
+      const description = integration.description
+        ? ` - ${integration.description}`
+        : '';
 
       return `• ${integration.name} (${type}, ${status}): ${title}${description}`;
     })

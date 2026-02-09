@@ -1,12 +1,14 @@
-import { docker } from "./docker";
+import { docker } from './docker';
 
-export async function isContainerRunning(containerName: string): Promise<boolean> {
+export async function isContainerRunning(
+  containerName: string,
+): Promise<boolean> {
   const result = await docker(
-    "container",
-    "inspect",
-    "--format",
-    "{{.State.Running}}",
-    containerName
+    'container',
+    'inspect',
+    '--format',
+    '{{.State.Running}}',
+    containerName,
   );
-  return result.success && result.stdout.trim() === "true";
+  return result.success && result.stdout.trim() === 'true';
 }

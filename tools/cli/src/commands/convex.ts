@@ -1,15 +1,16 @@
-import { Command } from "commander";
-import * as logger from "../utils/logger";
-import { convexAdmin } from "../lib/actions/convex-admin";
+import { Command } from 'commander';
+
+import { convexAdmin } from '../lib/actions/convex-admin';
+import * as logger from '../utils/logger';
 
 export function createConvexCommand(): Command {
-  const convexCmd = new Command("convex").description(
-    "Convex backend management"
+  const convexCmd = new Command('convex').description(
+    'Convex backend management',
   );
 
   convexCmd
-    .command("admin")
-    .description("Generate admin key for Convex dashboard access")
+    .command('admin')
+    .description('Generate admin key for Convex dashboard access')
     .action(async () => {
       try {
         await convexAdmin();

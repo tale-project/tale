@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
@@ -73,7 +74,7 @@ export function AddExampleDialog({
         {...register('content', { required: true })}
         label={tTables('headers.message')}
         placeholder={tTone('exampleMessages.placeholder')}
-        className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
+        className="bg-background border-border min-h-[10rem] resize-none rounded-lg border px-4 py-3 text-sm shadow-sm"
       />
     </FormDialog>
   );

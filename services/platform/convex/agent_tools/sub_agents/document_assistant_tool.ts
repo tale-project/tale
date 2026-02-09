@@ -6,19 +6,22 @@
  * All context management is handled by the agent itself.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
-import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
-import { validateToolContext } from './helpers/validate_context';
+
+import { internal } from '../../_generated/api';
 import { buildAdditionalContext } from './helpers/build_additional_context';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import {
   successResponse,
   handleToolError,
   type ToolResponse,
 } from './helpers/tool_response';
-import { internal } from '../../_generated/api';
+import { validateToolContext } from './helpers/validate_context';
 
 const DOCUMENT_CONTEXT_MAPPING = {
   fileId: 'file_id',
@@ -61,7 +64,9 @@ EXAMPLES:
       fileId: z
         .string()
         .optional()
-        .describe('Convex storage ID for uploaded files (for image analysis or text file analysis)'),
+        .describe(
+          'Convex storage ID for uploaded files (for image analysis or text file analysis)',
+        ),
       fileUrl: z
         .string()
         .optional()

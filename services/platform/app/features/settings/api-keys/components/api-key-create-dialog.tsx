@@ -1,10 +1,11 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Copy, Check } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Copy, Check } from 'lucide-react';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -12,6 +13,7 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+
 import { useCreateApiKey } from '../hooks/use-api-keys';
 
 interface ApiKeyCreateDialogProps {
@@ -160,11 +162,11 @@ export function ApiKeyCreateDialog({
         }
       >
         <Stack gap={4}>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {tSettings('apiKeys.keyCreatedDescription')}
           </p>
           <div className="relative">
-            <code className="block w-full p-3 pr-12 bg-muted rounded-md font-mono text-sm break-all">
+            <code className="bg-muted block w-full rounded-md p-3 pr-12 font-mono text-sm break-all">
               {createdKey}
             </code>
             <Button
@@ -172,7 +174,7 @@ export function ApiKeyCreateDialog({
               variant="ghost"
               size="sm"
               onClick={handleCopyKey}
-              className="absolute right-2 top-1/2 -translate-y-1/2"
+              className="absolute top-1/2 right-2 -translate-y-1/2"
               aria-label={tCommon('actions.copy')}
             >
               {copied ? (

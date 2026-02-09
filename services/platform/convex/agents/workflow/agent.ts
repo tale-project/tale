@@ -6,14 +6,15 @@
  */
 
 import { Agent } from '@convex-dev/agent';
+
 import { components } from '../../_generated/api';
-import { createAgentConfig } from '../../lib/create_agent_config';
 import { type ToolName } from '../../agent_tools/tool_registry';
+import { createAgentConfig } from '../../lib/create_agent_config';
+import { createDebugLog } from '../../lib/debug_log';
 import {
   WORKFLOW_AGENT_CORE_INSTRUCTIONS,
   WORKFLOW_AGENT_DELEGATION_INSTRUCTIONS,
 } from '../../workflow_engine/instructions/core_instructions';
-import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW_AGENT', '[WorkflowAgent]');
 
@@ -71,7 +72,9 @@ export function createWorkflowAgent(options?: {
   }
 
   const agentConfig = createAgentConfig({
-    name: delegationMode ? 'workflow-assistant-delegated' : 'workflow-assistant',
+    name: delegationMode
+      ? 'workflow-assistant-delegated'
+      : 'workflow-assistant',
     model,
     instructions: finalInstructions,
     ...(withTools ? { convexToolNames } : {}),

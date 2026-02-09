@@ -2,8 +2,9 @@
  * Delete a website and its attached Website Scan workflow (if any)
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
 import { deleteWorkflow as deleteWorkflowModel } from '../workflows/definitions/delete_workflow';
 
 /**

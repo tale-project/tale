@@ -1,19 +1,22 @@
 'use client';
 
-import { useMemo, useCallback, useState, useRef } from 'react';
 import { RefreshCw, Trash2, Users } from 'lucide-react';
+import { useMemo, useCallback, useState, useRef } from 'react';
+
+import type { Id } from '@/convex/_generated/dataModel';
+
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
-import type { Id } from '@/convex/_generated/dataModel';
+import { toast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
+
 import { useDeleteDocument } from '../hooks/use-delete-document';
 import { useRetryRagIndexing } from '../hooks/use-retry-rag-indexing';
 import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
 import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
-import { toast } from '@/app/hooks/use-toast';
-import { useT } from '@/lib/i18n/client';
 
 type StorageSourceMode = 'auto' | 'manual';
 
@@ -111,7 +114,8 @@ export function DocumentRowActions({
       } else {
         toast({
           title: tDocuments('rag.toast.retryFailed'),
-          description: result.error || tDocuments('rag.toast.retryFailedDescription'),
+          description:
+            result.error || tDocuments('rag.toast.retryFailedDescription'),
           variant: 'destructive',
         });
       }
@@ -155,7 +159,16 @@ export function DocumentRowActions({
         visible: canDelete,
       },
     ],
-    [tDocuments, tCommon, handleDeleteClick, handleReindex, canDelete, itemType, dialogs.open, isReindexing]
+    [
+      tDocuments,
+      tCommon,
+      handleDeleteClick,
+      handleReindex,
+      canDelete,
+      itemType,
+      dialogs.open,
+      isReindexing,
+    ],
   );
 
   // Show actions if user can delete OR if it's a file (for team tags)

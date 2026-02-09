@@ -9,21 +9,23 @@
  * - operation = 'count': count total customers for the organization
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
-import type { ToolDefinition } from '../types';
 
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
+import type { ToolDefinition } from '../types';
 import type {
   CustomerReadGetByIdResult,
   CustomerReadGetByEmailResult,
   CustomerReadListResult,
   CustomerReadCountResult,
 } from './helpers/types';
-import { readCustomerById } from './helpers/read_customer_by_id';
-import { readCustomerByEmail } from './helpers/read_customer_by_email';
-import { readCustomerList } from './helpers/read_customer_list';
+
 import { countCustomers } from './helpers/count_customers';
+import { readCustomerByEmail } from './helpers/read_customer_by_email';
+import { readCustomerById } from './helpers/read_customer_by_id';
+import { readCustomerList } from './helpers/read_customer_list';
 
 // Use a flat object schema instead of discriminatedUnion to ensure OpenAI-compatible JSON Schema
 // (discriminatedUnion produces anyOf/oneOf which some providers reject as "type: None")

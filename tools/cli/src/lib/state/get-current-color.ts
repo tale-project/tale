@@ -1,9 +1,10 @@
-import type { DeploymentColor } from "../compose/types";
-import * as logger from "../../utils/logger";
-import { getStateFilePath } from "./get-state-file-path";
+import type { DeploymentColor } from '../compose/types';
+
+import * as logger from '../../utils/logger';
+import { getStateFilePath } from './get-state-file-path';
 
 export async function getCurrentColor(
-  deployDir: string
+  deployDir: string,
 ): Promise<DeploymentColor | null> {
   const statePath = getStateFilePath(deployDir);
 
@@ -11,7 +12,7 @@ export async function getCurrentColor(
     const content = await Bun.file(statePath).text();
     const color = content.trim() as DeploymentColor;
 
-    if (color !== "blue" && color !== "green") {
+    if (color !== 'blue' && color !== 'green') {
       logger.warn(`Invalid color in state file: ${color}`);
       return null;
     }

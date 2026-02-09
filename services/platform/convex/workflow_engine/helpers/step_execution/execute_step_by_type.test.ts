@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // executeStepByType requires ActionCtx with runAction. We test the dispatch
 // logic by mocking ctx.runAction and verifying which internal action is called

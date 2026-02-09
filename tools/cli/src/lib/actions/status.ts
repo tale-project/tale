@@ -1,50 +1,56 @@
+import { PROJECT_NAME } from '../../utils/load-env';
+import * as logger from '../../utils/logger';
 import {
   type DeploymentColor,
   ROTATABLE_SERVICES,
   STATEFUL_SERVICES,
-} from "../compose/types";
-import { containerExists } from "../docker/container-exists";
-import { getContainerHealth } from "../docker/get-container-health";
-import { getContainerVersion } from "../docker/get-container-version";
-import { isContainerRunning } from "../docker/is-container-running";
-import { listContainers } from "../docker/list-containers";
-import { getDeploymentState } from "../state/get-deployment-state";
-import { getLockInfo } from "../state/get-lock-info";
-import { PROJECT_NAME } from "../../utils/load-env";
-import * as logger from "../../utils/logger";
+} from '../compose/types';
+import { containerExists } from '../docker/container-exists';
+import { getContainerHealth } from '../docker/get-container-health';
+import { getContainerVersion } from '../docker/get-container-version';
+import { isContainerRunning } from '../docker/is-container-running';
+import { listContainers } from '../docker/list-containers';
+import { getDeploymentState } from '../state/get-deployment-state';
+import { getLockInfo } from '../state/get-lock-info';
 
-type ServiceStatus = "healthy" | "starting" | "unhealthy" | "running" | "stopped" | "not deployed";
+type ServiceStatus =
+  | 'healthy'
+  | 'starting'
+  | 'unhealthy'
+  | 'running'
+  | 'stopped'
+  | 'not deployed';
 
 const STATUS_COLORS: Record<ServiceStatus, string> = {
-  healthy: "\x1b[32m",
-  running: "\x1b[32m",
-  starting: "\x1b[33m",
-  unhealthy: "\x1b[31m",
-  stopped: "\x1b[31m",
-  "not deployed": "\x1b[90m",
+  healthy: '\x1b[32m',
+  running: '\x1b[32m',
+  starting: '\x1b[33m',
+  unhealthy: '\x1b[31m',
+  stopped: '\x1b[31m',
+  'not deployed': '\x1b[90m',
 };
 
 function getServiceStatus(
   exists: boolean,
   running: boolean,
-  health: "healthy" | "unhealthy" | "starting" | "none"
+  health: 'healthy' | 'unhealthy' | 'starting' | 'none',
 ): ServiceStatus {
   if (!exists) {
-    return "not deployed";
+    return 'not deployed';
   }
   if (!running) {
-    return "stopped";
+    return 'stopped';
   }
-  if (health === "healthy") {
-    return "healthy";
+  if (health === 'healthy') {
+    return 'healthy';
   }
-  if (health === "starting") {
-    return "starting";
+  if (health === 'starting') {
+    return 'starting';
   }
-  if (health === "unhealthy") {
-    return "unhealthy";
+  if (health === 'unhealthy') {
+    return 'unhealthy';
   }
-  return "running";
+  return 'running';
 }
 
 interface StatusOptions {
@@ -64,71 +70,79 @@ async function getContainerStatus(containerName: string) {
 export async function status(options: StatusOptions): Promise<void> {
   const { deployDir } = options;
 
-  logger.header("Tale Deployment Status");
+  logger.header('Tale Deployment Status');
 
   // Check lock status
   const lockInfo = await getLockInfo(deployDir);
   if (lockInfo) {
     logger.warn(
-      `Deployment in progress (PID: ${lockInfo.pid}, started: ${lockInfo.startedAt})`
+      `Deployment in progress (PID: ${lockInfo.pid}, started: ${lockInfo.startedAt})`,
     );
     logger.blank();
   }
 
   // Get deployment state
   const state = await getDeploymentState(deployDir);
-  logger.info(`Active color: ${state.currentColor ?? "none"}`);
+  logger.info(`Active color: ${state.currentColor ?? 'none'}`);
   if (state.previousVersion) {
     logger.info(`Previous version: ${state.previousVersion}`);
   }
   logger.blank();
 
   // Check stateful services in parallel
-  logger.step("Stateful Services:");
+  logger.step('Stateful Services:');
   const statefulResults = await Promise.all(
     STATEFUL_SERVICES.map(async (service) => {
       const containerName = `${PROJECT_NAME}-${service}`;
       const info = await getContainerStatus(containerName);
       return { service, ...info };
-    })
+    }),
   );
   for (const { service, exists, running, health, version } of statefulResults) {
     const serviceStatus = getServiceStatus(exists, running, health);
-    const versionStr = version ? ` (${version})` : "";
+    const versionStr = version ? ` (${version})` : '';
     console.log(
-      `  ${service.padEnd(12)} ${STATUS_COLORS[serviceStatus]}${serviceStatus}\x1b[0m${versionStr}`
+      `  ${service.padEnd(12)} ${STATUS_COLORS[serviceStatus]}${serviceStatus}\x1b[0m${versionStr}`,
     );
   }
   logger.blank();
 
   // Check rotatable services for each color
-  for (const color of ["blue", "green"] as DeploymentColor[]) {
+  for (const color of ['blue', 'green'] as DeploymentColor[]) {
     const isActive = state.currentColor === color;
     const colorLabel = isActive ? `${color} (active)` : color;
-    logger.step(`${colorLabel.charAt(0).toUpperCase() + colorLabel.slice(1)} Services:`);
+    logger.step(
+      `${colorLabel.charAt(0).toUpperCase() + colorLabel.slice(1)} Services:`,
+    );
 
     const rotatableResults = await Promise.all(
       ROTATABLE_SERVICES.map(async (service) => {
         const containerName = `${PROJECT_NAME}-${service}-${color}`;
         const info = await getContainerStatus(containerName);
         return { service, ...info };
-      })
+      }),
     );
 
     let hasServices = false;
-    for (const { service, exists, running, health, version } of rotatableResults) {
+    for (const {
+      service,
+      exists,
+      running,
+      health,
+      version,
+    } of rotatableResults) {
       if (exists) {
         hasServices = true;
         const serviceStatus = getServiceStatus(exists, running, health);
-        const versionStr = version ? ` (${version})` : "";
+        const versionStr = version ? ` (${version})` : '';
         console.log(
-          `  ${service.padEnd(12)} ${STATUS_COLORS[serviceStatus]}${serviceStatus}\x1b[0m${versionStr}`
+          `  ${service.padEnd(12)} ${STATUS_COLORS[serviceStatus]}${serviceStatus}\x1b[0m${versionStr}`,
         );
       }
     }
 
     if (!hasServices) {
-      console.log("  (no services running)");
+      console.log('  (no services running)');
     }
     logger.blank();
   }
@@ -136,13 +150,13 @@ export async function status(options: StatusOptions): Promise<void> {
   // Show all tale containers for reference
   const containers = await listContainers(`name=${PROJECT_NAME}`);
   if (containers.length > 0) {
-    logger.step("All Containers:");
+    logger.step('All Containers:');
     for (const container of containers) {
-      const statusColor = container.status.startsWith("Up")
-        ? "\x1b[32m"
-        : "\x1b[31m";
+      const statusColor = container.status.startsWith('Up')
+        ? '\x1b[32m'
+        : '\x1b[31m';
       console.log(
-        `  ${container.name.padEnd(24)} ${statusColor}${container.status}\x1b[0m`
+        `  ${container.name.padEnd(24)} ${statusColor}${container.status}\x1b[0m`,
       );
     }
   }

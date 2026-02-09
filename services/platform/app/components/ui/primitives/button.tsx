@@ -1,8 +1,8 @@
-import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
+import { Link } from '@tanstack/react-router';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Loader2, type LucideIcon } from 'lucide-react';
-import { Link } from '@tanstack/react-router';
+import * as React from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
@@ -76,7 +76,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }), fullWidth && 'w-full')}
+        className={cn(
+          buttonVariants({ variant, size, className }),
+          fullWidth && 'w-full',
+        )}
         ref={ref}
         disabled={isLoading || props.disabled}
         aria-busy={isLoading || undefined}
@@ -85,7 +88,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {isLoading ? (
           <>
-            <Loader2 className={cn(iconClass, 'animate-spin')} aria-hidden="true" />
+            <Loader2
+              className={cn(iconClass, 'animate-spin')}
+              aria-hidden="true"
+            />
             {children}
           </>
         ) : (
@@ -100,8 +106,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = 'Button';
 
-interface LinkButtonProps
-  extends VariantProps<typeof buttonVariants> {
+interface LinkButtonProps extends VariantProps<typeof buttonVariants> {
   /** Target URL for the link */
   href: string;
   /** Icon to display before the button text */

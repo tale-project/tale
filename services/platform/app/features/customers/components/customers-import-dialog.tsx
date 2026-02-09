@@ -1,16 +1,18 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { CustomerImportForm } from './customer-import-form';
-import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useMemo, useCallback } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
+import { z } from 'zod';
+
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { useFileImport, customerMappers } from '@/app/hooks/use-file-import';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+
 import { useBulkCreateCustomers } from '../hooks/use-bulk-create-customers';
-import { useFileImport, customerMappers } from '@/app/hooks/use-file-import';
+import { CustomerImportForm } from './customer-import-form';
 
 export interface ParsedCustomer {
   email: string;
@@ -192,7 +194,7 @@ export function ImportCustomersDialog({
       tCustomers,
       onSuccess,
       handleClose,
-    ]
+    ],
   );
 
   const dialogTitle =

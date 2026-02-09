@@ -1,7 +1,10 @@
-import { ActionCtx } from '../_generated/server';
 import { internal } from '../_generated/api';
+import { ActionCtx } from '../_generated/server';
 
-export async function ssoDiscoverHandler(ctx: ActionCtx, req: Request): Promise<Response> {
+export async function ssoDiscoverHandler(
+  ctx: ActionCtx,
+  req: Request,
+): Promise<Response> {
   try {
     const body = await req.json();
     const email = body?.email;
@@ -14,7 +17,10 @@ export async function ssoDiscoverHandler(ctx: ActionCtx, req: Request): Promise<
     }
 
     // @ts-expect-error TS2589 - deep type instantiation in Convex queries
-    const provider = await ctx.runQuery(internal.sso_providers.internal_queries.getSsoConfig, {});
+    const provider = await ctx.runQuery(
+      internal.sso_providers.internal_queries.getSsoConfig,
+      {},
+    );
 
     if (!provider) {
       return new Response(JSON.stringify({ ssoEnabled: false }), {

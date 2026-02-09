@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
+
 import { query } from '../_generated/server';
-import * as ApprovalsHelpers from './helpers';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import * as ApprovalsHelpers from './helpers';
 import {
   approvalItemValidator,
   approvalStatusValidator,
@@ -13,7 +14,10 @@ export const listApprovalsByOrganization = query({
     organizationId: v.string(),
     status: v.optional(approvalStatusValidator),
     resourceType: v.optional(
-      v.union(approvalResourceTypeValidator, v.array(approvalResourceTypeValidator)),
+      v.union(
+        approvalResourceTypeValidator,
+        v.array(approvalResourceTypeValidator),
+      ),
     ),
     search: v.optional(v.string()),
     limit: v.optional(v.number()),

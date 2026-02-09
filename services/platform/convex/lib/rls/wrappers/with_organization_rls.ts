@@ -3,9 +3,10 @@
  */
 
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
-import type { RLSContext } from '../types';
-import { validateOrganizationAccess } from '../organization/validate_organization_access';
 import type { OrgRole } from '../organization/validate_organization_access';
+import type { RLSContext } from '../types';
+
+import { validateOrganizationAccess } from '../organization/validate_organization_access';
 
 /**
  * Higher-order function to wrap queries with RLS

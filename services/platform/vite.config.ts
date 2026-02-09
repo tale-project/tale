@@ -1,10 +1,11 @@
-import { defineConfig } from 'vite';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
-import tsConfigPaths from 'vite-tsconfig-paths';
 import viteReact from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
-import { stubSSRImports } from './vite-plugins/stub-ssr';
+import tsConfigPaths from 'vite-tsconfig-paths';
+
 import { injectEnv } from './vite-plugins/inject-env';
+import { stubSSRImports } from './vite-plugins/stub-ssr';
 
 export default defineConfig({
   resolve: {

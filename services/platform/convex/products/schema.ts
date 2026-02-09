@@ -1,5 +1,6 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
+
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const productsTable = defineTable({
@@ -42,7 +43,11 @@ export const productsTable = defineTable({
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId_and_category', ['organizationId', 'category'])
   .index('by_organizationId_and_externalId', ['organizationId', 'externalId'])
-  .index('by_org_status_lastUpdated', ['organizationId', 'status', 'lastUpdated'])
+  .index('by_org_status_lastUpdated', [
+    'organizationId',
+    'status',
+    'lastUpdated',
+  ])
   .index('by_org_lastUpdated', ['organizationId', 'lastUpdated'])
   .searchIndex('search_products', {
     searchField: 'name',

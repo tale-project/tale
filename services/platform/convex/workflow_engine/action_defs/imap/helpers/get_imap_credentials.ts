@@ -69,4 +69,3 @@ export function getImapCredentials(
     accessToken,
   };
 }
-

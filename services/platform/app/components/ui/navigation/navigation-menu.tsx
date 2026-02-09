@@ -1,6 +1,6 @@
-import { ComponentRef, forwardRef, ComponentPropsWithoutRef } from 'react';
 import * as NavigationMenuPrimitive from '@radix-ui/react-navigation-menu';
 import { cva } from 'class-variance-authority';
+import { ComponentRef, forwardRef, ComponentPropsWithoutRef } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
@@ -101,7 +101,7 @@ const NavigationMenuIndicator = forwardRef<
     )}
     {...props}
   >
-    <div className="relative top-[60%] h-2 w-2 rotate-45 rounded-tl-sm bg-border shadow-md" />
+    <div className="bg-border relative top-[60%] h-2 w-2 rotate-45 rounded-tl-sm shadow-md" />
   </NavigationMenuPrimitive.Indicator>
 ));
 NavigationMenuIndicator.displayName =

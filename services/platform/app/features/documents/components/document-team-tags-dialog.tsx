@@ -1,17 +1,19 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
 import { useMutation, useQuery } from 'convex/react';
+import { Users } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+
+import type { Id } from '@/convex/_generated/dataModel';
+
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Stack } from '@/app/components/ui/layout/layout';
-import { Users } from 'lucide-react';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { useOrganizationId } from '@/app/hooks/use-organization-id';
 
 interface DocumentTeamTagsDialogProps {
   open: boolean;
@@ -142,7 +144,7 @@ function DocumentTeamTagsDialogContent({
     >
       <Stack gap={4} className="min-w-0">
         {documentName && (
-          <p className="text-sm text-muted-foreground break-words">
+          <p className="text-muted-foreground text-sm break-words">
             {tDocuments('teamTags.description', { name: displayName })}
           </p>
         )}
@@ -154,8 +156,8 @@ function DocumentTeamTagsDialogContent({
           </div>
         ) : !teams || teams.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Users className="size-8 text-muted-foreground/50 mb-2" />
-            <p className="text-sm text-muted-foreground">
+            <Users className="text-muted-foreground/50 mb-2 size-8" />
+            <p className="text-muted-foreground text-sm">
               {tDocuments('teamTags.noTeams')}
             </p>
           </div>
@@ -164,7 +166,7 @@ function DocumentTeamTagsDialogContent({
             {teams.map((team: { id: string; name: string }) => (
               <div
                 key={team.id}
-                className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+                className="bg-card hover:bg-accent/50 flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
               >
                 <Checkbox
                   id={`team-tag-${team.id}`}
@@ -177,7 +179,7 @@ function DocumentTeamTagsDialogContent({
           </Stack>
         )}
 
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           {tDocuments('teamTags.hint')}
         </p>
       </Stack>

@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import type { DateRange } from 'react-day-picker';
+
 import { fn } from '@storybook/test';
 import { useState } from 'react';
+
 import { DatePickerWithRange } from './date-range-picker';
-import type { DateRange } from 'react-day-picker';
 
 const meta: Meta<typeof DatePickerWithRange> = {
   title: 'Forms/DateRangePicker',
@@ -93,10 +95,8 @@ export const Interactive: Story = {
       <div className="space-y-4">
         <DatePickerWithRange onChange={setRange} />
         {range && (
-          <div className="text-sm text-muted-foreground">
-            {/* eslint-disable-next-line no-restricted-syntax -- Story demo display only */}
+          <div className="text-muted-foreground text-sm">
             <p>From: {range.from?.toLocaleDateString()}</p>
-            {/* eslint-disable-next-line no-restricted-syntax -- Story demo display only */}
             <p>To: {range.to?.toLocaleDateString()}</p>
           </div>
         )}

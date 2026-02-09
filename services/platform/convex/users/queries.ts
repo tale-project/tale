@@ -5,9 +5,10 @@
  */
 
 import { v } from 'convex/values';
+
 import { query } from '../_generated/server';
-import { hasAnyUsers as hasAnyUsersHelper } from './helpers';
 import { getAuthUserIdentity } from '../lib/rls';
+import { hasAnyUsers as hasAnyUsersHelper } from './helpers';
 
 /**
  * Check if any users exist in the system.

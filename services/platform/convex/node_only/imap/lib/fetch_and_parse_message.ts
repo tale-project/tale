@@ -1,7 +1,9 @@
 'use node';
 
 import type { ImapFlow } from 'imapflow';
+
 import { simpleParser } from 'mailparser';
+
 import type { EmailMessage } from '../../../workflow_engine/action_defs/imap/helpers/types';
 
 import { createDebugLog } from '../../../lib/debug_log';

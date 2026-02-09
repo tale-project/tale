@@ -1,14 +1,17 @@
 'use client';
 
-import { useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
+
+import { useMemo, useState } from 'react';
+
+import type { AuditLogItem } from '@/convex/audit_logs/types';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { cn } from '@/lib/utils/cn';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import type { AuditLogItem } from '@/convex/audit_logs/types';
+import { cn } from '@/lib/utils/cn';
 
 interface AuditLogTableProps {
   logs: AuditLogItem[];
@@ -25,7 +28,7 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
         accessorKey: 'timestamp',
         header: t('logs.audit.columns.timestamp'),
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground whitespace-nowrap">
+          <span className="text-muted-foreground text-sm whitespace-nowrap">
             {formatRelative(new Date(row.original.timestamp))}
           </span>
         ),
@@ -35,7 +38,9 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
         accessorKey: 'action',
         header: t('logs.audit.columns.action'),
         cell: ({ row }) => (
-          <span className="font-medium">{row.original.action.replace(/_/g, ' ')}</span>
+          <span className="font-medium">
+            {row.original.action.replace(/_/g, ' ')}
+          </span>
         ),
         size: 160,
       },
@@ -53,7 +58,9 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
         accessorKey: 'resourceType',
         header: t('logs.audit.columns.resource'),
         cell: ({ row }) => (
-          <span className="text-sm capitalize">{row.original.resourceType}</span>
+          <span className="text-sm capitalize">
+            {row.original.resourceType}
+          </span>
         ),
         size: 120,
       },
@@ -61,7 +68,7 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
         accessorKey: 'resourceName',
         header: t('logs.audit.columns.target'),
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground truncate max-w-[200px] block">
+          <span className="text-muted-foreground block max-w-[200px] truncate text-sm">
             {row.original.resourceName ?? row.original.resourceId ?? '-'}
           </span>
         ),
@@ -84,7 +91,13 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
           const status = row.original.status;
           return (
             <Badge
-              variant={status === 'success' ? 'green' : status === 'denied' ? 'yellow' : 'destructive'}
+              variant={
+                status === 'success'
+                  ? 'green'
+                  : status === 'denied'
+                    ? 'yellow'
+                    : 'destructive'
+              }
             >
               {status}
             </Badge>
@@ -161,7 +174,10 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
                   value={selectedLog.resourceName}
                 />
               )}
-              <DetailRow label={t('logs.audit.columns.status')} value={selectedLog.status} />
+              <DetailRow
+                label={t('logs.audit.columns.status')}
+                value={selectedLog.status}
+              />
               {selectedLog.errorMessage && (
                 <DetailRow
                   label={t('logs.audit.columns.error')}
@@ -169,12 +185,13 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
                   isError
                 />
               )}
-              {selectedLog.changedFields && selectedLog.changedFields.length > 0 && (
-                <DetailRow
-                  label={t('logs.audit.columns.changedFields')}
-                  value={selectedLog.changedFields.join(', ')}
-                />
-              )}
+              {selectedLog.changedFields &&
+                selectedLog.changedFields.length > 0 && (
+                  <DetailRow
+                    label={t('logs.audit.columns.changedFields')}
+                    value={selectedLog.changedFields.join(', ')}
+                  />
+                )}
               {selectedLog.previousState && (
                 <DetailSection
                   label={t('logs.audit.columns.previousState')}
@@ -187,12 +204,13 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
                   data={selectedLog.newState}
                 />
               )}
-              {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
-                <DetailSection
-                  label={t('logs.audit.columns.metadata')}
-                  data={selectedLog.metadata}
-                />
-              )}
+              {selectedLog.metadata &&
+                Object.keys(selectedLog.metadata).length > 0 && (
+                  <DetailSection
+                    label={t('logs.audit.columns.metadata')}
+                    data={selectedLog.metadata}
+                  />
+                )}
             </div>
           </div>
         )}
@@ -212,7 +230,7 @@ function DetailRow({
 }) {
   return (
     <div className="grid grid-cols-3 gap-4">
-      <span className="text-sm font-medium text-muted-foreground">{label}</span>
+      <span className="text-muted-foreground text-sm font-medium">{label}</span>
       <span
         className={cn(
           'col-span-2 text-sm capitalize',
@@ -234,8 +252,8 @@ function DetailSection({
 }) {
   return (
     <div className="space-y-2">
-      <span className="text-sm font-medium text-muted-foreground">{label}</span>
-      <pre className="text-xs bg-muted/50 p-3 rounded-lg overflow-auto max-h-40">
+      <span className="text-muted-foreground text-sm font-medium">{label}</span>
+      <pre className="bg-muted/50 max-h-40 overflow-auto rounded-lg p-3 text-xs">
         {JSON.stringify(data, null, 2)}
       </pre>
     </div>

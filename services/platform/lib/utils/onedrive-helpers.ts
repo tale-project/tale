@@ -17,4 +17,3 @@ export function isFile(item: DriveItem): boolean {
 export function isFolder(item: DriveItem): boolean {
   return !!item.folder && !item.file;
 }
-

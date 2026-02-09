@@ -97,7 +97,10 @@ export interface WorkflowConfig {
 /**
  * Type guard to check if config is a valid object
  */
-export function isConfigObject(config: unknown): config is Record<string, unknown> {
-  return typeof config === 'object' && config !== null && !Array.isArray(config);
+export function isConfigObject(
+  config: unknown,
+): config is Record<string, unknown> {
+  return (
+    typeof config === 'object' && config !== null && !Array.isArray(config)
+  );
 }
-

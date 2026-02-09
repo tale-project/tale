@@ -1,13 +1,5 @@
 'use client';
 
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-  useRef,
-  useCallback,
-} from 'react';
-import { useUrlState } from '@/app/hooks/use-url-state';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -24,8 +16,6 @@ import {
   Panel,
   useReactFlow,
 } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { Button } from '@/app/components/ui/primitives/button';
 import {
   TestTubeDiagonal,
   Info,
@@ -35,19 +25,30 @@ import {
   AlertTriangle,
   Plus,
 } from 'lucide-react';
-import { toast } from '@/app/hooks/use-toast';
-import { useT } from '@/lib/i18n/client';
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+} from 'react';
+import '@xyflow/react/dist/style.css';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { toast } from '@/app/hooks/use-toast';
+import { useUrlState } from '@/app/hooks/use-url-state';
+import { Doc, Id } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n/client';
+
 import { useCreateStep } from '../hooks/use-create-step';
-import { CreateStepDialog } from './step-create-dialog';
-import { AutomationStep } from './automation-step';
-import { AutomationSidePanel } from './automation-sidepanel';
+import { getLayoutedElements } from '../utils/dagre-layout';
+import { AutomationCallbacksProvider } from './automation-callbacks-context';
+import { AutomationEdge } from './automation-edge';
 import { AutomationGroupNode } from './automation-group-node';
 import { AutomationLoopContainer } from './automation-loop-container';
-import { AutomationEdge } from './automation-edge';
-import { AutomationCallbacksProvider } from './automation-callbacks-context';
-import { Doc, Id } from '@/convex/_generated/dataModel';
-import { getLayoutedElements } from '../utils/dagre-layout';
+import { AutomationSidePanel } from './automation-sidepanel';
+import { AutomationStep } from './automation-step';
+import { CreateStepDialog } from './step-create-dialog';
 
 interface AutomationStepsProps {
   steps: Doc<'wfStepDefs'>[];
@@ -262,16 +263,6 @@ function AutomationStepsInner({
     },
     [t],
   );
-
-  // Stable key for step array to detect actual changes
-  // This creates a deterministic string based on step content (not object identity)
-  const stepsKey = useMemo(() => {
-    if (!steps || steps.length === 0) return '';
-    return steps
-      .map((s) => `${s.stepSlug}:${s.order}:${JSON.stringify(s.nextSteps)}`)
-      .sort()
-      .join('|');
-  }, [steps]);
 
   const stepOptions = useMemo(
     () =>
@@ -933,8 +924,7 @@ function AutomationStepsInner({
       initialNodes: layouted.nodes,
       initialEdges: layouted.edges,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- stepsKey is a stable derived key
-  }, [stepsKey]);
+  }, [steps]);
 
   // Update nodes and edges when steps change
   useEffect(() => {
@@ -1054,7 +1044,7 @@ function AutomationStepsInner({
       onAddStepOnEdge={handleAddStepOnEdge}
       onDeleteEdge={handleDeleteEdge}
     >
-      <div className="flex justify-stretch flex-1 w-full overflow-auto relative">
+      <div className="relative flex w-full flex-1 justify-stretch overflow-auto">
         <style>{`
           /* Allow individual edges to control their z-index */
           .react-flow__edges {
@@ -1090,7 +1080,7 @@ function AutomationStepsInner({
           }
         `}</style>
         {/* Main automation canvas */}
-        <div ref={containerRef} className="flex-[1_1_0] min-h-0 bg-background">
+        <div ref={containerRef} className="bg-background min-h-0 flex-[1_1_0]">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -1124,7 +1114,7 @@ function AutomationStepsInner({
             proOptions={{ hideAttribution: true }}
           >
             <MiniMap
-              className="border border-border rounded-lg shadow-sm overflow-hidden"
+              className="border-border overflow-hidden rounded-lg border shadow-sm"
               style={{
                 width: minimapDimensions.width,
                 height: minimapDimensions.height,
@@ -1163,12 +1153,12 @@ function AutomationStepsInner({
 
             {/* Empty state overlay when there are no steps */}
             {!hasSteps && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="text-center space-y-2">
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="space-y-2 text-center">
                   <div className="text-muted-foreground">
                     {t('emptyState.noSteps')}
                   </div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-muted-foreground text-sm">
                     {t('emptyState.createStepsHint')}
                   </div>
                 </div>
@@ -1177,8 +1167,8 @@ function AutomationStepsInner({
 
             {/* Draft Banner */}
             {showDraftBanner && isDraft && (
-              <Panel position="top-center" className="mt-4 mx-4 w-full px-8">
-                <div className="flex items-center gap-2.5 rounded-lg ring-1 ring-blue-200 bg-blue-50 px-4 py-3 shadow-sm max-w-xl mx-auto">
+              <Panel position="top-center" className="mx-4 mt-4 w-full px-8">
+                <div className="mx-auto flex max-w-xl items-center gap-2.5 rounded-lg bg-blue-50 px-4 py-3 shadow-sm ring-1 ring-blue-200">
                   <Info className="size-5 shrink-0 text-blue-600" />
                   <p className="text-sm text-blue-600">
                     {t('steps.banners.draftNotPublished')}
@@ -1186,7 +1176,7 @@ function AutomationStepsInner({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-blue-600 hover:bg-blue-100 hover:text-blue-700 size-6 shrink-0 p-1 ml-auto"
+                    className="ml-auto size-6 shrink-0 p-1 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
                     onClick={() => setShowDraftBanner(false)}
                   >
                     <X className="size-4" />
@@ -1197,8 +1187,8 @@ function AutomationStepsInner({
 
             {/* Active Automation Banner */}
             {isActive && (
-              <Panel position="top-center" className="mt-4 mx-4 w-full px-4">
-                <div className="flex items-center gap-2.5 rounded-lg ring-1 ring-amber-200 bg-amber-50 px-4 py-3 shadow-sm max-w-3xl mx-auto">
+              <Panel position="top-center" className="mx-4 mt-4 w-full px-4">
+                <div className="mx-auto flex max-w-3xl items-center gap-2.5 rounded-lg bg-amber-50 px-4 py-3 shadow-sm ring-1 ring-amber-200">
                   <AlertTriangle className="size-5 shrink-0 text-amber-600" />
                   <p className="text-sm text-amber-600">
                     {t('steps.banners.activeCannotModify')}
@@ -1209,7 +1199,7 @@ function AutomationStepsInner({
 
             {/* Toolbar Panel */}
             <Panel position="bottom-center" className="mb-4">
-              <div className="flex items-center gap-2 rounded-lg ring-1 ring-border bg-background p-1 shadow-sm">
+              <div className="ring-border bg-background flex items-center gap-2 rounded-lg p-1 shadow-sm ring-1">
                 {/* Action Tools */}
                 <div className="flex items-center gap-2">
                   <Button

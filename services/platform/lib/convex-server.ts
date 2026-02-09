@@ -1,9 +1,11 @@
-import { ConvexHttpClient } from 'convex/browser';
 import type {
   FunctionReference,
   FunctionReturnType,
   FunctionArgs,
 } from 'convex/server';
+
+import { ConvexHttpClient } from 'convex/browser';
+
 import { getEnv } from '@/lib/env';
 
 let cachedConvexHttpUrl: string | null = null;

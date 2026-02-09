@@ -1,9 +1,10 @@
 'use node';
 
 import { v, type Infer } from 'convex/values';
-import { action } from '../_generated/server';
-import { internal } from '../_generated/api';
+
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
+import { internal } from '../_generated/api';
+import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 
 type JsonValue = Infer<typeof jsonValueValidator>;
@@ -20,7 +21,8 @@ export const executeApprovedIntegrationOperation = action({
     }
 
     return (await ctx.runAction(
-      internal.agent_tools.integrations.internal_actions.executeApprovedOperation,
+      internal.agent_tools.integrations.internal_actions
+        .executeApprovedOperation,
       {
         approvalId: args.approvalId,
         approvedBy: String(authUser._id),
@@ -41,7 +43,8 @@ export const executeApprovedWorkflowCreation = action({
     }
 
     return (await ctx.runAction(
-      internal.agent_tools.workflows.internal_actions.executeApprovedWorkflowCreation,
+      internal.agent_tools.workflows.internal_actions
+        .executeApprovedWorkflowCreation,
       {
         approvalId: args.approvalId,
         approvedBy: String(authUser._id),

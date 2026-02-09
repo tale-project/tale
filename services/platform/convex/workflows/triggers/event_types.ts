@@ -68,7 +68,11 @@ export const EVENT_TYPES: Record<string, EventTypeDef> = {
     label: 'Workflow completed',
     description: 'Triggered when a workflow execution completes successfully',
     filterFields: [
-      { key: 'rootWfDefinitionId', label: 'Source workflow', inputType: 'workflow-select' },
+      {
+        key: 'rootWfDefinitionId',
+        label: 'Source workflow',
+        inputType: 'workflow-select',
+      },
     ],
   },
   'workflow.failed': {
@@ -76,7 +80,11 @@ export const EVENT_TYPES: Record<string, EventTypeDef> = {
     label: 'Workflow failed',
     description: 'Triggered when a workflow execution fails',
     filterFields: [
-      { key: 'rootWfDefinitionId', label: 'Source workflow', inputType: 'workflow-select' },
+      {
+        key: 'rootWfDefinitionId',
+        label: 'Source workflow',
+        inputType: 'workflow-select',
+      },
     ],
   },
 };
@@ -90,7 +98,10 @@ export function isValidEventType(type: string): type is EventType {
 }
 
 export function getEventTypesByCategory() {
-  const grouped = new Map<EventTypeCategory, { type: string; label: string; description: string }[]>();
+  const grouped = new Map<
+    EventTypeCategory,
+    { type: string; label: string; description: string }[]
+  >();
 
   for (const [type, meta] of Object.entries(EVENT_TYPES)) {
     const list = grouped.get(meta.category) ?? [];
@@ -105,6 +116,8 @@ export function getEventTypesByCategory() {
   return grouped;
 }
 
-export function getFilterFieldsForEventType(eventType: string): EventFilterFieldDef[] {
+export function getFilterFieldsForEventType(
+  eventType: string,
+): EventFilterFieldDef[] {
   return EVENT_TYPES[eventType]?.filterFields ?? [];
 }

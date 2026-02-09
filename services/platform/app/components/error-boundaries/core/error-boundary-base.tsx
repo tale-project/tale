@@ -1,8 +1,10 @@
 'use client';
 
 import { Component } from 'react';
-import { ErrorBoundaryContext } from './error-context';
+
 import type { ErrorBoundaryBaseProps, ErrorBoundaryState } from './types';
+
+import { ErrorBoundaryContext } from './error-context';
 
 /**
  * Base error boundary class component that all specialized boundaries build upon.

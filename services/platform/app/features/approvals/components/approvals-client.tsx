@@ -1,31 +1,34 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
-import { Image } from '@/app/components/ui/data-display/image';
-import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { useQuery } from 'convex/react';
+import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+
+import type { Id } from '@/convex/_generated/dataModel';
+
+import { CellErrorBoundary } from '@/app/components/error-boundaries/boundaries/cell-error-boundary';
+import { Image } from '@/app/components/ui/data-display/image';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { toast } from '@/app/hooks/use-toast';
-import { useT } from '@/lib/i18n/client';
-import { ApprovalDetailDialog } from './approval-detail-dialog';
-import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { useQuery } from 'convex/react';
+import { useListPage } from '@/app/hooks/use-list-page';
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import { useUpdateApprovalStatus } from '../hooks/use-update-approval-status';
-import { useRemoveRecommendedProduct } from '../hooks/use-remove-recommended-product';
-import { CellErrorBoundary } from '@/app/components/error-boundaries/boundaries/cell-error-boundary';
+import { useT } from '@/lib/i18n/client';
 import {
   safeGetString,
   safeGetNumber,
   safeGetArray,
 } from '@/lib/utils/safe-parsers';
-import { useListPage } from '@/app/hooks/use-list-page';
+
+import { useRemoveRecommendedProduct } from '../hooks/use-remove-recommended-product';
+import { useUpdateApprovalStatus } from '../hooks/use-update-approval-status';
+import { ApprovalDetail } from '../types/approval-detail';
+import { ApprovalDetailDialog } from './approval-detail-dialog';
 
 type ApprovalItem = {
   _id: string;
@@ -379,22 +382,22 @@ export function ApprovalsClient({
         return (
           <Stack gap={1}>
             <HStack gap={2}>
-              <div className="size-5 bg-muted rounded flex-shrink-0 overflow-hidden">
+              <div className="bg-muted size-5 flex-shrink-0 overflow-hidden rounded">
                 <Image
                   src={firstImage}
                   alt={firstName}
                   width={20}
                   height={20}
-                  className="w-full h-full object-cover"
+                  className="h-full w-full object-cover"
                 />
               </div>
-              <span className="text-xs text-muted-foreground font-normal leading-normal whitespace-nowrap">
+              <span className="text-muted-foreground text-xs leading-normal font-normal whitespace-nowrap">
                 {firstName}
               </span>
             </HStack>
             {remainingCount > 0 && secondProduct && (
               <HStack gap={2}>
-                <div className="size-5 bg-muted rounded flex-shrink-0 overflow-hidden">
+                <div className="bg-muted size-5 flex-shrink-0 overflow-hidden rounded">
                   <Image
                     src={
                       safeGetString(secondProduct, 'image', '') ||
@@ -407,10 +410,10 @@ export function ApprovalsClient({
                     }
                     width={20}
                     height={20}
-                    className="w-full h-full object-cover"
+                    className="h-full w-full object-cover"
                   />
                 </div>
-                <span className="text-xs text-muted-foreground font-normal leading-normal whitespace-nowrap">
+                <span className="text-muted-foreground text-xs leading-normal font-normal whitespace-nowrap">
                   {t('labels.otherProducts', { count: remainingCount })}
                 </span>
               </HStack>
@@ -436,16 +439,16 @@ export function ApprovalsClient({
 
             return (
               <HStack key={id} gap={2}>
-                <div className="size-5 bg-muted rounded flex-shrink-0 overflow-hidden">
+                <div className="bg-muted size-5 flex-shrink-0 overflow-hidden rounded">
                   <Image
                     src={image}
                     alt={name}
                     width={20}
                     height={20}
-                    className="w-full h-full object-cover"
+                    className="h-full w-full object-cover"
                   />
                 </div>
-                <span className="text-xs text-muted-foreground font-normal leading-normal whitespace-nowrap">
+                <span className="text-muted-foreground text-xs leading-normal font-normal whitespace-nowrap">
                   {name}
                 </span>
               </HStack>
@@ -493,14 +496,14 @@ export function ApprovalsClient({
       header: t('columns.approvalRecipient'),
       size: 256,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1.5 min-h-[41px]">
+        <div className="flex min-h-[41px] flex-col gap-1.5">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-foreground tracking-tight">
+            <span className="text-foreground text-sm font-medium tracking-tight">
               {getApprovalTypeLabel(row.original.resourceType)}
             </span>
-            <Info className="size-4 text-muted-foreground flex-shrink-0 flex-grow-0" />
+            <Info className="text-muted-foreground size-4 flex-shrink-0 flex-grow-0" />
           </div>
-          <div className="text-sm text-muted-foreground font-normal tracking-tight">
+          <div className="text-muted-foreground text-sm font-normal tracking-tight">
             {getCustomerLabel(row.original)}
           </div>
         </div>
@@ -517,12 +520,12 @@ export function ApprovalsClient({
         >;
         return (
           <div className="flex flex-col gap-1.5">
-            <div className="text-xs font-medium text-foreground">
+            <div className="text-foreground text-xs font-medium">
               {t('labels.purchase')}
             </div>
             <CellErrorBoundary
               fallback={
-                <span className="text-xs text-muted-foreground">—</span>
+                <span className="text-muted-foreground text-xs">—</span>
               }
             >
               {renderProductList(safeGetArray(metadata, 'eventProducts', []))}
@@ -542,12 +545,12 @@ export function ApprovalsClient({
         >;
         return (
           <div className="flex flex-col gap-1.5">
-            <div className="text-xs font-medium text-foreground">
+            <div className="text-foreground text-xs font-medium">
               {t('labels.recommendation')}
             </div>
             <CellErrorBoundary
               fallback={
-                <span className="text-xs text-muted-foreground">—</span>
+                <span className="text-muted-foreground text-xs">—</span>
               }
             >
               {renderProductList(
@@ -562,13 +565,13 @@ export function ApprovalsClient({
     {
       id: 'confidence',
       header: () => (
-        <span className="text-right w-full block">
+        <span className="block w-full text-right">
           {t('columns.confidence')}
         </span>
       ),
       size: 100,
       cell: ({ row }) => (
-        <span className="text-xs font-medium text-muted-foreground text-right block">
+        <span className="text-muted-foreground block text-right text-xs font-medium">
           {getConfidencePercent(row.original)}%
         </span>
       ),
@@ -576,7 +579,7 @@ export function ApprovalsClient({
     {
       id: 'actions',
       header: () => (
-        <span className="text-center w-full block">
+        <span className="block w-full text-center">
           {t('columns.approved')}
         </span>
       ),
@@ -613,9 +616,9 @@ export function ApprovalsClient({
             aria-label={t('actions.reject')}
           >
             {rejecting === row.original._id ? (
-              <div className="animate-spin rounded-full size-3 border-b border-foreground" />
+              <div className="border-foreground size-3 animate-spin rounded-full border-b" />
             ) : (
-              <X className="size-4 text-foreground" />
+              <X className="text-foreground size-4" />
             )}
           </Button>
         </div>
@@ -629,14 +632,14 @@ export function ApprovalsClient({
       header: t('columns.approvalRecipient'),
       size: 256,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1.5 min-h-[41px]">
+        <div className="flex min-h-[41px] flex-col gap-1.5">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-foreground tracking-tight">
+            <span className="text-foreground text-sm font-medium tracking-tight">
               {t('types.recommendProduct')}
             </span>
-            <Info className="size-4 text-muted-foreground flex-shrink-0 flex-grow-0" />
+            <Info className="text-muted-foreground size-4 flex-shrink-0 flex-grow-0" />
           </div>
-          <div className="text-sm text-muted-foreground font-normal tracking-tight">
+          <div className="text-muted-foreground text-sm font-normal tracking-tight">
             {getCustomerLabel(row.original)}
           </div>
         </div>
@@ -653,12 +656,12 @@ export function ApprovalsClient({
         >;
         return (
           <div className="flex flex-col gap-1.5">
-            <div className="text-xs font-medium text-foreground">
+            <div className="text-foreground text-xs font-medium">
               {t('labels.purchase')}
             </div>
             <CellErrorBoundary
               fallback={
-                <span className="text-xs text-muted-foreground">—</span>
+                <span className="text-muted-foreground text-xs">—</span>
               }
             >
               {renderProductList(safeGetArray(metadata, 'eventProducts', []))}
@@ -678,12 +681,12 @@ export function ApprovalsClient({
         >;
         return (
           <div className="flex flex-col gap-1.5">
-            <div className="text-xs font-medium text-foreground">
+            <div className="text-foreground text-xs font-medium">
               {t('labels.recommendation')}
             </div>
             <CellErrorBoundary
               fallback={
-                <span className="text-xs text-muted-foreground">—</span>
+                <span className="text-muted-foreground text-xs">—</span>
               }
             >
               {renderProductList(
@@ -714,12 +717,12 @@ export function ApprovalsClient({
     {
       id: 'reviewedAt',
       header: () => (
-        <span className="text-right w-full block">
+        <span className="block w-full text-right">
           {t('columns.reviewedAt')}
         </span>
       ),
       cell: ({ row }) => (
-        <span className="text-sm text-right block">
+        <span className="block text-right text-sm">
           {row.original.reviewedAt
             ? formatDate(new Date(row.original.reviewedAt), 'short')
             : ''}
@@ -729,15 +732,15 @@ export function ApprovalsClient({
     {
       id: 'status',
       header: () => (
-        <span className="text-right w-full block">{t('columns.approved')}</span>
+        <span className="block w-full text-right">{t('columns.approved')}</span>
       ),
       size: 100,
       cell: ({ row }) => (
-        <div className="text-center px-4">
+        <div className="px-4 text-center">
           {row.original.status === 'approved' ? (
-            <CheckIcon className="size-4 text-green-600 inline-block" />
+            <CheckIcon className="inline-block size-4 text-green-600" />
           ) : (
-            <X className="size-4 text-red-600 inline-block" />
+            <X className="inline-block size-4 text-red-600" />
           )}
         </div>
       ),

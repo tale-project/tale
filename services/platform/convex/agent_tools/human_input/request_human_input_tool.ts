@@ -9,10 +9,13 @@
  * as a structured <human_response> tag.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
+
 import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
@@ -67,9 +70,7 @@ Call this tool with:
     args: z.object({
       question: z
         .string()
-        .describe(
-          'The question to ask the user. Be clear and specific.',
-        ),
+        .describe('The question to ask the user. Be clear and specific.'),
       format: z
         .enum(['single_select', 'multi_select', 'text_input', 'yes_no'])
         .describe('The input format for the response.'),
@@ -151,7 +152,8 @@ Call this tool with:
 
       try {
         const requestId = await ctx.runMutation(
-          internal.agent_tools.human_input.internal_mutations.createHumanInputRequest,
+          internal.agent_tools.human_input.internal_mutations
+            .createHumanInputRequest,
           {
             organizationId,
             threadId,

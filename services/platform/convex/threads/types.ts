@@ -1,6 +1,7 @@
-import type { Infer } from 'convex/values';
-import type { PaginationOptions } from 'convex/server';
 import type { syncStreams, UIMessage, StreamArgs } from '@convex-dev/agent';
+import type { PaginationOptions } from 'convex/server';
+import type { Infer } from 'convex/values';
+
 import {
   chatTypeValidator,
   messageRoleValidator,

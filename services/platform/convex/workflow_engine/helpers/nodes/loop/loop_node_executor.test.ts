@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { createLoopState } from './utils/create_loop_state';
-import { createLoopResult } from './utils/create_loop_result';
+
 import { PORTS } from '../constants';
+import { createLoopResult } from './utils/create_loop_result';
+import { createLoopState } from './utils/create_loop_state';
 
 describe('createLoopState', () => {
   it('should create initial state for first iteration', () => {

@@ -1,18 +1,26 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 import { Plus, HardDrive } from 'lucide-react';
-import { DataTableActionMenu, type DataTableActionMenuItem } from '@/app/components/ui/data-table/data-table-action-menu';
-import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
-import { useT } from '@/lib/i18n/client';
+import { useState, useCallback, useMemo } from 'react';
 
-const OneDriveImportDialog = lazyComponent(
-  () => import('./onedrive-import-dialog').then(mod => ({ default: mod.OneDriveImportDialog })),
+import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
+import {
+  DataTableActionMenu,
+  type DataTableActionMenuItem,
+} from '@/app/components/ui/data-table/data-table-action-menu';
+import { useT } from '@/lib/i18n/client';
+import { lazyComponent } from '@/lib/utils/lazy-component';
+
+const OneDriveImportDialog = lazyComponent(() =>
+  import('./onedrive-import-dialog').then((mod) => ({
+    default: mod.OneDriveImportDialog,
+  })),
 );
 
-const DocumentUploadDialog = lazyComponent(
-  () => import('./document-upload-dialog').then(mod => ({ default: mod.DocumentUploadDialog })),
+const DocumentUploadDialog = lazyComponent(() =>
+  import('./document-upload-dialog').then((mod) => ({
+    default: mod.DocumentUploadDialog,
+  })),
 );
 
 export interface DocumentsActionMenuProps {
@@ -59,7 +67,12 @@ export function DocumentsActionMenu({
     }
 
     return items;
-  }, [tDocuments, handleDeviceUpload, handleOneDriveClick, hasMicrosoftAccount]);
+  }, [
+    tDocuments,
+    handleDeviceUpload,
+    handleOneDriveClick,
+    hasMicrosoftAccount,
+  ]);
 
   return (
     <>

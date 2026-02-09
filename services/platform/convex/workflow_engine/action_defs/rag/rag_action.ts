@@ -1,14 +1,16 @@
 import { v } from 'convex/values';
+
+import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { RagActionParams, RagUploadResult } from './helpers/types';
-import { getRagConfig } from './helpers/get_rag_config';
-import { getDocumentInfo } from './helpers/get_document_info';
-import { uploadTextDocument } from './helpers/upload_text_document';
-import { uploadFileDirect } from './helpers/upload_file_direct';
-import { deleteDocumentById } from './helpers/delete_document';
-import { internal } from '../../../_generated/api';
-import type { Id } from '../../../_generated/dataModel';
+
 import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { internal } from '../../../_generated/api';
+import { deleteDocumentById } from './helpers/delete_document';
+import { getDocumentInfo } from './helpers/get_document_info';
+import { getRagConfig } from './helpers/get_rag_config';
+import { uploadFileDirect } from './helpers/upload_file_direct';
+import { uploadTextDocument } from './helpers/upload_text_document';
 
 export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
@@ -76,9 +78,10 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       // Pass team IDs directly to RAG service (it handles the conversion internally)
       // If document has team tags, use them; otherwise use organization ID as fallback (public document)
       // This allows public documents to be accessible by all teams within the organization
-      const teamIds = documentInfo.teamTags && documentInfo.teamTags.length > 0
-        ? documentInfo.teamTags
-        : [`org_${documentInfo.metadata.organizationId}`];
+      const teamIds =
+        documentInfo.teamTags && documentInfo.teamTags.length > 0
+          ? documentInfo.teamTags
+          : [`org_${documentInfo.metadata.organizationId}`];
 
       if (documentInfo.type === 'text') {
         // Upload text content directly
@@ -112,13 +115,16 @@ export const ragAction: ActionDefinition<RagActionParams> = {
 
       try {
         // Update document with ragInfo = queued
-        await ctx.runMutation(internal.documents.internal_mutations.updateDocumentRagInfo, {
-          documentId,
-          ragInfo: {
-            status: 'queued',
-            jobId: uploadResult.jobId,
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocumentRagInfo,
+          {
+            documentId,
+            ragInfo: {
+              status: 'queued',
+              jobId: uploadResult.jobId,
+            },
           },
-        });
+        );
 
         // Schedule first status check in 10 seconds
         await ctx.scheduler.runAfter(

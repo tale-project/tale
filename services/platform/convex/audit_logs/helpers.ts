@@ -1,5 +1,5 @@
-import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type {
   CreateAuditLogArgs,
   ListAuditLogsArgs,
@@ -45,13 +45,15 @@ const REDACTED_VALUE = '[REDACTED]';
 
 function isSensitiveKey(key: string): boolean {
   const lowerKey = key.toLowerCase();
-  return SENSITIVE_FIELDS.has(lowerKey) ||
+  return (
+    SENSITIVE_FIELDS.has(lowerKey) ||
     lowerKey.includes('password') ||
     lowerKey.includes('secret') ||
     lowerKey.includes('token') ||
     lowerKey.includes('apikey') ||
     lowerKey.includes('api_key') ||
-    lowerKey.includes('credential');
+    lowerKey.includes('credential')
+  );
 }
 
 export function redactSensitiveFields(
@@ -86,10 +88,13 @@ function stableStringify(value: unknown): string {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const sorted = Object.keys(value as Record<string, unknown>)
       .sort()
-      .reduce((acc, key) => {
-        acc[key] = (value as Record<string, unknown>)[key];
-        return acc;
-      }, {} as Record<string, unknown>);
+      .reduce(
+        (acc, key) => {
+          acc[key] = (value as Record<string, unknown>)[key];
+          return acc;
+        },
+        {} as Record<string, unknown>,
+      );
     return JSON.stringify(sorted);
   }
   return JSON.stringify(value);
@@ -303,7 +308,9 @@ function buildAuditLogQuery(
       query: ctx.db
         .query('auditLogs')
         .withIndex('by_organizationId_and_category', (q) =>
-          q.eq('organizationId', organizationId).eq('category', filter.category!),
+          q
+            .eq('organizationId', organizationId)
+            .eq('category', filter.category!),
         ),
       indexedFields: { category: true } as const,
     };
@@ -325,7 +332,9 @@ function buildAuditLogQuery(
       query: ctx.db
         .query('auditLogs')
         .withIndex('by_organizationId_and_resourceType', (q) =>
-          q.eq('organizationId', organizationId).eq('resourceType', filter.resourceType!),
+          q
+            .eq('organizationId', organizationId)
+            .eq('resourceType', filter.resourceType!),
         ),
       indexedFields: { resourceType: true } as const,
     };
@@ -348,7 +357,11 @@ export async function listAuditLogs(
   const limit = args.limit ?? 50;
   const filter = args.filter ?? {};
 
-  const { query, indexedFields } = buildAuditLogQuery(ctx, args.organizationId, filter);
+  const { query, indexedFields } = buildAuditLogQuery(
+    ctx,
+    args.organizationId,
+    filter,
+  );
   const startDateHandledByIndex = 'startDate' in indexedFields;
 
   const logs: AuditLogItem[] = [];
@@ -367,7 +380,11 @@ export async function listAuditLogs(
       continue;
     }
 
-    if (!startDateHandledByIndex && filter.startDate && log.timestamp < filter.startDate) {
+    if (
+      !startDateHandledByIndex &&
+      filter.startDate &&
+      log.timestamp < filter.startDate
+    ) {
       break;
     }
 
@@ -401,9 +418,10 @@ export async function listAuditLogs(
 
   const hasMore = logs.length > limit;
   const resultLogs = hasMore ? logs.slice(0, limit) : logs;
-  const nextCursor = hasMore && resultLogs.length > 0
-    ? resultLogs[resultLogs.length - 1]._id
-    : undefined;
+  const nextCursor =
+    hasMore && resultLogs.length > 0
+      ? resultLogs[resultLogs.length - 1]._id
+      : undefined;
 
   return { logs: resultLogs, nextCursor };
 }
@@ -479,10 +497,15 @@ export async function getActivitySummary(
       summary.deniedCount++;
     }
 
-    summary.byCategory[log.category] = (summary.byCategory[log.category] ?? 0) + 1;
-    summary.byResourceType[log.resourceType] = (summary.byResourceType[log.resourceType] ?? 0) + 1;
+    summary.byCategory[log.category] =
+      (summary.byCategory[log.category] ?? 0) + 1;
+    summary.byResourceType[log.resourceType] =
+      (summary.byResourceType[log.resourceType] ?? 0) + 1;
 
-    const actorData = actorCounts.get(log.actorId) ?? { email: log.actorEmail, count: 0 };
+    const actorData = actorCounts.get(log.actorId) ?? {
+      email: log.actorEmail,
+      count: 0,
+    };
     actorData.count++;
     if (!actorData.email && log.actorEmail) {
       actorData.email = log.actorEmail;

@@ -1,9 +1,12 @@
 'use node';
 
 import type { ImapFlow } from 'imapflow';
+
 import { simpleParser, type ParsedMail } from 'mailparser';
-import extractAddresses from './addresses';
+
 import type { EmailMessage } from '../../../workflow_engine/action_defs/imap/helpers/types';
+
+import extractAddresses from './addresses';
 
 export interface FetchOptions {
   includeAttachments: boolean;

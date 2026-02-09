@@ -1,4 +1,5 @@
 import { convexBetterAuthReactStart } from '@convex-dev/better-auth/react-start';
+
 import { getEnv } from '@/lib/env';
 
 const siteUrl = getEnv('SITE_URL');
@@ -22,4 +23,3 @@ export async function getAuthToken(): Promise<string | undefined> {
     return undefined;
   }
 }
-

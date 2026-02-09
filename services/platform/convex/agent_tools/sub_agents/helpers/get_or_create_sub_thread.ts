@@ -10,8 +10,9 @@
  */
 
 import type { ActionCtx } from '../../../_generated/server';
-import { internal } from '../../../_generated/api';
 import type { SubAgentType } from './types';
+
+import { internal } from '../../../_generated/api';
 
 interface GetOrCreateSubThreadArgs {
   parentThreadId: string;
@@ -51,9 +52,12 @@ export async function getOrCreateSubThread(
 
   // Delegate to atomic internal mutation to prevent race conditions
   // The mutation handles read-check-create-update in a single transaction
-  return await ctx.runMutation(internal.threads.internal_mutations.getOrCreateSubThreadAtomic, {
-    parentThreadId,
-    subAgentType,
-    userId,
-  });
+  return await ctx.runMutation(
+    internal.threads.internal_mutations.getOrCreateSubThreadAtomic,
+    {
+      parentThreadId,
+      subAgentType,
+      userId,
+    },
+  );
 }

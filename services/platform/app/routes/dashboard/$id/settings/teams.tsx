@@ -1,11 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { TeamsSettings } from '@/app/features/settings/teams/components/teams-settings';
+
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
+import { TeamsSettings } from '@/app/features/settings/teams/components/teams-settings';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/settings/teams')({

@@ -2,8 +2,8 @@
  * Update workflow
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { WorkflowConfig } from './types';
 
 export interface UpdateWorkflowArgs {
@@ -32,7 +32,7 @@ export async function updateWorkflow(
   // Properly merge metadata: existing metadata + updates.metadata + tracking fields
   const mergedMetadata = {
     ...workflow.metadata,
-    ...(args.updates.metadata || {}),
+    ...args.updates.metadata,
     updatedAt: Date.now(),
     updatedBy: args.updatedBy,
   };

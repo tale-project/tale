@@ -1,17 +1,24 @@
 'use node';
 
-import { v } from 'convex/values';
 import type { FunctionHandle } from 'convex/server';
+
 import { Agent } from '@convex-dev/agent';
-import { internalAction } from '../../_generated/server';
+import { v } from 'convex/values';
+
+import type { ToolName } from '../../agent_tools/tool_registry';
+import type {
+  GenerateResponseHooks,
+  BeforeContextResult,
+  BeforeGenerateResult,
+} from '../agent_response/types';
+import type { AgentType } from '../context_management/constants';
+
 import { components } from '../../_generated/api';
+import { internalAction } from '../../_generated/server';
 import { generateAgentResponse } from '../agent_response';
 import { createAgentConfig } from '../create_agent_config';
-import { classifyError, NonRetryableError } from '../error_classification';
 import { createDebugLog } from '../debug_log';
-import type { AgentType } from '../context_management/constants';
-import type { GenerateResponseHooks, BeforeContextResult, BeforeGenerateResult } from '../agent_response/types';
-import type { ToolName } from '../../agent_tools/tool_registry';
+import { classifyError, NonRetryableError } from '../error_classification';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
@@ -105,7 +112,8 @@ export const runAgentGeneration = internalAction({
         convexToolNames: agentConfig.convexToolNames as ToolName[] | undefined,
         useFastModel: agentConfig.useFastModel,
         model: agentConfig.model,
-        maxSteps: options?.maxSteps as number | undefined ?? agentConfig.maxSteps,
+        maxSteps:
+          (options?.maxSteps as number | undefined) ?? agentConfig.maxSteps,
         maxTokens: agentConfig.maxTokens,
         temperature: agentConfig.temperature,
         outputFormat: agentConfig.outputFormat,
@@ -171,7 +179,11 @@ export const runAgentGeneration = internalAction({
         statusCode: err?.statusCode,
         cause: err?.cause,
         stack: err?.stack,
-        error: JSON.stringify(error, Object.getOwnPropertyNames(error as object), 2),
+        error: JSON.stringify(
+          error,
+          Object.getOwnPropertyNames(error as object),
+          2,
+        ),
       });
 
       // Classify and wrap error for retry decisions

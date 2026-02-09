@@ -1,27 +1,28 @@
+import { Link } from '@tanstack/react-router';
+import { Upload, Trash2 } from 'lucide-react';
+import { useFormContext } from 'react-hook-form';
+
+import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
+import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
+import { Description } from '@/app/components/ui/forms/description';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { Form } from '@/app/components/ui/forms/form';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
 import {
   Tabs,
   TabsList,
   TabsTrigger,
 } from '@/app/components/ui/navigation/tabs';
-import { useFormContext } from 'react-hook-form';
-import { Form } from '@/app/components/ui/forms/form';
-import { Description } from '@/app/components/ui/forms/description';
-import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
-import { Upload, Trash2 } from 'lucide-react';
-import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
-import { Link } from '@tanstack/react-router';
-import { cn } from '@/lib/utils/cn';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Button } from '@/app/components/ui/primitives/button';
+import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { toast } from '@/app/hooks/use-toast';
 import {
   isSpreadsheet,
   SPREADSHEET_IMPORT_ACCEPT,
 } from '@/lib/shared/file-types';
+import { cn } from '@/lib/utils/cn';
 
 interface CustomerImportFormProps {
   hideTabs?: boolean;
@@ -91,29 +92,29 @@ export function CustomerImportForm({
           to="/dashboard/$id/settings/integrations"
           params={{ id: organizationId }}
           search={{ tab: 'shopify' }}
-          className="bg-background box-border content-stretch flex gap-[12px] items-center justify-start p-[12px] relative rounded-[8px] size-full cursor-pointer transition-colors hover:bg-secondary/20 text-left"
+          className="bg-background hover:bg-secondary/20 relative box-border flex size-full cursor-pointer content-stretch items-center justify-start gap-[12px] rounded-[8px] p-[12px] text-left transition-colors"
         >
           <div
             aria-hidden="true"
-            className="absolute border border-border border-solid inset-0 pointer-events-none rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+            className="border-border pointer-events-none absolute inset-0 rounded-[8px] border border-solid shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
           />
-          <div className="bg-background relative rounded-[6px] shrink-0 size-[40px]">
+          <div className="bg-background relative size-[40px] shrink-0 rounded-[6px]">
             <div
               aria-hidden="true"
-              className="absolute border border-border border-solid inset-0 pointer-events-none rounded-[6px]"
+              className="border-border pointer-events-none absolute inset-0 rounded-[6px] border border-solid"
             />
             <div
-              className="absolute overflow-clip size-[24px] top-1/2 translate-x-[-50%] translate-y-[-50%]"
+              className="absolute top-1/2 size-[24px] translate-x-[-50%] translate-y-[-50%] overflow-clip"
               style={{ left: 'calc(50% + 0.5px)' }}
             >
               <ShopifyIcon />
             </div>
           </div>
-          <div className="items-start justify-start not-italic relative shrink-0">
-            <div className="font-medium relative shrink-0 text-base text-foreground w-full">
+          <div className="relative shrink-0 items-start justify-start not-italic">
+            <div className="text-foreground relative w-full shrink-0 text-base font-medium">
               <p>{t('importForm.fromShopify')}</p>
             </div>
-            <div className="relative shrink-0 text-sm text-muted-foreground w-full">
+            <div className="text-muted-foreground relative w-full shrink-0 text-sm">
               <p>{t('importForm.syncBusinessData')}</p>
             </div>
           </div>
@@ -130,7 +131,7 @@ export function CustomerImportForm({
             {...register('customers')}
           />
           <Description className="text-xs">
-            <Stack gap={2} className="list-disc list-outside pl-4">
+            <Stack gap={2} className="list-outside list-disc pl-4">
               <li>{t('importForm.localeHint')}</li>
               <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
             </Stack>
@@ -151,36 +152,36 @@ export function CustomerImportForm({
               )}
             >
               <FileUpload.Overlay className="rounded-lg" />
-              <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
+              <Upload className="text-muted-foreground mx-auto mb-2 size-8" />
               <p className="text-sm font-medium">
                 {tCommon('upload.clickToUpload')}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-muted-foreground mt-1 text-xs">
                 {tCommon('upload.supportedFormats')}
               </p>
             </FileUpload.DropZone>
           </FileUpload.Root>
           <Description className="text-xs">
-            <Stack gap={2} className="list-disc list-outside pl-4">
+            <Stack gap={2} className="list-outside list-disc pl-4">
               <li>{t('importForm.localeHint')}</li>
               <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
             </Stack>
           </Description>
           {errors.file?.message && (
-            <p className="text-sm text-destructive">
+            <p className="text-destructive text-sm">
               {errors.file.message as string}
             </p>
           )}
           {fileValue && (
             <VStack
               gap={2}
-              className="border border-border p-3 relative rounded-xl"
+              className="border-border relative rounded-xl border p-3"
             >
               <HStack gap={3} className="w-full">
-                <HStack gap={2} className="flex-1 min-w-0">
+                <HStack gap={2} className="min-w-0 flex-1">
                   <DocumentIcon fileName={fileValue.name} />
-                  <VStack gap={0} className="flex-1 min-w-0">
-                    <div className="font-medium text-sm text-foreground truncate">
+                  <VStack gap={0} className="min-w-0 flex-1">
+                    <div className="text-foreground truncate text-sm font-medium">
                       {fileValue.name}
                     </div>
                   </VStack>

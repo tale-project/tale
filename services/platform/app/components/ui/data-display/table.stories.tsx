@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
+import { Badge } from '../feedback/badge';
 import {
   Table,
   TableBody,
@@ -9,7 +11,6 @@ import {
   TableHeader,
   TableRow,
 } from './table';
-import { Badge } from '../feedback/badge';
 
 const meta: Meta<typeof Table> = {
   title: 'Data Display/Table',
@@ -63,10 +64,25 @@ export default meta;
 type Story = StoryObj<typeof Table>;
 
 const invoices = [
-  { invoice: 'INV001', status: 'Paid', method: 'Credit Card', amount: '$250.00' },
+  {
+    invoice: 'INV001',
+    status: 'Paid',
+    method: 'Credit Card',
+    amount: '$250.00',
+  },
   { invoice: 'INV002', status: 'Pending', method: 'PayPal', amount: '$150.00' },
-  { invoice: 'INV003', status: 'Unpaid', method: 'Bank Transfer', amount: '$350.00' },
-  { invoice: 'INV004', status: 'Paid', method: 'Credit Card', amount: '$450.00' },
+  {
+    invoice: 'INV003',
+    status: 'Unpaid',
+    method: 'Bank Transfer',
+    amount: '$350.00',
+  },
+  {
+    invoice: 'INV004',
+    status: 'Paid',
+    method: 'Credit Card',
+    amount: '$450.00',
+  },
   { invoice: 'INV005', status: 'Paid', method: 'PayPal', amount: '$550.00' },
 ];
 
@@ -178,7 +194,7 @@ export const WithBadges: Story = {
 
 export const StickyLayout: Story = {
   render: () => (
-    <div className="h-[200px] overflow-auto border rounded-xl">
+    <div className="h-[200px] overflow-auto rounded-xl border">
       <Table stickyLayout>
         <TableHeader sticky>
           <TableRow>
@@ -204,7 +220,8 @@ export const StickyLayout: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Use `stickyLayout` and `sticky` props for scrollable tables with fixed headers.',
+        story:
+          'Use `stickyLayout` and `sticky` props for scrollable tables with fixed headers.',
       },
     },
   },

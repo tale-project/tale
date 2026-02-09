@@ -1,13 +1,16 @@
 'use client';
 
-import { forwardRef, type InputHTMLAttributes, type ChangeEvent } from 'react';
 import { Search } from 'lucide-react';
+import { forwardRef, type InputHTMLAttributes, type ChangeEvent } from 'react';
 
 import { cn } from '@/lib/utils/cn';
+
 import { Input } from './input';
 
-export interface SearchInputProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
+export interface SearchInputProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'size' | 'type'
+> {
   value: string;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;
@@ -21,7 +24,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
     return (
       <div className={cn('relative', wrapperClassName)}>
         <Search
-          className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground"
+          className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2 transform"
           aria-hidden="true"
         />
         <Input

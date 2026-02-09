@@ -1,5 +1,5 @@
-import type { Id } from '../../../../_generated/dataModel';
 import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
+import type { Id } from '../../../../_generated/dataModel';
 
 // Discriminated union type for website operations
 export type WebsiteActionParams =
@@ -28,4 +28,3 @@ export type WebsiteActionParams =
       operation: 'get_by_domain';
       domain: string;
     };
-

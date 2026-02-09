@@ -2,9 +2,15 @@
  * Business logic for updating an integration with encryption and health checks
  */
 
-import { ActionCtx } from '../_generated/server';
-import { Doc, Id } from '../_generated/dataModel';
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
+
 import { api, internal } from '../_generated/api';
+import { Doc, Id } from '../_generated/dataModel';
+import { ActionCtx } from '../_generated/server';
+import { createDebugLog } from '../lib/debug_log';
+import { encryptCredentials } from './encrypt_credentials';
+import { testCirculyConnection } from './test_circuly_connection';
+import { testShopifyConnection } from './test_shopify_connection';
 import {
   Status,
   ApiKeyAuth,
@@ -13,12 +19,6 @@ import {
   ConnectionConfig,
   Capabilities,
 } from './types';
-import { encryptCredentials } from './encrypt_credentials';
-import { testShopifyConnection } from './test_shopify_connection';
-import { testCirculyConnection } from './test_circuly_connection';
-
-import { createDebugLog } from '../lib/debug_log';
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -109,16 +109,19 @@ export async function updateIntegrationLogic(
   await runHealthCheckIfNeeded(integration, args);
 
   // Update integration
-  await ctx.runMutation(internal.integrations.internal_mutations.updateIntegration, {
-    integrationId: args.integrationId,
-    status: args.status,
-    isActive: args.isActive,
-    apiKeyAuth,
-    basicAuth,
-    oauth2Auth,
-    connectionConfig: args.connectionConfig,
-    capabilities: args.capabilities,
-    errorMessage: args.errorMessage,
-    metadata: args.metadata,
-  });
+  await ctx.runMutation(
+    internal.integrations.internal_mutations.updateIntegration,
+    {
+      integrationId: args.integrationId,
+      status: args.status,
+      isActive: args.isActive,
+      apiKeyAuth,
+      basicAuth,
+      oauth2Auth,
+      connectionConfig: args.connectionConfig,
+      capabilities: args.capabilities,
+      errorMessage: args.errorMessage,
+      metadata: args.metadata,
+    },
+  );
 }

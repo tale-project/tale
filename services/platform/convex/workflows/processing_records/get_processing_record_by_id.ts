@@ -1,5 +1,5 @@
-import type { QueryCtx } from '../../_generated/server';
 import type { Doc, Id } from '../../_generated/dataModel';
+import type { QueryCtx } from '../../_generated/server';
 
 export type GetProcessingRecordByIdArgs = {
   processingRecordId: Id<'workflowProcessingRecords'>;
@@ -14,4 +14,3 @@ export async function getProcessingRecordById(
 ): Promise<Doc<'workflowProcessingRecords'> | null> {
   return await ctx.db.get(args.processingRecordId);
 }
-

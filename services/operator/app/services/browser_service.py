@@ -12,7 +12,6 @@ from loguru import logger
 from app.config import settings
 from app.services.workspace_manager import get_workspace_manager
 
-
 URL_PATTERN = re.compile(r'https?://[^\s<>"\'`\]\)}\|]+', re.IGNORECASE)
 
 
@@ -60,17 +59,27 @@ SYSTEM_PROMPT = """You are an autonomous browser automation agent with access to
    - Take a screenshot: browser_take_screenshot (note the filename)
    - Analyze it: analyze_image with the screenshot path and a specific prompt
 
-4. **Autonomous Mode**: You are in autonomous mode. Do NOT ask for user confirmation. Make reasonable assumptions and proceed with the task. Do NOT use the Task tool to spawn sub-agents - complete everything yourself in the current session.
+4. **Autonomous Mode**: You are in autonomous mode. Do NOT ask for user confirmation.
+   Make reasonable assumptions and proceed with the task.
+   Do NOT use the Task tool to spawn sub-agents - complete everything yourself in the current session.
 
 5. **Language**: Respond in the same language as the user's message.
 
 6. **Concise Responses**: Provide direct, factual answers. Synthesize information from multiple sources when helpful.
 
-7. **Error Handling**: If a page fails to load or an action fails, try alternative approaches (different search terms, different websites, etc.).
+7. **Error Handling**: If a page fails to load or an action fails,
+   try alternative approaches (different search terms, different websites, etc.).
 
-8. **Include Precise Links**: For every specific item you recommend (product, article, listing, etc.), you MUST provide the exact detail page URL, NOT a category page or search results page. Click into each item to get its precise URL before including it in your response. Format as markdown: [title](URL). Generic category links are not acceptable - each recommendation needs its own direct link.
+8. **Include Precise Links**: For every specific item you recommend
+   (product, article, listing, etc.), you MUST provide the exact detail page URL,
+   NOT a category page or search results page.
+   Click into each item to get its precise URL before including it in your response.
+   Format as markdown: [title](URL).
+   Generic category links are not acceptable - each recommendation needs its own direct link.
 
-9. **Complete Before Responding**: Finish ALL research and browsing before providing your final response. Do not respond with partial results or "I will search for..." - only respond after you have the complete answer."""
+9. **Complete Before Responding**: Finish ALL research and browsing before providing your final response.
+   Do not respond with partial results or "I will search for..." -
+   only respond after you have the complete answer."""
 
 
 class BrowserService:
@@ -93,7 +102,8 @@ class BrowserService:
             logger.info("Initializing browser service...")
 
             proc = await asyncio.create_subprocess_exec(
-                "opencode", "--version",
+                "opencode",
+                "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -134,10 +144,7 @@ class BrowserService:
             await self.initialize()
 
         workspace_dir = await self._workspace_manager.create_workspace()
-        logger.info(
-            f"Running OpenCode with workspace={os.path.basename(workspace_dir)}, "
-            f"message: {message[:100]}..."
-        )
+        logger.info(f"Running OpenCode with workspace={os.path.basename(workspace_dir)}, message: {message[:100]}...")
 
         start_time = time.perf_counter()
 
@@ -156,9 +163,12 @@ class BrowserService:
         full_prompt = f"{SYSTEM_PROMPT}\n\n---\n\nUser request: {message}"
 
         cmd = [
-            "opencode", "run",
-            "--model", f"custom/{settings.openai_model}",
-            "--format", "json",
+            "opencode",
+            "run",
+            "--model",
+            f"custom/{settings.openai_model}",
+            "--format",
+            "json",
             full_prompt,
         ]
 
@@ -198,7 +208,7 @@ class BrowserService:
                 "sources": result.get("sources", []),
             }
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             duration = time.perf_counter() - start_time
             logger.error(f"OpenCode execution timed out in workspace {os.path.basename(workspace_dir)}")
             return {

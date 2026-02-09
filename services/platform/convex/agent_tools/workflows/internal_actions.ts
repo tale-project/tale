@@ -1,8 +1,10 @@
 import { v, type Infer } from 'convex/values';
-import { internalAction } from '../../_generated/server';
+
+import type { WorkflowCreationMetadata } from '../../approvals/types';
+
 import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../_generated/api';
-import type { WorkflowCreationMetadata } from '../../approvals/types';
+import { internalAction } from '../../_generated/server';
 
 type JsonValue = Infer<typeof jsonValueValidator>;
 
@@ -20,9 +22,12 @@ export const executeApprovedWorkflowCreation = internalAction({
       organizationId: string;
       threadId?: string;
       metadata?: unknown;
-    } | null = await ctx.runQuery(internal.approvals.internal_queries.getApprovalById, {
-      approvalId: args.approvalId,
-    });
+    } | null = await ctx.runQuery(
+      internal.approvals.internal_queries.getApprovalById,
+      {
+        approvalId: args.approvalId,
+      },
+    );
 
     if (!approval) {
       throw new Error('Approval not found');
@@ -87,8 +92,7 @@ Instructions:
 - Inform the user that the workflow has been created successfully`;
 
         await ctx.runMutation(
-          internal.agent_tools.workflows.internal_mutations
-            .saveSystemMessage,
+          internal.agent_tools.workflows.internal_mutations.saveSystemMessage,
           {
             threadId: approval.threadId,
             content: messageContent,

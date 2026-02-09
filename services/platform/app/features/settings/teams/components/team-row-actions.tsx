@@ -1,16 +1,19 @@
 'use client';
 
-import { useMemo } from 'react';
 import { Pencil, Trash2, Users } from 'lucide-react';
+import { useMemo } from 'react';
+
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
-import { TeamEditDialog } from './team-edit-dialog';
-import { TeamDeleteDialog } from './team-delete-dialog';
-import { TeamMembersDialog } from './team-members-dialog';
 import { useT } from '@/lib/i18n/client';
+
 import type { Team } from '../hooks/use-list-teams';
+
+import { TeamDeleteDialog } from './team-delete-dialog';
+import { TeamEditDialog } from './team-edit-dialog';
+import { TeamMembersDialog } from './team-members-dialog';
 
 interface TeamRowActionsProps {
   team: Team;

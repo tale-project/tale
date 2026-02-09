@@ -2,8 +2,8 @@
  * Get a website by domain within an organization
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export interface GetWebsiteByDomainArgs {
   organizationId: string;

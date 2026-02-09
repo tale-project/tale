@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { Spinner } from './spinner';
 
 const meta: Meta<typeof Spinner> = {
@@ -94,7 +95,7 @@ export const InButton: Story = {
   render: () => (
     <button
       disabled
-      className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg opacity-70"
+      className="bg-primary text-primary-foreground inline-flex items-center gap-2 rounded-lg px-4 py-2 opacity-70"
     >
       <Spinner size="sm" label="Submitting" className="text-current" />
       Submitting...

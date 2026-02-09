@@ -70,8 +70,10 @@ export function sortByDate<T>(
     if (aVal == null) return order === 'asc' ? 1 : -1;
     if (bVal == null) return order === 'asc' ? -1 : 1;
 
-    const aTime = typeof aVal === 'number' ? aVal : new Date(aVal as any).getTime();
-    const bTime = typeof bVal === 'number' ? bVal : new Date(bVal as any).getTime();
+    const aTime =
+      typeof aVal === 'number' ? aVal : new Date(aVal as any).getTime();
+    const bTime =
+      typeof bVal === 'number' ? bVal : new Date(bVal as any).getTime();
 
     return order === 'asc' ? aTime - bTime : bTime - aTime;
   };
@@ -106,4 +108,3 @@ export function sortByNumber<T>(
     return order === 'asc' ? aNum - bNum : bNum - aNum;
   };
 }
-

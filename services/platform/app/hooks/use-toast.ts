@@ -1,7 +1,11 @@
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
-import type { ToastActionElement, ToastProps } from '@/app/components/ui/feedback/toast';
+
+import type {
+  ToastActionElement,
+  ToastProps,
+} from '@/app/components/ui/feedback/toast';
 
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 1000000;
@@ -181,4 +185,3 @@ export function useToast() {
     dismiss: (toastId?: string) => dispatch({ type: 'DISMISS_TOAST', toastId }),
   };
 }
-

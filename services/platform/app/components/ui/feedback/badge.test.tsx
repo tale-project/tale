@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@/test/utils/render';
-import { checkAccessibility } from '@/test/utils/a11y';
-import { Badge } from './badge';
 import { Check } from 'lucide-react';
+import { describe, it, expect } from 'vitest';
+
+import { checkAccessibility } from '@/test/utils/a11y';
+import { render, screen } from '@/test/utils/render';
+
+import { Badge } from './badge';
 
 describe('Badge', () => {
   describe('rendering', () => {
@@ -13,7 +15,9 @@ describe('Badge', () => {
 
     it('renders with dot', () => {
       const { container } = render(<Badge dot>Status</Badge>);
-      expect(container.querySelector('[aria-hidden="true"]')).toBeInTheDocument();
+      expect(
+        container.querySelector('[aria-hidden="true"]'),
+      ).toBeInTheDocument();
     });
 
     it('renders with icon', () => {
@@ -23,7 +27,10 @@ describe('Badge', () => {
 
     it('icon has aria-hidden', () => {
       const { container } = render(<Badge icon={Check}>Verified</Badge>);
-      expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+      expect(container.querySelector('svg')).toHaveAttribute(
+        'aria-hidden',
+        'true',
+      );
     });
   });
 
@@ -66,7 +73,9 @@ describe('Badge', () => {
 
   describe('styling', () => {
     it('applies custom className', () => {
-      const { container } = render(<Badge className="custom-class">Badge</Badge>);
+      const { container } = render(
+        <Badge className="custom-class">Badge</Badge>,
+      );
       expect(container.firstChild).toHaveClass('custom-class');
     });
 

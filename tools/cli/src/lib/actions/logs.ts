@@ -1,9 +1,14 @@
-import type { DeploymentColor } from "../compose/types";
-import { ALL_SERVICES, isRotatableService, isValidService } from "../compose/types";
-import { containerExists } from "../docker/container-exists";
-import { getCurrentColor } from "../state/get-current-color";
-import { PROJECT_NAME } from "../../utils/load-env";
-import * as logger from "../../utils/logger";
+import type { DeploymentColor } from '../compose/types';
+
+import { PROJECT_NAME } from '../../utils/load-env';
+import * as logger from '../../utils/logger';
+import {
+  ALL_SERVICES,
+  isRotatableService,
+  isValidService,
+} from '../compose/types';
+import { containerExists } from '../docker/container-exists';
+import { getCurrentColor } from '../state/get-current-color';
 
 interface LogsOptions {
   service: string;
@@ -20,8 +25,8 @@ export async function logs(options: LogsOptions): Promise<void> {
   // Validate service name
   if (!isValidService(service)) {
     logger.error(`Invalid service: ${service}`);
-    logger.info(`Available services: ${ALL_SERVICES.join(", ")}`);
-    throw new Error("Invalid service name");
+    logger.info(`Available services: ${ALL_SERVICES.join(', ')}`);
+    throw new Error('Invalid service name');
   }
 
   // Determine container name
@@ -37,9 +42,9 @@ export async function logs(options: LogsOptions): Promise<void> {
       // Auto-detect from current deployment state
       const currentColor = await getCurrentColor(deployDir);
       if (!currentColor) {
-        logger.error("No active deployment found");
-        logger.info("Use --color to specify blue or green explicitly");
-        throw new Error("No active deployment");
+        logger.error('No active deployment found');
+        logger.info('Use --color to specify blue or green explicitly');
+        throw new Error('No active deployment');
       }
       targetColor = currentColor;
       logger.info(`Auto-detected active color: ${targetColor}`);
@@ -50,7 +55,7 @@ export async function logs(options: LogsOptions): Promise<void> {
     // Stateful services don't have colors
     if (color) {
       logger.warn(
-        `Ignoring --color for stateful service ${service} (stateful services don't use blue/green)`
+        `Ignoring --color for stateful service ${service} (stateful services don't use blue/green)`,
       );
     }
     containerName = `${PROJECT_NAME}-${service}`;
@@ -60,22 +65,22 @@ export async function logs(options: LogsOptions): Promise<void> {
   const exists = await containerExists(containerName);
   if (!exists) {
     logger.error(`Container ${containerName} does not exist`);
-    throw new Error("Container not found");
+    throw new Error('Container not found');
   }
 
   // Build docker logs command
-  const args = ["logs"];
+  const args = ['logs'];
 
   if (follow) {
-    args.push("--follow");
+    args.push('--follow');
   }
 
   if (since) {
-    args.push("--since", since);
+    args.push('--since', since);
   }
 
   if (tail !== undefined) {
-    args.push("--tail", String(tail));
+    args.push('--tail', String(tail));
   }
 
   args.push(containerName);
@@ -84,9 +89,9 @@ export async function logs(options: LogsOptions): Promise<void> {
   logger.blank();
 
   // Use Bun.spawn with inherit to stream output directly to terminal
-  const proc = Bun.spawn(["docker", ...args], {
-    stdout: "inherit",
-    stderr: "inherit",
+  const proc = Bun.spawn(['docker', ...args], {
+    stdout: 'inherit',
+    stderr: 'inherit',
   });
 
   const exitCode = await proc.exited;

@@ -1,9 +1,9 @@
-import * as logger from "../../utils/logger";
-import { getPreviousVersionFilePath } from "./get-previous-version-file-path";
+import * as logger from '../../utils/logger';
+import { getPreviousVersionFilePath } from './get-previous-version-file-path';
 
 export async function setPreviousVersion(
   deployDir: string,
-  version: string
+  version: string,
 ): Promise<void> {
   const versionPath = getPreviousVersionFilePath(deployDir);
   await Bun.write(versionPath, version);

@@ -2,6 +2,8 @@
  * Shared step icon utilities for automation components
  */
 
+import type { LucideIcon } from 'lucide-react';
+
 import {
   Zap,
   Cpu,
@@ -25,8 +27,8 @@ import {
   GitBranch,
   Settings,
 } from 'lucide-react';
+
 import type { Doc } from '@/convex/_generated/dataModel';
-import type { LucideIcon } from 'lucide-react';
 
 export const ACTION_ICON_MAP: Record<string, LucideIcon> = {
   customer: Users,

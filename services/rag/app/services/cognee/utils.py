@@ -72,12 +72,7 @@ def normalize_add_result(
             chunks_created = _safe_int(raw_chunks)
         else:
             # Try attribute-style access
-            doc_id = (
-                document_id
-                or getattr(result, "id", None)
-                or getattr(result, "document_id", None)
-                or "unknown"
-            )
+            doc_id = document_id or getattr(result, "id", None) or getattr(result, "document_id", None) or "unknown"
             maybe_chunks = getattr(result, "chunks", 0)
             chunks_created = _safe_int(maybe_chunks)
     except Exception as norm_err:
@@ -231,6 +226,5 @@ def extract_team_id_from_dataset(dataset_name: str | None) -> str | None:
         team_id if dataset is team-scoped, None otherwise
     """
     if dataset_name and dataset_name.startswith(TEAM_DATASET_PREFIX):
-        return dataset_name[len(TEAM_DATASET_PREFIX):]
+        return dataset_name[len(TEAM_DATASET_PREFIX) :]
     return None
-

@@ -9,13 +9,8 @@
 
 import type { GenericDocument } from 'convex/server';
 import type { GenericId } from 'convex/values';
+
 import type { QueryCtx } from '../../_generated/server';
-import {
-  selectOptimalIndex,
-  createInMemoryFilter,
-  createSearchFilter,
-  combineFilters,
-} from './select_index';
 import type {
   IndexConfig,
   QueryFilters,
@@ -26,6 +21,13 @@ import type {
   OffsetPaginatedResult,
   CursorPaginatedResult,
 } from './types';
+
+import {
+  selectOptimalIndex,
+  createInMemoryFilter,
+  createSearchFilter,
+  combineFilters,
+} from './select_index';
 
 /**
  * A document with Convex system fields (_id and _creationTime).
@@ -146,7 +148,9 @@ export async function buildOffsetPaginatedQuery<T extends GenericDocument>(
   }
 
   const combinedFilter =
-    filterFunctions.length > 0 ? combineFilters(...filterFunctions) : () => true;
+    filterFunctions.length > 0
+      ? combineFilters(...filterFunctions)
+      : () => true;
 
   // Collect all matching items (needed for total count)
   // Note: Convex query results always include system fields (_id, _creationTime)
@@ -282,7 +286,9 @@ export async function buildCursorPaginatedQuery<T extends GenericDocument>(
   }
 
   const combinedFilter =
-    filterFunctions.length > 0 ? combineFilters(...filterFunctions) : () => true;
+    filterFunctions.length > 0
+      ? combineFilters(...filterFunctions)
+      : () => true;
 
   // Cursor-based pagination with early termination
   const { numItems, cursor } = pagination;

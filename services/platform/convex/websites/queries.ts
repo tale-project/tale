@@ -1,9 +1,11 @@
 import { v } from 'convex/values';
-import { query } from '../_generated/server';
+
 import type { Doc } from '../_generated/dataModel';
-import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
-import { cursorPaginationOptsValidator } from '../lib/pagination';
+
+import { query } from '../_generated/server';
 import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
+import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 
 export const hasWebsites = query({
   args: {
@@ -35,7 +37,11 @@ export const listWebsites = query({
     paginationOpts: cursorPaginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const emptyResult = { page: [] as Doc<'websites'>[], isDone: true as const, continueCursor: '' };
+    const emptyResult = {
+      page: [] as Doc<'websites'>[],
+      isDone: true as const,
+      continueCursor: '',
+    };
 
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {

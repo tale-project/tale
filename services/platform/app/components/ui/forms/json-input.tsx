@@ -1,26 +1,28 @@
 'use client';
 
+import { Code2, Save, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { z } from 'zod';
+
+import { useTheme } from '@/app/components/theme/theme-provider';
 import { Label } from '@/app/components/ui/forms/label';
 import { Button } from '@/app/components/ui/primitives/button';
-import { cn } from '@/lib/utils/cn';
-import { useTheme } from '@/app/components/theme/theme-provider';
-import { Code2, Save, X } from 'lucide-react';
-import { Textarea } from './textarea';
-import { z } from 'zod';
 import { toast } from '@/app/hooks/use-toast';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+import { lazyComponent } from '@/lib/utils/lazy-component';
+
+import { Textarea } from './textarea';
 
 const ReactJsonView = lazyComponent(
   () => import('@microlink/react-json-view'),
   {
     loading: () => (
-      <div className="bg-muted p-4 rounded-md">
+      <div className="bg-muted rounded-md p-4">
         <div className="animate-pulse">
-          <div className="h-4 bg-gray-300 rounded w-1/4 mb-2"></div>
-          <div className="h-4 bg-gray-300 rounded w-1/2 mb-2"></div>
-          <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+          <div className="mb-2 h-4 w-1/4 rounded bg-gray-300"></div>
+          <div className="mb-2 h-4 w-1/2 rounded bg-gray-300"></div>
+          <div className="h-4 w-3/4 rounded bg-gray-300"></div>
         </div>
       </div>
     ),
@@ -254,9 +256,9 @@ export function JsonInput({
                   size="sm"
                   onClick={handleSave}
                   disabled={!isValid || !isDirty}
-                  className="h-6 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  className="h-6 px-2 text-green-600 hover:bg-green-50 hover:text-green-700"
                 >
-                  <Save className="size-3 mr-1" />
+                  <Save className="mr-1 size-3" />
                   {t('actions.save')}
                 </Button>
                 <Button
@@ -264,9 +266,9 @@ export function JsonInput({
                   variant="ghost"
                   size="sm"
                   onClick={handleCancel}
-                  className="h-6 px-2 text-foreground hover:text-foreground/80 hover:bg-muted"
+                  className="text-foreground hover:text-foreground/80 hover:bg-muted h-6 px-2"
                 >
-                  <X className="size-3 mr-1" />
+                  <X className="mr-1 size-3" />
                   {t('actions.cancel')}
                 </Button>
               </>
@@ -278,7 +280,7 @@ export function JsonInput({
                 onClick={handleSourceClick}
                 className="h-6 px-2"
               >
-                <Code2 className="size-3 mr-1" />
+                <Code2 className="mr-1 size-3" />
                 {t('actions.source')}
               </Button>
             )}
@@ -362,23 +364,23 @@ export function JsonInput({
         )}
       </div>
 
-      {!isValid && error && <p className="text-xs text-destructive">{error}</p>}
+      {!isValid && error && <p className="text-destructive text-xs">{error}</p>}
 
       {isEditing && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="text-muted-foreground flex items-center justify-between text-xs">
           <div>
             Press{' '}
-            <kbd className="px-1 py-0.5 text-xs bg-muted rounded">
+            <kbd className="bg-muted rounded px-1 py-0.5 text-xs">
               {t('keyboardShortcuts.ctrlEnter')}
             </kbd>{' '}
             to save,{' '}
-            <kbd className="px-1 py-0.5 text-xs bg-muted rounded">
+            <kbd className="bg-muted rounded px-1 py-0.5 text-xs">
               {t('keyboardShortcuts.escape')}
             </kbd>{' '}
             to cancel
           </div>
           {isDirty && (
-            <span className="text-amber-600 font-medium">
+            <span className="font-medium text-amber-600">
               {t('unsavedChanges')}
             </span>
           )}
@@ -386,7 +388,7 @@ export function JsonInput({
       )}
 
       {description && (
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className="text-muted-foreground text-xs">{description}</p>
       )}
     </div>
   );

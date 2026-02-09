@@ -1,7 +1,8 @@
 'use client';
 
-import { Button } from '@/app/components/ui/primitives/button';
-import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
+import { useQuery } from 'convex/react';
+import { motion } from 'framer-motion';
 import {
   Bot,
   Send,
@@ -12,29 +13,30 @@ import {
   X,
   LoaderCircle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
-import { stripWorkflowContext } from '@/lib/utils/message-helpers';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Id } from '@/convex/_generated/dataModel';
-import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { useChatWithWorkflowAssistant } from '../hooks/use-chat-with-workflow-assistant';
-import { useUpdateAutomationMetadata } from '../hooks/use-update-automation-metadata';
-import { useCreateThread } from '@/app/features/chat/hooks/use-create-thread';
-import { useDeleteThread } from '@/app/features/chat/hooks/use-delete-thread';
-import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
+import { Image } from '@/app/components/ui/data-display/image';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { Textarea } from '@/app/components/ui/forms/textarea';
+import { Button } from '@/app/components/ui/primitives/button';
+import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
+import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
+import { useCreateThread } from '@/app/features/chat/hooks/use-create-thread';
+import { useDeleteThread } from '@/app/features/chat/hooks/use-delete-thread';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
-import { Image } from '@/app/components/ui/data-display/image';
-import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
+import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+import { stripWorkflowContext } from '@/lib/utils/message-helpers';
 import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
+
+import { useChatWithWorkflowAssistant } from '../hooks/use-chat-with-workflow-assistant';
+import { useUpdateAutomationMetadata } from '../hooks/use-update-automation-metadata';
 
 // Module-level guard to prevent duplicate sends (survives component remounts)
 const recentSends = new Map<string, number>();
@@ -88,23 +90,23 @@ function AutomationDetailsCollapse({
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="border border-muted rounded-lg overflow-hidden mb-2">
+    <div className="border-muted mb-2 overflow-hidden rounded-lg border">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 py-2 bg-muted/50 hover:bg-muted transition-colors text-left"
+        className="bg-muted/50 hover:bg-muted flex w-full items-center justify-between px-3 py-2 text-left transition-colors"
       >
-        <span className="text-xs font-medium text-muted-foreground">
+        <span className="text-muted-foreground text-xs font-medium">
           {title}
         </span>
         {isOpen ? (
-          <ChevronDown className="size-3.5 text-muted-foreground" />
+          <ChevronDown className="text-muted-foreground size-3.5" />
         ) : (
-          <ChevronRight className="size-3.5 text-muted-foreground" />
+          <ChevronRight className="text-muted-foreground size-3.5" />
         )}
       </button>
       {isOpen && (
-        <div className="px-3 py-2 bg-background">
-          <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">
+        <div className="bg-background px-3 py-2">
+          <pre className="text-muted-foreground font-mono text-xs whitespace-pre-wrap">
             {context}
           </pre>
         </div>
@@ -141,7 +143,7 @@ function ThinkingAnimation({ steps }: { steps: string[] }) {
           duration: 0.3,
           ease: [0.25, 0.1, 0.25, 1],
         }}
-        className="text-xs text-muted-foreground flex items-center gap-2 px-3"
+        className="text-muted-foreground flex items-center gap-2 px-3 text-xs"
       >
         <motion.span
           key={currentStep}
@@ -157,13 +159,13 @@ function ThinkingAnimation({ steps }: { steps: string[] }) {
           {steps[currentStep]}
         </motion.span>
         <div className="flex space-x-1">
-          <div className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce" />
+          <div className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full" />
           <div
-            className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce"
+            className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full"
             style={{ animationDelay: '0.1s' }}
           />
           <div
-            className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce"
+            className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full"
             style={{ animationDelay: '0.2s' }}
           />
         </div>
@@ -210,14 +212,14 @@ function CollapsibleMessage({
   return (
     <div className="flex flex-col gap-1">
       {isMarkdown ? (
-        <div className="text-xs prose prose-sm dark:prose-invert max-w-none prose-p:my-0.5 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-pre:text-[10px] prose-headings:my-1 prose-headings:text-xs [&_li]:mb-0.5 [&_ul]:my-1 [&_ul]:pl-3 [&_ul]:list-disc [&_ol]:mb-0.5 [&_ol]:mt-0.5 [&_ol]:pl-3 [&_ol]:list-decimal [&_code]:bg-muted-foreground/10 [&_code]:text-[10px] [&_code]:text-muted-foreground [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:font-mono [&_code]:break-words [&_code]:whitespace-normal [&_code]:inline-block [&_code]:max-w-full [&_pre_code]:overflow-auto [&_pre_code]:block [&_pre_code]:whitespace-pre [&_pre_code]:break-normal [&_p]:mb-0.5 [&_p]:mt-0.5 [&_p]:break-words [&_p]:leading-relaxed [&_h3]:mt-1 [&_h3]:text-xs">
-          <Bot className="size-3.5 text-muted-foreground mb-1.5" />
+        <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-pre:text-[10px] prose-headings:my-1 prose-headings:text-xs [&_code]:bg-muted-foreground/10 [&_code]:text-muted-foreground max-w-none text-xs [&_code]:inline-block [&_code]:max-w-full [&_code]:rounded-md [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[10px] [&_code]:break-words [&_code]:whitespace-normal [&_h3]:mt-1 [&_h3]:text-xs [&_li]:mb-0.5 [&_ol]:mt-0.5 [&_ol]:mb-0.5 [&_ol]:list-decimal [&_ol]:pl-3 [&_p]:mt-0.5 [&_p]:mb-0.5 [&_p]:leading-relaxed [&_p]:break-words [&_pre_code]:block [&_pre_code]:overflow-auto [&_pre_code]:break-normal [&_pre_code]:whitespace-pre [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-3">
+          <Bot className="text-muted-foreground mb-1.5 size-3.5" />
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {displayContent}
           </ReactMarkdown>
         </div>
       ) : (
-        <p className="text-xs whitespace-pre-wrap leading-relaxed">
+        <p className="text-xs leading-relaxed whitespace-pre-wrap">
           {displayContent}
         </p>
       )}
@@ -391,7 +393,7 @@ function AutomationAssistantContent({
         }
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when messagesKey changes; pendingUserMessage is read but not a trigger to avoid update loops
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Only re-run when messagesKey changes; adding pendingUserMessage would cause infinite update loops
   }, [messagesKey]);
 
   // Combine confirmed messages with pending optimistic message for display
@@ -639,26 +641,26 @@ function AutomationAssistantContent({
   return (
     <div
       ref={containerRef}
-      className="flex-1 flex flex-col overflow-y-auto relative"
+      className="relative flex flex-1 flex-col overflow-y-auto"
     >
       {/* Chat messages */}
-      <div className="flex-1 flex flex-col p-2 space-y-2.5">
+      <div className="flex flex-1 flex-col space-y-2.5 p-2">
         {displayMessages.length === 0 ? (
-          <div className="flex flex-col items-start justify-start h-full py-4">
-            <div className="flex gap-2 items-start">
-              <div className="p-1.5 rounded-lg bg-muted shrink-0 h-fit">
-                <Bot className="size-3.5 text-muted-foreground" />
+          <div className="flex h-full flex-col items-start justify-start py-4">
+            <div className="flex items-start gap-2">
+              <div className="bg-muted h-fit shrink-0 rounded-lg p-1.5">
+                <Bot className="text-muted-foreground size-3.5" />
               </div>
-              <div className="rounded-lg px-3 py-2 bg-muted text-foreground max-w-[85%]">
+              <div className="bg-muted text-foreground max-w-[85%] rounded-lg px-3 py-2">
                 {workflow === undefined ? (
                   <div className="flex items-center gap-2">
-                    <LoaderCircle className="size-3 animate-spin text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground">
+                    <LoaderCircle className="text-muted-foreground size-3 animate-spin" />
+                    <p className="text-muted-foreground text-xs">
                       {t('assistant.loading')}
                     </p>
                   </div>
                 ) : workflow === null ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-muted-foreground text-xs">
                     {t('assistant.notFound')}
                   </p>
                 ) : (
@@ -681,7 +683,7 @@ function AutomationAssistantContent({
                   message.role === 'user' ? 'justify-end' : 'justify-start',
                 )}
               >
-                <div className="flex flex-col gap-2 max-w-[92.5%]">
+                <div className="flex max-w-[92.5%] flex-col gap-2">
                   {message.automationContext && (
                     <AutomationDetailsCollapse
                       context={message.automationContext}
@@ -704,7 +706,7 @@ function AutomationAssistantContent({
                                   part.filename || t('assistant.fallbackImage'),
                               })
                             }
-                            className="size-11 rounded-lg bg-muted bg-center bg-cover bg-no-repeat overflow-hidden cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            className="bg-muted focus:ring-ring size-11 cursor-pointer overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
                           >
                             <Image
                               src={part.url}
@@ -722,11 +724,11 @@ function AutomationAssistantContent({
                             href={part.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="bg-muted rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-muted/80 transition-colors max-w-[13.5rem]"
+                            className="bg-muted hover:bg-muted/80 flex max-w-[13.5rem] items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
                           >
                             <DocumentIcon fileName={part.filename || 'file'} />
-                            <div className="flex flex-col min-w-0 flex-1">
-                              <div className="text-sm font-medium text-foreground truncate">
+                            <div className="flex min-w-0 flex-1 flex-col">
+                              <div className="text-foreground truncate text-sm font-medium">
                                 {part.filename || t('assistant.fallbackFile')}
                               </div>
                             </div>
@@ -783,12 +785,12 @@ function AutomationAssistantContent({
 
       {/* Chat input */}
       <FileUpload.DropZone
-        className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0 z-50"
+        className="border-muted sticky bottom-0 z-50 mx-2 rounded-t-3xl border-[0.5rem] border-b-0"
         onFilesSelected={uploadFiles}
         clickable={false}
       >
         <FileUpload.Overlay className="rounded-t-2xl" />
-        <div className="bg-background rounded-t-[0.875rem] relative p-1 border border-muted-foreground/50 border-b-0">
+        <div className="bg-background border-muted-foreground/50 relative rounded-t-[0.875rem] border border-b-0 p-1">
           {/* Attachment previews */}
           {(attachments.length > 0 || uploadingFiles.length > 0) && (
             <div className="flex flex-wrap gap-2 p-1">
@@ -796,10 +798,10 @@ function AutomationAssistantContent({
               {uploadingFiles.map((fileId) => (
                 <div
                   key={fileId}
-                  className="flex items-center gap-1 bg-muted rounded-lg px-2 py-1"
+                  className="bg-muted flex items-center gap-1 rounded-lg px-2 py-1"
                 >
                   <LoaderCircle className="size-3 animate-spin" />
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     {t('assistant.upload.uploading')}
                   </span>
                 </div>
@@ -809,16 +811,16 @@ function AutomationAssistantContent({
               {attachments
                 .filter((att) => att.fileType.startsWith('image/'))
                 .map((attachment) => (
-                  <div key={attachment.fileId} className="relative group">
+                  <div key={attachment.fileId} className="group relative">
                     <img
                       src={attachment.previewUrl}
                       alt={attachment.fileName}
-                      className="size-8 object-cover rounded-lg border border-border"
+                      className="border-border size-8 rounded-lg border object-cover"
                     />
                     <button
                       type="button"
                       onClick={() => removeAttachment(attachment.fileId)}
-                      className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="bg-destructive text-destructive-foreground absolute -top-1 -right-1 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
                     >
                       <X className="size-3" />
                     </button>
@@ -831,11 +833,11 @@ function AutomationAssistantContent({
                 .map((attachment) => (
                   <div
                     key={attachment.fileId}
-                    className="relative group bg-secondary/20 rounded-lg px-2 py-1 flex items-center gap-2 max-w-[150px]"
+                    className="group bg-secondary/20 relative flex max-w-[150px] items-center gap-2 rounded-lg px-2 py-1"
                   >
                     <DocumentIcon fileName={attachment.fileName} />
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <div className="text-xs font-medium text-foreground truncate">
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="text-foreground truncate text-xs font-medium">
                         {attachment.fileName}
                       </div>
                     </div>
@@ -851,14 +853,14 @@ function AutomationAssistantContent({
             </div>
           )}
 
-          <div className="transition-all duration-300 ease-in-out overflow-y-auto h-[5rem]">
+          <div className="h-[5rem] overflow-y-auto transition-all duration-300 ease-in-out">
             <Textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder={t('assistant.messagePlaceholder')}
-              className="resize-none border-0 outline-none bg-transparent p-2 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
+              className="resize-none border-0 bg-transparent p-2 text-sm outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={isLoading}
             />
           </div>
@@ -868,7 +870,7 @@ function AutomationAssistantContent({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               title={t('assistant.attachFiles')}
             >
               <Paperclip className="size-4" />

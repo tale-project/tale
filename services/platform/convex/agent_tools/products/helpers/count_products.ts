@@ -1,7 +1,9 @@
 import type { ToolCtx } from '@convex-dev/agent';
-import { internal } from '../../../_generated/api';
+
 import type { ProductStatus } from '../../../products/types';
 import type { ProductReadCountResult } from './types';
+
+import { internal } from '../../../_generated/api';
 
 const MAX_PAGINATION_ATTEMPTS = 3;
 const COUNT_PAGE_SIZE = 500;
@@ -31,15 +33,18 @@ export async function countProducts(
     attempts++;
 
     // @ts-ignore TS2589: Convex API type instantiation is excessively deep (known Convex limitation with deeply nested internal query types)
-    const result = (await ctx.runQuery(internal.products.internal_queries.queryProducts, {
-      organizationId,
-      status: args.status,
-      minStock: args.minStock,
-      paginationOpts: {
-        numItems: COUNT_PAGE_SIZE,
-        cursor,
+    const result = (await ctx.runQuery(
+      internal.products.internal_queries.queryProducts,
+      {
+        organizationId,
+        status: args.status,
+        minStock: args.minStock,
+        paginationOpts: {
+          numItems: COUNT_PAGE_SIZE,
+          cursor,
+        },
       },
-    })) as {
+    )) as {
       page: Array<Record<string, unknown>>;
       isDone: boolean;
       continueCursor: string;

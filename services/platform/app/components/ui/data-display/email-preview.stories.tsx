@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { EmailPreview } from './email-preview';
 
 const meta: Meta<typeof EmailPreview> = {
@@ -46,7 +47,7 @@ export const SimpleText: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="max-w-xl border rounded-lg overflow-hidden">
+      <div className="max-w-xl overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -72,7 +73,7 @@ export const RichFormatting: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="max-w-xl border rounded-lg overflow-hidden">
+      <div className="max-w-xl overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -112,7 +113,7 @@ export const WithTable: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="max-w-xl border rounded-lg overflow-hidden">
+      <div className="max-w-xl overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -142,7 +143,7 @@ export const WithQuotedContent: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="max-w-xl border rounded-lg overflow-hidden">
+      <div className="max-w-xl overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -168,7 +169,7 @@ export const WithImage: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="max-w-xl border rounded-lg overflow-hidden">
+      <div className="max-w-xl overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -202,7 +203,7 @@ The Team
   },
   decorators: [
     (Story) => (
-      <div className="max-w-xl border rounded-lg overflow-hidden">
+      <div className="max-w-xl overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -243,7 +244,7 @@ export const Newsletter: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="max-w-2xl border rounded-lg overflow-hidden">
+      <div className="max-w-2xl overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -265,7 +266,7 @@ export const CustomStyling: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="max-w-xl border rounded-lg overflow-hidden">
+      <div className="max-w-xl overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),

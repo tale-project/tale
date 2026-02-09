@@ -9,11 +9,12 @@
  */
 
 import { Agent } from '@convex-dev/agent';
-import type { ActionCtx } from '../_generated/server';
-import { components } from '../_generated/api';
-import { openai } from './openai_provider';
 
+import type { ActionCtx } from '../_generated/server';
+
+import { components } from '../_generated/api';
 import { createDebugLog } from './debug_log';
+import { openai } from './openai_provider';
 
 const debugLog = createDebugLog('DEBUG_CONTEXT_SUMMARY', '[ContextSummary]');
 

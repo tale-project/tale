@@ -1,5 +1,5 @@
-import type { QueryCtx } from '../../_generated/server';
 import type { Id, Doc } from '../../_generated/dataModel';
+import type { QueryCtx } from '../../_generated/server';
 
 export type GetWorkflowExecutionStatsArgs = {
   wfDefinitionId: Id<'wfDefinitions'>;

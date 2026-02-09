@@ -2,18 +2,18 @@
  * Initialize execution variables
  */
 
-import { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 import { Id } from '../../../_generated/dataModel';
+import { ActionCtx } from '../../../_generated/server';
+import { serializeVariables } from '../serialization/serialize_variables';
+import { decryptAndMergeSecrets } from './decrypt_and_merge_secrets';
+import { extractLoopVariables } from './extract_loop_variables';
+import { extractStepsWithOutputs } from './extract_steps_with_outputs';
 import {
   ExecutionData,
   WorkflowConfig,
   InitializeVariablesArgs,
 } from './types';
-import { decryptAndMergeSecrets } from './decrypt_and_merge_secrets';
-import { extractStepsWithOutputs } from './extract_steps_with_outputs';
-import { extractLoopVariables } from './extract_loop_variables';
-import { serializeVariables } from '../serialization/serialize_variables';
 
 export async function initializeExecutionVariables(
   ctx: ActionCtx,
@@ -43,8 +43,8 @@ export async function initializeExecutionVariables(
   } else {
     // Initialize execution variables for the first time
     fullVariables = {
-      ...((args.resumeVariables ?? args.initialInput) || {}),
-      ...(workflowConfig?.config?.variables ?? {}),
+      ...(args.resumeVariables ?? args.initialInput),
+      ...workflowConfig?.config?.variables,
       organizationId: args.organizationId,
       wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug
       rootWfDefinitionId, // Auto-inject root workflow definition ID
@@ -67,11 +67,14 @@ export async function initializeExecutionVariables(
       fullVariables,
     );
 
-    await ctx.runMutation(internal.wf_executions.internal_mutations.updateExecutionVariables, {
-      executionId: args.executionId as Id<'wfExecutions'>,
-      variablesSerialized: serialized,
-      variablesStorageId: storageId,
-    });
+    await ctx.runMutation(
+      internal.wf_executions.internal_mutations.updateExecutionVariables,
+      {
+        executionId: args.executionId as Id<'wfExecutions'>,
+        variablesSerialized: serialized,
+        variablesStorageId: storageId,
+      },
+    );
   }
 
   // Extract steps with outputs and loop variables

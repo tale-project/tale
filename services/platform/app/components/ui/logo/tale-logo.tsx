@@ -2,7 +2,7 @@ import { Image } from '@/app/components/ui/data-display/image';
 
 export const TaleLogo = () => {
   return (
-    <div className="size-8 flex items-center justify-center">
+    <div className="flex size-8 items-center justify-center">
       {/* Light theme logo - hidden in dark mode via CSS */}
       <Image
         priority
@@ -16,7 +16,7 @@ export const TaleLogo = () => {
       <Image
         priority
         src="/assets/logo-white.svg"
-        className="size-5 object-contain hidden dark:block"
+        className="hidden size-5 object-contain dark:block"
         alt="logo"
         width={20}
         height={20}

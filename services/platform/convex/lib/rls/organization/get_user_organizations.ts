@@ -4,11 +4,18 @@
 
 import type { QueryCtx } from '../../../_generated/server';
 import type { AuthenticatedUser, OrganizationMember } from '../types';
-import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
-import { getTrustedAuthData } from '../auth/get_trusted_auth_data';
-import { components } from '../../../_generated/api';
 
-const VALID_ROLES = ['disabled', 'member', 'editor', 'developer', 'admin'] as const;
+import { components } from '../../../_generated/api';
+import { getTrustedAuthData } from '../auth/get_trusted_auth_data';
+import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
+
+const VALID_ROLES = [
+  'disabled',
+  'member',
+  'editor',
+  'developer',
+  'admin',
+] as const;
 type ValidRole = (typeof VALID_ROLES)[number];
 
 function isValidRole(role: string): role is ValidRole {
@@ -58,9 +65,11 @@ export async function getUserOrganizations(
 
   return result.page.map((member: any) => {
     // Get role from trusted headers if available, otherwise from database
-    const rawRole = trustedData?.trustedRole || (member.role || 'member');
+    const rawRole = trustedData?.trustedRole || member.role || 'member';
     const normalizedRole = rawRole.toLowerCase();
-    const role: ValidRole = isValidRole(normalizedRole) ? normalizedRole : 'member';
+    const role: ValidRole = isValidRole(normalizedRole)
+      ? normalizedRole
+      : 'member';
 
     return {
       organizationId: member.organizationId,

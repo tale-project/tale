@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+
 import type { Team } from '../hooks/use-list-teams';
 
 interface TeamDeleteDialogProps {

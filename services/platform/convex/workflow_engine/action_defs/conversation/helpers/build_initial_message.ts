@@ -1,4 +1,5 @@
 import type { EmailType } from './types';
+
 import { buildEmailMetadata } from './build_email_metadata';
 
 /**

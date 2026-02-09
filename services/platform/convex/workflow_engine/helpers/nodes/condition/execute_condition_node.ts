@@ -2,8 +2,8 @@
  * Condition Node Executor - Helper Function
  */
 
-import { ConditionNodeConfig, StepExecutionResult } from '../../../types';
 import { evaluateExpression } from '../../../../lib/variables/evaluate_expression';
+import { ConditionNodeConfig, StepExecutionResult } from '../../../types';
 
 /**
  * Execute condition step logic (helper function)

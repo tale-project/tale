@@ -32,7 +32,7 @@ export async function createProduct(
     tags: args.tags,
     status: args.status,
     externalId: args.externalId,
-     
+
     metadata: args.metadata as any,
   });
 

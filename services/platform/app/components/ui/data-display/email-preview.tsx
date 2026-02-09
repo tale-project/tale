@@ -1,7 +1,8 @@
 'use client';
 
-import { CSSProperties, useMemo, useState } from 'react';
 import DOMPurify from 'dompurify';
+import { CSSProperties, useMemo, useState } from 'react';
+
 import { cn } from '@/lib/utils/cn';
 
 export interface EmailPreviewProps {
@@ -370,7 +371,7 @@ export function EmailPreview({ html, className, style }: EmailPreviewProps) {
         <>
           <button
             onClick={() => setShowQuoted(!showQuoted)}
-            className="text-xs text-muted-foreground hover:text-foreground mt-2 flex items-center gap-1 transition-colors"
+            className="text-muted-foreground hover:text-foreground mt-2 flex items-center gap-1 text-xs transition-colors"
             type="button"
           >
             <span>{showQuoted ? '▼' : '▶'}</span>
@@ -380,7 +381,7 @@ export function EmailPreview({ html, className, style }: EmailPreviewProps) {
           {showQuoted && (
             <div
               data-preview-sandbox
-              className="mt-2 pt-2 border-t border-border opacity-70"
+              className="border-border mt-2 border-t pt-2 opacity-70"
               dangerouslySetInnerHTML={{ __html: sanitizedQuoted }}
             />
           )}

@@ -1,8 +1,5 @@
 import type { MutationCtx } from '../../_generated/server';
-import type {
-  UpdateExecutionStatusArgs,
-  WorkflowExecution,
-} from './types';
+import type { UpdateExecutionStatusArgs, WorkflowExecution } from './types';
 
 type ExecutionUpdateData = Partial<
   Pick<

@@ -8,7 +8,10 @@
  */
 
 export { startAgentChat } from './start_agent_chat';
-export type { StartAgentChatArgs, StartAgentChatResult } from './start_agent_chat';
+export type {
+  StartAgentChatArgs,
+  StartAgentChatResult,
+} from './start_agent_chat';
 export type {
   SerializableAgentConfig,
   AgentHooksConfig,

@@ -1,12 +1,16 @@
 import { v } from 'convex/values';
+
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { mutationWithRLS } from '../lib/rls';
+import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
+import { stepConfigValidator } from '../workflow_engine/types/nodes';
 import { createStep as createStepHelper } from '../workflows/steps/create_step';
 import { updateStep as updateStepHelper } from '../workflows/steps/update_step';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-import { stepConfigValidator } from '../workflow_engine/types/nodes';
-import { editModeValidator, stepTypeValidator } from '../workflows/steps/validators';
+import {
+  editModeValidator,
+  stepTypeValidator,
+} from '../workflows/steps/validators';
 import { auditStepChange } from './audit';
-import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 
 export const updateStep = mutationWithRLS({
   args: {

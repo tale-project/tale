@@ -1,28 +1,31 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import type { DateRange } from 'react-day-picker';
+
 import { X } from 'lucide-react';
-import { lazyComponent } from '@/lib/utils/lazy-component';
-import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { Button } from '@/app/components/ui/primitives/button';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/app/components/ui/overlays/popover';
+import { useState, type ReactNode } from 'react';
+
+import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
+
+import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { FilterButton } from '@/app/components/ui/filters/filter-button';
+import { FilterSection } from '@/app/components/ui/filters/filter-section';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import {
   RadioGroup,
   RadioGroupItem,
 } from '@/app/components/ui/forms/radio-group';
-import { FilterButton } from '@/app/components/ui/filters/filter-button';
-import { FilterSection } from '@/app/components/ui/filters/filter-section';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import type { DateRange } from 'react-day-picker';
-import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
-import { cn } from '@/lib/utils/cn';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/app/components/ui/overlays/popover';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
-import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
+import { cn } from '@/lib/utils/cn';
+import { lazyComponent } from '@/lib/utils/lazy-component';
 
 const DatePickerWithRange = lazyComponent(
   () =>
@@ -155,8 +158,8 @@ export function DataTableFilters({
         className,
       )}
     >
-      <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 w-full sm:w-auto">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+      <div className="flex w-full flex-col items-start gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex w-full items-center gap-3 sm:w-auto">
           {search && (
             <SearchInput
               placeholder={search.placeholder ?? t('search.placeholder')}
@@ -189,14 +192,14 @@ export function DataTableFilters({
                 onOpenAutoFocus={(e) => e.preventDefault()}
               >
                 <div className="flex items-center justify-between p-2">
-                  <h4 className="text-sm font-semibold text-foreground">
+                  <h4 className="text-foreground text-sm font-semibold">
                     {t('labels.filters')}
                   </h4>
                   {totalActiveFilters > 0 && (
                     <button
                       type="button"
                       onClick={handleClearAll}
-                      className="text-xs text-primary hover:text-primary/80 font-medium"
+                      className="text-primary hover:text-primary/80 text-xs font-medium"
                     >
                       {t('actions.clearAll')}
                     </button>
@@ -221,9 +224,7 @@ export function DataTableFilters({
                       {isMultiSelect ? (
                         <div
                           className={
-                            filter.grid
-                              ? 'grid grid-cols-2 gap-2'
-                              : 'space-y-2'
+                            filter.grid ? 'grid grid-cols-2 gap-2' : 'space-y-2'
                           }
                         >
                           {filter.options.map((option) => {
@@ -232,7 +233,7 @@ export function DataTableFilters({
                               <label
                                 key={option.value}
                                 htmlFor={checkboxId}
-                                className="flex items-center gap-2 cursor-pointer"
+                                className="flex cursor-pointer items-center gap-2"
                               >
                                 <Checkbox
                                   id={checkboxId}
@@ -247,7 +248,7 @@ export function DataTableFilters({
                                     )
                                   }
                                 />
-                                <span className="text-sm text-muted-foreground">
+                                <span className="text-muted-foreground text-sm">
                                   {option.label}
                                 </span>
                               </label>
@@ -283,7 +284,7 @@ export function DataTableFilters({
           <SuspenseBoundary
             fallback={<Skeleton className="h-9 w-[24rem]" />}
             errorFallback={
-              <span className="text-sm text-muted-foreground">
+              <span className="text-muted-foreground text-sm">
                 Date filter unavailable
               </span>
             }
@@ -303,7 +304,7 @@ export function DataTableFilters({
         <Button
           variant="ghost"
           onClick={handleClearAll}
-          className="hidden sm:flex gap-2"
+          className="hidden gap-2 sm:flex"
         >
           <X className="size-4" />
           {t('actions.clearAll')}

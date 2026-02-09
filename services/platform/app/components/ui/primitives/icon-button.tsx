@@ -1,10 +1,12 @@
 'use client';
 
-import { forwardRef, ComponentPropsWithoutRef } from 'react';
-import { LucideIcon } from 'lucide-react';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { Button, ButtonProps } from './button';
+import { LucideIcon } from 'lucide-react';
+import { forwardRef, ComponentPropsWithoutRef } from 'react';
+
 import { cn } from '@/lib/utils/cn';
+
+import { Button, ButtonProps } from './button';
 
 const iconSizeVariants = cva('', {
   variants: {
@@ -21,7 +23,8 @@ const iconSizeVariants = cva('', {
 });
 
 interface IconButtonProps
-  extends Omit<ButtonProps, 'size' | 'children'>,
+  extends
+    Omit<ButtonProps, 'size' | 'children'>,
     VariantProps<typeof iconSizeVariants> {
   /** The Lucide icon component to render */
   icon: LucideIcon;
@@ -45,7 +48,7 @@ export const IconButton = forwardRef<
       'aria-label': ariaLabel,
       ...props
     },
-    ref
+    ref,
   ) => (
     <Button
       ref={ref}
@@ -59,12 +62,11 @@ export const IconButton = forwardRef<
         className={cn(
           iconSizeVariants({ iconSize }),
           variant === 'ghost' && 'text-muted-foreground',
-          iconClassName
+          iconClassName,
         )}
         aria-hidden="true"
       />
     </Button>
-  )
+  ),
 );
 IconButton.displayName = 'IconButton';
-

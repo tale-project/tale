@@ -1,8 +1,9 @@
 import { v } from 'convex/values';
+
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
-import { listThreads as listThreadsHelper } from './list_threads';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
+import { listThreads as listThreadsHelper } from './list_threads';
 import { threadStatusValidator } from './validators';
 
 export const listThreads = query({

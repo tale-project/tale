@@ -11,9 +11,10 @@
  * // For identifier representing "metadata.status"
  * getFullFieldPath(identifier) // Returns "metadata.status"
  */
-export function getFullFieldPath(
-  identifier: { value: string; from?: { value: string; from?: any } },
-): string {
+export function getFullFieldPath(identifier: {
+  value: string;
+  from?: { value: string; from?: any };
+}): string {
   const parts: string[] = [];
   let current: { value: string; from?: any } | undefined = identifier;
 

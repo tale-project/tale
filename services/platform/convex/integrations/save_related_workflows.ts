@@ -2,14 +2,14 @@
  * Save related workflows when creating an integration
  */
 
-import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
-import { internal } from '../_generated/api';
+import type { ActionCtx } from '../_generated/server';
 import type { ConnectionConfig } from './types';
-import { getWorkflowsForIntegration } from './get_workflows_for_integration';
-import { toPredefinedWorkflowPayload } from '../workflows/definitions/types';
 
+import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
+import { toPredefinedWorkflowPayload } from '../workflows/definitions/types';
+import { getWorkflowsForIntegration } from './get_workflows_for_integration';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -48,8 +48,8 @@ export async function saveRelatedWorkflows(
         config: {
           ...baseConfig,
           variables: {
-            ...((baseConfig as { variables?: Record<string, unknown> })
-              .variables ?? {}),
+            ...(baseConfig as { variables?: Record<string, unknown> })
+              .variables,
             organizationId: args.organizationId,
             // Add integration-specific variables
             ...(args.name === 'shopify' && args.connectionConfig?.domain
@@ -64,7 +64,7 @@ export async function saveRelatedWorkflows(
           ? {
               ...step,
               config: {
-                ...(step.config ?? {}),
+                ...step.config,
                 type: 'scheduled',
                 schedule: schedule.schedule,
                 timezone: schedule.timezone,
@@ -77,23 +77,31 @@ export async function saveRelatedWorkflows(
   // Create all workflows in parallel
   const results = await Promise.all(
     payloads.map((payload) =>
-      ctx.runMutation(internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps, {
-        organizationId: args.organizationId,
-        ...payload,
-      }),
+      ctx.runMutation(
+        internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps,
+        {
+          organizationId: args.organizationId,
+          ...payload,
+        },
+      ),
     ),
   );
 
-  const workflowIds = results.map((r: { workflowId: Id<'wfDefinitions'> }) => r.workflowId);
+  const workflowIds = results.map(
+    (r: { workflowId: Id<'wfDefinitions'> }) => r.workflowId,
+  );
 
   // Activate all workflows in parallel
   await Promise.all(
     workflowIds.map((workflowId: Id<'wfDefinitions'>) =>
-      ctx.runMutation(internal.wf_definitions.internal_mutations.updateWorkflowStatus, {
-        wfDefinitionId: workflowId,
-        status: 'active',
-        updatedBy: 'system',
-      }),
+      ctx.runMutation(
+        internal.wf_definitions.internal_mutations.updateWorkflowStatus,
+        {
+          wfDefinitionId: workflowId,
+          status: 'active',
+          updatedBy: 'system',
+        },
+      ),
     ),
   );
 

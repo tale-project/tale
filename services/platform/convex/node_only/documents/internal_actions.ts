@@ -5,10 +5,10 @@
  * Must run in Node.js runtime for buffer generation.
  */
 
-import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
 import * as XLSX from 'xlsx';
 
+import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
@@ -66,7 +66,10 @@ export const generateExcel = internalAction({
 
     // Generate buffer and convert to base64 so it can be safely returned to the
     // default-runtime action, which will handle storage upload.
-    const buffer: Buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const buffer: Buffer = XLSX.write(workbook, {
+      type: 'buffer',
+      bookType: 'xlsx',
+    });
     const fileBase64 = buffer.toString('base64');
 
     const finalFileName = `${args.fileName}.xlsx`;

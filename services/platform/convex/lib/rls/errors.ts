@@ -41,4 +41,3 @@ export class OrganizationMismatchError extends RLSError {
     super(message, 'ORGANIZATION_MISMATCH');
   }
 }
-

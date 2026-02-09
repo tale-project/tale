@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { Progress } from './progress';
 
 const meta: Meta<typeof Progress> = {
@@ -90,23 +91,23 @@ export const ProgressStates: Story = {
   render: () => (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <span className="text-sm w-12">0%</span>
+        <span className="w-12 text-sm">0%</span>
         <Progress value={0} className="flex-1" />
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-sm w-12">25%</span>
+        <span className="w-12 text-sm">25%</span>
         <Progress value={25} className="flex-1" />
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-sm w-12">50%</span>
+        <span className="w-12 text-sm">50%</span>
         <Progress value={50} className="flex-1" />
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-sm w-12">75%</span>
+        <span className="w-12 text-sm">75%</span>
         <Progress value={75} className="flex-1" />
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-sm w-12">100%</span>
+        <span className="w-12 text-sm">100%</span>
         <Progress value={100} className="flex-1" />
       </div>
     </div>

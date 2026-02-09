@@ -1,7 +1,7 @@
 'use client';
 
-import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 interface AccessDeniedProps {
   /**
@@ -19,11 +19,7 @@ interface AccessDeniedProps {
  * Access denied component for permission errors.
  * Shows a centered message when users lack required permissions.
  */
-export function AccessDenied({
-  title,
-  message,
-  className,
-}: AccessDeniedProps) {
+export function AccessDenied({ title, message, className }: AccessDeniedProps) {
   const { t } = useT('accessDenied');
   const displayTitle = title ?? t('title');
   return (
@@ -33,7 +29,9 @@ export function AccessDenied({
         className,
       )}
     >
-      <h1 className="text-2xl font-semibold text-foreground mb-2">{displayTitle}</h1>
+      <h1 className="text-foreground mb-2 text-2xl font-semibold">
+        {displayTitle}
+      </h1>
       <p className="text-muted-foreground">{message}</p>
     </div>
   );

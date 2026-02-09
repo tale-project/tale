@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslation } from 'react-i18next';
+
 import type { Namespace } from './types';
 
 export function useT<N extends Namespace>(namespace: N) {

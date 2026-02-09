@@ -8,6 +8,7 @@
     "services/crawler",
     "services/rag",
     "services/graph-db",
+    "services/operator",
     "services/db",
     "services/proxy",
     "tools/cli"
@@ -19,6 +20,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
     "test:coverage": "turbo run test:coverage",
@@ -31,17 +34,15 @@
     "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
-    "@convex-dev/eslint-plugin": "^1.1.1",
     "@types/node": "24.10.11",
     "@vitest/coverage-v8": "4.0.18",
-    "eslint": "9.39.2",
-    "eslint-plugin-unicorn": "^62.0.0",
     "knip": "^5.83.0",
+    "oxfmt": "^0.28.0",
+    "oxlint": "^1.43.0",
     "patch-package": "^8.0.1",
     "postcss": "8.5.6",
     "turbo": "2.8.3",
     "typescript": "5.9.3",
-    "typescript-eslint": "^8.54.0",
     "vitest": "4.0.18"
   },
   "optionalDependencies": {

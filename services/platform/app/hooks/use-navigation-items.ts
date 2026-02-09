@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import {
   MessageCircle,
   CircleCheck,
@@ -8,6 +7,8 @@ import {
   BrainIcon,
   Network,
 } from 'lucide-react';
+import { useMemo } from 'react';
+
 import { useT } from '@/lib/i18n/client';
 
 export interface NavItem {

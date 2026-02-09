@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@/test/utils/render';
+
 import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
+import { render, screen } from '@/test/utils/render';
+
 import { Switch } from './switch';
 
 describe('Switch', () => {
@@ -24,7 +26,7 @@ describe('Switch', () => {
       render(<Switch checked />);
       expect(screen.getByRole('switch')).toHaveAttribute(
         'data-state',
-        'checked'
+        'checked',
       );
     });
 
@@ -32,7 +34,7 @@ describe('Switch', () => {
       render(<Switch checked={false} />);
       expect(screen.getByRole('switch')).toHaveAttribute(
         'data-state',
-        'unchecked'
+        'unchecked',
       );
     });
   });
@@ -49,7 +51,7 @@ describe('Switch', () => {
     it('clicking label toggles switch', async () => {
       const handleChange = vi.fn();
       const { user } = render(
-        <Switch label="Enable" onCheckedChange={handleChange} />
+        <Switch label="Enable" onCheckedChange={handleChange} />,
       );
 
       await user.click(screen.getByText('Enable'));
@@ -59,7 +61,7 @@ describe('Switch', () => {
     it('does not call onCheckedChange when disabled', async () => {
       const handleChange = vi.fn();
       const { user } = render(
-        <Switch onCheckedChange={handleChange} disabled />
+        <Switch onCheckedChange={handleChange} disabled />,
       );
 
       await user.click(screen.getByRole('switch'));
@@ -98,7 +100,7 @@ describe('Switch', () => {
       render(<Switch checked />);
       expect(screen.getByRole('switch')).toHaveAttribute(
         'aria-checked',
-        'true'
+        'true',
       );
     });
 
@@ -106,7 +108,7 @@ describe('Switch', () => {
       render(<Switch checked={false} />);
       expect(screen.getByRole('switch')).toHaveAttribute(
         'aria-checked',
-        'false'
+        'false',
       );
     });
   });

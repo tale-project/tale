@@ -1,26 +1,28 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
-import { Description } from '@/app/components/ui/forms/description';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { toast } from '@/app/hooks/use-toast';
-import { Input } from '@/app/components/ui/forms/input';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Switch } from '@/app/components/ui/forms/switch';
-import { Label } from '@/app/components/ui/forms/label';
-import { Select } from '@/app/components/ui/forms/select';
-import { useT } from '@/lib/i18n/client';
 import { useAction } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { CheckCircle, XCircle, Loader2, Plus, Trash2 } from 'lucide-react';
-import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
+import { useState, useEffect, useRef, useMemo } from 'react';
+
 import type {
   PlatformRole,
   RoleMappingRule,
   SsoProvider,
 } from '@/lib/shared/schemas/sso_providers';
+
+import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
+import { Description } from '@/app/components/ui/forms/description';
+import { Input } from '@/app/components/ui/forms/input';
+import { Label } from '@/app/components/ui/forms/label';
+import { Select } from '@/app/components/ui/forms/select';
+import { Switch } from '@/app/components/ui/forms/switch';
+import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
 
 interface SSOConfigDialogProps {
   open?: boolean;
@@ -449,7 +451,7 @@ export function SSOConfigDialog({
       )}
 
       <Stack gap={4}>
-        <HStack gap={2} align="center" className="p-3 bg-muted rounded-md">
+        <HStack gap={2} align="center" className="bg-muted rounded-md p-3">
           <MicrosoftIcon />
           <span className="text-sm font-medium">Microsoft Entra ID</span>
         </HStack>
@@ -617,7 +619,7 @@ export function SSOConfigDialog({
               {t('integrations.sso.roleMappingRulesHelp')}
             </Description>
 
-            <Stack gap={0} className="divide-y divide-border">
+            <Stack gap={0} className="divide-border divide-y">
               {roleMappingRules.map((rule, index) => (
                 <HStack
                   key={index}

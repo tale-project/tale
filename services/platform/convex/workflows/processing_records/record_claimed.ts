@@ -5,10 +5,11 @@
  * executions working on the same underlying record concurrently.
  */
 
-import { MutationCtx } from '../../_generated/server';
-import { Id } from '../../_generated/dataModel';
-import { TableName } from './types';
 import type { ConvexJsonRecord } from '../../../lib/shared/schemas/utils/json-value';
+
+import { Id } from '../../_generated/dataModel';
+import { MutationCtx } from '../../_generated/server';
+import { TableName } from './types';
 
 export interface RecordClaimedArgs {
   organizationId: string;
@@ -68,4 +69,3 @@ export async function recordClaimed(
     metadata,
   });
 }
-

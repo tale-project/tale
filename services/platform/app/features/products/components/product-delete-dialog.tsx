@@ -27,7 +27,9 @@ export function ProductDeleteDialog({
       title={tProducts('delete.title')}
       description={
         <>
-          {tProducts('delete.confirmation', { name: productName || tProducts('delete.thisProduct') })}{' '}
+          {tProducts('delete.confirmation', {
+            name: productName || tProducts('delete.thisProduct'),
+          })}{' '}
           {tProducts('delete.warning')}
         </>
       }

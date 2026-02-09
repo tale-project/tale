@@ -14,6 +14,7 @@
  */
 
 import { ConvexHttpClient } from 'convex/browser';
+
 import { api } from '../convex/_generated/api';
 import { MetricsCollector } from './metrics';
 

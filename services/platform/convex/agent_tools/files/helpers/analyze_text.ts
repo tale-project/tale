@@ -6,8 +6,10 @@
  */
 
 import { Agent } from '@convex-dev/agent';
-import type { ActionCtx } from '../../../_generated/server';
+
 import type { Id } from '../../../_generated/dataModel';
+import type { ActionCtx } from '../../../_generated/server';
+
 import { components } from '../../../_generated/api';
 import { createAgentConfig } from '../../../lib/create_agent_config';
 import { createDebugLog } from '../../../lib/debug_log';
@@ -38,7 +40,10 @@ async function mapWithConcurrency<T, R>(
     }
   }
 
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => worker(),
+  );
   await Promise.all(workers);
   return results;
 }
@@ -70,7 +75,10 @@ export interface AnalyzeTextResult {
   error?: string;
 }
 
-function decodeWithEncoding(buffer: ArrayBuffer): { text: string; encoding: string } {
+function decodeWithEncoding(buffer: ArrayBuffer): {
+  text: string;
+  encoding: string;
+} {
   for (const encoding of SUPPORTED_ENCODINGS) {
     try {
       const decoder = new TextDecoder(encoding, { fatal: true });
@@ -226,7 +234,9 @@ IMPORTANT: Keep your final response under ${MAX_FINAL_RESPONSE_CHARS} characters
 
     return result.text || '';
   } catch (error) {
-    debugLog('aggregateChunkResults error', { error: (error as Error).message });
+    debugLog('aggregateChunkResults error', {
+      error: (error as Error).message,
+    });
     throw error;
   }
 }
@@ -246,7 +256,8 @@ export async function analyzeTextContent(
   debugLog('analyzeTextContent starting', {
     fileId,
     filename,
-    userInput: userInput.length > 50 ? userInput.substring(0, 50) + '...' : userInput,
+    userInput:
+      userInput.length > 50 ? userInput.substring(0, 50) + '...' : userInput,
   });
 
   try {
@@ -287,7 +298,8 @@ export async function analyzeTextContent(
         lineCount: 0,
         encoding,
         chunked: false,
-        error: 'The file appears to be binary, not a text file. Please upload a valid text file (.txt).',
+        error:
+          'The file appears to be binary, not a text file. Please upload a valid text file (.txt).',
       };
     }
 
@@ -316,7 +328,9 @@ export async function analyzeTextContent(
     const chunks = splitIntoChunks(text, LLM_CHUNK_SIZE);
 
     // Dynamic per-chunk output limit: divide total budget by chunk count
-    const perChunkMaxChars = Math.floor(MAX_TOTAL_CHUNK_OUTPUT_CHARS / chunks.length);
+    const perChunkMaxChars = Math.floor(
+      MAX_TOTAL_CHUNK_OUTPUT_CHARS / chunks.length,
+    );
 
     debugLog('analyzeTextContent chunking', {
       chunkCount: chunks.length,
@@ -357,9 +371,18 @@ export async function analyzeTextContent(
       totalElapsedMs: Date.now() - startTime,
     });
 
-    debugLog('analyzeTextContent aggregating results', { chunkCount: chunkResults.length });
-    const aggregatedResult = await aggregateChunkResults(ctx, agent, chunkResults, userInput);
-    debugLog('analyzeTextContent aggregation completed', { resultLength: aggregatedResult.length });
+    debugLog('analyzeTextContent aggregating results', {
+      chunkCount: chunkResults.length,
+    });
+    const aggregatedResult = await aggregateChunkResults(
+      ctx,
+      agent,
+      chunkResults,
+      userInput,
+    );
+    debugLog('analyzeTextContent aggregation completed', {
+      resultLength: aggregatedResult.length,
+    });
 
     return {
       success: true,

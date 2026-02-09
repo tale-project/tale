@@ -1,6 +1,6 @@
 import { ActionCtx } from '../_generated/server';
-import { signCookieValue } from './sign_cookie_value';
 import { createAuth } from '../auth';
+import { signCookieValue } from './sign_cookie_value';
 
 const SESSION_COOKIE_NAME = 'better-auth.session_token';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days in seconds
@@ -40,7 +40,9 @@ export async function ssoSetSessionHandler(
 
     // Determine if we should use secure cookies (HTTPS)
     const isHttps = frontendOrigin.startsWith('https://');
-    const cookieName = isHttps ? `__Secure-${SESSION_COOKIE_NAME}` : SESSION_COOKIE_NAME;
+    const cookieName = isHttps
+      ? `__Secure-${SESSION_COOKIE_NAME}`
+      : SESSION_COOKIE_NAME;
 
     // Build the session_token cookie
     const sessionCookieParts = [
@@ -57,12 +59,15 @@ export async function ssoSetSessionHandler(
 
     // Now get the JWT by calling Better Auth with the signed session cookie
     const auth = createAuth(ctx);
-    const tokenRequest = new Request(new URL('/api/auth/convex/token', url.origin).toString(), {
-      method: 'GET',
-      headers: {
-        Cookie: `${cookieName}=${signedToken}`,
+    const tokenRequest = new Request(
+      new URL('/api/auth/convex/token', url.origin).toString(),
+      {
+        method: 'GET',
+        headers: {
+          Cookie: `${cookieName}=${signedToken}`,
+        },
       },
-    });
+    );
 
     const tokenResponse = await auth.handler(tokenRequest);
 

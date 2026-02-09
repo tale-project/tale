@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { useState } from 'react';
-import { FormDialog } from './form-dialog';
+
 import { Input } from '../forms/input';
 import { Select } from '../forms/select';
 import { Textarea } from '../forms/textarea';
 import { Button } from '../primitives/button';
+import { FormDialog } from './form-dialog';
 
 const meta: Meta<typeof FormDialog> = {
   title: 'Dialog/FormDialog',
@@ -258,9 +260,7 @@ export const CustomFooter: Story = {
               <Button variant="outline" onClick={() => setOpen(false)}>
                 Save Draft
               </Button>
-              <Button type="submit">
-                Publish
-              </Button>
+              <Button type="submit">Publish</Button>
             </>
           }
           onSubmit={(e) => {

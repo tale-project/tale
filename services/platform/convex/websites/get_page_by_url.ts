@@ -2,8 +2,8 @@
  * Get a single website page by URL within an organization
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export interface GetPageByUrlArgs {
   organizationId: string;

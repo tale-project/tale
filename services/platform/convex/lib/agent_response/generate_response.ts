@@ -14,24 +14,26 @@
  * - Context window building and token estimation
  */
 
-import { components, internal } from '../../_generated/api';
-import { listMessages, type MessageDoc } from '@convex-dev/agent';
 import type { ModelMessage } from 'ai';
-import {
-  buildStructuredContext,
-  AGENT_CONTEXT_CONFIGS,
-  estimateTokens,
-} from '../context_management';
-import { onAgentComplete } from '../agent_completion';
-import { wrapInDetails } from '../context_management/message_formatter';
-import { createDebugLog } from '../debug_log';
-import { startRagPrefetch, type RagPrefetchCache } from '../rag_prefetch';
+
+import { listMessages, type MessageDoc } from '@convex-dev/agent';
+
 import type {
   GenerateResponseConfig,
   GenerateResponseArgs,
   GenerateResponseResult,
   BeforeContextResult,
 } from './types';
+
+import { components, internal } from '../../_generated/api';
+import { onAgentComplete } from '../agent_completion';
+import {
+  buildStructuredContext,
+  AGENT_CONTEXT_CONFIGS,
+} from '../context_management';
+import { wrapInDetails } from '../context_management/message_formatter';
+import { createDebugLog } from '../debug_log';
+import { startRagPrefetch, type RagPrefetchCache } from '../rag_prefetch';
 
 /**
  * Generate an agent response using the provided configuration.
@@ -73,7 +75,7 @@ export async function generateAgentResponse(
     agentOptions,
     streamId,
     promptMessageId,
-    maxSteps,
+    _maxSteps,
     userTeamIds,
   } = args;
 
@@ -97,7 +99,9 @@ export async function generateAgentResponse(
 
     // Start stream if streamId provided
     if (streamId) {
-      await ctx.runMutation(internal.streaming.internal_mutations.startStream, { streamId });
+      await ctx.runMutation(internal.streaming.internal_mutations.startStream, {
+        streamId,
+      });
     }
 
     // Start RAG prefetch immediately (non-blocking) if:
@@ -115,14 +119,21 @@ export async function generateAgentResponse(
         userId,
         userTeamIds: userTeamIds ?? [],
       });
-      debugLog('RAG prefetch started', { threadId, userId, elapsedMs: Date.now() - startTime });
+      debugLog('RAG prefetch started', {
+        threadId,
+        userId,
+        elapsedMs: Date.now() - startTime,
+      });
     }
 
     // Call beforeContext hook if provided
     let hookData: BeforeContextResult | undefined;
     if (hooks?.beforeContext) {
       hookData = await hooks.beforeContext(ctx, args);
-      debugLog('beforeContext hook completed', { threadId, elapsedMs: Date.now() - startTime });
+      debugLog('beforeContext hook completed', {
+        threadId,
+        elapsedMs: Date.now() - startTime,
+      });
     }
 
     // Build structured context (history, RAG, integrations)
@@ -158,7 +169,10 @@ export async function generateAgentResponse(
       if (beforeResult.promptContent) {
         hookPromptContent = beforeResult.promptContent;
       }
-      debugLog('beforeGenerate hook completed', { threadId, elapsedMs: Date.now() - startTime });
+      debugLog('beforeGenerate hook completed', {
+        threadId,
+        elapsedMs: Date.now() - startTime,
+      });
     }
 
     // Create agent instance
@@ -240,7 +254,10 @@ export async function generateAgentResponse(
         streamResult.response,
       ]);
 
-      debugLog('Stream completed', { threadId, elapsedMs: Date.now() - startTime });
+      debugLog('Stream completed', {
+        threadId,
+        elapsedMs: Date.now() - startTime,
+      });
 
       result = {
         text: streamText,
@@ -284,7 +301,10 @@ export async function generateAgentResponse(
         },
       );
 
-      debugLog('Generate completed', { threadId, elapsedMs: Date.now() - startTime });
+      debugLog('Generate completed', {
+        threadId,
+        elapsedMs: Date.now() - startTime,
+      });
 
       result = {
         text: generateResult.text,
@@ -527,11 +547,17 @@ export async function generateAgentResponse(
 
     // Complete stream if streamId provided
     if (streamId && responseResult.text) {
-      await ctx.runMutation(internal.streaming.internal_mutations.appendToStream, {
-        streamId,
-        text: responseResult.text,
-      });
-      await ctx.runMutation(internal.streaming.internal_mutations.completeStream, { streamId });
+      await ctx.runMutation(
+        internal.streaming.internal_mutations.appendToStream,
+        {
+          streamId,
+          text: responseResult.text,
+        },
+      );
+      await ctx.runMutation(
+        internal.streaming.internal_mutations.completeStream,
+        { streamId },
+      );
     }
 
     return responseResult;
@@ -550,7 +576,10 @@ export async function generateAgentResponse(
     // Mark stream as errored
     if (streamId) {
       try {
-        await ctx.runMutation(internal.streaming.internal_mutations.errorStream, { streamId });
+        await ctx.runMutation(
+          internal.streaming.internal_mutations.errorStream,
+          { streamId },
+        );
       } catch (streamError) {
         console.error(
           '[generateAgentResponse] Failed to mark stream as errored:',
@@ -602,13 +631,13 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     }>;
   };
 
-  const subAgentToolNames = [
+  const subAgentToolNames = new Set([
     'workflow_assistant',
     'web_assistant',
     'document_assistant',
     'integration_assistant',
     'crm_assistant',
-  ];
+  ]);
   const toolCalls: Array<{ toolName: string; status: string }> = [];
   const subAgentUsage: Array<{
     toolName: string;
@@ -646,7 +675,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
 
     // Extract sub-agent usage
     for (const toolResult of stepToolResults) {
-      if (subAgentToolNames.includes(toolResult.toolName)) {
+      if (subAgentToolNames.has(toolResult.toolName)) {
         type SubAgentResultData = {
           model?: string;
           provider?: string;
@@ -659,8 +688,12 @@ function extractToolCallsFromSteps(steps: unknown[]): {
           input?: string;
           output?: string;
         };
-        const directResult = toolResult.result as SubAgentResultData | undefined;
-        const outputDirect = toolResult.output as unknown as SubAgentResultData | undefined;
+        const directResult = toolResult.result as
+          | SubAgentResultData
+          | undefined;
+        const outputDirect = toolResult.output as unknown as
+          | SubAgentResultData
+          | undefined;
         const outputValue = (
           toolResult.output as { value?: SubAgentResultData } | undefined
         )?.value;
@@ -708,8 +741,10 @@ function mergeUsage(
     inputTokens: (usage1.inputTokens ?? 0) + (usage2.inputTokens ?? 0),
     outputTokens: (usage1.outputTokens ?? 0) + (usage2.outputTokens ?? 0),
     totalTokens: (usage1.totalTokens ?? 0) + (usage2.totalTokens ?? 0),
-    reasoningTokens: (usage1.reasoningTokens ?? 0) + (usage2.reasoningTokens ?? 0),
-    cachedInputTokens: (usage1.cachedInputTokens ?? 0) + (usage2.cachedInputTokens ?? 0),
+    reasoningTokens:
+      (usage1.reasoningTokens ?? 0) + (usage2.reasoningTokens ?? 0),
+    cachedInputTokens:
+      (usage1.cachedInputTokens ?? 0) + (usage2.cachedInputTokens ?? 0),
   };
 }
 

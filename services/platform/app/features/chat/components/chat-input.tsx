@@ -1,20 +1,25 @@
 'use client';
 
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
 import { X, Paperclip } from 'lucide-react';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { LoaderCircleIcon } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
+import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
+
+import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
+import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useT } from '@/lib/i18n/client';
+import {
+  CHAT_UPLOAD_ACCEPT,
+  getFileTypeLabelKey,
+} from '@/lib/shared/file-types';
+import { cn } from '@/lib/utils/cn';
+
 import {
   useConvexFileUpload,
   type FileAttachment,
 } from '../hooks/use-convex-file-upload';
 import { ImagePreviewDialog } from './message-bubble';
-import { CHAT_UPLOAD_ACCEPT, getFileTypeLabelKey } from '@/lib/shared/file-types';
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -123,11 +128,11 @@ export function ChatInput({
   return (
     <div {...restProps} className={cn('bg-background', restProps.className)}>
       <FileUpload.DropZone
-        className="relative flex flex-col h-full flex-1 min-h-0"
+        className="relative flex h-full min-h-0 flex-1 flex-col"
         onFilesSelected={uploadFiles}
         clickable={false}
       >
-        <FileUpload.Overlay className="rounded-t-3xl mx-2" />
+        <FileUpload.Overlay className="mx-2 rounded-t-3xl" />
         <input
           ref={fileInputRef}
           type="file"
@@ -137,12 +142,12 @@ export function ChatInput({
           style={{ display: 'none' }}
         />
 
-        <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2">
-          <div className="flex relative flex-col gap-2 bg-background rounded-t-2xl pt-3 px-4 border border-muted-foreground/50 border-b-0">
+        <div className="border-muted mx-2 rounded-t-3xl border-[0.5rem] border-b-0">
+          <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-4 pt-3">
             {(attachments.length > 0 || uploadingFiles.length > 0) && (
-              <div className="flex flex-wrap gap-1 mb-2">
+              <div className="mb-2 flex flex-wrap gap-1">
                 {imageAttachments.map((attachment) => (
-                  <div key={attachment.fileId} className="relative group">
+                  <div key={attachment.fileId} className="group relative">
                     <button
                       type="button"
                       onClick={() =>
@@ -152,7 +157,7 @@ export function ChatInput({
                           alt: attachment.fileName,
                         })
                       }
-                      className="size-11 rounded-lg bg-secondary/20 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      className="bg-secondary/20 focus:ring-ring size-11 cursor-pointer overflow-hidden rounded-lg transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
                     >
                       {attachment.previewUrl ? (
                         <img
@@ -161,7 +166,7 @@ export function ChatInput({
                           className="size-full object-cover"
                         />
                       ) : (
-                        <div className="size-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
+                        <div className="flex size-full items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200">
                           <span className="text-xs text-blue-600">
                             {tChat('fileTypes.image')}
                           </span>
@@ -172,9 +177,9 @@ export function ChatInput({
                       type="button"
                       aria-label={tChat('removeAttachment')}
                       onClick={() => removeAttachment(attachment.fileId)}
-                      className="absolute top-0.5 right-0.5 size-5 bg-background rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                     >
-                      <X className="size-3 text-muted-foreground" />
+                      <X className="text-muted-foreground size-3" />
                     </button>
                   </div>
                 ))}
@@ -182,24 +187,26 @@ export function ChatInput({
                 {fileAttachments.map((attachment) => (
                   <div
                     key={attachment.fileId}
-                    className="relative group bg-secondary/20 rounded-lg px-2 py-1 flex items-center gap-2 max-w-[216px]"
+                    className="group bg-secondary/20 relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
                   >
                     <DocumentIcon fileName={attachment.fileName} />
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <div className="text-sm font-medium text-foreground truncate ellipsis ">
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="text-foreground ellipsis truncate text-sm font-medium">
                         {attachment.fileName}
                       </div>
-                      <div className="text-xs text-muted-foreground/50">
-                        {tChat(`fileTypes.${getFileTypeLabelKey(attachment.fileType)}`)}
+                      <div className="text-muted-foreground/50 text-xs">
+                        {tChat(
+                          `fileTypes.${getFileTypeLabelKey(attachment.fileType)}`,
+                        )}
                       </div>
                     </div>
                     <button
                       type="button"
                       aria-label={tChat('removeAttachment')}
                       onClick={() => removeAttachment(attachment.fileId)}
-                      className="absolute top-0.5 right-0.5 size-5 bg-background rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                     >
-                      <X className="size-3 text-muted-foreground" />
+                      <X className="text-muted-foreground size-3" />
                     </button>
                   </div>
                 ))}
@@ -207,7 +214,7 @@ export function ChatInput({
                 {uploadingFiles.map((fileId) => (
                   <div
                     key={fileId}
-                    className="bg-secondary/20 rounded-lg p-2 grid place-content-center size-[2.75rem]"
+                    className="bg-secondary/20 grid size-[2.75rem] place-content-center rounded-lg p-2"
                   >
                     <LoaderCircleIcon className="size-4 animate-spin" />
                   </div>
@@ -222,14 +229,14 @@ export function ChatInput({
                 onChange={(e) => handleInputChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
-                className="min-h-[100px] relative border-0 shadow-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0 text-foreground px-0 py-0 bg-transparent placeholder:text-muted-foreground"
+                className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 disabled={isLoading}
                 placeholder=""
               />
               {value.length === 0 && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground absolute top-0 left-0 pointer-events-none">
+                <div className="text-muted-foreground pointer-events-none absolute top-0 left-0 flex items-center gap-1 text-sm">
                   {defaultPlaceholder}
-                  <div className="flex items-center justify-center size-4 rounded border border-muted-foreground/30 text-muted-foreground">
+                  <div className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
                     <EnterKeyIcon />
                   </div>
                   {tDialogs('toSend')}
@@ -242,7 +249,7 @@ export function ChatInput({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isLoading}
-                className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 title={tDialogs('attach')}
               >
                 <Paperclip className="size-4" />

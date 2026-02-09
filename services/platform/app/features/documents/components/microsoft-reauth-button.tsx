@@ -1,8 +1,9 @@
 'use client';
 
-import { Button } from '@/app/components/ui/primitives/button';
 import { RefreshCw } from 'lucide-react';
 import { useState, useCallback } from 'react';
+
+import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 interface MicrosoftReauthButtonProps {
@@ -45,7 +46,7 @@ export function MicrosoftReauthButton({
       className={className}
       variant={error ? 'destructive' : 'default'}
     >
-      <RefreshCw className={`size-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+      <RefreshCw className={`mr-2 size-4 ${isLoading ? 'animate-spin' : ''}`} />
       {isLoading ? t('microsoft.redirecting') : getButtonText()}
     </Button>
   );

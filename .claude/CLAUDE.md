@@ -13,6 +13,7 @@
 - NEVER delete, remove, or clear databases, caches, state files, or any persistent data without EXPLICIT user permission. This includes local development databases (e.g., SQLite files, Convex local backend state), cache directories, and configuration state. Always ask first before any destructive action.
 - DO NOT write status comments like "REFACTORED:", "UPDATED:", "CHANGED:", "✅ REMOVED:", etc. Write clean, self-documenting code with clear function/variable names instead.
 - DO NOT write inline comments explaining what was removed or changed.
+- DO NOT use `toLocaleDateString()`, `toLocaleTimeString()`, or `toLocaleString()`. Use `useFormatDate()` hook (React) or `formatDate()` from `lib/utils/date/format` instead.
 
 ## TypeScript
 

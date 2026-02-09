@@ -1,6 +1,7 @@
-import { ReactElement, ReactNode } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ReactElement, ReactNode } from 'react';
+
 import { I18nProvider } from '../../lib/i18n/i18n-provider';
 
 interface WrapperProps {
@@ -11,7 +12,10 @@ function AllProviders({ children }: WrapperProps) {
   return <I18nProvider>{children}</I18nProvider>;
 }
 
-function customRender(ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) {
+function customRender(
+  ui: ReactElement,
+  options?: Omit<RenderOptions, 'wrapper'>,
+) {
   return {
     user: userEvent.setup(),
     ...render(ui, { wrapper: AllProviders, ...options }),

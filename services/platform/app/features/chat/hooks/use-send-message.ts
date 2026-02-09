@@ -1,14 +1,17 @@
-import { useCallback, startTransition } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useCallback, startTransition } from 'react';
+
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
-import { useCreateThread } from './use-create-thread';
-import { useUpdateThread } from './use-update-thread';
-import { useChatWithAgent } from './use-chat-with-agent';
+
+import type { PendingMessage } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
-import type { PendingMessage } from '../context/chat-layout-context';
+
+import { useChatWithAgent } from './use-chat-with-agent';
+import { useCreateThread } from './use-create-thread';
+import { useUpdateThread } from './use-update-thread';
 
 interface UseSendMessageParams {
   organizationId: string;

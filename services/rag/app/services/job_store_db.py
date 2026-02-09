@@ -145,7 +145,10 @@ async def create_queued(job_id: str, document_id: str | None) -> JobStatus:
     async with _get_connection() as conn:
         await conn.execute(
             """
-            INSERT INTO rag_jobs (job_id, document_id, state, chunks_created, message, error, skipped, skip_reason, created_at, updated_at)
+            INSERT INTO rag_jobs (
+                job_id, document_id, state, chunks_created, message,
+                error, skipped, skip_reason, created_at, updated_at
+            )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT (job_id) DO UPDATE SET
                 document_id = EXCLUDED.document_id,
@@ -197,7 +200,10 @@ async def mark_running(job_id: str) -> None:
             # Job doesn't exist, create it
             await conn.execute(
                 """
-                INSERT INTO rag_jobs (job_id, document_id, state, chunks_created, message, error, skipped, skip_reason, created_at, updated_at)
+                INSERT INTO rag_jobs (
+                    job_id, document_id, state, chunks_created, message,
+                    error, skipped, skip_reason, created_at, updated_at
+                )
                 VALUES ($1, NULL, $2, 0, $3, NULL, FALSE, NULL, $4, $5)
                 """,
                 job_id,
@@ -250,7 +256,10 @@ async def mark_completed(
             # Job doesn't exist, create it
             await conn.execute(
                 """
-                INSERT INTO rag_jobs (job_id, document_id, state, chunks_created, message, error, skipped, skip_reason, created_at, updated_at)
+                INSERT INTO rag_jobs (
+                    job_id, document_id, state, chunks_created, message,
+                    error, skipped, skip_reason, created_at, updated_at
+                )
                 VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9)
                 """,
                 job_id,
@@ -287,7 +296,10 @@ async def mark_failed(job_id: str, *, error: str) -> None:
             # Job doesn't exist, create it
             await conn.execute(
                 """
-                INSERT INTO rag_jobs (job_id, document_id, state, chunks_created, message, error, skipped, skip_reason, created_at, updated_at)
+                INSERT INTO rag_jobs (
+                    job_id, document_id, state, chunks_created, message,
+                    error, skipped, skip_reason, created_at, updated_at
+                )
                 VALUES ($1, NULL, $2, 0, $3, $4, FALSE, NULL, $5, $6)
                 """,
                 job_id,
@@ -527,11 +539,13 @@ async def cleanup_stale_jobs(
                 reason = "orphaned"
 
             by_reason[reason] += 1
-            deleted_jobs.append({
-                "job_id": row["job_id"],
-                "reason": reason,
-                "age_hours": round(age_hours, 2),
-            })
+            deleted_jobs.append(
+                {
+                    "job_id": row["job_id"],
+                    "reason": reason,
+                    "age_hours": round(age_hours, 2),
+                }
+            )
             job_ids_to_delete.append(row["job_id"])
 
         if not dry_run and job_ids_to_delete:

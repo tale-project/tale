@@ -6,7 +6,10 @@
  * for accurate structured data extraction.
  */
 
-import type { JsonSchemaDefinition, JsonSchemaProperty } from '../../../../types/nodes';
+import type {
+  JsonSchemaDefinition,
+  JsonSchemaProperty,
+} from '../../../../types/nodes';
 
 /**
  * Recursively extracts all property names from a JSON Schema definition.

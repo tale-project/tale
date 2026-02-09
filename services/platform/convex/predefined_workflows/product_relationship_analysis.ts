@@ -98,18 +98,15 @@ const productRelationshipAnalysisWorkflow = {
           variables: [
             {
               name: 'sourceProduct',
-              value:
-                '{{steps.find_unprocessed_product.output.data}}',
+              value: '{{steps.find_unprocessed_product.output.data}}',
             },
             {
               name: 'sourceProductId',
-              value:
-                '{{steps.find_unprocessed_product.output.data._id}}',
+              value: '{{steps.find_unprocessed_product.output.data._id}}',
             },
             {
               name: 'sourceProductName',
-              value:
-                '{{steps.find_unprocessed_product.output.data.name}}',
+              value: '{{steps.find_unprocessed_product.output.data.name}}',
             },
             {
               name: 'shopVariantIds',

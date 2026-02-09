@@ -1,12 +1,14 @@
 'use client';
 
-import { forwardRef, useId } from 'react';
 import type { ComponentPropsWithoutRef, ComponentRef } from 'react';
+
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { cva } from 'class-variance-authority';
+import { Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { forwardRef, useId } from 'react';
 
 import { cn } from '@/lib/utils/cn';
+
 import { Label } from './label';
 
 const selectContentVariants = cva(
@@ -126,7 +128,7 @@ export const Select = forwardRef<
                   key={option.value}
                   value={option.value}
                   disabled={option.disabled}
-                  className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50"
+                  className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
                 >
                   <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
                     <SelectPrimitive.ItemIndicator>

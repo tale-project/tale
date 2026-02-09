@@ -38,6 +38,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 
 // ============================================================================

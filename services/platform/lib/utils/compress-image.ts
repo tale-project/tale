@@ -80,7 +80,7 @@ export async function compressImage(
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
 
-    img.onload = () => {
+    img.addEventListener('load', () => {
       URL.revokeObjectURL(objectUrl);
 
       try {
@@ -147,14 +147,13 @@ export async function compressImage(
       } catch (error) {
         reject(error);
       }
-    };
+    });
 
-    img.onerror = () => {
+    img.addEventListener('error', () => {
       URL.revokeObjectURL(objectUrl);
       reject(new Error('Failed to load image for compression'));
-    };
+    });
 
     img.src = objectUrl;
   });
 }
-

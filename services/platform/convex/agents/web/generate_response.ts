@@ -7,11 +7,12 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { createWebAgent, WEB_AGENT_INSTRUCTIONS } from './agent';
+
 import {
   generateAgentResponse,
   type GenerateResponseResult,
 } from '../../lib/agent_response';
+import { createWebAgent, WEB_AGENT_INSTRUCTIONS } from './agent';
 
 export interface GenerateWebResponseArgs {
   ctx: ActionCtx;

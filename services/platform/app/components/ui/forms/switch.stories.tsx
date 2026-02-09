@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { fn } from '@storybook/test';
+
 import { Switch } from './switch';
 
 const meta: Meta<typeof Switch> = {
@@ -96,7 +98,7 @@ export const DisabledChecked: Story = {
 
 export const SettingsExample: Story = {
   render: () => (
-    <div className="flex flex-col gap-4 w-72">
+    <div className="flex w-72 flex-col gap-4">
       <div className="flex items-center justify-between">
         <span className="text-sm">Email notifications</span>
         <Switch defaultChecked />

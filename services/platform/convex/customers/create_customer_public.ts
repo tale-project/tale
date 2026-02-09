@@ -2,9 +2,9 @@
  * Create a new customer with validation (business logic for public API)
  */
 
-import type { MutationCtx } from '../_generated/server';
-import type { Id } from '../_generated/dataModel';
 import type { DataSource } from '../../lib/shared/schemas/common';
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 interface CreateCustomerPublicArgs {
   organizationId: string;
@@ -60,5 +60,8 @@ export async function createCustomerPublic(
     }
   }
 
-  return await ctx.db.insert('customers', { ...args, metadata: args.metadata as any });
+  return await ctx.db.insert('customers', {
+    ...args,
+    metadata: args.metadata as any,
+  });
 }

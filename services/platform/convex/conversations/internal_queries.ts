@@ -1,4 +1,6 @@
 import { v } from 'convex/values';
+
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalQuery } from '../_generated/server';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
 import * as ConversationsHelpers from './helpers';
@@ -6,7 +8,6 @@ import {
   conversationStatusValidator,
   conversationPriorityValidator,
 } from './validators';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 const internalConversationRecordValidator = v.object({
   _id: v.id('conversations'),
@@ -19,9 +20,7 @@ const internalConversationRecordValidator = v.object({
   priority: v.optional(v.string()),
   type: v.optional(v.string()),
   channel: v.optional(v.string()),
-  direction: v.optional(
-    v.union(v.literal('inbound'), v.literal('outbound')),
-  ),
+  direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
   providerId: v.optional(v.id('emailProviders')),
   lastMessageAt: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),

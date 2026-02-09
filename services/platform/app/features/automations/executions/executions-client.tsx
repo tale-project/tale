@@ -1,24 +1,27 @@
 'use client';
 
-import { useState, useMemo, useCallback, memo } from 'react';
-import { useQuery } from 'convex/react';
 import { useNavigate } from '@tanstack/react-router';
-import { Copy, Check } from 'lucide-react';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
+import { useQuery } from 'convex/react';
 import { parseISO, formatISO } from 'date-fns';
-import { api } from '@/convex/_generated/api';
+import { Copy, Check } from 'lucide-react';
+import { useState, useMemo, useCallback, memo } from 'react';
+
 import type { Doc, Id } from '@/convex/_generated/dataModel';
+
+import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
+import { useListPage } from '@/app/hooks/use-list-page';
 import { useLocale } from '@/app/hooks/use-locale';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatDuration } from '@/lib/utils/format/number';
-import { useExecutionsTableConfig } from './use-executions-table-config';
+
 import { ExecutionsTableSkeleton } from './executions-table-skeleton';
-import { useListPage } from '@/app/hooks/use-list-page';
+import { useExecutionsTableConfig } from './use-executions-table-config';
 
 interface ExecutionsClientProps {
   amId: Id<'wfDefinitions'>;
@@ -163,7 +166,7 @@ export function ExecutionsClient({
       <Badge
         dot
         variant={STATUS_BADGE_VARIANTS[statusVal] || 'outline'}
-        className="capitalize text-xs"
+        className="text-xs capitalize"
       >
         {statusVal}
       </Badge>
@@ -206,7 +209,7 @@ export function ExecutionsClient({
         cell: ({ row }) => (
           <HStack gap={2}>
             <span
-              className="font-mono text-xs truncate"
+              className="truncate font-mono text-xs"
               title={row.original._id}
             >
               {row.original._id}
@@ -221,7 +224,7 @@ export function ExecutionsClient({
               }}
             >
               {copiedId === row.original._id ? (
-                <Check className="size-4 text-success p-0.5" />
+                <Check className="text-success size-4 p-0.5" />
               ) : (
                 <Copy className="size-4 p-0.5" />
               )}
@@ -240,7 +243,7 @@ export function ExecutionsClient({
         header: tTables('headers.startedAt'),
         size: 192,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {formatTimestampWithMillis(row.original.startedAt)}
           </span>
         ),
@@ -248,13 +251,13 @@ export function ExecutionsClient({
       {
         id: 'duration',
         header: () => (
-          <span className="text-right w-full block">
+          <span className="block w-full text-right">
             {tTables('headers.duration')}
           </span>
         ),
         size: 128,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground text-right w-full block">
+          <span className="text-muted-foreground block w-full text-right text-xs">
             {calculateDuration(row.original)}
           </span>
         ),
@@ -264,7 +267,7 @@ export function ExecutionsClient({
         header: tTables('headers.triggeredBy'),
         size: 128,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {row.original.triggeredBy || tTables('cells.empty')}
           </span>
         ),
@@ -386,7 +389,14 @@ export function ExecutionsClient({
         onChange: handleTriggeredByChange,
       },
     ],
-    [status, triggeredBy, tTables, tCommon, handleStatusChange, handleTriggeredByChange],
+    [
+      status,
+      triggeredBy,
+      tTables,
+      tCommon,
+      handleStatusChange,
+      handleTriggeredByChange,
+    ],
   );
 
   const list = useListPage({
@@ -417,7 +427,7 @@ export function ExecutionsClient({
 
   return (
     <DataTable
-      className="py-6 px-4"
+      className="px-4 py-6"
       columns={columns}
       enableExpanding
       renderExpandedRow={renderExpandedRow}

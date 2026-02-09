@@ -8,7 +8,12 @@
  * @returns Extracted conditions and complexity flag
  */
 
-import type { ASTNode, BinaryExpression, ParsedFilterExpression } from './types';
+import type {
+  ASTNode,
+  BinaryExpression,
+  ParsedFilterExpression,
+} from './types';
+
 import { extractComparison } from './extract_comparison';
 import { mergeAndConditions } from './merge_and_conditions';
 

@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
 import { Dayjs } from 'dayjs';
-import { useLocale } from './use-locale';
+import { useCallback, useMemo } from 'react';
+
+import { useT } from '@/lib/i18n/client';
 import {
   formatDate,
   formatDateSmart,
@@ -11,7 +12,8 @@ import {
   FormatDateOptions,
   DateTranslations,
 } from '@/lib/utils/date/format';
-import { useT } from '@/lib/i18n/client';
+
+import { useLocale } from './use-locale';
 
 /**
  * Hook that combines locale management with date formatting functionality.
@@ -46,7 +48,11 @@ export function useFormatDate() {
       preset: DatePreset = 'short',
       options: Omit<FormatDateOptions, 'locale' | 'preset'> = {},
     ): string => {
-      return formatDateSmart(date, { ...options, preset, locale }, dateTranslations);
+      return formatDateSmart(
+        date,
+        { ...options, preset, locale },
+        dateTranslations,
+      );
     },
     [locale, dateTranslations],
   );
@@ -76,6 +82,12 @@ export function useFormatDate() {
       formatRelative,
       locale,
     }),
-    [formatDateWithLocale, formatDateSmartWithLocale, formatDateHeaderWithLocale, formatRelative, locale],
+    [
+      formatDateWithLocale,
+      formatDateSmartWithLocale,
+      formatDateHeaderWithLocale,
+      formatRelative,
+      locale,
+    ],
   );
 }

@@ -6,10 +6,15 @@
  */
 
 import { v } from 'convex/values';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
+
 import type { Id } from '../../../_generated/dataModel';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
+
+import {
+  jsonRecordValidator,
+  type ConvexJsonRecord,
+} from '../../../../lib/shared/schemas/utils/json-value';
 import { createApproval } from './helpers/create_approval';
-import { jsonRecordValidator, type ConvexJsonRecord } from '../../../../lib/shared/schemas/utils/json-value';
 
 // Common field validators
 const priorityValidator = v.union(
@@ -65,7 +70,6 @@ export const approvalAction: ActionDefinition<ApprovalActionParams> = {
 
     switch (params.operation) {
       case 'create_approval': {
-
         return await createApproval(ctx, {
           organizationId,
           resourceType: params.resourceType, // Required by validator

@@ -8,6 +8,10 @@
     "build:linux": "bun build --compile --target=bun-linux-x64 --outfile=dist/tale src/index.ts",
     "build:mac": "bun build --compile --target=bun-darwin-arm64 --outfile=dist/tale src/index.ts",
     "build:windows": "bun build --compile --target=bun-windows-x64 --outfile=dist/tale.exe src/index.ts",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

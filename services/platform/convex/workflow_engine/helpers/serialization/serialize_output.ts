@@ -6,8 +6,8 @@
  * - In mutations: can only inline JSON or delete existing storage
  */
 
-import type { ActionCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
+import type { ActionCtx } from '../../../_generated/server';
 
 import { createDebugLog } from '../../../lib/debug_log';
 import { SIZE_THRESHOLD, SerializeResult } from './serialize_variables';

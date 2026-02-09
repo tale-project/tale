@@ -121,8 +121,7 @@ const onedriveSyncWorkflow: PredefinedWorkflowDefinition = {
       stepType: 'condition',
       order: 6,
       config: {
-        expression:
-          'steps.get_user_token.output.data.needsRefresh == true',
+        expression: 'steps.get_user_token.output.data.needsRefresh == true',
         description: 'Check if token needs refresh',
       },
       nextSteps: {
@@ -142,8 +141,7 @@ const onedriveSyncWorkflow: PredefinedWorkflowDefinition = {
         parameters: {
           operation: 'refresh_token',
           accountId: '{{steps.get_user_token.output.data.accountId}}',
-          refreshToken:
-            '{{steps.get_user_token.output.data.refreshToken}}',
+          refreshToken: '{{steps.get_user_token.output.data.refreshToken}}',
         },
       },
       nextSteps: {
@@ -159,8 +157,7 @@ const onedriveSyncWorkflow: PredefinedWorkflowDefinition = {
       stepType: 'condition',
       order: 8,
       config: {
-        expression:
-          'steps.find_sync_config.output.data.itemType == "file"',
+        expression: 'steps.find_sync_config.output.data.itemType == "file"',
         description: 'Check if item is a file or folder',
       },
       nextSteps: {
@@ -224,8 +221,7 @@ const onedriveSyncWorkflow: PredefinedWorkflowDefinition = {
           token:
             '{{steps.refresh_token.output.data.token || steps.get_user_token.output.data.token}}',
           files: '{{steps.list_folder_contents.output.data}}',
-          folderItemPath:
-            '{{steps.find_sync_config.output.data.itemPath}}',
+          folderItemPath: '{{steps.find_sync_config.output.data.itemPath}}',
           configId: '{{steps.find_sync_config.output.data._id}}',
         },
       },
@@ -245,19 +241,15 @@ const onedriveSyncWorkflow: PredefinedWorkflowDefinition = {
         type: 'onedrive',
         parameters: {
           operation: 'upload_to_storage',
-          fileName:
-            '{{steps.find_sync_config.output.data.itemName}}',
+          fileName: '{{steps.find_sync_config.output.data.itemName}}',
           fileContent: '{{steps.read_onedrive_file.output.data.content}}',
           contentType: '{{steps.read_onedrive_file.output.data.mimeType}}',
           storagePath:
             '{{steps.find_sync_config.output.data.storagePrefix}}/{{steps.find_sync_config.output.data.itemName}}',
           metadata: {
-            oneDriveItemId:
-              '{{steps.find_sync_config.output.data.itemId}}',
-            itemPath:
-              '{{steps.find_sync_config.output.data.itemPath}}',
-            syncConfigId:
-              '{{steps.find_sync_config.output.data._id}}',
+            oneDriveItemId: '{{steps.find_sync_config.output.data.itemId}}',
+            itemPath: '{{steps.find_sync_config.output.data.itemPath}}',
+            syncConfigId: '{{steps.find_sync_config.output.data._id}}',
             syncedAt: '{{now}}',
           },
         },

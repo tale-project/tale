@@ -1,8 +1,9 @@
 'use client';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { AutomationRowActions } from './automation-row-actions';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
+
+import { AutomationRowActions } from './automation-row-actions';
 
 export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
   {
@@ -16,7 +17,7 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
       header: () => tTables('headers.automation'),
       size: 328,
       cell: ({ row }) => (
-        <span className="text-sm font-medium text-foreground truncate px-2">
+        <span className="text-foreground truncate px-2 text-sm font-medium">
           {row.original.name}
         </span>
       ),
@@ -28,10 +29,7 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
       cell: ({ row }) => {
         const status = row.original.status;
         return (
-          <Badge
-            dot
-            variant={status === 'active' ? 'green' : 'outline'}
-          >
+          <Badge dot variant={status === 'active' ? 'green' : 'outline'}>
             {status === 'active'
               ? t.common('status.published')
               : status === 'archived'
@@ -44,13 +42,13 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
     {
       accessorKey: 'version',
       header: () => (
-        <span className="text-right w-full block">
+        <span className="block w-full text-right">
           {tTables('headers.version')}
         </span>
       ),
       size: 100,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground text-right block">
+        <span className="text-muted-foreground block text-right text-xs">
           {row.original.version}
         </span>
       ),

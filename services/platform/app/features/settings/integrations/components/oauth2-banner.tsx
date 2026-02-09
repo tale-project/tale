@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useSearch, useNavigate, useLocation } from '@tanstack/react-router';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+
 import { Banner } from '@/app/components/ui/feedback/banner';
 import { useT } from '@/lib/i18n/client';
 
@@ -20,7 +21,10 @@ import { useT } from '@/lib/i18n/client';
  */
 export function OAuth2Banner() {
   const { t } = useT('auth');
-  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const search = useSearch({ strict: false }) as Record<
+    string,
+    string | undefined
+  >;
   const navigate = useNavigate();
   const location = useLocation();
   const [isVisible, setIsVisible] = useState(false);

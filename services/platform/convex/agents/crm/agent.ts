@@ -6,9 +6,10 @@
  */
 
 import { Agent } from '@convex-dev/agent';
+
 import { components } from '../../_generated/api';
-import { createAgentConfig } from '../../lib/create_agent_config';
 import { type ToolName } from '../../agent_tools/tool_registry';
+import { createAgentConfig } from '../../lib/create_agent_config';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_CRM_AGENT', '[CrmAgent]');
@@ -76,10 +77,7 @@ For data from external systems (Shopify, PMS, etc.), use integration_assistant i
 export function createCrmAgent(options?: { maxSteps?: number }) {
   const maxSteps = options?.maxSteps ?? 10;
 
-  const convexToolNames: ToolName[] = [
-    'customer_read',
-    'product_read',
-  ];
+  const convexToolNames: ToolName[] = ['customer_read', 'product_read'];
 
   debugLog('createCrmAgent Loaded tools', {
     convexCount: convexToolNames.length,

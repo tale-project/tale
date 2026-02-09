@@ -5,10 +5,10 @@
  * in `convex/documents.ts`.
  */
 
-import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
-import { bytesToBase64 } from '../lib/crypto/base64_to_bytes';
+import type { ActionCtx } from '../_generated/server';
 
+import { bytesToBase64 } from '../lib/crypto/base64_to_bytes';
 import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');

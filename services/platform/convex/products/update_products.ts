@@ -2,10 +2,10 @@
  * Update products with flexible filtering and updates (internal operation)
  */
 
-import { MutationCtx } from '../_generated/server';
-import { Doc, Id } from '../_generated/dataModel';
 import { set, merge } from 'lodash';
 
+import { Doc, Id } from '../_generated/dataModel';
+import { MutationCtx } from '../_generated/server';
 import { UpdateProductsResult, ProductStatus } from './types';
 
 export interface UpdateProductsArgs {

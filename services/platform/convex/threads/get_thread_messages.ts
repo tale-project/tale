@@ -7,9 +7,10 @@
  * threads with more than 100 messages.
  */
 
-import { QueryCtx } from '../_generated/server';
-import { components } from '../_generated/api';
 import { listMessages, toUIMessages, type MessageDoc } from '@convex-dev/agent';
+
+import { components } from '../_generated/api';
+import { QueryCtx } from '../_generated/server';
 
 export interface ThreadMessage {
   _id: string;
@@ -45,7 +46,7 @@ export async function getThreadMessages(
 
   // Convert to UI messages format using the agent component's helper
   // Note: Messages are returned in desc order, we need to reverse for chronological display
-  const uiMessages = toUIMessages(allMessages.reverse());
+  const uiMessages = toUIMessages(allMessages.toReversed());
 
   // Transform to our expected format
   // UIMessage has: key, text, _creationTime, role, parts, etc.

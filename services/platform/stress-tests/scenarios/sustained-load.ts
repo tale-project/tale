@@ -12,9 +12,10 @@
  */
 
 import { ConvexHttpClient } from 'convex/browser';
+
 import { api } from '../../convex/_generated/api';
-import { MetricsCollector } from '../metrics';
 import { scenarios } from '../fixtures/stress-workflows';
+import { MetricsCollector } from '../metrics';
 
 const config = scenarios.sustained_load;
 const BATCH_INTERVAL_MS = 2000;

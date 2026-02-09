@@ -2,13 +2,14 @@
  * Get workflow definitions and schedule configs for an integration
  */
 
-// Import workflow definitions
-import shopifySyncProducts from '../predefined_workflows/shopify_sync_products';
-import shopifySyncCustomers from '../predefined_workflows/shopify_sync_customers';
+import type { PredefinedWorkflowDefinition } from '../workflows/definitions/types';
+
 import circulySyncCustomers from '../predefined_workflows/circuly_sync_customers';
 import circulySyncProducts from '../predefined_workflows/circuly_sync_products';
 import circulySyncSubscriptions from '../predefined_workflows/circuly_sync_subscriptions';
-import type { PredefinedWorkflowDefinition } from '../workflows/definitions/types';
+import shopifySyncCustomers from '../predefined_workflows/shopify_sync_customers';
+// Import workflow definitions
+import shopifySyncProducts from '../predefined_workflows/shopify_sync_products';
 
 type WorkflowScheduleConfig = {
   schedule: string; // Cron expression

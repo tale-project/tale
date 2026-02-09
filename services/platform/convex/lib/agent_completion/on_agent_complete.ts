@@ -7,10 +7,11 @@
  * This function runs in action context and calls mutations as needed.
  */
 
-import type { ActionCtx } from '../../_generated/server';
-import { components, internal } from '../../_generated/api';
 import { listMessages } from '@convex-dev/agent';
 
+import type { ActionCtx } from '../../_generated/server';
+
+import { components, internal } from '../../_generated/api';
 import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_COMPLETION', '[AgentCompletion]');
@@ -103,30 +104,34 @@ export async function onAgentComplete(
           .filter(
             (msg) =>
               msg.order === currentOrder &&
-              (msg.message?.role === 'assistant' || msg.message?.role === 'tool'),
+              (msg.message?.role === 'assistant' ||
+                msg.message?.role === 'tool'),
           )
           .sort((a, b) => a.stepOrder - b.stepOrder);
 
         const firstMessageInResponse = messagesInCurrentResponse[0];
 
         if (firstMessageInResponse) {
-          await ctx.runMutation(internal.message_metadata.internal_mutations.saveMessageMetadata, {
-            messageId: firstMessageInResponse._id,
-            threadId,
-            model: result.model,
-            provider: result.provider,
-            inputTokens: result.usage.inputTokens,
-            outputTokens: result.usage.outputTokens,
-            totalTokens: result.usage.totalTokens,
-            reasoningTokens: result.usage.reasoningTokens,
-            cachedInputTokens: result.usage.cachedInputTokens,
-            reasoning: result.reasoning,
-            durationMs: result.durationMs,
-            timeToFirstTokenMs: result.timeToFirstTokenMs,
-            subAgentUsage: result.subAgentUsage,
-            contextWindow: result.contextWindow,
-            contextStats: result.contextStats,
-          });
+          await ctx.runMutation(
+            internal.message_metadata.internal_mutations.saveMessageMetadata,
+            {
+              messageId: firstMessageInResponse._id,
+              threadId,
+              model: result.model,
+              provider: result.provider,
+              inputTokens: result.usage.inputTokens,
+              outputTokens: result.usage.outputTokens,
+              totalTokens: result.usage.totalTokens,
+              reasoningTokens: result.usage.reasoningTokens,
+              cachedInputTokens: result.usage.cachedInputTokens,
+              reasoning: result.reasoning,
+              durationMs: result.durationMs,
+              timeToFirstTokenMs: result.timeToFirstTokenMs,
+              subAgentUsage: result.subAgentUsage,
+              contextWindow: result.contextWindow,
+              contextStats: result.contextStats,
+            },
+          );
 
           debugLog('Metadata saved', {
             threadId,

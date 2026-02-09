@@ -6,17 +6,15 @@
  * No additional signature or API key is required.
  */
 
-import { httpAction } from '../../_generated/server';
-import { internal } from '../../_generated/api';
 import type { Doc } from '../../_generated/dataModel';
+
+import { internal } from '../../_generated/api';
+import { httpAction } from '../../_generated/server';
 import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate_limiter/helpers';
-import {
-  extractIdempotencyKey,
-  extractClientIp,
-} from './helpers/validate';
+import { extractIdempotencyKey, extractClientIp } from './helpers/validate';
 
 function jsonResponse(data: Record<string, unknown>, status: number) {
   return new Response(JSON.stringify(data), {
@@ -47,10 +45,10 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     throw error;
   }
 
-  const webhook = await ctx.runQuery(
+  const webhook = (await ctx.runQuery(
     internal.workflows.triggers.internal_queries.getWebhookByToken,
     { token },
-  ) as Doc<'wfWebhooks'> | null;
+  )) as Doc<'wfWebhooks'> | null;
 
   if (!webhook) {
     return jsonResponse({ error: 'Invalid webhook token' }, 404);
@@ -74,10 +72,13 @@ export const webhookHandler = httpAction(async (ctx, req) => {
       { organizationId: webhook.organizationId, idempotencyKey },
     );
     if (existing) {
-      return jsonResponse({
-        status: 'duplicate',
-        executionId: existing.wfExecutionId,
-      }, 200);
+      return jsonResponse(
+        {
+          status: 'duplicate',
+          executionId: existing.wfExecutionId,
+        },
+        200,
+      );
     }
   }
 
@@ -87,16 +88,19 @@ export const webhookHandler = httpAction(async (ctx, req) => {
   );
 
   if (!activeVersionId) {
-    await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
-      organizationId: webhook.organizationId,
-      workflowRootId: webhook.workflowRootId,
-      wfDefinitionId: webhook.workflowRootId,
-      triggerType: 'webhook',
-      status: 'rejected',
-      idempotencyKey: idempotencyKey ?? undefined,
-      ipAddress: ip,
-      errorMessage: 'No active workflow version',
-    });
+    await ctx.runMutation(
+      internal.workflows.triggers.internal_mutations.createTriggerLog,
+      {
+        organizationId: webhook.organizationId,
+        workflowRootId: webhook.workflowRootId,
+        wfDefinitionId: webhook.workflowRootId,
+        triggerType: 'webhook',
+        status: 'rejected',
+        idempotencyKey: idempotencyKey ?? undefined,
+        ipAddress: ip,
+        errorMessage: 'No active workflow version',
+      },
+    );
     return jsonResponse({ error: 'No active workflow version' }, 404);
   }
 
@@ -125,28 +129,34 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     },
   );
 
-  await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
-    organizationId: webhook.organizationId,
-    workflowRootId: webhook.workflowRootId,
-    wfDefinitionId: activeVersionId,
-    wfExecutionId: executionId,
-    triggerType: 'webhook',
-    status: 'accepted',
-    idempotencyKey: idempotencyKey ?? undefined,
-    ipAddress: ip,
-  });
+  await ctx.runMutation(
+    internal.workflows.triggers.internal_mutations.createTriggerLog,
+    {
+      organizationId: webhook.organizationId,
+      workflowRootId: webhook.workflowRootId,
+      wfDefinitionId: activeVersionId,
+      wfExecutionId: executionId,
+      triggerType: 'webhook',
+      status: 'accepted',
+      idempotencyKey: idempotencyKey ?? undefined,
+      ipAddress: ip,
+    },
+  );
 
   await ctx.runMutation(
     internal.workflows.triggers.internal_mutations.updateWebhookLastTriggered,
     { webhookId: webhook._id, lastTriggeredAt: Date.now() },
   );
 
-  return jsonResponse({
-    status: 'accepted',
-    executionId,
-    workflowRootId: webhook.workflowRootId,
-    versionId: activeVersionId,
-  }, 200);
+  return jsonResponse(
+    {
+      status: 'accepted',
+      executionId,
+      workflowRootId: webhook.workflowRootId,
+      versionId: activeVersionId,
+    },
+    200,
+  );
 });
 
 export const webhookOptionsHandler = httpAction(async () => {
@@ -155,8 +165,7 @@ export const webhookOptionsHandler = httpAction(async () => {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers':
-        'Content-Type, X-Idempotency-Key',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Idempotency-Key',
     },
   });
 });

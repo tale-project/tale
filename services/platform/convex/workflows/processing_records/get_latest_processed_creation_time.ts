@@ -29,7 +29,6 @@
  */
 
 import { QueryCtx } from '../../_generated/server';
-
 import { TableName } from './types';
 
 export interface GetLatestProcessedCreationTimeArgs {
@@ -58,4 +57,3 @@ export async function getLatestProcessedCreationTime(
 
   return latestProcessed?.recordCreationTime ?? null;
 }
-

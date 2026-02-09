@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
+
 import type { Id } from '@/convex/_generated/dataModel';
+
 import { TriggersClient } from '@/app/features/automations/triggers/triggers-client';
 
 export const Route = createFileRoute(

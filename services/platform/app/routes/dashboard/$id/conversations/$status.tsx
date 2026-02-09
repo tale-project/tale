@@ -1,7 +1,9 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { z } from 'zod';
-import { ConversationsClient } from '@/app/features/conversations/components/conversations-client';
+
 import type { Doc } from '@/convex/_generated/dataModel';
+
+import { ConversationsClient } from '@/app/features/conversations/components/conversations-client';
 
 const VALID_STATUSES = ['open', 'closed', 'archived', 'spam'] as const;
 type ConversationStatus = (typeof VALID_STATUSES)[number];

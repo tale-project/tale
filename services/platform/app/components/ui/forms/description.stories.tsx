@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { Description } from './description';
 
 const meta: Meta<typeof Description> = {
@@ -47,7 +48,8 @@ type Story = StoryObj<typeof Description>;
 
 export const Default: Story = {
   args: {
-    children: 'Enter your email address to receive important updates and notifications.',
+    children:
+      'Enter your email address to receive important updates and notifications.',
   },
   decorators: [
     (Story) => (
@@ -82,10 +84,13 @@ export const NotMuted: Story = {
 export const WithFormField: Story = {
   render: () => (
     <div className="w-80 space-y-2">
-      <label className="text-sm font-medium">Password</label>
+      <label htmlFor="password" className="text-sm font-medium">
+        Password
+      </label>
       <input
+        id="password"
         type="password"
-        className="w-full px-3 py-2 border rounded-md text-sm"
+        className="w-full rounded-md border px-3 py-2 text-sm"
         placeholder="Enter password"
       />
       <Description>
@@ -123,11 +128,11 @@ export const SectionDescription: Story = {
       <div>
         <h2 className="text-lg font-semibold">Account Settings</h2>
         <Description>
-          Manage your account preferences and security settings. Changes may take
-          a few minutes to take effect.
+          Manage your account preferences and security settings. Changes may
+          take a few minutes to take effect.
         </Description>
       </div>
-      <div className="p-4 border rounded-lg bg-muted/30">
+      <div className="bg-muted/30 rounded-lg border p-4">
         <p className="text-sm">Settings content goes here...</p>
       </div>
     </div>
@@ -146,11 +151,11 @@ export const WithLink: Story = {
     <div className="w-80">
       <Description>
         By continuing, you agree to our{' '}
-        <a href="#" className="text-primary hover:underline">
+        <a href="/terms" className="text-primary hover:underline">
           Terms of Service
         </a>{' '}
         and{' '}
-        <a href="#" className="text-primary hover:underline">
+        <a href="/privacy" className="text-primary hover:underline">
           Privacy Policy
         </a>
         .

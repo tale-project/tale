@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+
 import { serializeVariables, SIZE_THRESHOLD } from './serialize_variables';
 
 function createMockCtx(storageId = 'mock_storage_id' as any) {

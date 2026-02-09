@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { useState } from 'react';
+
 import { Trash2, AlertTriangle, Archive, Send } from 'lucide-react';
+import { useState } from 'react';
+
 import { ConfirmDialog } from '../dialog/confirm-dialog';
 import { Button } from '../primitives/button';
 
@@ -66,7 +68,7 @@ export const Destructive: Story = {
     return (
       <>
         <Button variant="destructive" onClick={() => setOpen(true)}>
-          <Trash2 className="size-4 mr-2" />
+          <Trash2 className="mr-2 size-4" />
           Delete
         </Button>
         <ConfirmDialog
@@ -100,9 +102,9 @@ export const WithContent: Story = {
           confirmText="Delete Project"
           onConfirm={() => setOpen(false)}
         >
-          <div className="p-3 bg-muted rounded-lg">
-            <p className="font-medium text-sm">Project: My Awesome Project</p>
-            <p className="text-sm text-muted-foreground">23 files · 1.2 GB</p>
+          <div className="bg-muted rounded-lg p-3">
+            <p className="text-sm font-medium">Project: My Awesome Project</p>
+            <p className="text-muted-foreground text-sm">23 files · 1.2 GB</p>
           </div>
         </ConfirmDialog>
       </>
@@ -161,7 +163,7 @@ export const ArchiveItem: Story = {
     return (
       <>
         <Button variant="outline" onClick={() => setOpen(true)}>
-          <Archive className="size-4 mr-2" />
+          <Archive className="mr-2 size-4" />
           Archive
         </Button>
         <ConfirmDialog
@@ -183,7 +185,7 @@ export const SendNotification: Story = {
     return (
       <>
         <Button onClick={() => setOpen(true)}>
-          <Send className="size-4 mr-2" />
+          <Send className="mr-2 size-4" />
           Send to all users
         </Button>
         <ConfirmDialog
@@ -194,8 +196,8 @@ export const SendNotification: Story = {
           confirmText="Send notification"
           onConfirm={() => setOpen(false)}
         >
-          <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <AlertTriangle className="size-4 text-amber-600 shrink-0" />
+          <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <AlertTriangle className="size-4 shrink-0 text-amber-600" />
             <p className="text-sm text-amber-700">
               This action will notify all users immediately.
             </p>

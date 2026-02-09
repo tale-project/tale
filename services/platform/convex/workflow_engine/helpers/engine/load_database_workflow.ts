@@ -4,14 +4,14 @@
  * Loads workflow definition and steps from database
  */
 
-import type { MutationCtx } from '../../../_generated/server';
 import type { Id, Doc } from '../../../_generated/dataModel';
+import type { MutationCtx } from '../../../_generated/server';
 import type { WorkflowType } from '../../types/workflow';
-import { buildStepsConfigMap } from './build_steps_config_map';
 import type { WorkflowData } from './workflow_data';
-import { validateWorkflowSteps } from '../validation/validate_workflow_steps';
 
 import { createDebugLog } from '../../../lib/debug_log';
+import { validateWorkflowSteps } from '../validation/validate_workflow_steps';
+import { buildStepsConfigMap } from './build_steps_config_map';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -111,7 +111,7 @@ export async function loadDatabaseWorkflow(
   const stepsConfigMap = buildStepsConfigMap(orderedSteps);
 
   // Build complete workflow config with metadata
-  const sanitizedConfig = { ...(effectiveDefinition.config || {}) } as Record<
+  const sanitizedConfig = { ...effectiveDefinition.config } as Record<
     string,
     unknown
   >;

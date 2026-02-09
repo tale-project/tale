@@ -1,20 +1,27 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import { useQuery } from 'convex/react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Switch } from '@/app/components/ui/forms/switch';
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+
+import { useQuery } from 'convex/react';
 import { Plus, Calendar, Pencil, Trash2 } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useState, useMemo, useCallback } from 'react';
+
+import type { Id } from '@/convex/_generated/dataModel';
+
+import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { Switch } from '@/app/components/ui/forms/switch';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
-import { useToggleSchedule, useDeleteSchedule } from '../hooks/use-trigger-mutations';
-import { ScheduleCreateDialog } from './schedule-create-dialog';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+
+import {
+  useToggleSchedule,
+  useDeleteSchedule,
+} from '../hooks/use-trigger-mutations';
 import { CollapsibleSection } from './collapsible-section';
+import { ScheduleCreateDialog } from './schedule-create-dialog';
 
 interface SchedulesSectionProps {
   workflowRootId: Id<'wfDefinitions'>;
@@ -22,7 +29,11 @@ interface SchedulesSectionProps {
 }
 
 // Infer the schedule type from the query result
-type Schedule = NonNullable<ReturnType<typeof useQuery<typeof api.workflows.triggers.queries.getSchedules>>>[number];
+type Schedule = NonNullable<
+  ReturnType<
+    typeof useQuery<typeof api.workflows.triggers.queries.getSchedules>
+  >
+>[number];
 
 export function SchedulesSection({
   workflowRootId,
@@ -42,19 +53,25 @@ export function SchedulesSection({
   const [deleteTarget, setDeleteTarget] = useState<Schedule | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleToggle = useCallback(async (scheduleId: Id<'wfSchedules'>, isActive: boolean) => {
-    try {
-      await toggleSchedule({ scheduleId, isActive });
-      toast({
-        title: isActive
-          ? t('triggers.schedules.toast.enabled')
-          : t('triggers.schedules.toast.disabled'),
-        variant: 'success',
-      });
-    } catch {
-      toast({ title: t('triggers.schedules.toast.toggleError'), variant: 'destructive' });
-    }
-  }, [toggleSchedule, toast, t]);
+  const handleToggle = useCallback(
+    async (scheduleId: Id<'wfSchedules'>, isActive: boolean) => {
+      try {
+        await toggleSchedule({ scheduleId, isActive });
+        toast({
+          title: isActive
+            ? t('triggers.schedules.toast.enabled')
+            : t('triggers.schedules.toast.disabled'),
+          variant: 'success',
+        });
+      } catch {
+        toast({
+          title: t('triggers.schedules.toast.toggleError'),
+          variant: 'destructive',
+        });
+      }
+    },
+    [toggleSchedule, toast, t],
+  );
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
@@ -67,19 +84,25 @@ export function SchedulesSection({
       });
       setDeleteTarget(null);
     } catch {
-      toast({ title: t('triggers.schedules.toast.deleteError'), variant: 'destructive' });
+      toast({
+        title: t('triggers.schedules.toast.deleteError'),
+        variant: 'destructive',
+      });
     } finally {
       setIsDeleting(false);
     }
   }, [deleteTarget, deleteScheduleMutation, toast, t]);
 
-  const formatDate = useCallback((timestamp?: number) => {
-    if (!timestamp) return t('triggers.common.never');
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(new Date(timestamp));
-  }, [t]);
+  const formatDate = useCallback(
+    (timestamp?: number) => {
+      if (!timestamp) return t('triggers.common.never');
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date(timestamp));
+    },
+    [t],
+  );
 
   const columns = useMemo<ColumnDef<Schedule>[]>(
     () => [
@@ -88,10 +111,10 @@ export function SchedulesSection({
         header: t('triggers.schedules.columns.cronExpression'),
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <code className="text-sm font-mono bg-muted px-2 py-0.5 rounded">
+            <code className="bg-muted rounded px-2 py-0.5 font-mono text-sm">
               {row.original.cronExpression}
             </code>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               {row.original.timezone}
             </span>
           </div>
@@ -116,7 +139,7 @@ export function SchedulesSection({
         id: 'lastTriggered',
         header: t('triggers.schedules.columns.lastTriggered'),
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-muted-foreground text-sm">
             {formatDate(row.original.lastTriggeredAt)}
           </span>
         ),
@@ -126,7 +149,7 @@ export function SchedulesSection({
         id: 'createdBy',
         header: t('triggers.schedules.columns.createdBy'),
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-muted-foreground text-sm">
             {row.original.createdBy}
           </span>
         ),
@@ -136,7 +159,7 @@ export function SchedulesSection({
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex items-center gap-1 justify-end">
+          <div className="flex items-center justify-end gap-1">
             <Button
               variant="ghost"
               size="sm"
@@ -179,8 +202,12 @@ export function SchedulesSection({
           description: t('triggers.schedules.emptyDescription'),
         }}
         actionMenu={
-          <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(true)}>
-            <Plus className="size-4 mr-2" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsCreateOpen(true)}
+          >
+            <Plus className="mr-2 size-4" />
             {t('triggers.schedules.createButton')}
           </Button>
         }

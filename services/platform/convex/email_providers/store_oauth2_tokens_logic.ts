@@ -46,4 +46,3 @@ export async function storeOAuth2TokensLogic(
 
   return null;
 }
-

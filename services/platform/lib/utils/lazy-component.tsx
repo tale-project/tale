@@ -13,9 +13,8 @@ interface LazyComponentOptions {
  * @param options - Configuration options including loading fallback
  * @returns A wrapped component that lazy loads the actual component
  */
- 
+
 export function lazyComponent<P = any>(
-   
   importFn: () => Promise<{ default: ComponentType<any> }>,
   options: LazyComponentOptions = {},
 ): ComponentType<P> {

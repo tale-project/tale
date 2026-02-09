@@ -1,9 +1,10 @@
-import type { HealthCheckOptions } from "./wait-for-healthy";
-import * as logger from "../../utils/logger";
+import type { HealthCheckOptions } from './wait-for-healthy';
+
+import * as logger from '../../utils/logger';
 
 export async function checkHttpHealth(
   url: string,
-  options: HealthCheckOptions
+  options: HealthCheckOptions,
 ): Promise<boolean> {
   const { timeout, interval = 2000, requestTimeoutMs } = options;
   const startTime = Date.now();
@@ -15,7 +16,7 @@ export async function checkHttpHealth(
   while (Date.now() - startTime < timeoutMs) {
     try {
       const response = await fetch(url, {
-        method: "GET",
+        method: 'GET',
         signal: AbortSignal.timeout(effectiveRequestTimeout),
       });
 

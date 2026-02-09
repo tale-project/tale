@@ -2,11 +2,11 @@
  * Business logic for generating OAuth2 authorization URL
  */
 
-import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
-import { buildOAuth2AuthUrl } from './generate_oauth2_auth_url';
+import type { ActionCtx } from '../_generated/server';
 
 import { createDebugLog } from '../lib/debug_log';
+import { buildOAuth2AuthUrl } from './generate_oauth2_auth_url';
 
 const debugLog = createDebugLog('DEBUG_OAUTH2', '[OAuth2]');
 

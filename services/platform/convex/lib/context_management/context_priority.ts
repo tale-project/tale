@@ -15,10 +15,13 @@
  * 8. Dynamic info - Time-sensitive data (timestamps) placed last for cache optimization
  */
 
-import { estimateTokens } from './estimate_tokens';
 import { createDebugLog } from '../debug_log';
+import { estimateTokens } from './estimate_tokens';
 
-const debugLog = createDebugLog('DEBUG_CONTEXT_MANAGEMENT', '[ContextPriority]');
+const debugLog = createDebugLog(
+  'DEBUG_CONTEXT_MANAGEMENT',
+  '[ContextPriority]',
+);
 
 /**
  * Priority levels for different context types.

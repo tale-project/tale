@@ -37,14 +37,11 @@ export interface FieldFilter<T> {
  * ]);
  * // Result: [{ name: 'A', status: 'active', priority: 'high' }]
  */
-export function filterByFields<T>(
-  items: T[],
-  filters: FieldFilter<T>[],
-): T[] {
+export function filterByFields<T>(items: T[], filters: FieldFilter<T>[]): T[] {
   if (!filters || filters.length === 0) return items;
 
-  return items.filter(item => {
-    return filters.every(filter => {
+  return items.filter((item) => {
+    return filters.every((filter) => {
       if (filter.values.size === 0) return true;
       return filter.values.has(item[filter.field]);
     });
@@ -78,8 +75,8 @@ export function filterByTextSearch<T>(
 
   const normalizedSearch = searchTerm.toLowerCase().trim();
 
-  return items.filter(item => {
-    return fields.some(field => {
+  return items.filter((item) => {
+    return fields.some((field) => {
       const value = item[field];
       if (value == null) return false;
 

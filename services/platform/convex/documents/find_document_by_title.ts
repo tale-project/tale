@@ -2,8 +2,8 @@
  * Find a document by title within an organization
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export async function findDocumentByTitle(
   ctx: QueryCtx,
@@ -21,4 +21,3 @@ export async function findDocumentByTitle(
 
   return document;
 }
-

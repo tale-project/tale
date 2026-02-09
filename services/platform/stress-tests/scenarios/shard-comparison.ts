@@ -21,9 +21,10 @@
  */
 
 import { ConvexHttpClient } from 'convex/browser';
+
 import { api } from '../../convex/_generated/api';
-import { MetricsCollector } from '../metrics';
 import { getShardIndex } from '../../convex/workflow_engine/helpers/engine/shard';
+import { MetricsCollector } from '../metrics';
 import { pollExecutionViaConvexRun } from '../poll';
 
 const WORKFLOWS_PER_PHASE = 10;

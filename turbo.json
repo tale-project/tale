@@ -37,17 +37,17 @@
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["setup"],
       "outputs": []
     },
     "lint:fix": {
-      "dependsOn": ["setup"],
       "cache": false,
       "outputs": []
     },
     "format": {
-      "dependsOn": ["setup"],
       "cache": false,
+      "outputs": []
+    },
+    "format:check": {
       "outputs": []
     },
     "test": {

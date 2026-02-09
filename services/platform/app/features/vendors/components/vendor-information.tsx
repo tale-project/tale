@@ -1,7 +1,7 @@
-import { Doc } from '@/convex/_generated/dataModel';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 interface VendorInformationProps {
@@ -24,9 +24,7 @@ export function VendorInformation({ vendor }: VendorInformationProps) {
         {vendor.email || t('labels.notAvailable')}
       </Field>
 
-      {vendor.phone && (
-        <Field label={t('labels.phone')}>{vendor.phone}</Field>
-      )}
+      {vendor.phone && <Field label={t('labels.phone')}>{vendor.phone}</Field>}
 
       <Field label={t('labels.source')}>
         {vendor.source || t('labels.notAvailable')}
@@ -57,7 +55,7 @@ export function VendorInformation({ vendor }: VendorInformationProps) {
         <Field label={t('labels.tags')}>
           <HStack gap={2} className="flex-wrap">
             {vendor.tags.map((tag) => (
-              <span key={tag} className="px-2 py-1 text-xs rounded-md bg-muted">
+              <span key={tag} className="bg-muted rounded-md px-2 py-1 text-xs">
                 {tag}
               </span>
             ))}

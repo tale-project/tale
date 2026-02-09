@@ -108,23 +108,19 @@ const loopiCustomerStatusAssessmentWorkflow = {
           variables: [
             {
               name: 'currentCustomer',
-              value:
-                '{{steps.find_unprocessed_customer.output.data}}',
+              value: '{{steps.find_unprocessed_customer.output.data}}',
             },
             {
               name: 'currentCustomerId',
-              value:
-                '{{steps.find_unprocessed_customer.output.data._id}}',
+              value: '{{steps.find_unprocessed_customer.output.data._id}}',
             },
             {
               name: 'currentCustomerName',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.name}}',
+              value: '{{steps.find_unprocessed_customer.output.data.name}}',
             },
             {
               name: 'currentCustomerEmail',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.email}}',
+              value: '{{steps.find_unprocessed_customer.output.data.email}}',
             },
           ],
         },

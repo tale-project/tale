@@ -1,26 +1,30 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
 import { useQuery, usePaginatedQuery } from 'convex/react';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Loader2Icon } from 'lucide-react';
-import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { ConversationPanel } from './conversation-panel';
-import { ConversationsList } from './conversations-list';
-import { ActivateConversationsEmptyState } from './activate-conversations-empty-state';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { cn } from '@/lib/utils/cn';
-import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import { useState, useMemo, useCallback } from 'react';
+
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ConversationItem } from '@/convex/conversations/types';
+
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
+import { Button } from '@/app/components/ui/primitives/button';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+import { filterByTextSearch } from '@/lib/utils/client-utils';
+import { cn } from '@/lib/utils/cn';
+
+import type { Conversation } from '../types';
+
+import { useAddMessage } from '../hooks/use-add-message';
 import { useBulkCloseConversations } from '../hooks/use-bulk-close-conversations';
 import { useBulkReopenConversations } from '../hooks/use-bulk-reopen-conversations';
-import { useAddMessage } from '../hooks/use-add-message';
-import type { Conversation } from '../types';
-import { useT } from '@/lib/i18n/client';
-import { filterByTextSearch, filterByFields, sortByDate } from '@/lib/utils/client-utils';
+import { ActivateConversationsEmptyState } from './activate-conversations-empty-state';
+import { ConversationPanel } from './conversation-panel';
+import { ConversationsList } from './conversations-list';
 
 interface ConversationsClientProps {
   status?: Conversation['status'];
@@ -49,29 +53,29 @@ function ConversationsClientSkeleton() {
   return (
     <>
       {/* Left Panel - Conversation List Skeleton */}
-      <div className="flex flex-col border-r border-border overflow-y-auto relative w-full md:flex-[0_0_24.75rem] md:max-w-[24.75rem]">
+      <div className="border-border relative flex w-full flex-col overflow-y-auto border-r md:max-w-[24.75rem] md:flex-[0_0_24.75rem]">
         {/* Sticky header skeleton */}
-        <div className="flex bg-background/50 backdrop-blur-sm items-center p-4 gap-2.5 border-b border-border sticky top-0 z-10 h-16">
-          <div className="size-4 rounded border-2 border-muted bg-background" />
+        <div className="bg-background/50 border-border sticky top-0 z-10 flex h-16 items-center gap-2.5 border-b p-4 backdrop-blur-sm">
+          <div className="border-muted bg-background size-4 rounded border-2" />
           <div className="relative flex-1">
             <Skeleton className="h-9 w-full rounded-md" />
           </div>
         </div>
 
         {/* Conversation list skeleton */}
-        <div className="divide-y divide-border">
+        <div className="divide-border divide-y">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="p-4">
               <div className="flex items-start gap-3">
-                <div className="flex items-center mt-1">
-                  <div className="size-4 rounded border-2 border-muted bg-background" />
+                <div className="mt-1 flex items-center">
+                  <div className="border-muted bg-background size-4 rounded border-2" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between mb-1.5">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1.5 flex items-start justify-between">
                     <Skeleton className="h-4 w-2/3" />
-                    <Skeleton className="h-3 w-12 ml-4" />
+                    <Skeleton className="ml-4 h-3 w-12" />
                   </div>
-                  <div className="flex items-center justify-between mb-3 gap-2">
+                  <div className="mb-3 flex items-center justify-between gap-2">
                     <Skeleton className="h-4 w-full" />
                   </div>
                   <div className="flex gap-2">
@@ -90,12 +94,12 @@ function ConversationsClientSkeleton() {
       </div>
 
       {/* Right Panel - Conversation Detail Skeleton */}
-      <div className="flex-1 min-w-0 hidden md:flex flex-col">
+      <div className="hidden min-w-0 flex-1 flex-col md:flex">
         {/* Header skeleton */}
-        <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border">
-          <div className="flex items-center gap-3 flex-1">
+        <div className="bg-background/50 border-border sticky top-0 z-50 flex h-16 flex-[0_0_auto] border-b px-4 py-3 backdrop-blur-sm">
+          <div className="flex flex-1 items-center gap-3">
             <Skeleton className="size-10 rounded-full" />
-            <div className="flex flex-col gap-1.5 flex-1">
+            <div className="flex flex-1 flex-col gap-1.5">
               <Skeleton className="h-4 w-40" />
               <Skeleton className="h-3 w-24" />
             </div>
@@ -103,12 +107,12 @@ function ConversationsClientSkeleton() {
         </div>
 
         {/* Messages skeleton */}
-        <div className="pt-6 mx-auto max-w-3xl flex-1 w-full px-4">
-          <div className="flex flex-col gap-4 mb-8">
+        <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-6">
+          <div className="mb-8 flex flex-col gap-4">
             <div className="flex justify-start">
               <div className="relative">
                 <Skeleton className="h-24 w-96 rounded-2xl" />
-                <Skeleton className="h-3 w-20 mt-1" />
+                <Skeleton className="mt-1 h-3 w-20" />
               </div>
             </div>
             <div className="flex justify-end">
@@ -117,15 +121,15 @@ function ConversationsClientSkeleton() {
             <div className="flex justify-start">
               <div className="relative">
                 <Skeleton className="h-16 w-72 rounded-2xl" />
-                <Skeleton className="h-3 w-20 mt-1" />
+                <Skeleton className="mt-1 h-3 w-20" />
               </div>
             </div>
           </div>
         </div>
 
         {/* Message editor skeleton */}
-        <div className="sticky bottom-0 z-50 bg-background px-2">
-          <div className="max-w-3xl mx-auto w-full px-4 py-4">
+        <div className="bg-background sticky bottom-0 z-50 px-2">
+          <div className="mx-auto w-full max-w-3xl px-4 py-4">
             <Skeleton className="h-32 w-full rounded-lg" />
           </div>
         </div>
@@ -158,7 +162,12 @@ export function ConversationsClient({
   const { t: tCommon } = useT('common');
 
   // Fetch conversations with cursor-based pagination
-  const { results, status: paginationStatus, loadMore, isLoading } = usePaginatedQuery(
+  const {
+    results,
+    status: paginationStatus,
+    loadMore,
+    isLoading,
+  } = usePaginatedQuery(
     api.conversations.queries.listConversations,
     { organizationId, status },
     { initialNumItems: PAGE_SIZE },
@@ -564,7 +573,7 @@ function ConversationsClientInner({
         )}
       >
         {/* Fixed Search and Filter Section / Action Buttons */}
-        <div className="flex bg-background/50 backdrop-blur-sm items-center p-4 gap-2.5 border-b border-border sticky top-0 z-10 h-16">
+        <div className="bg-background/50 border-border sticky top-0 z-10 flex h-16 items-center gap-2.5 border-b p-4 backdrop-blur-sm">
           <div className="flex items-center">
             <Checkbox
               id="select-all"
@@ -595,7 +604,7 @@ function ConversationsClientInner({
                   className="flex-1"
                 >
                   {isBulkProcessing && (
-                    <Loader2Icon className="size-3.5 mr-1.5 animate-spin" />
+                    <Loader2Icon className="mr-1.5 size-3.5 animate-spin" />
                   )}
                   {tConversations('bulk.close')}
                 </Button>
@@ -609,7 +618,7 @@ function ConversationsClientInner({
                   className="flex-1"
                 >
                   {isBulkProcessing && (
-                    <Loader2Icon className="size-3.5 mr-1.5 animate-spin" />
+                    <Loader2Icon className="mr-1.5 size-3.5 animate-spin" />
                   )}
                   {tConversations('bulk.reopen')}
                 </Button>
@@ -621,7 +630,7 @@ function ConversationsClientInner({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               wrapperClassName="flex-1"
-              className="pr-3 bg-transparent shadow-none text-sm"
+              className="bg-transparent pr-3 text-sm shadow-none"
             />
           )}
         </div>
@@ -634,9 +643,9 @@ function ConversationsClientInner({
           isConversationSelected={isConversationSelected}
         />
         {isBulkProcessing && (
-          <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center">
-            <div className="flex items-center text-muted-foreground">
-              <Loader2Icon className="size-4 mr-2 animate-spin" />
+          <div className="bg-background/50 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-sm">
+            <div className="text-muted-foreground flex items-center">
+              <Loader2Icon className="mr-2 size-4 animate-spin" />
               <span className="text-sm">{tConversations('updating')}</span>
             </div>
           </div>
@@ -657,15 +666,15 @@ function ConversationsClientInner({
       </div>
 
       {bulkSendMessagesDialog.isOpen && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-background border rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">
+        <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-background mx-4 w-full max-w-md rounded-lg border p-6">
+            <h3 className="mb-4 text-lg font-semibold">
               {tConversations('bulkSend.title', { count: selectedCount })}
             </h3>
             <p className="text-muted-foreground mb-6">
               {tConversations('bulkSend.description', { count: selectedCount })}
             </p>
-            <div className="flex gap-3 justify-end">
+            <div className="flex justify-end gap-3">
               <Button
                 variant="outline"
                 onClick={() =>
@@ -680,7 +689,7 @@ function ConversationsClientInner({
                 disabled={bulkSendMessagesDialog.isSending}
               >
                 {bulkSendMessagesDialog.isSending && (
-                  <Loader2Icon className="size-4 mr-2 animate-spin" />
+                  <Loader2Icon className="mr-2 size-4 animate-spin" />
                 )}
                 {tConversations('bulkSend.send')}
               </Button>

@@ -8,8 +8,9 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-import { findOrCreateUserFromHeaders } from './find_or_create_user_from_headers';
+
 import { createSessionForTrustedUser } from './create_session_for_trusted_user';
+import { findOrCreateUserFromHeaders } from './find_or_create_user_from_headers';
 import { resolveTeams } from './resolve_team_names';
 
 export interface TrustedHeadersTeamEntry {
@@ -42,10 +43,20 @@ export async function trustedHeadersAuthenticate(
 ): Promise<TrustedHeadersAuthenticateResult> {
   const requiredSecret = process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
   if (requiredSecret && args.secret !== requiredSecret) {
-    throw new Error('Invalid internal secret for trusted headers authentication');
+    throw new Error(
+      'Invalid internal secret for trusted headers authentication',
+    );
   }
 
-  const { email, name, role, teams, existingSessionToken, ipAddress, userAgent } = args;
+  const {
+    email,
+    name,
+    role,
+    teams,
+    existingSessionToken,
+    ipAddress,
+    userAgent,
+  } = args;
 
   // First, find or create the user and ensure their profile matches headers
   const userResult = await findOrCreateUserFromHeaders(ctx, {

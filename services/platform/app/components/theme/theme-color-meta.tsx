@@ -1,7 +1,8 @@
 'use client';
 
-import { useTheme } from './theme-provider';
 import { useEffect, useState } from 'react';
+
+import { useTheme } from './theme-provider';
 
 const THEME_COLORS = {
   light: '#fcfcfc',

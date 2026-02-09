@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext } from 'react';
+
 import type { ErrorBoundaryContextValue } from './types';
 
 /**
@@ -11,6 +12,7 @@ import type { ErrorBoundaryContextValue } from './types';
  * - Trigger manual resets
  * - Access error metadata
  */
-export const ErrorBoundaryContext = createContext<ErrorBoundaryContextValue | null>(null);
+export const ErrorBoundaryContext =
+  createContext<ErrorBoundaryContextValue | null>(null);
 
 ErrorBoundaryContext.displayName = 'ErrorBoundaryContext';

@@ -17,12 +17,15 @@ from app.services.template_service import get_template_service
 
 router = APIRouter(prefix="/api/v1/pptx", tags=["PPTX"])
 
+_FILE_TEMPLATE = File(None, description="Optional template PPTX file to use as base")
+_FILE_UPLOAD = File(..., description="PPTX file to parse")
+
 
 @router.post("", response_model=GeneratePptxResponse)
 async def generate_pptx_from_json(
     slides_content: str = Form(..., description="JSON array of slide content"),
     branding: str = Form(None, description="Optional JSON branding object"),
-    template_file: UploadFile = File(None, description="Optional template PPTX file to use as base"),
+    template_file: UploadFile = _FILE_TEMPLATE,
 ):
     """
     Generate a PPTX from JSON content with optional template and branding.
@@ -131,7 +134,7 @@ async def generate_pptx_from_json(
 
 @router.post("/parse", response_model=ParseFileResponse)
 async def parse_pptx_file(
-    file: UploadFile = File(..., description="PPTX file to parse"),
+    file: UploadFile = _FILE_UPLOAD,
     user_input: str | None = Form(None, description="User instruction for AI extraction per slide"),
     process_images: bool = Form(True, description="Extract and describe embedded images"),
 ):

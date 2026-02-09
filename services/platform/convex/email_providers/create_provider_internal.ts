@@ -2,8 +2,8 @@
  * Internal function to create an email provider
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import type {
   EmailProviderVendor,
   EmailProviderAuthMethod,

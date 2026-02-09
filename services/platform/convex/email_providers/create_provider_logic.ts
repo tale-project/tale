@@ -1,8 +1,8 @@
-import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
-import { saveRelatedWorkflows } from './save_related_workflows';
+import type { ActionCtx } from '../_generated/server';
 
 import { createDebugLog } from '../lib/debug_log';
+import { saveRelatedWorkflows } from './save_related_workflows';
 
 const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
 
@@ -84,6 +84,7 @@ export async function createProviderLogic(
       throw new Error(
         'Failed to encrypt password. Please ensure ENCRYPTION_SECRET is set in your Convex environment variables (Dashboard → Settings → Environment Variables). Error: ' +
           (error instanceof Error ? error.message : 'Unknown error'),
+        { cause: error },
       );
     }
     passwordAuth = {
@@ -104,6 +105,7 @@ export async function createProviderLogic(
       throw new Error(
         'Failed to encrypt OAuth2 credentials. Please ensure ENCRYPTION_SECRET is set in your Convex environment variables (Dashboard → Settings → Environment Variables). Error: ' +
           (error instanceof Error ? error.message : 'Unknown error'),
+        { cause: error },
       );
     }
     oauth2Auth = {

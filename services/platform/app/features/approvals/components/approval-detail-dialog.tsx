@@ -1,22 +1,24 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useQuery } from 'convex/react';
 import { Sparkles } from 'lucide-react';
+import { useState, useMemo } from 'react';
+
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { ProductCard } from './product-card';
-import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/app/components/ui/primitives/button';
-import { cn } from '@/lib/utils/cn';
+import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
+import { cn } from '@/lib/utils/cn';
+
+import { ApprovalDetail } from '../types/approval-detail';
+import { ProductCard } from './product-card';
 
 const RecommendationIcon = () => (
-  <Sparkles className="size-4 text-muted-foreground" />
+  <Sparkles className="text-muted-foreground size-4" />
 );
 
 interface ApprovalDetailDialogProps {
@@ -79,7 +81,7 @@ export function ApprovalDetailDialog({
 
   const footer =
     approvalDetail.status === 'pending' ? (
-      <div className="flex gap-3 w-full">
+      <div className="flex w-full gap-3">
         <Button
           onClick={() => onReject?.(approvalDetail._id)}
           disabled={isApproving || isRejecting}
@@ -105,12 +107,12 @@ export function ApprovalDetailDialog({
         size="md"
         onOpenChange={onOpenChange}
         title={t('detail.title')}
-        className="w-full max-h-[90vh] overflow-hidden p-0 sm:p-0 gap-0 flex flex-col"
+        className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:p-0"
         footer={footer}
         footerClassName="p-4 border-t border-border bg-background"
         customHeader={
-          <div className="px-4 py-6 border-b border-border">
-            <h2 className="text-base font-semibold leading-none tracking-tight text-foreground">
+          <div className="border-border border-b px-4 py-6">
+            <h2 className="text-foreground text-base leading-none font-semibold tracking-tight">
               {t('detail.title')}
             </h2>
           </div>
@@ -127,10 +129,10 @@ export function ApprovalDetailDialog({
           {/* Customer Info */}
           <Stack gap={8}>
             <Stack gap={1}>
-              <h3 className="text-base font-medium text-foreground">
+              <h3 className="text-foreground text-base font-medium">
                 {approvalDetail.customer.name}
               </h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 {approvalDetail.customer.email}
               </p>
             </Stack>
@@ -139,7 +141,7 @@ export function ApprovalDetailDialog({
             <Stack gap={3}>
               {/* Status */}
               <HStack>
-                <div className="w-[90px] text-xs text-muted-foreground">
+                <div className="text-muted-foreground w-[90px] text-xs">
                   {t('detail.status')}
                 </div>
                 <Badge
@@ -163,7 +165,7 @@ export function ApprovalDetailDialog({
 
               {/* Type */}
               <HStack>
-                <div className="w-[90px] text-xs text-muted-foreground">
+                <div className="text-muted-foreground w-[90px] text-xs">
                   {t('detail.type')}
                 </div>
                 <Badge variant="outline" icon={RecommendationIcon}>
@@ -173,10 +175,10 @@ export function ApprovalDetailDialog({
 
               {/* Created at */}
               <HStack>
-                <div className="w-[90px] text-xs text-muted-foreground">
+                <div className="text-muted-foreground w-[90px] text-xs">
                   {t('detail.createdAt')}
                 </div>
-                <div className="text-sm font-medium text-muted-foreground">
+                <div className="text-muted-foreground text-sm font-medium">
                   {formatDate(new Date(approvalDetail.createdAt), 'long')}
                 </div>
               </HStack>
@@ -184,7 +186,7 @@ export function ApprovalDetailDialog({
               {/* Confidence */}
               {approvalDetail.confidence !== undefined && (
                 <HStack>
-                  <div className="w-[90px] text-xs text-muted-foreground">
+                  <div className="text-muted-foreground w-[90px] text-xs">
                     {t('detail.confidence')}
                   </div>
                   <Badge variant="outline">{approvalDetail.confidence}%</Badge>
@@ -196,10 +198,10 @@ export function ApprovalDetailDialog({
           {/* Recommended Products */}
           {visibleProducts.length > 0 && (
             <Stack gap={4}>
-              <h4 className="text-lg font-semibold text-foreground">
+              <h4 className="text-foreground text-lg font-semibold">
                 {t('detail.recommendedProducts')}
               </h4>
-              <div className="border border-border rounded-[10px] overflow-hidden">
+              <div className="border-border overflow-hidden rounded-[10px] border">
                 {visibleProducts.map((product) => (
                   <ProductCard
                     key={product.id}
@@ -217,10 +219,10 @@ export function ApprovalDetailDialog({
           {/* Previous Purchases */}
           {approvalDetail.previousPurchases.length > 0 && (
             <Stack gap={4}>
-              <h4 className="text-lg font-semibold text-foreground">
+              <h4 className="text-foreground text-lg font-semibold">
                 {t('detail.userPurchased')}
               </h4>
-              <div className="border border-border rounded-[10px] overflow-hidden">
+              <div className="border-border overflow-hidden rounded-[10px] border">
                 {approvalDetail.previousPurchases.map((purchase) => (
                   <ProductCard
                     key={purchase.id || purchase.productName}

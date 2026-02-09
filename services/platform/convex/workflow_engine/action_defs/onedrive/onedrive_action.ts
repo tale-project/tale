@@ -12,18 +12,20 @@
  */
 
 import { v } from 'convex/values';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import { internal } from '../../../_generated/api';
+
 import type { Id } from '../../../_generated/dataModel';
-import {
-	jsonRecordValidator,
-	jsonValueValidator,
-	type ConvexJsonRecord,
-} from '../../../../lib/shared/schemas/utils/json-value';
 import type {
   DocumentRecord,
   DocumentMetadata,
 } from '../../../documents/types';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
+
+import {
+  jsonRecordValidator,
+  jsonValueValidator,
+  type ConvexJsonRecord,
+} from '../../../../lib/shared/schemas/utils/json-value';
+import { internal } from '../../../_generated/api';
 
 // Common field validators
 const filesValidator = v.array(
@@ -209,17 +211,20 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
         }
 
         // Upload file to Convex storage
-        const result = await ctx.runAction!(internal.onedrive.internal_actions.uploadToStorage, {
-          organizationId,
-          fileName: params.fileName, // Required by validator
-          fileData:
-            typeof params.fileContent === 'string'
-              ? new TextEncoder().encode(params.fileContent).buffer
-              : params.fileContent, // Required by validator
-          contentType: params.contentType || 'application/octet-stream',
-          metadata: (params.metadata || {}) as ConvexJsonRecord,
-          createdBy: params.createdBy,
-        });
+        const result = await ctx.runAction!(
+          internal.onedrive.internal_actions.uploadToStorage,
+          {
+            organizationId,
+            fileName: params.fileName, // Required by validator
+            fileData:
+              typeof params.fileContent === 'string'
+                ? new TextEncoder().encode(params.fileContent).buffer
+                : params.fileContent, // Required by validator
+            contentType: params.contentType || 'application/octet-stream',
+            metadata: (params.metadata || {}) as ConvexJsonRecord,
+            createdBy: params.createdBy,
+          },
+        );
 
         if (!result.success) {
           throw new Error(result.error || 'Failed to upload file to storage');
@@ -270,17 +275,18 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             page: DocumentRecord[];
             isDone: boolean;
             continueCursor: string;
-          } = await ctx.runQuery!(internal.documents.internal_queries.queryDocuments, {
-            organizationId,
-            sourceProvider: 'onedrive',
-            paginationOpts: { numItems: 100, cursor },
-          });
+          } = await ctx.runQuery!(
+            internal.documents.internal_queries.queryDocuments,
+            {
+              organizationId,
+              sourceProvider: 'onedrive',
+              paginationOpts: { numItems: 100, cursor },
+            },
+          );
           for (const doc of res.page) {
             const meta = (doc.metadata ?? {}) as DocumentMetadata;
             const key =
-              doc.externalItemId ??
-              meta.oneDriveItemId ??
-              meta.oneDriveId;
+              doc.externalItemId ?? meta.oneDriveItemId ?? meta.oneDriveId;
             if (key) existingByItemId.set(key, doc);
           }
           if (res.isDone) break;
@@ -349,7 +355,9 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
                 contentType:
                   fileMimeType || f.mimeType || 'application/octet-stream',
                 metadata,
-                documentIdToUpdate: existing?._id as Id<'documents'> | undefined,
+                documentIdToUpdate: existing?._id as
+                  | Id<'documents'>
+                  | undefined,
                 createdBy: params.createdBy,
               },
             );
@@ -381,13 +389,16 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
 
       case 'update_sync_config': {
         // Update OneDrive sync configuration
-        await ctx.runMutation!(internal.onedrive.internal_mutations.updateSyncConfig, {
-          configId: params.configId as Id<'onedriveSyncConfigs'>, // Required by validator
-          status: params.status,
-          lastSyncAt: params.lastSyncAt,
-          lastSyncStatus: params.lastSyncStatus,
-          errorMessage: params.errorMessage,
-        });
+        await ctx.runMutation!(
+          internal.onedrive.internal_mutations.updateSyncConfig,
+          {
+            configId: params.configId as Id<'onedriveSyncConfigs'>, // Required by validator
+            status: params.status,
+            lastSyncAt: params.lastSyncAt,
+            lastSyncStatus: params.lastSyncStatus,
+            errorMessage: params.errorMessage,
+          },
+        );
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         return {

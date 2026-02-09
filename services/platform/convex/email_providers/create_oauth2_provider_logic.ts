@@ -1,5 +1,5 @@
-import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
 
 interface CreateOAuth2ProviderArgs {
   organizationId: string;
@@ -70,12 +70,18 @@ function getOAuth2Credentials(
         'Missing Microsoft OAuth2 credentials. Please provide your Azure AD Client ID and Client Secret.',
       );
     }
-    return { clientId: overrides.clientId, clientSecret: overrides.clientSecret };
+    return {
+      clientId: overrides.clientId,
+      clientSecret: overrides.clientSecret,
+    };
   }
 
   // Gmail: use overrides if provided, otherwise fall back to env vars
   if (overrides?.clientId && overrides?.clientSecret) {
-    return { clientId: overrides.clientId, clientSecret: overrides.clientSecret };
+    return {
+      clientId: overrides.clientId,
+      clientSecret: overrides.clientSecret,
+    };
   }
 
   if (provider === 'gmail') {
@@ -118,6 +124,7 @@ export async function createOAuth2ProviderLogic(
     throw new Error(
       'Failed to encrypt OAuth2 credentials. Please ensure ENCRYPTION_SECRET is set in your Convex environment variables (Dashboard → Settings → Environment Variables). Error: ' +
         (error instanceof Error ? error.message : 'Unknown error'),
+      { cause: error },
     );
   }
 

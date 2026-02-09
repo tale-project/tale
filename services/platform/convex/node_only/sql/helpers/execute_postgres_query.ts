@@ -5,6 +5,7 @@
  */
 
 import { Pool } from 'pg';
+
 import type { SqlExecutionParams, SqlExecutionResult } from '../types';
 
 export async function executePostgresQuery(

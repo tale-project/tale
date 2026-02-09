@@ -6,13 +6,14 @@
  * along with 1 message before and 1 message after each match for context.
  */
 
-import { z } from 'zod/v4';
 import { createTool, type ToolCtx } from '@convex-dev/agent';
-import Fuse from 'fuse.js';
-import type { ToolDefinition } from '../types';
-import { components } from '../../_generated/api';
 import { listMessages } from '@convex-dev/agent';
+import Fuse from 'fuse.js';
+import { z } from 'zod/v4';
 
+import type { ToolDefinition } from '../types';
+
+import { components } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -48,7 +49,7 @@ export const contextSearchTool = {
 Retrieves messages from the specified thread and returns the top 10 most similar messages based on text similarity.
 Each matched message includes 1 message before and 1 message after for context.
 Provide a single, focused keyword or short phrase per call. If you need to search for multiple distinct keywords, call this tool multiple times, once per keyword or phrase, instead of combining them with boolean operators or complex queries such as 
-"Apps_with_love_Enhanced_Report_Icons OR 72938217 OR \"Icons Edition\"".
+"Apps_with_love_Enhanced_Report_Icons OR 72938217 OR "Icons Edition"".
 	If an initial search does not return any relevant results (for example, an empty messages array), you MUST proactively try again with 3 to 5 alternative, more focused queries in separate calls before concluding that there is no useful context to retrieve.
 	When the user asks to regenerate or modify a specific file, first try searching using that files URL or file name as the query so you can retrieve any prior messages, code snippets, or discussions related to that file.
 	Use this tool to find relevant context from previous messages in a conversation thread.`,

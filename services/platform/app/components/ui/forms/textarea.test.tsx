@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@/test/utils/render';
+
 import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
+import { render, screen, waitFor } from '@/test/utils/render';
+
 import { Textarea } from './textarea';
 
 describe('Textarea', () => {
@@ -30,7 +32,7 @@ describe('Textarea', () => {
     it('calls onChange when typing', async () => {
       const handleChange = vi.fn();
       const { user } = render(
-        <Textarea placeholder="Type here" onChange={handleChange} />
+        <Textarea placeholder="Type here" onChange={handleChange} />,
       );
 
       await user.type(screen.getByPlaceholderText('Type here'), 'hello');
@@ -40,7 +42,7 @@ describe('Textarea', () => {
     it('does not allow input when disabled', async () => {
       const handleChange = vi.fn();
       const { user } = render(
-        <Textarea placeholder="Type here" disabled onChange={handleChange} />
+        <Textarea placeholder="Type here" disabled onChange={handleChange} />,
       );
 
       const textarea = screen.getByPlaceholderText('Type here');
@@ -57,7 +59,7 @@ describe('Textarea', () => {
 
     it('passes axe audit with error', async () => {
       const { container } = render(
-        <Textarea label="Description" errorMessage="Required" />
+        <Textarea label="Description" errorMessage="Required" />,
       );
       await checkAccessibility(container);
     });
@@ -75,9 +77,7 @@ describe('Textarea', () => {
     });
 
     it('has aria-describedby linked to error', () => {
-      render(
-        <Textarea label="Message" id="msg" errorMessage="Invalid" />
-      );
+      render(<Textarea label="Message" id="msg" errorMessage="Invalid" />);
       const textarea = screen.getByLabelText('Message');
       const error = screen.getByRole('alert');
       expect(textarea).toHaveAttribute('aria-describedby', error.id);

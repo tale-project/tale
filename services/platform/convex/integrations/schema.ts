@@ -1,5 +1,6 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
+
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const integrationsTable = defineTable({
@@ -7,9 +8,7 @@ export const integrationsTable = defineTable({
   name: v.string(),
   title: v.string(),
   description: v.optional(v.string()),
-  type: v.optional(
-    v.union(v.literal('rest_api'), v.literal('sql')),
-  ),
+  type: v.optional(v.union(v.literal('rest_api'), v.literal('sql'))),
   status: v.union(
     v.literal('active'),
     v.literal('inactive'),
@@ -125,7 +124,9 @@ export const integrationsTable = defineTable({
         description: v.optional(v.string()),
         query: v.string(),
         parametersSchema: v.optional(jsonRecordValidator),
-        operationType: v.optional(v.union(v.literal('read'), v.literal('write'))),
+        operationType: v.optional(
+          v.union(v.literal('read'), v.literal('write')),
+        ),
         requiresApproval: v.optional(v.boolean()),
       }),
     ),

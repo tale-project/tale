@@ -1,10 +1,12 @@
 'use client';
 
 import * as React from 'react';
+
+import { useT } from '@/lib/i18n/client';
+
+import { Stack } from '../layout/layout';
 import { ConfirmDialog } from './confirm-dialog';
 import { ItemPreview } from './item-preview';
-import { Stack } from '../layout/layout';
-import { useT } from '@/lib/i18n/client';
 
 export interface DeleteDialogProps {
   /** Whether the dialog is open */
@@ -78,11 +80,16 @@ export function DeleteDialog({
       {hasContent && (
         <Stack gap={4}>
           {preview && (
-            <ItemPreview primary={preview.primary} secondary={preview.secondary} />
+            <ItemPreview
+              primary={preview.primary}
+              secondary={preview.secondary}
+            />
           )}
           {warning && (
-            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-              <p className="text-sm text-amber-800 dark:text-amber-200">{warning}</p>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                {warning}
+              </p>
             </div>
           )}
           {children}

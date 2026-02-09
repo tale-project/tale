@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { filterByTextSearch, filterByFields } from '@/lib/utils/client-utils';
+
 import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
 import type { DataTableSearchConfig } from '@/app/components/ui/data-table/use-data-table';
+
+import { filterByTextSearch, filterByFields } from '@/lib/utils/client-utils';
 
 // ---------------------------------------------------------------------------
 // Data Source Types
@@ -127,10 +129,13 @@ export function useListPage<TData>(
   const { dataSource, pageSize, search, filters, getRowId } = options;
 
   // 1. Normalize data source
-  const rawData =
-    dataSource.type === 'paginated'
-      ? (dataSource.results ?? [])
-      : (dataSource.data ?? []);
+  const rawData = useMemo(
+    () =>
+      dataSource.type === 'paginated'
+        ? (dataSource.results ?? [])
+        : (dataSource.data ?? []),
+    [dataSource],
+  );
 
   const isLoading =
     dataSource.type === 'paginated'

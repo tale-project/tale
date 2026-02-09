@@ -5,11 +5,14 @@
  * before claiming it was created. This prevents hallucination of approval IDs.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
-import type { ToolDefinition } from '../types';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { Id } from '../../_generated/dataModel';
+import type { ToolDefinition } from '../types';
+
 import { internal } from '../../_generated/api';
 
 const verifyApprovalArgs = z.object({
@@ -72,7 +75,9 @@ Call after write operations to confirm approval was created.`,
         }
 
         // Extract metadata for integration operations
-        const metadata = approval.metadata as Record<string, unknown> | undefined;
+        const metadata = approval.metadata as
+          | Record<string, unknown>
+          | undefined;
         const operationName = metadata?.operationName as string | undefined;
         const operationTitle = metadata?.operationTitle as string | undefined;
         const integrationName = metadata?.integrationName as string | undefined;
