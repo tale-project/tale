@@ -19,6 +19,7 @@ export interface CreateMemberArgs {
 export interface CreateMemberResult {
   userId: string;
   memberId: string;
+  isExistingUser: boolean;
 }
 
 /**
@@ -126,6 +127,7 @@ export async function createMember(
     return {
       userId: existingUser._id,
       memberId,
+      isExistingUser: true,
     };
   }
 
@@ -190,5 +192,6 @@ export async function createMember(
   return {
     userId: betterAuthUserId,
     memberId,
+    isExistingUser: false,
   };
 }
