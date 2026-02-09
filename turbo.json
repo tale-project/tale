@@ -37,6 +37,7 @@
       "persistent": true
     },
     "lint": {
+      "dependsOn": ["setup"],
       "outputs": []
     },
     "lint:fix": {
@@ -48,6 +49,7 @@
       "outputs": []
     },
     "format:check": {
+      "dependsOn": ["setup"],
       "outputs": []
     },
     "convex:codegen": {

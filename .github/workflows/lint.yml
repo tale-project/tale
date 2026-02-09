@@ -54,8 +54,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup, lint, format, typecheck
-        run: npx turbo run setup lint format:check typecheck
+      - name: Lint, format, typecheck
+        run: npx turbo run lint format:check typecheck
 
       - name: Knip (unused code)
         run: npm run knip
