@@ -11,7 +11,7 @@ import { createAuth, authComponent } from '../auth';
 export interface CreateMemberArgs {
   organizationId: string;
   email: string;
-  password: string;
+  password?: string;
   displayName?: string;
   role?: Role;
 }
@@ -132,6 +132,10 @@ export async function createMember(
   }
 
   // User doesn't exist — create a new account
+  if (!args.password) {
+    throw new Error('Password is required when creating a new user');
+  }
+
   const auth = createAuth(ctx);
 
   const signupResult = await auth.api.signUpEmail({

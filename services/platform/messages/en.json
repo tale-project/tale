@@ -372,7 +372,8 @@
     },
     "memberAdded": {
       "title": "Member added successfully",
-      "credentialsWarning": "Important: Save these credentials now. They won't be shown again."
+      "credentialsWarning": "Important: Save these credentials now. They won't be shown again.",
+      "existingUserNotice": "This user already had an account, so no new credentials were created. They can log in with their existing password."
     },
     "confirmDelete": {
       "title": "Confirm deletion",

@@ -1,7 +1,6 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ConvexHttpClient } from 'convex/browser';
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -15,11 +14,8 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { useConvexUrl } from '@/lib/site-url-context';
 
-import { useAddMember } from '../hooks/use-add-member';
 import { useCreateMember } from '../hooks/use-create-member';
 
 // Type for the form data
@@ -46,7 +42,6 @@ export function AddMemberDialog({
   const { t: tCommon } = useT('common');
   const { t: tAuth } = useT('auth');
   const { t: tToast } = useT('toast');
-  const convexUrl = useConvexUrl();
 
   // Create Zod schema with translated validation messages
   const addMemberSchema = useMemo(
@@ -79,13 +74,13 @@ export function AddMemberDialog({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCredentials, setShowCredentials] = useState(false);
+  const [isExistingUser, setIsExistingUser] = useState(false);
   const [credentials, setCredentials] = useState<{
     email: string;
     password: string;
   } | null>(null);
   const { toast } = useToast();
 
-  const addMember = useAddMember();
   const createMember = useCreateMember();
   const form = useForm<AddMemberFormData>({
     resolver: zodResolver(addMemberSchema),
@@ -127,73 +122,29 @@ export function AddMemberDialog({
   const onSubmit = async (data: AddMemberFormData) => {
     setIsSubmitting(true);
     try {
-      let userId: string | undefined;
-      let isNewUser = false;
+      const result = await createMember({
+        organizationId,
+        email: data.email,
+        password: data.password || undefined,
+        displayName: data.displayName,
+        role: data.role,
+      });
 
-      // First, check if user already exists
-      const client = new ConvexHttpClient(convexUrl);
-
-      const existingUserId = await client.query(
-        api.members.queries.getUserIdByEmail,
-        {
-          email: data.email,
-        },
-      );
-
-      if (existingUserId) {
-        // User already exists - just add them to the organization
-        userId = existingUserId;
-        isNewUser = false;
-
-        // Add existing user to organization
-        await addMember({
-          organizationId: organizationId as string,
-          userId: userId as string,
-          role: data.role,
-        });
-      } else {
-        // User doesn't exist - create new account SERVER-SIDE
-        // This won't affect the admin's session!
-        if (!data.password || data.password.length === 0) {
-          throw new Error(tDialogs('addMember.passwordRequiredForNewUser'));
-        }
-
-        // Use server-side mutation that creates user WITHOUT creating a session
-        // This keeps the admin logged in!
-        await createMember({
-          organizationId: organizationId as string,
-          email: data.email,
-          password: data.password,
-          displayName: data.displayName,
-          role: data.role,
-        });
-
-        isNewUser = true;
-
-        // Store credentials for display
-        setCredentials({
-          email: data.email,
-          password: data.password,
-        });
-      }
-
-      // Success! Show credentials dialog only for new users
       toast({
-        title: isNewUser
-          ? tToast('success.newMemberCreated')
-          : tToast('success.existingUserAdded'),
+        title: result.isExistingUser
+          ? tToast('success.existingUserAdded')
+          : tToast('success.newMemberCreated'),
         variant: 'success',
       });
 
-      if (isNewUser && data.password) {
-        // Only show credentials for newly created accounts
-        setCredentials({
-          email: data.email,
-          password: data.password,
-        });
+      if (result.isExistingUser) {
+        setIsExistingUser(true);
+        setShowCredentials(true);
+      } else if (data.password) {
+        setIsExistingUser(false);
+        setCredentials({ email: data.email, password: data.password });
         setShowCredentials(true);
       } else {
-        // For existing users, just close the dialog
         reset();
         setIsSubmitting(false);
         onOpenChange(false);
@@ -210,6 +161,7 @@ export function AddMemberDialog({
 
   const handleClose = () => {
     setShowCredentials(false);
+    setIsExistingUser(false);
     setCredentials(null);
     reset();
     setIsSubmitting(false);
@@ -295,21 +247,29 @@ export function AddMemberDialog({
         title={tDialogs('memberAdded.title')}
       >
         <Stack gap={4}>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
-            {tDialogs('memberAdded.credentialsWarning')}
-          </div>
+          {isExistingUser ? (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-200">
+              {tDialogs('memberAdded.existingUserNotice')}
+            </div>
+          ) : (
+            <>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
+                {tDialogs('memberAdded.credentialsWarning')}
+              </div>
 
-          {credentials && (
-            <Stack gap={4}>
-              <CopyableField
-                value={credentials.email}
-                label={tSettings('form.email')}
-              />
-              <CopyableField
-                value={credentials.password}
-                label={tSettings('form.password')}
-              />
-            </Stack>
+              {credentials && (
+                <Stack gap={4}>
+                  <CopyableField
+                    value={credentials.email}
+                    label={tSettings('form.email')}
+                  />
+                  <CopyableField
+                    value={credentials.password}
+                    label={tSettings('form.password')}
+                  />
+                </Stack>
+              )}
+            </>
           )}
 
           <Button onClick={handleClose} fullWidth>
