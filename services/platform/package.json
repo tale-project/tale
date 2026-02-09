@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "convex:dev": "CONVEX_AGENT_MODE=anonymous convex dev",
     "convex:deploy": "CONVEX_AGENT_MODE=anonymous convex deploy",
-    "convex:codegen": "convex codegen",
+    "convex:codegen": "[ -z \"$CONVEX_DEPLOYMENT\" ] && echo 'Skipped convex codegen (no CONVEX_DEPLOYMENT)' || convex codegen",
     "generate:openapi": "npx tsx scripts/generate-openapi.ts",
     "admin:generate-password": "node ./scripts/generate-admin-password.mjs",
     "test": "vitest --run",
