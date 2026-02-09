@@ -29,8 +29,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  typescript:
-    name: TypeScript
+  test:
+    name: Test
     runs-on: self-hosted
     permissions:
       contents: read
@@ -43,32 +43,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Setup Node.js with Turbo cache
-        uses: ./.github/actions/setup-node-turbo
+      - name: Setup Turbo
+        uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run tests
-        run: npx turbo run test test:ui --filter=@tale/platform
-
-  python:
-    name: Python
-    runs-on: self-hosted
-    permissions:
-      contents: read
-    env:
-      TURBO_API: 'http://127.0.0.1:9080'
-      TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TURBO_TEAM: 'tale'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup Python with Turbo cache
-        uses: ./.github/actions/setup-python-turbo
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run tests
-        run: npx turbo run test --filter=@tale/crawler --filter=@tale/rag --filter=@tale/graph-db
+        run: npx turbo run test test:ui

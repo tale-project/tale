@@ -35,8 +35,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  typescript:
-    name: TypeScript
+  lint:
+    name: Lint
     runs-on: self-hosted
     permissions:
       contents: read
@@ -49,35 +49,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Setup Node.js with Turbo cache
-        uses: ./.github/actions/setup-node-turbo
+      - name: Setup Turbo
+        uses: ./.github/actions/setup-turbo
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Lint, format, typecheck
-        run: npx turbo run lint format:check typecheck --filter=@tale/platform --filter=@tale/cli
+      - name: Setup, lint, format, typecheck
+        run: npx turbo run setup lint format:check typecheck
 
       - name: Knip (unused code)
         run: npm run knip
-
-  python:
-    name: Python
-    runs-on: self-hosted
-    permissions:
-      contents: read
-    env:
-      TURBO_API: 'http://127.0.0.1:9080'
-      TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TURBO_TEAM: 'tale'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup Python with Turbo cache
-        uses: ./.github/actions/setup-python-turbo
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup, lint, format
-        run: npx turbo run setup lint format:check --filter=@tale/crawler --filter=@tale/rag --filter=@tale/graph-db --filter=@tale/operator

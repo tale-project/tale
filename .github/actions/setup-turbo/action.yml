@@ -1,10 +1,13 @@
-name: Setup Node.js with Turbo Cache
-description: Installs Node.js, npm dependencies, and starts turbo cache server
+name: Setup Turbo
+description: Installs Node.js, Python, uv, npm dependencies, and starts turbo cache server
 
 inputs:
   node-version:
     description: Node.js version
     default: '22'
+  python-version:
+    description: Python version
+    default: '3.11'
   github-token:
     description: GitHub token for turbo cache
     required: true
@@ -18,9 +21,17 @@ runs:
         node-version: ${{ inputs.node-version }}
         cache: 'npm'
 
-    - name: Install dependencies
+    - name: Install npm dependencies
       shell: bash
       run: npm ci
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
 
     - name: Start Turbo cache server
       uses: felixmosh/turborepo-gh-artifacts@v3
