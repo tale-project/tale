@@ -4,7 +4,12 @@
  * Tracks workflow execution outcomes, latencies, and failure patterns.
  */
 
-export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stuck';
+export type ExecutionStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'stuck';
 
 interface ExecutionRecord {
   executionId: string;

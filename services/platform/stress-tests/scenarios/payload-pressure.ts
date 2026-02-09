@@ -14,10 +14,10 @@
 import { ConvexHttpClient } from 'convex/browser';
 
 import type { Id } from '../../convex/_generated/dataModel';
+import type { ExecutionStatus } from '../metrics';
 
 import { api } from '../../convex/_generated/api';
 import { scenarios } from '../fixtures/stress-workflows';
-import type { ExecutionStatus } from '../metrics';
 import { MetricsCollector } from '../metrics';
 
 const config = scenarios.heavy_payload;
@@ -47,7 +47,8 @@ async function run() {
   const client = new ConvexHttpClient(convexUrl);
   const metrics = new MetricsCollector();
   const rawPayloadSize = config.inputOverrides?.payloadSizeKb;
-  const payloadSizeKb = typeof rawPayloadSize === 'number' ? rawPayloadSize : 500;
+  const payloadSizeKb =
+    typeof rawPayloadSize === 'number' ? rawPayloadSize : 500;
 
   console.log(`\n[${config.name}] ${config.description}`);
   console.log(

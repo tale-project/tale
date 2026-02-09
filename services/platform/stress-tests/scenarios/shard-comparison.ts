@@ -49,7 +49,8 @@ async function runPhase(
 ): Promise<PhaseResult> {
   const metrics = new MetricsCollector();
   const startTimings: number[] = [];
-  const executions: { id: string; executionId: Id<'wfExecutions'> | null }[] = [];
+  const executions: { id: string; executionId: Id<'wfExecutions'> | null }[] =
+    [];
 
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`Phase: ${label}`);

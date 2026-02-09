@@ -16,9 +16,9 @@
 import { ConvexHttpClient } from 'convex/browser';
 
 import type { Id } from '../convex/_generated/dataModel';
+import type { ExecutionStatus } from './metrics';
 
 import { api } from '../convex/_generated/api';
-import type { ExecutionStatus } from './metrics';
 import { MetricsCollector } from './metrics';
 
 interface StressTestConfig {
@@ -131,9 +131,7 @@ async function pollExecution(
     return { status: 'failed', error: 'Execution not found' };
   }
 
-  const metadata = execution.metadata
-    ? JSON.parse(execution.metadata)
-    : {};
+  const metadata = execution.metadata ? JSON.parse(execution.metadata) : {};
 
   return {
     // Convex schema uses v.string() — cast needed to narrow to our status union
