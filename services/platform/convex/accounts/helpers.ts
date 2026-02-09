@@ -25,20 +25,16 @@ export async function hasCredentialAccount(ctx: QueryCtx): Promise<boolean> {
   const authUser = await authComponent.getAuthUser(ctx);
   if (!authUser) return false;
 
-  try {
-    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'account',
-      where: [
-        { field: 'userId', value: String(authUser._id), operator: 'eq' },
-        { field: 'providerId', value: 'credential', operator: 'eq' },
-      ],
-      paginationOpts: { cursor: null, numItems: 1 },
-    });
+  const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+    model: 'account',
+    where: [
+      { field: 'userId', value: String(authUser._id), operator: 'eq' },
+      { field: 'providerId', value: 'credential', operator: 'eq' },
+    ],
+    paginationOpts: { cursor: null, numItems: 1 },
+  });
 
-    return (result?.page?.length ?? 0) > 0;
-  } catch {
-    return false;
-  }
+  return (result?.page?.length ?? 0) > 0;
 }
 
 // =============================================================================
