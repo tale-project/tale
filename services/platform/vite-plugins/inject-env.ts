@@ -41,7 +41,7 @@ export function injectEnv(): Plugin {
         }
         const envScript = `window.__ENV__ = ${JSON.stringify(envConfig)};`;
         return html.replace(
-          'window.__ENV__ = "__ENV_PLACEHOLDER__";',
+          /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
           envScript,
         );
       },
