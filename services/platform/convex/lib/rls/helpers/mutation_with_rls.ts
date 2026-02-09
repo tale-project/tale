@@ -33,9 +33,12 @@ const rlsConfig: RLSConfig = {
 export const mutationWithRLS = customMutation(
   mutation,
   customCtx(async (ctx: MutationCtx) => {
-    const rules = await rlsRules(ctx);
+    // Fetch auth data ONCE to avoid duplicate queries
     const user = await getAuthenticatedUser(ctx);
     const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
+
+    // Pass pre-fetched data to rlsRules to avoid duplicate fetches
+    const rules = await rlsRules(ctx, { user, userOrganizations });
 
     return {
       db: wrapDatabaseWriter<
