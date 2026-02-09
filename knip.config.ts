@@ -1,4 +1,5 @@
 export default {
+  ignoreBinaries: ['uv', 'tsx'],
   workspaces: {
     'services/platform': {
       entry: [
@@ -29,14 +30,16 @@ export default {
         'storybook-static/**',
         'coverage/**',
         'src/**',
+        'public/**',
         '*.gen.ts',
         '*.gen.tsx',
       ],
-      ignoreDependencies: ['workbox-*', 'convex-test'],
+      ignoreDependencies: ['workbox-*', 'convex-test', 'yaml'],
     },
     'tools/cli': {
       project: ['**/*.ts'],
       ignore: ['node_modules/**', 'dist/**'],
     },
   },
+  exclude: ['duplicates'],
 };
