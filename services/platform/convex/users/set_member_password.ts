@@ -1,7 +1,7 @@
 /**
  * Set member password - Business logic
  *
- * Allows admins to set a password for any org member,
+ * Allows admins and owners to set a password for any org member,
  * including OAuth-only users who don't yet have a credential account.
  */
 
@@ -38,7 +38,7 @@ export async function setMemberPassword(
     throw new Error('Member not found');
   }
 
-  // Verify caller is an admin of this organization
+  // Verify caller is an admin or owner of this organization
   const callerRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
     model: 'member',
     paginationOpts: { cursor: null, numItems: 1 },
@@ -52,8 +52,9 @@ export async function setMemberPassword(
     ],
   });
   const callerMember = callerRes?.page?.[0] as { role: string } | undefined;
-  if (callerMember?.role?.toLowerCase() !== 'admin') {
-    throw new Error('Only admins can set member passwords');
+  const callerRole = callerMember?.role?.toLowerCase();
+  if (callerRole !== 'admin' && callerRole !== 'owner') {
+    throw new Error('Only admins and owners can set member passwords');
   }
 
   // Check if the target user already has a credential account
