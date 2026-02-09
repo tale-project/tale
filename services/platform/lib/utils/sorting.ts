@@ -9,12 +9,12 @@
  * - Null/undefined handling
  */
 
-type SortOrder = 'asc' | 'desc';
+export type SortOrder = 'asc' | 'desc';
 
 /**
  * Type-safe comparator function
  */
-type Comparator<T> = (a: T, b: T) => number;
+export type Comparator<T> = (a: T, b: T) => number;
 
 /**
  * Sort by string field (case-insensitive, locale-aware)
@@ -27,7 +27,7 @@ type Comparator<T> = (a: T, b: T) => number;
  * const products = [{ name: 'Banana' }, { name: 'apple' }];
  * products.sort(sortByString('name', 'asc')); // [{ name: 'apple' }, { name: 'Banana' }]
  */
-function sortByString<T>(
+export function sortByString<T>(
   field: keyof T,
   order: SortOrder = 'asc',
 ): Comparator<T> {
@@ -58,7 +58,7 @@ function sortByString<T>(
  * const items = [{ createdAt: 1000 }, { createdAt: 2000 }];
  * items.sort(sortByDate('createdAt', 'desc')); // [{ createdAt: 2000 }, { createdAt: 1000 }]
  */
-function sortByDate<T>(
+export function sortByDate<T>(
   field: keyof T,
   order: SortOrder = 'asc',
 ): Comparator<T> {
@@ -90,7 +90,7 @@ function sortByDate<T>(
  * const products = [{ price: 100 }, { price: 50 }];
  * products.sort(sortByNumber('price', 'asc')); // [{ price: 50 }, { price: 100 }]
  */
-function sortByNumber<T>(
+export function sortByNumber<T>(
   field: keyof T,
   order: SortOrder = 'asc',
 ): Comparator<T> {

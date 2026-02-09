@@ -4,6 +4,11 @@ export default {
       entry: [
         'app/main.tsx',
         'app/routes/**/*.tsx',
+        'app/hooks/**/*.{ts,tsx}',
+        'app/features/**/*.{ts,tsx}',
+        'app/components/**/*.{ts,tsx}',
+        'lib/offline/index.ts',
+        'lib/utils/client-utils.ts',
         'convex/http.ts',
         'convex/auth.ts',
         'convex/**/*.ts',
