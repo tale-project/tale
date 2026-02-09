@@ -236,8 +236,7 @@ export function AutomationSidePanel({
   return (
     <div
       ref={panelRef}
-      // CSS custom properties not in React.CSSProperties — cast required
-      style={{ '--panel-width': `${width}px` } as React.CSSProperties}
+      style={{ '--panel-width': `${width}px` }}
       className="bg-background border-border relative flex min-h-0 w-(--panel-width) flex-[0_0_auto] flex-col overflow-hidden border-l max-md:absolute max-md:inset-0 max-md:z-10 max-md:w-full"
     >
       {/* Resize handle - hidden on mobile */}

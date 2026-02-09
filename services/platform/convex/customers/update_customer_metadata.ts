@@ -10,9 +10,10 @@
 
 import { set, merge } from 'lodash';
 
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+
+import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 
 interface UpdateCustomerMetadataResult {
   success: boolean;
@@ -62,8 +63,7 @@ export async function updateCustomerMetadata(
 
   // Update the customer with the new metadata
   await ctx.db.patch(customerId, {
-    // Convex patch expects ConvexJsonRecord but we have Record<string, unknown>
-    metadata: updatedMetadata as ConvexJsonRecord,
+    metadata: toConvexJsonRecord(updatedMetadata),
   });
 
   return {

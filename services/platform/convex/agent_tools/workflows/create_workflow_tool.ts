@@ -150,12 +150,14 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
             workflowDescription: args.workflowConfig.description,
             workflowConfig: {
               ...args.workflowConfig,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
               config: args.workflowConfig.config as
                 | Record<string, string | number | boolean | null>
                 | undefined,
             },
             stepsConfig: args.stepsConfig.map((step) => ({
               ...step,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
               config: step.config as Record<
                 string,
                 string | number | boolean | null

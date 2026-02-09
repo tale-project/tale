@@ -79,10 +79,9 @@ export interface UseUrlStateReturn<T extends UrlStateDefinitions> {
 export function useUrlState<T extends UrlStateDefinitions>(
   options: UseUrlStateOptions<T>,
 ): UseUrlStateReturn<T> {
-  const search = useSearch({ strict: false }) as Record<
-    string,
-    string | undefined
-  >;
+  const search: Record<string, string | undefined> = useSearch({
+    strict: false,
+  });
   const navigate = useNavigate();
   const location = useLocation();
   const [isPending, startTransition] = useTransition();
@@ -100,6 +99,7 @@ export function useUrlState<T extends UrlStateDefinitions>(
 
   // Parse current state from URL
   const state = useMemo(() => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- empty object progressively populated in the loop below; ParsedUrlState<T> not inferrable at init
     const result = {} as ParsedUrlState<T>;
 
     for (const [key, definition] of Object.entries(definitions)) {
@@ -176,12 +176,13 @@ export function useUrlState<T extends UrlStateDefinitions>(
   // Set a single state value
   const setState = useCallback(
     <K extends keyof T>(key: K, value: UrlStateValue) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- computed property [key] loses K type; cast to Partial<ParsedUrlState<T>> is safe
       const newSearch = buildSearch({ [key]: value } as Partial<
         ParsedUrlState<T>
       >);
 
       startTransition(() => {
-        navigate({
+        void navigate({
           to: location.pathname,
           search: newSearch,
         });
@@ -196,7 +197,7 @@ export function useUrlState<T extends UrlStateDefinitions>(
       const newSearch = buildSearch(values);
 
       startTransition(() => {
-        navigate({
+        void navigate({
           to: location.pathname,
           search: newSearch,
         });

@@ -7,12 +7,12 @@
  * Step-type specific validation is delegated to validators in steps/.
  */
 
-import { VALID_STEP_TYPES, isValidStepType, type StepType } from './constants';
+import { isRecord } from '../../../../lib/utils/type-guards';
+import { VALID_STEP_TYPES, isValidStepType } from './constants';
 import { validateStepByType } from './steps';
 import {
   type StepDefinitionInput,
   type StepConfigValidationResult,
-  isConfigObject,
 } from './types';
 
 export * from './constants';
@@ -83,13 +83,13 @@ export function validateStepConfig(
 
   // 4. Validate config object
   const config = stepDef.config;
-  if (!isConfigObject(config)) {
+  if (!isRecord(config)) {
     errors.push('Step config is required and must be an object');
     return { valid: false, errors, warnings };
   }
 
   // 5. Delegate to step-type specific validator
-  const stepType = stepDef.stepType as StepType;
+  const stepType = stepDef.stepType;
   const typeValidation = validateStepByType(stepType, config);
   errors.push(...typeValidation.errors);
   warnings.push(...typeValidation.warnings);

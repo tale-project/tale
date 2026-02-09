@@ -127,7 +127,7 @@ export async function findOrCreateUserFromHeaders(
       },
     );
 
-    userId = createResult._id ?? createResult.id ?? String(createResult);
+    userId = createResult._id;
 
     // If there's already an organization in the system, attach this new
     // trusted-headers user to that existing organization instead of
@@ -187,7 +187,7 @@ export async function findOrCreateUserFromHeaders(
         },
       );
 
-      const newOrgId = orgResult._id ?? orgResult.id ?? String(orgResult);
+      const newOrgId = orgResult._id;
       organizationId = newOrgId;
 
       await ctx.runMutation(components.betterAuth.adapter.create, {

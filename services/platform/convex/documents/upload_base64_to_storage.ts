@@ -49,6 +49,7 @@ export async function uploadBase64ToStorage(
     method: 'POST',
     headers: { 'Content-Type': contentType },
     // Cast to unknown first to avoid SharedArrayBuffer incompatibility in TS
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
     body: new Blob([bytes as unknown as ArrayBuffer], { type: contentType }),
   });
 
@@ -64,6 +65,7 @@ export async function uploadBase64ToStorage(
     );
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const { storageId } = (await uploadResponse.json()) as {
     storageId: Id<'_storage'>;
   };

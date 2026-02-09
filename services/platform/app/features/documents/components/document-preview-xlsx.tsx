@@ -40,7 +40,7 @@ export function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
         if (!isCancelled) setLoading(false);
       }
     };
-    load();
+    void load();
     return () => {
       isCancelled = true;
     };

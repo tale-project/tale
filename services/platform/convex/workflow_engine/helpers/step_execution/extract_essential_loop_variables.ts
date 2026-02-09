@@ -3,63 +3,53 @@
  * Keep state, item, index, items, and parent for continuation and nested loops
  */
 
+import { isRecord } from '../../../../lib/utils/type-guards';
+
 export function extractEssentialLoopVariables(
   resultVariables?: Record<string, unknown>,
 ): Record<string, unknown> | undefined {
-  const loopAny = resultVariables?.loop as Record<string, unknown> | undefined;
+  const loopAny = isRecord(resultVariables?.loop)
+    ? resultVariables.loop
+    : undefined;
 
-  if (!loopAny || typeof loopAny !== 'object') {
+  if (!loopAny) {
     return undefined;
   }
 
-  const { state, item, index, items, parent, ownerStepSlug, ownerStepId } =
-    loopAny as {
-      state?: { isComplete?: boolean; [key: string]: unknown };
-      item?: unknown;
-      index?: unknown;
-      items?: unknown[];
-      parent?: unknown;
-      ownerStepSlug?: string;
-      // Backwards-compat: support older executions that used ownerStepId
-      ownerStepId?: string;
-    };
+  const state = isRecord(loopAny.state) ? loopAny.state : undefined;
+  const item = loopAny.item;
+  const index = loopAny.index;
+  const items = loopAny.items;
+  const parent = loopAny.parent;
+  const ownerStepSlug =
+    typeof loopAny.ownerStepSlug === 'string'
+      ? loopAny.ownerStepSlug
+      : undefined;
+  // Backwards-compat: support older executions that used ownerStepId
+  const ownerStepId =
+    typeof loopAny.ownerStepId === 'string' ? loopAny.ownerStepId : undefined;
 
   const resolvedOwnerStepSlug = ownerStepSlug ?? ownerStepId;
 
   // If a nested (child) loop has completed, restore the parent loop context so the
   // engine can continue or finish the outer loop instead of restarting a new one.
-  if (state?.isComplete === true && parent && typeof parent === 'object') {
-    const p = parent as Record<string, unknown>;
-    const {
-      state: pState,
-      item: pItem,
-      index: pIndex,
-      items: pItems,
-      parent: pParent,
-      ownerStepSlug: pOwnerStepSlug,
-      ownerStepId: pOwnerStepId,
-    } = p as {
-      state?: unknown;
-      item?: unknown;
-      index?: unknown;
-      items?: unknown[];
-      parent?: unknown;
-      ownerStepSlug?: string;
-      ownerStepId?: string;
-    };
-
-    const parentOwnerStepSlug = (pOwnerStepSlug ?? pOwnerStepId) as
-      | string
-      | undefined;
+  if (state?.isComplete === true && isRecord(parent)) {
+    const pOwnerStepSlug =
+      typeof parent.ownerStepSlug === 'string'
+        ? parent.ownerStepSlug
+        : undefined;
+    const pOwnerStepId =
+      typeof parent.ownerStepId === 'string' ? parent.ownerStepId : undefined;
+    const parentOwnerStepSlug = pOwnerStepSlug ?? pOwnerStepId;
 
     return {
-      state: pState,
-      item: pItem,
-      index: pIndex,
-      items: pItems,
-      parent: pParent,
+      state: parent.state,
+      item: parent.item,
+      index: parent.index,
+      items: parent.items,
+      parent: parent.parent,
       ownerStepSlug: parentOwnerStepSlug,
-    } as Record<string, unknown>;
+    };
   }
 
   // Keep the minimal loop fields (including parent and ownerStepSlug) so we can continue properly
@@ -70,5 +60,5 @@ export function extractEssentialLoopVariables(
     items,
     parent,
     ownerStepSlug: resolvedOwnerStepSlug,
-  } as Record<string, unknown>;
+  };
 }

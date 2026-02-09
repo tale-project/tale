@@ -2,10 +2,10 @@
  * Create a new document
  */
 
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { MutationCtx } from '../_generated/server';
 import type { CreateDocumentArgs, CreateDocumentResult } from './types';
 
+import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { extractExtension } from './extract_extension';
 
 export async function createDocument(
@@ -23,7 +23,7 @@ export async function createDocument(
     fileId: args.fileId,
     mimeType: args.mimeType,
     extension,
-    metadata: args.metadata as ConvexJsonRecord,
+    metadata: toConvexJsonRecord(args.metadata),
     sourceProvider: args.sourceProvider,
     externalItemId: args.externalItemId,
     contentHash: args.contentHash,

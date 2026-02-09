@@ -181,7 +181,7 @@ export const executeLLMNode = internalAction({
   },
   returns: stepExecutionResultValidator,
   handler: async (ctx, args) => {
-    const llmConfig = normalizeLLMConfig(args.stepDef.config as LLMStepConfig);
+    const llmConfig = normalizeLLMConfig(args.stepDef.config);
     const result = await LLMNodeHelpers.executeLLMNode(
       ctx,
       llmConfig,

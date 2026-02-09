@@ -61,7 +61,9 @@ export const create = action({
           internal.email_providers.internal_mutations.createProvider,
           {
             ...params,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
             vendor: params.vendor as EmailProviderVendor,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
             authMethod: params.authMethod as 'password' | 'oauth2',
           },
         );
@@ -107,7 +109,9 @@ export const createOAuth2Provider = action({
           internal.email_providers.internal_mutations.createProvider,
           {
             ...params,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
             vendor: params.vendor as EmailProviderVendor,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
             authMethod: params.authMethod as 'password' | 'oauth2',
           },
         );
@@ -228,6 +232,7 @@ export const testExistingProvider = action({
           internal.email_providers.internal_actions.testNewProviderConnection,
           {
             ...params,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
             vendor: params.vendor as EmailProviderVendor,
           },
         );

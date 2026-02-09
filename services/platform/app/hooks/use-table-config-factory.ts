@@ -131,6 +131,7 @@ export function createTableConfigHook<TTableName extends TableNames>(
       searchPlaceholder: tEntity('searchPlaceholder'),
       stickyLayout,
       pageSize,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- keyof Doc<TTableName> is always string; narrowing for TableConfig interface
       defaultSort: defaultSort as string,
       defaultSortDesc,
       infiniteScroll,

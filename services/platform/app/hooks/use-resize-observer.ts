@@ -70,7 +70,7 @@ export function useResizeObserver(
       refs.current &&
       !Array.isArray(refs.current)
     ) {
-      validElements = [refs.current as HTMLElement];
+      validElements = [refs.current];
     }
 
     if (validElements.length === 0) return;

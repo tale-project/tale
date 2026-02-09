@@ -35,13 +35,13 @@ export async function readVersionHistory(
 
   try {
     // Get all versions of the workflow
-    const allVersions = (await ctx.runQuery(
+    const allVersions = await ctx.runQuery(
       internal.wf_definitions.internal_queries.listVersionsByName,
       {
         organizationId,
         name: args.workflowName,
       },
-    )) as Doc<'wfDefinitions'>[];
+    );
 
     if (allVersions.length === 0) {
       return {
@@ -60,12 +60,12 @@ export async function readVersionHistory(
         let steps: Doc<'wfStepDefs'>[] | undefined;
 
         if (includeSteps) {
-          steps = (await ctx.runQuery(
+          steps = await ctx.runQuery(
             internal.wf_step_defs.internal_queries.listWorkflowSteps,
             {
               wfDefinitionId: wf._id,
             },
-          )) as Doc<'wfStepDefs'>[];
+          );
         }
 
         return {

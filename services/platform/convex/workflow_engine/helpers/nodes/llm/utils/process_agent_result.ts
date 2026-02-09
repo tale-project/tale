@@ -6,6 +6,7 @@
 
 import type { ProcessedAgentResult } from '../types';
 
+import { isRecord, getArray } from '../../../../../../lib/utils/type-guards';
 import { buildAgentStepsSummary } from './build_agent_steps_summary';
 import { extractToolDiagnostics } from './extract_tool_diagnostics';
 
@@ -13,9 +14,8 @@ import { extractToolDiagnostics } from './extract_tool_diagnostics';
  * Processes agent result to extract steps and tool diagnostics
  */
 export function processAgentResult(result: unknown): ProcessedAgentResult {
-  const steps = (result as Record<string, unknown>)?.['steps'] as
-    | unknown[]
-    | undefined;
+  const resultRec = isRecord(result) ? result : undefined;
+  const steps = resultRec ? getArray(resultRec, 'steps') : undefined;
 
   if (!Array.isArray(steps)) {
     return {

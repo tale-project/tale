@@ -35,6 +35,7 @@ const validRoles = new Set<RoleBadgeVariant>([
 ]);
 
 export function getRoleBadgeClasses(role?: string | null): string {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by Set check below
   const normalizedRole = (role || '').toLowerCase() as RoleBadgeVariant;
   if (validRoles.has(normalizedRole)) {
     return roleBadgeVariants({ role: normalizedRole });

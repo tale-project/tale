@@ -100,6 +100,7 @@ export async function generateDocument(
     );
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const { storageId } = (await uploadResponse.json()) as {
     storageId: Id<'_storage'>;
   };

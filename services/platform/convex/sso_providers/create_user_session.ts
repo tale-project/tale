@@ -43,7 +43,9 @@ export async function createUserSession(
   );
 
   const sessionId =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
     (createResult as { _id?: string; id?: string })?._id ??
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
     (createResult as { _id?: string; id?: string })?.id ??
     null;
 

@@ -42,6 +42,7 @@ async function trySendViaReplyFlow(params: {
       `Microsoft Graph API error (lookup parent): ${findResp.status} ${findResp.statusText} - ${t}`,
     );
   }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const findData = (await findResp.json()) as { value: Array<{ id: string }> };
   if (!findData.value || findData.value.length === 0) {
     throw new Error(
@@ -68,6 +69,7 @@ async function trySendViaReplyFlow(params: {
       `Microsoft Graph API error (createReply): ${createReplyResp.status} ${createReplyResp.statusText} - ${t}`,
     );
   }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const replyDraft = (await createReplyResp.json()) as { id: string };
 
   // 3) Patch the draft with our body and recipients
@@ -116,6 +118,7 @@ async function trySendViaReplyFlow(params: {
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   if (getResp.ok) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const j = (await getResp.json()) as {
       id: string;
       internetMessageId?: string;
@@ -131,6 +134,7 @@ async function trySendViaReplyFlow(params: {
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
     if (sentItemsResponse.ok) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const sentItemsData = (await sentItemsResponse.json()) as {
         value: Array<{ id: string; internetMessageId?: string }>;
       };
@@ -260,6 +264,7 @@ export const sendEmail = internalAction({
       );
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const draftMessage = (await createResponse.json()) as {
       id: string;
       internetMessageId?: string;
@@ -293,6 +298,7 @@ export const sendEmail = internalAction({
     let graphMessageId = draftMessage.id;
 
     if (sentItemsResponse.ok) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const sentItemsData = (await sentItemsResponse.json()) as {
         value: Array<{ id: string; internetMessageId?: string }>;
       };

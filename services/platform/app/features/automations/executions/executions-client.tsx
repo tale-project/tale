@@ -156,7 +156,7 @@ export function ExecutionsClient({
   );
 
   const copyToClipboard = useCallback((text: string) => {
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard.writeText(text);
     setCopiedId(text);
     setTimeout(() => setCopiedId(null), 1500);
   }, []);
@@ -284,7 +284,7 @@ export function ExecutionsClient({
   );
 
   const handleSearchChange = (value: string) => {
-    navigate({
+    void navigate({
       to: '/dashboard/$id/automations/$amId/executions',
       params: { id: organizationId, amId },
       search: {
@@ -299,7 +299,7 @@ export function ExecutionsClient({
 
   const handleStatusChange = useCallback(
     (values: string[]) => {
-      navigate({
+      void navigate({
         to: '/dashboard/$id/automations/$amId/executions',
         params: { id: organizationId, amId },
         search: {
@@ -316,7 +316,7 @@ export function ExecutionsClient({
 
   const handleTriggeredByChange = useCallback(
     (values: string[]) => {
-      navigate({
+      void navigate({
         to: '/dashboard/$id/automations/$amId/executions',
         params: { id: organizationId, amId },
         search: {
@@ -334,7 +334,7 @@ export function ExecutionsClient({
   const handleDateRangeChange = (
     range: { from?: Date; to?: Date } | undefined,
   ) => {
-    navigate({
+    void navigate({
       to: '/dashboard/$id/automations/$amId/executions',
       params: { id: organizationId, amId },
       search: {
@@ -352,7 +352,7 @@ export function ExecutionsClient({
   };
 
   const handleClearFilters = () => {
-    navigate({
+    void navigate({
       to: '/dashboard/$id/automations/$amId/executions',
       params: { id: organizationId, amId },
       search: {},

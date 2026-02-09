@@ -4,7 +4,7 @@
  * Reads workflow and step definitions from the database.
  * This wraps the existing database access logic.
  */
-import type { Id, Doc } from '../../../_generated/dataModel';
+import type { Id } from '../../../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../_generated/server';
 import type {
   WorkflowDataSource,
@@ -22,9 +22,7 @@ export class DatabaseWorkflowDataSource implements WorkflowDataSource {
   ) {}
 
   async getWorkflowDefinition(): Promise<WorkflowDefinition> {
-    const workflow = (await this.ctx.db.get(
-      this.wfDefinitionId,
-    )) as Doc<'wfDefinitions'> | null;
+    const workflow = await this.ctx.db.get(this.wfDefinitionId);
     if (!workflow) {
       throw new Error(`Workflow definition not found: ${this.wfDefinitionId}`);
     }
@@ -36,7 +34,9 @@ export class DatabaseWorkflowDataSource implements WorkflowDataSource {
       name: workflow.name,
       description: workflow.description,
       version: workflow.version,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
       status: workflow.status as WorkflowDefinition['status'],
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
       workflowType: workflow.workflowType as WorkflowDefinition['workflowType'],
       config: workflow.config,
       metadata: workflow.metadata,
@@ -44,10 +44,10 @@ export class DatabaseWorkflowDataSource implements WorkflowDataSource {
   }
 
   async getStepDefinitions(): Promise<StepDefinition[]> {
-    const steps = (await this.ctx.runQuery(
+    const steps = await this.ctx.runQuery(
       internal.wf_step_defs.internal_queries.getOrderedSteps,
       { wfDefinitionId: this.wfDefinitionId },
-    )) as Array<Doc<'wfStepDefs'>>;
+    );
 
     // Return in standardized format (already sorted by order from getOrderedSteps)
     return steps.map((step) => ({
@@ -56,10 +56,10 @@ export class DatabaseWorkflowDataSource implements WorkflowDataSource {
       wfDefinitionId: step.wfDefinitionId,
       stepSlug: step.stepSlug,
       name: step.name,
-      stepType: step.stepType as StepDefinition['stepType'],
+      stepType: step.stepType,
       order: step.order,
       config: step.config,
-      nextSteps: step.nextSteps as StepDefinition['nextSteps'],
+      nextSteps: step.nextSteps,
     }));
   }
 

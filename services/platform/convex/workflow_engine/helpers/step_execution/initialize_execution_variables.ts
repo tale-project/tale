@@ -2,9 +2,10 @@
  * Initialize execution variables
  */
 
+import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
-import { Id } from '../../../_generated/dataModel';
 import { ActionCtx } from '../../../_generated/server';
+import { toId } from '../../../lib/type_cast_helpers';
 import { serializeVariables } from '../serialization/serialize_variables';
 import { decryptAndMergeSecrets } from './decrypt_and_merge_secrets';
 import { extractLoopVariables } from './extract_loop_variables';
@@ -35,18 +36,16 @@ export async function initializeExecutionVariables(
   // Use execution variables as the base, or initialize if empty
   if (execution?.variables && Object.keys(execution.variables).length > 0) {
     fullVariables = {
-      ...(execution.variables as Record<string, unknown>),
+      ...execution.variables,
       organizationId: args.organizationId,
       wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug
       rootWfDefinitionId, // Auto-inject root workflow definition ID
     };
   } else {
     // Initialize execution variables for the first time
+    const inputVars = args.resumeVariables ?? args.initialInput;
     fullVariables = {
-      ...((args.resumeVariables ?? args.initialInput) as Record<
-        string,
-        unknown
-      >),
+      ...(isRecord(inputVars) ? inputVars : {}),
       ...workflowConfig?.config?.variables,
       organizationId: args.organizationId,
       wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug
@@ -56,8 +55,9 @@ export async function initializeExecutionVariables(
     // Handle secrets decryption for initial setup
     const configSecrets = workflowConfig?.config?.secrets;
     if (configSecrets && Object.keys(configSecrets).length > 0) {
-      const inputSecrets =
-        (fullVariables.secrets as Record<string, unknown>) || {};
+      const inputSecrets = isRecord(fullVariables.secrets)
+        ? fullVariables.secrets
+        : {};
       fullVariables.secrets = await decryptAndMergeSecrets(
         configSecrets,
         inputSecrets,
@@ -73,7 +73,7 @@ export async function initializeExecutionVariables(
     await ctx.runMutation(
       internal.wf_executions.internal_mutations.updateExecutionVariables,
       {
-        executionId: args.executionId as Id<'wfExecutions'>,
+        executionId: toId<'wfExecutions'>(args.executionId),
         variablesSerialized: serialized,
         variablesStorageId: storageId,
       },
@@ -85,7 +85,7 @@ export async function initializeExecutionVariables(
   let latestLoopVariables: Record<string, unknown> | undefined;
 
   if (execution?.variables) {
-    const executionVars = execution.variables as Record<string, unknown>;
+    const executionVars = execution.variables;
 
     // Extract steps with outputs
     const extractedSteps = extractStepsWithOutputs(executionVars);

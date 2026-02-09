@@ -9,6 +9,7 @@ import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import type { DocumentListResponse } from './types';
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { transformDocumentsBatch } from './transform_to_document_item';
 
 export async function getDocuments(
@@ -43,7 +44,8 @@ export async function getDocuments(
     for await (const doc of baseQuery) {
       // Apply folder path filter
       if (folderPath) {
-        const docPath = (doc.metadata as { storagePath?: string })?.storagePath;
+        const meta = isRecord(doc.metadata) ? doc.metadata : undefined;
+        const docPath = meta ? getString(meta, 'storagePath') : undefined;
         if (docPath !== folderPath) {
           continue;
         }
@@ -52,9 +54,9 @@ export async function getDocuments(
       // Apply search filter (case-insensitive contains)
       if (searchQuery) {
         const titleMatch = doc.title?.toLowerCase().includes(searchQuery);
-        const nameMatch = (doc.metadata as { name?: string })?.name
-          ?.toLowerCase()
-          .includes(searchQuery);
+        const meta = isRecord(doc.metadata) ? doc.metadata : undefined;
+        const metaName = meta ? getString(meta, 'name') : undefined;
+        const nameMatch = metaName?.toLowerCase().includes(searchQuery);
 
         if (!titleMatch && !nameMatch) {
           continue;

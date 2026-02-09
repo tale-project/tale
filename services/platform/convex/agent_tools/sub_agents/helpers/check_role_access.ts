@@ -11,6 +11,7 @@ const PRIVILEGED_ROLES = ['admin', 'developer'] as const;
 type PrivilegedRole = (typeof PRIVILEGED_ROLES)[number];
 
 function isPrivilegedRole(role: string): role is PrivilegedRole {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- type guard boundary
   return PRIVILEGED_ROLES.includes(role.toLowerCase() as PrivilegedRole);
 }
 

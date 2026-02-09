@@ -70,7 +70,10 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
   }, [isHistoryOpen, setIsHistoryOpen]);
 
   const handleNewChat = useCallback(() => {
-    navigate({ to: '/dashboard/$id/chat', params: { id: organizationId } });
+    void navigate({
+      to: '/dashboard/$id/chat',
+      params: { id: organizationId },
+    });
   }, [navigate, organizationId]);
 
   const handleChatSelect = useCallback(() => {

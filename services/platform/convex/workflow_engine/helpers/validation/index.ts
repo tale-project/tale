@@ -17,6 +17,5 @@ export type {
   WorkflowConfig,
   WorkflowValidationResult,
 } from './types';
-export { isConfigObject } from './types';
 export * from './steps';
 export * from './variables';

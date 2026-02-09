@@ -7,7 +7,7 @@ import globalMessages from '@/messages/global.json';
 
 import { defaultLocale } from './config';
 
-i18n
+void i18n
   .use(ICU)
   .use(initReactI18next)
   .init({

@@ -224,10 +224,10 @@ export function AddMemberDialog({
 
         <Select
           value={selectedRole}
-          // Radix Select onValueChange returns string — cast required
           onValueChange={(value) =>
             setValue(
               'role',
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
               value as 'disabled' | 'admin' | 'developer' | 'editor' | 'member',
             )
           }

@@ -30,7 +30,7 @@ export function useLocale(defaultLocale = 'en-US') {
   const [locale, setLocaleState] = useState(() => detectLocale(defaultLocale));
 
   useEffect(() => {
-    loadDayjsLocale(locale).then(() => setLocaleState(locale));
+    void loadDayjsLocale(locale).then(() => setLocaleState(locale));
   }, [locale]);
 
   const setLocale = useCallback(
@@ -38,14 +38,14 @@ export function useLocale(defaultLocale = 'en-US') {
       if (isValidLocale(newLocale)) {
         setLocaleState(newLocale);
         localStorage.setItem('user-locale', newLocale);
-        loadDayjsLocale(newLocale);
+        void loadDayjsLocale(newLocale);
       } else {
         console.warn(
           `Invalid locale: ${newLocale}. Using default: ${defaultLocale}`,
         );
         setLocaleState(defaultLocale);
         localStorage.setItem('user-locale', defaultLocale);
-        loadDayjsLocale(defaultLocale);
+        void loadDayjsLocale(defaultLocale);
       }
     },
     [defaultLocale],

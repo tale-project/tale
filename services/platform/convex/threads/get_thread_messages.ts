@@ -51,11 +51,14 @@ export async function getThreadMessages(
   // Transform to our expected format
   // UIMessage has: key, text, _creationTime, role, parts, etc.
   const messages = uiMessages
-    .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+    .filter(
+      (msg): msg is typeof msg & { role: 'user' | 'assistant' } =>
+        msg.role === 'user' || msg.role === 'assistant',
+    )
     .map((msg) => ({
-      _id: msg.id, // Use underlying message document id for linking
+      _id: msg.id,
       _creationTime: msg._creationTime,
-      role: msg.role as 'user' | 'assistant',
+      role: msg.role,
       content: msg.text,
     }));
 

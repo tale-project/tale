@@ -44,7 +44,7 @@ export async function listWorkflowsWithBestVersion(
 
   // Use async iteration with inline filtering and aggregation
   for await (const wf of query) {
-    const workflow = wf as WorkflowDefinition;
+    const workflow = wf;
 
     // Filter by search term if provided (matches name or description)
     if (searchLower) {

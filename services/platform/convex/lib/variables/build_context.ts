@@ -1,4 +1,6 @@
-import { clone, forEach, get, has, isPlainObject } from 'lodash';
+import { clone, forEach, get, has } from 'lodash';
+
+import { isRecord } from '../../../lib/utils/type-guards';
 
 /**
  * Build evaluation context from variables
@@ -11,8 +13,8 @@ export function buildContext(
   const nested = get(variables, 'variables');
 
   // Backward-compat: expose workflow-level variables at top-level
-  if (isPlainObject(nested)) {
-    forEach(nested as Record<string, unknown>, (v, k) => {
+  if (isRecord(nested)) {
+    forEach(nested, (v, k) => {
       if (!has(base, k)) {
         base[k] = v;
       }

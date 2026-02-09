@@ -93,7 +93,7 @@ export function JsonInput({
             return true;
           } catch (err) {
             if (err instanceof z.ZodError) {
-              const zodError = err as z.ZodError<unknown>;
+              const zodError = err;
               const errorMessage = zodError.issues
                 .map((e) => `${e.path.join('.')}: ${e.message}`)
                 .join(', ');

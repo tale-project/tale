@@ -3,9 +3,10 @@
  */
 
 import type { DataSource } from '../../lib/shared/schemas/common';
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { MutationCtx } from '../_generated/server';
 import type { BulkCreateResult } from './types';
+
+import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 
 export interface BulkCreateCustomerData {
   name?: string;
@@ -75,7 +76,7 @@ export async function bulkCreateCustomers(
       await ctx.db.insert('customers', {
         organizationId,
         ...customerData,
-        metadata: customerData.metadata as ConvexJsonRecord,
+        metadata: toConvexJsonRecord(customerData.metadata),
       });
 
       results.success++;

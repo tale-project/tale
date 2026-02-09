@@ -54,7 +54,7 @@ export function ChatActions({
       setIsDeleteDialogOpen(false);
 
       if (currentChatId === chat.id) {
-        navigate({
+        void navigate({
           to: '/dashboard/$id/chat',
           params: { id: organizationId },
         });

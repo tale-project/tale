@@ -222,6 +222,7 @@ export async function queryRagContext(
         return undefined; // Gracefully degrade if RAG is unavailable
       }
 
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response.json() returns unknown
       const result = (await response.json()) as QueryResponse;
 
       if (!result.success || result.total_results === 0) {

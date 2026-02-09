@@ -120,6 +120,7 @@ let _toolRegistryMap: Record<ToolName, ToolDefinition> | null = null;
 
 export function getToolRegistryMap(): Record<ToolName, ToolDefinition> {
   if (!_toolRegistryMap) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.fromEntries loses key type
     _toolRegistryMap = Object.fromEntries(
       TOOL_REGISTRY.map((tool: ToolDefinition) => [tool.name, tool]),
     ) as Record<ToolName, ToolDefinition>;

@@ -9,7 +9,7 @@ import { Stack, VStack, Center } from '@/app/components/ui/layout/layout';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
@@ -65,8 +65,9 @@ export function ConversationPanel({
   const conversation = useConvexQuery(
     api.conversations.queries.getConversationWithMessages,
     selectedConversationId
-      ? // Component receives string IDs from router/state — cast required for Convex API
-        { conversationId: selectedConversationId as Id<'conversations'> }
+      ? {
+          conversationId: toId<'conversations'>(selectedConversationId),
+        }
       : 'skip',
   );
 
@@ -119,8 +120,7 @@ export function ConversationPanel({
 
       if (hasUnreadMessages) {
         markAsRead({
-          // Component receives string IDs from router/state — cast required for Convex API
-          conversationId: selectedConversationId as Id<'conversations'>,
+          conversationId: toId<'conversations'>(selectedConversationId),
         }).catch((error: Error) => {
           console.error('Failed to mark conversation as read:', error);
         });
@@ -192,7 +192,7 @@ export function ConversationPanel({
       }
     }
 
-    // Extract email information from conversation metadata
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata field uses v.any()
     const metadata = conversation.metadata as
       | Record<string, unknown>
       | undefined;
@@ -205,7 +205,7 @@ export function ConversationPanel({
       if (typeof metadata.from === 'string') {
         customerEmail = metadata.from;
       } else if (Array.isArray(metadata.from) && metadata.from.length > 0) {
-        // Metadata from Convex uses v.any() — cast required for email from field structure
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any()
         const fromObj = metadata.from[0] as { address?: string; name?: string };
         customerEmail = fromObj.address || '';
       }
@@ -236,8 +236,7 @@ export function ConversationPanel({
     // Send message with attachments (backend handles channel-specific routing)
     // The backend will determine the sender email from the email provider
     await sendMessageViaEmail({
-      // Convex validator uses v.string() for IDs — cast required for mutation
-      conversationId: conversation._id as Id<'conversations'>,
+      conversationId: toId<'conversations'>(conversation._id),
       organizationId: conversation.organizationId,
       content: message,
       to: [customerEmail],
@@ -358,9 +357,10 @@ export function ConversationPanel({
     'emailBody' in conversation.pendingApproval.metadata
       ? {
           id: conversation.pendingApproval._id,
-          content: (
-            conversation.pendingApproval.metadata as { emailBody: string }
-          ).emailBody,
+          content:
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any()
+            (conversation.pendingApproval.metadata as { emailBody: string })
+              .emailBody,
         }
       : undefined;
 

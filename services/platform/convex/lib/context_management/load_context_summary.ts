@@ -22,6 +22,7 @@ export async function loadContextSummary(
       return undefined;
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const summaryData = JSON.parse(thread.summary) as {
       contextSummary?: string;
     };

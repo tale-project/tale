@@ -1,5 +1,13 @@
 import type { RagDeleteResult } from './types';
 
+import {
+  getString,
+  getNumber,
+  getBoolean,
+  getArray,
+  isRecord,
+} from '../../../../../lib/utils/type-guards';
+
 export interface DeleteDocumentByIdArgs {
   ragServiceUrl: string;
   documentId: string;
@@ -40,15 +48,21 @@ export async function deleteDocumentById({
       throw new Error(`RAG service error: ${response.status} ${errorText}`);
     }
 
-    const result = (await response.json()) as Record<string, unknown>;
+    const rawResult: unknown = await response.json();
+    const result = isRecord(rawResult) ? rawResult : {};
+
+    const deletedDataIdsRaw = getArray(result, 'deleted_data_ids');
+    const deletedDataIds = deletedDataIdsRaw
+      ? deletedDataIdsRaw.filter((id): id is string => typeof id === 'string')
+      : [];
 
     return {
-      success: (result.success as boolean | undefined) ?? false,
-      deletedCount: (result.deleted_count as number) || 0,
-      deletedDataIds: (result.deleted_data_ids as Array<string>) || [],
-      message: (result.message as string) || '',
+      success: getBoolean(result, 'success') ?? false,
+      deletedCount: getNumber(result, 'deleted_count') || 0,
+      deletedDataIds,
+      message: getString(result, 'message') || '',
       processingTimeMs:
-        (result.processing_time_ms as number) || Date.now() - startTime,
+        getNumber(result, 'processing_time_ms') || Date.now() - startTime,
       timestamp: Date.now(),
     };
   } catch (error) {

@@ -110,6 +110,7 @@ export function toPredefinedWorkflowPayload(
     ...def.workflowConfig,
     ...configOverrides,
     // Bridge loose workflowType string to strict literal
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     workflowType: def.workflowConfig.workflowType as WorkflowType | undefined,
     // Bridge loose config to strict WorkflowConfig
     config: (configOverrides?.config ?? def.workflowConfig.config) as
@@ -123,11 +124,14 @@ export function toPredefinedWorkflowPayload(
       stepSlug: transformedStep.stepSlug,
       name: transformedStep.name,
       // Bridge loose stepType string to strict StepType literal
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       stepType: transformedStep.stepType as StepType,
       order: transformedStep.order,
       // Bridge loose config to strict StepConfig (validated at runtime)
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       config: transformedStep.config as StepConfig,
       // Filter out undefined values from nextSteps
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       nextSteps: Object.fromEntries(
         Object.entries(transformedStep.nextSteps).filter(
           ([, v]) => v !== undefined,

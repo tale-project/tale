@@ -4,8 +4,6 @@ import { useMutation, useQuery } from 'convex/react';
 import { Users } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Stack } from '@/app/components/ui/layout/layout';
@@ -13,6 +11,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 interface DocumentTeamTagsDialogProps {
@@ -80,8 +79,7 @@ function DocumentTeamTagsDialogContent({
 
     try {
       await updateDocument({
-        // Component receives string ID — cast required for Convex API
-        documentId: documentId as Id<'documents'>,
+        documentId: toId<'documents'>(documentId),
         teamTags: Array.from(selectedTeams),
       });
 

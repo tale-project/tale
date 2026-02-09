@@ -86,6 +86,7 @@ function AutomationStepsInner({
   const isActive = status === 'active';
   const hasSteps = steps && steps.length > 0;
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- TS infers never[] from empty array without explicit type arg
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [isCreateStepDialogOpen, setIsCreateStepDialogOpen] = useState(false);
 
@@ -198,12 +199,12 @@ function AutomationStepsInner({
         const currentViewport = getViewport();
 
         // Fit the view with minimum zoom constraint to prevent zooming out
-        fitView({
+        void fitView({
           padding: 0.2,
           duration: 400,
           includeHiddenNodes: false,
-          minZoom: currentViewport.zoom, // Maintain minimum zoom at current level
-          maxZoom: currentViewport.zoom, // Maintain maximum zoom at current level
+          minZoom: currentViewport.zoom,
+          maxZoom: currentViewport.zoom,
         });
       }, 100);
       return () => clearTimeout(timer);
@@ -580,7 +581,7 @@ function AutomationStepsInner({
         };
       }
 
-      // ReactFlow Node requires all fields, but we build incrementally with conditional properties
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ReactFlow Node requires all fields, but we build incrementally with conditional properties
       return nodeConfig as Node;
     });
 
@@ -1192,7 +1193,7 @@ function AutomationStepsInner({
                     size="icon"
                     title={t('steps.toolbar.focus')}
                     onClick={() => {
-                      fitView({
+                      void fitView({
                         padding: 0.2,
                         duration: 400,
                         maxZoom: 1,

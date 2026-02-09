@@ -19,13 +19,7 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { UpdateCustomersResult } from './types';
 
-/**
- * Type guard to check if a value is a plain record object.
- * Returns false for null, arrays, and non-objects.
- */
-function isPlainRecord(val: unknown): val is Record<string, unknown> {
-  return typeof val === 'object' && val !== null && !Array.isArray(val);
-}
+import { isRecord } from '../../lib/utils/type-guards';
 
 export interface UpdateCustomersArgs {
   customerId?: Id<'customers'>;
@@ -103,7 +97,7 @@ export async function updateCustomers(
     // Handle metadata updates with lodash
     if (args.updates.metadata) {
       // Use type guard to safely access existing metadata
-      const existingMetadata = isPlainRecord(customer.metadata)
+      const existingMetadata = isRecord(customer.metadata)
         ? customer.metadata
         : {};
       const updatedMetadata: Record<string, unknown> = {
@@ -118,7 +112,7 @@ export async function updateCustomers(
           // For top-level keys, use merge for objects if both are plain records
           const existingValue = updatedMetadata[key];
 
-          if (isPlainRecord(value) && isPlainRecord(existingValue)) {
+          if (isRecord(value) && isRecord(existingValue)) {
             updatedMetadata[key] = merge({}, existingValue, value);
           } else {
             updatedMetadata[key] = value;

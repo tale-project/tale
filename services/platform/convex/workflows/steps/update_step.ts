@@ -8,6 +8,7 @@ import type { Doc } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import type { UpdateStepArgs } from './types';
 
+import { isRecord } from '../../../lib/utils/type-guards';
 import { validateStepConfig } from '../../workflow_engine/helpers/validation/validate_step_config';
 
 /** Partial update type for wfStepDefs - used for ctx.db.patch */
@@ -22,12 +23,12 @@ export async function updateStep(
     return null;
   }
 
-  if (!args.updates || typeof args.updates !== 'object') {
+  if (!isRecord(args.updates)) {
     // Nothing to update; return current record
-    return existing as Doc<'wfStepDefs'>;
+    return existing;
   }
 
-  const updates = args.updates as Record<string, unknown>;
+  const updates = args.updates;
 
   // Only run stepConfig validation when core step definition fields change.
   const affectsCoreFields =
@@ -63,5 +64,5 @@ export async function updateStep(
   await ctx.db.patch(args.stepRecordId, args.updates as StepDefPatch);
 
   const updated = await ctx.db.get(args.stepRecordId);
-  return updated as Doc<'wfStepDefs'> | null;
+  return updated;
 }

@@ -2,15 +2,11 @@
  * Helper function to trigger a specific workflow manually
  */
 
-import { Infer } from 'convex/values';
-
 import type { Id, Doc } from '../../../_generated/dataModel';
 
-import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
 import { ActionCtx } from '../../../_generated/server';
-
-type ConvexJsonValue = Infer<typeof jsonValueValidator>;
+import { toConvexJsonValue } from '../../../lib/type_cast_helpers';
 
 export interface TriggerWorkflowByIdArgs {
   wfDefinitionId: Id<'wfDefinitions'>;
@@ -27,6 +23,7 @@ export async function triggerWorkflowById(
     {
       wfDefinitionId: args.wfDefinitionId,
     },
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
   )) as unknown as Doc<'wfDefinitions'> | null;
 
   if (!workflow) {
@@ -46,7 +43,7 @@ export async function triggerWorkflowById(
     {
       organizationId: workflow.organizationId,
       wfDefinitionId: args.wfDefinitionId,
-      input: (args.input || {}) as ConvexJsonValue,
+      input: toConvexJsonValue(args.input || {}),
       triggeredBy: args.triggeredBy || 'manual',
       triggerData: {
         triggerType: 'manual',

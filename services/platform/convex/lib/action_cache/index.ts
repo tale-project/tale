@@ -66,16 +66,17 @@ export const imageAnalysisCache: ActionCache<
  */
 // Note: The internal_actions module needs to be regenerated (run `npx convex dev`)
 
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex internal module reference
+const toneOfVoiceModule = internal.tone_of_voice as unknown as {
+  internal_actions: {
+    generateToneOfVoiceUncached: FunctionReference<'action', 'internal'>;
+  };
+};
+
 export const toneOfVoiceCache: ActionCache<
   FunctionReference<'action', 'internal'>
 > = new ActionCache(components.actionCache, {
-  action: (
-    internal.tone_of_voice as unknown as {
-      internal_actions: {
-        generateToneOfVoiceUncached: FunctionReference<'action', 'internal'>;
-      };
-    }
-  ).internal_actions.generateToneOfVoiceUncached,
+  action: toneOfVoiceModule.internal_actions.generateToneOfVoiceUncached,
   name: `tone_of_voice_${CACHE_VERSION}`,
   ttl: TTL.ONE_DAY,
 });

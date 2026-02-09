@@ -15,7 +15,6 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { Id } from '../../_generated/dataModel';
 import type { ToolDefinition } from '../types';
 import type {
   WorkflowReadGetStructureResult,
@@ -25,6 +24,7 @@ import type {
 } from './helpers/types';
 
 import { internal } from '../../_generated/api';
+import { toId } from '../../lib/type_cast_helpers';
 import { readActiveVersionSteps } from './helpers/read_active_version_steps';
 import { readAllWorkflows } from './helpers/read_all_workflows';
 import { readVersionHistory } from './helpers/read_version_history';
@@ -134,7 +134,7 @@ BEST PRACTICES:
         const stepDoc = await ctx.runQuery(
           internal.wf_step_defs.internal_queries.getStepById,
           {
-            stepId: args.stepId as Id<'wfStepDefs'>,
+            stepId: toId<'wfStepDefs'>(args.stepId),
           },
         );
         if (!stepDoc) {

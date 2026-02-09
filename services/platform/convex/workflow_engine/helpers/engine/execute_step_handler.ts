@@ -7,6 +7,7 @@
 import type { Doc } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 
+import { isRecord } from '../../../../lib/utils/type-guards';
 import { createDebugLog } from '../../../lib/debug_log';
 import { replaceVariables } from '../../../lib/variables/replace_variables';
 import { buildStepsMap } from '../step_execution/build_steps_map';
@@ -72,25 +73,25 @@ export async function handleExecuteStep(
   // sequential variable resolution within the action itself
   const isSetVariablesAction =
     args.stepType === 'action' &&
-    (stepDef.config as { type?: string }).type === 'set_variables';
+    isRecord(stepDef.config) &&
+    stepDef.config.type === 'set_variables';
 
   // Debug: Log loop variables before processing
-  if (fullVariables.loop) {
-    const loopVar = fullVariables.loop as Record<string, unknown>;
+  if (isRecord(fullVariables.loop)) {
     debugLog('handleExecuteStep Loop variables before processing:', {
       stepSlug: args.stepSlug,
-      loopIndex: loopVar.index,
-      loopState: loopVar.state,
-      hasParent: !!loopVar.parent,
+      loopIndex: fullVariables.loop.index,
+      loopState: fullVariables.loop.state,
+      hasParent: !!fullVariables.loop.parent,
     });
   }
 
   // Debug: Log before variable replacement for LLM steps
-  if (args.stepType === 'llm') {
-    const llmConfig = stepDef.config as Record<string, unknown>;
-    const stepsData = fullVariables.steps as
-      | Record<string, Record<string, unknown>>
-      | undefined;
+  if (args.stepType === 'llm' && isRecord(stepDef.config)) {
+    const llmConfig = stepDef.config;
+    const stepsData = isRecord(fullVariables.steps)
+      ? fullVariables.steps
+      : undefined;
 
     debugLog('Before replaceVariables (LLM step):', {
       stepSlug: args.stepSlug,
@@ -123,21 +124,20 @@ export async function handleExecuteStep(
     : replaceVariables(stepDef.config, fullVariables);
 
   // Debug: Log after variable replacement for LLM steps
-  if (args.stepType === 'llm') {
-    const processedLlmConfig = processedConfig as Record<string, unknown>;
+  if (args.stepType === 'llm' && isRecord(processedConfig)) {
     debugLog('After replaceVariables (LLM step):', {
       stepSlug: args.stepSlug,
       userPromptLength:
-        typeof processedLlmConfig.userPrompt === 'string'
-          ? processedLlmConfig.userPrompt.length
+        typeof processedConfig.userPrompt === 'string'
+          ? processedConfig.userPrompt.length
           : 0,
       userPromptPreview:
-        typeof processedLlmConfig.userPrompt === 'string'
-          ? processedLlmConfig.userPrompt.slice(0, 100)
+        typeof processedConfig.userPrompt === 'string'
+          ? processedConfig.userPrompt.slice(0, 100)
           : '',
       systemPromptLength:
-        typeof processedLlmConfig.systemPrompt === 'string'
-          ? processedLlmConfig.systemPrompt.length
+        typeof processedConfig.systemPrompt === 'string'
+          ? processedConfig.systemPrompt.length
           : 0,
     });
   }
@@ -147,6 +147,7 @@ export async function handleExecuteStep(
   // 5. Execute step by type
   const result = await executeStepByType(
     ctx,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     processedStepDef as {
       stepSlug: string;
       name: string;

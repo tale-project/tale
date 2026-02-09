@@ -47,6 +47,7 @@ export async function browserOperate(
       );
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response.json() returns unknown
     const result = (await response.json()) as OperatorChatResponse;
 
     if (!result.success) {

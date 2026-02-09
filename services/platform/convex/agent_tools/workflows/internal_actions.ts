@@ -45,6 +45,7 @@ export const executeApprovedWorkflowCreation = internalAction({
       );
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex approval metadata
     const metadata = approval.metadata as WorkflowCreationMetadata;
 
     if (!metadata?.workflowConfig || !metadata?.stepsConfig) {

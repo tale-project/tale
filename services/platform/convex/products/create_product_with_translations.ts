@@ -2,6 +2,8 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { ProductStatus, ProductTranslation } from './types';
 
+import { isRecord } from '../../lib/utils/type-guards';
+
 export interface CreateProductWithTranslationsArgs {
   organizationId: string;
   name: string;
@@ -35,7 +37,7 @@ export async function createProductWithTranslations(
     tags: args.tags || [],
     status: args.status || 'draft',
     translations: args.translations || [],
-    metadata: args.metadata as Record<string, unknown>,
+    metadata: isRecord(args.metadata) ? args.metadata : undefined,
     lastUpdated: now,
   });
 }

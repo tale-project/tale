@@ -94,13 +94,23 @@ export const beforeContextHook = internalAction({
     if (integrationsList && integrationsList.length > 0) {
       integrationsInfo = integrationsList
         .map((integration: Record<string, unknown>) => {
-          const type = integration.type || 'rest_api';
-          const status = integration.status || 'active';
-          const title = integration.title || integration.name;
-          const desc = integration.description
-            ? ` - ${integration.description}`
-            : '';
-          return `• ${integration.name} (${type}, ${status}): ${title}${desc}`;
+          const type =
+            typeof integration.type === 'string'
+              ? integration.type
+              : 'rest_api';
+          const status =
+            typeof integration.status === 'string'
+              ? integration.status
+              : 'active';
+          const name =
+            typeof integration.name === 'string' ? integration.name : '';
+          const title =
+            typeof integration.title === 'string' ? integration.title : name;
+          const desc =
+            typeof integration.description === 'string'
+              ? ` - ${integration.description}`
+              : '';
+          return `• ${name} (${type}, ${status}): ${title}${desc}`;
         })
         .join('\n');
     }

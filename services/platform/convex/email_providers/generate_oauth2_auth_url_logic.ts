@@ -40,6 +40,7 @@ export async function generateOAuth2AuthUrlLogic(
     throw new Error('Provider not found');
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const providerData = provider as {
     authMethod: string;
     oauth2Auth?: { provider: string; clientId: string };
@@ -53,11 +54,13 @@ export async function generateOAuth2AuthUrlLogic(
   // Get OAuth2 config
   const oauth2Auth = providerData.oauth2Auth;
   const metadata = providerData.metadata;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const accountType = metadata?.accountType as
     | 'personal'
     | 'organizational'
     | 'both'
     | undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const tenantId = metadata?.tenantId as string | undefined;
 
   // Build and return OAuth2 authorization URL
@@ -67,6 +70,7 @@ export async function generateOAuth2AuthUrlLogic(
   debugLog('Metadata redirectUri:', metadata?.redirectUri);
 
   const finalRedirectUri =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     args.redirectUri || (metadata?.redirectUri as string | undefined);
   debugLog('Final redirectUri to use:', finalRedirectUri);
 

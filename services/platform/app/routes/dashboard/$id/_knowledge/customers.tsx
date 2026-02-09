@@ -29,7 +29,7 @@ function CustomersPage() {
     return <CustomersTableSkeleton organizationId={organizationId} />;
   }
 
-  if (hasCustomers === false) {
+  if (!hasCustomers) {
     return <CustomersEmptyState organizationId={organizationId} />;
   }
 

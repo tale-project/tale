@@ -12,6 +12,8 @@
 
 import type { ParsedVariableReference } from './types';
 
+import { isRecord } from '../../../../../lib/utils/type-guards';
+
 // Regex pattern to match mustache-style template expressions
 // Note: The 'g' flag is added when creating the RegExp instance inside functions
 // to avoid shared state issues with lastIndex
@@ -180,9 +182,8 @@ export function parseVariableReferences(
     return value.flatMap((item) => parseVariableReferences(item));
   }
 
-  if (value && typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    return Object.values(obj).flatMap((val) => parseVariableReferences(val));
+  if (isRecord(value)) {
+    return Object.values(value).flatMap((val) => parseVariableReferences(val));
   }
 
   return [];

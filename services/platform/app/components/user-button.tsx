@@ -54,7 +54,7 @@ export function UserButton({
   const { t } = useT('auth');
   const { user, signOut, isLoading: loading } = useAuth();
   const navigate = useNavigate();
-  const params = useParams({ strict: false }) as { id?: string };
+  const params = useParams({ strict: false });
   const organizationId = params.id;
   const { theme, setTheme } = useTheme();
 
@@ -158,7 +158,7 @@ export function UserButton({
             <DropdownMenuItem
               onClick={() => {
                 if (!organizationId) return;
-                navigate({
+                void navigate({
                   to: '/dashboard/$id/settings',
                   params: { id: organizationId },
                 });

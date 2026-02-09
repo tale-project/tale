@@ -1,16 +1,15 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
-import type { Doc, Id } from '../../../_generated/dataModel';
 import type { WorkflowReadGetStructureResult } from './types';
 
 import { internal } from '../../../_generated/api';
+import { toId } from '../../../lib/type_cast_helpers';
 
 export async function readWorkflowStructure(
   ctx: ToolCtx,
   args: { workflowId: string },
 ): Promise<WorkflowReadGetStructureResult> {
-  // Cast string to Id at the boundary - validated by Convex runtime
-  const wfDefinitionId = args.workflowId as Id<'wfDefinitions'>;
+  const wfDefinitionId = toId<'wfDefinitions'>(args.workflowId);
 
   const workflow = await ctx.runQuery(
     internal.wf_definitions.internal_queries.resolveWorkflow,
@@ -32,7 +31,7 @@ export async function readWorkflowStructure(
 
   return {
     operation: 'get_structure',
-    workflow: workflow as Doc<'wfDefinitions'>,
-    steps: steps as Doc<'wfStepDefs'>[],
+    workflow: workflow,
+    steps: steps,
   };
 }

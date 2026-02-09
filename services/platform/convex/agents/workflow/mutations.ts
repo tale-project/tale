@@ -78,9 +78,7 @@ export const chatWithWorkflowAgent = mutation({
     );
 
     const normalizedRole = (userRole ?? 'member').toLowerCase();
-    if (
-      !ALLOWED_ROLES.includes(normalizedRole as (typeof ALLOWED_ROLES)[number])
-    ) {
+    if (!ALLOWED_ROLES.some((r) => r === normalizedRole)) {
       throw new Error(
         `Access denied: The workflow assistant is only available to users with admin or developer roles. Your current role is "${normalizedRole}".`,
       );

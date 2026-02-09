@@ -1,9 +1,9 @@
-import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { ConversationStatus, ConversationPriority } from './types';
 
 import { internal } from '../../../../_generated/api';
+import { toConvexJsonRecord, toId } from '../../../../lib/type_cast_helpers';
 
 export async function createConversation(
   ctx: ActionCtx,
@@ -33,14 +33,16 @@ export async function createConversation(
         channel: params.channel,
         direction: params.direction,
         providerId: params.providerId,
-        metadata: params.metadata as ConvexJsonRecord | undefined,
+        metadata: params.metadata
+          ? toConvexJsonRecord(params.metadata)
+          : undefined,
       },
     );
 
   // Fetch and return the full created entity
   const createdConversation = await ctx.runQuery(
     internal.conversations.internal_queries.getConversationById,
-    { conversationId: result.conversationId as Id<'conversations'> },
+    { conversationId: toId<'conversations'>(result.conversationId) },
   );
 
   if (!createdConversation) {

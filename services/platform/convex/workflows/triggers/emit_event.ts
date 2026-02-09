@@ -12,7 +12,7 @@ interface EmitEventArgs {
 export async function emitEvent(ctx: MutationCtx, args: EmitEventArgs) {
   const processEventArgs = {
     organizationId: args.organizationId,
-    eventType: args.eventType as string,
+    eventType: args.eventType,
     eventData: args.eventData,
   };
   await ctx.scheduler.runAfter(
@@ -26,7 +26,7 @@ export async function emitEvent(ctx: MutationCtx, args: EmitEventArgs) {
 export async function emitEventFromAction(ctx: ActionCtx, args: EmitEventArgs) {
   const processEventArgs = {
     organizationId: args.organizationId,
-    eventType: args.eventType as string,
+    eventType: args.eventType,
     eventData: args.eventData,
   };
   await ctx.scheduler.runAfter(

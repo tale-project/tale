@@ -49,7 +49,7 @@ export function ChatHistorySidebar({
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   // TanStack Router useParams with strict: false returns unknown params — cast required
-  const currentThreadId = params.threadId as string | undefined;
+  const currentThreadId = params.threadId;
   const [isMac, setIsMac] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -113,7 +113,7 @@ export function ChatHistorySidebar({
   }, [isMac, onSearchOpen, onNewChat]);
 
   const handleChatClick = (threadId: string) => {
-    navigate({
+    void navigate({
       to: '/dashboard/$id/chat/$threadId',
       params: { id: organizationId, threadId },
     });
@@ -157,7 +157,7 @@ export function ChatHistorySidebar({
 
   const handleInputBlur = (chatId: string) => {
     if (editingChatId === chatId) {
-      handleSaveRename(chatId);
+      void handleSaveRename(chatId);
     }
   };
 
@@ -206,7 +206,7 @@ export function ChatHistorySidebar({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        handleSaveRename(chat._id);
+                        void handleSaveRename(chat._id);
                       } else if (e.key === 'Escape') {
                         e.preventDefault();
                         handleCancelRename();

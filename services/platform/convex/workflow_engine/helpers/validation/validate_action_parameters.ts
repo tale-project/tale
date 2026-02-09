@@ -10,6 +10,7 @@
  * 3. Required args for the specific operation are provided
  */
 
+import { getString, isRecord } from '../../../../lib/utils/type-guards';
 import { getAction, listActionTypes } from '../../action_defs/action_registry';
 
 export interface ActionParametersValidationResult {
@@ -52,17 +53,16 @@ export function validateActionParameters(
   }
 
   // Check if parameters is an object
-  if (parameters === undefined || parameters === null) {
-    errors.push(`Action "${actionType}" requires parameters but none provided`);
+  if (!isRecord(parameters)) {
+    errors.push(
+      parameters === undefined || parameters === null
+        ? `Action "${actionType}" requires parameters but none provided`
+        : `Action "${actionType}" parameters must be an object`,
+    );
     return { valid: false, errors, warnings };
   }
 
-  if (typeof parameters !== 'object' || Array.isArray(parameters)) {
-    errors.push(`Action "${actionType}" parameters must be an object`);
-    return { valid: false, errors, warnings };
-  }
-
-  const params = parameters as Record<string, unknown>;
+  const params = parameters;
 
   // Parse the validator structure
   const validatorInfo = parseValidatorStructure(validator);
@@ -75,7 +75,8 @@ export function validateActionParameters(
   }
 
   // 2. Validate operation if the action uses operations
-  const operation = params.operation as string | undefined;
+  const operation =
+    typeof params.operation === 'string' ? params.operation : undefined;
 
   if (validatorInfo.validOperations.length > 0) {
     if (!operation) {
@@ -124,15 +125,9 @@ export function validateActionParameters(
     nestedObjectFields,
   )) {
     const nestedValue = params[fieldName];
-    if (
-      nestedValue &&
-      typeof nestedValue === 'object' &&
-      !Array.isArray(nestedValue)
-    ) {
+    if (isRecord(nestedValue)) {
       const opContext = operation ? ` for operation "${operation}"` : '';
-      for (const nestedField of Object.keys(
-        nestedValue as Record<string, unknown>,
-      )) {
+      for (const nestedField of Object.keys(nestedValue)) {
         if (!allowedNestedFields.includes(nestedField)) {
           errors.push(
             `Action "${actionType}"${opContext}: Unknown field "${nestedField}" in "${fieldName}". Allowed fields: ${allowedNestedFields.join(', ')}`,
@@ -172,15 +167,14 @@ interface ValidatorInfo {
  * 2. v.union(v.object({ operation: v.literal('op1'), ... }), ...) - union of objects per operation
  */
 function parseValidatorStructure(validator: unknown): ValidatorInfo | null {
-  const json = (validator as { json?: unknown }).json as
-    | Record<string, unknown>
-    | undefined;
+  if (!isRecord(validator)) return null;
+  const json = isRecord(validator.json) ? validator.json : undefined;
 
   if (!json) {
     return null;
   }
 
-  const validatorType = json.type as string | undefined;
+  const validatorType = typeof json.type === 'string' ? json.type : undefined;
 
   // Pattern 1: v.object({ operation: v.union(...), ... })
   if (validatorType === 'object') {
@@ -201,7 +195,7 @@ function parseValidatorStructure(validator: unknown): ValidatorInfo | null {
 function parseObjectValidator(
   json: Record<string, unknown>,
 ): ValidatorInfo | null {
-  const fields = json.value as Record<string, unknown> | undefined;
+  const fields = isRecord(json.value) ? json.value : undefined;
   if (!fields) {
     return null;
   }
@@ -249,8 +243,8 @@ function parseObjectValidator(
 function parseUnionValidator(
   json: Record<string, unknown>,
 ): ValidatorInfo | null {
-  const variants = json.value as unknown[] | undefined;
-  if (!variants || !Array.isArray(variants)) {
+  const variants = Array.isArray(json.value) ? json.value : undefined;
+  if (!variants) {
     return null;
   }
 
@@ -263,16 +257,13 @@ function parseUnionValidator(
   > = {};
 
   for (const variant of variants) {
-    const variantJson = variant as {
-      type?: string;
-      value?: Record<string, unknown>;
-    };
+    if (!isRecord(variant)) continue;
 
-    if (variantJson.type !== 'object' || !variantJson.value) {
+    if (getString(variant, 'type') !== 'object' || !isRecord(variant.value)) {
       continue;
     }
 
-    const fields = variantJson.value;
+    const fields = variant.value;
     let variantOperation: string | undefined;
     const variantRequiredFields: string[] = [];
     const variantAllowedFields: string[] = [];
@@ -341,48 +332,44 @@ function parseFieldDefinition(fieldDef: unknown): {
   literalValues: string[];
   allowedFields?: string[];
 } | null {
-  const def = fieldDef as {
-    fieldType?: {
-      type?: string;
-      value?: unknown;
-    };
-    optional?: boolean;
-  };
+  if (!isRecord(fieldDef)) return null;
 
-  if (!def.fieldType) {
+  const fieldType = isRecord(fieldDef.fieldType)
+    ? fieldDef.fieldType
+    : undefined;
+
+  if (!fieldType) {
     return null;
   }
 
   // The 'optional' property is at the field level, not in fieldType
-  const isOptional = def.optional === true;
+  const isOptional = fieldDef.optional === true;
   const literalValues: string[] = [];
   let allowedFields: string[] | undefined;
 
+  const ftType = getString(fieldType, 'type');
+
   // Check for literal type
-  if (
-    def.fieldType.type === 'literal' &&
-    typeof def.fieldType.value === 'string'
-  ) {
-    literalValues.push(def.fieldType.value);
+  if (ftType === 'literal' && typeof fieldType.value === 'string') {
+    literalValues.push(fieldType.value);
   }
 
   // Check for union of literals (e.g., operation field)
-  if (def.fieldType.type === 'union' && Array.isArray(def.fieldType.value)) {
-    for (const variant of def.fieldType.value) {
-      const variantDef = variant as { type?: string; value?: string };
+  if (ftType === 'union' && Array.isArray(fieldType.value)) {
+    for (const variant of fieldType.value) {
+      if (!isRecord(variant)) continue;
       if (
-        variantDef.type === 'literal' &&
-        typeof variantDef.value === 'string'
+        getString(variant, 'type') === 'literal' &&
+        typeof variant.value === 'string'
       ) {
-        literalValues.push(variantDef.value);
+        literalValues.push(variant.value);
       }
     }
   }
 
   // Check for object type and extract allowed field names
-  if (def.fieldType.type === 'object' && def.fieldType.value) {
-    const nestedFields = def.fieldType.value as Record<string, unknown>;
-    allowedFields = Object.keys(nestedFields);
+  if (ftType === 'object' && isRecord(fieldType.value)) {
+    allowedFields = Object.keys(fieldType.value);
   }
 
   return { isOptional, literalValues, allowedFields };

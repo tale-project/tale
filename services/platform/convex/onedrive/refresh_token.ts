@@ -52,6 +52,7 @@ export async function refreshToken(args: {
       };
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const data = (await response.json()) as {
       access_token: string;
       expires_in: number;

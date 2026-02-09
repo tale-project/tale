@@ -83,6 +83,7 @@ export async function cancelAndDeleteExecutionsBatch(
 
     if (execution.componentWorkflowId) {
       const componentWorkflowId =
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
         execution.componentWorkflowId as unknown as WorkflowId;
       const isInProgress =
         execution.status !== 'completed' && execution.status !== 'failed';
@@ -122,6 +123,7 @@ async function scheduleCleanupBatch(
     await ctx.scheduler.runAfter(
       10_000,
       internal.workflow_engine.internal_mutations.cleanupComponentWorkflow,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
       { workflowId: workflowId as unknown as WorkflowId, shardIndex },
     );
   }

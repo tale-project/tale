@@ -1,5 +1,11 @@
 import type { ImapCredentials, ImapActionParams } from './types';
 
+import {
+  getString,
+  getNumber,
+  getBoolean,
+} from '../../../../../lib/utils/type-guards';
+
 /**
  * Get IMAP credentials from params or variables
  * Prioritizes params over variables
@@ -10,36 +16,36 @@ export function getImapCredentials(
   variables: Record<string, unknown>,
 ): ImapCredentials {
   const host =
-    params.host || (variables.imapHost as string) || (variables.host as string);
+    params.host ||
+    getString(variables, 'imapHost') ||
+    getString(variables, 'host');
   const port =
     params.port ||
-    (variables.imapPort as number) ||
-    (variables.port as number) ||
+    getNumber(variables, 'imapPort') ||
+    getNumber(variables, 'port') ||
     993;
   const secure =
     params.secure !== undefined
       ? params.secure
-      : (variables.imapSecure as boolean) !== undefined
-        ? (variables.imapSecure as boolean)
-        : (variables.secure as boolean) !== undefined
-          ? (variables.secure as boolean)
-          : true;
+      : (getBoolean(variables, 'imapSecure') ??
+        getBoolean(variables, 'secure') ??
+        true);
   const username =
     params.username ||
-    (variables.imapUsername as string) ||
-    (variables.username as string) ||
-    (variables.email as string);
+    getString(variables, 'imapUsername') ||
+    getString(variables, 'username') ||
+    getString(variables, 'email');
   const password =
     params.password ||
-    (variables.imapPassword as string) ||
-    (variables.password as string);
+    getString(variables, 'imapPassword') ||
+    getString(variables, 'password');
 
   // Access token can be provided via parameters or non-secure variables
   // For secure values, pass them via step parameters so the engine decrypts them just-in-time
   const accessToken =
     params.accessToken ||
-    (variables.imapAccessToken as string) ||
-    (variables.accessToken as string);
+    getString(variables, 'imapAccessToken') ||
+    getString(variables, 'accessToken');
 
   if (!host) {
     throw new Error(

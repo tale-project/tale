@@ -17,10 +17,7 @@ export function BreadcrumbNavigation({
   const navigate = useNavigate();
   const location = useLocation();
   // TanStack Router useSearch with strict: false returns unknown — cast required for search params
-  const search = useSearch({ strict: false }) as Record<
-    string,
-    string | undefined
-  >;
+  const search = useSearch({ strict: false });
 
   const rawSegments = currentFolderPath
     ? currentFolderPath.split('/').filter(Boolean)
@@ -49,7 +46,7 @@ export function BreadcrumbNavigation({
     } else {
       delete newSearch.folderPath;
     }
-    navigate({
+    void navigate({
       to: location.pathname,
       search: newSearch,
     });

@@ -1,11 +1,11 @@
 import { v } from 'convex/values';
 
-import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { RagActionParams, RagUploadResult } from './helpers/types';
 
 import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
+import { toId } from '../../../lib/type_cast_helpers';
 import { deleteDocumentById } from './helpers/delete_document';
 import { getDocumentInfo } from './helpers/get_document_info';
 import { getRagConfig } from './helpers/get_rag_config';
@@ -38,7 +38,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
 
   async execute(ctx, params) {
     const startTime = Date.now();
-    const processedParams = params as RagActionParams;
+    const processedParams = params;
 
     // Get RAG service configuration
     const ragConfig = getRagConfig();
@@ -67,7 +67,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       uploadResult = await uploadTextDocument({
         ragServiceUrl: ragConfig.serviceUrl,
         content: processedParams.content,
-        metadata: processedParams.metadata as Record<string, unknown>,
+        metadata: processedParams.metadata,
         recordId: processedParams.recordId,
       });
       documentType = 'text';
@@ -81,12 +81,13 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       const teamIds =
         documentInfo.teamTags && documentInfo.teamTags.length > 0
           ? documentInfo.teamTags
-          : [`org_${documentInfo.metadata.organizationId}`];
+          : [`org_${String(documentInfo.metadata.organizationId)}`];
 
       if (documentInfo.type === 'text') {
         // Upload text content directly
         uploadResult = await uploadTextDocument({
           ragServiceUrl: ragConfig.serviceUrl,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
           content: documentInfo.content as string,
           metadata: documentInfo.metadata,
           teamIds,
@@ -95,6 +96,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         // Upload file directly by downloading from storage and uploading to RAG
         uploadResult = await uploadFileDirect({
           ragServiceUrl: ragConfig.serviceUrl,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
           fileUrl: documentInfo.fileUrl as string,
           filename: documentInfo.filename || 'document',
           contentType: documentInfo.contentType || 'application/octet-stream',
@@ -111,7 +113,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       uploadResult.success &&
       uploadResult.jobId
     ) {
-      const documentId = processedParams.recordId as Id<'documents'>;
+      const documentId = toId<'documents'>(processedParams.recordId);
 
       try {
         // Update document with ragInfo = queued

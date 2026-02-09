@@ -16,6 +16,7 @@ import type {
   StepType,
 } from './types';
 
+import { isRecord } from '../../../../../lib/utils/type-guards';
 import { getActionOutputSchema } from './action_schemas';
 import {
   extractStepReferences,
@@ -57,11 +58,9 @@ function getStepSchemaContext(step: StepInfo): StepSchemaContext {
   if (step.stepType === 'action' && step.config) {
     context.actionType =
       typeof step.config.type === 'string' ? step.config.type : undefined;
-    const params =
-      typeof step.config.parameters === 'object' &&
-      step.config.parameters !== null
-        ? (step.config.parameters as Record<string, unknown>)
-        : undefined;
+    const params = isRecord(step.config.parameters)
+      ? step.config.parameters
+      : undefined;
     context.operation =
       typeof params?.operation === 'string' ? params.operation : undefined;
     // Some actions have operation directly in config
@@ -83,11 +82,9 @@ function getOutputSchemaForStep(step: StepInfo): OutputSchema | null {
   if (step.stepType === 'action') {
     const actionType =
       typeof step.config?.type === 'string' ? step.config.type : undefined;
-    const params =
-      typeof step.config?.parameters === 'object' &&
-      step.config.parameters !== null
-        ? (step.config.parameters as Record<string, unknown>)
-        : undefined;
+    const params = isRecord(step.config?.parameters)
+      ? step.config.parameters
+      : undefined;
     const rawOperation = params?.operation ?? step.config?.operation;
     const operation =
       typeof rawOperation === 'string' ? rawOperation : undefined;
@@ -331,7 +328,7 @@ function validateStepReferencePath(
           if (!isArrayIndex && firstField !== 'length') {
             warnings.push(
               `Reference "${ref.originalTemplate}" accesses ".${firstField}" on an array result. ` +
-                `The "${referencedStep.config?.type}.${getStepSchemaContext(referencedStep).operation}" ` +
+                `The "${String(referencedStep.config?.type)}.${getStepSchemaContext(referencedStep).operation}" ` +
                 `action returns an array. Use "[index]" to access specific items or ".length" for count.`,
             );
           }
@@ -583,15 +580,11 @@ export function validateWorkflowVariableReferences(
       typeof stepConfig.stepSlug === 'string' ? stepConfig.stepSlug : '';
     const stepType =
       typeof stepConfig.stepType === 'string'
-        ? (stepConfig.stepType as StepInfo['stepType'])
+        ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+          (stepConfig.stepType as StepInfo['stepType'])
         : undefined;
     const order = typeof stepConfig.order === 'number' ? stepConfig.order : 0;
-    const config =
-      typeof stepConfig.config === 'object' &&
-      stepConfig.config !== null &&
-      !Array.isArray(stepConfig.config)
-        ? (stepConfig.config as Record<string, unknown>)
-        : {};
+    const config = isRecord(stepConfig.config) ? stepConfig.config : {};
 
     if (stepSlug && stepType) {
       const stepInfo: StepInfo = { stepSlug, stepType, order, config };

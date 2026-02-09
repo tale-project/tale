@@ -10,7 +10,7 @@ export function getInputData(
   ctx: StepExecutionContext,
   config: LoopNodeConfig,
 ): unknown[] {
-  const vars = ctx.variables as Record<string, unknown>;
+  const vars = ctx.variables;
   const itemsConfig = config.items;
 
   if (itemsConfig === undefined) {

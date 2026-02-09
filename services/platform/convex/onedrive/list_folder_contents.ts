@@ -43,6 +43,7 @@ export async function listFolderContents(args: {
       };
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const data = (await response.json()) as {
       value: Array<{
         id: string;

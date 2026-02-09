@@ -192,7 +192,7 @@ export function ScheduleCreateDialog({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  handleGenerate();
+                  void handleGenerate();
                 }
               }}
               disabled={isGenerating}
@@ -245,9 +245,7 @@ export function ScheduleCreateDialog({
                 size="sm"
                 onClick={() => setValue('cronExpression', preset.value)}
               >
-                {t(
-                  `triggers.schedules.form.presets.${preset.label}` as `triggers.schedules.form.presets.${(typeof CRON_PRESETS)[number]['label']}`,
-                )}
+                {t(`triggers.schedules.form.presets.${preset.label}`)}
               </Button>
             ))}
           </div>

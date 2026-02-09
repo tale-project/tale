@@ -3,13 +3,12 @@
 import { RefreshCw, Trash2, Users } from 'lucide-react';
 import { useMemo, useCallback, useState, useRef } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
 import { toast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteDocument } from '../hooks/use-delete-document';
@@ -58,8 +57,7 @@ export function DocumentRowActions({
     try {
       setIsDeleting(true);
       await deleteDocument({
-        // Component receives string ID — cast required for Convex API
-        documentId: documentId as Id<'documents'>,
+        documentId: toId<'documents'>(documentId),
       });
       dialogs.setOpen.delete(false);
     } catch (error) {
@@ -77,8 +75,7 @@ export function DocumentRowActions({
     try {
       setIsDeleting(true);
       await deleteDocument({
-        // Component receives string ID — cast required for Convex API
-        documentId: documentId as Id<'documents'>,
+        documentId: toId<'documents'>(documentId),
       });
       dialogs.setOpen.deleteFolder(false);
     } catch (error) {
@@ -106,8 +103,7 @@ export function DocumentRowActions({
     setIsReindexing(true);
     try {
       const result = await retryRagIndexing({
-        // Component receives string ID — cast required for Convex API
-        documentId: documentId as Id<'documents'>,
+        documentId: toId<'documents'>(documentId),
       });
       if (result.success) {
         toast({

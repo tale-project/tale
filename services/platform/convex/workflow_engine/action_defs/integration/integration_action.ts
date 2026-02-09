@@ -9,14 +9,15 @@
  * - Executes the connector operation in sandbox (via Node.js action)
  */
 
-import { v, Infer } from 'convex/values';
+import { v } from 'convex/values';
 
-import type { IntegrationExecutionResult } from '../../../node_only/integration_sandbox/types';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
 import { isSqlIntegration } from '../../../integrations/helpers';
+import { createDebugLog } from '../../../lib/debug_log';
+import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
 import { getPredefinedIntegration } from '../../../predefined_integrations';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
 import {
@@ -24,10 +25,6 @@ import {
   getOperationType,
 } from './helpers/detect_write_operation';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
-
-type ConvexJsonRecord = Infer<typeof jsonRecordValidator>;
-
-import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -154,7 +151,7 @@ export const integrationAction: ActionDefinition<{
           operationName: operation,
           operationTitle: operationConfig.title || operation,
           operationType,
-          parameters: opParams as ConvexJsonRecord,
+          parameters: toConvexJsonRecord(opParams),
           threadId,
           messageId,
           estimatedImpact: `This ${operationType} operation will modify data via ${name} API`,
@@ -179,19 +176,19 @@ export const integrationAction: ActionDefinition<{
     // 7. Execute the connector in sandbox (via Node.js action)
     debugLog(`Executing ${name}.${operation} (v${connectorConfig.version})`);
 
-    const result = (await ctx.runAction(
+    const result = await ctx.runAction(
       internal.node_only.integration_sandbox.internal_actions
         .executeIntegration,
       {
         code: connectorConfig.code,
         operation,
-        params: opParams as ConvexJsonRecord,
+        params: toConvexJsonRecord(opParams),
         variables: {},
         secrets,
         allowedHosts: connectorConfig.allowedHosts ?? [],
         timeoutMs: connectorConfig.timeoutMs ?? 30000,
       },
-    )) as IntegrationExecutionResult;
+    );
 
     if (result.logs && result.logs.length > 0) {
       debugLog('Logs:', result.logs);

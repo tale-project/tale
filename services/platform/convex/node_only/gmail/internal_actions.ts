@@ -135,6 +135,7 @@ export const sendEmail = internalAction({
       );
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const result = (await response.json()) as {
       id: string;
       threadId: string;
@@ -158,6 +159,7 @@ export const sendEmail = internalAction({
       );
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const messageDetails = (await messageResponse.json()) as {
       id: string;
       payload: {

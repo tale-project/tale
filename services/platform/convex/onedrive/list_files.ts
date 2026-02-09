@@ -47,6 +47,7 @@ export async function listFiles(
       };
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const data = (await response.json()) as {
       value: Array<{
         id: string;

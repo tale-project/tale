@@ -39,11 +39,11 @@ export function ThinkingAnimation({
     input?: Record<string, unknown>,
   ): ToolDetail => {
     if (toolName === 'web' && input) {
-      if (input.operation === 'fetch_url' && input.url) {
+      if (input.operation === 'fetch_url' && typeof input.url === 'string') {
         return {
           toolName,
           displayText: t('thinking.reading', {
-            hostname: extractHostname(String(input.url)),
+            hostname: extractHostname(input.url),
           }),
         };
       }
@@ -55,11 +55,11 @@ export function ThinkingAnimation({
       }
     }
 
-    if (toolName === 'rag_search' && input?.query) {
+    if (toolName === 'rag_search' && typeof input?.query === 'string') {
       return {
         toolName,
         displayText: t('thinking.searchingKnowledgeBase', {
-          query: truncate(String(input.query), 25),
+          query: truncate(input.query, 25),
         }),
       };
     }
@@ -99,7 +99,7 @@ export function ThinkingAnimation({
       if (part.type.startsWith('tool-')) {
         const toolName = part.type.slice(5);
         if (toolName && toolName !== 'invocation') {
-          // UIMessage.parts is loosely typed — cast required to access tool input field
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- UIMessage.parts is loosely typed, need to access tool input field
           const toolPart = part as { input?: Record<string, unknown> };
           const detail = formatToolDetail(toolName, toolPart.input);
           toolDetails.push(detail);

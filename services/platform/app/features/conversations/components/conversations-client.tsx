@@ -4,7 +4,6 @@ import { useQuery, usePaginatedQuery } from 'convex/react';
 import { Loader2Icon } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { ConversationItem } from '@/convex/conversations/types';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -13,6 +12,7 @@ import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { toId, toIds } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { filterByTextSearch } from '@/lib/utils/client-utils';
 import { cn } from '@/lib/utils/cn';
@@ -441,8 +441,7 @@ function ConversationsClientInner({
       const results = await Promise.allSettled(
         conversationIds.map((conversationId) =>
           addMessage({
-            // Convex validator uses v.string() for IDs — cast required for mutation
-            conversationId: conversationId as Id<'conversations'>,
+            conversationId: toId<'conversations'>(conversationId),
             organizationId,
             sender: 'Agent',
             content: 'Message sent',
@@ -499,8 +498,7 @@ function ConversationsClientInner({
         : Array.from(selectionState.selectedIds);
 
       const result = await bulkResolve({
-        // Convex validator uses v.string() for IDs — cast required for mutation
-        conversationIds: conversationIds as Id<'conversations'>[],
+        conversationIds: toIds<'conversations'>(conversationIds),
       });
 
       toast({
@@ -536,8 +534,7 @@ function ConversationsClientInner({
         : Array.from(selectionState.selectedIds);
 
       const result = await bulkReopen({
-        // Convex validator uses v.string() for IDs — cast required for mutation
-        conversationIds: conversationIds as Id<'conversations'>[],
+        conversationIds: toIds<'conversations'>(conversationIds),
       });
 
       toast({

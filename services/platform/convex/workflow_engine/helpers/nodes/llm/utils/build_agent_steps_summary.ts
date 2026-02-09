@@ -4,6 +4,8 @@
  * Builds a compact summary of agent steps to avoid oversized payloads.
  */
 
+import { isRecord } from '../../../../../../lib/utils/type-guards';
+
 /**
  * Builds a compact summary of agent steps to avoid oversized payloads
  */
@@ -19,10 +21,11 @@ export function buildAgentStepsSummary(steps: unknown[]): unknown {
 
   const pickText = (out: unknown): string | null => {
     if (typeof out === 'string') return out;
-    const oc = (out as Record<string, unknown>)?.['content'] as unknown;
+    const outRec = isRecord(out) ? out : undefined;
+    const oc = outRec?.['content'];
     if (Array.isArray(oc)) {
       const texts = oc
-        .map((seg) => (seg as Record<string, unknown>)?.['text'])
+        .map((seg) => (isRecord(seg) ? seg['text'] : undefined))
         .filter(
           (t): t is string => typeof t === 'string' && t.trim().length > 0,
         );
@@ -32,23 +35,24 @@ export function buildAgentStepsSummary(steps: unknown[]): unknown {
   };
 
   outer: for (let i = 0; i < steps.length; i++) {
-    const step = steps[i] as Record<string, unknown>;
-    const content = (step?.['content'] as unknown[]) || [];
-    if (!Array.isArray(content)) continue;
+    const rawStep = steps[i];
+    if (!isRecord(rawStep)) continue;
+    const content = Array.isArray(rawStep['content']) ? rawStep['content'] : [];
 
     for (let j = 0; j < content.length; j++) {
-      const c = content[j] as Record<string, unknown>;
-      const type = c?.['type'];
+      const rawC = content[j];
+      if (!isRecord(rawC)) continue;
+      const type = rawC['type'];
 
       if (type === 'tool-call' || type === 'tool-result') {
-        const toolName = c?.['toolName'] ?? null;
-        const toolCallId = c?.['toolCallId'] ?? null;
+        const toolName = rawC['toolName'] ?? null;
+        const toolCallId = rawC['toolCallId'] ?? null;
         const item: Record<string, unknown> = { type, toolName, toolCallId };
 
         if (type === 'tool-call') {
-          item.input = safeString(c?.['input'], MAX_TEXT);
+          item.input = safeString(rawC['input'], MAX_TEXT);
         } else {
-          const text = pickText(c?.['output']);
+          const text = pickText(rawC['output']);
           if (text && text.trim()) {
             item.outputText = safeString(text, MAX_TEXT);
           }

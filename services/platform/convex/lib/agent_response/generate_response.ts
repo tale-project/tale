@@ -25,6 +25,7 @@ import type {
   BeforeContextResult,
 } from './types';
 
+import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { onAgentComplete } from '../agent_completion';
 import {
@@ -75,7 +76,7 @@ export async function generateAgentResponse(
     agentOptions,
     streamId,
     promptMessageId,
-    _maxSteps,
+    maxSteps: _maxSteps,
     userTeamIds,
   } = args;
 
@@ -563,14 +564,14 @@ export async function generateAgentResponse(
     return responseResult;
   } catch (error) {
     // Log the original error BEFORE calling any hooks
-    const err = error as Record<string, unknown>;
+    const err = isRecord(error) ? error : { message: String(error) };
     console.error('[generateAgentResponse] ORIGINAL ERROR:', {
-      name: err?.name,
-      message: err?.message,
-      code: err?.code,
-      status: err?.status,
-      cause: err?.cause,
-      stack: err?.stack,
+      name: getString(err, 'name'),
+      message: getString(err, 'message'),
+      code: getString(err, 'code'),
+      status: err['status'],
+      cause: err['cause'],
+      stack: getString(err, 'stack'),
     });
 
     // Mark stream as errored
@@ -651,6 +652,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     output?: string;
   }> = [];
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   for (const step of steps as StepWithTools[]) {
     const stepToolCalls = step.toolCalls ?? [];
     const stepToolResults = step.toolResults ?? [];
@@ -660,16 +662,16 @@ function extractToolCallsFromSteps(steps: unknown[]): {
       const matchingResult = stepToolResults.find(
         (r) => r.toolName === toolCall.toolName,
       );
-      const directSuccess = (
-        matchingResult?.result as { success?: boolean } | undefined
-      )?.success;
-      const outputSuccess = (
-        matchingResult?.output as { success?: boolean } | undefined
-      )?.success;
+      const directSuccess =
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+        (matchingResult?.result as { success?: boolean } | undefined)?.success;
+      const outputSuccess =
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+        (matchingResult?.output as { success?: boolean } | undefined)?.success;
       const isSuccess = directSuccess ?? outputSuccess ?? true;
       toolCalls.push({
         toolName: toolCall.toolName,
-        status: isSuccess !== false ? 'completed' : 'failed',
+        status: isSuccess ? 'completed' : 'failed',
       });
     }
 
@@ -688,15 +690,18 @@ function extractToolCallsFromSteps(steps: unknown[]): {
           input?: string;
           output?: string;
         };
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         const directResult = toolResult.result as
           | SubAgentResultData
           | undefined;
-        const outputDirect = toolResult.output as unknown as
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+        const outputDirect = toolResult.output as
           | SubAgentResultData
           | undefined;
-        const outputValue = (
-          toolResult.output as { value?: SubAgentResultData } | undefined
-        )?.value;
+        const outputValue =
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+          (toolResult.output as { value?: SubAgentResultData } | undefined)
+            ?.value;
         const hasRelevantData = (d: SubAgentResultData | undefined) =>
           d?.model !== undefined || d?.usage !== undefined;
         const subAgentData = hasRelevantData(directResult)

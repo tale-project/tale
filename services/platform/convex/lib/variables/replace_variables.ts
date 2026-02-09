@@ -1,6 +1,7 @@
-import { isArray, isPlainObject, isString, map, toString, trim } from 'lodash';
+import { isArray, isString, map, toString, trim } from 'lodash';
 import Mustache from 'mustache';
 
+import { isRecord } from '../../../lib/utils/type-guards';
 import { buildContext } from './build_context';
 import { jexlInstance } from './jexl_instance';
 import { replaceVariablesInString } from './replace_variables_in_string';
@@ -75,11 +76,10 @@ export function replaceVariables(
     return map(value, (v) => replaceVariables(v, variables));
   }
 
-  if (isPlainObject(value)) {
-    const obj = value as Record<string, unknown>;
+  if (isRecord(value)) {
     const result: Record<string, unknown> = {};
 
-    for (const [key, val] of Object.entries(obj)) {
+    for (const [key, val] of Object.entries(value)) {
       // Replace variables in both key and value
       const processedKey = isString(key)
         ? replaceVariables(key, variables)

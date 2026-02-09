@@ -8,6 +8,7 @@
 
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
+import { isRecord } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { QueryCtx } from '../_generated/server';
 
@@ -32,13 +33,12 @@ function extractToolNames(message: MessageDoc): string[] {
   // If content is an array, look for tool-call or tool-result parts
   if (Array.isArray(content)) {
     for (const part of content) {
-      if (typeof part === 'object' && part !== null) {
-        const p = part as Record<string, unknown>;
+      if (isRecord(part)) {
         if (
-          (p.type === 'tool-call' || p.type === 'tool-result') &&
-          typeof p.toolName === 'string'
+          (part.type === 'tool-call' || part.type === 'tool-result') &&
+          typeof part.toolName === 'string'
         ) {
-          toolNames.add(p.toolName);
+          toolNames.add(part.toolName);
         }
       }
     }
@@ -60,11 +60,8 @@ function isToolCompleted(message: MessageDoc): boolean {
   const content = msg.content;
   if (Array.isArray(content)) {
     for (const part of content) {
-      if (typeof part === 'object' && part !== null) {
-        const p = part as Record<string, unknown>;
-        if (p.type === 'tool-result') {
-          return true;
-        }
+      if (isRecord(part) && part.type === 'tool-result') {
+        return true;
       }
     }
   }
