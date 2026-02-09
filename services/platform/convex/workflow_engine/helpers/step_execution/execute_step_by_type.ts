@@ -69,7 +69,8 @@ export async function executeStepByType(
           stepDef: {
             stepSlug: stepDef.stepSlug,
             stepType: 'action' as const,
-            config: stepDef.config as ActionNodeConfig,
+            // Dynamic config shape validated at runtime by action executor
+            config: stepDef.config as unknown as ActionNodeConfig,
           },
           variables,
           executionId,

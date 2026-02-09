@@ -35,12 +35,11 @@ export async function updateConversations(
     }
     conversationsToUpdate = [conversation];
   } else if (args.organizationId) {
+    const orgId = args.organizationId;
     // Update by filters (batch update) using async iteration
     for await (const conversation of ctx.db
       .query('conversations')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
+      .withIndex('by_organizationId', (q) => q.eq('organizationId', orgId))) {
       // Filter by other criteria
       if (args.status && conversation.status !== args.status) {
         continue;

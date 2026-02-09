@@ -31,7 +31,11 @@ interface DynamicQuery {
     name: string,
     fn: (q: DynamicIndexQuery) => DynamicIndexQuery,
   ) => {
-    order: (dir: 'asc' | 'desc') => AsyncIterable<Record<string, unknown>>;
+    order: (
+      dir: 'asc' | 'desc',
+    ) => AsyncIterable<
+      Record<string, unknown> & { _id: unknown; _creationTime: number }
+    >;
   };
 }
 

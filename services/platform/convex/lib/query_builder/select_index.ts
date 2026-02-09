@@ -137,7 +137,7 @@ export function createInMemoryFilter<T extends Record<string, unknown>>(
       // Array filter: item value must be in the array
       if (filterSets.has(field)) {
         const allowedValues = filterSets.get(field);
-        if (!allowedValues.has(itemValue)) {
+        if (!allowedValues || !allowedValues.has(itemValue)) {
           return false;
         }
         continue;

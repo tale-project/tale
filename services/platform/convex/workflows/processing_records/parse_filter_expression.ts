@@ -56,7 +56,6 @@ export function parseFilterExpression(
     const ast = compiled._getAst();
 
     // Traverse AST to extract indexable conditions
-    // @ts-expect-error _getAst() is a private JEXL API that returns untyped AST nodes
     const result = traverseAST(ast as ASTNode);
 
     // Build backward-compatible equalityConditions

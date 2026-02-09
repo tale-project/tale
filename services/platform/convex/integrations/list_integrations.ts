@@ -16,10 +16,11 @@ export async function listIntegrations(
 ): Promise<Doc<'integrations'>[]> {
   // If name is provided, use the name index for efficient lookup
   if (args.name) {
+    const name = args.name;
     const integration = await ctx.db
       .query('integrations')
       .withIndex('by_organizationId_and_name', (q) =>
-        q.eq('organizationId', args.organizationId).eq('name', args.name),
+        q.eq('organizationId', args.organizationId).eq('name', name),
       )
       .first();
     return integration ? [integration] : [];

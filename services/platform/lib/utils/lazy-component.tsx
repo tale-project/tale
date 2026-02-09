@@ -14,7 +14,9 @@ interface LazyComponentOptions {
  * @returns A wrapped component that lazy loads the actual component
  */
 
-export function lazyComponent<P = Record<string, never>>(
+export function lazyComponent<
+  P extends Record<string, unknown> = Record<string, unknown>,
+>(
   // oxlint-disable-next-line typescript/no-explicit-any -- Generic component wrapper requires flexible prop types for lazy loading arbitrary components
   importFn: () => Promise<{ default: ComponentType<any> }>,
   options: LazyComponentOptions = {},

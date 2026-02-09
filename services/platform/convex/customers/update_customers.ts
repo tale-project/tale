@@ -71,12 +71,11 @@ export async function updateCustomers(
     }
     customersToUpdate = [customer];
   } else if (args.organizationId) {
+    const orgId = args.organizationId;
     // Update by filters (batch update) using async iteration
     for await (const customer of ctx.db
       .query('customers')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
+      .withIndex('by_organizationId', (q) => q.eq('organizationId', orgId))) {
       // Filter by status
       if (args.status && customer.status !== args.status) {
         continue;

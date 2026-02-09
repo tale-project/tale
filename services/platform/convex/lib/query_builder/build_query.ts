@@ -39,6 +39,19 @@ interface DocumentWithSystemFields extends GenericDocument {
 }
 
 /**
+ * Minimal dynamic query interface for runtime-resolved table/index names.
+ * Convex's static types require compile-time table names, but we resolve them dynamically.
+ */
+type DynamicQuery = {
+  withIndex: (
+    name: string,
+    builder: (q: Record<string, (...args: unknown[]) => unknown>) => unknown,
+  ) => DynamicQuery;
+  order: (order: string) => DynamicQuery;
+  [Symbol.asyncIterator]: () => AsyncIterator<unknown>;
+};
+
+/**
  * Options for building a paginated query
  */
 export interface BuildPaginatedQueryOptions<T extends GenericDocument> {
@@ -113,14 +126,6 @@ export async function buildOffsetPaginatedQuery<T extends GenericDocument>(
 
   // Build base query with selected index
   // Note: Dynamic table/index names require type assertions - validated at runtime by Convex
-  type DynamicQuery = {
-    withIndex: (
-      name: string,
-      builder: (q: Record<string, (...args: unknown[]) => unknown>) => unknown,
-    ) => DynamicQuery;
-    order: (order: string) => DynamicQuery;
-    [Symbol.asyncIterator]: () => AsyncIterator<unknown>;
-  };
   let query = (
     ctx.db as unknown as { query: (table: string) => DynamicQuery }
   ).query(table);

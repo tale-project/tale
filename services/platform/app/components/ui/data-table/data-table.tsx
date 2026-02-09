@@ -69,9 +69,9 @@ import {
   type DataTablePaginationProps,
 } from './data-table-pagination';
 
-export interface DataTableProps<TData> {
+export interface DataTableProps<TData, TValue = unknown> {
   /** Column definitions */
-  columns: ColumnDef<TData, unknown>[];
+  columns: ColumnDef<TData, TValue>[];
   /** Data to display */
   data: TData[];
   /** Accessible table caption for screen readers */
@@ -167,7 +167,7 @@ export interface DataTableProps<TData> {
  * - Loading skeletons
  * - Customizable row actions
  */
-export function DataTable<TData>({
+export function DataTable<TData, TValue = unknown>({
   columns,
   data,
   caption,
@@ -197,7 +197,7 @@ export function DataTable<TData>({
   infiniteScroll,
   error,
   onRetry,
-}: DataTableProps<TData>) {
+}: DataTableProps<TData, TValue>) {
   const { t } = useT('common');
   const orgId = useOrganizationId();
 
