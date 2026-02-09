@@ -124,7 +124,9 @@ export async function createMember(
       },
     );
     const memberId: string =
-      (created as any)?._id ?? (created as any)?.id ?? String(created);
+      (created as Record<string, string>)?._id ??
+      (created as Record<string, string>)?.id ??
+      String(created);
 
     return {
       userId: existingUser._id,
