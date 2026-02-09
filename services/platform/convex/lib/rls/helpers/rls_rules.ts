@@ -6,7 +6,7 @@ import { Rules } from 'convex-helpers/server/rowLevelSecurity';
 
 import type { DataModel } from '../../../_generated/dataModel';
 import type { QueryCtx } from '../../../_generated/server';
-import type { RLSRuleContext } from '../types';
+import type { AuthenticatedUser, RLSRuleContext } from '../types';
 
 import { authorizeRls } from '../../../auth';
 import { getUserTeamIds } from '../../get_user_teams';
@@ -15,14 +15,25 @@ import { getUserOrganizations } from '../organization/get_user_organizations';
 
 /**
  * Define RLS rules for all tables
+ * @param ctx - Query context
+ * @param prefetchedData - Optional pre-fetched auth data to avoid duplicate queries
  */
 export async function rlsRules(
   ctx: QueryCtx,
+  prefetchedData?: {
+    user: AuthenticatedUser | null;
+    userOrganizations: Array<{
+      organizationId: string;
+      role: 'disabled' | 'member' | 'editor' | 'developer' | 'admin';
+      member: any;
+    }>;
+  },
 ): Promise<Rules<RLSRuleContext, DataModel>> {
-  const user = await getAuthenticatedUser(ctx);
-
-  // If user is authenticated, get their organizations
-  const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
+  // Use pre-fetched data if available, otherwise fetch
+  const user = prefetchedData?.user ?? (await getAuthenticatedUser(ctx));
+  const userOrganizations =
+    prefetchedData?.userOrganizations ??
+    (user ? await getUserOrganizations(ctx, user) : []);
   const userOrgIds = new Set(
     userOrganizations.map((org) => org.organizationId),
   );
