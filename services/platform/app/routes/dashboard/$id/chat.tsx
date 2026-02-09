@@ -37,6 +37,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
                 <ChatHistorySidebar organizationId={organizationId} />
               </div>
               <button
+                type="button"
                 onClick={() => setIsHistoryOpen(false)}
                 aria-label={tChat('hideHistory')}
                 className="border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring absolute top-3 -right-3 z-10 flex size-6 items-center justify-center rounded-full border shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"

@@ -120,6 +120,9 @@ export function ChatActions({
               const parts = tChat('deleteConfirmation', {
                 title: '\x00',
               }).split('\x00');
+              if (parts.length < 2) {
+                return tChat('deleteConfirmation', { title: chat.title });
+              }
               return (
                 <>
                   {parts[0]}

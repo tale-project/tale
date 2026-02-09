@@ -100,12 +100,19 @@ function EntityDeleteDialogInner<TEntity>({
     const styledDescription =
       parts.length > 1 ? (
         <>
-          {parts[0]}
-          <span className="text-foreground font-semibold">{entityName}</span>
-          {parts[1]}
+          {parts.map((part, index) => (
+            <React.Fragment key={index}>
+              {part}
+              {index < parts.length - 1 && (
+                <span className="text-foreground font-semibold">
+                  {entityName}
+                </span>
+              )}
+            </React.Fragment>
+          ))}
         </>
       ) : (
-        translations.description.replace('{name}', entityName)
+        translations.description
       );
 
     if (translations.warningText) {
