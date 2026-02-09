@@ -1,8 +1,9 @@
 'use client';
 
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { WebsitesActionMenu } from './websites-action-menu';
+
 import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
+import { WebsitesActionMenu } from './websites-action-menu';
 
 interface WebsitesTableSkeletonProps {
   organizationId: string;

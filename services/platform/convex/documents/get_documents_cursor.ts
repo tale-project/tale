@@ -5,11 +5,12 @@
  * preventing the "Too many bytes read" error regardless of data volume.
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import type { DocumentItemResponse } from './types';
-import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../lib/pagination';
+
 import { getMetadataString } from '../lib/metadata/get_metadata_string';
+import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../lib/pagination';
 import { transformDocumentsBatch } from './transform_to_document_item';
 
 export interface GetDocumentsCursorArgs {

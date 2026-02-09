@@ -2,24 +2,27 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ToneOfVoiceWithExamples } from '@/convex/tone_of_voice/types';
-import { useAddExample } from '../hooks/use-add-example';
-import { useUpdateExample } from '../hooks/use-update-example';
-import { useDeleteExample } from '../hooks/use-delete-example';
-import { useUpsertTone } from '../hooks/use-upsert-tone';
-import { useGenerateTone } from '../hooks/use-generate-tone';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Form } from '@/app/components/ui/forms/form';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { toast } from '@/app/hooks/use-toast';
-import { ExampleMessagesTable } from './example-messages-table';
-import { AddExampleDialog } from './example-add-dialog';
-import { ViewEditExampleDialog } from './example-view-edit-dialog';
-import { exampleMessageToUI } from '@/types/tone-of-voice';
 import type { ExampleMessageUI } from '@/types/tone-of-voice';
+
+import { Form } from '@/app/components/ui/forms/form';
+import { Textarea } from '@/app/components/ui/forms/textarea';
+import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { exampleMessageToUI } from '@/types/tone-of-voice';
+
+import { useAddExample } from '../hooks/use-add-example';
+import { useDeleteExample } from '../hooks/use-delete-example';
+import { useGenerateTone } from '../hooks/use-generate-tone';
+import { useUpdateExample } from '../hooks/use-update-example';
+import { useUpsertTone } from '../hooks/use-upsert-tone';
+import { AddExampleDialog } from './example-add-dialog';
+import { ExampleMessagesTable } from './example-messages-table';
+import { ViewEditExampleDialog } from './example-view-edit-dialog';
 
 interface ToneOfVoiceFormClientProps {
   organizationId: string;
@@ -211,13 +214,13 @@ export function ToneOfVoiceFormClient({
       <Form onSubmit={handleSubmit(onSubmit)}>
         <HStack align="end" justify="between">
           <Stack gap={1}>
-            <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
+            <h3 className="text-foreground text-lg font-semibold tracking-[-0.096px]">
               {tTone('form.title')}
-              <span className="text-xs text-muted-foreground ml-2">
+              <span className="text-muted-foreground ml-2 text-xs">
                 {tTone('form.optional')}
               </span>
             </h3>
-            <p className="text-sm text-muted-foreground tracking-[-0.084px]">
+            <p className="text-muted-foreground text-sm tracking-[-0.084px]">
               {tTone('form.description')}
             </p>
           </Stack>
@@ -228,7 +231,7 @@ export function ToneOfVoiceFormClient({
           defaultValue={toneOfVoiceData?.toneOfVoice?.generatedTone || ''}
           disabled={isSubmitting}
           placeholder={tTone('form.placeholder')}
-          className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-base text-foreground resize-none"
+          className="bg-background border-border text-foreground min-h-[10rem] resize-none rounded-lg border px-4 py-3 text-base shadow-sm"
         />
         <HStack gap={2} justify="end">
           <Button
@@ -236,7 +239,9 @@ export function ToneOfVoiceFormClient({
             onClick={handleGenerateTone}
             disabled={isGenerating}
           >
-            {isGenerating ? tTone('form.generating') : tTone('form.generateTone')}
+            {isGenerating
+              ? tTone('form.generating')
+              : tTone('form.generateTone')}
           </Button>
           <Button disabled={!isDirty} type="submit">
             {isSubmitting

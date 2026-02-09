@@ -4,11 +4,14 @@
  * PPTX operations for agents: list templates, generate presentations, and parse existing files.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
-import type { ToolDefinition } from '../types';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { Id } from '../../_generated/dataModel';
+import type { ToolDefinition } from '../types';
+
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { parseFile, type ParseFileResult } from './helpers/parse_file';
@@ -27,18 +30,36 @@ const slideContentSchema = z.object({
   subtitle: z.string().optional().describe('Slide subtitle'),
   textContent: z.array(z.string()).optional().describe('Text paragraphs'),
   bulletPoints: z.array(z.string()).optional().describe('Bullet point items'),
-  tables: z.array(tableDataSchema).optional().describe('Tables to add to the slide'),
+  tables: z
+    .array(tableDataSchema)
+    .optional()
+    .describe('Tables to add to the slide'),
 });
 
 // Branding schema
 const brandingSchema = z.object({
   slideWidth: z.number().optional().describe('Slide width in inches'),
   slideHeight: z.number().optional().describe('Slide height in inches'),
-  titleFontName: z.string().optional().describe('Font name for titles (e.g., "Arial")'),
-  bodyFontName: z.string().optional().describe('Font name for body text (e.g., "Calibri")'),
-  titleFontSize: z.number().optional().describe('Font size for titles in points'),
-  bodyFontSize: z.number().optional().describe('Font size for body text in points'),
-  primaryColor: z.string().optional().describe('Primary color as hex (e.g., "#003366")'),
+  titleFontName: z
+    .string()
+    .optional()
+    .describe('Font name for titles (e.g., "Arial")'),
+  bodyFontName: z
+    .string()
+    .optional()
+    .describe('Font name for body text (e.g., "Calibri")'),
+  titleFontSize: z
+    .number()
+    .optional()
+    .describe('Font size for titles in points'),
+  bodyFontSize: z
+    .number()
+    .optional()
+    .describe('Font size for body text in points'),
+  primaryColor: z
+    .string()
+    .optional()
+    .describe('Primary color as hex (e.g., "#003366")'),
   secondaryColor: z.string().optional().describe('Secondary color as hex'),
   accentColor: z.string().optional().describe('Accent color as hex'),
 });
@@ -274,7 +295,9 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         throw new Error("Missing required 'fileName' for generate operation");
       }
       if (!args.slidesContent || args.slidesContent.length === 0) {
-        throw new Error("Missing required 'slidesContent' for generate operation");
+        throw new Error(
+          "Missing required 'slidesContent' for generate operation",
+        );
       }
 
       debugLog('tool:pptx generate start', {

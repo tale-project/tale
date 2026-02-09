@@ -2,9 +2,10 @@
  * Get a conversation with all its messages (business logic)
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import type { ConversationItem } from './types';
+
 import { transformConversation } from './transform_conversation';
 
 export async function getConversationWithMessages(

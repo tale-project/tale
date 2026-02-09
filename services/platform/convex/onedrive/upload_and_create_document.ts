@@ -2,8 +2,8 @@
  * Upload and Create Document - Orchestrates storage upload and document creation
  */
 
-import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
 
 export interface OneDriveMetadata extends Record<string, unknown> {
   oneDriveItemId?: string;
@@ -70,7 +70,8 @@ export async function uploadAndCreateDocument(
 
     const storageId = await deps.storageStore(blob);
 
-    const externalItemId = args.metadata.oneDriveItemId ?? args.metadata.oneDriveId;
+    const externalItemId =
+      args.metadata.oneDriveItemId ?? args.metadata.oneDriveId;
 
     if (args.documentIdToUpdate) {
       await deps.updateDocument({

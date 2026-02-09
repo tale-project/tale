@@ -1,10 +1,10 @@
-import { docker } from "./docker";
-import * as logger from "../../utils/logger";
+import * as logger from '../../utils/logger';
+import { docker } from './docker';
 
 export async function pullImage(image: string): Promise<boolean> {
   logger.info(`Pulling image: ${image}`);
   try {
-    const result = await docker("pull", image);
+    const result = await docker('pull', image);
     if (!result.success) {
       logger.error(`Failed to pull image: ${image}`);
       logger.error(result.stderr);

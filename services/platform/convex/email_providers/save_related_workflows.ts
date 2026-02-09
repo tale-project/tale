@@ -2,19 +2,18 @@
  * Save related workflows when creating an email provider
  */
 
-import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
+
 import { internal } from '../_generated/api';
+import { createDebugLog } from '../lib/debug_log';
+import conversationAutoReply from '../predefined_workflows/conversation_auto_reply';
+// Import workflow definitions
+import emailSyncImap from '../predefined_workflows/email_sync_imap';
 import {
   toPredefinedWorkflowPayload,
   type PredefinedWorkflowDefinition,
 } from '../workflows/definitions/types';
-
-// Import workflow definitions
-import emailSyncImap from '../predefined_workflows/email_sync_imap';
-import conversationAutoReply from '../predefined_workflows/conversation_auto_reply';
-
-import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
 
@@ -90,49 +89,69 @@ export async function saveRelatedWorkflows(
 
   if (toCreate.length > 0) {
     // Prepare payloads for workflows to create
-    const payloads = toCreate.map(({ def, schedule, timezone, addAccountEmail }) => {
-      const baseConfig = def.workflowConfig.config ?? {};
-      return toPredefinedWorkflowPayload(
-        def,
-        {
-          config: {
-            ...baseConfig,
-            variables: {
-              ...((baseConfig as { variables?: Record<string, unknown> })
-                .variables ?? {}),
-              organizationId: args.organizationId,
-              ...(addAccountEmail && args.accountEmail ? { accountEmail: args.accountEmail } : {}),
+    const payloads = toCreate.map(
+      ({ def, schedule, timezone, addAccountEmail }) => {
+        const baseConfig = def.workflowConfig.config ?? {};
+        return toPredefinedWorkflowPayload(
+          def,
+          {
+            config: {
+              ...baseConfig,
+              variables: {
+                ...(baseConfig as { variables?: Record<string, unknown> })
+                  .variables,
+                organizationId: args.organizationId,
+                ...(addAccountEmail && args.accountEmail
+                  ? { accountEmail: args.accountEmail }
+                  : {}),
+              },
             },
           },
-        },
-        // Transform trigger steps to enable scheduling
-        (step) =>
-          step.stepType === 'start' || step.stepType === 'trigger'
-            ? { ...step, config: { ...(step.config ?? {}), type: 'scheduled', schedule, timezone } }
-            : step,
-      );
-    });
+          // Transform trigger steps to enable scheduling
+          (step) =>
+            step.stepType === 'start' || step.stepType === 'trigger'
+              ? {
+                  ...step,
+                  config: {
+                    ...(step.config as Record<string, unknown>),
+                    type: 'scheduled',
+                    schedule,
+                    timezone,
+                  },
+                }
+              : step,
+        );
+      },
+    );
 
     // Create all new workflows in parallel
     const results = await Promise.all(
       payloads.map((payload) =>
-        ctx.runMutation(internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps, {
-          organizationId: args.organizationId,
-          ...payload,
-        }),
+        ctx.runMutation(
+          internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps,
+          {
+            organizationId: args.organizationId,
+            ...payload,
+          },
+        ),
       ),
     );
 
-    const newWorkflowIds = results.map((r: { workflowId: Id<'wfDefinitions'> }) => r.workflowId);
+    const newWorkflowIds = results.map(
+      (r: { workflowId: Id<'wfDefinitions'> }) => r.workflowId,
+    );
 
     // Activate all new workflows in parallel
     await Promise.all(
       newWorkflowIds.map((workflowId: Id<'wfDefinitions'>) =>
-        ctx.runMutation(internal.wf_definitions.internal_mutations.updateWorkflowStatus, {
-          wfDefinitionId: workflowId,
-          status: 'active',
-          updatedBy: 'system',
-        }),
+        ctx.runMutation(
+          internal.wf_definitions.internal_mutations.updateWorkflowStatus,
+          {
+            wfDefinitionId: workflowId,
+            status: 'active',
+            updatedBy: 'system',
+          },
+        ),
       ),
     );
 

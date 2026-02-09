@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { DocumentIcon } from './document-icon';
 
 const meta: Meta<typeof DocumentIcon> = {
@@ -101,7 +102,7 @@ export const AllFileTypes: Story = {
       ].map((fileName) => (
         <div key={fileName} className="flex flex-col items-center gap-2">
           <DocumentIcon fileName={fileName} />
-          <span className="text-xs text-muted-foreground">{fileName}</span>
+          <span className="text-muted-foreground text-xs">{fileName}</span>
         </div>
       ))}
     </div>
@@ -117,18 +118,21 @@ export const AllFileTypes: Story = {
 
 export const InListContext: Story = {
   render: () => (
-    <div className="w-72 border rounded-lg divide-y">
+    <div className="w-72 divide-y rounded-lg border">
       {[
         { name: 'Project Proposal.docx', size: '24 KB' },
         { name: 'Budget 2024.xlsx', size: '156 KB' },
         { name: 'Presentation.pptx', size: '2.4 MB' },
         { name: 'Contract.pdf', size: '89 KB' },
       ].map((file) => (
-        <div key={file.name} className="flex items-center gap-3 p-3 hover:bg-muted/50">
+        <div
+          key={file.name}
+          className="hover:bg-muted/50 flex items-center gap-3 p-3"
+        >
           <DocumentIcon fileName={file.name} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{file.name}</p>
-            <p className="text-xs text-muted-foreground">{file.size}</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{file.name}</p>
+            <p className="text-muted-foreground text-xs">{file.size}</p>
           </div>
         </div>
       ))}

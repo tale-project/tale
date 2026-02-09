@@ -50,4 +50,3 @@ export interface EmailMessage {
 // Actions should return data directly (not wrapped in { data: ... })
 // because execute_action_node wraps the result in output: { type: 'action', data: result }
 export type ImapActionResult = EmailMessage[];
-

@@ -2,9 +2,10 @@
  * Create or update tone of voice
  */
 
+import type { JsonRecord } from '../../lib/shared/schemas/utils/json-value';
+
 import { Id } from '../_generated/dataModel';
 import { MutationCtx } from '../_generated/server';
-import type { JsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 export async function upsertToneOfVoice(
   ctx: MutationCtx,

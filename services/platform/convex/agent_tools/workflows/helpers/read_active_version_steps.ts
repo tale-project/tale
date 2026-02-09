@@ -3,9 +3,11 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
+
 import type { Doc } from '../../../_generated/dataModel';
-import { internal } from '../../../_generated/api';
 import type { WorkflowReadGetActiveVersionStepsResult } from './types';
+
+import { internal } from '../../../_generated/api';
 
 export interface ReadActiveVersionStepsArgs {
   workflowName: string;
@@ -47,9 +49,12 @@ export async function readActiveVersionSteps(
     }
 
     // Get all steps for the active workflow version
-    const steps = (await ctx.runQuery(internal.wf_step_defs.internal_queries.listWorkflowSteps, {
-      wfDefinitionId: workflow._id,
-    })) as Doc<'wfStepDefs'>[];
+    const steps = (await ctx.runQuery(
+      internal.wf_step_defs.internal_queries.listWorkflowSteps,
+      {
+        wfDefinitionId: workflow._id,
+      },
+    )) as Doc<'wfStepDefs'>[];
 
     return {
       operation: 'get_active_version_steps',

@@ -26,20 +26,21 @@ export async function listSharePointSites(
       Accept: 'application/json',
     };
 
-    const [searchResult, followedResult, groupsResult] = await Promise.allSettled([
-      fetch(
-        `https://graph.microsoft.com/v1.0/sites?search=${encodeURIComponent(args.search || '*')}&$select=id,name,displayName,webUrl,description&$top=100`,
-        { headers },
-      ),
-      fetch(
-        'https://graph.microsoft.com/v1.0/me/followedSites?$select=id,name,displayName,webUrl,description&$top=100',
-        { headers },
-      ),
-      fetch(
-        'https://graph.microsoft.com/v1.0/me/memberOf/microsoft.graph.group?$filter=groupTypes/any(g:g eq \'Unified\')&$select=id,displayName,description&$top=100',
-        { headers },
-      ),
-    ]);
+    const [searchResult, followedResult, groupsResult] =
+      await Promise.allSettled([
+        fetch(
+          `https://graph.microsoft.com/v1.0/sites?search=${encodeURIComponent(args.search || '*')}&$select=id,name,displayName,webUrl,description&$top=100`,
+          { headers },
+        ),
+        fetch(
+          'https://graph.microsoft.com/v1.0/me/followedSites?$select=id,name,displayName,webUrl,description&$top=100',
+          { headers },
+        ),
+        fetch(
+          "https://graph.microsoft.com/v1.0/me/memberOf/microsoft.graph.group?$filter=groupTypes/any(g:g eq 'Unified')&$select=id,displayName,description&$top=100",
+          { headers },
+        ),
+      ]);
 
     const sitesMap = new Map<string, SharePointSite>();
 
@@ -98,34 +99,37 @@ export async function listSharePointSites(
         }>;
       };
 
-      const groupSitePromises = groupsData.value.slice(0, 20).map(async (group) => {
-        try {
-          const siteResponse = await fetch(
-            `https://graph.microsoft.com/v1.0/groups/${group.id}/sites/root?$select=id,name,displayName,webUrl,description`,
-            { headers },
-          );
-          if (siteResponse.ok) {
-            const site = (await siteResponse.json()) as {
-              id: string;
-              name?: string;
-              displayName?: string;
-              webUrl: string;
-              description?: string;
-            };
-            const siteName = site.name || site.displayName || group.displayName;
-            return {
-              id: site.id,
-              name: siteName,
-              displayName: site.displayName || group.displayName,
-              webUrl: site.webUrl,
-              description: site.description || group.description,
-            };
+      const groupSitePromises = groupsData.value
+        .slice(0, 20)
+        .map(async (group) => {
+          try {
+            const siteResponse = await fetch(
+              `https://graph.microsoft.com/v1.0/groups/${group.id}/sites/root?$select=id,name,displayName,webUrl,description`,
+              { headers },
+            );
+            if (siteResponse.ok) {
+              const site = (await siteResponse.json()) as {
+                id: string;
+                name?: string;
+                displayName?: string;
+                webUrl: string;
+                description?: string;
+              };
+              const siteName =
+                site.name || site.displayName || group.displayName;
+              return {
+                id: site.id,
+                name: siteName,
+                displayName: site.displayName || group.displayName,
+                webUrl: site.webUrl,
+                description: site.description || group.description,
+              };
+            }
+          } catch {
+            // Group may not have a site, skip silently
           }
-        } catch {
-          // Group may not have a site, skip silently
-        }
-        return null;
-      });
+          return null;
+        });
 
       const groupSites = await Promise.all(groupSitePromises);
       for (const site of groupSites) {
@@ -141,7 +145,8 @@ export async function listSharePointSites(
         if (searchResult.value.status === 403) {
           return {
             success: false,
-            error: 'Access denied. You may not have permission to access SharePoint sites.',
+            error:
+              'Access denied. You may not have permission to access SharePoint sites.',
           };
         }
         if (searchResult.value.status === 401) {

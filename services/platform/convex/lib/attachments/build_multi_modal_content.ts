@@ -73,4 +73,3 @@ export function buildMultiModalContent(
     hasNonImageFiles: nonImageFiles.length > 0,
   };
 }
-

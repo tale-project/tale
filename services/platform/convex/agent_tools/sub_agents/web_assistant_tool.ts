@@ -6,19 +6,22 @@
  * All context management is handled by the agent itself.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
-import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
-import { validateToolContext } from './helpers/validate_context';
+
+import { internal } from '../../_generated/api';
 import { buildAdditionalContext } from './helpers/build_additional_context';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import {
   successResponse,
   handleToolError,
   type ToolResponse,
 } from './helpers/tool_response';
-import { internal } from '../../_generated/api';
+import { validateToolContext } from './helpers/validate_context';
 
 const WEB_CONTEXT_MAPPING = {
   url: 'url',
@@ -90,7 +93,10 @@ RIGHT: { userRequest: "What is the shipping policy on https://example.com" } ←
             userId,
             organizationId,
             promptMessage: args.userRequest,
-            additionalContext: buildAdditionalContext(args, WEB_CONTEXT_MAPPING),
+            additionalContext: buildAdditionalContext(
+              args,
+              WEB_CONTEXT_MAPPING,
+            ),
             parentThreadId: threadId,
           },
         );

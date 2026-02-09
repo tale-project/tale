@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
 import type { UIMessage } from '@convex-dev/agent/react';
+
+import { useEffect, useRef } from 'react';
 
 interface UseChatPendingStateParams {
   isPending: boolean;
@@ -28,7 +29,10 @@ export function useChatPendingState({
   const pendingUserCountRef = useRef<number | null>(null);
   const isHumanInputPendingRef = useRef(false);
 
-  const setPendingWithCount = (pending: boolean, isHumanInputResponse = false) => {
+  const setPendingWithCount = (
+    pending: boolean,
+    isHumanInputResponse = false,
+  ) => {
     if (pending) {
       const currentAssistantCount =
         uiMessages?.filter((m) => m.role === 'assistant').length ?? 0;

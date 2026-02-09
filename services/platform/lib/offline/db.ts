@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+
 import type { CachedQueryEntry, QueuedMutation, SyncMetaEntry } from './types';
 
 class OfflineDatabase extends Dexie {
@@ -28,7 +29,7 @@ export async function clearAllOfflineData(): Promise<void> {
 }
 
 export async function clearOrganizationData(
-  organizationId: string
+  organizationId: string,
 ): Promise<void> {
   await db.queryCache.where('organizationId').equals(organizationId).delete();
 }

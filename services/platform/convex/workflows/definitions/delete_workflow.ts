@@ -14,9 +14,11 @@
  * hitting read/operation limits.
  */
 
-import type { MutationCtx } from '../../_generated/server';
-import type { Id } from '../../_generated/dataModel';
 import type { WorkflowId } from '@convex-dev/workflow';
+
+import type { Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
+
 import { internal } from '../../_generated/api';
 import { workflowManagers } from '../../workflow_engine/engine';
 import { safeShardIndex } from '../../workflow_engine/helpers/engine/shard';
@@ -74,7 +76,9 @@ export async function cancelAndDeleteExecutionsBatch(
 
   for await (const execution of ctx.db
     .query('wfExecutions')
-    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', wfDefinitionId))) {
+    .withIndex('by_definition', (q) =>
+      q.eq('wfDefinitionId', wfDefinitionId),
+    )) {
     const shardIndex = safeShardIndex(execution.shardIndex);
 
     if (execution.componentWorkflowId) {
@@ -149,7 +153,9 @@ export async function deleteStepsAndDefinition(
 ): Promise<void> {
   for await (const step of ctx.db
     .query('wfStepDefs')
-    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', wfDefinitionId))) {
+    .withIndex('by_definition', (q) =>
+      q.eq('wfDefinitionId', wfDefinitionId),
+    )) {
     await ctx.db.delete(step._id);
   }
 

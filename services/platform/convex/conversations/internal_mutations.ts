@@ -1,6 +1,9 @@
 import { v } from 'convex/values';
-import { internalMutation } from '../_generated/server';
+
 import type { Id } from '../_generated/dataModel';
+
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { internalMutation } from '../_generated/server';
 import * as ConversationsHelpers from './helpers';
 import {
   conversationStatusValidator,
@@ -8,7 +11,6 @@ import {
   attachmentValidator,
   messageStatusValidator,
 } from './validators';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const createConversation = internalMutation({
   args: {

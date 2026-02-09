@@ -7,7 +7,7 @@ from app.services.workspace_manager import WorkspaceManager, get_workspace_manag
 
 __all__ = [
     "BrowserService",
-    "get_browser_service",
     "WorkspaceManager",
+    "get_browser_service",
     "get_workspace_manager",
 ]

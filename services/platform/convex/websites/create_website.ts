@@ -2,10 +2,11 @@
  * Create a new website and auto-attach a scheduled Website Scan workflow
  */
 
-import type { MutationCtx } from '../_generated/server';
-import type { Id } from '../_generated/dataModel';
-import { internal } from '../_generated/api';
 import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
+import { internal } from '../_generated/api';
 
 export interface CreateWebsiteArgs {
   organizationId: string;

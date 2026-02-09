@@ -3,10 +3,11 @@
  */
 
 import type { ActionCtx } from '../_generated/server';
-import { internal } from '../_generated/api';
-import { getFileMetadata } from './get_file_metadata';
-import { downloadFile } from './download_file';
 import type { ImportFilesDependencies } from './import_files';
+
+import { internal } from '../_generated/api';
+import { downloadFile } from './download_file';
+import { getFileMetadata } from './get_file_metadata';
 
 /**
  * Create dependencies for the importFiles function.
@@ -27,9 +28,15 @@ export function createImportFilesDeps(ctx: ActionCtx): ImportFilesDependencies {
     },
     storeFile: async (blob) => ctx.storage.store(blob),
     createDocument: async (createArgs) =>
-      ctx.runMutation(internal.documents.internal_mutations.createDocument, createArgs),
+      ctx.runMutation(
+        internal.documents.internal_mutations.createDocument,
+        createArgs,
+      ),
     updateDocument: async (updateArgs) => {
-      await ctx.runMutation(internal.documents.internal_mutations.updateDocument, updateArgs);
+      await ctx.runMutation(
+        internal.documents.internal_mutations.updateDocument,
+        updateArgs,
+      );
     },
   };
 }

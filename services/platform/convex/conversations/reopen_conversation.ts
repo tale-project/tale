@@ -1,5 +1,6 @@
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
 
@@ -14,8 +15,7 @@ export async function reopenConversation(
 
   const previousStatus = conversation.status;
 
-  const metadata =
-    (conversation.metadata as Record<string, unknown>) || {};
+  const metadata = (conversation.metadata as Record<string, unknown>) || {};
   const { resolved_at: _, resolved_by: __, ...restMetadata } = metadata;
 
   await ctx.db.patch(args.conversationId, {

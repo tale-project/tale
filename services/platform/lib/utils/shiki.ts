@@ -31,27 +31,53 @@ function getHighlighter(): Promise<HighlighterCore> {
 
 const LANG_ALIASES: Record<string, string> = {
   // Python
-  py: 'python', pyi: 'python', pyw: 'python',
+  py: 'python',
+  pyi: 'python',
+  pyw: 'python',
   // JavaScript/TypeScript
-  js: 'javascript', jsx: 'jsx', mjs: 'javascript', cjs: 'javascript',
-  ts: 'typescript', tsx: 'tsx', mts: 'typescript', cts: 'typescript',
+  js: 'javascript',
+  jsx: 'jsx',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  ts: 'typescript',
+  tsx: 'tsx',
+  mts: 'typescript',
+  cts: 'typescript',
   // Systems
-  rs: 'rust', rb: 'ruby', kt: 'kotlin', kts: 'kotlin',
+  rs: 'rust',
+  rb: 'ruby',
+  kt: 'kotlin',
+  kts: 'kotlin',
   // Shell
-  sh: 'bash', zsh: 'bash', fish: 'fish',
-  ps1: 'powershell', bat: 'bat', cmd: 'bat',
+  sh: 'bash',
+  zsh: 'bash',
+  fish: 'fish',
+  ps1: 'powershell',
+  bat: 'bat',
+  cmd: 'bat',
   // Config / data
-  yml: 'yaml', md: 'markdown', mdx: 'mdx',
+  yml: 'yaml',
+  md: 'markdown',
+  mdx: 'mdx',
   // C/C++
-  cc: 'cpp', cxx: 'cpp', hpp: 'cpp', hxx: 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
+  hpp: 'cpp',
+  hxx: 'cpp',
   h: 'c',
   // Web
-  htm: 'html', scss: 'scss', sass: 'sass', less: 'less',
+  htm: 'html',
+  scss: 'scss',
+  sass: 'sass',
+  less: 'less',
   // Other
-  ex: 'elixir', exs: 'elixir',
+  ex: 'elixir',
+  exs: 'elixir',
   gql: 'graphql',
-  tex: 'latex', latex: 'latex',
-  pl: 'perl', pm: 'perl',
+  tex: 'latex',
+  latex: 'latex',
+  pl: 'perl',
+  pm: 'perl',
   r: 'r',
 };
 
@@ -72,7 +98,9 @@ export async function highlightCode(
   if (!loadedLangs.includes(resolvedLang)) {
     try {
       await hl.loadLanguage(
-        import(`shiki/langs/${resolvedLang}.mjs`) as Parameters<HighlighterCore['loadLanguage']>[0],
+        import(`shiki/langs/${resolvedLang}.mjs`) as Parameters<
+          HighlighterCore['loadLanguage']
+        >[0],
       );
     } catch {
       return DOMPurify.sanitize(hl.codeToHtml(code, { lang: 'text', theme }));

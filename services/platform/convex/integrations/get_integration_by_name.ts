@@ -2,8 +2,8 @@
  * Get integration by organization and name
  */
 
-import { QueryCtx } from '../_generated/server';
 import { Doc } from '../_generated/dataModel';
+import { QueryCtx } from '../_generated/server';
 
 export interface GetIntegrationByNameArgs {
   organizationId: string;

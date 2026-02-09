@@ -4,10 +4,10 @@ interface LoggingConfig {
 }
 
 export const DEFAULT_LOGGING: LoggingConfig = {
-  driver: "json-file",
+  driver: 'json-file',
   options: {
-    "max-size": "10m",
-    "max-file": "3",
+    'max-size': '10m',
+    'max-file': '3',
   },
 };
 
@@ -33,20 +33,34 @@ export interface ComposeService {
 
 export interface ComposeConfig {
   services: Record<string, ComposeService>;
-  volumes?: Record<string, { driver?: string; external?: boolean; name?: string }>;
-  networks?: Record<string, { driver?: string; external?: boolean; name?: string }>;
+  volumes?: Record<
+    string,
+    { driver?: string; external?: boolean; name?: string }
+  >;
+  networks?: Record<
+    string,
+    { driver?: string; external?: boolean; name?: string }
+  >;
 }
 
-export type DeploymentColor = "blue" | "green";
+export type DeploymentColor = 'blue' | 'green';
 
 export interface ServiceConfig {
   version: string;
   registry: string;
 }
 
-export const ROTATABLE_SERVICES = ["platform", "rag", "crawler", "operator"] as const;
-export const STATEFUL_SERVICES = ["db", "graph-db", "proxy"] as const;
-export const ALL_SERVICES = [...ROTATABLE_SERVICES, ...STATEFUL_SERVICES] as const;
+export const ROTATABLE_SERVICES = [
+  'platform',
+  'rag',
+  'crawler',
+  'operator',
+] as const;
+export const STATEFUL_SERVICES = ['db', 'graph-db', 'proxy'] as const;
+export const ALL_SERVICES = [
+  ...ROTATABLE_SERVICES,
+  ...STATEFUL_SERVICES,
+] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];

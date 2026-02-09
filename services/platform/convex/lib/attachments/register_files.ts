@@ -4,11 +4,12 @@
  * Register files with the agent component for proper tracking.
  */
 
-import type { ActionCtx } from '../../_generated/server';
-import { components } from '../../_generated/api';
 import { getFile } from '@convex-dev/agent';
+
+import type { ActionCtx } from '../../_generated/server';
 import type { FileAttachment, RegisteredFile } from './types';
 
+import { components } from '../../_generated/api';
 import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_ATTACHMENTS', '[Attachments]');
@@ -92,4 +93,3 @@ export async function registerFilesWithAgent(
 
   return results.filter((r): r is RegisteredFile => r !== null);
 }
-

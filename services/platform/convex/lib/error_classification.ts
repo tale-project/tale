@@ -73,7 +73,10 @@ export function classifyError(error: unknown): ErrorClassification {
   }
 
   // Content policy violations - won't change on retry
-  if (message.includes('content_policy') || message.includes('content policy')) {
+  if (
+    message.includes('content_policy') ||
+    message.includes('content policy')
+  ) {
     return {
       shouldRetry: false,
       reason: 'content_policy',
@@ -82,7 +85,10 @@ export function classifyError(error: unknown): ErrorClassification {
   }
 
   // Model not found or invalid - configuration issue
-  if (message.includes('model not found') || message.includes('invalid model')) {
+  if (
+    message.includes('model not found') ||
+    message.includes('invalid model')
+  ) {
     return {
       shouldRetry: false,
       reason: 'invalid_model',

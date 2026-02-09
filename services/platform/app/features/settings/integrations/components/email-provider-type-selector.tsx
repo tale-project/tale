@@ -1,15 +1,18 @@
 'use client';
 
+import { Mail, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Stack } from '@/app/components/ui/layout/layout';
+
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
+
 import { GmailIcon } from '@/app/components/icons/gmail-icon';
 import { OutlookIcon } from '@/app/components/icons/outlook-icon';
-import { Mail, ChevronRight } from 'lucide-react';
+import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
+import { Stack } from '@/app/components/ui/layout/layout';
+import { useT } from '@/lib/i18n/client';
+
 import { GmailCreateProviderDialog } from './gmail-create-provider-dialog';
 import { OutlookCreateProviderDialog } from './outlook-create-provider-dialog';
-import { useT } from '@/lib/i18n/client';
-import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
 interface EmailProviderTypeSelectorProps {
   open?: boolean;
@@ -77,28 +80,28 @@ export function EmailProviderTypeSelector({
                 key={provider.id}
                 onClick={provider.onClick}
                 disabled={provider.disabled}
-                className="w-full bg-background border border-border rounded-lg p-4 hover:bg-muted transition-colors text-left flex items-center justify-between group disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background"
+                className="bg-background border-border hover:bg-muted group disabled:hover:bg-background flex w-full items-center justify-between rounded-lg border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <div className="flex items-start gap-3">
-                  <div className="size-10 bg-background border border-border rounded-md flex items-center justify-center flex-shrink-0">
+                  <div className="bg-background border-border flex size-10 flex-shrink-0 items-center justify-center rounded-md border">
                     <IconComponent className="size-5" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-sm text-foreground mb-0.5">
+                    <h3 className="text-foreground mb-0.5 text-sm font-medium">
                       {provider.name}
                       {provider.disabled && (
-                        <span className="ml-2 text-xs text-muted-foreground">
+                        <span className="text-muted-foreground ml-2 text-xs">
                           {t('integrations.comingSoon')}
                         </span>
                       )}
                     </h3>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                       {provider.description}
                     </p>
                   </div>
                 </div>
                 {!provider.disabled && (
-                  <ChevronRight className="size-5 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0" />
+                  <ChevronRight className="text-muted-foreground group-hover:text-foreground size-5 flex-shrink-0 transition-colors" />
                 )}
               </button>
             );

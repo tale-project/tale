@@ -1,11 +1,13 @@
 'use client';
 
-import * as React from 'react';
 import { cva } from 'class-variance-authority';
-import { Dialog } from './dialog';
-import { Button } from '../primitives/button';
-import { cn } from '@/lib/utils/cn';
+import * as React from 'react';
+
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
+import { Button } from '../primitives/button';
+import { Dialog } from './dialog';
 
 const confirmButtonVariants = cva('', {
   variants: {
@@ -95,7 +97,9 @@ export function ConfirmDialog({
         disabled={isLoading}
         className={cn(confirmButtonVariants({ variant }))}
       >
-        {isLoading ? (loadingText ?? tCommon('actions.loading')) : (confirmText ?? tCommon('actions.confirm'))}
+        {isLoading
+          ? (loadingText ?? tCommon('actions.loading'))
+          : (confirmText ?? tCommon('actions.confirm'))}
       </Button>
     </>
   );

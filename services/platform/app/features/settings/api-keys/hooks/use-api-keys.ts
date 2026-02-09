@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 import { authClient } from '@/lib/auth-client';
+
 import type { ApiKey } from '../types';
 
 interface CreateApiKeyParams {
@@ -29,7 +31,10 @@ export function useCreateApiKey(organizationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, expiresIn }: CreateApiKeyParams): Promise<CreateApiKeyResult> => {
+    mutationFn: async ({
+      name,
+      expiresIn,
+    }: CreateApiKeyParams): Promise<CreateApiKeyResult> => {
       const result = await authClient.apiKey.create({
         name,
         expiresIn,

@@ -1,6 +1,8 @@
 import type { ToolCtx } from '@convex-dev/agent';
-import { internal } from '../../../_generated/api';
+
 import type { CustomerReadCountResult } from './types';
+
+import { internal } from '../../../_generated/api';
 
 const MAX_PAGINATION_ATTEMPTS = 3;
 const COUNT_PAGE_SIZE = 500;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -99,7 +100,8 @@ function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
         onSuccessRef.current?.();
         return true;
       } catch (error) {
-        const err = error instanceof Error ? error : new Error('Failed to copy');
+        const err =
+          error instanceof Error ? error : new Error('Failed to copy');
         console.error('Copy to clipboard failed:', err);
 
         if (showErrorToast) {
@@ -153,7 +155,7 @@ export interface CopyButtonRenderProps {
  */
 export function useCopyButton(
   value: string,
-  options: UseCopyOptions = {}
+  options: UseCopyOptions = {},
 ): CopyButtonRenderProps {
   const { copied, copy } = useCopy(options);
 

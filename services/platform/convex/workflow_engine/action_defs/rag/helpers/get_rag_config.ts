@@ -13,4 +13,3 @@ export function getRagConfig(): RagConfig {
 
   return { serviceUrl };
 }
-

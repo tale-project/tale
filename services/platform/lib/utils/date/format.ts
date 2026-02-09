@@ -1,4 +1,5 @@
 import dayjs, { Dayjs } from 'dayjs';
+
 import './dayjs-setup'; // Ensure dayjs is configured with all plugins and locales
 
 export type DatePreset = 'short' | 'medium' | 'long' | 'time' | 'relative';
@@ -56,12 +57,7 @@ export function formatDate(
   date: string | Date | Dayjs,
   options: FormatDateOptions,
 ): string {
-  const {
-    preset = 'medium',
-    locale,
-    timezone,
-    customFormat,
-  } = options;
+  const { preset = 'medium', locale, timezone, customFormat } = options;
 
   if (!date) return '';
 
@@ -220,4 +216,4 @@ export function formatDateHeader(
  * Export dayjs instance for direct use when needed
  */
 export { default as dayjs } from './dayjs-setup';
-export { loadDayjsLocale, isDayjsLocaleLoaded } from './dayjs-setup';
+export { loadDayjsLocale } from './dayjs-setup';

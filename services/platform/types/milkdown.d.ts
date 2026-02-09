@@ -8,4 +8,3 @@ declare module '@milkdown/crepe/theme/frame.css' {
   const content: string;
   export default content;
 }
-

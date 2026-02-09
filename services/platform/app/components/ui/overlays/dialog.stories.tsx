@@ -1,11 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { useState } from 'react';
+
 import { fn } from '@storybook/test';
 import { AlertCircle } from 'lucide-react';
-import { Dialog } from '../dialog/dialog';
+import { useState } from 'react';
+
 import { ConfirmDialog } from '../dialog/confirm-dialog';
-import { Button } from '../primitives/button';
+import { Dialog } from '../dialog/dialog';
 import { Input } from '../forms/input';
+import { Button } from '../primitives/button';
 
 const meta: Meta<typeof Dialog> = {
   title: 'Overlays/Dialog',
@@ -96,7 +98,7 @@ export const Default: Story = {
 export const Sizes: Story = {
   render: function Render() {
     const [size, setSize] = useState<'sm' | 'default' | 'md' | 'lg' | 'xl'>(
-      'default'
+      'default',
     );
     const [open, setOpen] = useState(false);
     return (
@@ -121,7 +123,7 @@ export const Sizes: Story = {
           size={size}
           footer={<Button onClick={() => setOpen(false)}>Close</Button>}
         >
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Dialog content with {size} size.
           </p>
         </Dialog>
@@ -142,7 +144,7 @@ export const WithIcon: Story = {
           title="Warning"
           description="This action cannot be undone."
           icon={
-            <div className="size-10 rounded-full bg-amber-100 flex items-center justify-center">
+            <div className="flex size-10 items-center justify-center rounded-full bg-amber-100">
               <AlertCircle className="size-5 text-amber-600" />
             </div>
           }

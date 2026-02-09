@@ -2,12 +2,14 @@
  *  Generate an Excel (.xlsx) file from tabular data and upload it to Convex storage.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
-import type { ToolDefinition } from '../types';
-import { internal } from '../../_generated/api';
 
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
+import type { ToolDefinition } from '../types';
+
+import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -89,7 +91,9 @@ CRITICAL:
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
-        const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const blob = new Blob([bytes], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
         const fileId = await ctx.storage.store(blob);
         const url = await ctx.storage.getUrl(fileId);
 

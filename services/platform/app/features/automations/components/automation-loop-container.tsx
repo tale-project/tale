@@ -1,10 +1,12 @@
 'use client';
 
-import React from 'react';
 import { Position } from '@xyflow/react';
 import { Repeat } from 'lucide-react';
+import React from 'react';
+
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { useT } from '@/lib/i18n/client';
+
 import { InvisibleHandle } from './invisible-handle';
 
 interface AutomationLoopContainerProps {
@@ -31,13 +33,13 @@ export function AutomationLoopContainer({
   const bottomSourceLeft = data.hasBidirectionalBottom ? '55%' : '50%';
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative h-full w-full">
       {/* Top Target Handle - incoming from higher-ranked nodes */}
       <InvisibleHandle
         type="target"
         position={Position.Top}
         id="top-target"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ top: 2, left: topTargetLeft, opacity: 0 }}
       />
@@ -47,7 +49,7 @@ export function AutomationLoopContainer({
         type="source"
         position={Position.Top}
         id="top-source"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ top: 2, left: topSourceLeft, opacity: 0 }}
       />
@@ -57,7 +59,7 @@ export function AutomationLoopContainer({
         type="target"
         position={Position.Left}
         id="left-target"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ left: 0, top: '50%', opacity: 0 }}
       />
@@ -67,7 +69,7 @@ export function AutomationLoopContainer({
         type="source"
         position={Position.Right}
         id="right-source"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ right: 0, top: '50%', opacity: 0 }}
       />
@@ -80,25 +82,25 @@ export function AutomationLoopContainer({
             ? t('aria.openNamed', { name: data.label })
             : t('aria.openLoop')
         }
-        className="w-full h-full rounded-lg border-2 border-border border-dashed bg-background shadow-sm hover:shadow-md transition-shadow cursor-pointer text-left focus:outline-none"
+        className="border-border bg-background h-full w-full cursor-pointer rounded-lg border-2 border-dashed text-left shadow-sm transition-shadow hover:shadow-md focus:outline-none"
         onClick={() => data.onNodeClick?.(data.stepSlug)}
         style={{ overflow: 'visible', position: 'relative' }}
       >
-        <div className="p-5 h-full flex flex-col">
+        <div className="flex h-full flex-col p-5">
           {/* Header with icon, title, and label */}
-          <div className="flex items-start gap-3 flex-shrink-0 mb-4">
+          <div className="mb-4 flex flex-shrink-0 items-start gap-3">
             {/* Icon on left */}
-            <Repeat className="size-6 p-1 bg-primary/10 rounded-sm shrink-0 text-primary" />
+            <Repeat className="bg-primary/10 text-primary size-6 shrink-0 rounded-sm p-1" />
 
             {/* Title in center */}
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-sm text-foreground">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-foreground text-sm font-semibold">
                 {data.label}
               </h3>
             </div>
 
             {/* Step type label on right */}
-            <Badge variant="outline" className="text-xs text-muted-foreground">
+            <Badge variant="outline" className="text-muted-foreground text-xs">
               {t('stepTypes.loop')}
             </Badge>
           </div>
@@ -118,7 +120,7 @@ export function AutomationLoopContainer({
         type="target"
         position={Position.Bottom}
         id="bottom-target"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ bottom: 0, left: bottomTargetLeft, opacity: 0 }}
       />
@@ -128,7 +130,7 @@ export function AutomationLoopContainer({
         type="source"
         position={Position.Bottom}
         id="bottom-source"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ bottom: 0, left: bottomSourceLeft, opacity: 0 }}
       />

@@ -1,17 +1,17 @@
 import { createClient, type GenericCtx } from '@convex-dev/better-auth';
 import { convex } from '@convex-dev/better-auth/plugins';
-import { components } from './_generated/api';
-import { DataModel } from './_generated/dataModel';
 import { betterAuth } from 'better-auth';
-import authSchema from './betterAuth/schema';
 import { apiKey, organization } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
-import authConfig from './auth.config';
-
 import {
   defaultStatements,
   adminAc,
 } from 'better-auth/plugins/organization/access';
+
+import { components } from './_generated/api';
+import { DataModel } from './_generated/dataModel';
+import authConfig from './auth.config';
+import authSchema from './betterAuth/schema';
 
 const siteUrl = process.env.SITE_URL || 'http://127.0.0.1:3000';
 

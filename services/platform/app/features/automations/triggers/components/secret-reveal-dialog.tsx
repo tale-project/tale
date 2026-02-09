@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { useState } from 'react';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -65,7 +66,7 @@ export function SecretRevealDialog({
     >
       <Stack gap={4}>
         <div
-          className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3"
+          className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20"
           role="alert"
         >
           <p className="text-sm text-amber-800 dark:text-amber-200">
@@ -74,11 +75,11 @@ export function SecretRevealDialog({
         </div>
         {secrets.map((secret, index) => (
           <Stack key={secret.label} gap={1}>
-            <span className="text-sm font-medium text-foreground">
+            <span className="text-foreground text-sm font-medium">
               {secret.label}
             </span>
             <div className="relative">
-              <code className="block w-full p-3 pr-12 bg-muted rounded-md font-mono text-sm break-all">
+              <code className="bg-muted block w-full rounded-md p-3 pr-12 font-mono text-sm break-all">
                 {secret.value}
               </code>
               <Button
@@ -86,7 +87,7 @@ export function SecretRevealDialog({
                 variant="ghost"
                 size="sm"
                 onClick={() => handleCopy(secret.value, index)}
-                className="absolute right-2 top-1/2 -translate-y-1/2"
+                className="absolute top-1/2 right-2 -translate-y-1/2"
                 aria-label={`Copy ${secret.label}`}
               >
                 {copiedIndex === index ? (

@@ -1,6 +1,7 @@
 import { GenericActionCtx } from 'convex/server';
-import { DataModel } from '../_generated/dataModel';
+
 import { internal } from '../_generated/api';
+import { DataModel } from '../_generated/dataModel';
 
 type RemoveSsoProviderArgs = {
   organizationId: string;
@@ -30,12 +31,15 @@ export async function removeSsoProvider(
     throw new Error('Only Admins can remove SSO providers');
   }
 
-  await ctx.runMutation(internal.sso_providers.internal_mutations.removeProvider, {
-    organizationId: args.organizationId,
-    actorId: authUser._id,
-    actorEmail: authUser.email,
-    actorRole: callerRole,
-  });
+  await ctx.runMutation(
+    internal.sso_providers.internal_mutations.removeProvider,
+    {
+      organizationId: args.organizationId,
+      actorId: authUser._id,
+      actorEmail: authUser.email,
+      actorRole: callerRole,
+    },
+  );
 
   return null;
 }

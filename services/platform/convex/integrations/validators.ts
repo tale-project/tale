@@ -5,8 +5,9 @@
  * zodToConvex doesn't support z.lazy(), so those validators are defined using native Convex v.
  */
 
-import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
+
 import {
   integrationTypeSchema,
   integrationAuthMethodSchema,
@@ -49,14 +50,22 @@ export const statusValidator = zodToConvex(integrationStatusSchema);
 export const operationTypeValidator = zodToConvex(operationTypeSchema);
 export const sqlEngineValidator = zodToConvex(sqlEngineSchema);
 export const apiKeyAuthValidator = zodToConvex(apiKeyAuthSchema);
-export const apiKeyAuthEncryptedValidator = zodToConvex(apiKeyAuthEncryptedSchema);
+export const apiKeyAuthEncryptedValidator = zodToConvex(
+  apiKeyAuthEncryptedSchema,
+);
 export const basicAuthValidator = zodToConvex(basicAuthSchema);
-export const basicAuthEncryptedValidator = zodToConvex(basicAuthEncryptedSchema);
+export const basicAuthEncryptedValidator = zodToConvex(
+  basicAuthEncryptedSchema,
+);
 export const oauth2AuthValidator = zodToConvex(oauth2AuthSchema);
-export const oauth2AuthEncryptedValidator = zodToConvex(oauth2AuthEncryptedSchema);
+export const oauth2AuthEncryptedValidator = zodToConvex(
+  oauth2AuthEncryptedSchema,
+);
 export const connectionConfigValidator = zodToConvex(connectionConfigSchema);
 export const capabilitiesValidator = zodToConvex(capabilitiesSchema);
-export const testConnectionResultValidator = zodToConvex(testConnectionResultSchema);
+export const testConnectionResultValidator = zodToConvex(
+  testConnectionResultSchema,
+);
 
 // Complex schemas that use jsonRecordSchema (contains z.lazy) - defined with native Convex v
 export const connectorOperationValidator = v.object({

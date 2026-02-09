@@ -146,4 +146,3 @@ async def convert_url_to_image(request: UrlToImageRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to convert URL to image",
         ) from None
-

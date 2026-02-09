@@ -1,14 +1,13 @@
 import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
-import timezone from 'dayjs/plugin/timezone';
-import relativeTime from 'dayjs/plugin/relativeTime';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import isToday from 'dayjs/plugin/isToday';
 import isYesterday from 'dayjs/plugin/isYesterday';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
-import customParseFormat from 'dayjs/plugin/customParseFormat';
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
-import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
-
+import relativeTime from 'dayjs/plugin/relativeTime';
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
 // Only import the default locale eagerly — all others are loaded on demand
 import 'dayjs/locale/en';
 
@@ -34,33 +33,33 @@ const LOCALE_IMPORTS: Record<string, () => Promise<unknown>> = {
   'en-in': () => import('dayjs/locale/en-in'),
   'en-nz': () => import('dayjs/locale/en-nz'),
   'en-sg': () => import('dayjs/locale/en-sg'),
-  'de': () => import('dayjs/locale/de'),
+  de: () => import('dayjs/locale/de'),
   'de-at': () => import('dayjs/locale/de-at'),
   'de-ch': () => import('dayjs/locale/de-ch'),
-  'fr': () => import('dayjs/locale/fr'),
+  fr: () => import('dayjs/locale/fr'),
   'fr-ca': () => import('dayjs/locale/fr-ca'),
   'fr-ch': () => import('dayjs/locale/fr-ch'),
-  'zh': () => import('dayjs/locale/zh'),
+  zh: () => import('dayjs/locale/zh'),
   'zh-cn': () => import('dayjs/locale/zh-cn'),
   'zh-hk': () => import('dayjs/locale/zh-hk'),
   'zh-tw': () => import('dayjs/locale/zh-tw'),
-  'nl': () => import('dayjs/locale/nl'),
+  nl: () => import('dayjs/locale/nl'),
   'nl-be': () => import('dayjs/locale/nl-be'),
-  'es': () => import('dayjs/locale/es'),
-  'it': () => import('dayjs/locale/it'),
+  es: () => import('dayjs/locale/es'),
+  it: () => import('dayjs/locale/it'),
   'it-ch': () => import('dayjs/locale/it-ch'),
-  'pt': () => import('dayjs/locale/pt'),
+  pt: () => import('dayjs/locale/pt'),
   'pt-br': () => import('dayjs/locale/pt-br'),
-  'ja': () => import('dayjs/locale/ja'),
-  'ko': () => import('dayjs/locale/ko'),
-  'sv': () => import('dayjs/locale/sv'),
-  'da': () => import('dayjs/locale/da'),
-  'fi': () => import('dayjs/locale/fi'),
-  'nb': () => import('dayjs/locale/nb'),
-  'pl': () => import('dayjs/locale/pl'),
-  'ru': () => import('dayjs/locale/ru'),
-  'tr': () => import('dayjs/locale/tr'),
-  'ar': () => import('dayjs/locale/ar'),
+  ja: () => import('dayjs/locale/ja'),
+  ko: () => import('dayjs/locale/ko'),
+  sv: () => import('dayjs/locale/sv'),
+  da: () => import('dayjs/locale/da'),
+  fi: () => import('dayjs/locale/fi'),
+  nb: () => import('dayjs/locale/nb'),
+  pl: () => import('dayjs/locale/pl'),
+  ru: () => import('dayjs/locale/ru'),
+  tr: () => import('dayjs/locale/tr'),
+  ar: () => import('dayjs/locale/ar'),
 };
 
 const loadedLocales = new Set<string>(['en']);
@@ -97,7 +96,7 @@ export function loadDayjsLocale(locale: string): Promise<void> {
   return promise;
 }
 
-export function isDayjsLocaleLoaded(locale: string): boolean {
+function isDayjsLocaleLoaded(locale: string): boolean {
   const key = locale.toLowerCase().replace(/_/g, '-');
   return loadedLocales.has(key);
 }

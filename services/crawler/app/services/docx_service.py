@@ -6,6 +6,7 @@ Handles:
 - DOCX generation from template + content (preserves headers, footers, styles)
 """
 
+import contextlib
 import logging
 from copy import deepcopy
 from io import BytesIO
@@ -141,11 +142,8 @@ class DocxService:
 
         table = doc.add_table(rows=1, cols=len(headers))
 
-        # Apply Table Grid style if available
-        try:
+        with contextlib.suppress(KeyError):
             table.style = "Table Grid"
-        except KeyError:
-            pass
 
         # Add headers
         header_row = table.rows[0]
@@ -182,10 +180,7 @@ class DocxService:
         doc = Document(BytesIO(template_bytes))
         sections = content.get("sections", [])
 
-        logger.info(
-            f"Generating DOCX from template: title={content.get('title')}, "
-            f"sections={len(sections)}"
-        )
+        logger.info(f"Generating DOCX from template: title={content.get('title')}, sections={len(sections)}")
 
         self._clear_document_content(doc)
 
@@ -239,7 +234,7 @@ class DocxService:
         """Restore header or footer content from saved XML."""
         if saved_xml is None:
             return
-        paras = saved_xml.findall('.//' + qn('w:p'))
+        paras = saved_xml.findall(".//" + qn("w:p"))
         if paras:
             header_footer.is_linked_to_previous = False
             for p in list(header_footer._element):
@@ -258,4 +253,3 @@ def get_docx_service() -> DocxService:
     if _docx_service is None:
         _docx_service = DocxService()
     return _docx_service
-

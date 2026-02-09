@@ -14,4 +14,3 @@ export interface WorkflowData<TDefinition = unknown, TStep = unknown> {
   stepsConfigMap: Record<string, unknown>;
   workflowConfigJson: string;
 }
-

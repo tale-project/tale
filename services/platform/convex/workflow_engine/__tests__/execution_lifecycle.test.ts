@@ -5,8 +5,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { failExecution } from '../../workflows/executions/fail_execution';
+
 import { completeExecution } from '../../workflows/executions/complete_execution';
+import { failExecution } from '../../workflows/executions/fail_execution';
 import { updateExecutionStatus } from '../../workflows/executions/update_execution_status';
 
 function createMockCtx() {

@@ -1,9 +1,10 @@
-import { mutation } from '../../_generated/server';
 import { v } from 'convex/values';
-import { generateToken, generateApiKey, hashSecret } from './helpers/crypto';
-import { isValidEventType } from './event_types';
+
+import { mutation } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import { getOrganizationMember } from '../../lib/rls';
+import { isValidEventType } from './event_types';
+import { generateToken, generateApiKey, hashSecret } from './helpers/crypto';
 
 export const createSchedule = mutation({
   args: {
@@ -330,12 +331,15 @@ export const createEventSubscription = mutation({
       .first();
 
     if (existing) {
-      throw new Error(`Event subscription for "${args.eventType}" already exists on this workflow`);
+      throw new Error(
+        `Event subscription for "${args.eventType}" already exists on this workflow`,
+      );
     }
 
-    const cleanFilter = args.eventFilter && Object.keys(args.eventFilter).length > 0
-      ? args.eventFilter
-      : undefined;
+    const cleanFilter =
+      args.eventFilter && Object.keys(args.eventFilter).length > 0
+        ? args.eventFilter
+        : undefined;
 
     const insertData = {
       organizationId: args.organizationId,
@@ -369,9 +373,10 @@ export const updateEventSubscription = mutation({
       name: authUser.name,
     });
 
-    const cleanFilter = args.eventFilter && Object.keys(args.eventFilter).length > 0
-      ? args.eventFilter
-      : undefined;
+    const cleanFilter =
+      args.eventFilter && Object.keys(args.eventFilter).length > 0
+        ? args.eventFilter
+        : undefined;
 
     await ctx.db.patch(
       args.subscriptionId,

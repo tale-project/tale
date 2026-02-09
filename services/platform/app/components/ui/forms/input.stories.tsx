@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { fn } from '@storybook/test';
+
 import { Input } from './input';
 
 const meta: Meta<typeof Input> = {
@@ -109,8 +111,7 @@ export const WithError: Story = {
   parameters: {
     docs: {
       description: {
-        story:
-          'Error state with shake animation and accessible error message.',
+        story: 'Error state with shake animation and accessible error message.',
       },
     },
   },
@@ -161,10 +162,7 @@ export const Disabled: Story = {
 
 export const FormExample: Story = {
   render: () => (
-    <form
-      className="flex flex-col gap-4"
-      onSubmit={(e) => e.preventDefault()}
-    >
+    <form className="flex flex-col gap-4" onSubmit={(e) => e.preventDefault()}>
       <Input label="Full name" required placeholder="John Doe" />
       <Input
         label="Email"
@@ -173,7 +171,11 @@ export const FormExample: Story = {
         placeholder="john@example.com"
       />
       <Input label="Password" type="password" required />
-      <Input label="Phone (optional)" type="tel" placeholder="+1 (555) 000-0000" />
+      <Input
+        label="Phone (optional)"
+        type="tel"
+        placeholder="+1 (555) 000-0000"
+      />
     </form>
   ),
   parameters: {

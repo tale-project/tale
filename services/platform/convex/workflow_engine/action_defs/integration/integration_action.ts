@@ -10,15 +10,20 @@
  */
 
 import { v, Infer } from 'convex/values';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import { internal } from '../../../_generated/api';
+
 import type { IntegrationExecutionResult } from '../../../node_only/integration_sandbox/types';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
+
+import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { internal } from '../../../_generated/api';
+import { isSqlIntegration } from '../../../integrations/helpers';
 import { getPredefinedIntegration } from '../../../predefined_integrations';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
+import {
+  requiresApproval,
+  getOperationType,
+} from './helpers/detect_write_operation';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
-import { requiresApproval, getOperationType } from './helpers/detect_write_operation';
-import { isSqlIntegration } from '../../../integrations/helpers';
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 
 type ConvexJsonRecord = Infer<typeof jsonRecordValidator>;
 
@@ -54,7 +59,14 @@ export const integrationAction: ActionDefinition<{
   }),
 
   async execute(ctx, params, variables) {
-    const { name, operation, params: opParams = {}, skipApprovalCheck = false, threadId, messageId } = params;
+    const {
+      name,
+      operation,
+      params: opParams = {},
+      skipApprovalCheck = false,
+      threadId,
+      messageId,
+    } = params;
 
     // Read organizationId from workflow context variables with proper type validation
     const organizationId = variables.organizationId;
@@ -79,7 +91,15 @@ export const integrationAction: ActionDefinition<{
     // 2. Check integration type and route accordingly
     // Handle SQL integrations
     if (isSqlIntegration(integration)) {
-      return await executeSqlIntegration(ctx, integration, operation, opParams, skipApprovalCheck, threadId, messageId);
+      return await executeSqlIntegration(
+        ctx,
+        integration,
+        operation,
+        opParams,
+        skipApprovalCheck,
+        threadId,
+        messageId,
+      );
     }
 
     // Handle REST API integrations (existing logic)
@@ -102,9 +122,13 @@ export const integrationAction: ActionDefinition<{
     }
 
     // 4. Validate the operation is supported and get operation config
-    const operationConfig = connectorConfig.operations.find((op: { name: string }) => op.name === operation);
+    const operationConfig = connectorConfig.operations.find(
+      (op: { name: string }) => op.name === operation,
+    );
     if (!operationConfig) {
-      const supportedOps = connectorConfig.operations.map((op: { name: string }) => op.name);
+      const supportedOps = connectorConfig.operations.map(
+        (op: { name: string }) => op.name,
+      );
       throw new Error(
         `Operation "${operation}" not supported by integration "${name}". ` +
           `Supported operations: ${supportedOps.join(', ')}`,

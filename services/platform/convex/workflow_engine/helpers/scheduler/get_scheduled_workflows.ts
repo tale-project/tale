@@ -3,8 +3,9 @@
  * Reads from the wfSchedules table (version-agnostic triggers).
  */
 
-import { QueryCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
+
+import { QueryCtx } from '../../../_generated/server';
 import { getActiveWorkflowVersion } from '../../../workflows/triggers/queries';
 
 export interface ScheduledWorkflow {
@@ -26,7 +27,10 @@ export async function getScheduledWorkflows(
   for (const sched of allSchedules) {
     if (!sched.isActive) continue;
 
-    const activeVersion = await getActiveWorkflowVersion(ctx, sched.workflowRootId);
+    const activeVersion = await getActiveWorkflowVersion(
+      ctx,
+      sched.workflowRootId,
+    );
     if (!activeVersion) continue;
 
     results.push({

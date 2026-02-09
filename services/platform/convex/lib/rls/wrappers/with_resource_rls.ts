@@ -2,12 +2,13 @@
  * Higher-order function to wrap mutations with RLS
  */
 
-import type { MutationCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
+import type { MutationCtx } from '../../../_generated/server';
+import type { OrgRole } from '../organization/validate_organization_access';
 import type { RLSContext } from '../types';
+
 import { RLSError } from '../errors';
 import { validateOrganizationAccess } from '../organization/validate_organization_access';
-import type { OrgRole } from '../organization/validate_organization_access';
 
 /**
  * Higher-order function to wrap mutations with RLS

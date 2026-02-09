@@ -24,7 +24,7 @@ type CSVParseOptions = {
  */
 function parseCSVText(
   csvText: string,
-  options: CSVParseOptions = {}
+  options: CSVParseOptions = {},
 ): string[][] {
   const { delimiter = ',', skipEmptyLines = true } = options;
 
@@ -48,7 +48,7 @@ function parseCSVText(
 export function parseCSVWithMapper<T>(
   csvText: string,
   mapper: (row: string[], index: number) => T | null,
-  options: CSVParseOptions = {}
+  options: CSVParseOptions = {},
 ): FileParseResult<T> {
   const rows = parseCSVText(csvText, options);
   const data: T[] = [];
@@ -61,7 +61,9 @@ export function parseCSVWithMapper<T>(
         data.push(mapped);
       }
     } catch (error) {
-      errors.push(`Row ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      errors.push(
+        `Row ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   });
 
@@ -74,15 +76,17 @@ export function parseCSVWithMapper<T>(
 function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.addEventListener('load', (e) => {
       const result = e.target?.result;
       if (typeof result === 'string') {
         resolve(result);
       } else {
         reject(new Error('Failed to read file as text'));
       }
-    };
-    reader.onerror = () => reject(new Error('Failed to read file'));
+    });
+    reader.addEventListener('error', () =>
+      reject(new Error('Failed to read file')),
+    );
     reader.readAsText(file);
   });
 }
@@ -93,15 +97,17 @@ function readFileAsText(file: File): Promise<string> {
 function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.addEventListener('load', (e) => {
       const result = e.target?.result;
       if (result instanceof ArrayBuffer) {
         resolve(result);
       } else {
         reject(new Error('Failed to read file as ArrayBuffer'));
       }
-    };
-    reader.onerror = () => reject(new Error('Failed to read file'));
+    });
+    reader.addEventListener('error', () =>
+      reject(new Error('Failed to read file')),
+    );
     reader.readAsArrayBuffer(file);
   });
 }
@@ -111,7 +117,7 @@ function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
  * Dynamically imports xlsx to reduce initial bundle size.
  */
 async function parseExcelFile(
-  file: File
+  file: File,
 ): Promise<Array<Record<string, unknown>>> {
   const XLSX = await import('xlsx');
   const buffer = await readFileAsArrayBuffer(file);
@@ -138,7 +144,7 @@ function isExcelFile(file: File): boolean {
 export async function parseImportFile<T>(
   file: File,
   csvMapper: (row: string[], index: number) => T | null,
-  excelMapper: (record: Record<string, unknown>) => T | null
+  excelMapper: (record: Record<string, unknown>) => T | null,
 ): Promise<FileParseResult<T>> {
   const errors: string[] = [];
   const data: T[] = [];
@@ -157,7 +163,9 @@ export async function parseImportFile<T>(
             data.push(mapped);
           }
         } catch (error) {
-          errors.push(`Row ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          errors.push(
+            `Row ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          );
         }
       });
       return { data, errors };
@@ -174,4 +182,3 @@ export async function parseImportFile<T>(
     };
   }
 }
-

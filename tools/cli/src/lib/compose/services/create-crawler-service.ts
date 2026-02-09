@@ -1,27 +1,28 @@
-import { PROJECT_NAME } from "../../../utils/load-env";
-import type { ComposeService, DeploymentColor, ServiceConfig } from "../types";
-import { DEFAULT_LOGGING } from "../types";
+import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
+
+import { PROJECT_NAME } from '../../../utils/load-env';
+import { DEFAULT_LOGGING } from '../types';
 
 export function createCrawlerService(
   config: ServiceConfig,
-  color: DeploymentColor
+  color: DeploymentColor,
 ): ComposeService {
   return {
     image: `${config.registry}/tale-crawler:${config.version}`,
     container_name: `${PROJECT_NAME}-crawler-${color}`,
-    env_file: [".env"],
-    restart: "unless-stopped",
+    env_file: ['.env'],
+    restart: 'unless-stopped',
     healthcheck: {
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"],
-      interval: "5s",
-      timeout: "3s",
+      test: ['CMD', 'curl', '-f', 'http://localhost:8002/health'],
+      interval: '5s',
+      timeout: '3s',
       retries: 2,
-      start_period: "40s",
+      start_period: '40s',
     },
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: ["crawler", `crawler-${color}`],
+        aliases: ['crawler', `crawler-${color}`],
       },
     },
   };

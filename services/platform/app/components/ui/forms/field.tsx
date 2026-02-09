@@ -1,6 +1,7 @@
 'use client';
 
 import { forwardRef, HTMLAttributes, ReactNode } from 'react';
+
 import { Stack } from '../layout/layout';
 
 interface FieldProps extends HTMLAttributes<HTMLDivElement> {
@@ -23,7 +24,7 @@ interface FieldProps extends HTMLAttributes<HTMLDivElement> {
 export const Field = forwardRef<HTMLDivElement, FieldProps>(
   ({ label, children, className, ...props }, ref) => (
     <div ref={ref} className={className} {...props}>
-      <h4 className="text-sm font-medium text-muted-foreground mb-1">
+      <h4 className="text-muted-foreground mb-1 text-sm font-medium">
         {label}
       </h4>
       <div>{children}</div>
@@ -55,4 +56,3 @@ export const FieldGroup = forwardRef<HTMLDivElement, FieldGroupProps>(
   ),
 );
 FieldGroup.displayName = 'FieldGroup';
-

@@ -4,8 +4,8 @@
  * This model function encapsulates all versioning and step-cloning logic.
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Doc, Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 
 export interface CreateDraftFromActiveArgs {
   wfDefinitionId: Id<'wfDefinitions'>;
@@ -73,7 +73,7 @@ export async function createDraftFromActive(
     ...(rootVersionId ? { rootVersionId } : {}),
     parentVersionId: activeWorkflow._id,
     metadata: {
-      ...(activeWorkflow.metadata || {}),
+      ...activeWorkflow.metadata,
       createdAt: Date.now(),
       createdBy: args.createdBy,
       basedOnVersion: activeWorkflow.version,
@@ -101,4 +101,3 @@ export async function createDraftFromActive(
 
   return { draftId, isNewDraft: true };
 }
-

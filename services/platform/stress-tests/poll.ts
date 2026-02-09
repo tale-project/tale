@@ -57,7 +57,7 @@ export function pollExecutionViaConvexRun(
   }
 }
 
-export function pollExecutionBatchViaConvexRun(
+function pollExecutionBatchViaConvexRun(
   executionIds: string[],
 ): Map<string, ExecutionStatus> {
   const results = new Map<string, ExecutionStatus>();

@@ -1,8 +1,10 @@
 import { v } from 'convex/values';
+
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { ImapActionParams, ImapActionResult } from './helpers/types';
-import { getImapCredentials } from './helpers/get_imap_credentials';
+
 import { internal } from '../../../_generated/api';
+import { getImapCredentials } from './helpers/get_imap_credentials';
 
 export const imapAction: ActionDefinition<ImapActionParams> = {
   type: 'imap',

@@ -1,5 +1,7 @@
 import type { Infer } from 'convex/values';
+
 import type { Doc } from '../_generated/dataModel';
+
 import {
   emailProviderAuthMethodValidator,
   emailProviderDocValidator,

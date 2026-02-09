@@ -3,9 +3,11 @@
  */
 
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+
 import type { Id } from '@/convex/_generated/dataModel';
 import type { WorkflowCreationMetadata } from '@/convex/approvals/types';
+
+import { api } from '@/convex/_generated/api';
 
 export interface WorkflowCreationApproval {
   _id: Id<'approvals'>;
@@ -29,8 +31,12 @@ export function useWorkflowCreationApprovals(threadId: string | undefined) {
   type ApprovalItem = NonNullable<typeof approvals>[number];
 
   // Transform the approvals to a more usable format
-  const workflowCreationApprovals: WorkflowCreationApproval[] = (approvals || [])
-    .filter((a: ApprovalItem) => a.resourceType === 'workflow_creation' && a.metadata)
+  const workflowCreationApprovals: WorkflowCreationApproval[] = (
+    approvals || []
+  )
+    .filter(
+      (a: ApprovalItem) => a.resourceType === 'workflow_creation' && a.metadata,
+    )
     .map((a: ApprovalItem) => ({
       _id: a._id,
       status: a.status as 'pending' | 'approved' | 'rejected',

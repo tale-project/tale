@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
 import { ChevronUp, ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+
 import { useT } from '@/lib/i18n/client';
 
 interface PageViewport {
@@ -61,12 +62,12 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
         const script = document.createElement('script');
         script.src =
           'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-        script.onload = () => {
+        script.addEventListener('load', () => {
           const lib = (window as unknown as { pdfjsLib: PdfJsLib }).pdfjsLib;
           lib.GlobalWorkerOptions.workerSrc =
             'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
           setPdfjsLib(lib);
-        };
+        });
         document.head.appendChild(script);
       } catch (error) {
         console.error('Error loading PDF.js:', error);
@@ -168,13 +169,17 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
   };
 
   // Queue page render
-  const queueRenderPage = (num: number) => {
-    if (pageRendering) {
-      setPageNumPending(num);
-    } else {
-      renderPage(num);
-    }
-  };
+  const queueRenderPage = useCallback(
+    (num: number) => {
+      if (pageRendering) {
+        setPageNumPending(num);
+      } else {
+        renderPage(num);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- renderPage uses refs and is not easily memoizable
+    [pageRendering],
+  );
 
   // Navigation functions
   const onPrevPage = () => {
@@ -207,8 +212,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
     if (pdfDoc) {
       queueRenderPage(pageNum);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- queueRenderPage is defined inside component but stable
-  }, [scale, pageNum, pdfDoc]);
+  }, [scale, pageNum, pdfDoc, queueRenderPage]);
 
   // Load PDF document
   useEffect(() => {
@@ -227,21 +231,21 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
 
   return (
     <>
-      <div className="p-6 mx-auto relative overflow-y-auto w-full flex-1 overflow-x-visible">
+      <div className="relative mx-auto w-full flex-1 overflow-x-visible overflow-y-auto p-6">
         {/* Canvas */}
         <canvas
           ref={canvasRef}
-          className="block absolute top-0 left-1/2 -translate-x-1/2"
+          className="absolute top-0 left-1/2 block -translate-x-1/2"
           style={{ maxWidth: `calc(48rem * ${scale})`, height: 'auto' }}
         />
         {/* Sticky center-bottom toolbar */}
-        <div className="sticky top-[95%] flex w-full justify-center z-50">
-          <div className="flex items-center gap-4 rounded-full bg-background text-foreground px-4 py-2 shadow-xl ring-1 ring-white/10">
+        <div className="sticky top-[95%] z-50 flex w-full justify-center">
+          <div className="bg-background text-foreground flex items-center gap-4 rounded-full px-4 py-2 shadow-xl ring-1 ring-white/10">
             <div className="flex items-center gap-2">
               <button
                 onClick={onPrevPage}
                 disabled={pageNum <= 1}
-                className="grid place-items-center size-8 rounded-full hover:bg-white/10 transition disabled:opacity-35"
+                className="grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:opacity-35"
                 aria-label={tCommon('aria.previousPage')}
               >
                 <ChevronUp className="size-5" />
@@ -249,7 +253,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
               <button
                 onClick={onNextPage}
                 disabled={pageNum >= totalPages}
-                className="grid place-items-center size-8 rounded-full hover:bg-white/10 transition disabled:opacity-35"
+                className="grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:opacity-35"
                 aria-label={tCommon('aria.nextPage')}
               >
                 <ChevronDown className="size-5" />
@@ -261,7 +265,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
               max={Math.max(1, totalPages)}
               value={pageNum}
               onChange={onPageInputChange}
-              className="w-10 appearance-none rounded-md bg-background text-sm text-center py-1 ring-1 ring-white/20 focus:outline-none focus:ring-white/40"
+              className="bg-background w-10 appearance-none rounded-md py-1 text-center text-sm ring-1 ring-white/20 focus:ring-white/40 focus:outline-none"
             />
             <div>/</div>
             <div className="w-4 text-center text-sm tabular-nums">
@@ -270,14 +274,14 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
             <div className="flex items-center gap-2">
               <button
                 onClick={onZoomOut}
-                className="grid place-items-center size-8 rounded-full hover:bg-white/10 transition"
+                className="grid size-8 place-items-center rounded-full transition hover:bg-white/10"
                 aria-label={tCommon('aria.zoomOut')}
               >
                 <ZoomOut className="size-4" />
               </button>
               <button
                 onClick={onZoomIn}
-                className="grid place-items-center size-8 rounded-full hover:bg-white/10 transition"
+                className="grid size-8 place-items-center rounded-full transition hover:bg-white/10"
                 aria-label={tCommon('aria.zoomIn')}
               >
                 <ZoomIn className="size-4" />
@@ -286,7 +290,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
           </div>
         </div>
         {!pdfDoc && (
-          <div className="mt-4 text-gray-500 text-center">
+          <div className="mt-4 text-center text-gray-500">
             {t('preview.loading')}
           </div>
         )}
@@ -294,4 +298,3 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
     </>
   );
 };
-

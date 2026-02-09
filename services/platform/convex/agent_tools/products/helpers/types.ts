@@ -34,4 +34,10 @@ export const defaultGetFields: string[] = [
   'stock',
 ];
 
-export const defaultListFields: string[] = ['_id', 'name', 'description', 'status', 'stock'];
+export const defaultListFields: string[] = [
+  '_id',
+  'name',
+  'description',
+  'status',
+  'stock',
+];

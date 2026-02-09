@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { TableDateCell, TableTimestampCell } from './table-date-cell';
 
 const meta: Meta<typeof TableDateCell> = {
@@ -72,23 +73,23 @@ export const AllPresets: Story = {
   render: () => (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <span className="w-20 text-sm text-muted-foreground">short:</span>
+        <span className="text-muted-foreground w-20 text-sm">short:</span>
         <TableDateCell date={sampleDate} preset="short" />
       </div>
       <div className="flex items-center gap-4">
-        <span className="w-20 text-sm text-muted-foreground">medium:</span>
+        <span className="text-muted-foreground w-20 text-sm">medium:</span>
         <TableDateCell date={sampleDate} preset="medium" />
       </div>
       <div className="flex items-center gap-4">
-        <span className="w-20 text-sm text-muted-foreground">long:</span>
+        <span className="text-muted-foreground w-20 text-sm">long:</span>
         <TableDateCell date={sampleDate} preset="long" />
       </div>
       <div className="flex items-center gap-4">
-        <span className="w-20 text-sm text-muted-foreground">relative:</span>
+        <span className="text-muted-foreground w-20 text-sm">relative:</span>
         <TableDateCell date={recentDate} preset="relative" />
       </div>
       <div className="flex items-center gap-4">
-        <span className="w-20 text-sm text-muted-foreground">time:</span>
+        <span className="text-muted-foreground w-20 text-sm">time:</span>
         <TableDateCell date={sampleDate} preset="time" />
       </div>
     </div>
@@ -118,7 +119,7 @@ export const Relative: Story = {
 
 export const AlignRight: Story = {
   render: () => (
-    <div className="w-48 border rounded p-2">
+    <div className="w-48 rounded border p-2">
       <TableDateCell date={sampleDate} alignRight />
     </div>
   ),
@@ -191,21 +192,29 @@ export const InTableContext: Story = {
     <table className="w-full border-collapse">
       <thead>
         <tr className="border-b">
-          <th className="text-left p-2 text-sm font-medium">Name</th>
-          <th className="text-left p-2 text-sm font-medium">Created</th>
-          <th className="text-right p-2 text-sm font-medium">Updated</th>
+          <th className="p-2 text-left text-sm font-medium">Name</th>
+          <th className="p-2 text-left text-sm font-medium">Created</th>
+          <th className="p-2 text-right text-sm font-medium">Updated</th>
         </tr>
       </thead>
       <tbody>
         <tr className="border-b">
           <td className="p-2 text-sm">Document 1</td>
-          <td className="p-2"><TableDateCell date={sampleDate} preset="short" /></td>
-          <td className="p-2"><TableDateCell date={recentDate} preset="relative" alignRight /></td>
+          <td className="p-2">
+            <TableDateCell date={sampleDate} preset="short" />
+          </td>
+          <td className="p-2">
+            <TableDateCell date={recentDate} preset="relative" alignRight />
+          </td>
         </tr>
         <tr className="border-b">
           <td className="p-2 text-sm">Document 2</td>
-          <td className="p-2"><TableDateCell date={new Date('2024-01-10')} preset="short" /></td>
-          <td className="p-2"><TableDateCell date={null} alignRight /></td>
+          <td className="p-2">
+            <TableDateCell date={new Date('2024-01-10')} preset="short" />
+          </td>
+          <td className="p-2">
+            <TableDateCell date={null} alignRight />
+          </td>
         </tr>
       </tbody>
     </table>
@@ -223,7 +232,9 @@ export const InTableContext: Story = {
 export const TimestampCell: Story = {
   render: () => (
     <div className="space-y-2">
-      <div className="text-sm text-muted-foreground">TableTimestampCell (defaults to relative, right-aligned):</div>
+      <div className="text-muted-foreground text-sm">
+        TableTimestampCell (defaults to relative, right-aligned):
+      </div>
       <TableTimestampCell timestamp={Date.now() - 3600000} />
     </div>
   ),

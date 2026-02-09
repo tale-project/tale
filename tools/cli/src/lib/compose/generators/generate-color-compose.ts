@@ -1,14 +1,16 @@
-import { stringify } from "yaml";
-import { PROJECT_NAME } from "../../../utils/load-env";
-import type { ComposeConfig, DeploymentColor, ServiceConfig } from "../types";
-import { createCrawlerService } from "../services/create-crawler-service";
-import { createPlatformService } from "../services/create-platform-service";
-import { createRagService } from "../services/create-rag-service";
-import { createOperatorService } from "../services/create-operator-service";
+import { stringify } from 'yaml';
+
+import type { ComposeConfig, DeploymentColor, ServiceConfig } from '../types';
+
+import { PROJECT_NAME } from '../../../utils/load-env';
+import { createCrawlerService } from '../services/create-crawler-service';
+import { createOperatorService } from '../services/create-operator-service';
+import { createPlatformService } from '../services/create-platform-service';
+import { createRagService } from '../services/create-rag-service';
 
 export function generateColorCompose(
   config: ServiceConfig,
-  color: DeploymentColor
+  color: DeploymentColor,
 ): string {
   const compose: ComposeConfig = {
     services: {
@@ -18,15 +20,15 @@ export function generateColorCompose(
       [`operator-${color}`]: createOperatorService(config, color),
     },
     volumes: {
-      "platform-convex-data": {
+      'platform-convex-data': {
         external: true,
         name: `${PROJECT_NAME}_platform-convex-data`,
       },
-      "caddy-data": {
+      'caddy-data': {
         external: true,
         name: `${PROJECT_NAME}_caddy-data`,
       },
-      "rag-data": {
+      'rag-data': {
         external: true,
         name: `${PROJECT_NAME}_rag-data`,
       },

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@/test/utils/render';
+
 import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
+import { render, screen, waitFor } from '@/test/utils/render';
+
 import { Input } from './input';
 
 describe('Input', () => {
@@ -39,24 +41,22 @@ describe('Input', () => {
       render(<Input type="password" label="Password" />);
       const input = screen.getByLabelText('Password');
       expect(input).toHaveAttribute('type', 'password');
-      // Translation mock returns the key as-is: "aria.showPassword"
       expect(
-        screen.getByRole('button', { name: /showPassword/i })
+        screen.getByRole('button', { name: /show password/i }),
       ).toBeInTheDocument();
     });
 
     it('toggles password visibility', async () => {
       const { user } = render(<Input type="password" label="Password" />);
       const input = screen.getByLabelText('Password');
-      // Translation mock returns the key as-is
-      const toggle = screen.getByRole('button', { name: /showPassword/i });
+      const toggle = screen.getByRole('button', { name: /show password/i });
 
       expect(input).toHaveAttribute('type', 'password');
 
       await user.click(toggle);
       expect(input).toHaveAttribute('type', 'text');
       expect(
-        screen.getByRole('button', { name: /hidePassword/i })
+        screen.getByRole('button', { name: /hide password/i }),
       ).toBeInTheDocument();
 
       await user.click(toggle);
@@ -65,8 +65,7 @@ describe('Input', () => {
 
     it('password toggle has aria-pressed', async () => {
       const { user } = render(<Input type="password" label="Password" />);
-      // Translation mock returns the key as-is
-      const toggle = screen.getByRole('button', { name: /showPassword/i });
+      const toggle = screen.getByRole('button', { name: /show password/i });
 
       expect(toggle).toHaveAttribute('aria-pressed', 'false');
 
@@ -79,7 +78,7 @@ describe('Input', () => {
     it('calls onChange when typing', async () => {
       const handleChange = vi.fn();
       const { user } = render(
-        <Input placeholder="Type here" onChange={handleChange} />
+        <Input placeholder="Type here" onChange={handleChange} />,
       );
 
       await user.type(screen.getByPlaceholderText('Type here'), 'hello');
@@ -89,7 +88,7 @@ describe('Input', () => {
     it('does not allow input when disabled', async () => {
       const handleChange = vi.fn();
       const { user } = render(
-        <Input placeholder="Type here" disabled onChange={handleChange} />
+        <Input placeholder="Type here" disabled onChange={handleChange} />,
       );
 
       const input = screen.getByPlaceholderText('Type here');
@@ -106,7 +105,7 @@ describe('Input', () => {
 
     it('passes axe audit with error', async () => {
       const { container } = render(
-        <Input label="Email" errorMessage="Invalid email" />
+        <Input label="Email" errorMessage="Invalid email" />,
       );
       await checkAccessibility(container);
     });
@@ -172,7 +171,7 @@ describe('Input', () => {
 
     it('allows custom autocomplete', () => {
       render(
-        <Input type="password" label="Password" autoComplete="new-password" />
+        <Input type="password" label="Password" autoComplete="new-password" />,
       );
       const input = screen.getByLabelText('Password');
       expect(input).toHaveAttribute('autocomplete', 'new-password');

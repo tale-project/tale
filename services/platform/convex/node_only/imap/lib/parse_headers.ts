@@ -10,4 +10,3 @@ export default function parseHeaders(headers: unknown): Record<string, string> {
 
   return result;
 }
-

@@ -1,8 +1,9 @@
-import type { ActionCtx } from '../../../../_generated/server';
-import { internal } from '../../../../_generated/api';
-import type { Id } from '../../../../_generated/dataModel';
-import type { ConversationStatus, ConversationPriority } from './types';
 import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
+import type { Id } from '../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../_generated/server';
+import type { ConversationStatus, ConversationPriority } from './types';
+
+import { internal } from '../../../../_generated/api';
 
 export async function createConversation(
   ctx: ActionCtx,
@@ -20,18 +21,21 @@ export async function createConversation(
   },
 ) {
   const result: { success: boolean; conversationId: string } =
-    await ctx.runMutation(internal.conversations.internal_mutations.createConversation, {
-      organizationId: params.organizationId,
-      customerId: params.customerId,
-      subject: params.subject,
-      status: params.status,
-      priority: params.priority,
-      type: params.type,
-      channel: params.channel,
-      direction: params.direction,
-      providerId: params.providerId,
-      metadata: params.metadata as ConvexJsonRecord | undefined,
-    });
+    await ctx.runMutation(
+      internal.conversations.internal_mutations.createConversation,
+      {
+        organizationId: params.organizationId,
+        customerId: params.customerId,
+        subject: params.subject,
+        status: params.status,
+        priority: params.priority,
+        type: params.type,
+        channel: params.channel,
+        direction: params.direction,
+        providerId: params.providerId,
+        metadata: params.metadata as ConvexJsonRecord | undefined,
+      },
+    );
 
   // Fetch and return the full created entity
   const createdConversation = await ctx.runQuery(
@@ -48,4 +52,3 @@ export async function createConversation(
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   return createdConversation;
 }
-

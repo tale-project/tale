@@ -6,6 +6,7 @@ Handles:
 - PPTX generation from template + content
 """
 
+import contextlib
 import logging
 from io import BytesIO
 from typing import Any
@@ -64,11 +65,9 @@ class PptxService:
 
     def _get_shape_text(self, shape) -> str:
         """Safely get text from a shape."""
-        try:
+        with contextlib.suppress(Exception):
             if shape.has_text_frame:
                 return shape.text_frame.text
-        except Exception:
-            pass
         return ""
 
     def _parse_hex_color(self, hex_color: str | None):
@@ -80,11 +79,7 @@ class PptxService:
         try:
             hex_color = hex_color.lstrip("#")
             if len(hex_color) == 6:
-                return RGBColor(
-                    int(hex_color[0:2], 16),
-                    int(hex_color[2:4], 16),
-                    int(hex_color[4:6], 16)
-                )
+                return RGBColor(int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16))
         except Exception:
             pass
         return None
@@ -171,10 +166,12 @@ class PptxService:
         if shape.has_text_frame:
             text = self._get_shape_text(shape)
             if text and text.strip():
-                slide_info["textContent"].append({
-                    "text": text,
-                    "isPlaceholder": shape.is_placeholder,
-                })
+                slide_info["textContent"].append(
+                    {
+                        "text": text,
+                        "isPlaceholder": shape.is_placeholder,
+                    }
+                )
 
         # Extract table data
         if shape.has_table:
@@ -206,10 +203,8 @@ class PptxService:
                     "chartType": self._get_chart_type_name(chart.chart_type),
                     "hasLegend": chart.has_legend,
                 }
-                try:
+                with contextlib.suppress(Exception):
                     chart_info["seriesCount"] = len(chart.series)
-                except Exception:
-                    pass
                 slide_info["charts"].append(chart_info)
             except Exception as e:
                 logger.warning(f"Error extracting chart: {e}")
@@ -217,10 +212,12 @@ class PptxService:
         # Extract image info
         try:
             if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
-                slide_info["images"].append({
-                    "width": shape.width,
-                    "height": shape.height,
-                })
+                slide_info["images"].append(
+                    {
+                        "width": shape.width,
+                        "height": shape.height,
+                    }
+                )
         except Exception:
             pass
 
@@ -255,7 +252,7 @@ class PptxService:
                         for color_name in ["accent1", "accent2", "dk1", "dk2"]:
                             try:
                                 color = getattr(theme.color_scheme, color_name)
-                                if color and hasattr(color, 'rgb') and color.rgb:
+                                if color and hasattr(color, "rgb") and color.rgb:
                                     hex_color = f"#{color.rgb}"
                                     if branding["primaryColor"] is None:
                                         branding["primaryColor"] = hex_color
@@ -284,7 +281,7 @@ class PptxService:
         self,
         slide,
         table_data: dict[str, Any],
-        top: int = None,
+        top: int | None = None,
         slide_width: float = 10,
         font_name: str | None = None,
         header_color=None,
@@ -347,7 +344,7 @@ class PptxService:
         self,
         slide,
         items: list[str],
-        top: int = None,
+        top: int | None = None,
         font_name: str | None = None,
         font_size: int = 12,
         bullet_color=None,
@@ -363,10 +360,7 @@ class PptxService:
         tf.word_wrap = True
 
         for idx, item in enumerate(items):
-            if idx == 0:
-                p = tf.paragraphs[0]
-            else:
-                p = tf.add_paragraph()
+            p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
             p.text = f"• {item}"
             p.font.size = Pt(font_size)
             p.space_after = Pt(6)
@@ -395,12 +389,20 @@ class PptxService:
         # Common layout name mappings
         layout_mappings = {
             "title and content": [
-                "title and content", "title_and_body", "title and body", "one_column_text", "content"
+                "title and content",
+                "title_and_body",
+                "title and body",
+                "one_column_text",
+                "content",
             ],
             "title slide": ["title slide", "title"],
             "content": [
-                "title and content", "title_and_body", "title and body",
-                "one_column_text", "content", "two content"
+                "title and content",
+                "title_and_body",
+                "title and body",
+                "one_column_text",
+                "content",
+                "two content",
             ],
             "blank": ["blank"],
             "section": ["section header", "section", "section_header"],
@@ -424,7 +426,7 @@ class PptxService:
         slide,
         title: str = "",
         subtitle: str = "",
-        body_text: list[str] = None,
+        body_text: list[str] | None = None,
     ) -> bool:
         """Fill placeholders in a slide. Returns True if any placeholder was filled."""
         from pptx.enum.shapes import PP_PLACEHOLDER
@@ -543,7 +545,7 @@ class PptxService:
         for child in spTree:
             tag_name = etree.QName(child.tag).localname
             # Keep only the required group properties
-            if tag_name not in ('nvGrpSpPr', 'grpSpPr'):
+            if tag_name not in ("nvGrpSpPr", "grpSpPr"):
                 shapes_to_remove.append(child)
 
         for shape_el in shapes_to_remove:
@@ -587,10 +589,7 @@ class PptxService:
         # or the first slide if it only has title
         if subtitle and not has_body:
             return True
-        if idx == 0 and not has_body:
-            return True
-
-        return False
+        return bool(idx == 0 and not has_body)
 
     def _find_template_slide_for_clone(
         self,
@@ -742,15 +741,13 @@ class PptxService:
 
             if title:
                 self._add_title_to_slide(
-                    slide, title, current_top, slide_width, title_font,
-                    title_font_size, primary_color
+                    slide, title, current_top, slide_width, title_font, title_font_size, primary_color
                 )
                 current_top += 0.8
 
             if subtitle:
                 self._add_subtitle_to_slide(
-                    slide, subtitle, current_top, slide_width, body_font,
-                    title_font_size - 10, secondary_color
+                    slide, subtitle, current_top, slide_width, body_font, title_font_size - 10, secondary_color
                 )
                 current_top += 0.6
 
@@ -771,9 +768,7 @@ class PptxService:
         if tables:
             current_top = 4.0
             for table_data in tables:
-                self._add_table_to_slide(
-                    slide, table_data, current_top, slide_width, body_font, primary_color
-                )
+                self._add_table_to_slide(slide, table_data, current_top, slide_width, body_font, primary_color)
                 row_count = len(table_data.get("rows", [])) + (1 if table_data.get("headers") else 0)
                 current_top += 0.4 * row_count + 0.3
 
@@ -834,18 +829,30 @@ class PptxService:
                         # Fallback if no title slide found
                         logger.info(f"No title slide to clone for idx={idx}, using layout")
                         self._create_slide_from_layout_only(
-                            prs, content, slide_width,
-                            title_font, body_font, title_font_size, body_font_size,
-                            primary_color, secondary_color
+                            prs,
+                            content,
+                            slide_width,
+                            title_font,
+                            body_font,
+                            title_font_size,
+                            body_font_size,
+                            primary_color,
+                            secondary_color,
                         )
                 else:
                     # Content slide - use layout only (no decoration copying)
                     # This avoids copying template's example content
                     logger.info(f"Creating content slide from layout for idx={idx}")
                     self._create_slide_from_layout_only(
-                        prs, content, slide_width,
-                        title_font, body_font, title_font_size, body_font_size,
-                        primary_color, secondary_color
+                        prs,
+                        content,
+                        slide_width,
+                        title_font,
+                        body_font,
+                        title_font_size,
+                        body_font_size,
+                        primary_color,
+                        secondary_color,
                     )
 
             # Remove original template slides (they are at the beginning)
@@ -865,9 +872,16 @@ class PptxService:
 
             for idx, content in enumerate(slides_content):
                 self._create_slide_from_layout(
-                    prs, idx, content, slide_width,
-                    title_font, body_font, title_font_size, body_font_size,
-                    primary_color, secondary_color
+                    prs,
+                    idx,
+                    content,
+                    slide_width,
+                    title_font,
+                    body_font,
+                    title_font_size,
+                    body_font_size,
+                    primary_color,
+                    secondary_color,
                 )
 
         output = BytesIO()
@@ -968,9 +982,7 @@ class PptxService:
         if tables:
             current_top = 4.0  # Start below typical placeholder area
             for table_data in tables:
-                self._add_table_to_slide(
-                    slide, table_data, current_top, slide_width, body_font, primary_color
-                )
+                self._add_table_to_slide(slide, table_data, current_top, slide_width, body_font, primary_color)
                 row_count = len(table_data.get("rows", [])) + (1 if table_data.get("headers") else 0)
                 current_top += 0.4 * row_count + 0.3
 
@@ -1012,15 +1024,25 @@ class PptxService:
 
         if title:
             self._add_title_to_slide(
-                slide, title, current_top, slide_width, title_font,
-                title_font_size if idx == 0 else title_font_size - 4, primary_color
+                slide,
+                title,
+                current_top,
+                slide_width,
+                title_font,
+                title_font_size if idx == 0 else title_font_size - 4,
+                primary_color,
             )
             current_top += 0.8
 
         if subtitle:
             self._add_subtitle_to_slide(
-                slide, subtitle, current_top, slide_width, body_font,
-                title_font_size - 10 if idx == 0 else title_font_size - 12, secondary_color
+                slide,
+                subtitle,
+                current_top,
+                slide_width,
+                body_font,
+                title_font_size - 10 if idx == 0 else title_font_size - 12,
+                secondary_color,
             )
             current_top += 0.6
 
@@ -1032,28 +1054,21 @@ class PptxService:
                 current_top += 0.3 + (len(text) // 100) * 0.2
 
         if bullet_points:
-            self._add_bullet_list_to_slide(
-                slide, bullet_points, current_top, body_font, body_font_size, primary_color
-            )
+            self._add_bullet_list_to_slide(slide, bullet_points, current_top, body_font, body_font_size, primary_color)
             current_top += 0.3 * len(bullet_points) + 0.3
 
         for table_data in tables:
-            self._add_table_to_slide(
-                slide, table_data, current_top, slide_width, body_font, primary_color
-            )
+            self._add_table_to_slide(slide, table_data, current_top, slide_width, body_font, primary_color)
             row_count = len(table_data.get("rows", [])) + (1 if table_data.get("headers") else 0)
             current_top += 0.4 * row_count + 0.3
 
         return slide
 
     def _add_title_to_slide(
-        self, slide, title: str, top: float, slide_width: float,
-        font_name: str | None, font_size: int, color
+        self, slide, title: str, top: float, slide_width: float, font_name: str | None, font_size: int, color
     ) -> None:
         """Add a title to a slide."""
-        title_box = slide.shapes.add_textbox(
-            Inches(0.5), Inches(top), Inches(slide_width - 1), Inches(0.6)
-        )
+        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(top), Inches(slide_width - 1), Inches(0.6))
         tf = title_box.text_frame
         p = tf.paragraphs[0]
         p.text = title
@@ -1065,13 +1080,10 @@ class PptxService:
             p.font.color.rgb = color
 
     def _add_subtitle_to_slide(
-        self, slide, subtitle: str, top: float, slide_width: float,
-        font_name: str | None, font_size: int, color
+        self, slide, subtitle: str, top: float, slide_width: float, font_name: str | None, font_size: int, color
     ) -> None:
         """Add a subtitle to a slide."""
-        sub_box = slide.shapes.add_textbox(
-            Inches(0.5), Inches(top), Inches(slide_width - 1), Inches(0.4)
-        )
+        sub_box = slide.shapes.add_textbox(Inches(0.5), Inches(top), Inches(slide_width - 1), Inches(0.4))
         tf = sub_box.text_frame
         p = tf.paragraphs[0]
         p.text = subtitle
@@ -1082,13 +1094,10 @@ class PptxService:
             p.font.color.rgb = color
 
     def _add_text_to_slide(
-        self, slide, text: str, top: float, slide_width: float,
-        font_name: str | None, font_size: int
+        self, slide, text: str, top: float, slide_width: float, font_name: str | None, font_size: int
     ) -> None:
         """Add text to a slide."""
-        text_box = slide.shapes.add_textbox(
-            Inches(0.5), Inches(top), Inches(slide_width - 1), Inches(0.5)
-        )
+        text_box = slide.shapes.add_textbox(Inches(0.5), Inches(top), Inches(slide_width - 1), Inches(0.5))
         tf = text_box.text_frame
         tf.word_wrap = True
         p = tf.paragraphs[0]

@@ -2,9 +2,10 @@
  * Add member internal - Business logic
  */
 
-import { MutationCtx } from '../_generated/server';
 import type { Role } from './types';
+
 import { components } from '../_generated/api';
+import { MutationCtx } from '../_generated/server';
 
 export interface AddMemberInternalArgs {
   organizationId: string;

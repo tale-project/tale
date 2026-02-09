@@ -1,5 +1,6 @@
-import type { MutationCtx } from '../_generated/server';
 import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
 import { internal } from '../_generated/api';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
@@ -35,7 +36,8 @@ function getProviderEmail(provider: Doc<'emailProviders'>): string | undefined {
     return provider.passwordAuth.user;
   }
   if (provider.authMethod === 'oauth2' && provider.metadata) {
-    const oauth2User = (provider.metadata as Record<string, unknown>).oauth2_user;
+    const oauth2User = (provider.metadata as Record<string, unknown>)
+      .oauth2_user;
     return typeof oauth2User === 'string' ? oauth2User : undefined;
   }
   return undefined;
@@ -46,7 +48,8 @@ function extractSenderEmail(provider: Doc<'emailProviders'>): string {
     return provider.passwordAuth.user;
   }
   if (provider.authMethod === 'oauth2' && provider.metadata) {
-    const oauth2User = (provider.metadata as Record<string, unknown>).oauth2_user;
+    const oauth2User = (provider.metadata as Record<string, unknown>)
+      .oauth2_user;
     if (oauth2User && typeof oauth2User === 'string') {
       return oauth2User;
     }
@@ -101,11 +104,13 @@ async function resolveProvider(
   const activeProviderEmail = getProviderEmail(activeProvider);
 
   if (originalRecipientEmail && activeProviderEmail) {
-    if (activeProviderEmail.toLowerCase() !== originalRecipientEmail.toLowerCase()) {
+    if (
+      activeProviderEmail.toLowerCase() !== originalRecipientEmail.toLowerCase()
+    ) {
       throw new Error(
         `Cannot send reply: The active email provider (${activeProviderEmail}) does not match ` +
-        `the original recipient email (${originalRecipientEmail}). ` +
-        `Please configure the correct email provider.`,
+          `the original recipient email (${originalRecipientEmail}). ` +
+          `Please configure the correct email provider.`,
       );
     }
   }
@@ -177,9 +182,10 @@ export async function sendMessageViaEmail(
   };
 
   const sendMethod = provider.sendMethod || 'smtp';
-  const sendAction = sendMethod === 'api'
-    ? internal.email_providers.internal_actions.sendMessageViaAPI
-    : internal.email_providers.internal_actions.sendMessageViaSMTP;
+  const sendAction =
+    sendMethod === 'api'
+      ? internal.email_providers.internal_actions.sendMessageViaAPI
+      : internal.email_providers.internal_actions.sendMessageViaSMTP;
 
   await ctx.scheduler.runAfter(0, sendAction, emailPayload);
 

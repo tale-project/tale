@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect } from 'react';
-import { ServiceWorkerUpdatePrompt } from './service-worker-update-prompt';
-import { OfflineIndicator } from './offline-indicator';
+
 import { useOnlineStatusWithCallback } from '@/app/hooks/use-online-status';
 import { useServiceWorker } from '@/app/hooks/use-service-worker';
+
+import { OfflineIndicator } from './offline-indicator';
+import { ServiceWorkerUpdatePrompt } from './service-worker-update-prompt';
 
 interface ServiceWorkerManagerProps {
   showOfflineIndicator?: boolean;
@@ -23,7 +25,7 @@ export function ServiceWorkerManager({
     },
     () => {
       console.log('Connection lost');
-    }
+    },
   );
 
   useEffect(() => {

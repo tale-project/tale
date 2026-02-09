@@ -15,4 +15,3 @@ export async function setComponentWorkflow(
   });
   return null;
 }
-

@@ -39,7 +39,8 @@ export async function downloadAndStoreFile(
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    const mimeType = response.headers.get('content-type') || 'application/octet-stream';
+    const mimeType =
+      response.headers.get('content-type') || 'application/octet-stream';
 
     const blob = new Blob([arrayBuffer], { type: mimeType });
     const storageId = await deps.storeFile(blob);
@@ -53,7 +54,10 @@ export async function downloadAndStoreFile(
     console.error('[downloadAndStoreFile] Error:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error downloading file',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unknown error downloading file',
     };
   }
 }

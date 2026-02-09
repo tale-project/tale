@@ -1,6 +1,7 @@
-import type { ActionCtx } from '../../../../_generated/server';
-import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../_generated/server';
+
+import { internal } from '../../../../_generated/api';
 
 export async function updateConversations(
   ctx: ActionCtx,
@@ -10,11 +11,14 @@ export async function updateConversations(
     updates: Record<string, unknown>;
   },
 ) {
-  await ctx.runMutation(internal.conversations.internal_mutations.updateConversations, {
-    organizationId: params.organizationId,
-    conversationId: params.conversationId,
-    updates: params.updates,
-  });
+  await ctx.runMutation(
+    internal.conversations.internal_mutations.updateConversations,
+    {
+      organizationId: params.organizationId,
+      conversationId: params.conversationId,
+      updates: params.updates,
+    },
+  );
 
   // Fetch and return the updated entity
   const updatedConversation = await ctx.runQuery(
@@ -31,4 +35,3 @@ export async function updateConversations(
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   return updatedConversation;
 }
-

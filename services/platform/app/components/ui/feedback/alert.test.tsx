@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@/test/utils/render';
-import { checkAccessibility } from '@/test/utils/a11y';
-import { Alert, AlertTitle, AlertDescription } from './alert';
 import { AlertCircle } from 'lucide-react';
+import { describe, it, expect } from 'vitest';
+
+import { checkAccessibility } from '@/test/utils/a11y';
+import { render, screen } from '@/test/utils/render';
+
+import { Alert, AlertTitle, AlertDescription } from './alert';
 
 describe('Alert', () => {
   describe('rendering', () => {
@@ -16,10 +18,12 @@ describe('Alert', () => {
         <Alert>
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>Something went wrong</AlertDescription>
-        </Alert>
+        </Alert>,
       );
       expect(screen.getByRole('alert')).toHaveTextContent('Error');
-      expect(screen.getByRole('alert')).toHaveTextContent('Something went wrong');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Something went wrong',
+      );
     });
 
     it('renders with icon', () => {
@@ -27,9 +31,11 @@ describe('Alert', () => {
         <Alert>
           <AlertCircle className="size-4" aria-hidden="true" />
           <AlertTitle>Error</AlertTitle>
-        </Alert>
+        </Alert>,
       );
-      expect(screen.getByRole('alert').querySelector('svg')).toBeInTheDocument();
+      expect(
+        screen.getByRole('alert').querySelector('svg'),
+      ).toBeInTheDocument();
     });
   });
 
@@ -39,12 +45,14 @@ describe('Alert', () => {
       (variant) => {
         render(<Alert variant={variant}>Content</Alert>);
         expect(screen.getByRole('alert')).toBeInTheDocument();
-      }
+      },
     );
 
     it('applies destructive styling', () => {
       render(<Alert variant="destructive">Error</Alert>);
-      expect(screen.getByRole('alert').className).toContain('border-destructive');
+      expect(screen.getByRole('alert').className).toContain(
+        'border-destructive',
+      );
     });
 
     it('applies warning styling', () => {
@@ -59,7 +67,7 @@ describe('Alert', () => {
         <Alert>
           <AlertTitle>Title</AlertTitle>
           <AlertDescription>Description</AlertDescription>
-        </Alert>
+        </Alert>,
       );
       await checkAccessibility(container);
     });
@@ -76,7 +84,10 @@ describe('Alert', () => {
 
     it('supports aria-live assertive', () => {
       render(<Alert live="assertive">Critical</Alert>);
-      expect(screen.getByRole('alert')).toHaveAttribute('aria-live', 'assertive');
+      expect(screen.getByRole('alert')).toHaveAttribute(
+        'aria-live',
+        'assertive',
+      );
     });
 
     it('has aria-atomic true', () => {
@@ -96,7 +107,9 @@ describe('Alert', () => {
 describe('AlertTitle', () => {
   it('renders as h5', () => {
     render(<AlertTitle>Title</AlertTitle>);
-    expect(screen.getByRole('heading', { level: 5 })).toHaveTextContent('Title');
+    expect(screen.getByRole('heading', { level: 5 })).toHaveTextContent(
+      'Title',
+    );
   });
 
   it('applies custom className', () => {

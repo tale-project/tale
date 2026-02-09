@@ -1,5 +1,7 @@
-import { generateColorCompose } from "../compose/generators/generate-color-compose";
-import { generateStatefulCompose } from "../compose/generators/generate-stateful-compose";
+import { PROJECT_NAME, type DeploymentEnv } from '../../utils/load-env';
+import * as logger from '../../utils/logger';
+import { generateColorCompose } from '../compose/generators/generate-color-compose';
+import { generateStatefulCompose } from '../compose/generators/generate-stateful-compose';
 import {
   type RotatableService,
   type ServiceName,
@@ -8,29 +10,27 @@ import {
   STATEFUL_SERVICES,
   isRotatableService,
   isStatefulService,
-} from "../compose/types";
-import { dockerCompose } from "../docker/docker-compose";
-import { ensureNetwork } from "../docker/ensure-network";
-import { ensureVolumes } from "../docker/ensure-volumes";
-import { getContainerVersion } from "../docker/get-container-version";
-import { isContainerRunning } from "../docker/is-container-running";
-import { pullImage } from "../docker/pull-image";
-import { removeContainer } from "../docker/remove-container";
-import { stopContainer } from "../docker/stop-container";
-import { waitForHealthy } from "../docker/wait-for-healthy";
-import { getCurrentColor } from "../state/get-current-color";
-import { getNextColor } from "../state/get-next-color";
-import { setCurrentColor } from "../state/set-current-color";
-import { setPreviousVersion } from "../state/set-previous-version";
-import { withLock } from "../state/with-lock";
-import { PROJECT_NAME, type DeploymentEnv } from "../../utils/load-env";
-import * as logger from "../../utils/logger";
+} from '../compose/types';
+import { dockerCompose } from '../docker/docker-compose';
+import { ensureNetwork } from '../docker/ensure-network';
+import { ensureVolumes } from '../docker/ensure-volumes';
+import { getContainerVersion } from '../docker/get-container-version';
+import { isContainerRunning } from '../docker/is-container-running';
+import { pullImage } from '../docker/pull-image';
+import { removeContainer } from '../docker/remove-container';
+import { stopContainer } from '../docker/stop-container';
+import { waitForHealthy } from '../docker/wait-for-healthy';
+import { getCurrentColor } from '../state/get-current-color';
+import { getNextColor } from '../state/get-next-color';
+import { setCurrentColor } from '../state/set-current-color';
+import { setPreviousVersion } from '../state/set-previous-version';
+import { withLock } from '../state/with-lock';
 
-const REQUIRED_VOLUMES = ["platform-convex-data", "caddy-data", "rag-data"];
+const REQUIRED_VOLUMES = ['platform-convex-data', 'caddy-data', 'rag-data'];
 
 async function ensureInfrastructure(
   prefix: string,
-  dryRun: boolean
+  dryRun: boolean,
 ): Promise<void> {
   logger.step(`${prefix}Ensuring volumes and network exist...`);
   if (dryRun) {
@@ -43,11 +43,11 @@ async function ensureInfrastructure(
 
   const volumesCreated = await ensureVolumes(REQUIRED_VOLUMES);
   if (!volumesCreated) {
-    throw new Error("Failed to create required volumes");
+    throw new Error('Failed to create required volumes');
   }
-  const networkCreated = await ensureNetwork("internal");
+  const networkCreated = await ensureNetwork('internal');
   if (!networkCreated) {
-    throw new Error("Failed to create required network");
+    throw new Error('Failed to create required network');
   }
 }
 
@@ -64,7 +64,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
   const { version, updateStateful, env, hostAlias, dryRun, services } = options;
 
   await withLock(env.DEPLOY_DIR, `deploy ${version}`, async () => {
-    const prefix = dryRun ? "[DRY-RUN] " : "";
+    const prefix = dryRun ? '[DRY-RUN] ' : '';
     logger.header(`${prefix}Deploying Tale ${version}`);
 
     // Check if this is a first-time deployment
@@ -86,7 +86,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
       if (isFirstDeploy || updateStateful) {
         statefulToUpdate = [...STATEFUL_SERVICES];
         if (isFirstDeploy) {
-          logger.notice("First deployment detected - including infrastructure services");
+          logger.notice(
+            'First deployment detected - including infrastructure services',
+          );
         }
       } else {
         // Check if any required stateful services are not running
@@ -101,7 +103,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
         if (missingStateful.length > 0) {
           logger.notice(
-            `Infrastructure services not running: ${missingStateful.join(", ")} - including automatically`
+            `Infrastructure services not running: ${missingStateful.join(', ')} - including automatically`,
           );
           statefulToUpdate = missingStateful;
         } else {
@@ -111,19 +113,21 @@ export async function deploy(options: DeployOptions): Promise<void> {
     }
 
     if (rotatableToUpdate.length === 0 && statefulToUpdate.length === 0) {
-      logger.error("No valid services to deploy");
-      throw new Error("No services specified");
+      logger.error('No valid services to deploy');
+      throw new Error('No services specified');
     }
 
     // Determine deployment mode
     const inPlaceUpdate = services && services.length > 0;
     if (inPlaceUpdate) {
-      logger.info("Mode: In-place update (no blue-green switching)");
+      logger.info('Mode: In-place update (no blue-green switching)');
     } else {
-      logger.info("Mode: Blue-green deployment");
+      logger.info('Mode: Blue-green deployment');
     }
-    logger.info(`Rotatable services: ${rotatableToUpdate.join(", ") || "none"}`);
-    logger.info(`Stateful services: ${statefulToUpdate.join(", ") || "none"}`);
+    logger.info(
+      `Rotatable services: ${rotatableToUpdate.join(', ') || 'none'}`,
+    );
+    logger.info(`Stateful services: ${statefulToUpdate.join(', ') || 'none'}`);
 
     const serviceConfig = {
       version,
@@ -134,10 +138,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
     logger.step(`${prefix}Pulling images...`);
     const imagesToPull = [
       ...rotatableToUpdate.map(
-        (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`
+        (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
       ),
       ...statefulToUpdate.map(
-        (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`
+        (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
       ),
     ];
 
@@ -166,14 +170,14 @@ export async function deploy(options: DeployOptions): Promise<void> {
       } else {
         const result = await dockerCompose(
           statefulCompose,
-          ["up", "-d", ...statefulToUpdate],
-          { projectName: PROJECT_NAME, cwd: env.DEPLOY_DIR }
+          ['up', '-d', ...statefulToUpdate],
+          { projectName: PROJECT_NAME, cwd: env.DEPLOY_DIR },
         );
 
         if (!result.success) {
-          logger.error("Failed to deploy stateful services");
+          logger.error('Failed to deploy stateful services');
           logger.error(result.stderr);
-          throw new Error("Stateful deployment failed");
+          throw new Error('Stateful deployment failed');
         }
 
         // Wait for stateful services to be healthy
@@ -194,9 +198,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
       if (inPlaceUpdate) {
         // In-place update: update services in current color without switching
         if (!currentColor) {
-          logger.error("No active deployment found");
-          logger.info("Run a full deploy first (without --services)");
-          throw new Error("No active deployment for in-place update");
+          logger.error('No active deployment found');
+          logger.info('Run a full deploy first (without --services)');
+          throw new Error('No active deployment for in-place update');
         }
 
         logger.info(`Updating in current color: ${currentColor}`);
@@ -204,7 +208,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
         // Save current version as previous (for rollback)
         if (!dryRun) {
           const currentPlatformVersion = await getContainerVersion(
-            `${PROJECT_NAME}-platform-${currentColor}`
+            `${PROJECT_NAME}-platform-${currentColor}`,
           );
           if (currentPlatformVersion) {
             await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
@@ -220,31 +224,40 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
         if (dryRun) {
           for (const service of rotatableToUpdate) {
-            logger.info(`${prefix}Would update: ${PROJECT_NAME}-${service}-${currentColor}`);
+            logger.info(
+              `${prefix}Would update: ${PROJECT_NAME}-${service}-${currentColor}`,
+            );
           }
         } else {
-          const coloredServices = rotatableToUpdate.map((s) => `${s}-${currentColor}`);
+          const coloredServices = rotatableToUpdate.map(
+            (s) => `${s}-${currentColor}`,
+          );
           const deployResult = await dockerCompose(
             colorCompose,
-            ["up", "-d", ...coloredServices],
-            { projectName: `${PROJECT_NAME}-${currentColor}`, cwd: env.DEPLOY_DIR }
+            ['up', '-d', ...coloredServices],
+            {
+              projectName: `${PROJECT_NAME}-${currentColor}`,
+              cwd: env.DEPLOY_DIR,
+            },
           );
 
           if (!deployResult.success) {
             logger.error(`Failed to update ${currentColor} services`);
             logger.error(deployResult.stderr);
-            throw new Error("In-place update failed");
+            throw new Error('In-place update failed');
           }
 
           // Wait for services to be healthy
-          logger.step("Waiting for services to be healthy...");
+          logger.step('Waiting for services to be healthy...');
           for (const service of rotatableToUpdate) {
             const containerName = `${PROJECT_NAME}-${service}-${currentColor}`;
             const healthy = await waitForHealthy(containerName, {
               timeout: env.HEALTH_CHECK_TIMEOUT,
             });
             if (!healthy) {
-              throw new Error(`Service ${service}-${currentColor} failed health check`);
+              throw new Error(
+                `Service ${service}-${currentColor} failed health check`,
+              );
             }
           }
         }
@@ -252,13 +265,13 @@ export async function deploy(options: DeployOptions): Promise<void> {
         // Full blue-green deployment
         const nextColor = getNextColor(currentColor);
 
-        logger.info(`Current color: ${currentColor ?? "none"}`);
+        logger.info(`Current color: ${currentColor ?? 'none'}`);
         logger.info(`Deploying to: ${nextColor}`);
 
         // Save current version as previous (for rollback)
         if (currentColor && !dryRun) {
           const currentPlatformVersion = await getContainerVersion(
-            `${PROJECT_NAME}-platform-${currentColor}`
+            `${PROJECT_NAME}-platform-${currentColor}`,
           );
           if (currentPlatformVersion) {
             await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
@@ -274,14 +287,22 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
         if (dryRun) {
           for (const service of rotatableToUpdate) {
-            logger.info(`${prefix}Would clean up stale: ${PROJECT_NAME}-${service}-${nextColor}`);
-            logger.info(`${prefix}Would deploy: ${PROJECT_NAME}-${service}-${nextColor}`);
+            logger.info(
+              `${prefix}Would clean up stale: ${PROJECT_NAME}-${service}-${nextColor}`,
+            );
+            logger.info(
+              `${prefix}Would deploy: ${PROJECT_NAME}-${service}-${nextColor}`,
+            );
           }
           logger.step(`${prefix}Would switch traffic to ${nextColor}`);
           if (currentColor) {
-            logger.step(`${prefix}Would drain ${currentColor} services (${env.DRAIN_TIMEOUT}s)`);
+            logger.step(
+              `${prefix}Would drain ${currentColor} services (${env.DRAIN_TIMEOUT}s)`,
+            );
             for (const service of rotatableToUpdate) {
-              logger.info(`${prefix}Would stop/remove: ${PROJECT_NAME}-${service}-${currentColor}`);
+              logger.info(
+                `${prefix}Would stop/remove: ${PROJECT_NAME}-${service}-${currentColor}`,
+              );
             }
           }
         } else {
@@ -294,28 +315,35 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
           logger.step(`Starting ${nextColor} services...`);
-          const coloredServices = rotatableToUpdate.map((s) => `${s}-${nextColor}`);
+          const coloredServices = rotatableToUpdate.map(
+            (s) => `${s}-${nextColor}`,
+          );
           const deployResult = await dockerCompose(
             colorCompose,
-            ["up", "-d", ...coloredServices],
-            { projectName: `${PROJECT_NAME}-${nextColor}`, cwd: env.DEPLOY_DIR }
+            ['up', '-d', ...coloredServices],
+            {
+              projectName: `${PROJECT_NAME}-${nextColor}`,
+              cwd: env.DEPLOY_DIR,
+            },
           );
 
           if (!deployResult.success) {
             logger.error(`Failed to deploy ${nextColor} services`);
             logger.error(deployResult.stderr);
-            throw new Error("Color deployment failed");
+            throw new Error('Color deployment failed');
           }
 
           // Wait for new services to be healthy
-          logger.step("Waiting for services to be healthy...");
+          logger.step('Waiting for services to be healthy...');
           for (const service of rotatableToUpdate) {
             const containerName = `${PROJECT_NAME}-${service}-${nextColor}`;
             const healthy = await waitForHealthy(containerName, {
               timeout: env.HEALTH_CHECK_TIMEOUT,
             });
             if (!healthy) {
-              throw new Error(`Service ${service}-${nextColor} failed health check`);
+              throw new Error(
+                `Service ${service}-${nextColor} failed health check`,
+              );
             }
           }
 
@@ -325,7 +353,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
           // Drain old color (if exists)
           if (currentColor) {
-            logger.step(`Draining ${currentColor} services (${env.DRAIN_TIMEOUT}s)...`);
+            logger.step(
+              `Draining ${currentColor} services (${env.DRAIN_TIMEOUT}s)...`,
+            );
             await Bun.sleep(env.DRAIN_TIMEOUT * 1000);
 
             // Stop and remove old color containers (non-fatal - traffic already switched)
@@ -347,7 +377,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
     }
 
     if (dryRun) {
-      logger.success(`${prefix}Dry-run complete! Would deploy version ${version}`);
+      logger.success(
+        `${prefix}Dry-run complete! Would deploy version ${version}`,
+      );
     } else {
       logger.success(`Deployment complete! Version ${version} is now live`);
     }

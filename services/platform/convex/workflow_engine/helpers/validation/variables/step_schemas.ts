@@ -15,8 +15,15 @@ export const conditionOutputSchema: OutputSchema = {
   description: 'Condition evaluation result',
   fields: {
     passed: { type: 'boolean', description: 'Whether the condition passed' },
-    description: { type: 'string', description: 'Human-readable condition description' },
-    expression: { type: 'string', nullable: true, description: 'The evaluated expression' },
+    description: {
+      type: 'string',
+      description: 'Human-readable condition description',
+    },
+    expression: {
+      type: 'string',
+      nullable: true,
+      description: 'The evaluated expression',
+    },
     message: { type: 'string', description: 'Result message' },
   },
 };
@@ -32,11 +39,23 @@ export const loopOutputSchema: OutputSchema = {
       type: 'object',
       description: 'Loop state information',
       fields: {
-        currentIndex: { type: 'number', description: 'Current iteration index' },
+        currentIndex: {
+          type: 'number',
+          description: 'Current iteration index',
+        },
         totalItems: { type: 'number', description: 'Total number of items' },
-        iterations: { type: 'number', description: 'Number of iterations completed' },
-        batchesProcessed: { type: 'number', description: 'Number of batches processed' },
-        isComplete: { type: 'boolean', description: 'Whether the loop is complete' },
+        iterations: {
+          type: 'number',
+          description: 'Number of iterations completed',
+        },
+        batchesProcessed: {
+          type: 'number',
+          description: 'Number of batches processed',
+        },
+        isComplete: {
+          type: 'boolean',
+          description: 'Whether the loop is complete',
+        },
       },
     },
     item: { type: 'any', description: 'Current item being processed' },
@@ -50,7 +69,10 @@ export const loopOutputSchema: OutputSchema = {
 export const startOutputSchema: OutputSchema = {
   description: 'Start step initialization result',
   fields: {
-    type: { type: 'string', description: 'Output type identifier (always "start")' },
+    type: {
+      type: 'string',
+      description: 'Output type identifier (always "start")',
+    },
     data: { type: 'string', description: 'Start message' },
   },
 };
@@ -88,9 +110,7 @@ export interface StepOutputWrapper {
 /**
  * Get the base output schema for a step type
  */
-export function getStepTypeOutputSchema(
-  stepType: string,
-): OutputSchema {
+export function getStepTypeOutputSchema(stepType: string): OutputSchema {
   switch (stepType) {
     case 'condition':
       return conditionOutputSchema;
@@ -103,7 +123,10 @@ export function getStepTypeOutputSchema(
       return llmOutputSchema;
     case 'action':
       // Action schemas are dynamic based on action type and operation
-      return { description: 'Action result - schema depends on action type and operation' };
+      return {
+        description:
+          'Action result - schema depends on action type and operation',
+      };
     default:
       return { description: 'Unknown step type output' };
   }
@@ -126,10 +149,20 @@ export function resolvePathInSchema(
   // Handle array index access like [0]
   const arrayIndexMatch = current.match(/^\[(\d+)\]$/);
   if (arrayIndexMatch) {
-    if ('isArray' in schema && schema.isArray && 'items' in schema && schema.items) {
+    if (
+      'isArray' in schema &&
+      schema.isArray &&
+      'items' in schema &&
+      schema.items
+    ) {
       return resolvePathInSchema(schema.items, rest);
     }
-    if ('type' in schema && schema.type === 'array' && 'items' in schema && schema.items) {
+    if (
+      'type' in schema &&
+      schema.type === 'array' &&
+      'items' in schema &&
+      schema.items
+    ) {
       return resolvePathInSchema(schema.items, rest);
     }
     // Can't index into non-array

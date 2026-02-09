@@ -1,7 +1,9 @@
-import { MutationCtx } from '../_generated/server';
-import { components } from '../_generated/api';
 import { createThread } from '@convex-dev/agent';
+
 import type { ChatType } from './types';
+
+import { components } from '../_generated/api';
+import { MutationCtx } from '../_generated/server';
 
 export async function createChatThread(
   ctx: MutationCtx,

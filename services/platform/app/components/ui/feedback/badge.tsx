@@ -1,5 +1,6 @@
-import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
+import * as React from 'react';
+
 import { cn } from '@/lib/utils/cn';
 
 const badgeVariants = cva(
@@ -32,8 +33,9 @@ const dotVariants = cva('size-1.5 m-1 rounded-full', {
 });
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-  VariantProps<typeof badgeVariants> {
+  extends
+    React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {
   icon?: React.ComponentType<{ className?: string }>;
   dot?: boolean;
   children: React.ReactNode;
@@ -54,7 +56,7 @@ export function Badge({
       {...props}
     >
       {dot && (
-        <div className="shrink-0 mr-1" aria-hidden="true">
+        <div className="mr-1 shrink-0" aria-hidden="true">
           <div className={cn(dotVariants({ variant }))} />
         </div>
       )}
@@ -65,4 +67,3 @@ export function Badge({
     </div>
   );
 }
-

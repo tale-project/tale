@@ -1,6 +1,6 @@
-import type { MutationCtx } from '../../_generated/server';
-import type { Id } from '../../_generated/dataModel';
 import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-value';
+import type { Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { CompleteExecutionArgs } from './types';
 
 type CompleteExecutionData = {
@@ -58,7 +58,8 @@ export async function completeExecution(
   // Clean up old output storage (ignore errors if already deleted)
   if (oldOutputStorageId) {
     const shouldDelete =
-      !updates.outputStorageId || oldOutputStorageId !== updates.outputStorageId;
+      !updates.outputStorageId ||
+      oldOutputStorageId !== updates.outputStorageId;
     if (shouldDelete) {
       try {
         await ctx.storage.delete(oldOutputStorageId);

@@ -2,10 +2,11 @@
  * Create member - Business logic
  */
 
-import { MutationCtx } from '../_generated/server';
-import { components } from '../_generated/api';
-import { createAuth, authComponent } from '../auth';
 import type { Role } from './types';
+
+import { components } from '../_generated/api';
+import { MutationCtx } from '../_generated/server';
+import { createAuth, authComponent } from '../auth';
 
 export interface CreateMemberArgs {
   organizationId: string;

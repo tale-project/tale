@@ -5,17 +5,26 @@
  * Supports both REST API and SQL integrations without hardcoding.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
-import { internal } from '../../_generated/api';
 import type { IntegrationExecutionResult } from './types';
+
+import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
 const integrationArgs = z.object({
-  integrationName: z.string().describe('Integration name (e.g., "protel", "stripe")'),
-  operation: z.string().describe('Operation name to execute (e.g., "create_guest", "get_reservations")'),
+  integrationName: z
+    .string()
+    .describe('Integration name (e.g., "protel", "stripe")'),
+  operation: z
+    .string()
+    .describe(
+      'Operation name to execute (e.g., "create_guest", "get_reservations")',
+    ),
   params: z
     .record(z.string(), z.unknown())
     .optional()
@@ -69,13 +78,15 @@ Write operations create approval cards. Use integration_batch for multiple paral
         // Delegate to the existing integration action logic via internal action wrapper
         // This reuses all validation, credential decryption, and execution logic
         const result = await ctx.runAction(
-          internal.agent_tools.integrations.internal_actions
-            .executeIntegration,
+          internal.agent_tools.integrations.internal_actions.executeIntegration,
           {
             organizationId,
             integrationName: args.integrationName,
             operation: args.operation,
-            params: (args.params || {}) as Record<string, string | number | boolean | null>,
+            params: (args.params || {}) as Record<
+              string,
+              string | number | boolean | null
+            >,
             threadId: threadId, // Pass threadId for approval card linking
             messageId: messageId, // Pass messageId for approval card linking to the current message
           },
@@ -142,6 +153,7 @@ Write operations create approval cards. Use integration_batch for multiple paral
             `• Check if the operation name exists for this integration\n` +
             `• Ensure required parameters are provided\n` +
             `• The integration might be inactive or credentials might be invalid`,
+          { cause: error },
         );
       }
     },

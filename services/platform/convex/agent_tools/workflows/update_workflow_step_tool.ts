@@ -5,17 +5,18 @@
  * Validates step configuration before saving.
  */
 
-import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
-import type { ToolDefinition } from '../types';
+import { z } from 'zod/v4';
+
 import type { Doc, Id } from '../../_generated/dataModel';
+import type { ToolDefinition } from '../types';
+
 import { internal } from '../../_generated/api';
+import { createDebugLog } from '../../lib/debug_log';
 import {
   validateStepConfig,
   isValidStepType,
 } from '../../workflow_engine/helpers/validation/validate_step_config';
-
-import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -114,7 +115,9 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
             // biome-ignore lint/suspicious/noControlCharactersInRegex: Intentionally matching control characters to detect and repair corrupted field names
             if (/[\x00-\x1F\x7F]/.test(key) || key.length > 50) {
               // Try to extract common field names from descriptive keys
-              const fieldNameMatch = key.match(/^(config|userPrompt|systemPrompt|name|parameters|type|nextSteps|order|stepType)/i);
+              const fieldNameMatch = key.match(
+                /^(config|userPrompt|systemPrompt|name|parameters|type|nextSteps|order|stepType)/i,
+              );
               if (fieldNameMatch) {
                 // Normalize to proper camelCase
                 const lowerKey = fieldNameMatch[1].toLowerCase();
@@ -125,14 +128,20 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
                   steptype: 'stepType',
                 };
                 repairedKey = camelCaseMap[lowerKey] ?? lowerKey;
-                debugLog('Repaired field name', { original: key.substring(0, 50), repaired: repairedKey });
+                debugLog('Repaired field name', {
+                  original: key.substring(0, 50),
+                  repaired: repairedKey,
+                });
               } else {
                 // Can't repair this key, leave it as-is for validation to catch
                 repairedKey = key;
               }
             }
 
-            repaired[repairedKey] = typeof value === 'object' && value !== null ? repairObject(value) : value;
+            repaired[repairedKey] =
+              typeof value === 'object' && value !== null
+                ? repairObject(value)
+                : value;
           }
           return repaired;
         };
@@ -145,7 +154,9 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
 
           // Handle arrays by recursively validating each element
           if (Array.isArray(obj)) {
-            obj.forEach((item, index) => validateObject(item, `${path}[${index}]`));
+            obj.forEach((item, index) =>
+              validateObject(item, `${path}[${index}]`),
+            );
             return;
           }
 
@@ -158,14 +169,14 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
               // Show escaped version to make control chars visible
               const escapedKey = JSON.stringify(key).slice(1, -1);
               throw new Error(
-                `Invalid field name contains control characters: "${escapedKey.substring(0, 50)}${escapedKey.length > 50 ? '...' : ''}". Field names cannot contain newlines, tabs, or other control characters. This indicates malformed JSON from the LLM.`
+                `Invalid field name contains control characters: "${escapedKey.substring(0, 50)}${escapedKey.length > 50 ? '...' : ''}". Field names cannot contain newlines, tabs, or other control characters. This indicates malformed JSON from the LLM.`,
               );
             }
 
             // Field names should never exceed 100 characters in normal usage
             if (key.length > 100) {
               throw new Error(
-                `Invalid field name detected (length: ${key.length}). This usually indicates malformed JSON from the LLM. Field path: ${path}.${key.substring(0, 50)}...`
+                `Invalid field name detected (length: ${key.length}). This usually indicates malformed JSON from the LLM. Field path: ${path}.${key.substring(0, 50)}...`,
               );
             }
 
@@ -179,7 +190,10 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
         validateObject(sanitizedUpdates);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        debugLog('JSON sanitization failed', { error: errorMsg, originalUpdates: args.updates });
+        debugLog('JSON sanitization failed', {
+          error: errorMsg,
+          originalUpdates: args.updates,
+        });
 
         return {
           success: false,
@@ -231,7 +245,7 @@ Please try again with a properly structured JSON object. Ensure all field names 
           const actionType = config.type as string;
           if (isValidStepType(actionType)) {
             warnings.push(
-              `Action type "${actionType}" matches a stepType name. Did you mean stepType: "${actionType}"?`
+              `Action type "${actionType}" matches a stepType name. Did you mean stepType: "${actionType}"?`,
             );
           }
         }

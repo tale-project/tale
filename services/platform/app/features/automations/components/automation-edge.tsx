@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -9,6 +8,7 @@ import {
   getBezierPath,
   getStraightPath,
 } from '@xyflow/react';
+import { useMemo } from 'react';
 
 interface AutomationEdgeProps extends EdgeProps {
   type?: 'smoothstep' | 'bezier' | 'straight' | 'default';
@@ -70,7 +70,15 @@ export function AutomationEdge({
       targetY,
       targetPosition,
     });
-  }, [type, sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition]);
+  }, [
+    type,
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  ]);
 
   const { labelX, labelY } = useMemo(() => {
     const labelPosition = data?.labelPosition || 'center';
@@ -97,7 +105,18 @@ export function AutomationEdge({
     }
 
     return { labelX: lx, labelY: ly };
-  }, [defaultLabelX, defaultLabelY, sourceX, sourceY, targetX, targetY, data?.labelPosition, data?.isBackwardConnection, data?.labelOffset?.x, data?.labelOffset?.y]);
+  }, [
+    defaultLabelX,
+    defaultLabelY,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    data?.labelPosition,
+    data?.isBackwardConnection,
+    data?.labelOffset?.x,
+    data?.labelOffset?.y,
+  ]);
 
   return (
     <>

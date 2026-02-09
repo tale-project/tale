@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from 'convex/react';
+import { Plus, Trash2, Users } from 'lucide-react';
+import { useState, useMemo } from 'react';
+
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { Plus, Trash2, Users } from 'lucide-react';
+import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+
 import type { Team } from '../hooks/use-list-teams';
 
 interface TeamMembersDialogProps {
@@ -35,13 +37,13 @@ export function TeamMembersDialog({
   // Fetch organization members from Convex (skip when dialog is closed)
   const orgMembers = useQuery(
     api.members.queries.listByOrganization,
-    open ? { organizationId } : 'skip'
+    open ? { organizationId } : 'skip',
   );
 
   // Fetch team members directly from Convex
   const teamMembers = useQuery(
     api.team_members.queries.listByTeam,
-    open ? { teamId: team.id } : 'skip'
+    open ? { teamId: team.id } : 'skip',
   );
 
   // Convex mutations for team member management
@@ -57,7 +59,9 @@ export function TeamMembersDialog({
   const availableMembers = useMemo(() => {
     if (!orgMembers || !teamMembers) return [];
     const teamMemberIds = new Set(teamMembers.map((m: TeamMember) => m.userId));
-    return orgMembers.filter((m: OrgMember) => !!m.userId && !teamMemberIds.has(m.userId));
+    return orgMembers.filter(
+      (m: OrgMember) => !!m.userId && !teamMemberIds.has(m.userId),
+    );
   }, [orgMembers, teamMembers]);
 
   // Create a lookup map for member details
@@ -148,13 +152,15 @@ export function TeamMembersDialog({
             disabled={!selectedMemberId || isAdding}
             className="bg-foreground text-background hover:bg-foreground/90"
           >
-            <Plus className="size-4 mr-1" />
-            {isAdding ? tCommon('actions.adding') : tSettings('teams.addMember')}
+            <Plus className="mr-1 size-4" />
+            {isAdding
+              ? tCommon('actions.adding')
+              : tSettings('teams.addMember')}
           </Button>
         </HStack>
 
         {availableMembers.length === 0 && !isLoading && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {tSettings('teams.noMembersToAdd')}
           </p>
         )}
@@ -163,32 +169,37 @@ export function TeamMembersDialog({
         <Stack gap={2}>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <span className="text-muted-foreground">{tCommon('actions.loading')}</span>
+              <span className="text-muted-foreground">
+                {tCommon('actions.loading')}
+              </span>
             </div>
           ) : !teamMembers || teamMembers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Users className="size-8 text-muted-foreground/50 mb-2" />
-              <p className="text-sm text-muted-foreground">
+              <Users className="text-muted-foreground/50 mb-2 size-8" />
+              <p className="text-muted-foreground text-sm">
                 {tSettings('teams.noTeamMembers')}
               </p>
             </div>
           ) : (
             teamMembers.map((member: TeamMember) => {
               const details = memberDetailsMap.get(member.userId);
-              const hasDistinctName = details?.displayName && details.displayName !== details.email;
+              const hasDistinctName =
+                details?.displayName && details.displayName !== details.email;
               return (
                 <HStack
                   key={member._id}
                   justify="between"
                   align="center"
-                  className="p-3 rounded-lg border bg-card"
+                  className="bg-card rounded-lg border p-3"
                 >
                   <Stack gap={1}>
                     <span className="text-sm font-medium">
-                      {hasDistinctName ? details.displayName : (details?.email || 'Unknown')}
+                      {hasDistinctName
+                        ? details.displayName
+                        : details?.email || 'Unknown'}
                     </span>
                     {hasDistinctName && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-muted-foreground text-xs">
                         {details.email}
                       </span>
                     )}
@@ -209,7 +220,11 @@ export function TeamMembersDialog({
           )}
         </Stack>
 
-        <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">
+        <Button
+          variant="outline"
+          onClick={() => onOpenChange(false)}
+          className="w-full"
+        >
           {tCommon('actions.close')}
         </Button>
       </Stack>

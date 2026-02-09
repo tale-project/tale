@@ -1,6 +1,7 @@
 """Workspace management for concurrent browser requests."""
 
 import asyncio
+import contextlib
 import os
 import shutil
 import time
@@ -79,10 +80,8 @@ class WorkspaceManager:
 
         if self._cleanup_task:
             self._cleanup_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
 
         async with self._lock:
             workspace_ids = list(self._workspaces.keys())
@@ -213,9 +212,7 @@ class WorkspaceManager:
         if not base_dir.exists():
             return
 
-        total_size_bytes = sum(
-            f.stat().st_size for f in base_dir.rglob("*") if f.is_file()
-        )
+        total_size_bytes = sum(f.stat().st_size for f in base_dir.rglob("*") if f.is_file())
         total_size_mb = total_size_bytes / (1024 * 1024)
 
         if total_size_mb <= settings.workspace_max_size_mb:

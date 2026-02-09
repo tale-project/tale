@@ -18,7 +18,6 @@ import { internalMutation } from '../_generated/server';
 export const migrateTriggerStepsToStart = internalMutation({
   args: {},
   handler: async (ctx) => {
-    // eslint-disable-next-line no-restricted-syntax -- One-time migration needs all rows
     const allSteps = await ctx.db.query('wfStepDefs').collect();
     const triggerSteps = allSteps.filter((s) => s.stepType === 'trigger');
 
@@ -48,8 +47,7 @@ export const migrateTriggerStepsToStart = internalMutation({
         const timezone = ((cfg?.timezone as string) || '').trim() || 'UTC';
 
         if (schedule && schedule.trim() !== '') {
-          const workflowRootId =
-            wfDefinition.rootVersionId ?? wfDefinition._id;
+          const workflowRootId = wfDefinition.rootVersionId ?? wfDefinition._id;
 
           const existingSchedule = await ctx.db
             .query('wfSchedules')

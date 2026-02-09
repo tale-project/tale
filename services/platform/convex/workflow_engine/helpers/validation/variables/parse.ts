@@ -18,7 +18,7 @@ import type { ParsedVariableReference } from './types';
 const TEMPLATE_PATTERN = /\{\{([^}]+)\}\}/g;
 
 // Characters that indicate a complex expression (not a simple variable reference)
-const EXPRESSION_OPERATORS = /[?:!<>=&|+\-*\/\[\]()]/;
+const EXPRESSION_OPERATORS = /[?:!<>=&|+\-*/[\]()]/;
 
 /**
  * Check if an expression is a complex expression (contains operators)
@@ -191,7 +191,9 @@ export function parseVariableReferences(
 /**
  * Extract only step references from a value
  */
-export function extractStepReferences(value: unknown): ParsedVariableReference[] {
+export function extractStepReferences(
+  value: unknown,
+): ParsedVariableReference[] {
   return parseVariableReferences(value).filter((ref) => ref.type === 'step');
 }
 
@@ -205,7 +207,9 @@ export function extractStepReferences(value: unknown): ParsedVariableReference[]
  * Example: "steps.query_existing_customer.output.data|length > 0"
  * -> extracts step reference with path ["output", "data|length"]
  */
-export function parseJexlExpression(expression: string): ParsedVariableReference[] {
+export function parseJexlExpression(
+  expression: string,
+): ParsedVariableReference[] {
   const references: ParsedVariableReference[] = [];
   const trimmed = expression.trim();
 

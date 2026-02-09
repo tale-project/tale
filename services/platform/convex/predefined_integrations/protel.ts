@@ -749,13 +749,15 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'get_next_reservation_id',
     title: 'Get Next Reservation ID',
-    description: 'Get the next available reservation ID (MAX(buchnr)+1). Call this before create_reservation.',
+    description:
+      'Get the next available reservation ID (MAX(buchnr)+1). Call this before create_reservation.',
     query: `SELECT COALESCE(MAX(buchnr), 0) + 1 AS next_reservation_id FROM proteluser.buch`,
   },
   {
     name: 'create_reservation',
     title: 'Create Reservation',
-    description: 'Create a new reservation in Protel. Use get_next_reservation_id first to obtain the reservationId.',
+    description:
+      'Create a new reservation in Protel. Use get_next_reservation_id first to obtain the reservationId.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.buch (
@@ -803,7 +805,8 @@ const protelSqlOperations: SqlOperation[] = [
       properties: {
         reservationId: {
           type: 'number',
-          description: 'Reservation ID (buchnr) - obtain from get_next_reservation_id',
+          description:
+            'Reservation ID (buchnr) - obtain from get_next_reservation_id',
           required: true,
         },
         guestId: {
@@ -830,7 +833,8 @@ const protelSqlOperations: SqlOperation[] = [
         },
         reservationStatus: {
           type: 'number',
-          description: 'Reservation status: 1=Confirmed, 2=Provisional, 3=Optional, 4=Waiting List',
+          description:
+            'Reservation status: 1=Confirmed, 2=Provisional, 3=Optional, 4=Waiting List',
           default: 1,
           required: false,
         },
@@ -1084,7 +1088,8 @@ const protelSqlOperations: SqlOperation[] = [
         },
         actualDepartureTime: {
           type: 'string',
-          description: 'Actual departure time (HH:MM), defaults to current time',
+          description:
+            'Actual departure time (HH:MM), defaults to current time',
           required: false,
         },
       },
@@ -1124,13 +1129,15 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'get_next_guest_id',
     title: 'Get Next Guest ID',
-    description: 'Get the next available guest ID (MAX(kdnr)+1). Call this before create_guest.',
+    description:
+      'Get the next available guest ID (MAX(kdnr)+1). Call this before create_guest.',
     query: `SELECT COALESCE(MAX(kdnr), 0) + 1 AS next_guest_id FROM proteluser.kunden`,
   },
   {
     name: 'create_guest',
     title: 'Create Guest Profile',
-    description: 'Create a new guest profile. Use get_next_guest_id first to obtain the guestId.',
+    description:
+      'Create a new guest profile. Use get_next_guest_id first to obtain the guestId.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.kunden (
@@ -1281,7 +1288,8 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'update_guest',
     title: 'Update Guest Profile',
-    description: 'Update an existing guest profile (typ=2 only, not companies or travel agents)',
+    description:
+      'Update an existing guest profile (typ=2 only, not companies or travel agents)',
     operationType: 'write',
     query: `
       UPDATE proteluser.kunden
@@ -1408,7 +1416,8 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'create_company',
     title: 'Create Company Profile',
-    description: 'Create a new company profile. Note: kdnr is not auto-generated, must be provided.',
+    description:
+      'Create a new company profile. Note: kdnr is not auto-generated, must be provided.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.kunden (
@@ -1460,7 +1469,8 @@ const protelSqlOperations: SqlOperation[] = [
       properties: {
         companyId: {
           type: 'number',
-          description: 'Company ID (kdnr) - must be unique, use MAX(kdnr)+1 from kunden table',
+          description:
+            'Company ID (kdnr) - must be unique, use MAX(kdnr)+1 from kunden table',
           required: true,
         },
         companyName: {
@@ -1538,7 +1548,8 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'post_charge',
     title: 'Post Charge to Folio',
-    description: 'Post a charge/service to a reservation folio. Note: tan is not auto-generated, must be provided.',
+    description:
+      'Post a charge/service to a reservation folio. Note: tan is not auto-generated, must be provided.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.leist (
@@ -1576,7 +1587,8 @@ const protelSqlOperations: SqlOperation[] = [
       properties: {
         postingId: {
           type: 'number',
-          description: 'Posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
+          description:
+            'Posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
           required: true,
         },
         reservationId: {
@@ -1632,7 +1644,8 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'post_payment',
     title: 'Post Payment to Folio',
-    description: 'Post a payment to a reservation folio (negative amount). Note: tan is not auto-generated, must be provided.',
+    description:
+      'Post a payment to a reservation folio (negative amount). Note: tan is not auto-generated, must be provided.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.leist (
@@ -1668,7 +1681,8 @@ const protelSqlOperations: SqlOperation[] = [
       properties: {
         postingId: {
           type: 'number',
-          description: 'Posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
+          description:
+            'Posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
           required: true,
         },
         reservationId: {
@@ -1683,7 +1697,8 @@ const protelSqlOperations: SqlOperation[] = [
         },
         description: {
           type: 'string',
-          description: 'Payment description (e.g., "Cash Payment", "Credit Card")',
+          description:
+            'Payment description (e.g., "Cash Payment", "Credit Card")',
           required: true,
         },
         paymentMethodCode: {
@@ -1713,7 +1728,8 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'void_posting',
     title: 'Void/Reverse Posting',
-    description: 'Void a posting by creating a reversal entry. Note: reversalId (tan) is not auto-generated, must be provided.',
+    description:
+      'Void a posting by creating a reversal entry. Note: reversalId (tan) is not auto-generated, must be provided.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.leist (
@@ -1752,7 +1768,8 @@ const protelSqlOperations: SqlOperation[] = [
       properties: {
         reversalId: {
           type: 'number',
-          description: 'Reversal posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
+          description:
+            'Reversal posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
           required: true,
         },
         postingId: {

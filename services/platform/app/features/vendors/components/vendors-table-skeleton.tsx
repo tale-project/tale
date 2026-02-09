@@ -1,8 +1,9 @@
 'use client';
 
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { VendorsActionMenu } from './vendors-action-menu';
+
 import { useVendorsTableConfig } from '../hooks/use-vendors-table-config';
+import { VendorsActionMenu } from './vendors-action-menu';
 
 interface VendorsTableSkeletonProps {
   organizationId: string;

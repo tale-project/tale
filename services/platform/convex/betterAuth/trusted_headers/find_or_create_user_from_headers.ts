@@ -11,13 +11,14 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-import { components } from '../../_generated/api';
 import type {
   BetterAuthCreateResult,
   BetterAuthFindManyResult,
   BetterAuthMember,
   BetterAuthUser,
 } from '../../members/types';
+
+import { components } from '../../_generated/api';
 
 export interface FindOrCreateUserFromHeadersArgs {
   email: string;
@@ -148,7 +149,10 @@ export async function findOrCreateUserFromHeaders(
         ],
       });
 
-    if (existingAdminMemberResult && existingAdminMemberResult.page.length > 0) {
+    if (
+      existingAdminMemberResult &&
+      existingAdminMemberResult.page.length > 0
+    ) {
       const existingAdminMember = existingAdminMemberResult.page[0];
       const existingOrgId = existingAdminMember.organizationId;
       organizationId = existingOrgId;

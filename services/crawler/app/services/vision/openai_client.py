@@ -129,9 +129,7 @@ class VisionClient:
             return result
 
         except TimeoutError:
-            raise TimeoutError(
-                f"Vision API OCR request timed out after {settings.vision_request_timeout}s"
-            )
+            raise TimeoutError(f"Vision API OCR request timed out after {settings.vision_request_timeout}s") from None
         except Exception as e:
             logger.error(f"Vision API OCR request failed: {e}")
             raise
@@ -200,7 +198,7 @@ class VisionClient:
         except TimeoutError:
             raise TimeoutError(
                 f"Vision API describe_image request timed out after {settings.vision_request_timeout}s"
-            )
+            ) from None
         except Exception as e:
             logger.error(f"Vision API description request failed: {e}")
             raise
@@ -309,7 +307,11 @@ async def process_pages_with_llm(
                     messages=[
                         {
                             "role": "system",
-                            "content": "Extract information from the following document content based on user instruction. Return only the extracted information.",
+                            "content": (
+                                "Extract information from the following document content"
+                                " based on user instruction."
+                                " Return only the extracted information."
+                            ),
                         },
                         {
                             "role": "user",
@@ -318,9 +320,7 @@ async def process_pages_with_llm(
                     ],
                 )
                 result = response.choices[0].message.content or ""
-                logger.info(
-                    f"LLM chunk {chunk_idx + 1}/{total_chunks} done: {len(chunk_text)} -> {len(result)} chars"
-                )
+                logger.info(f"LLM chunk {chunk_idx + 1}/{total_chunks} done: {len(chunk_text)} -> {len(result)} chars")
                 return chunk_idx, result
             except Exception as e:
                 logger.warning(f"Failed to process chunk {chunk_idx + 1} with LLM: {e}")

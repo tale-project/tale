@@ -2,8 +2,8 @@
  * Find document by external ID (e.g., OneDrive item ID)
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export async function findDocumentByExternalId(
   ctx: QueryCtx,
@@ -15,7 +15,9 @@ export async function findDocumentByExternalId(
   return await ctx.db
     .query('documents')
     .withIndex('by_organizationId_and_externalItemId', (q) =>
-      q.eq('organizationId', args.organizationId).eq('externalItemId', args.externalItemId),
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('externalItemId', args.externalItemId),
     )
     .first();
 }

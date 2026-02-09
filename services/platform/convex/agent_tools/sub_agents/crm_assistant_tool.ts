@@ -6,19 +6,22 @@
  * All context management is handled by the agent itself.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
-import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
-import { validateToolContext } from './helpers/validate_context';
+
+import { internal } from '../../_generated/api';
 import { buildAdditionalContext } from './helpers/build_additional_context';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import {
   successResponse,
   handleToolError,
   type ToolResponse,
 } from './helpers/tool_response';
-import { internal } from '../../_generated/api';
+import { validateToolContext } from './helpers/validate_context';
 
 const CRM_CONTEXT_MAPPING = {
   customerId: 'customer_id',
@@ -74,7 +77,12 @@ EXAMPLES:
         .optional()
         .describe('Specific product ID if looking up a known product'),
       operation: z
-        .enum(['get_customer', 'list_customers', 'get_product', 'list_products'])
+        .enum([
+          'get_customer',
+          'list_customers',
+          'get_product',
+          'list_products',
+        ])
         .optional()
         .describe('Hint about the operation type (optional, agent will infer)'),
     }),
@@ -101,14 +109,20 @@ EXAMPLES:
           isNew ? '(new)' : '(reused)',
         );
 
-        const result = await ctx.runAction(internal.agents.crm.internal_actions.generateResponse, {
-          threadId: subThreadId,
-          userId,
-          organizationId,
-          promptMessage: args.userRequest,
-          additionalContext: buildAdditionalContext(args, CRM_CONTEXT_MAPPING),
-          parentThreadId: threadId,
-        });
+        const result = await ctx.runAction(
+          internal.agents.crm.internal_actions.generateResponse,
+          {
+            threadId: subThreadId,
+            userId,
+            organizationId,
+            promptMessage: args.userRequest,
+            additionalContext: buildAdditionalContext(
+              args,
+              CRM_CONTEXT_MAPPING,
+            ),
+            parentThreadId: threadId,
+          },
+        );
 
         return successResponse(
           result.text,

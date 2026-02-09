@@ -1,11 +1,16 @@
 'use node';
 
 import { v } from 'convex/values';
+
+import {
+  jsonValueValidator,
+  jsonRecordValidator,
+} from '../../lib/shared/schemas/utils/json-value';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import { createIntegrationLogic } from './create_integration_logic';
-import { updateIntegrationLogic } from './update_integration_logic';
 import { testConnectionLogic } from './test_connection_logic';
+import { updateIntegrationLogic } from './update_integration_logic';
 import {
   authMethodValidator,
   apiKeyAuthValidator,
@@ -18,7 +23,6 @@ import {
   statusValidator,
   testConnectionResultValidator,
 } from './validators';
-import { jsonValueValidator, jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const create = action({
   args: {
@@ -58,6 +62,7 @@ export const update = action({
     oauth2Auth: v.optional(oauth2AuthValidator),
     connectionConfig: v.optional(connectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
+    sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     errorMessage: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
   },

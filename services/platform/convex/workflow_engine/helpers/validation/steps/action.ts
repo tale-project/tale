@@ -4,13 +4,16 @@
  * Validates action step configurations.
  */
 
-import { validateActionParameters } from '../validate_action_parameters';
 import type { ValidationResult } from '../types';
+
+import { validateActionParameters } from '../validate_action_parameters';
 
 /**
  * Validate an action step configuration
  */
-export function validateActionStep(config: Record<string, unknown>): ValidationResult {
+export function validateActionStep(
+  config: Record<string, unknown>,
+): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -30,7 +33,6 @@ export function validateActionStep(config: Record<string, unknown>): ValidationR
   if ('parameters' in config) {
     parameters = config.parameters;
   } else {
-     
     const { type: _type, ...rest } = config;
     parameters = rest;
   }
@@ -41,4 +43,3 @@ export function validateActionStep(config: Record<string, unknown>): ValidationR
 
   return { valid: errors.length === 0, errors, warnings };
 }
-

@@ -1,6 +1,7 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useQuery, useConvexAuth } from 'convex/react';
 import { useEffect } from 'react';
+
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 
@@ -32,12 +33,15 @@ function DashboardIndex() {
     if (organizations.length === 0) {
       navigate({ to: '/dashboard/create-organization' });
     } else {
-      navigate({ to: '/dashboard/$id', params: { id: organizations[0].organizationId } });
+      navigate({
+        to: '/dashboard/$id',
+        params: { id: organizations[0].organizationId },
+      });
     }
   }, [isAuthLoading, isAuthenticated, organizations, navigate]);
 
   return (
-    <div className="flex items-center justify-center h-screen">
+    <div className="flex h-screen items-center justify-center">
       <div className="animate-pulse">Loading...</div>
     </div>
   );

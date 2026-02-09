@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
+
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { cn } from '@/lib/utils/cn';
 
 interface FilterSectionProps {
   title: string;
@@ -21,7 +22,7 @@ export function FilterSection({
     <Stack gap={1}>
       <button
         onClick={onToggle}
-        className="w-full p-2 text-left hover:bg-muted rounded-md relative"
+        className="hover:bg-muted relative w-full rounded-md p-2 text-left"
       >
         <HStack gap={2}>
           <ChevronRight
@@ -30,11 +31,17 @@ export function FilterSection({
               isExpanded && 'rotate-90',
             )}
           />
-          <span className="text-sm font-medium text-foreground">{title}</span>
-          {active && <div className="h-2 w-2 bg-blue-500 rounded-full ml-auto" />}
+          <span className="text-foreground text-sm font-medium">{title}</span>
+          {active && (
+            <div className="ml-auto h-2 w-2 rounded-full bg-blue-500" />
+          )}
         </HStack>
       </button>
-      {isExpanded && <Stack gap={2} className="px-2">{children}</Stack>}
+      {isExpanded && (
+        <Stack gap={2} className="px-2">
+          {children}
+        </Stack>
+      )}
     </Stack>
   );
 }

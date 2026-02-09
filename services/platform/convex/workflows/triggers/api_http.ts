@@ -4,18 +4,16 @@
  * Authorization: Bearer wfk_xxx...
  */
 
-import { httpAction } from '../../_generated/server';
-import { internal } from '../../_generated/api';
 import type { Doc } from '../../_generated/dataModel';
+
+import { internal } from '../../_generated/api';
+import { httpAction } from '../../_generated/server';
 import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate_limiter/helpers';
 import { hashSecret } from './helpers/crypto';
-import {
-  extractIdempotencyKey,
-  extractClientIp,
-} from './helpers/validate';
+import { extractIdempotencyKey, extractClientIp } from './helpers/validate';
 
 function jsonResponse(data: Record<string, unknown>, status: number) {
   return new Response(JSON.stringify(data), {
@@ -42,7 +40,10 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
   // Extract API key from Authorization header
   const authHeader = req.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return jsonResponse({ error: 'Missing or invalid Authorization header' }, 401);
+    return jsonResponse(
+      { error: 'Missing or invalid Authorization header' },
+      401,
+    );
   }
 
   const apiKey = authHeader.substring('Bearer '.length).trim();
@@ -52,10 +53,10 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
 
   // Look up API key by hash
   const keyHash = await hashSecret(apiKey);
-  const apiKeyRecord = await ctx.runQuery(
+  const apiKeyRecord = (await ctx.runQuery(
     internal.workflows.triggers.internal_queries.getApiKeyByHash,
     { keyHash },
-  ) as Doc<'wfApiKeys'> | null;
+  )) as Doc<'wfApiKeys'> | null;
 
   if (!apiKeyRecord) {
     return jsonResponse({ error: 'Invalid API key' }, 401);
@@ -70,7 +71,11 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
   }
 
   // Parse request body
-  let body: { workflowRootId?: string; input?: Record<string, unknown>; idempotencyKey?: string };
+  let body: {
+    workflowRootId?: string;
+    input?: Record<string, unknown>;
+    idempotencyKey?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -80,30 +85,40 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
   // Validate workflowRootId matches the API key
   const workflowRootId = body.workflowRootId || apiKeyRecord.workflowRootId;
   if (workflowRootId !== apiKeyRecord.workflowRootId) {
-    await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
-      organizationId: apiKeyRecord.organizationId,
-      workflowRootId: apiKeyRecord.workflowRootId,
-      wfDefinitionId: apiKeyRecord.workflowRootId,
-      triggerType: 'api',
-      status: 'rejected',
-      ipAddress: ip,
-      errorMessage: 'API key does not match specified workflowRootId',
-    });
-    return jsonResponse({ error: 'API key does not belong to the specified workflow' }, 403);
+    await ctx.runMutation(
+      internal.workflows.triggers.internal_mutations.createTriggerLog,
+      {
+        organizationId: apiKeyRecord.organizationId,
+        workflowRootId: apiKeyRecord.workflowRootId,
+        wfDefinitionId: apiKeyRecord.workflowRootId,
+        triggerType: 'api',
+        status: 'rejected',
+        ipAddress: ip,
+        errorMessage: 'API key does not match specified workflowRootId',
+      },
+    );
+    return jsonResponse(
+      { error: 'API key does not belong to the specified workflow' },
+      403,
+    );
   }
 
   // Check idempotency
-  const idempotencyKey = body.idempotencyKey || extractIdempotencyKey(req.headers);
+  const idempotencyKey =
+    body.idempotencyKey || extractIdempotencyKey(req.headers);
   if (idempotencyKey) {
     const existing = await ctx.runQuery(
       internal.workflows.triggers.internal_queries.checkIdempotencyQuery,
       { organizationId: apiKeyRecord.organizationId, idempotencyKey },
     );
     if (existing) {
-      return jsonResponse({
-        status: 'duplicate',
-        executionId: existing.wfExecutionId,
-      }, 200);
+      return jsonResponse(
+        {
+          status: 'duplicate',
+          executionId: existing.wfExecutionId,
+        },
+        200,
+      );
     }
   }
 
@@ -114,16 +129,19 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
   );
 
   if (!activeVersionId) {
-    await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
-      organizationId: apiKeyRecord.organizationId,
-      workflowRootId: apiKeyRecord.workflowRootId,
-      wfDefinitionId: apiKeyRecord.workflowRootId,
-      triggerType: 'api',
-      status: 'rejected',
-      idempotencyKey: idempotencyKey ?? undefined,
-      ipAddress: ip,
-      errorMessage: 'No active workflow version',
-    });
+    await ctx.runMutation(
+      internal.workflows.triggers.internal_mutations.createTriggerLog,
+      {
+        organizationId: apiKeyRecord.organizationId,
+        workflowRootId: apiKeyRecord.workflowRootId,
+        wfDefinitionId: apiKeyRecord.workflowRootId,
+        triggerType: 'api',
+        status: 'rejected',
+        idempotencyKey: idempotencyKey ?? undefined,
+        ipAddress: ip,
+        errorMessage: 'No active workflow version',
+      },
+    );
     return jsonResponse({ error: 'No active workflow version' }, 404);
   }
 
@@ -145,23 +163,29 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
   );
 
   // Log successful trigger
-  await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
-    organizationId: apiKeyRecord.organizationId,
-    workflowRootId: apiKeyRecord.workflowRootId,
-    wfDefinitionId: activeVersionId,
-    wfExecutionId: executionId,
-    triggerType: 'api',
-    status: 'accepted',
-    idempotencyKey: idempotencyKey ?? undefined,
-    ipAddress: ip,
-  });
+  await ctx.runMutation(
+    internal.workflows.triggers.internal_mutations.createTriggerLog,
+    {
+      organizationId: apiKeyRecord.organizationId,
+      workflowRootId: apiKeyRecord.workflowRootId,
+      wfDefinitionId: activeVersionId,
+      wfExecutionId: executionId,
+      triggerType: 'api',
+      status: 'accepted',
+      idempotencyKey: idempotencyKey ?? undefined,
+      ipAddress: ip,
+    },
+  );
 
-  return jsonResponse({
-    status: 'accepted',
-    executionId,
-    workflowRootId: apiKeyRecord.workflowRootId,
-    versionId: activeVersionId,
-  }, 202);
+  return jsonResponse(
+    {
+      status: 'accepted',
+      executionId,
+      workflowRootId: apiKeyRecord.workflowRootId,
+      versionId: activeVersionId,
+    },
+    202,
+  );
 });
 
 export const apiTriggerOptionsHandler = httpAction(async () => {

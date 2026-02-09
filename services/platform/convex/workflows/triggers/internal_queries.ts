@@ -1,5 +1,6 @@
-import { internalQuery } from '../../_generated/server';
 import { v } from 'convex/values';
+
+import { internalQuery } from '../../_generated/server';
 import { getActiveWorkflowVersion } from './queries';
 
 export const checkIdempotencyQuery = internalQuery({
@@ -11,7 +12,9 @@ export const checkIdempotencyQuery = internalQuery({
     return await ctx.db
       .query('wfTriggerLogs')
       .withIndex('by_idempotencyKey', (q) =>
-        q.eq('organizationId', args.organizationId).eq('idempotencyKey', args.idempotencyKey),
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('idempotencyKey', args.idempotencyKey),
       )
       .first();
   },

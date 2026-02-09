@@ -45,7 +45,9 @@ export function buildPrioritizedContexts(params: {
 
   // Split RAG by relevance
   if (params.ragContext) {
-    const { highRelevance, lowRelevance } = splitRagByRelevance(params.ragContext);
+    const { highRelevance, lowRelevance } = splitRagByRelevance(
+      params.ragContext,
+    );
 
     if (highRelevance) {
       contexts.push(
@@ -104,7 +106,8 @@ function splitRagByRelevance(
   highRelevanceThreshold = 0.7,
 ): { highRelevance: string | undefined; lowRelevance: string | undefined } {
   // Parse RAG results (format: [1] (Relevance: 85.0%)\ncontent\n\n---\n\n[2] ...)
-  const resultPattern = /\[(\d+)\]\s*\(Relevance:\s*([\d.]+)%\)\n([\s\S]*?)(?=\n\n---\n\n|\n*$)/g;
+  const resultPattern =
+    /\[(\d+)\]\s*\(Relevance:\s*([\d.]+)%\)\n([\s\S]*?)(?=\n\n---\n\n|\n*$)/g;
   const highResults: string[] = [];
   const lowResults: string[] = [];
 
@@ -121,7 +124,9 @@ function splitRagByRelevance(
   }
 
   return {
-    highRelevance: highResults.length > 0 ? highResults.join('\n\n---\n\n') : undefined,
-    lowRelevance: lowResults.length > 0 ? lowResults.join('\n\n---\n\n') : undefined,
+    highRelevance:
+      highResults.length > 0 ? highResults.join('\n\n---\n\n') : undefined,
+    lowRelevance:
+      lowResults.length > 0 ? lowResults.join('\n\n---\n\n') : undefined,
   };
 }

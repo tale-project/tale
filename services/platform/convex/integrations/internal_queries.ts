@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
+
 import { internalQuery } from '../_generated/server';
-import { listIntegrations } from './list_integrations';
 import { getIntegrationByName } from './get_integration_by_name';
+import { listIntegrations } from './list_integrations';
 
 export const listInternal = internalQuery({
   args: {

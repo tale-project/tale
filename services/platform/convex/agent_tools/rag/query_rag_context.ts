@@ -258,7 +258,9 @@ export async function queryRagContext(
       } else {
         console.error('[rag_query] RAG service fetch error', {
           error:
-            fetchError instanceof Error ? fetchError.message : String(fetchError),
+            fetchError instanceof Error
+              ? fetchError.message
+              : String(fetchError),
         });
       }
       return undefined; // Gracefully degrade on fetch error

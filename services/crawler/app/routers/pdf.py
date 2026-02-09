@@ -17,6 +17,8 @@ from app.services.pdf_service import get_pdf_service
 
 router = APIRouter(prefix="/api/v1/pdf", tags=["PDF"])
 
+_FILE_UPLOAD = File(..., description="PDF file to parse")
+
 
 @router.post("/from-markdown")
 async def convert_markdown_to_pdf(request: MarkdownToPdfRequest):
@@ -148,7 +150,7 @@ async def convert_url_to_pdf(request: UrlToPdfRequest):
 
 @router.post("/parse", response_model=ParseFileResponse)
 async def parse_pdf_file(
-    file: UploadFile = File(..., description="PDF file to parse"),
+    file: UploadFile = _FILE_UPLOAD,
     user_input: str | None = Form(None, description="User instruction for AI extraction per page"),
     process_images: bool = Form(True, description="Extract and describe embedded images"),
     ocr_scanned_pages: bool = Form(True, description="OCR pages with low text content"),

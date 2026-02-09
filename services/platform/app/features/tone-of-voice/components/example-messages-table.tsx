@@ -1,20 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
 import { useSearch } from '@tanstack/react-router';
 import { type ColumnDef } from '@tanstack/react-table';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
-import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
-import { Button } from '@/app/components/ui/primitives/button';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import {
   Eye,
   Pencil,
@@ -23,8 +10,22 @@ import {
   Sparkles,
   MoreVertical,
 } from 'lucide-react';
-import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useMemo } from 'react';
+
+import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
+import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
+import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Pagination } from '@/app/components/ui/navigation/pagination';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/app/components/ui/overlays/dropdown-menu';
+import { Button } from '@/app/components/ui/primitives/button';
+import { IconButton } from '@/app/components/ui/primitives/icon-button';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 interface ExampleMessage {
@@ -58,7 +59,10 @@ export function ExampleMessagesTable({
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { formatDate } = useFormatDate();
-  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const search = useSearch({ strict: false }) as Record<
+    string,
+    string | undefined
+  >;
   const itemsPerPage = 5;
 
   // Get current page from URL query params, default to 1
@@ -78,7 +82,7 @@ export function ExampleMessagesTable({
         accessorKey: 'content',
         header: tTables('headers.message'),
         cell: ({ row }) => (
-          <span className="text-sm font-medium text-foreground">
+          <span className="text-foreground text-sm font-medium">
             {truncateMessage(row.original.content)}
           </span>
         ),
@@ -88,8 +92,10 @@ export function ExampleMessagesTable({
         header: tTables('headers.updated'),
         size: 140,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground tracking-[-0.072px]">
-            {formatDate(row.original.updatedAt, undefined, { customFormat: 'YYYY-MM-DD' })}
+          <span className="text-muted-foreground text-xs tracking-[-0.072px]">
+            {formatDate(row.original.updatedAt, undefined, {
+              customFormat: 'YYYY-MM-DD',
+            })}
           </span>
         ),
       },
@@ -108,18 +114,18 @@ export function ExampleMessagesTable({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => onViewExample(row.original)}>
-                  <Eye className="size-4 mr-2" />
+                  <Eye className="mr-2 size-4" />
                   {tCommon('actions.view')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onEditExample(row.original)}>
-                  <Pencil className="size-4 mr-2" />
+                  <Pencil className="mr-2 size-4" />
                   {tCommon('actions.edit')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => onDeleteExample(row.original.id)}
                   className="text-destructive focus:text-destructive"
                 >
-                  <Trash2 className="size-4 mr-2" />
+                  <Trash2 className="mr-2 size-4" />
                   {tCommon('actions.delete')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -128,24 +134,31 @@ export function ExampleMessagesTable({
         ),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- locale is not used in column definitions
-    [tTables, tCommon, onViewExample, onEditExample, onDeleteExample],
+    // locale is not used in column definitions
+    [
+      tTables,
+      tCommon,
+      onViewExample,
+      onEditExample,
+      onDeleteExample,
+      formatDate,
+    ],
   );
 
   // Header component
   const header = (
     <HStack justify="between">
       <Stack gap={1}>
-        <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
+        <h3 className="text-foreground text-lg font-semibold tracking-[-0.096px]">
           {tTone('exampleMessages.title')}
         </h3>
-        <p className="text-sm text-muted-foreground tracking-[-0.084px]">
+        <p className="text-muted-foreground text-sm tracking-[-0.084px]">
           {tTone('exampleMessages.description')}
         </p>
       </Stack>
       {examples.length > 0 && (
         <Button onClick={onAddExample}>
-          <Plus className="size-4 mr-2" />
+          <Plus className="mr-2 size-4" />
           {tTone('exampleMessages.addButton')}
         </Button>
       )}

@@ -1,8 +1,9 @@
 'use client';
 
 import { Stack } from '@/app/components/ui/layout/layout';
-import { VendorRowActions } from '../components/vendor-row-actions';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
+
+import { VendorRowActions } from '../components/vendor-row-actions';
 
 export const useVendorsTableConfig = createTableConfigHook<'vendors'>(
   {
@@ -16,10 +17,10 @@ export const useVendorsTableConfig = createTableConfigHook<'vendors'>(
       size: 408,
       cell: ({ row }) => (
         <Stack gap={1}>
-          <span className="font-medium text-sm text-foreground">
+          <span className="text-foreground text-sm font-medium">
             {row.original.name || ''}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {row.original.email || tTables('cells.noEmail')}
           </span>
         </Stack>

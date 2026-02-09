@@ -5,14 +5,14 @@
  * Useful for email workflows and other scenarios where a conversation always starts with a message.
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
-import { createConversation } from './create_conversation';
+import type { MutationCtx } from '../_generated/server';
 import type { CreateConversationArgs } from './types';
-import * as AuditLogHelpers from '../audit_logs/helpers';
 
-export interface CreateConversationWithMessageArgs
-  extends CreateConversationArgs {
+import * as AuditLogHelpers from '../audit_logs/helpers';
+import { createConversation } from './create_conversation';
+
+export interface CreateConversationWithMessageArgs extends CreateConversationArgs {
   // Initial message fields
   initialMessage: {
     sender: string;
@@ -89,12 +89,14 @@ export async function createConversationWithMessage(
       : direction === 'inbound' && args.initialMessage.sentAt
         ? args.initialMessage.sentAt
         : undefined,
-     
+
     metadata: {
       sender: args.initialMessage.sender,
       isCustomer: args.initialMessage.isCustomer,
-      ...(args.initialMessage.attachment ? { attachment: args.initialMessage.attachment } : {}),
-      ...(args.initialMessage.metadata || {}),
+      ...(args.initialMessage.attachment
+        ? { attachment: args.initialMessage.attachment }
+        : {}),
+      ...(args.initialMessage.metadata as Record<string, unknown>),
     } as any,
   });
 

@@ -2,12 +2,13 @@
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Separator } from '@/app/components/ui/layout/separator';
 import { Stack, HStack, Grid } from '@/app/components/ui/layout/layout';
-import { ProductImage } from './product-image';
+import { Separator } from '@/app/components/ui/layout/separator';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { formatCurrency } from '@/lib/utils/format/number';
 import { useT } from '@/lib/i18n/client';
+import { formatCurrency } from '@/lib/utils/format/number';
+
+import { ProductImage } from './product-image';
 
 interface ViewProductDialogProps {
   isOpen: boolean;
@@ -51,14 +52,14 @@ export function ProductViewDialog({
           <ProductImage
             images={product.imageUrl ? [product.imageUrl] : []}
             productName={product.name}
-            className="size-20 rounded-lg flex-shrink-0"
+            className="size-20 flex-shrink-0 rounded-lg"
           />
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground truncate">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-foreground truncate font-semibold">
               {product.name}
             </h3>
             {product.description && (
-              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+              <p className="text-muted-foreground mt-1 line-clamp-2 text-sm">
                 {product.description}
               </p>
             )}
@@ -80,11 +81,15 @@ export function ProductViewDialog({
           {/* Price */}
           {product.price !== undefined && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <label className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                 {tProducts('view.labels.price')}
               </label>
-              <p className="text-sm text-foreground mt-1">
-                {formatCurrency(product.price, product.currency || 'USD', locale)}
+              <p className="text-foreground mt-1 text-sm">
+                {formatCurrency(
+                  product.price,
+                  product.currency || 'USD',
+                  locale,
+                )}
               </p>
             </div>
           )}
@@ -92,13 +97,13 @@ export function ProductViewDialog({
           {/* Stock */}
           {product.stock !== undefined && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <label className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                 {tProducts('view.labels.stock')}
               </label>
               <p
-                className={`text-sm mt-1 ${
+                className={`mt-1 text-sm ${
                   product.stock === 0
-                    ? 'text-red-600 font-medium'
+                    ? 'font-medium text-red-600'
                     : 'text-foreground'
                 }`}
               >
@@ -110,22 +115,20 @@ export function ProductViewDialog({
           {/* Category */}
           {product.category && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <label className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                 {tProducts('view.labels.category')}
               </label>
-              <p className="text-sm text-foreground mt-1">
-                {product.category}
-              </p>
+              <p className="text-foreground mt-1 text-sm">{product.category}</p>
             </div>
           )}
 
           {/* Last Updated */}
           {product.lastUpdated !== undefined && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <label className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                 {tProducts('view.labels.lastUpdated')}
               </label>
-              <p className="text-sm text-foreground mt-1">
+              <p className="text-foreground mt-1 text-sm">
                 {formatDate(new Date(product.lastUpdated), 'long')}
               </p>
             </div>
@@ -135,7 +138,7 @@ export function ProductViewDialog({
         {/* Tags */}
         {product.tags && product.tags.length > 0 && (
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+            <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wide uppercase">
               {tProducts('view.labels.tags')}
             </label>
             <HStack gap={2} className="flex-wrap">
@@ -151,10 +154,10 @@ export function ProductViewDialog({
         {/* Full Description */}
         {product.description && (
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+            <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wide uppercase">
               {tProducts('view.labels.fullDescription')}
             </label>
-            <p className="text-sm text-foreground leading-relaxed">
+            <p className="text-foreground text-sm leading-relaxed">
               {product.description}
             </p>
           </div>
@@ -163,14 +166,14 @@ export function ProductViewDialog({
         {/* Product Source URL */}
         {typeof product.metadata?.url === 'string' && (
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+            <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wide uppercase">
               {tProducts('view.labels.source')}
             </label>
             <a
               href={product.metadata.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:text-blue-700 underline break-all"
+              className="text-sm break-all text-blue-600 underline hover:text-blue-700"
             >
               {product.metadata.url}
             </a>
@@ -179,10 +182,10 @@ export function ProductViewDialog({
 
         {/* Product ID */}
         <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+          <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wide uppercase">
             {tProducts('view.labels.productId')}
           </label>
-          <code className="text-xs bg-muted px-2 py-1 rounded">
+          <code className="bg-muted rounded px-2 py-1 text-xs">
             {product._id}
           </code>
         </div>

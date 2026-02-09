@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { CopyableField } from './copyable-field';
 
 const meta: Meta<typeof CopyableField> = {
@@ -62,7 +63,8 @@ export const NonMonospace: Story = {
 
 export const LongValue: Story = {
   args: {
-    value: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ',
+    value:
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ',
     label: 'JWT Token',
   },
   parameters: {
@@ -76,25 +78,28 @@ export const LongValue: Story = {
 
 export const MultipleFields: Story = {
   render: () => (
-    <div className="space-y-4 w-96">
+    <div className="w-96 space-y-4">
       <CopyableField value="proj_abc123" label="Project ID" />
       <CopyableField value="sk_live_secret_key_here" label="Secret Key" />
-      <CopyableField value="https://api.example.com/v1" label="API Endpoint" mono={false} />
+      <CopyableField
+        value="https://api.example.com/v1"
+        label="API Endpoint"
+        mono={false}
+      />
     </div>
   ),
 };
 
-
 export const InCard: Story = {
   render: () => (
-    <div className="p-4 border rounded-lg space-y-4 w-96">
+    <div className="w-96 space-y-4 rounded-lg border p-4">
       <h3 className="font-semibold">API Credentials</h3>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         Use these credentials to authenticate API requests.
       </p>
       <CopyableField value="pk_live_public_key" label="Public Key" />
       <CopyableField value="sk_live_secret_key" label="Secret Key" />
-      <p className="text-xs text-muted-foreground">
+      <p className="text-muted-foreground text-xs">
         Keep your secret key safe. Never share it publicly.
       </p>
     </div>

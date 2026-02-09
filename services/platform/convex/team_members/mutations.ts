@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
-import { mutation } from '../_generated/server';
+
 import { components } from '../_generated/api';
+import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 
@@ -41,7 +42,11 @@ export const addMember = mutation({
         model: 'member',
         paginationOpts: { cursor: null, numItems: 1 },
         where: [
-          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+          {
+            field: 'organizationId',
+            value: args.organizationId,
+            operator: 'eq',
+          },
           { field: 'userId', value: args.userId, operator: 'eq' },
         ],
       },
@@ -111,7 +116,8 @@ export const removeMember = mutation({
       throw new Error('Team member not found');
     }
 
-    const isSelfRemoval = String(memberToRemove.userId) === String(authUser._id);
+    const isSelfRemoval =
+      String(memberToRemove.userId) === String(authUser._id);
     if (
       callerMember.role !== 'admin' &&
       callerMember.role !== 'owner' &&

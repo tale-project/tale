@@ -1,6 +1,7 @@
-import type { ActionCtx } from '../../../../_generated/server';
-import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../_generated/server';
+
+import { internal } from '../../../../_generated/api';
 
 export interface ExistingMessage {
   _id: Id<'conversationMessages'>;
@@ -26,8 +27,11 @@ export async function checkMessageExists(
   organizationId: string,
   externalMessageId: string,
 ): Promise<ExistingMessage | null> {
-  return (await ctx.runQuery(internal.conversations.internal_queries.getMessageByExternalId, {
-    organizationId,
-    externalMessageId,
-  })) as ExistingMessage | null;
+  return (await ctx.runQuery(
+    internal.conversations.internal_queries.getMessageByExternalId,
+    {
+      organizationId,
+      externalMessageId,
+    },
+  )) as ExistingMessage | null;
 }

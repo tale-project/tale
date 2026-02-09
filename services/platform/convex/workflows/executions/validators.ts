@@ -5,8 +5,13 @@
  * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
  */
 
-import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
+
+import {
+  jsonRecordValidator,
+  jsonValueValidator,
+} from '../../../lib/shared/schemas/utils/json-value';
 import {
   executionSortOrderSchema,
   updateExecutionStatusArgsSchema,
@@ -18,10 +23,6 @@ import {
   listExecutionsPaginatedArgsSchema,
   listExecutionsCursorArgsSchema,
 } from '../../../lib/shared/schemas/wf_executions';
-import {
-  jsonRecordValidator,
-  jsonValueValidator,
-} from '../../../lib/shared/schemas/utils/json-value';
 
 export {
   executionSortOrderSchema,
@@ -39,15 +40,31 @@ export {
 } from '../../../lib/shared/schemas/wf_executions';
 
 // Simple schemas without z.lazy()
-export const executionSortOrderValidator = zodToConvex(executionSortOrderSchema);
-export const updateExecutionStatusArgsValidator = zodToConvex(updateExecutionStatusArgsSchema);
+export const executionSortOrderValidator = zodToConvex(
+  executionSortOrderSchema,
+);
+export const updateExecutionStatusArgsValidator = zodToConvex(
+  updateExecutionStatusArgsSchema,
+);
 export const failExecutionArgsValidator = zodToConvex(failExecutionArgsSchema);
-export const patchExecutionArgsValidator = zodToConvex(patchExecutionArgsSchema);
-export const setComponentWorkflowArgsValidator = zodToConvex(setComponentWorkflowArgsSchema);
-export const updateExecutionVariablesArgsValidator = zodToConvex(updateExecutionVariablesArgsSchema);
-export const listExecutionsArgsValidator = zodToConvex(listExecutionsArgsSchema);
-export const listExecutionsPaginatedArgsValidator = zodToConvex(listExecutionsPaginatedArgsSchema);
-export const listExecutionsCursorArgsValidator = zodToConvex(listExecutionsCursorArgsSchema);
+export const patchExecutionArgsValidator = zodToConvex(
+  patchExecutionArgsSchema,
+);
+export const setComponentWorkflowArgsValidator = zodToConvex(
+  setComponentWorkflowArgsSchema,
+);
+export const updateExecutionVariablesArgsValidator = zodToConvex(
+  updateExecutionVariablesArgsSchema,
+);
+export const listExecutionsArgsValidator = zodToConvex(
+  listExecutionsArgsSchema,
+);
+export const listExecutionsPaginatedArgsValidator = zodToConvex(
+  listExecutionsPaginatedArgsSchema,
+);
+export const listExecutionsCursorArgsValidator = zodToConvex(
+  listExecutionsCursorArgsSchema,
+);
 
 // Complex schemas with jsonRecordSchema/jsonValueSchema (contains z.lazy) - use native Convex v
 export const completeExecutionArgsValidator = v.object({

@@ -16,4 +16,7 @@ export { failExecution } from './executions/fail_execution';
 export { updateExecutionMetadata } from './executions/update_execution_metadata';
 
 // Re-export types
-export type { FailExecutionArgs, UpdateExecutionMetadataArgs } from './executions/types';
+export type {
+  FailExecutionArgs,
+  UpdateExecutionMetadataArgs,
+} from './executions/types';

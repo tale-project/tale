@@ -5,8 +5,9 @@
  * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
  */
 
-import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
+
 import {
   sourceProviderSchema,
   sourceModeSchema,
@@ -38,11 +39,21 @@ export const ragStatusValidator = zodToConvex(ragStatusSchema);
 export const ragInfoStatusValidator = zodToConvex(ragInfoStatusSchema);
 export const ragInfoValidator = zodToConvex(ragInfoSchema);
 export const documentItemValidator = zodToConvex(documentItemSchema);
-export const documentListResponseValidator = zodToConvex(documentListResponseSchema);
-export const generateDocumentResponseValidator = zodToConvex(generateDocumentResponseSchema);
-export const generatePptxResponseValidator = zodToConvex(generatePptxResponseSchema);
-export const generateDocxResponseValidator = zodToConvex(generateDocxResponseSchema);
-export const uploadFileResponseValidator = zodToConvex(uploadFileResponseSchema);
+export const documentListResponseValidator = zodToConvex(
+  documentListResponseSchema,
+);
+export const generateDocumentResponseValidator = zodToConvex(
+  generateDocumentResponseSchema,
+);
+export const generatePptxResponseValidator = zodToConvex(
+  generatePptxResponseSchema,
+);
+export const generateDocxResponseValidator = zodToConvex(
+  generateDocxResponseSchema,
+);
+export const uploadFileResponseValidator = zodToConvex(
+  uploadFileResponseSchema,
+);
 
 // Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
 export const documentRecordValidator = v.object({

@@ -5,8 +5,8 @@
  * Email and externalId searches use index-based queries for efficiency.
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export async function searchCustomers(
   ctx: QueryCtx,

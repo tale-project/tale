@@ -1,16 +1,21 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { ProductImportForm } from './product-import-form';
-import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useMemo, useCallback } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
-import { toast } from '@/app/hooks/use-toast';
-import { ProductStatus, PRODUCT_STATUS } from '@/lib/shared/constants/convex-enums';
-import { useT } from '@/lib/i18n/client';
-import { useCreateProduct } from '../hooks/use-create-product';
+import { z } from 'zod';
+
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { useFileImport, productMappers } from '@/app/hooks/use-file-import';
+import { toast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
+import {
+  ProductStatus,
+  PRODUCT_STATUS,
+} from '@/lib/shared/constants/convex-enums';
+
+import { useCreateProduct } from '../hooks/use-create-product';
+import { ProductImportForm } from './product-import-form';
 
 type FormValues = {
   file: File;
@@ -48,7 +53,7 @@ export function ProductsImportDialog({
       z.object({
         file: z.instanceof(File, { message: tCommon('validation.uploadFile') }),
       }),
-    [tCommon]
+    [tCommon],
   );
 
   const formMethods = useForm<FormValues>({
@@ -66,7 +71,7 @@ export function ProductsImportDialog({
     return productMappers.validateStatus(
       value,
       Object.values(PRODUCT_STATUS),
-      PRODUCT_STATUS.Draft
+      PRODUCT_STATUS.Draft,
     ) as ProductStatus;
   }, []);
 
@@ -80,7 +85,7 @@ export function ProductsImportDialog({
         status: validateStatus(result.status),
       };
     },
-    [validateStatus]
+    [validateStatus],
   );
 
   const csvMapper = useCallback(
@@ -99,7 +104,7 @@ export function ProductsImportDialog({
         status: validateStatus(row[7]),
       };
     },
-    [validateStatus]
+    [validateStatus],
   );
 
   const { parseFile } = useFileImport<ParsedProduct>({
@@ -157,21 +162,21 @@ export function ProductsImportDialog({
               currency: product.currency,
               category: product.category,
               status: product.status,
-            })
-          )
+            }),
+          ),
         );
 
         const successCount = results.filter(
-          (r) => r.status === 'fulfilled'
+          (r) => r.status === 'fulfilled',
         ).length;
         const failedCount = results.filter(
-          (r) => r.status === 'rejected'
+          (r) => r.status === 'rejected',
         ).length;
         const importErrors = results
           .map((result, index) =>
             result.status === 'rejected'
               ? `Failed to import ${products[index].name}: ${result.reason}`
-              : null
+              : null,
           )
           .filter((error): error is string => error !== null);
 
@@ -205,7 +210,7 @@ export function ProductsImportDialog({
         });
       }
     },
-    [parseFile, createProduct, organizationId, t, onSuccess, handleClose]
+    [parseFile, createProduct, organizationId, t, onSuccess, handleClose],
   );
 
   return (

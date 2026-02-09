@@ -95,7 +95,7 @@ async def _process_slide(
             *[_describe_image_bytes(img_bytes, semaphore) for _, img_bytes in image_tasks],
             return_exceptions=True,
         )
-        for (top, _), result in zip(image_tasks, results):
+        for (top, _), result in zip(image_tasks, results, strict=False):
             if isinstance(result, Exception):
                 logger.warning(f"Failed to describe image on slide {slide_num}: {result}")
             elif result:
@@ -132,10 +132,7 @@ async def extract_text_from_pptx_bytes(
     semaphore = asyncio.Semaphore(settings.vision_max_concurrent_pages)
 
     # Process all slides concurrently
-    tasks = [
-        _process_slide(i + 1, slide, semaphore, process_images)
-        for i, slide in enumerate(prs.slides)
-    ]
+    tasks = [_process_slide(i + 1, slide, semaphore, process_images) for i, slide in enumerate(prs.slides)]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     slides_content: list[tuple[int, str]] = []
@@ -154,8 +151,6 @@ async def extract_text_from_pptx_bytes(
     slides_content.sort(key=lambda x: x[0])
     ordered_content = [s[1] for s in slides_content]
 
-    logger.info(
-        f"PPTX processing complete: {len(ordered_content)} slides, Vision API used: {vision_used}"
-    )
+    logger.info(f"PPTX processing complete: {len(ordered_content)} slides, Vision API used: {vision_used}")
 
     return ordered_content, vision_used

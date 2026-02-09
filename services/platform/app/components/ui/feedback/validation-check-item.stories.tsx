@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { ValidationCheckList } from './validation-check-item';
 
 const meta: Meta<typeof ValidationCheckList> = {
@@ -96,12 +97,15 @@ export const AllInvalid: Story = {
 
 export const FormValidation: Story = {
   render: () => (
-    <div className="space-y-4 w-80">
+    <div className="w-80 space-y-4">
       <div className="space-y-2">
-        <label className="text-sm font-medium">Username</label>
+        <label htmlFor="username" className="text-sm font-medium">
+          Username
+        </label>
         <input
+          id="username"
           type="text"
-          className="w-full px-3 py-2 border rounded-lg text-sm"
+          className="w-full rounded-lg border px-3 py-2 text-sm"
           placeholder="Enter username"
           defaultValue="john"
         />
@@ -125,11 +129,10 @@ export const FormValidation: Story = {
   },
 };
 
-
 export const AccountSetup: Story = {
   render: () => (
-    <div className="p-4 border rounded-lg w-80">
-      <h3 className="font-medium mb-3">Account Setup Progress</h3>
+    <div className="w-80 rounded-lg border p-4">
+      <h3 className="mb-3 font-medium">Account Setup Progress</h3>
       <ValidationCheckList
         items={[
           { isValid: true, message: 'Created account' },
@@ -139,7 +142,7 @@ export const AccountSetup: Story = {
           { isValid: false, message: 'Invited team members' },
         ]}
       />
-      <p className="text-xs text-muted-foreground mt-3">2 of 5 complete</p>
+      <p className="text-muted-foreground mt-3 text-xs">2 of 5 complete</p>
     </div>
   ),
   parameters: {

@@ -1,25 +1,29 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import { useQuery } from 'convex/react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Switch } from '@/app/components/ui/forms/switch';
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+
+import { useQuery } from 'convex/react';
 import { Plus, Webhook, Copy, Check, Trash2 } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useState, useMemo, useCallback } from 'react';
+
+import type { Id } from '@/convex/_generated/dataModel';
+
+import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { Switch } from '@/app/components/ui/forms/switch';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
+
 import {
   useCreateWebhook,
   useToggleWebhook,
   useDeleteWebhook,
 } from '../hooks/use-trigger-mutations';
-import { SecretRevealDialog } from './secret-reveal-dialog';
 import { CollapsibleSection } from './collapsible-section';
+import { SecretRevealDialog } from './secret-reveal-dialog';
 
 interface WebhooksSectionProps {
   workflowRootId: Id<'wfDefinitions'>;
@@ -148,9 +152,9 @@ export function WebhooksSection({
         cell: ({ row }) => {
           const url = getWebhookUrl(row.original.token);
           return (
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
               <code
-                className="text-sm font-mono truncate max-w-[300px]"
+                className="max-w-[300px] truncate font-mono text-sm"
                 title={url}
               >
                 {url}
@@ -191,7 +195,7 @@ export function WebhooksSection({
         id: 'lastTriggered',
         header: t('triggers.webhooks.columns.lastTriggered'),
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-muted-foreground text-sm">
             {formatDate(row.original.lastTriggeredAt)}
           </span>
         ),
@@ -235,8 +239,13 @@ export function WebhooksSection({
           description: t('triggers.webhooks.emptyDescription'),
         }}
         actionMenu={
-          <Button variant="outline" size="sm" onClick={handleCreate} disabled={isCreating}>
-            <Plus className="size-4 mr-2" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCreate}
+            disabled={isCreating}
+          >
+            <Plus className="mr-2 size-4" />
             {t('triggers.webhooks.createButton')}
           </Button>
         }

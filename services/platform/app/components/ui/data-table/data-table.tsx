@@ -1,13 +1,7 @@
 'use client';
 
-import {
-  Fragment,
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  type ReactNode,
-} from 'react';
+import type { DateRange } from 'react-day-picker';
+
 import {
   flexRender,
   getCoreRowModel,
@@ -23,6 +17,20 @@ import {
   type OnChangeFn,
   type PaginationState,
 } from '@tanstack/react-table';
+import { ChevronRight } from 'lucide-react';
+import {
+  Fragment,
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from 'react';
+
+import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
+
+import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
+import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
 import {
   Table,
   TableBody,
@@ -32,32 +40,34 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/data-display/table';
-import { cn } from '@/lib/utils/cn';
-import { ChevronRight } from 'lucide-react';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
-import { Center, HStack, Stack, VStack } from '@/app/components/ui/layout/layout';
-import { useT } from '@/lib/i18n/client';
+import {
+  Center,
+  HStack,
+  Stack,
+  VStack,
+} from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useInfiniteScroll } from '@/app/hooks/use-infinite-scroll';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
-import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
-import {
-  DataTableEmptyState,
-  type DataTableEmptyStateProps,
-} from './data-table-empty-state';
-import {
-  DataTablePagination,
-  type DataTablePaginationProps,
-} from './data-table-pagination';
-import { DataTableFilters, type FilterConfig } from './data-table-filters';
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
 import type {
   DataTableSearchConfig,
   DataTableSortingConfig,
 } from './use-data-table';
-import type { DateRange } from 'react-day-picker';
-import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
+
+import {
+  DataTableEmptyState,
+  type DataTableEmptyStateProps,
+} from './data-table-empty-state';
+import { DataTableFilters, type FilterConfig } from './data-table-filters';
+import {
+  DataTablePagination,
+  type DataTablePaginationProps,
+} from './data-table-pagination';
 
 export interface DataTableProps<TData> {
   /** Column definitions */
@@ -297,7 +307,7 @@ export function DataTable<TData>({
 
   // Build the header content
   const headerContent = hasHeader ? (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
       <DataTableFilters
         search={search}
         filters={filters}
@@ -352,7 +362,7 @@ export function DataTable<TData>({
             {headerGroup.headers.map((headerCell) => (
               <TableHead
                 key={headerCell.id}
-                className="font-medium text-sm"
+                className="text-sm font-medium"
                 style={{
                   width:
                     headerCell.column.getSize() !== 150
@@ -389,7 +399,7 @@ export function DataTable<TData>({
                   </HStack>
                 ) : isFirstColumn ? (
                   <HStack gap={3}>
-                    <Skeleton className="size-8 rounded-md shrink-0" />
+                    <Skeleton className="size-8 shrink-0 rounded-md" />
                     <Stack gap={1} className="flex-1">
                       <Skeleton className="h-3.5 w-full max-w-48" />
                       <Skeleton className="h-3 w-2/3 max-w-24" />
@@ -407,7 +417,7 @@ export function DataTable<TData>({
           <TableRow>
             <TableCell
               colSpan={columns.length + (enableExpanding ? 1 : 0)}
-              className="text-center py-10 text-muted-foreground"
+              className="text-muted-foreground py-10 text-center"
             >
               {t('search.noResults')}
             </TableCell>
@@ -459,9 +469,9 @@ export function DataTable<TData>({
                   ))}
                 </TableRow>
                 {enableExpanding && isExpanded && renderExpandedRow && (
-                  <TableRow className="hover:bg-transparent border-0">
+                  <TableRow className="border-0 hover:bg-transparent">
                     <TableCell colSpan={columns.length + 1} className="p-0">
-                      <div className="grid animate-in fade-in-0 slide-in-from-top-1 duration-150">
+                      <div className="animate-in fade-in-0 slide-in-from-top-1 grid duration-150">
                         <div className="bg-muted/20 px-4 pb-2">
                           {renderExpandedRow(row)}
                         </div>
@@ -519,7 +529,7 @@ export function DataTable<TData>({
   const infiniteScrollContent = infiniteScroll &&
     data.length > 0 &&
     infiniteScroll.hasMore && (
-      <div className="border-t border-border">
+      <div className="border-border border-t">
         {/* Sentinel element for IntersectionObserver (auto-loading) */}
         {infiniteScroll.autoLoad !== false && (
           <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
@@ -528,7 +538,7 @@ export function DataTable<TData>({
         {/* Loading indicator or manual button */}
         <div className="flex justify-center py-3">
           {infiniteScroll.isLoadingMore ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="text-muted-foreground flex items-center gap-2 text-sm">
               <Spinner size="sm" label={t('pagination.loading')} />
               <span>{t('pagination.loading')}</span>
             </div>
@@ -554,10 +564,10 @@ export function DataTable<TData>({
       )}
     >
       <VStack align="center" className="text-center">
-        <h4 className="text-base font-semibold text-foreground mb-1">
+        <h4 className="text-foreground mb-1 text-base font-semibold">
           {t('search.noResults')}
         </h4>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {t('search.tryAdjusting')}
         </p>
       </VStack>
@@ -582,7 +592,7 @@ export function DataTable<TData>({
           {showFilteredEmptyState ? (
             filteredEmptyContent
           ) : (
-            <div className="rounded-xl border border-border">
+            <div className="border-border rounded-xl border">
               {tableContent}
               {infiniteScrollContent}
             </div>
@@ -615,7 +625,7 @@ export function DataTable<TData>({
         ) : (
           <div
             ref={scrollContainerRef}
-            className="min-h-0 overflow-auto rounded-xl border border-border"
+            className="border-border min-h-0 overflow-auto rounded-xl border"
           >
             {tableContent}
             {infiniteScrollContent}

@@ -4,6 +4,7 @@ PDF Converter Service.
 Converts HTML, Markdown, and URLs to PDF documents using Playwright.
 """
 
+import contextlib
 import re
 from typing import Any
 
@@ -132,11 +133,8 @@ class PdfService(BaseConverterService):
 
             # If 'load' was requested, try to wait for it but don't fail if it times out
             if wait_until == "load":
-                try:
+                with contextlib.suppress(PlaywrightTimeoutError):
                     await page.wait_for_load_state("load", timeout=timeout)
-                except PlaywrightTimeoutError:
-                    # 'load' event didn't fire within timeout, continue with domcontentloaded state
-                    pass
 
             # Remove wrap_in_template if passed (not applicable for URL)
             pdf_options.pop("wrap_in_template", None)
@@ -167,4 +165,3 @@ def get_pdf_service() -> PdfService:
     if _pdf_service is None:
         _pdf_service = PdfService()
     return _pdf_service
-

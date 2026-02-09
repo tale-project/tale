@@ -1,16 +1,19 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { toast } from '@/app/hooks/use-toast';
-import { useGenerateUploadUrl } from './use-generate-upload-url';
-import { compressImage } from '@/lib/utils/compress-image';
-import { isTextBasedFile } from '@/lib/utils/text-file-types';
-import { useT } from '@/lib/i18n/client';
+
 import type { Id } from '@/convex/_generated/dataModel';
+
+import { toast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,
   CHAT_MAX_FILE_SIZE,
 } from '@/lib/shared/file-types';
+import { compressImage } from '@/lib/utils/compress-image';
+import { isTextBasedFile } from '@/lib/utils/text-file-types';
+
+import { useGenerateUploadUrl } from './use-generate-upload-url';
 
 interface FileAttachment {
   fileId: Id<'_storage'>;

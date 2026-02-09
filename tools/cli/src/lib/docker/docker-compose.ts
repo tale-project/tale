@@ -1,12 +1,13 @@
-import { randomUUID } from "node:crypto";
-import { join } from "node:path";
-import { PROJECT_NAME } from "../../utils/load-env";
-import { type ExecResult, exec } from "./exec";
+import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
+
+import { PROJECT_NAME } from '../../utils/load-env';
+import { type ExecResult, exec } from './exec';
 
 export async function dockerCompose(
   composeContent: string,
   args: string[],
-  options: { projectName?: string; cwd?: string } = {}
+  options: { projectName?: string; cwd?: string } = {},
 ): Promise<ExecResult> {
   const { projectName = PROJECT_NAME, cwd = process.cwd() } = options;
 
@@ -16,12 +17,12 @@ export async function dockerCompose(
 
   try {
     return await exec(
-      "docker",
-      ["compose", "-p", projectName, "-f", tempFile, ...args],
-      { cwd }
+      'docker',
+      ['compose', '-p', projectName, '-f', tempFile, ...args],
+      { cwd },
     );
   } finally {
-    const { unlink } = await import("node:fs/promises");
+    const { unlink } = await import('node:fs/promises');
     await unlink(tempFile).catch(() => {});
   }
 }

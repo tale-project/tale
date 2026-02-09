@@ -2,10 +2,11 @@
  * Create user without session - Business logic
  */
 
-import { MutationCtx } from '../_generated/server';
-import { components } from '../_generated/api';
-import { createAuth } from '../auth';
 import type { Role } from './types';
+
+import { components } from '../_generated/api';
+import { MutationCtx } from '../_generated/server';
+import { createAuth } from '../auth';
 
 export interface CreateUserWithoutSessionArgs {
   email: string;

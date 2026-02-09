@@ -1,46 +1,68 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { lazyComponent } from '@/lib/utils/lazy-component';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Center, VStack } from '@/app/components/ui/layout/layout';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { getFileExtension } from '@/lib/utils/document-helpers';
-import { isTextBasedFile } from '@/lib/utils/text-file-types';
 import { Image, Download, Loader2 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { Center, VStack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { getFileExtension } from '@/lib/utils/document-helpers';
+import { lazyComponent } from '@/lib/utils/lazy-component';
+import { isTextBasedFile } from '@/lib/utils/text-file-types';
 
 function PreviewSkeleton() {
   return (
     <Center className="flex-1 p-6">
-      <Skeleton className="w-full max-w-2xl h-[600px]" />
+      <Skeleton className="h-[600px] w-full max-w-2xl" />
     </Center>
   );
 }
 
-const DocumentPreviewPDF = lazyComponent(() => import('./document-preview-pdf').then((m) => ({ default: m.DocumentPreviewPDF })), {
-  loading: () => <PreviewSkeleton />,
-});
-const DocumentPreviewDocx = lazyComponent(() => import('./document-preview-docx').then((m) => ({ default: m.DocumentPreviewDocx })), {
-  loading: () => <PreviewSkeleton />,
-});
-const DocumentPreviewXlsx = lazyComponent(() => import('./document-preview-xlsx').then((m) => ({ default: m.DocumentPreviewXlsx })), {
-  loading: () => <PreviewSkeleton />,
-});
-const DocumentPreviewText = lazyComponent(() => import('./document-preview-text').then((m) => ({ default: m.DocumentPreviewText })), {
-  loading: () => <PreviewSkeleton />,
-});
+const DocumentPreviewPDF = lazyComponent(
+  () =>
+    import('./document-preview-pdf').then((m) => ({
+      default: m.DocumentPreviewPDF,
+    })),
+  {
+    loading: () => <PreviewSkeleton />,
+  },
+);
+const DocumentPreviewDocx = lazyComponent(
+  () =>
+    import('./document-preview-docx').then((m) => ({
+      default: m.DocumentPreviewDocx,
+    })),
+  {
+    loading: () => <PreviewSkeleton />,
+  },
+);
+const DocumentPreviewXlsx = lazyComponent(
+  () =>
+    import('./document-preview-xlsx').then((m) => ({
+      default: m.DocumentPreviewXlsx,
+    })),
+  {
+    loading: () => <PreviewSkeleton />,
+  },
+);
+const DocumentPreviewText = lazyComponent(
+  () =>
+    import('./document-preview-text').then((m) => ({
+      default: m.DocumentPreviewText,
+    })),
+  {
+    loading: () => <PreviewSkeleton />,
+  },
+);
 
 export interface DocumentPreviewProps {
   url: string;
   fileName?: string;
 }
 
-export function DocumentPreview({
-  url,
-  fileName,
-}: DocumentPreviewProps) {
+export function DocumentPreview({ url, fileName }: DocumentPreviewProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
   const { t } = useT('documents');
@@ -73,7 +95,9 @@ export function DocumentPreview({
 
       toast({
         title: t('preview.downloadComplete'),
-        description: t('preview.fileDownloaded', { fileName: fileName || 'File' }),
+        description: t('preview.fileDownloaded', {
+          fileName: fileName || 'File',
+        }),
         variant: 'success',
       });
     } catch (error) {
@@ -105,18 +129,22 @@ export function DocumentPreview({
 
   return (
     <Center className="flex-1 p-6">
-      <VStack align="center" className="text-center text-muted-foreground max-w-[24rem]">
-        <Image className="size-16 mx-auto mb-2 p-2" />
-        <div className="text-base font-medium text-foreground mb-1">
+      <VStack
+        align="center"
+        className="text-muted-foreground max-w-[24rem] text-center"
+      >
+        <Image className="mx-auto mb-2 size-16 p-2" />
+        <div className="text-foreground mb-1 text-base font-medium">
           {t('preview.notAvailable')}
         </div>
-        <div className="text-sm mb-6">
+        <div className="mb-6 text-sm">
           {t('preview.notAvailableDescription')}
         </div>
         <Button size="sm" onClick={handleDownload} disabled={isDownloading}>
           {isDownloading ? (
             <>
-              <Loader2 className="mr-2 size-4 animate-spin" /> {t('preview.downloading')}
+              <Loader2 className="mr-2 size-4 animate-spin" />{' '}
+              {t('preview.downloading')}
             </>
           ) : (
             <>

@@ -1,22 +1,26 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { lazyComponent } from '@/lib/utils/lazy-component';
-import { Button } from '@/app/components/ui/primitives/button';
 import { CheckIcon, CopyIcon } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
+import { useMemo, useState } from 'react';
 
-const ReactJsonView = lazyComponent(() => import('@microlink/react-json-view'), {
-  loading: () => (
-    <div className="bg-muted p-4 rounded-md">
-      <div className="animate-pulse">
-        <div className="h-4 bg-gray-300 rounded w-1/4 mb-2"></div>
-        <div className="h-4 bg-gray-300 rounded w-1/2 mb-2"></div>
-        <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+import { Button } from '@/app/components/ui/primitives/button';
+import { cn } from '@/lib/utils/cn';
+import { lazyComponent } from '@/lib/utils/lazy-component';
+
+const ReactJsonView = lazyComponent(
+  () => import('@microlink/react-json-view'),
+  {
+    loading: () => (
+      <div className="bg-muted rounded-md p-4">
+        <div className="animate-pulse">
+          <div className="mb-2 h-4 w-1/4 rounded bg-gray-300"></div>
+          <div className="mb-2 h-4 w-1/2 rounded bg-gray-300"></div>
+          <div className="h-4 w-3/4 rounded bg-gray-300"></div>
+        </div>
       </div>
-    </div>
-  ),
-});
+    ),
+  },
+);
 
 export function JsonViewer({
   data,
@@ -70,7 +74,7 @@ export function JsonViewer({
       )}
     >
       {enableClipboard && (
-        <div className="absolute right-2 top-2 z-10">
+        <div className="absolute top-2 right-2 z-10">
           <Button
             variant="ghost"
             size="icon"
@@ -78,7 +82,7 @@ export function JsonViewer({
             onClick={handleCopy}
           >
             {copied ? (
-              <CheckIcon className="size-4 text-success p-0.5" />
+              <CheckIcon className="text-success size-4 p-0.5" />
             ) : (
               <CopyIcon className="size-4 p-0.5" />
             )}

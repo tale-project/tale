@@ -1,12 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Pencil, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 
-import { useT } from '@/lib/i18n/client';
-import { useToast } from '@/app/hooks/use-toast';
-import { Button } from '@/app/components/ui/primitives/button';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { HStack } from '@/app/components/ui/layout/layout';
 import {
@@ -15,6 +12,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/app/components/ui/overlays/tooltip';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useToast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
+
 import { useDeleteThread } from '../hooks/use-delete-thread';
 
 interface ChatActionsProps {
@@ -77,7 +78,7 @@ export function ChatActions({
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                className="hidden md:inline-flex p-1"
+                className="hidden p-1 md:inline-flex"
                 size="icon"
                 onClick={onRename}
                 aria-label={tCommon('actions.rename')}

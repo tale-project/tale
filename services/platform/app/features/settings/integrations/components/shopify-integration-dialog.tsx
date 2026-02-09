@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
 import { Description } from '@/app/components/ui/forms/description';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { toast } from '@/app/hooks/use-toast';
 import { Input } from '@/app/components/ui/forms/input';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 interface ShopifyIntegrationDialogProps {
@@ -59,7 +60,9 @@ export function ShopifyIntegrationDialog({
       onOpenChange?.(false);
 
       toast({
-        title: isConnected ? t('integrations.updateSuccessful') : t('integrations.connectionSuccessful'),
+        title: isConnected
+          ? t('integrations.updateSuccessful')
+          : t('integrations.connectionSuccessful'),
         description: isConnected
           ? t('integrations.connectedTo', { provider: 'Shopify' })
           : t('integrations.connectedTo', { provider: 'Shopify' }),
@@ -68,8 +71,12 @@ export function ShopifyIntegrationDialog({
     } catch {
       // Keep dialog open and surface error without leaking credentials
       toast({
-        title: isConnected ? t('integrations.updateFailed') : t('integrations.connectionTestFailed'),
-        description: t('integrations.failedToDisconnect', { provider: 'Shopify' }),
+        title: isConnected
+          ? t('integrations.updateFailed')
+          : t('integrations.connectionTestFailed'),
+        description: t('integrations.failedToDisconnect', {
+          provider: 'Shopify',
+        }),
         variant: 'destructive',
       });
     } finally {
@@ -89,7 +96,9 @@ export function ShopifyIntegrationDialog({
     } catch {
       toast({
         title: t('integrations.disconnectionFailed'),
-        description: t('integrations.failedToDisconnect', { provider: 'Shopify' }),
+        description: t('integrations.failedToDisconnect', {
+          provider: 'Shopify',
+        }),
         variant: 'destructive',
       });
     } finally {
@@ -97,42 +106,49 @@ export function ShopifyIntegrationDialog({
     }
   };
 
-  const footer = isConnected && onDisconnect ? (
-    <>
-      <Button
-        variant="destructive"
-        onClick={handleDisconnect}
-        disabled={isSubmitting}
-        className="flex-1"
-      >
-        {isSubmitting ? t('integrations.disconnecting') : t('integrations.disconnect')}
-      </Button>
-      <Button
-        onClick={handleConnect}
-        disabled={isSubmitting || !domain || !accessToken}
-        className="flex-1"
-      >
-        {isSubmitting ? t('integrations.shopify.updating') : t('integrations.shopify.update')}
-      </Button>
-    </>
-  ) : (
-    <>
-      <Button
-        variant="outline"
-        className="flex-1"
-        onClick={() => onOpenChange?.(false)}
-      >
-        {tCommon('actions.cancel')}
-      </Button>
-      <Button
-        onClick={handleConnect}
-        className="flex-1"
-        disabled={isSubmitting || !domain || !accessToken}
-      >
-        {isSubmitting ? t('integrations.shopify.connecting') : t('integrations.shopify.connect')}
-      </Button>
-    </>
-  );
+  const footer =
+    isConnected && onDisconnect ? (
+      <>
+        <Button
+          variant="destructive"
+          onClick={handleDisconnect}
+          disabled={isSubmitting}
+          className="flex-1"
+        >
+          {isSubmitting
+            ? t('integrations.disconnecting')
+            : t('integrations.disconnect')}
+        </Button>
+        <Button
+          onClick={handleConnect}
+          disabled={isSubmitting || !domain || !accessToken}
+          className="flex-1"
+        >
+          {isSubmitting
+            ? t('integrations.shopify.updating')
+            : t('integrations.shopify.update')}
+        </Button>
+      </>
+    ) : (
+      <>
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => onOpenChange?.(false)}
+        >
+          {tCommon('actions.cancel')}
+        </Button>
+        <Button
+          onClick={handleConnect}
+          className="flex-1"
+          disabled={isSubmitting || !domain || !accessToken}
+        >
+          {isSubmitting
+            ? t('integrations.shopify.connecting')
+            : t('integrations.shopify.connect')}
+        </Button>
+      </>
+    );
 
   return (
     <FormDialog

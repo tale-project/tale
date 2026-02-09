@@ -8,11 +8,13 @@
  * 4. Returning a single system message with the complete context
  */
 
-import type { ActionCtx } from '../../_generated/server';
-import { components, internal } from '../../_generated/api';
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
-import * as fmt from './message_formatter';
+
+import type { ActionCtx } from '../../_generated/server';
+
+import { components, internal } from '../../_generated/api';
 import { estimateTokens } from './estimate_tokens';
+import * as fmt from './message_formatter';
 
 /**
  * Approval item from the approvals table.
@@ -389,7 +391,8 @@ function extractToolCalls(
       if (p.type === 'tool-call' && typeof p.toolName === 'string') {
         toolCalls.push({
           toolName: p.toolName,
-          toolCallId: typeof p.toolCallId === 'string' ? p.toolCallId : undefined,
+          toolCallId:
+            typeof p.toolCallId === 'string' ? p.toolCallId : undefined,
           input: p.args ?? p.input,
         });
       }

@@ -1,9 +1,10 @@
 'use node';
 
 import { v } from 'convex/values';
-import { internalAction } from '../../_generated/server';
-import nodemailer from 'nodemailer';
 import { ImapFlow } from 'imapflow';
+import nodemailer from 'nodemailer';
+
+import { internalAction } from '../../_generated/server';
 import * as EmailProviders from '../../email_providers/helpers';
 
 export const testConnection = internalAction({

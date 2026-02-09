@@ -1,25 +1,24 @@
 'use client';
 
-import { memo, useState } from 'react';
 import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+import { XCircle, Loader2, MessageCircleQuestion, Send } from 'lucide-react';
+import { memo, useState } from 'react';
+
 import type { Id } from '@/convex/_generated/dataModel';
 import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
-import { Button } from '@/app/components/ui/primitives/button';
+
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Label } from '@/app/components/ui/forms/label';
-import { RadioGroup, RadioGroupItem } from '@/app/components/ui/forms/radio-group';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Label } from '@/app/components/ui/forms/label';
 import {
-  CheckCircle,
-  XCircle,
-  Loader2,
-  MessageCircleQuestion,
-  Send,
-} from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
+  RadioGroup,
+  RadioGroupItem,
+} from '@/app/components/ui/forms/radio-group';
+import { Textarea } from '@/app/components/ui/forms/textarea';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { api } from '@/convex/_generated/api';
+import { cn } from '@/lib/utils/cn';
 
 interface HumanInputRequestCardProps {
   approvalId: Id<'approvals'>;
@@ -89,7 +88,9 @@ function HumanInputRequestCardComponent({
       });
       onResponseSubmitted?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit response');
+      setError(
+        err instanceof Error ? err.message : 'Failed to submit response',
+      );
       console.error('Failed to submit response:', err);
     } finally {
       setIsSubmitting(false);
@@ -98,9 +99,7 @@ function HumanInputRequestCardComponent({
 
   const handleMultiSelectToggle = (value: string) => {
     setSelectedValues((prev) =>
-      prev.includes(value)
-        ? prev.filter((v) => v !== value)
-        : [...prev, value]
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
     );
   };
 
@@ -114,7 +113,9 @@ function HumanInputRequestCardComponent({
           <div className="space-y-2">
             <Textarea
               value={textValue}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setTextValue(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setTextValue(e.target.value)
+              }
               placeholder={metadata.placeholder ?? 'Type your response...'}
               className="min-h-[80px] text-sm"
               disabled={isSubmitting}
@@ -135,39 +136,36 @@ function HumanInputRequestCardComponent({
               const value = getOptionValue(option);
               const isSelected = selectedValue === value;
               return (
-                <div
+                <button
+                  type="button"
                   key={value}
-                  role="button"
-                  tabIndex={0}
                   className={cn(
                     'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer',
                     isSelected
                       ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50 hover:bg-muted/30'
+                      : 'border-border hover:border-primary/50 hover:bg-muted/30',
                   )}
                   onClick={() => setSelectedValue(value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setSelectedValue(value);
-                    }
-                  }}
                 >
-                  <RadioGroupItem value={value} id={`option-${value}`} className="mt-0.5" />
+                  <RadioGroupItem
+                    value={value}
+                    id={`option-${value}`}
+                    className="mt-0.5"
+                  />
                   <div className="flex-1">
                     <Label
                       htmlFor={`option-${value}`}
-                      className="text-sm font-medium cursor-pointer"
+                      className="cursor-pointer text-sm font-medium"
                     >
                       {option.label}
                     </Label>
                     {option.description && (
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-muted-foreground mt-1 text-xs">
                         {option.description}
                       </p>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </RadioGroup>
@@ -180,23 +178,16 @@ function HumanInputRequestCardComponent({
               const value = getOptionValue(option);
               const isChecked = selectedValues.includes(value);
               return (
-                <div
+                <button
+                  type="button"
                   key={value}
-                  role="button"
-                  tabIndex={0}
                   className={cn(
                     'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer',
                     isChecked
                       ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50 hover:bg-muted/30'
+                      : 'border-border hover:border-primary/50 hover:bg-muted/30',
                   )}
                   onClick={() => handleMultiSelectToggle(value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleMultiSelectToggle(value);
-                    }
-                  }}
                 >
                   <Checkbox
                     checked={isChecked}
@@ -208,17 +199,17 @@ function HumanInputRequestCardComponent({
                   <div className="flex-1">
                     <Label
                       htmlFor={`option-${value}`}
-                      className="text-sm font-medium cursor-pointer"
+                      className="cursor-pointer text-sm font-medium"
                     >
                       {option.label}
                     </Label>
                     {option.description && (
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-muted-foreground mt-1 text-xs">
                         {option.description}
                       </p>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -236,9 +227,9 @@ function HumanInputRequestCardComponent({
     const displayValue = Array.isArray(value) ? value.join(', ') : value;
 
     return (
-      <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+      <div className="bg-muted/50 space-y-2 rounded-lg p-4">
         <div className="text-sm font-medium">{displayValue}</div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-muted-foreground text-xs">
           Responded by {respondedBy} at{' '}
           {formatDate(new Date(timestamp), 'long')}
         </div>
@@ -253,18 +244,18 @@ function HumanInputRequestCardComponent({
         status === 'approved' && 'border-success/30 bg-success/5',
         status === 'rejected' && 'border-destructive/30 bg-destructive/5',
         status === 'pending' && 'border-primary/30 bg-primary/5',
-        className
+        className,
       )}
     >
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-4">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <MessageCircleQuestion className="size-5 text-primary" />
+          <div className="bg-primary/10 rounded-lg p-2">
+            <MessageCircleQuestion className="text-primary size-5" />
           </div>
           <div>
-            <div className="font-semibold text-base">Question</div>
-            <Badge variant="outline" className="text-xs capitalize mt-1">
+            <div className="text-base font-semibold">Question</div>
+            <Badge variant="outline" className="mt-1 text-xs capitalize">
               {metadata.format.replace('_', ' ')}
             </Badge>
           </div>
@@ -272,7 +263,7 @@ function HumanInputRequestCardComponent({
         {!isPending && (
           <Badge
             variant={status === 'approved' ? 'green' : 'destructive'}
-            className="capitalize text-xs"
+            className="text-xs capitalize"
           >
             {status === 'approved' ? 'Responded' : status}
           </Badge>
@@ -283,7 +274,9 @@ function HumanInputRequestCardComponent({
       <div className="mb-4">
         <p className="text-sm leading-relaxed">{metadata.question}</p>
         {metadata.context && (
-          <p className="text-xs text-muted-foreground mt-2">{metadata.context}</p>
+          <p className="text-muted-foreground mt-2 text-xs">
+            {metadata.context}
+          </p>
         )}
       </div>
 
@@ -294,7 +287,7 @@ function HumanInputRequestCardComponent({
 
           {/* Error Message */}
           {error && (
-            <div className="text-xs text-destructive flex items-center gap-1.5">
+            <div className="text-destructive flex items-center gap-1.5 text-xs">
               <XCircle className="size-3.5" />
               {error}
             </div>
@@ -307,9 +300,9 @@ function HumanInputRequestCardComponent({
             className="w-full"
           >
             {isSubmitting ? (
-              <Loader2 className="size-4 animate-spin mr-2" />
+              <Loader2 className="mr-2 size-4 animate-spin" />
             ) : (
-              <Send className="size-4 mr-2" />
+              <Send className="mr-2 size-4" />
             )}
             Submit Response
           </Button>
@@ -330,5 +323,5 @@ export const HumanInputRequestCard = memo(
       prevProps.className === nextProps.className &&
       prevProps.onResponseSubmitted === nextProps.onResponseSubmitted
     );
-  }
+  },
 );

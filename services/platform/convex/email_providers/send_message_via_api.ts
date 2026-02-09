@@ -9,12 +9,12 @@
  * After 3 failed retries, message is moved to 'failed' state
  */
 
-import type { ActionCtx } from '../_generated/server';
-import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
-import { decryptAndRefreshOAuth2Token } from './decrypt_and_refresh_oauth2';
+import type { ActionCtx } from '../_generated/server';
 
+import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
+import { decryptAndRefreshOAuth2Token } from './decrypt_and_refresh_oauth2';
 
 const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
 
@@ -47,9 +47,12 @@ export async function sendMessageViaAPI(
     // Get email provider (use default if not specified)
     let provider: unknown;
     if (args.providerId) {
-      provider = await ctx.runQuery(internal.email_providers.internal_queries.get, {
-        providerId: args.providerId,
-      });
+      provider = await ctx.runQuery(
+        internal.email_providers.internal_queries.get,
+        {
+          providerId: args.providerId,
+        },
+      );
     } else {
       provider = await ctx.runQuery(
         internal.email_providers.internal_queries.getDefault,
@@ -90,9 +93,12 @@ export async function sendMessageViaAPI(
       typedProvider._id,
       typedProvider.oauth2Auth,
       async (jwe) =>
-        await ctx.runAction(internal.lib.crypto.internal_actions.decryptString, {
-          jwe,
-        }),
+        await ctx.runAction(
+          internal.lib.crypto.internal_actions.decryptString,
+          {
+            jwe,
+          },
+        ),
       async ({ provider, clientId, clientSecret, refreshToken, tokenUrl }) =>
         await ctx.runAction(internal.oauth2.refreshToken, {
           provider,
@@ -109,14 +115,17 @@ export async function sendMessageViaAPI(
         expiresIn,
         scope,
       }) =>
-        await ctx.runAction(internal.email_providers.internal_actions.storeOAuth2Tokens, {
-          emailProviderId,
-          accessToken,
-          refreshToken,
-          tokenType,
-          expiresIn,
-          scope,
-        }),
+        await ctx.runAction(
+          internal.email_providers.internal_actions.storeOAuth2Tokens,
+          {
+            emailProviderId,
+            accessToken,
+            refreshToken,
+            tokenType,
+            expiresIn,
+            scope,
+          },
+        ),
     );
 
     let result: { success: boolean; messageId: string };

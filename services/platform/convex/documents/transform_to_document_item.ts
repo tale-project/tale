@@ -2,9 +2,10 @@
  * Transform a document to DocumentItemResponse format
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import type { DocumentItemResponse, DocumentMetadata } from './types';
+
 import { extractExtension } from './extract_extension';
 import { getUserNamesBatch } from './get_user_names_batch';
 
@@ -52,7 +53,7 @@ export function transformToDocumentItem(
 
   // Get URL from pre-fetched map (fileId is converted to string as key)
   const url = document.fileId
-    ? options?.storageUrlsMap?.get(String(document.fileId)) ?? undefined
+    ? (options?.storageUrlsMap?.get(String(document.fileId)) ?? undefined)
     : undefined;
 
   // Get creator display name from pre-fetched map
@@ -71,7 +72,8 @@ export function transformToDocumentItem(
       metadata?.extension ??
       extractExtension(document.title),
     storagePath: metadata?.storagePath,
-    sourceProvider: document.sourceProvider ?? metadata?.sourceProvider ?? 'upload',
+    sourceProvider:
+      document.sourceProvider ?? metadata?.sourceProvider ?? 'upload',
     sourceMode: normalizeSourceMode(metadata?.sourceMode),
     lastModified: metadata?.lastModified ?? document._creationTime,
     syncConfigId: metadata?.syncConfigId,

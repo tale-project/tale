@@ -74,13 +74,10 @@ const websitePagesRagSyncWorkflow = {
         type: 'rag',
         parameters: {
           operation: 'upload_text',
-          recordId:
-            '{{steps.find_unprocessed_page.output.data._id}}',
-          content:
-            '{{steps.find_unprocessed_page.output.data|string}}',
+          recordId: '{{steps.find_unprocessed_page.output.data._id}}',
+          content: '{{steps.find_unprocessed_page.output.data|string}}',
           metadata: {
-            websiteId:
-              '{{steps.find_unprocessed_page.output.data.websiteId}}',
+            websiteId: '{{steps.find_unprocessed_page.output.data.websiteId}}',
             _id: '{{steps.find_unprocessed_page.output.data._id}}',
           },
         },
@@ -99,8 +96,7 @@ const websitePagesRagSyncWorkflow = {
         parameters: {
           operation: 'record_processed',
           tableName: 'websitePages',
-          recordId:
-            '{{steps.find_unprocessed_page.output.data._id}}',
+          recordId: '{{steps.find_unprocessed_page.output.data._id}}',
         },
       },
       nextSteps: {

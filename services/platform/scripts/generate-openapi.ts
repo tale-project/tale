@@ -10,10 +10,16 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
-import { parse } from 'yaml';
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  rmSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const platformDir = join(__dirname, '..');
@@ -42,13 +48,19 @@ function main() {
   console.log('Generating OpenAPI spec from Convex...');
 
   try {
-    execFileSync('npx', ['convex-helpers', 'open-api-spec', '--output-file', tempYamlPath], {
-      cwd: platformDir,
-      stdio: 'inherit',
-      shell: true,
-    });
+    execFileSync(
+      'npx',
+      ['convex-helpers', 'open-api-spec', '--output-file', tempYamlPath],
+      {
+        cwd: platformDir,
+        stdio: 'inherit',
+        shell: true,
+      },
+    );
   } catch {
-    console.error('Failed to generate OpenAPI spec. Make sure Convex is running.');
+    console.error(
+      'Failed to generate OpenAPI spec. Make sure Convex is running.',
+    );
     process.exit(1);
   }
 
@@ -104,7 +116,8 @@ All endpoints accept POST requests with JSON body containing an \`args\` object:
       type: 'apiKey',
       in: 'header',
       name: 'x-api-key',
-      description: 'API key for authentication. Create one in Settings > API Keys.',
+      description:
+        'API key for authentication. Create one in Settings > API Keys.',
     },
   };
 

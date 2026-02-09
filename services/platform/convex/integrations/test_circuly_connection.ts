@@ -3,7 +3,6 @@
  */
 
 import { CIRCULY_API_URL } from '../constants';
-
 import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
@@ -63,6 +62,7 @@ export async function testCirculyConnection(
     }
     throw new Error(
       'Failed to connect to Circuly. Please check your credentials.',
+      { cause: error },
     );
   }
 }

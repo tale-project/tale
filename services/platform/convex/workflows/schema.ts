@@ -1,10 +1,11 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
-import { stepConfigValidator } from '../workflow_engine/types/nodes';
+
 import {
   jsonRecordValidator,
   jsonValueValidator,
 } from '../../lib/shared/schemas/utils/json-value';
+import { stepConfigValidator } from '../workflow_engine/types/nodes';
 
 export const wfDefinitionsTable = defineTable({
   organizationId: v.string(),

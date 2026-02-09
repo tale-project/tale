@@ -1,7 +1,7 @@
-import { getPreviousVersionFilePath } from "./get-previous-version-file-path";
+import { getPreviousVersionFilePath } from './get-previous-version-file-path';
 
 export async function getPreviousVersion(
-  deployDir: string
+  deployDir: string,
 ): Promise<string | null> {
   const versionPath = getPreviousVersionFilePath(deployDir);
 

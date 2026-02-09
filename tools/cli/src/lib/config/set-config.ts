@@ -1,7 +1,9 @@
-import { mkdir } from "node:fs/promises";
-import * as logger from "../../utils/logger";
-import { getConfigDir, getConfigFilePath } from "./get-config-file-path";
-import type { GlobalConfig } from "./types";
+import { mkdir } from 'node:fs/promises';
+
+import type { GlobalConfig } from './types';
+
+import * as logger from '../../utils/logger';
+import { getConfigDir, getConfigFilePath } from './get-config-file-path';
 
 export async function setConfig(config: GlobalConfig): Promise<void> {
   const configDir = getConfigDir();

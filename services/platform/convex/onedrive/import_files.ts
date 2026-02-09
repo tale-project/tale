@@ -33,6 +33,7 @@ export interface ImportFilesResult {
   successCount: number;
   failedCount: number;
   skippedCount: number;
+  error?: string;
 }
 
 interface FileMetadata {
@@ -53,7 +54,12 @@ export interface ImportFilesDependencies {
     token: string,
     siteId?: string,
     driveId?: string,
-  ) => Promise<{ success: boolean; content?: ArrayBuffer; mimeType?: string; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    content?: ArrayBuffer;
+    mimeType?: string;
+    error?: string;
+  }>;
   findDocumentByExternalId: (args: {
     organizationId: string;
     externalItemId: string;
@@ -120,7 +126,11 @@ export async function importFiles(
 
       const contentHash = metadataResult.data.hash;
 
-      if (existingDoc && contentHash && existingDoc.contentHash === contentHash) {
+      if (
+        existingDoc &&
+        contentHash &&
+        existingDoc.contentHash === contentHash
+      ) {
         results.push({
           fileId: item.id,
           fileName: item.name,
@@ -157,10 +167,18 @@ export async function importFiles(
         sourceMode: args.importType === 'sync' ? 'auto' : 'manual',
         storagePath,
         size: item.size,
-        ...(item.selectedParentId && { selectedParentId: item.selectedParentId }),
-        ...(item.selectedParentName && { selectedParentName: item.selectedParentName }),
-        ...(item.selectedParentPath && { selectedParentPath: item.selectedParentPath }),
-        ...(item.isDirectlySelected !== undefined && { isDirectlySelected: item.isDirectlySelected }),
+        ...(item.selectedParentId && {
+          selectedParentId: item.selectedParentId,
+        }),
+        ...(item.selectedParentName && {
+          selectedParentName: item.selectedParentName,
+        }),
+        ...(item.selectedParentPath && {
+          selectedParentPath: item.selectedParentPath,
+        }),
+        ...(item.isDirectlySelected !== undefined && {
+          isDirectlySelected: item.isDirectlySelected,
+        }),
         ...(item.siteId && { siteId: item.siteId }),
         ...(item.driveId && { driveId: item.driveId }),
       };

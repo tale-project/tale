@@ -1,0 +1,61 @@
+name: Lint
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/platform/**'
+      - 'services/crawler/**'
+      - 'services/rag/**'
+      - 'services/graph-db/**'
+      - 'services/operator/**'
+      - 'tools/cli/**'
+      - '.github/workflows/lint.yml'
+      - 'package.json'
+      - 'turbo.json'
+      - 'knip.config.ts'
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/platform/**'
+      - 'services/crawler/**'
+      - 'services/rag/**'
+      - 'services/graph-db/**'
+      - 'services/operator/**'
+      - 'tools/cli/**'
+      - '.github/workflows/lint.yml'
+      - 'package.json'
+      - 'turbo.json'
+      - 'knip.config.ts'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: self-hosted
+    permissions:
+      contents: read
+    env:
+      TURBO_API: 'http://127.0.0.1:9080'
+      TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TURBO_TEAM: 'tale'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Turbo
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lint, format, typecheck
+        run: npx turbo run lint format:check typecheck
+
+      - name: Knip (unused code)
+        run: npm run knip:check

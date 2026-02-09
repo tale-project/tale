@@ -1,7 +1,9 @@
-import { query } from '../../_generated/server';
 import { v } from 'convex/values';
+
 import type { Id, Doc } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
+
+import { query } from '../../_generated/server';
 
 export async function getActiveWorkflowVersion(
   ctx: QueryCtx,

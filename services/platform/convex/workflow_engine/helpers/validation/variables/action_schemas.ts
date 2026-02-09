@@ -10,7 +10,11 @@
  */
 
 import type { Doc, TableNames } from '../../../../_generated/dataModel';
-import type { OutputSchema, ActionOutputSchemaRegistry, FieldSchema } from './types';
+import type {
+  OutputSchema,
+  ActionOutputSchemaRegistry,
+  FieldSchema,
+} from './types';
 
 // =============================================================================
 // TYPE-SAFE SCHEMA BUILDERS (Constrained by Convex Types)
@@ -54,7 +58,10 @@ function createDocFields<T extends TableNames>(
   // Always include system fields
   const result: Record<string, FieldSchema> = {
     _id: idField(table),
-    _creationTime: { type: 'number', description: 'Document creation timestamp' },
+    _creationTime: {
+      type: 'number',
+      description: 'Document creation timestamp',
+    },
   };
 
   // Add user-defined fields (already type-checked by TypeScript)
@@ -82,7 +89,9 @@ function _createDocSchema<T extends TableNames>(
     nullable: options?.nullable,
     isArray: options?.isArray,
     fields: createDocFields(table, fields),
-    items: options?.isArray ? { type: 'object', fields: createDocFields(table, fields) } : undefined,
+    items: options?.isArray
+      ? { type: 'object', fields: createDocFields(table, fields) }
+      : undefined,
   };
 }
 
@@ -98,7 +107,10 @@ const paginatedResultSchema = (itemDescription: string): OutputSchema => ({
       description: `Array of ${itemDescription}`,
       items: { type: 'object' },
     },
-    isDone: { type: 'boolean', description: 'Whether all results have been fetched' },
+    isDone: {
+      type: 'boolean',
+      description: 'Whether all results have been fetched',
+    },
     continueCursor: {
       type: 'string',
       nullable: true,
@@ -130,7 +142,11 @@ const productFields = createDocFields('products', {
   tags: { type: 'array', items: { type: 'string' }, optional: true },
   status: { type: 'string', optional: true },
   externalId: { type: 'string', optional: true },
-  translations: { type: 'array', optional: true, description: 'Product translations' },
+  translations: {
+    type: 'array',
+    optional: true,
+    description: 'Product translations',
+  },
   lastUpdated: { type: 'number', optional: true },
   metadata: { type: 'any', optional: true },
 });
@@ -154,7 +170,10 @@ const productSchemas: Record<string, OutputSchema> = {
   hydrate_fields: {
     description: 'Array of items with hydrated product fields',
     isArray: true,
-    items: { type: 'any', description: 'Original item with added product fields' },
+    items: {
+      type: 'any',
+      description: 'Original item with added product fields',
+    },
   },
 };
 
@@ -243,7 +262,11 @@ const processingRecordFields = createDocFields('workflowProcessingRecords', {
   wfDefinitionId: { type: 'string' },
   recordCreationTime: { type: 'number' },
   processedAt: { type: 'number' },
-  status: { type: 'string', optional: true, description: 'in_progress | completed' },
+  status: {
+    type: 'string',
+    optional: true,
+    description: 'in_progress | completed',
+  },
   metadata: { type: 'any', optional: true },
 });
 
@@ -291,11 +314,19 @@ const conversationFields = createDocFields('conversations', {
   customerId: { type: 'id', table: 'customers', optional: true },
   externalMessageId: { type: 'string', optional: true },
   subject: { type: 'string', optional: true },
-  status: { type: 'string', optional: true, description: 'open | closed | spam | archived' },
+  status: {
+    type: 'string',
+    optional: true,
+    description: 'open | closed | spam | archived',
+  },
   priority: { type: 'string', optional: true },
   type: { type: 'string', optional: true },
   channel: { type: 'string', optional: true },
-  direction: { type: 'string', optional: true, description: 'inbound | outbound' },
+  direction: {
+    type: 'string',
+    optional: true,
+    description: 'inbound | outbound',
+  },
   providerId: { type: 'id', table: 'emailProviders', optional: true },
   metadata: { type: 'any', optional: true },
 });
@@ -347,7 +378,8 @@ const documentSchemas: Record<string, OutputSchema> = {
 const integrationSchemas: Record<string, OutputSchema> = {
   // Integration actions are dynamic - output depends on the connector
   default: {
-    description: 'Integration result - structure depends on the connector and operation',
+    description:
+      'Integration result - structure depends on the connector and operation',
   },
 };
 
@@ -360,8 +392,15 @@ const ragSchemas: Record<string, OutputSchema> = {
     description: 'RAG document upload result',
     fields: {
       success: { type: 'boolean', description: 'Whether the upload succeeded' },
-      recordId: { type: 'string', description: 'Caller-level record identifier' },
-      ragDocumentId: { type: 'string', optional: true, description: 'RAG service document ID' },
+      recordId: {
+        type: 'string',
+        description: 'Caller-level record identifier',
+      },
+      ragDocumentId: {
+        type: 'string',
+        optional: true,
+        description: 'RAG service document ID',
+      },
       chunksCreated: { type: 'number', optional: true },
       processingTimeMs: { type: 'number', optional: true },
       error: { type: 'string', optional: true },
@@ -425,14 +464,18 @@ const imapSchemas: Record<string, OutputSchema> = {
 
 const emailProviderSchemas: Record<string, OutputSchema> = {
   get_default: {
-    description: 'Default email provider configuration (flattened, no oauth2Auth)',
+    description:
+      'Default email provider configuration (flattened, no oauth2Auth)',
     fields: {
       // Note: get_default returns a narrower shape than the full emailProviderFields:
       // - Excludes oauth2Auth entirely (sensitive data)
       // - passwordAuth narrowed to { user, passEncrypted } only
       _id: idField('emailProviders'),
       name: { type: 'string' },
-      vendor: { type: 'string', description: 'gmail | outlook | smtp | resend | other' },
+      vendor: {
+        type: 'string',
+        description: 'gmail | outlook | smtp | resend | other',
+      },
       authMethod: { type: 'string', description: 'password | oauth2' },
       imapConfig: { type: 'object', optional: true },
       smtpConfig: { type: 'object', optional: true },
@@ -516,7 +559,10 @@ const onedriveSchemas: Record<string, OutputSchema> = {
   read_file: {
     description: 'File content from OneDrive',
     fields: {
-      content: { type: 'any', description: 'File content (string or ArrayBuffer)' },
+      content: {
+        type: 'any',
+        description: 'File content (string or ArrayBuffer)',
+      },
       mimeType: { type: 'string', optional: true },
       size: { type: 'number', optional: true },
     },
@@ -625,7 +671,11 @@ const websiteFields = createDocFields('websites', {
   description: { type: 'string', optional: true },
   scanInterval: { type: 'string' },
   lastScannedAt: { type: 'number', optional: true },
-  status: { type: 'string', optional: true, description: 'active | inactive | error' },
+  status: {
+    type: 'string',
+    optional: true,
+    description: 'active | inactive | error',
+  },
   metadata: { type: 'any', optional: true },
 });
 
@@ -670,10 +720,21 @@ const workflowSchemas: Record<string, OutputSchema> = {
     description: 'Workflow upload result',
     fields: {
       success: { type: 'boolean' },
-      uploaded: { type: 'number', optional: true, description: 'Number of workflows uploaded' },
-      failed: { type: 'number', optional: true, description: 'Number of workflows failed' },
+      uploaded: {
+        type: 'number',
+        optional: true,
+        description: 'Number of workflows uploaded',
+      },
+      failed: {
+        type: 'number',
+        optional: true,
+        description: 'Number of workflows failed',
+      },
       errors: { type: 'array', optional: true, description: 'Error details' },
-      executionTimeMs: { type: 'number', description: 'Execution time in milliseconds' },
+      executionTimeMs: {
+        type: 'number',
+        description: 'Execution time in milliseconds',
+      },
     },
   },
 };

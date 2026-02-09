@@ -1,14 +1,15 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from 'convex/react';
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { useToast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -38,7 +39,10 @@ export function TeamCreateDialog({
   const schema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, nameRequiredError).transform(val => val.trim()),
+        name: z
+          .string()
+          .min(1, nameRequiredError)
+          .transform((val) => val.trim()),
       }),
     [nameRequiredError],
   );

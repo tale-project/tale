@@ -1,15 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@/test/utils/render';
-import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
-import { IconButton } from './icon-button';
 import { Edit, Trash2 } from 'lucide-react';
+import { describe, it, expect, vi } from 'vitest';
+
+import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
+import { render, screen } from '@/test/utils/render';
+
+import { IconButton } from './icon-button';
 
 describe('IconButton', () => {
   describe('rendering', () => {
     it('renders with required aria-label', () => {
       render(<IconButton icon={Edit} aria-label="Edit item" />);
       expect(
-        screen.getByRole('button', { name: /edit item/i })
+        screen.getByRole('button', { name: /edit item/i }),
       ).toBeInTheDocument();
     });
 
@@ -48,7 +50,7 @@ describe('IconButton', () => {
     it('calls onClick when clicked', async () => {
       const handleClick = vi.fn();
       const { user } = render(
-        <IconButton icon={Edit} aria-label="Edit" onClick={handleClick} />
+        <IconButton icon={Edit} aria-label="Edit" onClick={handleClick} />,
       );
 
       await user.click(screen.getByRole('button'));
@@ -63,7 +65,7 @@ describe('IconButton', () => {
           aria-label="Edit"
           onClick={handleClick}
           disabled
-        />
+        />,
       );
 
       await user.click(screen.getByRole('button'));
@@ -73,7 +75,7 @@ describe('IconButton', () => {
     it('responds to keyboard Enter', async () => {
       const handleClick = vi.fn();
       const { user } = render(
-        <IconButton icon={Edit} aria-label="Edit" onClick={handleClick} />
+        <IconButton icon={Edit} aria-label="Edit" onClick={handleClick} />,
       );
 
       const button = screen.getByRole('button');
@@ -85,7 +87,7 @@ describe('IconButton', () => {
     it('responds to keyboard Space', async () => {
       const handleClick = vi.fn();
       const { user } = render(
-        <IconButton icon={Edit} aria-label="Edit" onClick={handleClick} />
+        <IconButton icon={Edit} aria-label="Edit" onClick={handleClick} />,
       );
 
       const button = screen.getByRole('button');
@@ -98,7 +100,7 @@ describe('IconButton', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(
-        <IconButton icon={Edit} aria-label="Edit item" />
+        <IconButton icon={Edit} aria-label="Edit item" />,
       );
       await checkAccessibility(container);
     });
@@ -132,7 +134,7 @@ describe('IconButton', () => {
   describe('styling', () => {
     it('applies custom className', () => {
       render(
-        <IconButton icon={Edit} aria-label="Edit" className="custom-class" />
+        <IconButton icon={Edit} aria-label="Edit" className="custom-class" />,
       );
       const button = screen.getByRole('button');
       expect(button).toHaveClass('custom-class');
@@ -144,7 +146,7 @@ describe('IconButton', () => {
           icon={Edit}
           aria-label="Edit"
           iconClassName="text-destructive"
-        />
+        />,
       );
       const button = screen.getByRole('button');
       const svg = button.querySelector('svg');

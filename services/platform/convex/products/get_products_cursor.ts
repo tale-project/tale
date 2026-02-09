@@ -5,10 +5,11 @@
  * preventing the "Too many bytes read" error regardless of data volume.
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
-import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../lib/pagination';
+import type { QueryCtx } from '../_generated/server';
 import type { ProductStatus } from './types';
+
+import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../lib/pagination';
 
 export interface GetProductsCursorArgs {
   organizationId: string;
@@ -105,17 +106,23 @@ export async function getProductsCursor(
 
   const { query, indexedFields } = buildQuery(ctx, args);
 
-  const needsCategoryFilter = !('category' in indexedFields) && args.category !== undefined;
+  const needsCategoryFilter =
+    !('category' in indexedFields) && args.category !== undefined;
   const needsSearch = searchQuery.length > 0;
   const needsFilter = needsCategoryFilter || needsSearch;
 
   const filter = needsFilter
     ? (product: Doc<'products'>): boolean => {
-        if (needsCategoryFilter && product.category !== args.category) return false;
+        if (needsCategoryFilter && product.category !== args.category)
+          return false;
         if (needsSearch) {
           const nameMatch = product.name?.toLowerCase().includes(searchQuery);
-          const descMatch = product.description?.toLowerCase().includes(searchQuery);
-          const categoryMatch = product.category?.toLowerCase().includes(searchQuery);
+          const descMatch = product.description
+            ?.toLowerCase()
+            .includes(searchQuery);
+          const categoryMatch = product.category
+            ?.toLowerCase()
+            .includes(searchQuery);
           if (!nameMatch && !descMatch && !categoryMatch) return false;
         }
         return true;

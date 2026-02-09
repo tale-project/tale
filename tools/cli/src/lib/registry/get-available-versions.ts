@@ -1,4 +1,4 @@
-import * as logger from "../../utils/logger";
+import * as logger from '../../utils/logger';
 
 interface TagsListResponse {
   name: string;
@@ -16,7 +16,7 @@ export interface VersionInfo {
 
 export interface VersionsResult {
   versions: VersionInfo[];
-  error?: "network" | "unknown";
+  error?: 'network' | 'unknown';
 }
 
 function parseRegistry(registry: string): string | null {
@@ -28,7 +28,7 @@ function parseRegistry(registry: string): string | null {
 async function getRegistryToken(image: string): Promise<string | null> {
   try {
     const response = await fetch(
-      `https://ghcr.io/token?scope=repository:${image}:pull`
+      `https://ghcr.io/token?scope=repository:${image}:pull`,
     );
 
     if (!response.ok) return null;
@@ -41,14 +41,14 @@ async function getRegistryToken(image: string): Promise<string | null> {
 }
 
 const ARCH_SUFFIXES = new Set([
-  "amd64",
-  "arm64",
-  "arm",
-  "386",
-  "ppc64le",
-  "s390x",
-  "mips64le",
-  "riscv64",
+  'amd64',
+  'arm64',
+  'arm',
+  '386',
+  'ppc64le',
+  's390x',
+  'mips64le',
+  'riscv64',
 ]);
 
 function isSemanticVersion(tag: string): boolean {
@@ -61,18 +61,22 @@ function isSemanticVersion(tag: string): boolean {
 async function getManifestDigest(
   image: string,
   tag: string,
-  token: string
+  token: string,
 ): Promise<string | null> {
   try {
-    const response = await fetch(`https://ghcr.io/v2/${image}/manifests/${tag}`, {
-      method: "HEAD",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json",
+    const response = await fetch(
+      `https://ghcr.io/v2/${image}/manifests/${tag}`,
+      {
+        method: 'HEAD',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept:
+            'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json',
+        },
       },
-    });
+    );
     if (!response.ok) return null;
-    return response.headers.get("docker-content-digest");
+    return response.headers.get('docker-content-digest');
   } catch {
     return null;
   }
@@ -89,13 +93,13 @@ function extractPrereleaseNumber(tag: string): number {
 }
 
 function sortVersions(tags: string[]): string[] {
-  return tags.sort((a, b) => {
+  return tags.toSorted((a, b) => {
     // Extract base version (before any prerelease suffix)
-    const aBase = a.replace(/^v/, "").split("-")[0];
-    const bBase = b.replace(/^v/, "").split("-")[0];
+    const aBase = a.replace(/^v/, '').split('-')[0];
+    const bBase = b.replace(/^v/, '').split('-')[0];
 
-    const aParts = aBase.split(".").map(Number);
-    const bParts = bBase.split(".").map(Number);
+    const aParts = aBase.split('.').map(Number);
+    const bParts = bBase.split('.').map(Number);
 
     for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
       const aVal = aParts[i] ?? 0;
@@ -105,8 +109,8 @@ function sortVersions(tags: string[]): string[] {
 
     // If base versions are equal, handle prerelease
     // Release versions (no suffix) come before prerelease versions
-    const aPrerelease = a.includes("-");
-    const bPrerelease = b.includes("-");
+    const aPrerelease = a.includes('-');
+    const bPrerelease = b.includes('-');
 
     if (!aPrerelease && bPrerelease) return -1;
     if (aPrerelease && !bPrerelease) return 1;
@@ -123,33 +127,36 @@ function sortVersions(tags: string[]): string[] {
 
 export async function getAvailableVersions(
   registry: string,
-  limit = 10
+  limit = 10,
 ): Promise<VersionsResult> {
   const image = parseRegistry(registry);
   if (!image) {
     logger.debug(`Cannot parse registry URL: ${registry}`);
-    return { versions: [], error: "unknown" };
+    return { versions: [], error: 'unknown' };
   }
 
   try {
     const token = await getRegistryToken(image);
 
     if (!token) {
-      logger.debug("Failed to get registry token");
-      return { versions: [], error: "network" };
+      logger.debug('Failed to get registry token');
+      return { versions: [], error: 'network' };
     }
 
-    const response = await fetch(`https://ghcr.io/v2/${image}/tags/list?n=1000`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
+    const response = await fetch(
+      `https://ghcr.io/v2/${image}/tags/list?n=1000`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       logger.debug(
-        `Failed to fetch tags: ${response.status} ${response.statusText}`
+        `Failed to fetch tags: ${response.status} ${response.statusText}`,
       );
-      return { versions: [], error: "network" };
+      return { versions: [], error: 'network' };
     }
 
     const data = (await response.json()) as TagsListResponse;
@@ -159,33 +166,43 @@ export async function getAvailableVersions(
 
     // Get semantic versions sorted
     const semanticTags = allTags.filter(isSemanticVersion);
-    const sortedSemanticTags = semanticTags.length > 0 ? sortVersions(semanticTags) : [];
+    const sortedSemanticTags =
+      semanticTags.length > 0 ? sortVersions(semanticTags) : [];
     const latestSemanticTag = sortedSemanticTags[0];
 
     // Check if "latest" points to the same image as the latest semantic version
-    const hasLatest = allTags.includes("latest");
-    const hasMain = allTags.includes("main");
+    const hasLatest = allTags.includes('latest');
+    const hasMain = allTags.includes('main');
     let latestMatchesSemanticTag = false;
 
     if (hasLatest && latestSemanticTag) {
       const [latestDigest, semanticDigest] = await Promise.all([
-        getManifestDigest(image, "latest", token),
+        getManifestDigest(image, 'latest', token),
         getManifestDigest(image, latestSemanticTag, token),
       ]);
-      latestMatchesSemanticTag = !!(latestDigest && semanticDigest && latestDigest === semanticDigest);
+      latestMatchesSemanticTag = !!(
+        latestDigest &&
+        semanticDigest &&
+        latestDigest === semanticDigest
+      );
     }
 
     // Build version list
     if (hasLatest) {
       const aliases: string[] = [];
-      if (hasMain) aliases.push("main");
-      if (latestMatchesSemanticTag && latestSemanticTag) aliases.push(latestSemanticTag);
-      versionInfos.push({ tag: "latest", aliases });
+      if (hasMain) aliases.push('main');
+      if (latestMatchesSemanticTag && latestSemanticTag)
+        aliases.push(latestSemanticTag);
+      versionInfos.push({ tag: 'latest', aliases });
     }
 
     // Add semantic versions (skip the first one if it matches latest)
     const startIndex = latestMatchesSemanticTag ? 1 : 0;
-    for (let i = startIndex; i < sortedSemanticTags.length && versionInfos.length < limit; i++) {
+    for (
+      let i = startIndex;
+      i < sortedSemanticTags.length && versionInfos.length < limit;
+      i++
+    ) {
       versionInfos.push({ tag: sortedSemanticTags[i], aliases: [] });
     }
 
@@ -201,6 +218,6 @@ export async function getAvailableVersions(
     return { versions: versionInfos };
   } catch (err) {
     logger.debug(`Error fetching versions: ${err}`);
-    return { versions: [], error: "network" };
+    return { versions: [], error: 'network' };
   }
 }

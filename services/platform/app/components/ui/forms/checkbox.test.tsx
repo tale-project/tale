@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@/test/utils/render';
+
 import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
+import { render, screen } from '@/test/utils/render';
+
 import { Checkbox } from './checkbox';
 
 describe('Checkbox', () => {
@@ -24,7 +26,7 @@ describe('Checkbox', () => {
       render(<Checkbox checked />);
       expect(screen.getByRole('checkbox')).toHaveAttribute(
         'data-state',
-        'checked'
+        'checked',
       );
     });
 
@@ -32,7 +34,7 @@ describe('Checkbox', () => {
       render(<Checkbox checked="indeterminate" />);
       expect(screen.getByRole('checkbox')).toHaveAttribute(
         'data-state',
-        'indeterminate'
+        'indeterminate',
       );
     });
   });
@@ -49,7 +51,7 @@ describe('Checkbox', () => {
     it('toggles state on click', async () => {
       const handleChange = vi.fn();
       const { user } = render(
-        <Checkbox checked={false} onCheckedChange={handleChange} />
+        <Checkbox checked={false} onCheckedChange={handleChange} />,
       );
 
       await user.click(screen.getByRole('checkbox'));
@@ -59,7 +61,7 @@ describe('Checkbox', () => {
     it('clicking label toggles checkbox', async () => {
       const handleChange = vi.fn();
       const { user } = render(
-        <Checkbox label="Accept" onCheckedChange={handleChange} />
+        <Checkbox label="Accept" onCheckedChange={handleChange} />,
       );
 
       await user.click(screen.getByText('Accept'));
@@ -69,7 +71,7 @@ describe('Checkbox', () => {
     it('does not call onCheckedChange when disabled', async () => {
       const handleChange = vi.fn();
       const { user } = render(
-        <Checkbox onCheckedChange={handleChange} disabled />
+        <Checkbox onCheckedChange={handleChange} disabled />,
       );
 
       await user.click(screen.getByRole('checkbox'));

@@ -1,10 +1,10 @@
 'use client';
 
-import * as React from 'react';
 import * as ToastPrimitives from '@radix-ui/react-toast';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
 import { CheckCircle2, XCircle } from 'lucide-react';
+import * as React from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
@@ -50,11 +50,11 @@ const Toast = React.forwardRef<
     switch (variant) {
       case 'success':
         return (
-          <CheckCircle2 className="size-5 text-success" aria-hidden="true" />
+          <CheckCircle2 className="text-success size-5" aria-hidden="true" />
         );
       case 'destructive':
         return (
-          <XCircle className="size-5 text-destructive" aria-hidden="true" />
+          <XCircle className="text-destructive size-5" aria-hidden="true" />
         );
       default:
         return null;

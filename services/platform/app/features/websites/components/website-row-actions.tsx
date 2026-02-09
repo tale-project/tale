@@ -1,18 +1,20 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
 import { Eye, ScanText, RefreshCcw, Pencil, Trash2 } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
-import { Doc } from '@/convex/_generated/dataModel';
-import { ViewWebsiteDialog } from './website-view-dialog';
-import { EditWebsiteDialog } from './website-edit-dialog';
-import { DeleteWebsiteDialog } from './website-delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
-import { useRescanWebsite } from '../hooks/use-rescan-website';
+import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+
+import { useRescanWebsite } from '../hooks/use-rescan-website';
+import { DeleteWebsiteDialog } from './website-delete-dialog';
+import { EditWebsiteDialog } from './website-edit-dialog';
+import { ViewWebsiteDialog } from './website-view-dialog';
 
 interface WebsiteRowActionsProps {
   website: Doc<'websites'>;

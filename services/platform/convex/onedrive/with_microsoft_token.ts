@@ -1,4 +1,5 @@
 import type { ActionCtx } from '../_generated/server';
+
 import { internal } from '../_generated/api';
 import { authComponent } from '../auth';
 
@@ -19,14 +20,24 @@ export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
     { userId },
   );
 
-  if (tokenResult.needsRefresh && tokenResult.accountId && tokenResult.refreshToken) {
-    const refreshResult = await ctx.runAction(internal.onedrive.internal_actions.refreshToken, {
-      accountId: tokenResult.accountId,
-      refreshToken: tokenResult.refreshToken,
-    });
+  if (
+    tokenResult.needsRefresh &&
+    tokenResult.accountId &&
+    tokenResult.refreshToken
+  ) {
+    const refreshResult = await ctx.runAction(
+      internal.onedrive.internal_actions.refreshToken,
+      {
+        accountId: tokenResult.accountId,
+        refreshToken: tokenResult.refreshToken,
+      },
+    );
 
     if (!refreshResult.success) {
-      return { success: false, error: refreshResult.error || 'Failed to refresh OneDrive token' };
+      return {
+        success: false,
+        error: refreshResult.error || 'Failed to refresh OneDrive token',
+      };
     }
 
     const newTokenResult = await ctx.runQuery(
@@ -35,14 +46,20 @@ export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
     );
 
     if (!newTokenResult.token) {
-      return { success: false, error: 'Failed to retrieve refreshed OneDrive token' };
+      return {
+        success: false,
+        error: 'Failed to retrieve refreshed OneDrive token',
+      };
     }
 
     return { success: true, token: newTokenResult.token, userId };
   }
 
   if (!tokenResult.token) {
-    return { success: false, error: 'Microsoft account not connected or token expired' };
+    return {
+      success: false,
+      error: 'Microsoft account not connected or token expired',
+    };
   }
 
   return { success: true, token: tokenResult.token, userId };

@@ -19,7 +19,7 @@ from uuid import UUID
 import cognee
 from loguru import logger
 
-from .utils import sanitize_team_id, validate_team_id
+from .utils import sanitize_team_id
 
 if TYPE_CHECKING:
     pass
@@ -91,9 +91,7 @@ async def get_or_create_team_context(team_id: str) -> Any:
         raise ValueError(f"Invalid team_id: '{original_team_id}' (empty after sanitization)")
 
     if original_team_id != team_id:
-        logger.warning(
-            f"team_id was sanitized: '{original_team_id}' -> '{team_id}'"
-        )
+        logger.warning(f"team_id was sanitized: '{original_team_id}' -> '{team_id}'")
 
     # Check cache first (fast path)
     if team_id in _team_context_cache:

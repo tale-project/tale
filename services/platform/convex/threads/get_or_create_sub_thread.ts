@@ -13,13 +13,14 @@
  * ```
  */
 
-import { MutationCtx } from '../_generated/server';
-import { components } from '../_generated/api';
 import type {
   SubAgentType,
   SubThreadSummary,
   ThreadSummaryWithSubThreads,
 } from '../agent_tools/sub_agents/helpers/types';
+
+import { components } from '../_generated/api';
+import { MutationCtx } from '../_generated/server';
 
 // Re-export for consumers that import from this module
 export type { SubAgentType } from '../agent_tools/sub_agents/helpers/types';
@@ -44,10 +45,9 @@ export async function getOrCreateSubThread(
   userId?: string,
 ): Promise<GetOrCreateSubThreadResult> {
   // 1. Get parent thread to read its summary (atomic read within this transaction)
-  const parentThread = await ctx.runQuery(
-    components.agent.threads.getThread,
-    { threadId: parentThreadId },
-  );
+  const parentThread = await ctx.runQuery(components.agent.threads.getThread, {
+    threadId: parentThreadId,
+  });
 
   if (!parentThread) {
     throw new Error(`Parent thread not found: ${parentThreadId}`);
@@ -57,9 +57,7 @@ export async function getOrCreateSubThread(
   let summary: ThreadSummaryWithSubThreads = {};
   if (parentThread.summary) {
     try {
-      summary = JSON.parse(
-        parentThread.summary,
-      ) as ThreadSummaryWithSubThreads;
+      summary = JSON.parse(parentThread.summary) as ThreadSummaryWithSubThreads;
     } catch {
       // Invalid JSON, start fresh
       console.warn(
@@ -72,10 +70,9 @@ export async function getOrCreateSubThread(
 
   // 3. If we have an existing sub-thread ID, verify it's still active
   if (existingSubThreadId) {
-    const subThread = await ctx.runQuery(
-      components.agent.threads.getThread,
-      { threadId: existingSubThreadId },
-    );
+    const subThread = await ctx.runQuery(components.agent.threads.getThread, {
+      threadId: existingSubThreadId,
+    });
 
     if (subThread?.status === 'active') {
       console.log(

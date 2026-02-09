@@ -1,4 +1,5 @@
 import { addons } from '@storybook/manager-api';
+
 import { taleTheme } from './theme';
 
 addons.setConfig({

@@ -10,7 +10,9 @@ import type { Integration, SqlIntegration } from '../types';
  *   const engine = integration.sqlConnectionConfig.engine;
  * }
  */
-export function isSqlIntegration(integration: Integration): integration is SqlIntegration {
+export function isSqlIntegration(
+  integration: Integration,
+): integration is SqlIntegration {
   return (
     integration.type === 'sql' &&
     integration.sqlConnectionConfig !== undefined &&

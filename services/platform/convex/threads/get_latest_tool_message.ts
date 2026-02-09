@@ -6,9 +6,10 @@
  * Supports multiple tool calls in a single message.
  */
 
-import { QueryCtx } from '../_generated/server';
-import { components } from '../_generated/api';
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
+
+import { components } from '../_generated/api';
+import { QueryCtx } from '../_generated/server';
 
 export interface LatestToolMessage {
   toolNames: string[];
@@ -121,4 +122,3 @@ export async function getLatestToolMessage(
     timestamp: null,
   };
 }
-

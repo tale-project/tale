@@ -2,12 +2,14 @@
 
 import { usePaginatedQuery } from 'convex/react';
 import { Package } from 'lucide-react';
-import { api } from '@/convex/_generated/api';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { ProductsActionMenu } from './products-action-menu';
-import { useProductsTableConfig } from '../hooks/use-products-table-config';
-import { useT } from '@/lib/i18n/client';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+
+import { useProductsTableConfig } from '../hooks/use-products-table-config';
+import { ProductsActionMenu } from './products-action-menu';
 
 export interface ProductTableProps {
   organizationId: string;

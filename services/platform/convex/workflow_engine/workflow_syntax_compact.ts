@@ -289,4 +289,3 @@ workflow_processing_records returns ONE entity at a time (not an array):
 - Use workflow_processing_records for entity-by-entity processing
 - Configure retryPolicy for unreliable services
 `;
-

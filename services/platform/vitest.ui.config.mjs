@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
@@ -9,7 +9,10 @@ export default defineConfig({
     globals: true,
     pool: 'threads',
     setupFiles: ['./test/setup-ui.ts'],
-    include: ['app/components/**/*.test.{ts,tsx}', 'app/hooks/**/*.test.{ts,tsx}'],
+    include: [
+      'app/components/**/*.test.{ts,tsx}',
+      'app/hooks/**/*.test.{ts,tsx}',
+    ],
     exclude: ['node_modules', '.next', 'dist', 'convex/**'],
     deps: {
       optimizer: {

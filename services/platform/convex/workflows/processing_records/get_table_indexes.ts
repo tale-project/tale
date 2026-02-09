@@ -126,9 +126,7 @@ export const TABLE_INDEXES: Record<TableName, IndexConfig[]> = {
     { name: 'by_organizationId', fields: ['organizationId'] },
   ],
 
-  exampleMessages: [
-    { name: 'by_organizationId', fields: ['organizationId'] },
-  ],
+  exampleMessages: [{ name: 'by_organizationId', fields: ['organizationId'] }],
 
   conversationMessages: [
     // by_organizationId_and_direction is optimal for filtering inbound messages

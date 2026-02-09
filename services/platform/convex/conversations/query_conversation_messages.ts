@@ -7,9 +7,13 @@
  * - default: by_organizationId_and_deliveredAt
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Id, Doc } from '../_generated/dataModel';
-import { paginateWithFilter, type CursorPaginatedResult } from '../lib/pagination';
+import type { QueryCtx } from '../_generated/server';
+
+import {
+  paginateWithFilter,
+  type CursorPaginatedResult,
+} from '../lib/pagination';
 
 export interface QueryConversationMessagesArgs {
   organizationId: string;
@@ -67,14 +71,17 @@ export async function queryConversationMessages(
 ): Promise<CursorPaginatedResult<Doc<'conversationMessages'>>> {
   const { query, indexedFields } = buildQuery(ctx, args);
 
-  const needsChannelFilter = !('channel' in indexedFields) && args.channel !== undefined;
-  const needsDirectionFilter = !('direction' in indexedFields) && args.direction !== undefined;
+  const needsChannelFilter =
+    !('channel' in indexedFields) && args.channel !== undefined;
+  const needsDirectionFilter =
+    !('direction' in indexedFields) && args.direction !== undefined;
   const needsFilter = needsChannelFilter || needsDirectionFilter;
 
   const filter = needsFilter
     ? (msg: Doc<'conversationMessages'>): boolean => {
         if (needsChannelFilter && msg.channel !== args.channel) return false;
-        if (needsDirectionFilter && msg.direction !== args.direction) return false;
+        if (needsDirectionFilter && msg.direction !== args.direction)
+          return false;
         return true;
       }
     : undefined;

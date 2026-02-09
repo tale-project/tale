@@ -8,20 +8,26 @@
  * Supports both database-backed and inline workflows.
  */
 
-import type { MutationCtx } from '../../../_generated/server';
-import { internal } from '../../../_generated/api';
-import type { Doc } from '../../../_generated/dataModel';
-import type { WorkflowType } from '../../types/workflow';
-import { loadDatabaseWorkflow } from './load_database_workflow';
-import { failExecution, updateExecutionMetadata } from '../../../workflows/helpers';
 import type { WorkflowManager } from '@convex-dev/workflow';
+
 import { Infer } from 'convex/values';
+
+import type { Doc } from '../../../_generated/dataModel';
+import type { MutationCtx } from '../../../_generated/server';
+import type { WorkflowType } from '../../types/workflow';
+
 import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { internal } from '../../../_generated/api';
+import {
+  failExecution,
+  updateExecutionMetadata,
+} from '../../../workflows/helpers';
+import { loadDatabaseWorkflow } from './load_database_workflow';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
-import { safeShardIndex } from './shard';
 import { createDebugLog } from '../../../lib/debug_log';
+import { safeShardIndex } from './shard';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -128,7 +134,8 @@ export async function executeWorkflowStart(
     workflowType,
   });
 
-  const dynamicWorkflowRef = DYNAMIC_WORKFLOW_REFS[safeShardIndex(args.shardIndex)];
+  const dynamicWorkflowRef =
+    DYNAMIC_WORKFLOW_REFS[safeShardIndex(args.shardIndex)];
   const componentWorkflowId = await args.workflowManager.start(
     ctx,
     dynamicWorkflowRef,
@@ -144,7 +151,8 @@ export async function executeWorkflowStart(
     {
       // Type assertion: our onComplete handler accepts jsonValueValidator which is compatible
       // with the workflow component's OnCompleteArgs at runtime, but not at compile time
-      onComplete: internal.workflow_engine.internal_mutations.onWorkflowComplete as any,
+      onComplete: internal.workflow_engine.internal_mutations
+        .onWorkflowComplete as any,
       context: { executionId: args.executionId },
     },
   );

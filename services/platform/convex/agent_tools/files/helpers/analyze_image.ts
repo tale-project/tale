@@ -10,12 +10,13 @@
  * This file runs in V8 runtime (no 'use node' directive) for better compatibility.
  */
 
-import { components } from '../../../_generated/api';
-import { createDebugLog } from '../../../lib/debug_log';
-import type { ActionCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
-import { getVisionModel, createVisionAgent } from './vision_agent';
+import type { ActionCtx } from '../../../_generated/server';
+
+import { components } from '../../../_generated/api';
 import { imageAnalysisCache } from '../../../lib/action_cache';
+import { createDebugLog } from '../../../lib/debug_log';
+import { getVisionModel, createVisionAgent } from './vision_agent';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[ImageAnalysis]');
 
@@ -82,7 +83,10 @@ export async function analyzeImage(
     // Convert blob to Uint8Array (AI SDK handles encoding internally)
     const imageData = new Uint8Array(await imageBlob.arrayBuffer());
 
-    debugLog('analyzeImage prepared', { byteLength: imageData.byteLength, mimeType });
+    debugLog('analyzeImage prepared', {
+      byteLength: imageData.byteLength,
+      mimeType,
+    });
 
     const visionAgent = createVisionAgent();
 
@@ -109,7 +113,11 @@ export async function analyzeImage(
             {
               role: 'user',
               content: [
-                { type: 'image' as const, image: imageData, mediaType: mimeType },
+                {
+                  type: 'image' as const,
+                  image: imageData,
+                  mediaType: mimeType,
+                },
                 { type: 'text', text: prompt },
               ],
             },

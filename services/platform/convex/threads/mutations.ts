@@ -1,15 +1,18 @@
 import { v } from 'convex/values';
+
 import { mutation } from '../_generated/server';
+import { authComponent } from '../auth';
 import { createChatThread as createChatThreadHelper } from './create_chat_thread';
 import { deleteChatThread as deleteChatThreadHelper } from './delete_chat_thread';
 import { updateChatThread as updateChatThreadHelper } from './update_chat_thread';
-import { authComponent } from '../auth';
 
 export const createChatThread = mutation({
   args: {
     organizationId: v.string(),
     title: v.optional(v.string()),
-    chatType: v.optional(v.union(v.literal('general'), v.literal('workflow_assistant'))),
+    chatType: v.optional(
+      v.union(v.literal('general'), v.literal('workflow_assistant')),
+    ),
   },
   returns: v.string(),
   handler: async (ctx, args) => {

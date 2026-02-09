@@ -2,8 +2,8 @@
  * Get workflow definition with first step
  */
 
-import type { QueryCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { QueryCtx } from '../../_generated/server';
 import type { WorkflowDefinitionWithFirstStep } from './types';
 
 export async function getWorkflowWithFirstStep(

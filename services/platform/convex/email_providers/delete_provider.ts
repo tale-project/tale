@@ -1,5 +1,5 @@
-import type { MutationCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 export async function deleteProvider(
   ctx: MutationCtx,
@@ -30,4 +30,3 @@ export async function deleteProvider(
   await ctx.db.delete(args.providerId);
   return null;
 }
-

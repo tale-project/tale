@@ -1,19 +1,16 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from 'convex/react';
+import { useState, useMemo, useEffect } from 'react';
+
+import type { Id } from '@/convex/_generated/dataModel';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { useToast } from '@/app/hooks/use-toast';
-import { useT } from '@/lib/i18n/client';
-import type { Id } from '@/convex/_generated/dataModel';
 import { api } from '@/convex/_generated/api';
-import {
-  useCreateEventSubscription,
-  useUpdateEventSubscription,
-} from '../hooks/use-trigger-mutations';
 import {
   EVENT_TYPES,
   EVENT_TYPE_CATEGORIES,
@@ -21,6 +18,12 @@ import {
   type EventType,
   type EventFilterFieldDef,
 } from '@/convex/workflows/triggers/event_types';
+import { useT } from '@/lib/i18n/client';
+
+import {
+  useCreateEventSubscription,
+  useUpdateEventSubscription,
+} from '../hooks/use-trigger-mutations';
 
 interface EditingSubscription {
   _id: Id<'wfEventSubscriptions'>;
@@ -74,7 +77,9 @@ export function EventCreateDialog({
     [selectedEventType],
   );
 
-  const hasWorkflowSelect = filterFields.some((f) => f.inputType === 'workflow-select');
+  const hasWorkflowSelect = filterFields.some(
+    (f) => f.inputType === 'workflow-select',
+  );
 
   const workflows = useQuery(
     api.wf_definitions.queries.listAutomationRoots,
@@ -84,7 +89,9 @@ export function EventCreateDialog({
   const options = useMemo(() => {
     const result: { value: string; label: string; disabled?: boolean }[] = [];
 
-    for (const [category, categoryMeta] of Object.entries(EVENT_TYPE_CATEGORIES)) {
+    for (const [category, categoryMeta] of Object.entries(
+      EVENT_TYPE_CATEGORIES,
+    )) {
       for (const [type, meta] of Object.entries(EVENT_TYPES)) {
         if (meta.category !== category) continue;
         const alreadySubscribed = existingEventTypes.includes(type);
@@ -125,7 +132,8 @@ export function EventCreateDialog({
 
     setIsSubmitting(true);
     try {
-      const filterPayload = Object.keys(filterValues).length > 0 ? filterValues : undefined;
+      const filterPayload =
+        Object.keys(filterValues).length > 0 ? filterValues : undefined;
 
       if (isEditMode && editing) {
         await updateEventSubscription({
@@ -177,8 +185,14 @@ export function EventCreateDialog({
     <FormDialog
       open={open}
       onOpenChange={handleOpenChange}
-      title={isEditMode ? t('triggers.events.form.editTitle') : t('triggers.events.form.title')}
-      submitText={isEditMode ? tCommon('actions.save') : tCommon('actions.create')}
+      title={
+        isEditMode
+          ? t('triggers.events.form.editTitle')
+          : t('triggers.events.form.title')
+      }
+      submitText={
+        isEditMode ? tCommon('actions.save') : tCommon('actions.create')
+      }
       submittingText={tCommon('actions.loading')}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
@@ -186,14 +200,14 @@ export function EventCreateDialog({
       <Stack gap={4}>
         {isEditMode ? (
           <div>
-            <p className="text-sm font-medium mb-1">
+            <p className="mb-1 text-sm font-medium">
               {t('triggers.events.form.eventType')}
             </p>
             <div className="flex items-center gap-2">
-              <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
+              <code className="bg-muted rounded px-2 py-1 font-mono text-sm">
                 {selectedEventType}
               </code>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {selectedMeta?.label}
               </span>
             </div>
@@ -209,7 +223,7 @@ export function EventCreateDialog({
           />
         )}
         {selectedMeta && !isEditMode && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {selectedMeta.description}
           </p>
         )}

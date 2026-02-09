@@ -2,8 +2,8 @@
  * Type definitions for index selection
  */
 
-import type { IndexConfig } from '../get_table_indexes';
 import type { FilterCondition } from '../ast_helpers';
+import type { IndexConfig } from '../get_table_indexes';
 
 /**
  * Result of index selection

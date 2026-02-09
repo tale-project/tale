@@ -1,6 +1,8 @@
+import type { FunctionReference, FunctionReturnType } from 'convex/server';
+
 import { useQuery } from 'convex/react';
 import { useMemo } from 'react';
-import type { FunctionReference, FunctionReturnType } from 'convex/server';
+
 import {
   filterByFields,
   filterByTextSearch,
@@ -10,7 +12,12 @@ import {
   type SortOrder,
 } from '@/lib/utils/client-utils';
 
-type QueryFunction = FunctionReference<'query', 'public', { organizationId: string }, any[]>;
+type QueryFunction = FunctionReference<
+  'query',
+  'public',
+  { organizationId: string },
+  any[]
+>;
 
 interface SortFieldConfig<TSortBy extends string, TItem> {
   string: TSortBy[];
@@ -62,7 +69,6 @@ export function createEntityDataHook<
       sortOrder = config.defaultSort.order,
     } = options;
 
-     
     const allItems = useQuery(config.queryFn as any, { organizationId });
 
     const processed = useMemo(() => {
@@ -86,7 +92,8 @@ export function createEntityDataHook<
       }
 
       const getSorter = () => {
-        const actualField = config.sortConfig.fieldMap?.[sortBy] ?? (sortBy as keyof TItem);
+        const actualField =
+          config.sortConfig.fieldMap?.[sortBy] ?? (sortBy as keyof TItem);
         if (config.sortConfig.number.includes(sortBy)) {
           return sortByNumber<TItem>(actualField, sortOrder);
         }

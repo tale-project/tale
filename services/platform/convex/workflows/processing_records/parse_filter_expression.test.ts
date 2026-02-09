@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+
 import { parseFilterExpression } from './parse_filter_expression';
 
 describe('parseFilterExpression', () => {
@@ -130,7 +131,9 @@ describe('parseFilterExpression', () => {
 
   describe('multiple AND conditions', () => {
     it('should parse two equality conditions', () => {
-      const result = parseFilterExpression('status == "open" && priority == "high"');
+      const result = parseFilterExpression(
+        'status == "open" && priority == "high"',
+      );
       expect(result.conditions).toHaveLength(2);
       expect(result.conditions[0]).toEqual({
         field: 'status',
@@ -196,7 +199,9 @@ describe('parseFilterExpression', () => {
 
   describe('OR expressions', () => {
     it('should mark OR expression as complex', () => {
-      const result = parseFilterExpression('status == "open" || status == "pending"');
+      const result = parseFilterExpression(
+        'status == "open" || status == "pending"',
+      );
       expect(result.hasComplexConditions).toBe(true);
       // OR expressions are not currently optimized for indexing
       expect(result.conditions).toEqual([]);
@@ -234,7 +239,9 @@ describe('parseFilterExpression', () => {
 
   describe('parentheses and grouping', () => {
     it('should handle simple parentheses with AND', () => {
-      const result = parseFilterExpression('(status == "open") && (priority == 5)');
+      const result = parseFilterExpression(
+        '(status == "open") && (priority == 5)',
+      );
       expect(result.conditions).toHaveLength(2);
       expect(result.hasComplexConditions).toBe(false);
     });

@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
-import { useRemoveMember } from '../hooks/use-remove-member';
 import { useT } from '@/lib/i18n/client';
+
+import { useRemoveMember } from '../hooks/use-remove-member';
 
 type MemberLite = {
   _id: string;
@@ -60,11 +62,17 @@ export function DeleteMemberDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={t('organization.removeMember')}
-      description={tDialogs('confirmRemoveMember', { name: member.displayName || member.email || tDialogs('thisMember') })}
+      description={tDialogs('confirmRemoveMember', {
+        name: member.displayName || member.email || tDialogs('thisMember'),
+      })}
       deleteText={t('organization.removeMember')}
       isDeleting={isDeleting}
       onDelete={handleConfirm}
-      warning={member.role === 'admin' ? t('organization.adminSecurityWarning') : undefined}
+      warning={
+        member.role === 'admin'
+          ? t('organization.adminSecurityWarning')
+          : undefined
+      }
     />
   );
 }

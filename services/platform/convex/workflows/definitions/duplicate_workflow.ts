@@ -2,8 +2,8 @@
  * Duplicate a workflow definition and all of its steps.
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Doc, Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 
 export interface DuplicateWorkflowArgs {
   wfDefinitionId: Id<'wfDefinitions'>;
@@ -15,9 +15,9 @@ export async function duplicateWorkflow(
   args: DuplicateWorkflowArgs,
 ): Promise<Id<'wfDefinitions'>> {
   // Load source workflow
-  const source = (await ctx.db.get(args.wfDefinitionId)) as
-    | Doc<'wfDefinitions'>
-    | null;
+  const source = (await ctx.db.get(
+    args.wfDefinitionId,
+  )) as Doc<'wfDefinitions'> | null;
 
   if (!source) {
     throw new Error('Workflow not found');
@@ -36,7 +36,7 @@ export async function duplicateWorkflow(
     config: source.config || {},
     rootVersionId: undefined,
     metadata: {
-      ...(source.metadata || {}),
+      ...source.metadata,
       createdAt: Date.now(),
       createdBy: 'user',
       duplicatedFrom: source._id,
@@ -52,7 +52,9 @@ export async function duplicateWorkflow(
   const steps: Array<Doc<'wfStepDefs'>> = [];
   for await (const step of ctx.db
     .query('wfStepDefs')
-    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.wfDefinitionId))) {
+    .withIndex('by_definition', (q) =>
+      q.eq('wfDefinitionId', args.wfDefinitionId),
+    )) {
     steps.push(step);
   }
 
@@ -75,4 +77,3 @@ export async function duplicateWorkflow(
 
   return newWorkflowId;
 }
-

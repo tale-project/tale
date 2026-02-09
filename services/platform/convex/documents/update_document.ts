@@ -2,11 +2,13 @@
  * Update a document (for public API)
  */
 
-import type { MutationCtx } from '../_generated/server';
-import type { Id } from '../_generated/dataModel';
 import _ from 'lodash';
-import { extractExtension } from './extract_extension';
+
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { extractExtension } from './extract_extension';
 
 export async function updateDocument(
   ctx: MutationCtx,
@@ -38,7 +40,9 @@ export async function updateDocument(
     const userTeamSet = new Set(userTeamIds);
     for (const tag of args.teamTags) {
       if (!userTeamSet.has(tag)) {
-        throw new Error('Cannot assign document to a team you do not belong to');
+        throw new Error(
+          'Cannot assign document to a team you do not belong to',
+        );
       }
     }
   }
@@ -49,8 +53,10 @@ export async function updateDocument(
   if (args.content !== undefined) updateData.content = args.content;
   if (args.fileId !== undefined) updateData.fileId = args.fileId;
   if (args.mimeType !== undefined) updateData.mimeType = args.mimeType;
-  if (args.sourceProvider !== undefined) updateData.sourceProvider = args.sourceProvider;
-  if (args.externalItemId !== undefined) updateData.externalItemId = args.externalItemId;
+  if (args.sourceProvider !== undefined)
+    updateData.sourceProvider = args.sourceProvider;
+  if (args.externalItemId !== undefined)
+    updateData.externalItemId = args.externalItemId;
   if (args.teamTags !== undefined) updateData.teamTags = args.teamTags;
 
   if (args.extension !== undefined) {

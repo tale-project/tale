@@ -2,8 +2,9 @@
  * Shared types for attachment handling in AI agents.
  */
 
-import type { Id } from '../../_generated/dataModel';
 import type { ImagePart as AIImagePart, FilePart as AIFilePart } from 'ai';
+
+import type { Id } from '../../_generated/dataModel';
 
 /**
  * File attachment from the client
@@ -41,4 +42,3 @@ export interface MultiModalContent {
   hasImages: boolean;
   hasNonImageFiles: boolean;
 }
-

@@ -80,7 +80,8 @@ const productRecommendationEmailWorkflow: PredefinedWorkflowDefinition = {
           operation: 'find_unprocessed',
           tableName: 'approvals',
           backoffHours: '{{backoffHours}}',
-          filterExpression: 'status == "approved" && resourceType == "product_recommendation"',
+          filterExpression:
+            'status == "approved" && resourceType == "product_recommendation"',
         },
       },
       nextSteps: {
@@ -116,13 +117,11 @@ const productRecommendationEmailWorkflow: PredefinedWorkflowDefinition = {
           variables: [
             {
               name: 'currentApproval',
-              value:
-                '{{steps.find_approved_approval.output.data}}',
+              value: '{{steps.find_approved_approval.output.data}}',
             },
             {
               name: 'currentApprovalId',
-              value:
-                '{{steps.find_approved_approval.output.data._id}}',
+              value: '{{steps.find_approved_approval.output.data._id}}',
             },
             {
               name: 'customerId',
@@ -195,11 +194,13 @@ const productRecommendationEmailWorkflow: PredefinedWorkflowDefinition = {
             },
             body: {
               type: 'string',
-              description: 'Full email body in Markdown format with narrative style',
+              description:
+                'Full email body in Markdown format with narrative style',
             },
             preview: {
               type: 'string',
-              description: 'Email preview text shown in inbox (first line summary)',
+              description:
+                'Email preview text shown in inbox (first line summary)',
             },
           },
           required: ['subject', 'body', 'preview'],
@@ -291,8 +292,7 @@ Requirements:
         parameters: {
           operation: 'create_approval',
           resourceType: 'conversations',
-          resourceId:
-            '{{steps.create_conversation.output.data._id}}',
+          resourceId: '{{steps.create_conversation.output.data._id}}',
           priority: 'medium',
           description:
             'Review and approve product recommendation email before sending',
@@ -325,10 +325,8 @@ Requirements:
           recordId: '{{currentApprovalId}}',
           metadata: {
             emailGenerated: true,
-            conversationId:
-              '{{steps.create_conversation.output.data._id}}',
-            emailApprovalId:
-              '{{steps.create_email_approval.output.data._id}}',
+            conversationId: '{{steps.create_conversation.output.data._id}}',
+            emailApprovalId: '{{steps.create_email_approval.output.data._id}}',
             processedAt: '{{now}}',
           },
         },

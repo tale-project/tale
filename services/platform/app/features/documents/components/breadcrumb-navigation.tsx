@@ -2,6 +2,7 @@
 
 import { useNavigate, useLocation, useSearch } from '@tanstack/react-router';
 import { ChevronLeft } from 'lucide-react';
+
 import { useT } from '@/lib/i18n/client';
 
 interface BreadcrumbNavigationProps {
@@ -74,11 +75,11 @@ export function BreadcrumbNavigation({
   };
 
   return (
-    <nav className="flex items-center gap-1 mb-4 bg-background sticky top-14 z-10">
+    <nav className="bg-background sticky top-14 z-10 mb-4 flex items-center gap-1">
       {/* Back Arrow */}
       <button
         onClick={() => navigateToPath('')}
-        className="shrink-0 size-4 text-muted-foreground hover:text-foreground/90 transition-colors cursor-pointer"
+        className="text-muted-foreground hover:text-foreground/90 size-4 shrink-0 cursor-pointer transition-colors"
         aria-label={tCommon('aria.backTo', { page: t('breadcrumb.documents') })}
       >
         <ChevronLeft className="size-4" />
@@ -87,7 +88,7 @@ export function BreadcrumbNavigation({
       {/* Documents Root */}
       <button
         onClick={() => navigateToPath('')}
-        className="font-medium text-xs text-muted-foreground hover:text-foreground/90 transition-colors whitespace-nowrap cursor-pointer"
+        className="text-muted-foreground hover:text-foreground/90 cursor-pointer text-xs font-medium whitespace-nowrap transition-colors"
       >
         {t('breadcrumb.documents')}
       </button>
@@ -101,7 +102,7 @@ export function BreadcrumbNavigation({
           <div key={index} className="flex items-center gap-1">
             {/* Separator */}
             <div
-              className="font-medium text-[14px] text-muted-foreground leading-4 mx-1"
+              className="text-muted-foreground mx-1 text-[14px] leading-4 font-medium"
               style={{ fontFamily: 'DM Sans, sans-serif' }}
             >
               /
@@ -110,7 +111,7 @@ export function BreadcrumbNavigation({
             {/* Segment */}
             {isLast ? (
               <span
-                className="text-xs text-foreground font-semibold whitespace-nowrap"
+                className="text-foreground text-xs font-semibold whitespace-nowrap"
                 style={{ fontFamily: 'Inter, sans-serif' }}
               >
                 {displayName}
@@ -118,7 +119,7 @@ export function BreadcrumbNavigation({
             ) : (
               <button
                 onClick={() => navigateToPath(segmentObj.originalPath)}
-                className="font-medium text-xs text-muted-foreground hover:text-foreground/90 transition-colors whitespace-nowrap cursor-pointer"
+                className="text-muted-foreground hover:text-foreground/90 cursor-pointer text-xs font-medium whitespace-nowrap transition-colors"
                 style={{ fontFamily: 'Inter, sans-serif' }}
               >
                 {displayName}

@@ -1,11 +1,11 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-
-import { cn } from '@/lib/utils/cn';
 import { ComponentPropsWithoutRef } from 'react';
 import { forwardRef } from 'react';
 import { ComponentRef } from 'react';
+
+import { cn } from '@/lib/utils/cn';
 
 // Fast tooltip provider with reduced delays
 export const TooltipProvider = ({
@@ -36,4 +36,3 @@ export const TooltipContent = forwardRef<
   />
 ));
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
-

@@ -6,12 +6,12 @@ import type { Plugin } from 'vite';
  * that aren't needed in pure client-side builds.
  */
 export function stubSSRImports(): Plugin {
-  const ssrModules = [
+  const ssrModules = new Set([
     '@tanstack/start-server-core',
     '@tanstack/react-start-server',
     '@tanstack/react-start/server',
     '@tanstack/start-plugin-core',
-  ];
+  ]);
 
   const ssrSpecifiers = [
     '#tanstack-router-entry',
@@ -24,7 +24,7 @@ export function stubSSRImports(): Plugin {
     name: 'stub-ssr-imports',
     enforce: 'pre',
     resolveId(id) {
-      if (ssrModules.includes(id) || ssrSpecifiers.some((s) => id.includes(s))) {
+      if (ssrModules.has(id) || ssrSpecifiers.some((s) => id.includes(s))) {
         return '\0stub:' + id;
       }
     },

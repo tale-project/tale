@@ -2,13 +2,15 @@
  * Update conversations with flexible filtering and updates (business logic)
  */
 
+import { set, merge } from 'lodash';
+
+import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type {
   UpdateConversationsArgs,
   UpdateConversationsResult,
 } from './types';
-import type { Doc, Id } from '../_generated/dataModel';
-import { set, merge } from 'lodash';
+
 import * as AuditLogHelpers from '../audit_logs/helpers';
 
 export async function updateConversations(
@@ -81,7 +83,9 @@ export async function updateConversations(
           // For top-level keys, use merge for objects
           const existingValue = updatedMetadata[key];
           const isValueObject =
-            typeof value === 'object' && value !== null && !Array.isArray(value);
+            typeof value === 'object' &&
+            value !== null &&
+            !Array.isArray(value);
           const isExistingObject =
             typeof existingValue === 'object' &&
             existingValue !== null &&
@@ -111,7 +115,8 @@ export async function updateConversations(
   const updatedIds = patches.map(({ id }) => id);
 
   if (updatedIds.length > 0) {
-    const organizationId = args.organizationId || conversationsToUpdate[0]?.organizationId;
+    const organizationId =
+      args.organizationId || conversationsToUpdate[0]?.organizationId;
     if (organizationId) {
       await AuditLogHelpers.logSuccess(
         ctx,

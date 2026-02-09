@@ -5,9 +5,10 @@
  * Filters are applied during iteration instead of using .filter() which still scans all records.
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import type { DocumentListResponse } from './types';
+
 import { transformDocumentsBatch } from './transform_to_document_item';
 
 export async function getDocuments(

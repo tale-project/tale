@@ -17,7 +17,9 @@ export async function checkIdempotency(
   const existing = await ctx.db
     .query('wfTriggerLogs')
     .withIndex('by_idempotencyKey', (q) =>
-      q.eq('organizationId', organizationId).eq('idempotencyKey', idempotencyKey),
+      q
+        .eq('organizationId', organizationId)
+        .eq('idempotencyKey', idempotencyKey),
     )
     .first();
 

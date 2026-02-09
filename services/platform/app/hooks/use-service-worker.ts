@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+
 import {
   registerServiceWorker,
   checkForServiceWorkerUpdate,
@@ -22,13 +23,16 @@ export function useServiceWorker() {
     error: null,
   });
 
-  const handleUpdate = useCallback((registration: ServiceWorkerRegistration) => {
-    setState((prev) => ({
-      ...prev,
-      isUpdateAvailable: true,
-      registration,
-    }));
-  }, []);
+  const handleUpdate = useCallback(
+    (registration: ServiceWorkerRegistration) => {
+      setState((prev) => ({
+        ...prev,
+        isUpdateAvailable: true,
+        registration,
+      }));
+    },
+    [],
+  );
 
   const handleSuccess = useCallback(
     (registration: ServiceWorkerRegistration) => {
@@ -38,7 +42,7 @@ export function useServiceWorker() {
         registration,
       }));
     },
-    []
+    [],
   );
 
   const handleError = useCallback((error: Error) => {
@@ -55,7 +59,7 @@ export function useServiceWorker() {
 
     navigator.serviceWorker.addEventListener(
       'controllerchange',
-      handleControllerChange
+      handleControllerChange,
     );
 
     if (state.registration?.waiting) {
@@ -94,9 +98,12 @@ export function useServiceWorker() {
       onError: handleError,
     });
 
-    const interval = setInterval(() => {
-      checkForUpdate();
-    }, 60 * 60 * 1000);
+    const interval = setInterval(
+      () => {
+        checkForUpdate();
+      },
+      60 * 60 * 1000,
+    );
 
     return () => {
       clearInterval(interval);

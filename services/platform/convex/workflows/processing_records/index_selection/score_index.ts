@@ -22,8 +22,8 @@
  * @returns Score and values to use for this index
  */
 
-import type { IndexConfig } from '../get_table_indexes';
 import type { FilterCondition } from '../ast_helpers';
+import type { IndexConfig } from '../get_table_indexes';
 import type { ScoringResult } from './types';
 
 export function scoreIndex(
@@ -141,11 +141,14 @@ export function scoreIndex(
     }
     // Check if all conditions for this field are already in postFilterConditions
     const alreadyInPostFilter = fieldConditions.every((c) =>
-      postFilterConditions.includes(c)
+      postFilterConditions.includes(c),
     );
     if (!alreadyInPostFilter) {
       fieldConditions.forEach((c) => {
-        if (!postFilterConditions.includes(c) && !indexableConditions.includes(c)) {
+        if (
+          !postFilterConditions.includes(c) &&
+          !indexableConditions.includes(c)
+        ) {
           postFilterConditions.push(c);
         }
       });

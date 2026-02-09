@@ -3,13 +3,16 @@
  *  Analyze images using a dedicated vision model to extract information.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
+import type { Id } from '../../_generated/dataModel';
 import type { ToolDefinition } from '../types';
+
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
-import type { Id } from '../../_generated/dataModel';
 import { analyzeImage } from './helpers/analyze_image';
 import { getVisionModel } from './helpers/vision_agent';
 

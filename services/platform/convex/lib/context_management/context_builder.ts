@@ -6,6 +6,13 @@
  * and sub-agents to build their system context.
  */
 
+import { createDebugLog } from '../debug_log';
+import {
+  AGENT_CONTEXT_CONFIGS,
+  SYSTEM_INSTRUCTIONS_TOKENS,
+  RECENT_MESSAGES_TOKEN_ESTIMATE,
+  type AgentType,
+} from './constants';
 import {
   ContextPriority,
   createPrioritizedContext,
@@ -15,13 +22,6 @@ import {
   type TrimResult,
 } from './context_priority';
 import { estimateTokens } from './estimate_tokens';
-import {
-  AGENT_CONTEXT_CONFIGS,
-  SYSTEM_INSTRUCTIONS_TOKENS,
-  RECENT_MESSAGES_TOKEN_ESTIMATE,
-  type AgentType,
-} from './constants';
-import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_CONTEXT_MANAGEMENT', '[ContextBuilder]');
 
@@ -165,7 +165,8 @@ export class ContextBuilder {
     if (!ragContext) return this;
 
     // Parse RAG results (format: [1] (Relevance: 85.0%)\ncontent\n\n---\n\n[2] ...)
-    const resultPattern = /\[(\d+)\]\s*\(Relevance:\s*([\d.]+)%\)\n([\s\S]*?)(?=\n\n---\n\n|\n*$)/g;
+    const resultPattern =
+      /\[(\d+)\]\s*\(Relevance:\s*([\d.]+)%\)\n([\s\S]*?)(?=\n\n---\n\n|\n*$)/g;
     const highResults: string[] = [];
     const lowResults: string[] = [];
 
@@ -255,17 +256,19 @@ export class ContextBuilder {
     const agentType = this.options.agentType || 'chat';
     const config = AGENT_CONTEXT_CONFIGS[agentType];
 
-    const modelContextLimit = this.options.modelContextLimit ?? config.modelContextLimit;
+    const modelContextLimit =
+      this.options.modelContextLimit ?? config.modelContextLimit;
     const outputReserve = this.options.outputReserve ?? config.outputReserve;
     const currentPromptTokens = this.options.currentPromptTokens ?? 0;
 
     // Convert to prioritized contexts
-    const prioritizedContexts: PrioritizedContext[] = this.contexts.map((item) =>
-      createPrioritizedContext(item.id, item.priority, item.content, {
-        canTrim: item.canTrim,
-        relevanceScore: item.relevanceScore,
-        sectionName: item.sectionName,
-      }),
+    const prioritizedContexts: PrioritizedContext[] = this.contexts.map(
+      (item) =>
+        createPrioritizedContext(item.id, item.priority, item.content, {
+          canTrim: item.canTrim,
+          relevanceScore: item.relevanceScore,
+          sectionName: item.sectionName,
+        }),
     );
 
     // Calculate available token budget
@@ -277,7 +280,10 @@ export class ContextBuilder {
       outputReserve;
 
     // Trim by priority
-    const trimResult = trimContextsByPriority(prioritizedContexts, contextBudget);
+    const trimResult = trimContextsByPriority(
+      prioritizedContexts,
+      contextBudget,
+    );
 
     // Convert to system messages
     const systemMessages = prioritizedContextsToMessages(trimResult.kept);
@@ -304,7 +310,10 @@ export class ContextBuilder {
    * Get token estimate without building.
    */
   estimateTokens(): number {
-    return this.contexts.reduce((sum, item) => sum + estimateTokens(item.content), 0);
+    return this.contexts.reduce(
+      (sum, item) => sum + estimateTokens(item.content),
+      0,
+    );
   }
 
   /**

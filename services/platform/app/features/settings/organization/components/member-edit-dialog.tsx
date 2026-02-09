@@ -1,19 +1,21 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Input } from '@/app/components/ui/forms/input';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Select } from '@/app/components/ui/forms/select';
 import { Banner } from '@/app/components/ui/feedback/banner';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
-import { useUpdateMemberRole } from '../hooks/use-update-member-role';
-import { useUpdateMemberDisplayName } from '../hooks/use-update-member-display-name';
 import { useT } from '@/lib/i18n/client';
+
+import { useUpdateMemberDisplayName } from '../hooks/use-update-member-display-name';
+import { useUpdateMemberRole } from '../hooks/use-update-member-role';
 
 // Type for the form data
 type EditMemberFormData = {
@@ -174,11 +176,11 @@ export function EditMemberDialog({
           label={t('form.email')}
           placeholder={t('form.emailPlaceholder')}
           {...register('email')}
-          className="w-full bg-muted"
+          className="bg-muted w-full"
           disabled
           required
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           {t('organization.emailCannotChange')}
         </p>
       </Stack>
@@ -205,7 +207,7 @@ export function EditMemberDialog({
           )}
         />
         {isEditingSelf && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {t('organization.cannotChangeOwnRole')}
           </p>
         )}
@@ -222,7 +224,7 @@ export function EditMemberDialog({
       </Stack>
 
       {/* Password Update Section */}
-      <Stack gap={4} className="pt-4 border-t">
+      <Stack gap={4} className="border-t pt-4">
         <Controller
           control={form.control}
           name="updatePassword"
@@ -246,7 +248,7 @@ export function EditMemberDialog({
               {...register('password')}
               className="w-full"
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {t('organization.userMustUpdatePassword')}
             </p>
           </Stack>

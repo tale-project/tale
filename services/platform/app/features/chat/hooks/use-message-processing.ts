@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
+import { useMemo } from 'react';
+
 import { api } from '@/convex/_generated/api';
+
 import type { FileAttachment } from '../types';
 
 const HUMAN_INPUT_RESPONSE_PREFIX = 'User responded to question';
@@ -157,9 +159,7 @@ export function useMessageProcessing(
   const isProcessingToolResult = useMemo(() => {
     if (!uiMessages?.length) return false;
 
-    const lastAssistant = uiMessages
-      .filter((m) => m.role === 'assistant')
-      .at(-1);
+    const lastAssistant = uiMessages.findLast((m) => m.role === 'assistant');
     if (!lastAssistant?.parts?.length) return false;
     if (lastAssistant.status === 'success' || lastAssistant.status === 'failed')
       return false;

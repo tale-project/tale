@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { fn } from '@storybook/test';
 import { Mail, Trash2, Check, ArrowRight, Plus } from 'lucide-react';
+
 import { Button, LinkButton } from './button';
 
 const meta: Meta<typeof Button> = {
@@ -170,7 +172,7 @@ export const AsLink: Story = {
 export const PressAnimation: Story = {
   render: () => (
     <div className="flex flex-col items-center gap-4">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         Click and hold to see the press animation
       </p>
       <Button variant="primary" size="lg">

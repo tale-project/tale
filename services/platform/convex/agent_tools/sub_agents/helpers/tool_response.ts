@@ -38,10 +38,22 @@ export function successResponse(
   sources?: string[],
   input?: string,
 ): ToolResponse {
-  return { success: true, response, usage, model, provider, sources, input, output: response };
+  return {
+    success: true,
+    response,
+    usage,
+    model,
+    provider,
+    sources,
+    input,
+    output: response,
+  };
 }
 
-export function handleToolError(toolName: string, error: unknown): ToolResponse {
+export function handleToolError(
+  toolName: string,
+  error: unknown,
+): ToolResponse {
   console.error(`[${toolName}] Error:`, {
     error,
     type: typeof error,

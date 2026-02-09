@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback } from 'react';
-import { Doc } from '@/convex/_generated/dataModel';
+
 import { EntityDeleteDialog } from '@/app/components/ui/entity/entity-delete-dialog';
 import { useDeleteDialogTranslations } from '@/app/components/ui/entity/use-delete-dialog';
-import { useDeleteWebsite } from '../hooks/use-delete-website';
+import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+
+import { useDeleteWebsite } from '../hooks/use-delete-website';
 
 interface DeleteWebsiteDialogProps {
   isOpen: boolean;
@@ -39,10 +41,7 @@ export function DeleteWebsiteDialog({
     [deleteWebsite],
   );
 
-  const getEntityName = useCallback(
-    (w: Doc<'websites'>) => w.domain,
-    [],
-  );
+  const getEntityName = useCallback((w: Doc<'websites'>) => w.domain, []);
 
   return (
     <EntityDeleteDialog

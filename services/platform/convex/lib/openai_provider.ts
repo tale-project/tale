@@ -1,4 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
+
 import { getEnvOrThrow, getEnvOptional } from './get_or_throw';
 
 /**
@@ -18,7 +19,10 @@ let _openaiInstance: ReturnType<typeof createOpenAI> | null = null;
 
 function getOpenAIProvider() {
   if (_openaiInstance === null) {
-    const apiKey = getEnvOrThrow('OPENAI_API_KEY', 'API key for OpenAI provider');
+    const apiKey = getEnvOrThrow(
+      'OPENAI_API_KEY',
+      'API key for OpenAI provider',
+    );
     const baseURL = getEnvOptional('OPENAI_BASE_URL');
 
     _openaiInstance = createOpenAI({
@@ -44,4 +48,3 @@ export const openai: OpenAIProvider = new Proxy(
     },
   },
 );
-

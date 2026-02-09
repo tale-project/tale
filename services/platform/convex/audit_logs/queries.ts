@@ -1,11 +1,9 @@
 import { v } from 'convex/values';
+
 import { query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import * as AuditLogHelpers from './helpers';
-import {
-  auditLogFilterValidator,
-  auditLogItemValidator,
-} from './validators';
+import { auditLogFilterValidator, auditLogItemValidator } from './validators';
 
 export const listAuditLogs = query({
   args: {

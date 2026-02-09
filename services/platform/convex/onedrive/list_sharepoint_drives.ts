@@ -32,12 +32,17 @@ export async function listSharePointDrives(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[listSharePointDrives] API error:', response.status, errorText);
+      console.error(
+        '[listSharePointDrives] API error:',
+        response.status,
+        errorText,
+      );
 
       if (response.status === 403) {
         return {
           success: false,
-          error: 'Access denied. You may not have permission to access this site.',
+          error:
+            'Access denied. You may not have permission to access this site.',
         };
       }
 

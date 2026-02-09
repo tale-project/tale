@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 interface ViewEditExampleDialogProps {
@@ -90,49 +91,52 @@ export function ViewEditExampleDialog({
 
   if (!example) return null;
 
-  const customFooter = mode === 'view' ? (
-    <HStack gap={3}>
-      <Button
-        type="button"
-        variant="outline"
-        onClick={handleClose}
-        className="flex-1"
-      >
-        {tCommon('actions.close')}
-      </Button>
-      <Button
-        type="button"
-        onClick={handleEditClick}
-        className="flex-1"
-      >
-        {tCommon('actions.edit')}
-      </Button>
-    </HStack>
-  ) : (
-    <HStack gap={3}>
-      <Button
-        type="button"
-        variant="outline"
-        onClick={handleCancelEdit}
-        className="flex-1"
-      >
-        {tCommon('actions.cancel')}
-      </Button>
-      <Button
-        type="submit"
-        disabled={!isValid || !isDirty || isSubmitting}
-        className="flex-1"
-      >
-        {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
-      </Button>
-    </HStack>
-  );
+  const customFooter =
+    mode === 'view' ? (
+      <HStack gap={3}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleClose}
+          className="flex-1"
+        >
+          {tCommon('actions.close')}
+        </Button>
+        <Button type="button" onClick={handleEditClick} className="flex-1">
+          {tCommon('actions.edit')}
+        </Button>
+      </HStack>
+    ) : (
+      <HStack gap={3}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleCancelEdit}
+          className="flex-1"
+        >
+          {tCommon('actions.cancel')}
+        </Button>
+        <Button
+          type="submit"
+          disabled={!isValid || !isDirty || isSubmitting}
+          className="flex-1"
+        >
+          {isSubmitting
+            ? tCommon('actions.saving')
+            : tCommon('actions.saveChanges')}
+        </Button>
+      </HStack>
+    );
 
   return (
     <FormDialog
       open={isOpen}
       onOpenChange={handleClose}
-      title={mode === 'view' ? tTone('exampleMessages.viewExample') : tTone('exampleMessages.editExample')}
+      title={
+        mode === 'view'
+          ? tTone('exampleMessages.viewExample')
+          : tTone('exampleMessages.editExample')
+      }
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit(onSubmit)}
       customFooter={customFooter}
@@ -141,10 +145,10 @@ export function ViewEditExampleDialog({
       {/* Message Field */}
       {mode === 'view' ? (
         <Stack gap={2}>
-          <span className="text-sm font-medium text-foreground tracking-[-0.21px]">
+          <span className="text-foreground text-sm font-medium tracking-[-0.21px]">
             {tTables('headers.message')}
           </span>
-          <div className="min-h-[10rem] px-4 py-3 bg-muted border border-border rounded-lg text-sm text-foreground whitespace-pre-wrap">
+          <div className="bg-muted border-border text-foreground min-h-[10rem] rounded-lg border px-4 py-3 text-sm whitespace-pre-wrap">
             {example.content}
           </div>
         </Stack>
@@ -153,7 +157,7 @@ export function ViewEditExampleDialog({
           {...register('content', { required: true })}
           label={tTables('headers.message')}
           placeholder={tTone('exampleMessages.placeholder')}
-          className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
+          className="bg-background border-border min-h-[10rem] resize-none rounded-lg border px-4 py-3 text-sm shadow-sm"
         />
       )}
     </FormDialog>

@@ -47,7 +47,7 @@ export async function listFiles(
       };
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       value: Array<{
         id: string;
         name: string;
@@ -65,7 +65,9 @@ export async function listFiles(
       size: item.size || 0,
       isFolder: item.folder !== undefined,
       mimeType: item.file?.mimeType,
-      lastModified: item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : undefined,
+      lastModified: item.lastModifiedDateTime
+        ? Date.parse(item.lastModifiedDateTime)
+        : undefined,
       childCount: item.folder?.childCount,
       webUrl: item.webUrl,
     }));

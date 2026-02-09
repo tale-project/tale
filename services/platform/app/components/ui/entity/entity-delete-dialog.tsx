@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { memo, useCallback } from 'react';
+
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 
@@ -95,7 +96,10 @@ function EntityDeleteDialogInner<TEntity>({
   }, [deleteMutation, entity, translations, onClose, onSuccess]);
 
   const description = React.useMemo(() => {
-    const mainDescription = translations.description.replace('{name}', entityName);
+    const mainDescription = translations.description.replace(
+      '{name}',
+      entityName,
+    );
 
     if (translations.warningText) {
       return (
@@ -123,5 +127,6 @@ function EntityDeleteDialogInner<TEntity>({
   );
 }
 
-export const EntityDeleteDialog = memo(EntityDeleteDialogInner) as typeof EntityDeleteDialogInner;
-
+export const EntityDeleteDialog = memo(
+  EntityDeleteDialogInner,
+) as typeof EntityDeleteDialogInner;

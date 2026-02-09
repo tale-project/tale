@@ -1,9 +1,12 @@
 'use client';
 
-import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { VendorsEmptyState } from './vendors-empty-state';
 import type { ReactNode } from 'react';
+
+import { useQuery } from 'convex/react';
+
+import { api } from '@/convex/_generated/api';
+
+import { VendorsEmptyState } from './vendors-empty-state';
 
 interface VendorsPageWrapperProps {
   organizationId: string;
@@ -23,7 +26,9 @@ export function VendorsPageWrapper({
 }: VendorsPageWrapperProps) {
   // Subscribe to hasVendors for reactive updates
   // Convex useQuery automatically updates when data changes
-  const hasVendors = useQuery(api.vendors.queries.hasVendors, { organizationId });
+  const hasVendors = useQuery(api.vendors.queries.hasVendors, {
+    organizationId,
+  });
 
   // Use initial value while loading, then use reactive value
   const showVendors = hasVendors ?? initialHasVendors;

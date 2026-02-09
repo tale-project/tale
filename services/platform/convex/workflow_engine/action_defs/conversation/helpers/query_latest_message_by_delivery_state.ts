@@ -1,5 +1,6 @@
-import type { ActionCtx } from '../../../../_generated/server';
 import type { Id } from '../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../_generated/server';
+
 import { internal } from '../../../../_generated/api';
 
 export async function queryLatestMessageByDeliveryState(
@@ -26,4 +27,3 @@ export async function queryLatestMessageByDeliveryState(
   // Note: execute_action_node wraps the return value in: { type: 'action', data: <return value> }
   return result.message;
 }
-

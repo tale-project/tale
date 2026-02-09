@@ -2,13 +2,12 @@
  * Load and validate execution data
  */
 
-import { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 import { Id } from '../../../_generated/dataModel';
-import { LoadExecutionResult } from './types';
-import { deserializeVariablesInAction } from '../../helpers/serialization/deserialize_variables';
-
+import { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
+import { deserializeVariablesInAction } from '../../helpers/serialization/deserialize_variables';
+import { LoadExecutionResult } from './types';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -18,9 +17,12 @@ export async function loadAndValidateExecution(
   stepSlug: string,
 ): Promise<LoadExecutionResult> {
   // Load execution to get wfDefinitionId and workflowConfig
-  const execution = await ctx.runQuery(internal.wf_executions.internal_queries.getExecution, {
-    executionId: executionId as Id<'wfExecutions'>,
-  });
+  const execution = await ctx.runQuery(
+    internal.wf_executions.internal_queries.getExecution,
+    {
+      executionId: executionId as Id<'wfExecutions'>,
+    },
+  );
 
   if (!execution) {
     throw new Error(`Execution not found: ${executionId}`);

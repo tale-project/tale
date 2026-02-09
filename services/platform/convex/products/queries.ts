@@ -1,12 +1,10 @@
 import { v } from 'convex/values';
-import { queryWithRLS } from '../lib/rls';
-import { cursorPaginationOptsValidator } from '../lib/pagination';
+
 import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
+import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { queryWithRLS } from '../lib/rls';
 import * as ProductsHelpers from './helpers';
-import {
-  productDocValidator,
-  productItemValidator,
-} from './validators';
+import { productDocValidator, productItemValidator } from './validators';
 
 export const hasProducts = queryWithRLS({
   args: {

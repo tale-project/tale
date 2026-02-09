@@ -7,13 +7,17 @@
  * - operation = 'browser_operate': browser automation via operator service
  */
 
-import { z } from 'zod/v4';
 import { createTool, type ToolCtx } from '@convex-dev/agent';
-import type { ToolDefinition } from '../types';
+import { z } from 'zod/v4';
 
-import type { WebFetchUrlResult, WebBrowserOperateResult } from './helpers/types';
-import { fetchUrlViaPdf } from './helpers/fetch_url_via_pdf';
+import type { ToolDefinition } from '../types';
+import type {
+  WebFetchUrlResult,
+  WebBrowserOperateResult,
+} from './helpers/types';
+
 import { browserOperate } from './helpers/browser_operate';
+import { fetchUrlViaPdf } from './helpers/fetch_url_via_pdf';
 
 const webToolArgs = z.object({
   operation: z

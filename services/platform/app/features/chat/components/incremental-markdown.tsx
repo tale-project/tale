@@ -47,9 +47,9 @@
 
 import { memo, useMemo, type ComponentType } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
+import remarkGfm from 'remark-gfm';
 
 // ============================================================================
 // TYPES
@@ -119,7 +119,7 @@ const StableMarkdown = memo(
 const TypewriterCursor = memo(function TypewriterCursor() {
   return (
     <span
-      className="inline-block w-0.5 h-[1.1em] bg-current ml-0.5 align-text-bottom animate-cursor-blink"
+      className="animate-cursor-blink ml-0.5 inline-block h-[1.1em] w-0.5 bg-current align-text-bottom"
       aria-hidden="true"
     />
   );
@@ -202,7 +202,7 @@ const StreamingMarkdown = memo(
         h5: createCursorWrapper('h5', components?.h5),
         h6: createCursorWrapper('h6', components?.h6),
       };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only need length for cursor position
+      // oxlint-disable-next-line react-hooks/exhaustive-deps -- Only need length for cursor position; using full revealedContent would recompute on every streaming chunk
     }, [components, showCursor, revealedContent.length]);
 
     if (!content) return null;

@@ -2,8 +2,8 @@
  * Internal mutation to update integration
  */
 
-import { MutationCtx } from '../_generated/server';
 import { Id } from '../_generated/dataModel';
+import { MutationCtx } from '../_generated/server';
 import {
   Status,
   ApiKeyAuthEncrypted,
@@ -41,4 +41,3 @@ export async function updateIntegrationInternal(
 
   await ctx.db.patch(integrationId, cleanUpdates);
 }
-

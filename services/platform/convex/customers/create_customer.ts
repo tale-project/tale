@@ -2,8 +2,9 @@
  * Create a new customer (business logic)
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { DataSource } from '../../lib/shared/schemas/common';
+import type { MutationCtx } from '../_generated/server';
+
 import { emitEvent } from '../workflows/triggers/emit_event';
 
 export interface CreateCustomerArgs {
@@ -37,14 +38,18 @@ export async function createCustomer(
     locale: args.locale,
     address: args.address,
     externalId: args.externalId,
-     
+
     metadata: args.metadata as any,
   });
 
   await emitEvent(ctx, {
     organizationId: args.organizationId,
     eventType: 'customer.created',
-    eventData: { customerId: customerId as string, name: args.name, email: args.email },
+    eventData: {
+      customerId: customerId as string,
+      name: args.name,
+      email: args.email,
+    },
   });
 
   return {

@@ -88,7 +88,9 @@ export async function updateOAuth2ProviderLogic(
         newClientSecretEncrypted = await deps.encryptString(args.clientSecret);
       } catch (error) {
         console.error('Failed to encrypt OAuth2 client secret:', error);
-        throw new Error('Failed to encrypt OAuth2 credentials');
+        throw new Error('Failed to encrypt OAuth2 credentials', {
+          cause: error,
+        });
       }
     }
 
@@ -106,13 +108,19 @@ export async function updateOAuth2ProviderLogic(
   if (args.tenantId !== undefined || args.credentialsSource !== undefined) {
     const rawMetadata = provider.metadata;
     const currentMetadata =
-      typeof rawMetadata === 'object' && rawMetadata !== null && !Array.isArray(rawMetadata)
+      typeof rawMetadata === 'object' &&
+      rawMetadata !== null &&
+      !Array.isArray(rawMetadata)
         ? (rawMetadata as Record<string, unknown>)
         : {};
     updateParams.metadata = {
       ...currentMetadata,
-      ...(args.tenantId !== undefined && { tenantId: args.tenantId || undefined }),
-      ...(args.credentialsSource !== undefined && { credentialsSource: args.credentialsSource }),
+      ...(args.tenantId !== undefined && {
+        tenantId: args.tenantId || undefined,
+      }),
+      ...(args.credentialsSource !== undefined && {
+        credentialsSource: args.credentialsSource,
+      }),
     };
   }
 

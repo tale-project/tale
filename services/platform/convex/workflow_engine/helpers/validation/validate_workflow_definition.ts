@@ -10,12 +10,13 @@
  * - Variable references (step existence, execution order, path structure)
  */
 
-import { isValidStepType } from './constants';
 import type { WorkflowValidationResult } from './types';
+
+import { validateCircularDependencies } from './circular_dependency_validator';
+import { isValidStepType } from './constants';
 import { validateStepConfig } from './validate_step_config';
 import { validateWorkflowSteps } from './validate_workflow_steps';
 import { validateWorkflowVariableReferences } from './variables';
-import { validateCircularDependencies } from './circular_dependency_validator';
 
 // Re-export types for backward compatibility
 export type { WorkflowValidationResult } from './types';

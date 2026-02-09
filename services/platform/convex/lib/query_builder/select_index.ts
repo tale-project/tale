@@ -144,7 +144,11 @@ export function createInMemoryFilter<T extends Record<string, unknown>>(
       }
 
       // Scalar filter: exact match
-      if (filterValue !== undefined && filterValue !== null && filterValue !== '') {
+      if (
+        filterValue !== undefined &&
+        filterValue !== null &&
+        filterValue !== ''
+      ) {
         if (itemValue !== filterValue) {
           return false;
         }
@@ -177,7 +181,10 @@ export function createSearchFilter<T extends Record<string, unknown>>(
   return (item: T): boolean => {
     for (const field of searchFields) {
       const value = item[field];
-      if (typeof value === 'string' && value.toLowerCase().includes(searchLower)) {
+      if (
+        typeof value === 'string' &&
+        value.toLowerCase().includes(searchLower)
+      ) {
         return true;
       }
       if (typeof value === 'number' && String(value).includes(searchLower)) {

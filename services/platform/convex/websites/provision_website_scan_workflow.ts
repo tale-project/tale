@@ -4,12 +4,13 @@
  * Model-layer helper invoked by internal.websites.internal_mutations.provisionWebsiteScanWorkflow.
  */
 
-import type { ActionCtx } from '../_generated/server';
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
+
 import { internal } from '../_generated/api';
 import websiteScanWorkflow from '../predefined_workflows/website_scan';
 import { toPredefinedWorkflowPayload } from '../workflows/definitions/types';
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 export interface ProvisionWebsiteScanWorkflowArgs {
   organizationId: string;
@@ -57,9 +58,8 @@ export async function provisionWebsiteScanWorkflow(
 
   const { schedule, timezone } = scanIntervalToCron(args.scanInterval);
 
-  const templateVars =
-    (websiteScanWorkflow.workflowConfig.config?.variables ||
-      {}) as Record<string, unknown>;
+  const templateVars = (websiteScanWorkflow.workflowConfig.config?.variables ||
+    {}) as Record<string, unknown>;
 
   const variables = {
     ...templateVars,
@@ -77,13 +77,21 @@ export async function provisionWebsiteScanWorkflow(
     {
       name: workflowName,
       config: {
-        ...(websiteScanWorkflow.workflowConfig.config || {}),
+        ...websiteScanWorkflow.workflowConfig.config,
         variables,
       },
     },
     (step) =>
       step.stepType === 'start' || step.stepType === 'trigger'
-        ? { ...step, config: { ...(step.config ?? {}), type: 'scheduled', schedule, timezone } }
+        ? {
+            ...step,
+            config: {
+              ...(step.config as Record<string, unknown>),
+              type: 'scheduled',
+              schedule,
+              timezone,
+            },
+          }
         : step,
   );
 
@@ -96,11 +104,14 @@ export async function provisionWebsiteScanWorkflow(
   );
 
   // Newly created workflows start as drafts; publish immediately.
-  await ctx.runMutation(internal.wf_definitions.internal_mutations.provisionPublishDraft, {
-    wfDefinitionId: saved.workflowId,
-    publishedBy: 'system',
-    changeLog: 'Auto-created and published from website creation',
-  });
+  await ctx.runMutation(
+    internal.wf_definitions.internal_mutations.provisionPublishDraft,
+    {
+      wfDefinitionId: saved.workflowId,
+      publishedBy: 'system',
+      changeLog: 'Auto-created and published from website creation',
+    },
+  );
 
   const current = await ctx.runQuery(
     internal.websites.internal_queries.getWebsite,
@@ -108,11 +119,9 @@ export async function provisionWebsiteScanWorkflow(
       websiteId: args.websiteId,
     },
   );
-  const existingMeta =
-    ((current?.metadata as Record<string, unknown> | undefined) ?? {}) as Record<
-      string,
-      unknown
-    >;
+  const existingMeta = ((current?.metadata as
+    | Record<string, unknown>
+    | undefined) ?? {}) as Record<string, unknown>;
 
   await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
     websiteId: args.websiteId,
@@ -127,17 +136,20 @@ export async function provisionWebsiteScanWorkflow(
       lastScannedAt: Date.now(),
     });
 
-    await ctx.scheduler.runAfter(0, internal.workflow_engine.internal_mutations.startWorkflow, {
-      organizationId: args.organizationId,
-      wfDefinitionId: saved.workflowId,
-      input: { websiteId: args.websiteId, domain: websiteDomain },
-      triggeredBy: 'system',
-      triggerData: {
-        triggerType: 'system',
-        reason: 'initial_website_scan',
-        timestamp: Date.now(),
+    await ctx.scheduler.runAfter(
+      0,
+      internal.workflow_engine.internal_mutations.startWorkflow,
+      {
+        organizationId: args.organizationId,
+        wfDefinitionId: saved.workflowId,
+        input: { websiteId: args.websiteId, domain: websiteDomain },
+        triggeredBy: 'system',
+        triggerData: {
+          triggerType: 'system',
+          reason: 'initial_website_scan',
+          timestamp: Date.now(),
+        },
       },
-    });
+    );
   }
 }
-

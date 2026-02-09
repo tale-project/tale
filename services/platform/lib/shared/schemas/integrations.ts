@@ -1,49 +1,49 @@
 import { z } from 'zod/v4';
 import { jsonRecordSchema } from './utils/json-value';
 
-export const integrationTypeLiterals = ['rest_api', 'sql'] as const;
+const integrationTypeLiterals = ['rest_api', 'sql'] as const;
 export const integrationTypeSchema = z.enum(integrationTypeLiterals);
-export type IntegrationType = z.infer<typeof integrationTypeSchema>;
+type IntegrationType = z.infer<typeof integrationTypeSchema>;
 
-export const integrationAuthMethodLiterals = ['api_key', 'bearer_token', 'basic_auth', 'oauth2'] as const;
+const integrationAuthMethodLiterals = ['api_key', 'bearer_token', 'basic_auth', 'oauth2'] as const;
 export const integrationAuthMethodSchema = z.enum(integrationAuthMethodLiterals);
-export type IntegrationAuthMethod = z.infer<typeof integrationAuthMethodSchema>;
+type IntegrationAuthMethod = z.infer<typeof integrationAuthMethodSchema>;
 
-export const integrationStatusLiterals = ['active', 'inactive', 'error', 'testing'] as const;
+const integrationStatusLiterals = ['active', 'inactive', 'error', 'testing'] as const;
 export const integrationStatusSchema = z.enum(integrationStatusLiterals);
-export type IntegrationStatus = z.infer<typeof integrationStatusSchema>;
+type IntegrationStatus = z.infer<typeof integrationStatusSchema>;
 
-export const operationTypeLiterals = ['read', 'write'] as const;
+const operationTypeLiterals = ['read', 'write'] as const;
 export const operationTypeSchema = z.enum(operationTypeLiterals);
-export type OperationType = z.infer<typeof operationTypeSchema>;
+type OperationType = z.infer<typeof operationTypeSchema>;
 
-export const sqlEngineLiterals = ['mssql', 'postgres', 'mysql'] as const;
+const sqlEngineLiterals = ['mssql', 'postgres', 'mysql'] as const;
 export const sqlEngineSchema = z.enum(sqlEngineLiterals);
-export type SqlEngine = z.infer<typeof sqlEngineSchema>;
+type SqlEngine = z.infer<typeof sqlEngineSchema>;
 
 export const apiKeyAuthSchema = z.object({
 	key: z.string(),
 	keyPrefix: z.string().optional(),
 });
-export type ApiKeyAuth = z.infer<typeof apiKeyAuthSchema>;
+type ApiKeyAuth = z.infer<typeof apiKeyAuthSchema>;
 
 export const apiKeyAuthEncryptedSchema = z.object({
 	keyEncrypted: z.string(),
 	keyPrefix: z.string().optional(),
 });
-export type ApiKeyAuthEncrypted = z.infer<typeof apiKeyAuthEncryptedSchema>;
+type ApiKeyAuthEncrypted = z.infer<typeof apiKeyAuthEncryptedSchema>;
 
 export const basicAuthSchema = z.object({
 	username: z.string(),
 	password: z.string(),
 });
-export type BasicAuth = z.infer<typeof basicAuthSchema>;
+type BasicAuth = z.infer<typeof basicAuthSchema>;
 
 export const basicAuthEncryptedSchema = z.object({
 	username: z.string(),
 	passwordEncrypted: z.string(),
 });
-export type BasicAuthEncrypted = z.infer<typeof basicAuthEncryptedSchema>;
+type BasicAuthEncrypted = z.infer<typeof basicAuthEncryptedSchema>;
 
 export const oauth2AuthSchema = z.object({
 	accessToken: z.string(),
@@ -51,7 +51,7 @@ export const oauth2AuthSchema = z.object({
 	tokenExpiry: z.number().optional(),
 	scopes: z.array(z.string()).optional(),
 });
-export type OAuth2Auth = z.infer<typeof oauth2AuthSchema>;
+type OAuth2Auth = z.infer<typeof oauth2AuthSchema>;
 
 export const oauth2AuthEncryptedSchema = z.object({
 	accessTokenEncrypted: z.string(),
@@ -59,7 +59,7 @@ export const oauth2AuthEncryptedSchema = z.object({
 	tokenExpiry: z.number().optional(),
 	scopes: z.array(z.string()).optional(),
 });
-export type OAuth2AuthEncrypted = z.infer<typeof oauth2AuthEncryptedSchema>;
+type OAuth2AuthEncrypted = z.infer<typeof oauth2AuthEncryptedSchema>;
 
 export const connectionConfigSchema = z.object({
 	domain: z.string().optional(),
@@ -68,7 +68,7 @@ export const connectionConfigSchema = z.object({
 	timeout: z.number().optional(),
 	rateLimit: z.number().optional(),
 });
-export type ConnectionConfig = z.infer<typeof connectionConfigSchema>;
+type ConnectionConfig = z.infer<typeof connectionConfigSchema>;
 
 export const capabilitiesSchema = z.object({
 	canSync: z.boolean().optional(),
@@ -76,9 +76,9 @@ export const capabilitiesSchema = z.object({
 	canWebhook: z.boolean().optional(),
 	syncFrequency: z.string().optional(),
 });
-export type Capabilities = z.infer<typeof capabilitiesSchema>;
+type Capabilities = z.infer<typeof capabilitiesSchema>;
 
-export const connectorOperationSchema = z.object({
+const connectorOperationSchema = z.object({
 	name: z.string(),
 	title: z.string().optional(),
 	description: z.string().optional(),
@@ -86,9 +86,9 @@ export const connectorOperationSchema = z.object({
 	operationType: operationTypeSchema.optional(),
 	requiresApproval: z.boolean().optional(),
 });
-export type ConnectorOperation = z.infer<typeof connectorOperationSchema>;
+type ConnectorOperation = z.infer<typeof connectorOperationSchema>;
 
-export const connectorConfigSchema = z.object({
+const connectorConfigSchema = z.object({
 	code: z.string(),
 	version: z.number(),
 	operations: z.array(connectorOperationSchema),
@@ -96,24 +96,24 @@ export const connectorConfigSchema = z.object({
 	allowedHosts: z.array(z.string()).optional(),
 	timeoutMs: z.number().optional(),
 });
-export type ConnectorConfig = z.infer<typeof connectorConfigSchema>;
+type ConnectorConfig = z.infer<typeof connectorConfigSchema>;
 
-export const sqlConnectionOptionsSchema = z.object({
+const sqlConnectionOptionsSchema = z.object({
 	encrypt: z.boolean().optional(),
 	trustServerCertificate: z.boolean().optional(),
 	connectionTimeout: z.number().optional(),
 	requestTimeout: z.number().optional(),
 });
-export type SqlConnectionOptions = z.infer<typeof sqlConnectionOptionsSchema>;
+type SqlConnectionOptions = z.infer<typeof sqlConnectionOptionsSchema>;
 
-export const sqlSecuritySchema = z.object({
+const sqlSecuritySchema = z.object({
 	maxResultRows: z.number().optional(),
 	queryTimeoutMs: z.number().optional(),
 	maxConnectionPoolSize: z.number().optional(),
 });
-export type SqlSecurity = z.infer<typeof sqlSecuritySchema>;
+type SqlSecurity = z.infer<typeof sqlSecuritySchema>;
 
-export const sqlConnectionConfigSchema = z.object({
+const sqlConnectionConfigSchema = z.object({
 	engine: sqlEngineSchema,
 	server: z.string(),
 	port: z.number().optional(),
@@ -122,9 +122,9 @@ export const sqlConnectionConfigSchema = z.object({
 	options: sqlConnectionOptionsSchema.optional(),
 	security: sqlSecuritySchema.optional(),
 });
-export type SqlConnectionConfig = z.infer<typeof sqlConnectionConfigSchema>;
+type SqlConnectionConfig = z.infer<typeof sqlConnectionConfigSchema>;
 
-export const sqlOperationSchema = z.object({
+const sqlOperationSchema = z.object({
 	name: z.string(),
 	title: z.string().optional(),
 	description: z.string().optional(),
@@ -133,22 +133,22 @@ export const sqlOperationSchema = z.object({
 	operationType: operationTypeSchema.optional(),
 	requiresApproval: z.boolean().optional(),
 });
-export type SqlOperation = z.infer<typeof sqlOperationSchema>;
+type SqlOperation = z.infer<typeof sqlOperationSchema>;
 
 export const testConnectionResultSchema = z.object({
 	success: z.boolean(),
 	message: z.string(),
 });
-export type TestConnectionResult = z.infer<typeof testConnectionResultSchema>;
+type TestConnectionResult = z.infer<typeof testConnectionResultSchema>;
 
-export const syncStatsSchema = z.object({
+const syncStatsSchema = z.object({
 	totalRecords: z.number().optional(),
 	lastSyncCount: z.number().optional(),
 	failedSyncCount: z.number().optional(),
 });
-export type SyncStats = z.infer<typeof syncStatsSchema>;
+type SyncStats = z.infer<typeof syncStatsSchema>;
 
-export const integrationDocSchema = z.object({
+const integrationDocSchema = z.object({
 	_id: z.string(),
 	_creationTime: z.number(),
 	organizationId: z.string(),
@@ -175,4 +175,4 @@ export const integrationDocSchema = z.object({
 	sqlOperations: z.array(sqlOperationSchema).optional(),
 	metadata: jsonRecordSchema.optional(),
 });
-export type IntegrationDoc = z.infer<typeof integrationDocSchema>;
+type IntegrationDoc = z.infer<typeof integrationDocSchema>;

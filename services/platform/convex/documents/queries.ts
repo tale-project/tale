@@ -3,10 +3,11 @@
  */
 
 import { v } from 'convex/values';
+
 import { query } from '../_generated/server';
-import * as DocumentsHelpers from './helpers';
-import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import * as DocumentsHelpers from './helpers';
 
 export const getDocumentById = query({
   args: {
@@ -29,7 +30,10 @@ export const getDocumentById = query({
       return { success: false, error: 'Access denied' };
     }
 
-    return await DocumentsHelpers.getDocumentByIdTransformed(ctx, args.documentId);
+    return await DocumentsHelpers.getDocumentByIdTransformed(
+      ctx,
+      args.documentId,
+    );
   },
 });
 

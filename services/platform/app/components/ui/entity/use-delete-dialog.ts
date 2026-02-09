@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 
-interface UseDeleteDialogOptions<TEntity> {
+interface UseDeleteDialogOptions<_TEntity> {
   /** Controlled open state (optional) */
   isOpen?: boolean;
   /** Controlled open state setter (optional) */
@@ -47,8 +47,8 @@ interface UseDeleteDialogReturn {
  * );
  * ```
  */
-export function useDeleteDialog<TEntity>(
-  options: UseDeleteDialogOptions<TEntity> = {},
+export function useDeleteDialog<_TEntity>(
+  options: UseDeleteDialogOptions<_TEntity> = {},
 ): UseDeleteDialogReturn {
   const { isOpen: controlledIsOpen, onOpenChange: controlledOnOpenChange } =
     options;

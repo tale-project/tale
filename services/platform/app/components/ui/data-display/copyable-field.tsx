@@ -1,13 +1,14 @@
 'use client';
 
-import * as React from 'react';
 import { Check, Copy } from 'lucide-react';
-import { Button } from '@/app/components/ui/primitives/button';
+import * as React from 'react';
+
 import { Input } from '@/app/components/ui/forms/input';
 import { HStack } from '@/app/components/ui/layout/layout';
-import { cn } from '@/lib/utils/cn';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 interface CopyableFieldProps {
   /** The value to display and copy */
@@ -88,7 +89,7 @@ export const CopyableField = React.memo(function CopyableField({
   );
 });
 
-export interface CopyableTextProps {
+interface CopyableTextProps {
   /** The value to display and copy */
   value: string;
   /** Additional className */
@@ -115,7 +116,7 @@ export const CopyableText = React.memo(function CopyableText({
       <button
         type="button"
         onClick={onClick}
-        className="p-0.5 rounded hover:bg-muted transition-colors cursor-pointer"
+        className="hover:bg-muted cursor-pointer rounded p-0.5 transition-colors"
         aria-label={tCommon('actions.copy')}
       >
         {copied ? (
@@ -124,7 +125,7 @@ export const CopyableText = React.memo(function CopyableText({
             aria-hidden="true"
           />
         ) : (
-          <Copy className="size-3.5 text-muted-foreground" aria-hidden="true" />
+          <Copy className="text-muted-foreground size-3.5" aria-hidden="true" />
         )}
       </button>
     </HStack>

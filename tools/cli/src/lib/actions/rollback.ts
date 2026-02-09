@@ -1,19 +1,19 @@
-import { generateColorCompose } from "../compose/generators/generate-color-compose";
-import { ROTATABLE_SERVICES } from "../compose/types";
-import { dockerCompose } from "../docker/docker-compose";
-import { getContainerVersion } from "../docker/get-container-version";
-import { pullImage } from "../docker/pull-image";
-import { removeContainer } from "../docker/remove-container";
-import { stopContainer } from "../docker/stop-container";
-import { waitForHealthy } from "../docker/wait-for-healthy";
-import { getCurrentColor } from "../state/get-current-color";
-import { getOppositeColor } from "../state/get-opposite-color";
-import { getPreviousVersion } from "../state/get-previous-version";
-import { setCurrentColor } from "../state/set-current-color";
-import { setPreviousVersion } from "../state/set-previous-version";
-import { withLock } from "../state/with-lock";
-import { PROJECT_NAME, type DeploymentEnv } from "../../utils/load-env";
-import * as logger from "../../utils/logger";
+import { PROJECT_NAME, type DeploymentEnv } from '../../utils/load-env';
+import * as logger from '../../utils/logger';
+import { generateColorCompose } from '../compose/generators/generate-color-compose';
+import { ROTATABLE_SERVICES } from '../compose/types';
+import { dockerCompose } from '../docker/docker-compose';
+import { getContainerVersion } from '../docker/get-container-version';
+import { pullImage } from '../docker/pull-image';
+import { removeContainer } from '../docker/remove-container';
+import { stopContainer } from '../docker/stop-container';
+import { waitForHealthy } from '../docker/wait-for-healthy';
+import { getCurrentColor } from '../state/get-current-color';
+import { getOppositeColor } from '../state/get-opposite-color';
+import { getPreviousVersion } from '../state/get-previous-version';
+import { setCurrentColor } from '../state/set-current-color';
+import { setPreviousVersion } from '../state/set-previous-version';
+import { withLock } from '../state/with-lock';
 
 interface RollbackOptions {
   env: DeploymentEnv;
@@ -23,27 +23,27 @@ interface RollbackOptions {
 export async function rollback(options: RollbackOptions): Promise<void> {
   const { env, version: targetVersion } = options;
 
-  await withLock(env.DEPLOY_DIR, "rollback", async () => {
-    logger.header("Rolling Back Deployment");
+  await withLock(env.DEPLOY_DIR, 'rollback', async () => {
+    logger.header('Rolling Back Deployment');
 
     // Get current state
     const currentColor = await getCurrentColor(env.DEPLOY_DIR);
     if (!currentColor) {
-      logger.error("No active deployment to rollback from");
-      throw new Error("No active deployment");
+      logger.error('No active deployment to rollback from');
+      throw new Error('No active deployment');
     }
 
     // Determine rollback version: use provided version or fall back to previous
     let rollbackVersion: string;
     if (targetVersion) {
-      rollbackVersion = targetVersion.replace(/^v/, "");
+      rollbackVersion = targetVersion.replace(/^v/, '');
       logger.info(`Using specified version: ${rollbackVersion}`);
     } else {
       const previousVersion = await getPreviousVersion(env.DEPLOY_DIR);
       if (!previousVersion) {
-        logger.error("No previous version found to rollback to");
-        logger.info("Use --version <version> to specify a version explicitly");
-        throw new Error("No previous version");
+        logger.error('No previous version found to rollback to');
+        logger.info('Use --version <version> to specify a version explicitly');
+        throw new Error('No previous version');
       }
       rollbackVersion = previousVersion;
     }
@@ -52,12 +52,14 @@ export async function rollback(options: RollbackOptions): Promise<void> {
 
     // Get current version before rollback (for version history)
     const currentVersion = await getContainerVersion(
-      `${PROJECT_NAME}-platform-${currentColor}`
+      `${PROJECT_NAME}-platform-${currentColor}`,
     );
 
     logger.info(`Current color: ${currentColor}`);
-    logger.info(`Current version: ${currentVersion ?? "unknown"}`);
-    logger.info(`Rolling back to: ${rollbackColor} (version ${rollbackVersion})`);
+    logger.info(`Current version: ${currentVersion ?? 'unknown'}`);
+    logger.info(
+      `Rolling back to: ${rollbackColor} (version ${rollbackVersion})`,
+    );
 
     const serviceConfig = {
       version: rollbackVersion,
@@ -65,7 +67,7 @@ export async function rollback(options: RollbackOptions): Promise<void> {
     };
 
     // Pull previous version images sequentially for clearer progress and failure attribution
-    logger.step("Pulling previous version images...");
+    logger.step('Pulling previous version images...');
     for (const service of ROTATABLE_SERVICES) {
       const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
       const success = await pullImage(image);
@@ -75,30 +77,33 @@ export async function rollback(options: RollbackOptions): Promise<void> {
     }
 
     // Deploy rollback color
-    logger.step(`Deploying ${rollbackColor} services with version ${rollbackVersion}...`);
+    logger.step(
+      `Deploying ${rollbackColor} services with version ${rollbackVersion}...`,
+    );
     const colorCompose = generateColorCompose(serviceConfig, rollbackColor);
 
-    const deployResult = await dockerCompose(
-      colorCompose,
-      ["up", "-d"],
-      { projectName: `${PROJECT_NAME}-${rollbackColor}`, cwd: env.DEPLOY_DIR }
-    );
+    const deployResult = await dockerCompose(colorCompose, ['up', '-d'], {
+      projectName: `${PROJECT_NAME}-${rollbackColor}`,
+      cwd: env.DEPLOY_DIR,
+    });
 
     if (!deployResult.success) {
       logger.error(`Failed to deploy ${rollbackColor} services`);
       logger.error(deployResult.stderr);
-      throw new Error("Rollback deployment failed");
+      throw new Error('Rollback deployment failed');
     }
 
     // Wait for services to be healthy
-    logger.step("Waiting for services to be healthy...");
+    logger.step('Waiting for services to be healthy...');
     for (const service of ROTATABLE_SERVICES) {
       const containerName = `${PROJECT_NAME}-${service}-${rollbackColor}`;
       const healthy = await waitForHealthy(containerName, {
         timeout: env.HEALTH_CHECK_TIMEOUT,
       });
       if (!healthy) {
-        throw new Error(`Service ${service}-${rollbackColor} failed health check`);
+        throw new Error(
+          `Service ${service}-${rollbackColor} failed health check`,
+        );
       }
     }
 
@@ -128,6 +133,8 @@ export async function rollback(options: RollbackOptions): Promise<void> {
       }
     }
 
-    logger.success(`Rollback complete! Version ${rollbackVersion} is now live on ${rollbackColor}`);
+    logger.success(
+      `Rollback complete! Version ${rollbackVersion} is now live on ${rollbackColor}`,
+    );
   });
 }

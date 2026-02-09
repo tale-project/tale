@@ -1,6 +1,9 @@
+import type { FunctionReference, FunctionReturnType } from 'convex/server';
+
 import { useQuery } from 'convex/react';
 import { useMemo, useEffect, useState } from 'react';
-import type { FunctionReference, FunctionReturnType } from 'convex/server';
+
+import { createCacheKey, getQueryCache, setQueryCache } from '@/lib/offline';
 import {
   filterByFields,
   filterByTextSearch,
@@ -9,11 +12,7 @@ import {
   sortByNumber,
   type SortOrder,
 } from '@/lib/utils/client-utils';
-import {
-  createCacheKey,
-  getQueryCache,
-  setQueryCache,
-} from '@/lib/offline';
+
 import { useOnlineStatus } from './use-online-status';
 
 type QueryFunction = FunctionReference<
@@ -67,7 +66,7 @@ export function createOfflineEntityDataHook<
   TSortBy extends string,
 >(config: OfflineEntityDataConfig<TQuery, TItem, TSortBy>) {
   return function useOfflineEntityData(
-    options: UseOfflineEntityDataOptions<TFilters, TSortBy>
+    options: UseOfflineEntityDataOptions<TFilters, TSortBy>,
   ): UseOfflineEntityDataReturn<TItem> {
     const {
       organizationId,
@@ -84,10 +83,9 @@ export function createOfflineEntityDataHook<
 
     const cacheKey = createCacheKey(config.queryName, organizationId);
 
-     
     const liveData = useQuery(
       config.queryFn as any,
-      isOnline ? { organizationId } : 'skip'
+      isOnline ? { organizationId } : 'skip',
     );
 
     useEffect(() => {
@@ -145,7 +143,8 @@ export function createOfflineEntityDataHook<
 
       const getSorter = () => {
         const actualField =
-          config.sortConfig.fieldMap?.[sortBy] ?? (sortBy as unknown as keyof TItem);
+          config.sortConfig.fieldMap?.[sortBy] ??
+          (sortBy as unknown as keyof TItem);
         if (config.sortConfig.number.includes(sortBy)) {
           return sortByNumber<TItem>(actualField, sortOrder);
         }

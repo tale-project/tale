@@ -18,6 +18,9 @@ from app.services.template_service import get_template_service
 
 router = APIRouter(prefix="/api/v1/docx", tags=["DOCX"])
 
+_FILE_TEMPLATE = File(None, description="Optional template DOCX file to use as base")
+_FILE_UPLOAD = File(..., description="DOCX file to parse")
+
 
 @router.post("", response_model=GenerateDocxResponse)
 async def generate_docx_document(request: GenerateDocxRequest):
@@ -64,7 +67,7 @@ async def generate_docx_document(request: GenerateDocxRequest):
 @router.post("/from-template", response_model=GenerateDocxResponse)
 async def generate_docx_from_template(
     content: str = Form(..., description="JSON object with document content"),
-    template_file: UploadFile = File(None, description="Optional template DOCX file to use as base"),
+    template_file: UploadFile = _FILE_TEMPLATE,
 ):
     """
     Generate a DOCX from JSON content with optional template.
@@ -110,21 +113,23 @@ async def generate_docx_from_template(
             )
 
         # Validate top-level fields
-        if "title" in content_dict and content_dict["title"] is not None:
-            if not isinstance(content_dict["title"], str):
-                title_type = type(content_dict["title"]).__name__
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid content: 'title' must be a string, got {title_type}",
-                )
+        if "title" in content_dict and content_dict["title"] is not None and not isinstance(content_dict["title"], str):
+            title_type = type(content_dict["title"]).__name__
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid content: 'title' must be a string, got {title_type}",
+            )
 
-        if "subtitle" in content_dict and content_dict["subtitle"] is not None:
-            if not isinstance(content_dict["subtitle"], str):
-                subtitle_type = type(content_dict["subtitle"]).__name__
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid content: 'subtitle' must be a string, got {subtitle_type}",
-                )
+        if (
+            "subtitle" in content_dict
+            and content_dict["subtitle"] is not None
+            and not isinstance(content_dict["subtitle"], str)
+        ):
+            subtitle_type = type(content_dict["subtitle"]).__name__
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid content: 'subtitle' must be a string, got {subtitle_type}",
+            )
 
         # Validate sections field
         if "sections" in content_dict:
@@ -135,9 +140,7 @@ async def generate_docx_from_template(
                     detail=f"Invalid content: 'sections' must be an array, got {type(sections).__name__}",
                 )
 
-            valid_section_types = {
-                "heading", "paragraph", "bullets", "numbered", "table", "quote", "code"
-            }
+            valid_section_types = {"heading", "paragraph", "bullets", "numbered", "table", "quote", "code"}
             for idx, section in enumerate(sections):
                 if not isinstance(section, dict):
                     section_type = type(section).__name__
@@ -208,7 +211,7 @@ async def generate_docx_from_template(
 
 @router.post("/parse", response_model=ParseFileResponse)
 async def parse_docx_file(
-    file: UploadFile = File(..., description="DOCX file to parse"),
+    file: UploadFile = _FILE_UPLOAD,
     user_input: str | None = Form(None, description="User instruction for AI extraction per section"),
     process_images: bool = Form(True, description="Extract and describe embedded images"),
 ):

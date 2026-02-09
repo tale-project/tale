@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@/test/utils/render';
+
 import { checkAccessibility } from '@/test/utils/a11y';
+import { render, screen, waitFor } from '@/test/utils/render';
+
 import { Select } from './select';
 
 const options = [
@@ -23,7 +25,12 @@ describe('Select', () => {
 
     it('renders required indicator', () => {
       render(
-        <Select options={options} label="Fruit" required placeholder="Select" />
+        <Select
+          options={options}
+          label="Fruit"
+          required
+          placeholder="Select"
+        />,
       );
       expect(screen.getByText('*')).toBeInTheDocument();
     });
@@ -32,7 +39,7 @@ describe('Select', () => {
   describe('interactions', () => {
     it('opens dropdown on click', async () => {
       const { user } = render(
-        <Select options={options} placeholder="Select fruit" />
+        <Select options={options} placeholder="Select fruit" />,
       );
 
       await user.click(screen.getByRole('combobox'));
@@ -49,7 +56,7 @@ describe('Select', () => {
           options={options}
           placeholder="Select fruit"
           onValueChange={handleChange}
-        />
+        />,
       );
 
       await user.click(screen.getByRole('combobox'));
@@ -63,7 +70,7 @@ describe('Select', () => {
 
     it('does not open when disabled', async () => {
       const { user } = render(
-        <Select options={options} placeholder="Select fruit" disabled />
+        <Select options={options} placeholder="Select fruit" disabled />,
       );
 
       await user.click(screen.getByRole('combobox'));
@@ -75,7 +82,7 @@ describe('Select', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(
-        <Select options={options} label="Fruit" placeholder="Select" />
+        <Select options={options} label="Fruit" placeholder="Select" />,
       );
       await checkAccessibility(container);
     });
@@ -84,7 +91,7 @@ describe('Select', () => {
       render(<Select options={options} placeholder="Select" error />);
       expect(screen.getByRole('combobox')).toHaveAttribute(
         'aria-invalid',
-        'true'
+        'true',
       );
     });
 
@@ -102,7 +109,7 @@ describe('Select', () => {
           options={options}
           placeholder="Select fruit"
           defaultValue="banana"
-        />
+        />,
       );
       expect(screen.getByRole('combobox')).toHaveTextContent('Banana');
     });
@@ -116,7 +123,7 @@ describe('Select', () => {
       ];
 
       const { user } = render(
-        <Select options={optionsWithDisabled} placeholder="Select" />
+        <Select options={optionsWithDisabled} placeholder="Select" />,
       );
 
       await user.click(screen.getByRole('combobox'));

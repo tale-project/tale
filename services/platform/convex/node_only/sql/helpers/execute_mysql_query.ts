@@ -5,13 +5,13 @@
  */
 
 import mysql from 'mysql2/promise';
-import type { SqlExecutionParams, SqlExecutionResult } from '../types';
+
 import type { ConvexJsonValue } from '../../../../lib/shared/schemas/utils/json-value';
+import type { SqlExecutionParams, SqlExecutionResult } from '../types';
 
 export async function executeMySqlQuery(
   params: SqlExecutionParams,
 ): Promise<SqlExecutionResult> {
-
   // Apply row limit via SQL LIMIT clause for efficiency
   const maxRows = params.security?.maxResultRows ?? 10000;
   const queryTimeoutMs = params.security?.queryTimeoutMs ?? 30000;
@@ -50,7 +50,9 @@ export async function executeMySqlQuery(
     const connection = await pool.getConnection();
     try {
       // Set query timeout at session level (in milliseconds for MySQL 8.0.28+)
-      await connection.query(`SET SESSION MAX_EXECUTION_TIME = ${queryTimeoutMs}`);
+      await connection.query(
+        `SET SESSION MAX_EXECUTION_TIME = ${queryTimeoutMs}`,
+      );
 
       // Execute query with timeout
       const [rows] = await connection.query(processedQuery, values);

@@ -3,9 +3,11 @@
  */
 
 import { useQuery, useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+
 import type { Id } from '@/convex/_generated/dataModel';
 import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
+
+import { api } from '@/convex/_generated/api';
 
 export interface HumanInputRequest {
   _id: Id<'approvals'>;
@@ -46,7 +48,7 @@ export function useHumanInputRequests(threadId: string | undefined) {
 /**
  * Hook to submit a response to a human input request
  */
-export function useSubmitHumanInputResponse() {
+function useSubmitHumanInputResponse() {
   const submitMutation = useMutation(
     api.agent_tools.human_input.mutations.submitHumanInputResponse,
   );

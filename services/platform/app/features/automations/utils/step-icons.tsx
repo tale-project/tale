@@ -2,6 +2,8 @@
  * Shared step icon utilities for automation components
  */
 
+import type { LucideIcon } from 'lucide-react';
+
 import {
   Zap,
   Cpu,
@@ -25,10 +27,10 @@ import {
   GitBranch,
   Settings,
 } from 'lucide-react';
-import type { Doc } from '@/convex/_generated/dataModel';
-import type { LucideIcon } from 'lucide-react';
 
-export const ACTION_ICON_MAP: Record<string, LucideIcon> = {
+import type { Doc } from '@/convex/_generated/dataModel';
+
+const ACTION_ICON_MAP: Record<string, LucideIcon> = {
   customer: Users,
   conversation: MessageSquare,
   product: Package,
@@ -48,7 +50,7 @@ export const ACTION_ICON_MAP: Record<string, LucideIcon> = {
   workflow: GitBranch,
 };
 
-export const STEP_TYPE_ICON_MAP: Record<string, LucideIcon> = {
+const STEP_TYPE_ICON_MAP: Record<string, LucideIcon> = {
   start: Zap,
   trigger: Zap,
   llm: Cpu,
@@ -56,7 +58,7 @@ export const STEP_TYPE_ICON_MAP: Record<string, LucideIcon> = {
   loop: Repeat,
 };
 
-export const DEFAULT_ACTION_ICON = Settings;
+const DEFAULT_ACTION_ICON = Settings;
 
 export function getActionIconComponent(actionType?: string): LucideIcon {
   return ACTION_ICON_MAP[actionType || ''] || DEFAULT_ACTION_ICON;
@@ -72,10 +74,7 @@ export function getStepIconComponent(
   return STEP_TYPE_ICON_MAP[stepType || ''] || null;
 }
 
-export function getActionIcon(
-  actionType?: string,
-  iconClass = 'size-4 shrink-0',
-) {
+function getActionIcon(actionType?: string, iconClass = 'size-4 shrink-0') {
   const IconComponent = getActionIconComponent(actionType);
   return <IconComponent className={iconClass} />;
 }

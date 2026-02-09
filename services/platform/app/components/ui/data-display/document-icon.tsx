@@ -1,9 +1,11 @@
 'use client';
 
-import { FileIcon, defaultStyles } from 'react-file-icon';
 import type { DefaultExtensionType } from 'react-file-icon';
-import { cn } from '@/lib/utils/cn';
+
+import { FileIcon, defaultStyles } from 'react-file-icon';
+
 import { extractExtension } from '@/lib/shared/file-types';
+import { cn } from '@/lib/utils/cn';
 
 interface DocumentIconProps {
   fileName: string;

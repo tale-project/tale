@@ -10,7 +10,9 @@ type ValidationResult = {
   tokenEndpoint?: string;
 };
 
-export async function validateSsoConfig(args: ValidateSsoConfigArgs): Promise<ValidationResult> {
+export async function validateSsoConfig(
+  args: ValidateSsoConfigArgs,
+): Promise<ValidationResult> {
   const { issuer, clientId, clientSecret } = args;
 
   // Step 1: Validate issuer by fetching OpenID Discovery document
@@ -38,14 +40,16 @@ export async function validateSsoConfig(args: ValidateSsoConfigArgs): Promise<Va
     if (!discoveryDoc.token_endpoint) {
       return {
         valid: false,
-        error: 'Invalid Issuer URL: OpenID configuration missing token_endpoint',
+        error:
+          'Invalid Issuer URL: OpenID configuration missing token_endpoint',
       };
     }
 
     if (!discoveryDoc.authorization_endpoint) {
       return {
         valid: false,
-        error: 'Invalid Issuer URL: OpenID configuration missing authorization_endpoint',
+        error:
+          'Invalid Issuer URL: OpenID configuration missing authorization_endpoint',
       };
     }
 
@@ -75,7 +79,9 @@ export async function validateSsoConfig(args: ValidateSsoConfigArgs): Promise<Va
     if (!tokenResponse.ok) {
       const errorBody = await tokenResponse.json().catch(() => ({}));
       const errorDescription =
-        errorBody.error_description || errorBody.error || `HTTP ${tokenResponse.status}`;
+        errorBody.error_description ||
+        errorBody.error ||
+        `HTTP ${tokenResponse.status}`;
 
       if (errorDescription.includes('AADSTS700016')) {
         return {
@@ -87,14 +93,16 @@ export async function validateSsoConfig(args: ValidateSsoConfigArgs): Promise<Va
       if (errorDescription.includes('AADSTS7000215')) {
         return {
           valid: false,
-          error: 'Invalid Client Secret: The provided secret is incorrect or expired',
+          error:
+            'Invalid Client Secret: The provided secret is incorrect or expired',
         };
       }
 
       if (errorDescription.includes('AADSTS700024')) {
         return {
           valid: false,
-          error: 'Client Secret expired: Please generate a new secret in Azure portal',
+          error:
+            'Client Secret expired: Please generate a new secret in Azure portal',
         };
       }
 

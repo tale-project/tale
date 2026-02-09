@@ -16,12 +16,14 @@
 export function startCase(str: string): string {
   if (!str) return '';
 
-  return str
-    // Insert space before uppercase letters in camelCase
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    // Replace underscores and hyphens with spaces
-    .replace(/[_-]+/g, ' ')
-    // Capitalize first letter of each word, lowercase the rest
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-    .replace(/\B\w+/g, (word) => word.toLowerCase());
+  return (
+    str
+      // Insert space before uppercase letters in camelCase
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      // Replace underscores and hyphens with spaces
+      .replace(/[_-]+/g, ' ')
+      // Capitalize first letter of each word, lowercase the rest
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+      .replace(/\B\w+/g, (word) => word.toLowerCase())
+  );
 }

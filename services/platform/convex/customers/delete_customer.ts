@@ -2,8 +2,9 @@
  * Delete a customer (business logic)
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
 import { emitEvent } from '../workflows/triggers/emit_event';
 
 export async function deleteCustomer(
@@ -18,10 +19,13 @@ export async function deleteCustomer(
   await emitEvent(ctx, {
     organizationId: customer.organizationId,
     eventType: 'customer.deleted',
-    eventData: { customerId: customerId as string, name: customer.name, email: customer.email },
+    eventData: {
+      customerId: customerId as string,
+      name: customer.name,
+      email: customer.email,
+    },
   });
 
   await ctx.db.delete(customerId);
   return null;
 }
-

@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
-import { query } from '../_generated/server';
+
 import { components } from '../_generated/api';
+import { query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 
 export const listByTeam = query({
@@ -73,8 +74,10 @@ export const listByTeam = query({
           },
         );
         if (userResult) {
-          const name = typeof userResult.name === 'string' ? userResult.name : undefined;
-          const email = typeof userResult.email === 'string' ? userResult.email : undefined;
+          const name =
+            typeof userResult.name === 'string' ? userResult.name : undefined;
+          const email =
+            typeof userResult.email === 'string' ? userResult.email : undefined;
           userMap.set(userId, { name, email });
         }
       }),

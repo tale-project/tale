@@ -41,13 +41,23 @@
       "outputs": []
     },
     "lint:fix": {
-      "dependsOn": ["setup"],
       "cache": false,
       "outputs": []
     },
     "format": {
-      "dependsOn": ["setup"],
       "cache": false,
+      "outputs": []
+    },
+    "format:check": {
+      "dependsOn": ["setup"],
+      "outputs": []
+    },
+    "convex:codegen": {
+      "cache": false,
+      "outputs": ["convex/_generated/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["convex:codegen"],
       "outputs": []
     },
     "test": {
@@ -59,12 +69,12 @@
       "cache": false,
       "persistent": true
     },
+    "test:ui": {
+      "outputs": []
+    },
     "test:coverage": {
       "dependsOn": ["setup"],
       "outputs": ["coverage/**"]
-    },
-    "typecheck": {
-      "outputs": []
     },
     "knip": {
       "cache": false,

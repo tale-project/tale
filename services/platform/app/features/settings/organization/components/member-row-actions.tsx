@@ -1,14 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
+import { useMemo } from 'react';
+
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
-import { EditMemberDialog } from './member-edit-dialog';
-import { DeleteMemberDialog } from './member-delete-dialog';
 import { useT } from '@/lib/i18n/client';
+
+import { DeleteMemberDialog } from './member-delete-dialog';
+import { EditMemberDialog } from './member-edit-dialog';
 
 type MemberItem = {
   _id: string;
@@ -58,7 +60,7 @@ export function MemberRowActions({
         visible: canManageMembers && !isViewingSelf,
       },
     ],
-    [tCommon, dialogs.open, canManageMembers, isViewingSelf]
+    [tCommon, dialogs.open, canManageMembers, isViewingSelf],
   );
 
   // Don't render anything if user can't manage members

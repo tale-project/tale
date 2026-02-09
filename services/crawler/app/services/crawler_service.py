@@ -46,9 +46,7 @@ class CrawlerService:
             from crawl4ai import AsyncUrlSeeder, AsyncWebCrawler
         except ImportError as e:
             logger.error(f"Failed to import crawl4ai: {e}")
-            raise RuntimeError(
-                "crawl4ai is not installed. Install with: pip install crawl4ai"
-            ) from e
+            raise RuntimeError("crawl4ai is not installed. Install with: pip install crawl4ai") from e
 
         self._seeder = AsyncUrlSeeder()
         self._crawler = AsyncWebCrawler()
@@ -134,11 +132,7 @@ class CrawlerService:
 
             if ext in web_extensions:
                 return True
-            if ext in doc_extensions:
-                return False
-
-            # Unknown extension - assume it's a website
-            return True
+            return ext not in doc_extensions
 
         # No extension - assume it's a website
         return True
@@ -167,17 +161,17 @@ class CrawlerService:
 
         try:
             logger.info(f"Extracting structured data from HTML (length: {len(html)} chars)")
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(html, "html.parser")
 
             # Extract OpenGraph data (common for e-commerce)
             og_data = {}
 
             # Find all meta tags with property starting with "og:"
-            og_tags = soup.find_all('meta', property=lambda x: x and x.startswith('og:'))
+            og_tags = soup.find_all("meta", property=lambda x: x and x.startswith("og:"))
             logger.info(f"Found {len(og_tags)} OpenGraph tags")
             for tag in og_tags:
-                prop = tag.get('property', '').replace('og:', '')
-                content = tag.get('content', '')
+                prop = tag.get("property", "").replace("og:", "")
+                content = tag.get("content", "")
                 if content:
                     og_data[prop] = content
                     logger.info(f"  - {prop}: {content[:100]}")
@@ -186,7 +180,7 @@ class CrawlerService:
                 structured["opengraph"] = og_data
 
             # Extract JSON-LD structured data
-            json_ld_scripts = soup.find_all('script', type='application/ld+json')
+            json_ld_scripts = soup.find_all("script", type="application/ld+json")
             json_ld_data = []
             for script in json_ld_scripts:
                 try:
@@ -200,10 +194,10 @@ class CrawlerService:
 
             # Extract other common meta tags
             meta_tags = {}
-            for name in ['description', 'keywords', 'author']:
-                tag = soup.find('meta', attrs={'name': name})
-                if tag and tag.get('content'):
-                    meta_tags[name] = tag.get('content')
+            for name in ["description", "keywords", "author"]:
+                tag = soup.find("meta", attrs={"name": name})
+                if tag and tag.get("content"):
+                    meta_tags[name] = tag.get("content")
 
             if meta_tags:
                 structured["meta"] = meta_tags
@@ -260,10 +254,7 @@ class CrawlerService:
                     verbose=True,
                 )
 
-                logger.info(
-                    f"Discovering URLs from {domain} using source: {source} "
-                    f"with timeout: {timeout}s..."
-                )
+                logger.info(f"Discovering URLs from {domain} using source: {source} with timeout: {timeout}s...")
 
                 # Add timeout to prevent hanging
                 urls = await asyncio.wait_for(
@@ -271,9 +262,7 @@ class CrawlerService:
                     timeout=timeout,
                 )
 
-                logger.info(
-                    f"Seeder returned {len(urls)} URLs for {domain} from source {source}"
-                )
+                logger.info(f"Seeder returned {len(urls)} URLs for {domain} from source {source}")
 
                 # Keep all URLs returned by the seeder; let the crawler handle transient failures.
                 filtered_urls = urls
@@ -293,14 +282,14 @@ class CrawlerService:
                 logger.warning(f"Timeout discovering URLs with source '{source}', trying next source...")
                 _cleanup_memory()
                 if source == sources_to_try[-1]:
-                    raise Exception(f"All discovery sources timed out for {domain}")
+                    raise Exception(f"All discovery sources timed out for {domain}") from None
                 continue
 
             except Exception as e:
                 logger.warning(f"Error discovering URLs with source '{source}': {e}")
                 _cleanup_memory()
                 if source == sources_to_try[-1]:
-                    raise Exception(f"Failed to discover URLs from {domain}: {str(e)}")
+                    raise Exception(f"Failed to discover URLs from {domain}: {e!s}") from e
                 continue
 
         _cleanup_memory()
@@ -375,6 +364,7 @@ class CrawlerService:
 
         return results
 
+
 # Global service instance
 _crawler_service: CrawlerService | None = None
 
@@ -385,4 +375,3 @@ def get_crawler_service() -> CrawlerService:
     if _crawler_service is None:
         _crawler_service = CrawlerService()
     return _crawler_service
-

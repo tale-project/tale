@@ -5,14 +5,15 @@
  * including document parsing and image metadata extraction.
  */
 
-import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
-import { parseFile } from '../../agent_tools/files/helpers/parse_file';
+import type { ActionCtx } from '../../_generated/server';
+import type { FileAttachment, MessageContentPart } from './types';
+
+import { isImage, isTextFile } from '../../../lib/shared/file-types';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
 import { analyzeTextContent } from '../../agent_tools/files/helpers/analyze_text';
+import { parseFile } from '../../agent_tools/files/helpers/parse_file';
 import { registerFilesWithAgent } from './register_files';
-import type { FileAttachment, MessageContentPart } from './types';
-import { isImage, isTextFile } from '../../../lib/shared/file-types';
 
 /**
  * Parsed document with extracted text content
@@ -47,7 +48,9 @@ export interface ProcessedAttachments {
   parsedDocuments: ParsedDocument[];
   imageInfoList: ImageInfo[];
   textFileInfoList: TextFileInfo[];
-  promptContent: Array<{ role: 'user'; content: MessageContentPart[] }> | undefined;
+  promptContent:
+    | Array<{ role: 'user'; content: MessageContentPart[] }>
+    | undefined;
 }
 
 /**
@@ -100,9 +103,7 @@ export async function processAttachments(
   });
 
   // Separate images, text files, and other documents
-  const imageAttachments = attachments.filter((a) =>
-    isImage(a.fileType),
-  );
+  const imageAttachments = attachments.filter((a) => isImage(a.fileType));
   const textFileAttachments = attachments.filter(
     (a) => !isImage(a.fileType) && isTextFile(a.fileType, a.fileName),
   );
@@ -223,8 +224,14 @@ export async function processAttachments(
   );
 
   const analyzedTextFiles = textAnalysisResults.filter(
-    (r): r is { fileName: string; analysis: string; charCount: number; lineCount: number } =>
-      r !== null,
+    (
+      r,
+    ): r is {
+      fileName: string;
+      analysis: string;
+      charCount: number;
+      lineCount: number;
+    } => r !== null,
   );
 
   // Register files with the agent component for tracking (documents only)

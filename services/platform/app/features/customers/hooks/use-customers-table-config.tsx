@@ -1,9 +1,10 @@
 'use client';
 
 import { Stack } from '@/app/components/ui/layout/layout';
-import { CustomerStatusBadge } from '../components/customer-status-badge';
-import { CustomerRowActions } from '../components/customer-row-actions';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
+
+import { CustomerRowActions } from '../components/customer-row-actions';
+import { CustomerStatusBadge } from '../components/customer-status-badge';
 
 export const useCustomersTableConfig = createTableConfigHook<'customers'>(
   {
@@ -17,10 +18,10 @@ export const useCustomersTableConfig = createTableConfigHook<'customers'>(
       size: 278,
       cell: ({ row }) => (
         <Stack gap={1}>
-          <span className="font-medium text-sm text-foreground">
+          <span className="text-foreground text-sm font-medium">
             {row.original.name || ''}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {row.original.email || tTables('cells.noEmail')}
           </span>
         </Stack>

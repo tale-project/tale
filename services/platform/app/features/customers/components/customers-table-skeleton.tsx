@@ -1,8 +1,9 @@
 'use client';
 
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { CustomersActionMenu } from './customers-action-menu';
+
 import { useCustomersTableConfig } from '../hooks/use-customers-table-config';
+import { CustomersActionMenu } from './customers-action-menu';
 
 interface CustomersTableSkeletonProps {
   organizationId: string;

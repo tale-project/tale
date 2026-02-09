@@ -8,20 +8,23 @@
  * Requires admin/developer role for access.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
-import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
-import { validateToolContext } from './helpers/validate_context';
+
+import { internal } from '../../_generated/api';
 import { buildAdditionalContext } from './helpers/build_additional_context';
 import { checkRoleAccess } from './helpers/check_role_access';
 import { formatIntegrationsForContext } from './helpers/format_integrations';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import {
   handleToolError,
   type ToolResponseWithApproval,
 } from './helpers/tool_response';
-import { internal } from '../../_generated/api';
+import { validateToolContext } from './helpers/validate_context';
 
 const INTEGRATION_CONTEXT_MAPPING = {
   integrationName: 'target_integration',

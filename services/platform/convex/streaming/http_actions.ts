@@ -3,7 +3,9 @@
  */
 
 import { type StreamId } from '@convex-dev/persistent-text-streaming';
+
 import type { ActionCtx } from '../_generated/server';
+
 import { httpAction } from '../_generated/server';
 import { persistentStreaming } from './helpers';
 
@@ -48,7 +50,7 @@ export const streamChatHttp = httpAction(async (ctx, request) => {
         actionCtx: ActionCtx,
         _req: Request,
         sid: StreamId,
-        append: (text: string) => Promise<void>
+        append: (text: string) => Promise<void>,
       ) => {
         let lastLength = 0;
         let pollCount = 0;
@@ -56,10 +58,7 @@ export const streamChatHttp = httpAction(async (ctx, request) => {
         const pollInterval = 100;
 
         while (pollCount < maxPolls) {
-          const body = await persistentStreaming.getStreamBody(
-            actionCtx,
-            sid
-          );
+          const body = await persistentStreaming.getStreamBody(actionCtx, sid);
 
           if (body.text.length > lastLength) {
             const newText = body.text.slice(lastLength);
@@ -78,7 +77,7 @@ export const streamChatHttp = httpAction(async (ctx, request) => {
           await new Promise((resolve) => setTimeout(resolve, pollInterval));
           pollCount++;
         }
-      }
+      },
     );
 
     const corsHeaders = {

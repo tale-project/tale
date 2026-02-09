@@ -1,17 +1,19 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Select } from '@/app/components/ui/forms/select';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
+import { Select } from '@/app/components/ui/forms/select';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+
 import { NextStepsEditor } from './next-steps-editor';
 
 interface CreateStepDialogProps {

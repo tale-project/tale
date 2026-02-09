@@ -20,7 +20,7 @@ const DANGEROUS_KEYWORDS = [
 // Combined regex pattern with word boundaries for all dangerous keywords
 const DANGEROUS_PATTERN = new RegExp(
   `\\b(${DANGEROUS_KEYWORDS.join('|')})\\b`,
-  'i'
+  'i',
 );
 
 export function validateQuery(query: string, readOnly: boolean): void {

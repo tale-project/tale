@@ -56,4 +56,3 @@ export interface FetchUrlsData {
 export type DiscoverUrlsResult = DiscoverUrlsData;
 
 export type FetchUrlsResult = FetchUrlsData;
-

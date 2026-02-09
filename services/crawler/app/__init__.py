@@ -6,4 +6,3 @@ Resolves dependency conflicts with cognee in the RAG service.
 """
 
 __version__ = "1.0.0"
-

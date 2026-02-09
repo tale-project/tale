@@ -1,9 +1,10 @@
 import type { ToolCtx } from '@convex-dev/agent';
-import { internal } from '../../../_generated/api';
-import { defaultGetFields, type CustomerReadGetByEmailResult } from './types';
+
 import type { Customer } from '../../../customers/types';
 
+import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { defaultGetFields, type CustomerReadGetByEmailResult } from './types';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 

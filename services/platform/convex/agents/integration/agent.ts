@@ -6,12 +6,16 @@
  */
 
 import { Agent } from '@convex-dev/agent';
+
 import { components } from '../../_generated/api';
-import { createAgentConfig } from '../../lib/create_agent_config';
 import { type ToolName } from '../../agent_tools/tool_registry';
+import { createAgentConfig } from '../../lib/create_agent_config';
 import { createDebugLog } from '../../lib/debug_log';
 
-const debugLog = createDebugLog('DEBUG_INTEGRATION_AGENT', '[IntegrationAgent]');
+const debugLog = createDebugLog(
+  'DEBUG_INTEGRATION_AGENT',
+  '[IntegrationAgent]',
+);
 
 export const INTEGRATION_AGENT_INSTRUCTIONS = `You are an integration assistant.
 

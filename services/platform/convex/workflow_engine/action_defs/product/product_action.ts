@@ -30,20 +30,22 @@
  */
 
 import { v } from 'convex/values';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import { internal } from '../../../_generated/api';
+
 import type { Id } from '../../../_generated/dataModel';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { QueryResult } from '../conversation/helpers/types';
-import { productStatusValidator } from '../../../products/validators';
+
 import {
-	jsonRecordValidator,
-	jsonValueValidator,
-	type ConvexJsonRecord,
+  jsonRecordValidator,
+  jsonValueValidator,
+  type ConvexJsonRecord,
 } from '../../../../lib/shared/schemas/utils/json-value';
+import { internal } from '../../../_generated/api';
+import { productStatusValidator } from '../../../products/validators';
 
 type CreateProductResult = {
-	success: boolean;
-	productId: Id<'products'>;
+  success: boolean;
+  productId: Id<'products'>;
 };
 
 const statusValidator = v.optional(productStatusValidator);
@@ -199,9 +201,12 @@ export const productAction: ActionDefinition<ProductActionParams> = {
 
       case 'get_by_id': {
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        const product = await ctx.runQuery!(internal.products.internal_queries.getProductById, {
-          productId: params.productId as Id<'products'>, // Required by validator
-        });
+        const product = await ctx.runQuery!(
+          internal.products.internal_queries.getProductById,
+          {
+            productId: params.productId as Id<'products'>, // Required by validator
+          },
+        );
 
         return product;
       }
@@ -213,13 +218,16 @@ export const productAction: ActionDefinition<ProductActionParams> = {
           );
         }
 
-        const result = (await ctx.runQuery!(internal.products.internal_queries.queryProducts, {
-          organizationId,
-          externalId: params.externalId,
-          status: params.status,
-          category: params.category,
-          paginationOpts: params.paginationOpts,
-        })) as QueryResult;
+        const result = (await ctx.runQuery!(
+          internal.products.internal_queries.queryProducts,
+          {
+            organizationId,
+            externalId: params.externalId,
+            status: params.status,
+            category: params.category,
+            paginationOpts: params.paginationOpts,
+          },
+        )) as QueryResult;
 
         return {
           page: result.page,
@@ -229,10 +237,13 @@ export const productAction: ActionDefinition<ProductActionParams> = {
       }
 
       case 'update': {
-        await ctx.runMutation!(internal.products.internal_mutations.updateProducts, {
-          productId: params.productId as Id<'products'>, // Required by validator
-          updates: params.updates, // Required by validator
-        });
+        await ctx.runMutation!(
+          internal.products.internal_mutations.updateProducts,
+          {
+            productId: params.productId as Id<'products'>, // Required by validator
+            updates: params.updates, // Required by validator
+          },
+        );
 
         // Fetch and return the updated entity
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
@@ -254,10 +265,13 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         }
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        const result = (await ctx.runQuery!(internal.products.internal_queries.filterProducts, {
-          organizationId,
-          expression: params.expression, // Required by validator
-        })) as { products: unknown[]; count: number };
+        const result = (await ctx.runQuery!(
+          internal.products.internal_queries.filterProducts,
+          {
+            organizationId,
+            expression: params.expression, // Required by validator
+          },
+        )) as { products: unknown[]; count: number };
 
         return result.products;
       }
@@ -279,9 +293,12 @@ export const productAction: ActionDefinition<ProductActionParams> = {
               hydrated.push(item);
               continue;
             }
-            const doc = await ctx.runQuery!(internal.products.internal_queries.getProductById, {
-              productId: idVal as Id<'products'>,
-            });
+            const doc = await ctx.runQuery!(
+              internal.products.internal_queries.getProductById,
+              {
+                productId: idVal as Id<'products'>,
+              },
+            );
             const out: any = { ...item };
             for (const [targetKey, sourceKey] of Object.entries(mappings)) {
               const currentVal = out?.[targetKey];

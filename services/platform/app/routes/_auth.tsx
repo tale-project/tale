@@ -1,4 +1,5 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router';
+
 import { VStack, Spacer } from '@/app/components/ui/layout/layout';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
 
@@ -8,8 +9,12 @@ export const Route = createFileRoute('/_auth')({
 
 function AuthLayout() {
   return (
-    <VStack gap={0} align="stretch" className="min-h-screen bg-background text-foreground">
-      <div className="pt-8 px-4 sm:px-8 pb-16 md:pb-32">
+    <VStack
+      gap={0}
+      align="stretch"
+      className="bg-background text-foreground min-h-screen"
+    >
+      <div className="px-4 pt-8 pb-16 sm:px-8 md:pb-32">
         <LogoLink href="/" />
       </div>
       <Outlet />

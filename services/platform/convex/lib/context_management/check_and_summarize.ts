@@ -5,13 +5,14 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { estimateContextSize } from './estimate_context_size';
+
+import { createDebugLog } from '../debug_log';
 import {
   DEFAULT_MODEL_CONTEXT_LIMIT,
   DEFAULT_RECENT_MESSAGES,
   SUMMARIZATION_THRESHOLD,
 } from './constants';
-import { createDebugLog } from '../debug_log';
+import { estimateContextSize } from './estimate_context_size';
 
 const debugLog = createDebugLog('DEBUG_CONTEXT_MANAGEMENT', '[ContextCheck]');
 

@@ -1,5 +1,15 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { Eye, Pencil, Trash2, Copy, Download, Archive, Star } from 'lucide-react';
+
+import {
+  Eye,
+  Pencil,
+  Trash2,
+  Copy,
+  Download,
+  Archive,
+  Star,
+} from 'lucide-react';
+
 import { EntityRowActions } from './entity-row-actions';
 
 const meta: Meta<typeof EntityRowActions> = {
@@ -55,9 +65,25 @@ type Story = StoryObj<typeof EntityRowActions>;
 export const Default: Story = {
   args: {
     actions: [
-      { key: 'view', label: 'View Details', icon: Eye, onClick: () => alert('View clicked') },
-      { key: 'edit', label: 'Edit', icon: Pencil, onClick: () => alert('Edit clicked') },
-      { key: 'delete', label: 'Delete', icon: Trash2, onClick: () => alert('Delete clicked'), destructive: true },
+      {
+        key: 'view',
+        label: 'View Details',
+        icon: Eye,
+        onClick: () => alert('View clicked'),
+      },
+      {
+        key: 'edit',
+        label: 'Edit',
+        icon: Pencil,
+        onClick: () => alert('Edit clicked'),
+      },
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: Trash2,
+        onClick: () => alert('Delete clicked'),
+        destructive: true,
+      },
     ],
   },
 };
@@ -67,10 +93,28 @@ export const WithSeparators: Story = {
     actions: [
       { key: 'view', label: 'View Details', icon: Eye, onClick: () => {} },
       { key: 'edit', label: 'Edit', icon: Pencil, onClick: () => {} },
-      { key: 'duplicate', label: 'Duplicate', icon: Copy, onClick: () => {}, separator: true },
+      {
+        key: 'duplicate',
+        label: 'Duplicate',
+        icon: Copy,
+        onClick: () => {},
+        separator: true,
+      },
       { key: 'download', label: 'Download', icon: Download, onClick: () => {} },
-      { key: 'archive', label: 'Archive', icon: Archive, onClick: () => {}, separator: true },
-      { key: 'delete', label: 'Delete', icon: Trash2, onClick: () => {}, destructive: true },
+      {
+        key: 'archive',
+        label: 'Archive',
+        icon: Archive,
+        onClick: () => {},
+        separator: true,
+      },
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: Trash2,
+        onClick: () => {},
+        destructive: true,
+      },
     ],
   },
   parameters: {
@@ -86,7 +130,14 @@ export const DestructiveAction: Story = {
   args: {
     actions: [
       { key: 'view', label: 'View', icon: Eye, onClick: () => {} },
-      { key: 'delete', label: 'Delete permanently', icon: Trash2, onClick: () => {}, destructive: true, separator: true },
+      {
+        key: 'delete',
+        label: 'Delete permanently',
+        icon: Trash2,
+        onClick: () => {},
+        destructive: true,
+        separator: true,
+      },
     ],
   },
   parameters: {
@@ -102,8 +153,21 @@ export const DisabledActions: Story = {
   args: {
     actions: [
       { key: 'view', label: 'View Details', icon: Eye, onClick: () => {} },
-      { key: 'edit', label: 'Edit', icon: Pencil, onClick: () => {}, disabled: true },
-      { key: 'delete', label: 'Delete', icon: Trash2, onClick: () => {}, disabled: true, destructive: true },
+      {
+        key: 'edit',
+        label: 'Edit',
+        icon: Pencil,
+        onClick: () => {},
+        disabled: true,
+      },
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: Trash2,
+        onClick: () => {},
+        disabled: true,
+        destructive: true,
+      },
     ],
   },
   parameters: {
@@ -118,10 +182,35 @@ export const DisabledActions: Story = {
 export const ConditionalVisibility: Story = {
   args: {
     actions: [
-      { key: 'view', label: 'View Details', icon: Eye, onClick: () => {}, visible: true },
-      { key: 'edit', label: 'Edit', icon: Pencil, onClick: () => {}, visible: true },
-      { key: 'star', label: 'Add to Favorites', icon: Star, onClick: () => {}, visible: false },
-      { key: 'delete', label: 'Delete', icon: Trash2, onClick: () => {}, destructive: true, visible: true },
+      {
+        key: 'view',
+        label: 'View Details',
+        icon: Eye,
+        onClick: () => {},
+        visible: true,
+      },
+      {
+        key: 'edit',
+        label: 'Edit',
+        icon: Pencil,
+        onClick: () => {},
+        visible: true,
+      },
+      {
+        key: 'star',
+        label: 'Add to Favorites',
+        icon: Star,
+        onClick: () => {},
+        visible: false,
+      },
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: Trash2,
+        onClick: () => {},
+        destructive: true,
+        visible: true,
+      },
     ],
   },
   parameters: {
@@ -137,7 +226,12 @@ export const CustomWidth: Story = {
   args: {
     actions: [
       { key: 'view', label: 'View Full Details', icon: Eye, onClick: () => {} },
-      { key: 'download', label: 'Download as PDF', icon: Download, onClick: () => {} },
+      {
+        key: 'download',
+        label: 'Download as PDF',
+        icon: Download,
+        onClick: () => {},
+      },
     ],
     contentWidth: 'w-[14rem]',
   },
@@ -172,24 +266,37 @@ export const InTableContext: Story = {
     <table className="w-full border-collapse">
       <thead>
         <tr className="border-b">
-          <th className="text-left p-2 text-sm font-medium">Name</th>
-          <th className="text-left p-2 text-sm font-medium">Status</th>
+          <th className="p-2 text-left text-sm font-medium">Name</th>
+          <th className="p-2 text-left text-sm font-medium">Status</th>
           <th className="w-10"></th>
         </tr>
       </thead>
       <tbody>
         {['Document 1', 'Document 2', 'Document 3'].map((name, i) => (
-          <tr key={name} className="border-b hover:bg-muted/50">
+          <tr key={name} className="hover:bg-muted/50 border-b">
             <td className="p-2 text-sm">{name}</td>
-            <td className="p-2 text-sm text-muted-foreground">
+            <td className="text-muted-foreground p-2 text-sm">
               {i === 0 ? 'Active' : i === 1 ? 'Draft' : 'Archived'}
             </td>
             <td className="p-2">
               <EntityRowActions
                 actions={[
                   { key: 'view', label: 'View', icon: Eye, onClick: () => {} },
-                  { key: 'edit', label: 'Edit', icon: Pencil, onClick: () => {}, disabled: i === 2 },
-                  { key: 'delete', label: 'Delete', icon: Trash2, onClick: () => {}, destructive: true, separator: true },
+                  {
+                    key: 'edit',
+                    label: 'Edit',
+                    icon: Pencil,
+                    onClick: () => {},
+                    disabled: i === 2,
+                  },
+                  {
+                    key: 'delete',
+                    label: 'Delete',
+                    icon: Trash2,
+                    onClick: () => {},
+                    destructive: true,
+                    separator: true,
+                  },
                 ]}
               />
             </td>
@@ -210,7 +317,13 @@ export const InTableContext: Story = {
 export const SingleAction: Story = {
   args: {
     actions: [
-      { key: 'delete', label: 'Delete', icon: Trash2, onClick: () => {}, destructive: true },
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: Trash2,
+        onClick: () => {},
+        destructive: true,
+      },
     ],
   },
   parameters: {

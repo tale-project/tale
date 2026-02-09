@@ -1,6 +1,7 @@
-import type { ActionCtx } from '../../../../_generated/server';
-import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../_generated/server';
+
+import { internal } from '../../../../_generated/api';
 
 export async function queryConversationMessages(
   ctx: ActionCtx,

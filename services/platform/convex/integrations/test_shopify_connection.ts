@@ -2,9 +2,8 @@
  * Test Shopify connection by making a simple API call
  */
 
-import { SHOPIFY_API_VERSION } from './types';
-
 import { createDebugLog } from '../lib/debug_log';
+import { SHOPIFY_API_VERSION } from './types';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -84,6 +83,7 @@ export async function testShopifyConnection(
     }
     throw new Error(
       'Failed to connect to Shopify. Please check your credentials.',
+      { cause: error },
     );
   }
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { useParams, useNavigate } from '@tanstack/react-router';
+import { useQuery } from 'convex/react';
 import {
   type ComponentPropsWithoutRef,
   useEffect,
@@ -8,16 +10,15 @@ import {
   useMemo,
   useSyncExternalStore,
 } from 'react';
-import { useParams, useNavigate } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 
-import { api } from '@/convex/_generated/api';
-import { cn } from '@/lib/utils/cn';
-import { useT } from '@/lib/i18n/client';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { useToast } from '@/app/hooks/use-toast';
-import { ChatActions } from './chat-actions';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
 import { useUpdateThread } from '../hooks/use-update-thread';
+import { ChatActions } from './chat-actions';
 
 const emptySubscribe = () => () => {};
 
@@ -168,16 +169,16 @@ export function ChatHistorySidebar({
       )}
       {...restProps}
     >
-      <h2 className="text-sm font-medium text-muted-foreground px-2">
+      <h2 className="text-muted-foreground px-2 text-sm font-medium">
         {t('chatHistory')}
       </h2>
       <Stack gap={1}>
         {!isMounted || !chats ? (
-          <div className="text-sm text-muted-foreground text-nowrap px-2">
+          <div className="text-muted-foreground px-2 text-sm text-nowrap">
             {t('history.loading')}
           </div>
         ) : chats.length === 0 ? (
-          <div className="text-sm text-muted-foreground text-nowrap px-2">
+          <div className="text-muted-foreground px-2 text-sm text-nowrap">
             {t('history.empty')}
           </div>
         ) : (
@@ -189,7 +190,8 @@ export function ChatHistorySidebar({
                 key={chat._id}
                 className={cn(
                   'group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
-                  !isEditing && 'cursor-pointer hover:bg-accent hover:text-accent-foreground',
+                  !isEditing &&
+                    'cursor-pointer hover:bg-accent hover:text-accent-foreground',
                   currentThreadId === chat._id &&
                     !isEditing &&
                     'bg-accent text-accent-foreground',
@@ -211,7 +213,7 @@ export function ChatHistorySidebar({
                     }}
                     onBlur={() => handleInputBlur(chat._id)}
                     aria-label={t('history.renameChat')}
-                    className="flex-1 min-w-0 text-sm leading-snug min-h-[20px] bg-transparent outline-none ring-1 ring-primary rounded-sm focus-visible:ring-2 focus-visible:ring-primary px-1"
+                    className="ring-primary focus-visible:ring-primary min-h-[20px] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
                   />
                 ) : (
                   <>
@@ -228,11 +230,11 @@ export function ChatHistorySidebar({
                           }, 250);
                         }
                       }}
-                      className="flex-1 truncate text-left text-sm leading-snug min-h-[20px]"
+                      className="min-h-[20px] flex-1 truncate text-left text-sm leading-snug"
                     >
                       {chat.title}
                     </button>
-                    <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <div className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                       <ChatActions
                         chat={{ id: chat._id, title: chat.title }}
                         currentChatId={currentThreadId}

@@ -58,4 +58,3 @@ async def get_config():
         enable_graph_storage=settings.enable_graph_storage,
         enable_vector_search=settings.enable_vector_search,
     )
-

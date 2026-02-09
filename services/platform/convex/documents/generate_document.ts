@@ -5,9 +5,11 @@
  * wrapper in `convex/documents.ts`.
  */
 
-import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
 import type { GenerateDocumentArgs, GenerateDocumentResult } from './types';
+
+import { createDebugLog } from '../lib/debug_log';
 import {
   buildDownloadUrl,
   buildRequestBody,
@@ -15,8 +17,6 @@ import {
   getEndpointPath,
   getOutputInfo,
 } from './generate_document_helpers';
-
-import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 

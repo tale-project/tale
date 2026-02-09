@@ -1,10 +1,10 @@
 'use client';
 
-import { useT } from '@/lib/i18n/client';
 import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
+import { useT } from '@/lib/i18n/client';
 
 interface KnowledgeNavigationProps {
   organizationId: string;
@@ -66,7 +66,7 @@ export function KnowledgeNavigation({
       items={navigationItems}
       userRole={userRole}
       standalone={false}
-      className="py-3 h-12"
+      className="h-12 py-3"
       ariaLabel={tCommon('aria.knowledgeNavigation')}
     />
   );

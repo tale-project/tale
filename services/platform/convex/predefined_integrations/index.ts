@@ -5,10 +5,11 @@
  * Each predefined integration includes both connection config and connector code.
  */
 
-import { shopifyIntegration } from './shopify';
+import type { PredefinedIntegration } from './types';
+
 import { circulyIntegration } from './circuly';
 import { protelIntegration } from './protel';
-import type { PredefinedIntegration } from './types';
+import { shopifyIntegration } from './shopify';
 
 // Individual integration exports
 export * from './shopify';

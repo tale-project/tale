@@ -84,4 +84,3 @@ export async function uploadTextDocument({
     jobId,
   };
 }
-

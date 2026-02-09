@@ -4,6 +4,7 @@
  */
 
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
+
 import { RLSError, OrganizationMismatchError } from '../errors';
 
 /**

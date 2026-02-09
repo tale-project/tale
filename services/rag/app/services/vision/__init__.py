@@ -19,9 +19,9 @@ from .processor import (
 )
 
 __all__ = [
-    "extract_text_from_document",
     "extract_text_from_bytes",
-    "is_vision_supported",
+    "extract_text_from_document",
     "is_passthrough_type",
+    "is_vision_supported",
     "vision_cache",
 ]

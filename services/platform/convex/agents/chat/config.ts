@@ -6,9 +6,14 @@
  */
 
 import { createFunctionHandle, makeFunctionReference } from 'convex/server';
+
 import type { MutationCtx } from '../../_generated/server';
-import type { SerializableAgentConfig, AgentHooksConfig } from '../../lib/agent_chat/types';
 import type { ToolName } from '../../agent_tools/tool_registry';
+import type {
+  SerializableAgentConfig,
+  AgentHooksConfig,
+} from '../../lib/agent_chat/types';
+
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { CHAT_AGENT_INSTRUCTIONS } from './agent';
 
@@ -45,15 +50,23 @@ export function getChatAgentRuntimeConfig() {
 }
 
 // Function references for hooks - using makeFunctionReference for type-safe path construction
-const beforeContextHookRef = makeFunctionReference<'action'>('agents/chat/internal_actions:beforeContextHook');
-const beforeGenerateHookRef = makeFunctionReference<'action'>('agents/chat/internal_actions:beforeGenerateHook');
-const onErrorHookRef = makeFunctionReference<'action'>('agents/chat/internal_actions:onErrorHook');
+const beforeContextHookRef = makeFunctionReference<'action'>(
+  'agents/chat/internal_actions:beforeContextHook',
+);
+const beforeGenerateHookRef = makeFunctionReference<'action'>(
+  'agents/chat/internal_actions:beforeGenerateHook',
+);
+const onErrorHookRef = makeFunctionReference<'action'>(
+  'agents/chat/internal_actions:onErrorHook',
+);
 
 /**
  * Create FunctionHandles for chat agent hooks.
  * Must be called from a mutation context.
  */
-export async function createChatHookHandles(ctx: MutationCtx): Promise<AgentHooksConfig> {
+export async function createChatHookHandles(
+  _ctx: MutationCtx,
+): Promise<AgentHooksConfig> {
   const [beforeContext, beforeGenerate, onError] = await Promise.all([
     createFunctionHandle(beforeContextHookRef),
     createFunctionHandle(beforeGenerateHookRef),

@@ -1,23 +1,25 @@
 'use client';
 
-import { useMemo, useCallback, useState } from 'react';
 import { CircleStop, Copy, Pencil, Trash2, Upload } from 'lucide-react';
+import { useMemo, useCallback, useState } from 'react';
+
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { useAuth } from '@/app/hooks/use-convex-auth';
+import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
-import { DeleteAutomationDialog } from './automation-delete-dialog';
-import { AutomationRenameDialog } from './automation-rename-dialog';
-import { useDuplicateAutomation } from '../hooks/use-duplicate-automation';
+import { useT } from '@/lib/i18n/client';
+
 import { useDeleteAutomation } from '../hooks/use-delete-automation';
+import { useDuplicateAutomation } from '../hooks/use-duplicate-automation';
 import { useRepublishAutomation } from '../hooks/use-republish-automation';
 import { useUnpublishAutomation } from '../hooks/use-unpublish-automation';
 import { useUpdateAutomation } from '../hooks/use-update-automation';
-import { toast } from '@/app/hooks/use-toast';
-import { useAuth } from '@/app/hooks/use-convex-auth';
-import { useT } from '@/lib/i18n/client';
+import { DeleteAutomationDialog } from './automation-delete-dialog';
+import { AutomationRenameDialog } from './automation-rename-dialog';
 
 interface AutomationRowActionsProps {
   automation: Doc<'wfDefinitions'>;

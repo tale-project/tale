@@ -2,11 +2,13 @@
  * Execute step by type using strategy pattern
  */
 
-import { ActionCtx } from '../../../_generated/server';
-import { internal } from '../../../_generated/api';
-import { StepDefinition, StepExecutionResult } from './types';
 import type { Infer } from 'convex/values';
+
 import type { llmStepConfigValidator } from '../../types/nodes';
+
+import { internal } from '../../../_generated/api';
+import { ActionCtx } from '../../../_generated/server';
+import { StepDefinition, StepExecutionResult } from './types';
 
 export async function executeStepByType(
   ctx: ActionCtx,
@@ -28,52 +30,70 @@ export async function executeStepByType(
       };
 
     case 'llm':
-      return await ctx.runAction(internal.workflow_engine.internal_actions.executeLLMNode, {
-        stepDef: {
-          stepSlug: stepDef.stepSlug,
-          stepType: 'llm' as const,
-          config: stepDef.config as Infer<typeof llmStepConfigValidator>,
-          organizationId: stepDef.organizationId,
+      return await ctx.runAction(
+        internal.workflow_engine.internal_actions.executeLLMNode,
+        {
+          stepDef: {
+            stepSlug: stepDef.stepSlug,
+            stepType: 'llm' as const,
+            config: stepDef.config as Infer<typeof llmStepConfigValidator>,
+            organizationId: stepDef.organizationId,
+          },
+          variables,
+          executionId,
+          threadId,
         },
-        variables,
-        executionId,
-        threadId,
-      });
+      );
 
     case 'condition':
-      return await ctx.runAction(internal.workflow_engine.internal_actions.executeConditionNode, {
-        stepDef: {
-          stepSlug: stepDef.stepSlug,
-          stepType: 'condition' as const,
-          config: stepDef.config as { expression: string },
+      return await ctx.runAction(
+        internal.workflow_engine.internal_actions.executeConditionNode,
+        {
+          stepDef: {
+            stepSlug: stepDef.stepSlug,
+            stepType: 'condition' as const,
+            config: stepDef.config as { expression: string },
+          },
+          variables,
+          executionId,
         },
-        variables,
-        executionId,
-      });
+      );
 
     case 'action':
-      return await ctx.runAction(internal.workflow_engine.internal_actions.executeActionNode, {
-        stepDef: {
-          stepSlug: stepDef.stepSlug,
-          stepType: 'action' as const,
-          config: stepDef.config as any,
+      return await ctx.runAction(
+        internal.workflow_engine.internal_actions.executeActionNode,
+        {
+          stepDef: {
+            stepSlug: stepDef.stepSlug,
+            stepType: 'action' as const,
+            config: stepDef.config as any,
+          },
+          variables,
+          executionId,
+          threadId,
         },
-        variables,
-        executionId,
-        threadId,
-      });
+      );
 
     case 'loop':
-      return await ctx.runAction(internal.workflow_engine.internal_actions.executeLoopNode, {
-        stepDef: {
-          stepSlug: stepDef.stepSlug,
-          stepType: 'loop' as const,
-          config: stepDef.config as { collection: string; itemVariable: string; indexVariable?: string; maxIterations?: number; parallelism?: number },
+      return await ctx.runAction(
+        internal.workflow_engine.internal_actions.executeLoopNode,
+        {
+          stepDef: {
+            stepSlug: stepDef.stepSlug,
+            stepType: 'loop' as const,
+            config: stepDef.config as {
+              collection: string;
+              itemVariable: string;
+              indexVariable?: string;
+              maxIterations?: number;
+              parallelism?: number;
+            },
+          },
+          variables,
+          executionId,
+          threadId,
         },
-        variables,
-        executionId,
-        threadId,
-      });
+      );
 
     default: {
       const _exhaustiveCheck: never = stepDef.stepType as never;

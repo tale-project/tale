@@ -43,12 +43,17 @@ export async function listSharePointFiles(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[listSharePointFiles] API error:', response.status, errorText);
+      console.error(
+        '[listSharePointFiles] API error:',
+        response.status,
+        errorText,
+      );
 
       if (response.status === 403) {
         return {
           success: false,
-          error: 'Access denied. You may not have permission to access this location.',
+          error:
+            'Access denied. You may not have permission to access this location.',
         };
       }
 

@@ -1,4 +1,5 @@
 import { GenericQueryCtx } from 'convex/server';
+
 import { DataModel } from '../_generated/dataModel';
 
 type IsSsoConfiguredResult = {

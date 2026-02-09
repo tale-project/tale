@@ -1,25 +1,4 @@
-name: Release All Services
-
-# ============================================================================
-# Unified Release Workflow
-# ============================================================================
-# Triggered by version tags (v*.*.* or *.*.*) to build and push all 7 service
-# images with the same version number. Uses native ARM/AMD64 runners for
-# faster builds without QEMU emulation.
-#
-# Usage:
-#   git tag v1.0.0 && git push origin v1.0.0
-#
-# This will build and push multi-arch images:
-#   - ghcr.io/tale-project/tale/tale-platform:1.0.0
-#   - ghcr.io/tale-project/tale/tale-rag:1.0.0
-#   - ghcr.io/tale-project/tale/tale-crawler:1.0.0
-#   - ghcr.io/tale-project/tale/tale-db:1.0.0
-#   - ghcr.io/tale-project/tale/tale-graph-db:1.0.0
-#   - ghcr.io/tale-project/tale/tale-proxy:1.0.0
-#   - ghcr.io/tale-project/tale/tale-operator:1.0.0
-#   - CLI binaries (via cli.yml workflow)
-# ============================================================================
+name: Release
 
 on:
   push:
@@ -38,11 +17,8 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # ============================================================================
-  # Compute version from tag or input
-  # ============================================================================
   prepare:
-    name: Prepare Release
+    name: Prepare release
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -68,11 +44,8 @@ jobs:
           echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Version Number**: ${{ steps.version.outputs.version_number }}" >> $GITHUB_STEP_SUMMARY
 
-  # ============================================================================
-  # Create GitHub Release
-  # ============================================================================
   create-release:
-    name: Create Release
+    name: Create release
     needs: prepare
     runs-on: ubuntu-latest
     permissions:
@@ -82,7 +55,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Create GitHub Release
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -91,9 +64,6 @@ jobs:
             --generate-notes \
             || echo "Release already exists, skipping creation"
 
-  # ============================================================================
-  # Build all services on native runners (no QEMU)
-  # ============================================================================
   build:
     name: Build ${{ matrix.service.name }} (${{ matrix.arch.name }})
     needs: prepare
@@ -107,26 +77,19 @@ jobs:
       matrix:
         service:
           - name: platform
-            dockerfile: services/platform/Dockerfile
-            context: .
+            context: '.'
           - name: rag
-            dockerfile: services/rag/Dockerfile
-            context: .
+            context: '.'
           - name: crawler
-            dockerfile: services/crawler/Dockerfile
-            context: .
+            context: '.'
           - name: db
-            dockerfile: services/db/Dockerfile
-            context: .
+            context: '.'
           - name: graph-db
-            dockerfile: services/graph-db/Dockerfile
-            context: services/graph-db
+            context: 'services/graph-db'
           - name: proxy
-            dockerfile: services/proxy/Dockerfile
-            context: .
+            context: '.'
           - name: operator
-            dockerfile: services/operator/Dockerfile
-            context: .
+            context: '.'
         arch:
           - name: amd64
             runner: ubuntu-latest
@@ -134,8 +97,6 @@ jobs:
           - name: arm64
             runner: ubuntu-24.04-arm
             platform: linux/arm64
-        exclude: []
-        include: []
 
     steps:
       - name: Checkout repository
@@ -161,7 +122,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service.context }}
-          file: ${{ matrix.service.dockerfile }}
+          file: services/${{ matrix.service.name }}/Dockerfile
           platforms: ${{ matrix.arch.platform }}
           push: true
           tags: |
@@ -172,11 +133,8 @@ jobs:
           cache-to: type=gha,scope=${{ matrix.service.name }}-${{ matrix.arch.name }},mode=max
           provenance: false
 
-  # ============================================================================
-  # Create multi-arch manifests
-  # ============================================================================
   manifest:
-    name: Create Manifest (${{ matrix.service }})
+    name: Manifest ${{ matrix.service }}
     needs: [prepare, build]
     runs-on: ubuntu-latest
     permissions:
@@ -210,11 +168,8 @@ jobs:
           docker manifest push ${IMAGE}:${VERSION}
           docker manifest push ${IMAGE}:latest
 
-  # ============================================================================
-  # Trigger CLI build
-  # ============================================================================
   trigger-cli:
-    name: Trigger CLI Build
+    name: Trigger CLI build
     needs: [prepare, create-release]
     runs-on: ubuntu-latest
     permissions:
@@ -230,16 +185,9 @@ jobs:
             --repo ${{ github.repository }} \
             --field release_tag=${{ needs.prepare.outputs.version }}
 
-  # ============================================================================
-  # Summary
-  # ============================================================================
   summary:
-    name: Release Summary
-    needs:
-      - prepare
-      - create-release
-      - manifest
-      - trigger-cli
+    name: Release summary
+    needs: [prepare, create-release, manifest, trigger-cli]
     runs-on: ubuntu-latest
 
     steps:

@@ -2,8 +2,8 @@
  * Update provider metadata
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 interface UpdateMetadataInternalArgs {
   id: Doc<'emailProviders'>['_id'];
@@ -21,7 +21,7 @@ export async function updateMetadataInternal(
 
   // Merge config with existing metadata
   const updatedMetadata = {
-    ...(provider.metadata || {}),
+    ...provider.metadata,
     ...args.config,
   };
 
@@ -31,4 +31,3 @@ export async function updateMetadataInternal(
 
   return null;
 }
-

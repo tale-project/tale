@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { RadioGroup, RadioGroupItem } from './radio-group';
 
 const meta: Meta<typeof RadioGroup> = {
@@ -120,7 +121,8 @@ export const WithoutLabels: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Radio items without visible labels should have aria-label for accessibility.',
+        story:
+          'Radio items without visible labels should have aria-label for accessibility.',
       },
     },
   },
@@ -128,17 +130,17 @@ export const WithoutLabels: Story = {
 
 export const FormExample: Story = {
   render: () => (
-    <form className="space-y-6 w-80">
+    <form className="w-80 space-y-6">
       <RadioGroup defaultValue="standard" label="Shipping method" required>
-        <div className="flex items-center justify-between p-3 border rounded-lg">
+        <div className="flex items-center justify-between rounded-lg border p-3">
           <RadioGroupItem value="standard" label="Standard (5-7 days)" />
           <span className="text-sm font-medium">Free</span>
         </div>
-        <div className="flex items-center justify-between p-3 border rounded-lg">
+        <div className="flex items-center justify-between rounded-lg border p-3">
           <RadioGroupItem value="express" label="Express (2-3 days)" />
           <span className="text-sm font-medium">$9.99</span>
         </div>
-        <div className="flex items-center justify-between p-3 border rounded-lg">
+        <div className="flex items-center justify-between rounded-lg border p-3">
           <RadioGroupItem value="overnight" label="Overnight" />
           <span className="text-sm font-medium">$19.99</span>
         </div>

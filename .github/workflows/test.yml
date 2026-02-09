@@ -1,0 +1,52 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/platform/**'
+      - 'services/crawler/**'
+      - 'services/rag/**'
+      - 'services/graph-db/**'
+      - '.github/workflows/test.yml'
+      - 'package.json'
+      - 'turbo.json'
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/platform/**'
+      - 'services/crawler/**'
+      - 'services/rag/**'
+      - 'services/graph-db/**'
+      - '.github/workflows/test.yml'
+      - 'package.json'
+      - 'turbo.json'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: self-hosted
+    permissions:
+      contents: read
+    env:
+      TURBO_API: 'http://127.0.0.1:9080'
+      TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TURBO_TEAM: 'tale'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Turbo
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: npx turbo run test test:ui

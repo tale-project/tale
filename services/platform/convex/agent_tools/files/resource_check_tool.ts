@@ -2,10 +2,13 @@
  *  Check whether a remote resource (image, document, or other file URL) is accessible.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
+
 import {
   checkResourcesAccessibleBatch,
   type ResourceCheckBatchResult,
@@ -53,10 +56,7 @@ EXAMPLES:
           'Optional timeout in milliseconds for each check (default: 10000).',
         ),
     }),
-    handler: async (
-      _ctx: ToolCtx,
-      args,
-    ): Promise<ResourceCheckBatchResult> => {
+    handler: async (_ctx: ToolCtx, args): Promise<ResourceCheckBatchResult> => {
       return checkResourcesAccessibleBatch({
         urls: args.urls,
         timeoutMs: args.timeout_ms,

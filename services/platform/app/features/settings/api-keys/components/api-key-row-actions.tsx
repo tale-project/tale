@@ -1,20 +1,24 @@
 'use client';
 
-import { useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import {
-  EntityRowActions,
-} from '@/app/components/ui/entity/entity-row-actions';
-import { ApiKeyRevokeDialog } from './api-key-revoke-dialog';
+import { useMemo, useState } from 'react';
+
+import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
 import { useT } from '@/lib/i18n/client';
+
 import type { ApiKey } from '../types';
+
+import { ApiKeyRevokeDialog } from './api-key-revoke-dialog';
 
 interface ApiKeyRowActionsProps {
   apiKey: ApiKey;
   organizationId: string;
 }
 
-export function ApiKeyRowActions({ apiKey, organizationId }: ApiKeyRowActionsProps) {
+export function ApiKeyRowActions({
+  apiKey,
+  organizationId,
+}: ApiKeyRowActionsProps) {
   const { t: tSettings } = useT('settings');
   const [isRevokeDialogOpen, setIsRevokeDialogOpen] = useState(false);
 

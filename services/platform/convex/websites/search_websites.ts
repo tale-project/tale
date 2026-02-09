@@ -5,8 +5,8 @@
  * Note: For better scalability, consider adding a search index.
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export interface SearchWebsitesArgs {
   organizationId: string;

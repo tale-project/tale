@@ -1,5 +1,5 @@
-import { getConfigFilePath } from "./get-config-file-path";
-import { type GlobalConfig, isGlobalConfig } from "./types";
+import { getConfigFilePath } from './get-config-file-path';
+import { type GlobalConfig, isGlobalConfig } from './types';
 
 export async function getConfig(): Promise<GlobalConfig | null> {
   const configPath = getConfigFilePath();

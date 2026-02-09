@@ -1,9 +1,11 @@
 'use client';
 
 import { Store } from 'lucide-react';
+
 import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
-import { VendorsActionMenu } from './vendors-action-menu';
 import { useT } from '@/lib/i18n/client';
+
+import { VendorsActionMenu } from './vendors-action-menu';
 
 interface VendorsEmptyStateProps {
   organizationId: string;

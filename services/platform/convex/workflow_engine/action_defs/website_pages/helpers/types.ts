@@ -37,4 +37,3 @@ export interface WebsitePagesActionResult {
   success: boolean;
   timestamp: number;
 }
-

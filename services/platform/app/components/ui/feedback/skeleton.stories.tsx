@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { Skeleton } from './skeleton';
 
 const meta: Meta<typeof Skeleton> = {
@@ -101,7 +102,7 @@ export const CircleShape: Story = {
 
 export const TextLines: Story = {
   render: () => (
-    <div className="space-y-2 w-64">
+    <div className="w-64 space-y-2">
       <Skeleton className="h-4 w-full" />
       <Skeleton className="h-4 w-4/5" />
       <Skeleton className="h-4 w-3/5" />
@@ -118,10 +119,10 @@ export const TextLines: Story = {
 
 export const CardSkeleton: Story = {
   render: () => (
-    <div className="w-72 p-4 border rounded-lg space-y-4">
+    <div className="w-72 space-y-4 rounded-lg border p-4">
       <div className="flex items-center gap-3">
         <Skeleton size="lg" shape="circle" />
-        <div className="space-y-2 flex-1">
+        <div className="flex-1 space-y-2">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-3 w-32" />
         </div>

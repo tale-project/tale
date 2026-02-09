@@ -1,6 +1,6 @@
+import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ApprovalResourceType } from '../../../../approvals/types';
-import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type ApprovalPriority = 'low' | 'medium' | 'high' | 'urgent';
