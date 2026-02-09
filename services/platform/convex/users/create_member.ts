@@ -60,7 +60,7 @@ export async function createMember(
     throw new Error('Only Admins can create members');
   }
 
-  // First check if user already exists by querying Better Auth directly
+  // Check if user already exists by querying Better Auth directly
   const existingUserResult = await ctx.runQuery(
     components.betterAuth.adapter.findMany,
     {
@@ -79,15 +79,59 @@ export async function createMember(
     },
   );
 
-  if (existingUserResult && existingUserResult.page.length > 0) {
-    throw new Error('A user with this email already exists');
+  const existingUser = existingUserResult?.page?.[0] as
+    | { _id: string }
+    | undefined;
+
+  if (existingUser) {
+    // User exists — check if they're already a member of this organization
+    const existingMemberResult = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          {
+            field: 'organizationId',
+            value: args.organizationId,
+            operator: 'eq',
+          },
+          { field: 'userId', value: existingUser._id, operator: 'eq' },
+        ],
+      },
+    );
+
+    if (existingMemberResult && existingMemberResult.page.length > 0) {
+      throw new Error('User is already a member of this organization');
+    }
+
+    // Re-add the existing user to the organization
+    const created = await ctx.runMutation(
+      components.betterAuth.adapter.create,
+      {
+        input: {
+          model: 'member',
+          data: {
+            organizationId: args.organizationId,
+            userId: existingUser._id,
+            role: (args.role ?? 'member').toLowerCase(),
+            createdAt: Date.now(),
+          },
+        },
+      },
+    );
+    const memberId: string =
+      (created as any)?._id ?? (created as any)?.id ?? String(created);
+
+    return {
+      userId: existingUser._id,
+      memberId,
+    };
   }
 
-  // Create Better Auth instance
+  // User doesn't exist — create a new account
   const auth = createAuth(ctx);
 
-  // Use Better Auth's API to create the user with proper password hashing
-  // This does NOT create a session, so the admin's session remains active
   const signupResult = await auth.api.signUpEmail({
     body: {
       email: args.email,
@@ -100,7 +144,6 @@ export async function createMember(
     throw new Error('Failed to create user account');
   }
 
-  // Query Better Auth to get the created user's internal ID
   const userResult = await ctx.runQuery(
     components.betterAuth.adapter.findMany,
     {
@@ -128,10 +171,8 @@ export async function createMember(
     );
   }
 
-  // Use the Better Auth user's internal ID (_id) as the identityId
   const betterAuthUserId = userResult.page[0]._id;
 
-  // Create member record in Better Auth
   const created = await ctx.runMutation(components.betterAuth.adapter.create, {
     input: {
       model: 'member',
