@@ -31,7 +31,7 @@ runs:
         python-version: ${{ inputs.python-version }}
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@v7
 
     - name: Start Turbo cache server
       uses: felixmosh/turborepo-gh-artifacts@v3
