@@ -4,12 +4,14 @@ This module provides the main CogneeService class that wraps
 cognee RAG operations.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import aiofiles
@@ -29,8 +31,10 @@ from tenacity import (
 )
 
 from ...config import settings
-from ...models import SearchType as ApiSearchType
 from ..vision import extract_text_from_document, is_vision_supported
+
+if TYPE_CHECKING:
+    from ...models import SearchType as ApiSearchType
 from .cleanup import (
     cleanup_legacy_site_packages_data,
     cleanup_missing_local_files_data,
@@ -60,13 +64,15 @@ def _map_api_search_type_to_cognee(search_type: ApiSearchType | None) -> SearchT
     if search_type is None:
         return SearchType.CHUNKS  # Default to CHUNKS for raw text retrieval
 
+    from ...models import SearchType as _ApiSearchType
+
     mapping = {
-        ApiSearchType.CHUNKS: SearchType.CHUNKS,
-        ApiSearchType.GRAPH_COMPLETION: SearchType.GRAPH_COMPLETION,
-        ApiSearchType.RAG_COMPLETION: SearchType.RAG_COMPLETION,
-        ApiSearchType.SUMMARIES: SearchType.SUMMARIES,
-        ApiSearchType.GRAPH_SUMMARY_COMPLETION: SearchType.GRAPH_SUMMARY_COMPLETION,
-        ApiSearchType.TEMPORAL: SearchType.TEMPORAL,
+        _ApiSearchType.CHUNKS: SearchType.CHUNKS,
+        _ApiSearchType.GRAPH_COMPLETION: SearchType.GRAPH_COMPLETION,
+        _ApiSearchType.RAG_COMPLETION: SearchType.RAG_COMPLETION,
+        _ApiSearchType.SUMMARIES: SearchType.SUMMARIES,
+        _ApiSearchType.GRAPH_SUMMARY_COMPLETION: SearchType.GRAPH_SUMMARY_COMPLETION,
+        _ApiSearchType.TEMPORAL: SearchType.TEMPORAL,
     }
     return mapping.get(search_type, SearchType.CHUNKS)
 
