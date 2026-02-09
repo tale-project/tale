@@ -154,8 +154,13 @@ export function OrganizationSettingsClient({
           align="center"
           className="text-muted-foreground text-sm"
         >
-          <span>{tSettings('organization.organizationId')}:</span>
-          <CopyableText value={organization._id} />
+          <span className="text-nowrap">
+            {tSettings('organization.organizationId')}:
+          </span>
+          <CopyableText
+            value={organization._id}
+            className="min-w-0 [&>span]:truncate"
+          />
         </HStack>
       )}
 
@@ -174,6 +179,7 @@ export function OrganizationSettingsClient({
             placeholder={tSettings('organization.searchMember')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-8"
             wrapperClassName="flex-1 max-w-sm"
           />
           {memberContext?.isAdmin && (

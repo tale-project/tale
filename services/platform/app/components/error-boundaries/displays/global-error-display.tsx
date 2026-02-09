@@ -132,7 +132,12 @@ export function GlobalErrorDisplay({ error, reset }: GlobalErrorDisplayProps) {
 
   return (
     <div
-      style={{ minHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+      style={{
+        minHeight: '80vh',
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+      }}
     >
       <div
         style={{

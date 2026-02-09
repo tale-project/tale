@@ -112,11 +112,13 @@ export const CopyableText = React.memo(function CopyableText({
 
   return (
     <HStack gap={1} align="center" className={cn('inline-flex', className)}>
-      <span className="font-mono text-sm">{value}</span>
+      <span className="font-mono text-sm" title={value}>
+        {value}
+      </span>
       <button
         type="button"
         onClick={onClick}
-        className="hover:bg-muted cursor-pointer rounded p-0.5 transition-colors"
+        className="hover:bg-muted shrink-0 cursor-pointer rounded p-0.5 transition-colors"
         aria-label={tCommon('actions.copy')}
       >
         {copied ? (
