@@ -1,16 +1,18 @@
 'use client';
 
 import type { ComponentType, ReactNode } from 'react';
+
 import { Link } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
-import { Button, buttonVariants } from '@/app/components/ui/primitives/button';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/app/components/ui/overlays/dropdown-menu';
+import { Button, buttonVariants } from '@/app/components/ui/primitives/button';
+import { cn } from '@/lib/utils/cn';
 
 /** Icon component type that accepts className prop */
 export type IconComponent = ComponentType<{ className?: string }>;
@@ -37,7 +39,13 @@ export interface DataTableActionMenuProps {
   /** Link href for navigation (renders as Link instead of Button) */
   href?: string;
   /** Button variant */
-  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
+  variant?:
+    | 'default'
+    | 'destructive'
+    | 'outline'
+    | 'secondary'
+    | 'ghost'
+    | 'link';
   /** Menu items for dropdown (renders dropdown menu instead of simple button) */
   menuItems?: DataTableActionMenuItem[];
   /** Dropdown menu alignment */
@@ -92,7 +100,7 @@ export function DataTableActionMenu({
                 onClick={item.onClick}
                 disabled={item.disabled}
               >
-                {ItemIcon && <ItemIcon className="size-4 mr-2" />}
+                {ItemIcon && <ItemIcon className="mr-2 size-4" />}
                 {item.label}
               </DropdownMenuItem>
             );
@@ -117,7 +125,11 @@ export function DataTableActionMenu({
 
   // Render simple button
   return (
-    <Button onClick={onClick} variant={variant} className={cn('gap-2', className)}>
+    <Button
+      onClick={onClick}
+      variant={variant}
+      className={cn('gap-2', className)}
+    >
       {Icon && <Icon className="size-4" />}
       {label}
     </Button>

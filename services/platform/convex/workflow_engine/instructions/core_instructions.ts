@@ -84,4 +84,3 @@ export const WORKFLOW_AGENT_DELEGATION_INSTRUCTIONS = `You are a workflow automa
 **RESPONSE GUIDELINES**
 - Be concise and direct
 - After successfully using create_workflow, append "APPROVAL_CREATED:<approvalId>" to your response`;
-

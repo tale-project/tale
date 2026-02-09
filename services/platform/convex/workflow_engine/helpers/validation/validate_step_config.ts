@@ -8,8 +8,12 @@
  */
 
 import { VALID_STEP_TYPES, isValidStepType, type StepType } from './constants';
-import { type StepDefinitionInput, type StepConfigValidationResult, isConfigObject } from './types';
 import { validateStepByType } from './steps';
+import {
+  type StepDefinitionInput,
+  type StepConfigValidationResult,
+  isConfigObject,
+} from './types';
 
 export * from './constants';
 export * from './types';
@@ -31,7 +35,7 @@ function validateStepSlug(stepSlug: string | undefined): string[] {
     errors.push('Step slug is required');
   } else if (!STEP_SLUG_PATTERN.test(stepSlug)) {
     errors.push(
-      'Step slug must be snake_case and contain only lowercase letters, digits, and underscores (e.g., "first_step", "step_1")'
+      'Step slug must be snake_case and contain only lowercase letters, digits, and underscores (e.g., "first_step", "step_1")',
     );
   }
 
@@ -48,7 +52,9 @@ function validateStepSlug(stepSlug: string | undefined): string[] {
  * This helper is used both at authoring time (agent tool) and at runtime
  * to ensure that step definitions meet the same requirements everywhere.
  */
-export function validateStepConfig(stepDef: StepDefinitionInput): StepConfigValidationResult {
+export function validateStepConfig(
+  stepDef: StepDefinitionInput,
+): StepConfigValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 

@@ -1,4 +1,6 @@
 import { v } from 'convex/values';
+
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { mutationWithRLS } from '../lib/rls';
 import * as ConversationsHelpers from './helpers';
 import {
@@ -7,7 +9,6 @@ import {
   conversationPriorityValidator,
   attachmentValidator,
 } from './validators';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const updateConversation = mutationWithRLS({
   args: {

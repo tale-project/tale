@@ -8,19 +8,21 @@
  * - operation = 'count': count total products (with optional filters)
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
-import type { ToolDefinition } from '../types';
 
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
+import type { ToolDefinition } from '../types';
 import type {
   ProductReadGetByIdResult,
   ProductReadListResult,
   ProductReadCountResult,
 } from './helpers/types';
+
+import { countProducts } from './helpers/count_products';
 import { readProductsByIds } from './helpers/read_product_by_id';
 import { readProductList } from './helpers/read_product_list';
-import { countProducts } from './helpers/count_products';
 
 // Use a flat object schema instead of discriminatedUnion to ensure OpenAI-compatible JSON Schema
 // (discriminatedUnion produces anyOf/oneOf which some providers reject as "type: None")
@@ -52,7 +54,9 @@ const productReadArgs = z.object({
   minStock: z
     .number()
     .optional()
-    .describe("For 'list' and 'count': Filter by minimum stock level. Only returns/counts products with stock >= minStock"),
+    .describe(
+      "For 'list' and 'count': Filter by minimum stock level. Only returns/counts products with stock >= minStock",
+    ),
   // For list operation - pagination
   cursor: z
     .string()
@@ -104,7 +108,9 @@ BEST PRACTICES:
     handler: async (
       ctx: ToolCtx,
       args,
-    ): Promise<ProductReadGetByIdResult | ProductReadListResult | ProductReadCountResult> => {
+    ): Promise<
+      ProductReadGetByIdResult | ProductReadListResult | ProductReadCountResult
+    > => {
       if (args.operation === 'get_by_id') {
         if (!args.productIds || args.productIds.length === 0) {
           throw new Error(

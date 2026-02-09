@@ -1,9 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { useState } from 'react';
-import { FilterButton } from './filter-button';
-import { FilterSection } from './filter-section';
+
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Label } from '@/app/components/ui/forms/label';
+
+import { FilterButton } from './filter-button';
+import { FilterSection } from './filter-section';
 
 const meta: Meta = {
   title: 'Forms/Filters',
@@ -39,18 +42,18 @@ export default meta;
 
 export const FilterButtonStates: StoryObj = {
   render: () => (
-    <div className="flex gap-4 items-center">
+    <div className="flex items-center gap-4">
       <div className="text-center">
         <FilterButton hasActiveFilters={false} />
-        <p className="text-xs text-muted-foreground mt-2">Default</p>
+        <p className="text-muted-foreground mt-2 text-xs">Default</p>
       </div>
       <div className="text-center">
         <FilterButton hasActiveFilters={true} />
-        <p className="text-xs text-muted-foreground mt-2">Active</p>
+        <p className="text-muted-foreground mt-2 text-xs">Active</p>
       </div>
       <div className="text-center">
         <FilterButton hasActiveFilters={false} isLoading />
-        <p className="text-xs text-muted-foreground mt-2">Loading</p>
+        <p className="text-muted-foreground mt-2 text-xs">Loading</p>
       </div>
     </div>
   ),
@@ -60,7 +63,7 @@ export const FilterSectionExample: StoryObj = {
   render: function Render() {
     const [expanded, setExpanded] = useState(true);
     return (
-      <div className="w-64 border rounded-lg p-2">
+      <div className="w-64 rounded-lg border p-2">
         <FilterSection
           title="Status"
           isExpanded={expanded}
@@ -97,7 +100,7 @@ export const FilterSectionActive: StoryObj = {
   render: function Render() {
     const [expanded, setExpanded] = useState(true);
     return (
-      <div className="w-64 border rounded-lg p-2">
+      <div className="w-64 rounded-lg border p-2">
         <FilterSection
           title="Category"
           isExpanded={expanded}
@@ -138,7 +141,7 @@ export const MultipleFilterSections: StoryObj = {
     const [dateExpanded, setDateExpanded] = useState(false);
 
     return (
-      <div className="w-64 border rounded-lg p-2 space-y-1">
+      <div className="w-64 space-y-1 rounded-lg border p-2">
         <FilterSection
           title="Status"
           isExpanded={statusExpanded}
@@ -187,7 +190,7 @@ export const MultipleFilterSections: StoryObj = {
           isExpanded={dateExpanded}
           onToggle={() => setDateExpanded(!dateExpanded)}
         >
-          <div className="text-sm text-muted-foreground">
+          <div className="text-muted-foreground text-sm">
             Date picker content...
           </div>
         </FilterSection>
@@ -217,10 +220,10 @@ export const FilterPanelExample: StoryObj = {
         />
 
         {showFilters && (
-          <div className="w-64 border rounded-lg p-2 shadow-lg">
-            <div className="flex items-center justify-between mb-2 px-2">
+          <div className="w-64 rounded-lg border p-2 shadow-lg">
+            <div className="mb-2 flex items-center justify-between px-2">
               <span className="text-sm font-medium">Filters</span>
-              <button className="text-xs text-primary hover:underline">
+              <button className="text-primary text-xs hover:underline">
                 Clear all
               </button>
             </div>

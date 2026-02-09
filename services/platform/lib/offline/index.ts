@@ -1,5 +1,10 @@
 export * from './types';
-export { db, clearAllOfflineData, clearOrganizationData, getOfflineStorageSize } from './db';
+export {
+  db,
+  clearAllOfflineData,
+  clearOrganizationData,
+  getOfflineStorageSize,
+} from './db';
 export {
   createCacheKey,
   getQueryCache,

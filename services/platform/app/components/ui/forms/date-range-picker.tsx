@@ -1,14 +1,5 @@
 'use client';
 
-import { HTMLAttributes, useState, forwardRef, memo, useCallback } from 'react';
-import ReactDatePicker from 'react-datepicker';
-import {
-  CalendarDays as CalendarIcon,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-} from 'lucide-react';
 import {
   format,
   isSameDay,
@@ -19,17 +10,27 @@ import {
   startOfQuarter,
   startOfYear,
 } from 'date-fns';
+import {
+  CalendarDays as CalendarIcon,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+} from 'lucide-react';
+import { HTMLAttributes, useState, forwardRef, memo, useCallback } from 'react';
+import ReactDatePicker from 'react-datepicker';
 import { DateRange } from 'react-day-picker';
 
-import { cn } from '@/lib/utils/cn';
-import { Button } from '@/app/components/ui/primitives/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/app/components/ui/overlays/dropdown-menu';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
 import styles from './date-range-picker.module.css';
 
 export type DatePreset =
@@ -135,27 +136,27 @@ const DateInputHeader = memo(function DateInputHeader({
   nextMonthButtonDisabled,
 }: DateInputHeaderProps) {
   return (
-    <div className="flex items-center justify-between px-1 mb-2">
+    <div className="mb-2 flex items-center justify-between px-1">
       <Button
         type="button"
         variant="outline"
         size="sm"
         disabled={prevMonthButtonDisabled}
         onClick={decreaseMonth}
-        className="size-6 p-0 hover:bg-accent"
+        className="hover:bg-accent size-6 p-0"
       >
-        <ChevronLeft className="size-3.5 text-foreground" />
+        <ChevronLeft className="text-foreground size-3.5" />
       </Button>
-      <p className="text-sm text-foreground">{format(date, 'MMMM yyyy')}</p>
+      <p className="text-foreground text-sm">{format(date, 'MMMM yyyy')}</p>
       <Button
         type="button"
         variant="outline"
         size="sm"
         disabled={nextMonthButtonDisabled}
         onClick={increaseMonth}
-        className="size-6 p-0 hover:bg-accent"
+        className="hover:bg-accent size-6 p-0"
       >
-        <ChevronRight className="size-3.5 text-foreground" />
+        <ChevronRight className="text-foreground size-3.5" />
       </Button>
     </div>
   );
@@ -184,7 +185,7 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
     },
     ref,
   ) => (
-    <div className="flex ring-1 ring-border rounded-lg divide-x">
+    <div className="ring-border flex divide-x rounded-lg ring-1">
       <Button
         ref={ref}
         type="button"
@@ -204,11 +205,11 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
           )}
         />
         {isLoading && (
-          <Loader2 className="size-4 mr-2 text-foreground animate-spin" />
+          <Loader2 className="text-foreground mr-2 size-4 animate-spin" />
         )}
 
         {(value || placeholder) && (
-          <span className="text-sm text-muted-foreground font-normal">
+          <span className="text-muted-foreground text-sm font-normal">
             {value || placeholder}
           </span>
         )}
@@ -219,12 +220,12 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
             type="button"
             variant="outline"
             disabled={isLoading}
-            className="rounded-l-none px-2.5 gap-1.5 ring-0 w-[8.25rem] justify-between"
+            className="w-[8.25rem] justify-between gap-1.5 rounded-l-none px-2.5 ring-0"
           >
-            <span className="text-sm text-muted-foreground font-normal">
+            <span className="text-muted-foreground text-sm font-normal">
               {presetLabel}
             </span>
-            <ChevronDown className="size-4 text-muted-foreground" />
+            <ChevronDown className="text-muted-foreground size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-0">
@@ -232,7 +233,7 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
             <DropdownMenuItem
               key={option.key}
               onClick={() => onPresetSelect(option.key)}
-              className="text-xs py-2"
+              className="py-2 text-xs"
             >
               {option.label}
             </DropdownMenuItem>
@@ -351,7 +352,7 @@ export function DatePickerWithRange({
               variant="ghost"
               size="sm"
               onClick={handleClear}
-              className="text-xs px-2 block ml-auto relative top-1 h-min py-1"
+              className="relative top-1 ml-auto block h-min px-2 py-1 text-xs"
             >
               {t('actions.reset')}
             </Button>

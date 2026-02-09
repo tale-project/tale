@@ -1,13 +1,15 @@
 'use client';
 
 import { useForm } from 'react-hook-form';
-import { useUpdatePassword } from '../hooks/use-update-password';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Input } from '@/app/components/ui/forms/input';
+
 import { Form } from '@/app/components/ui/forms/form';
+import { Input } from '@/app/components/ui/forms/input';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+
+import { useUpdatePassword } from '../hooks/use-update-password';
 
 interface MemberContext {
   memberId: string;
@@ -31,7 +33,7 @@ interface PasswordFormData {
 }
 
 export function AccountFormClient({
-  memberContext,
+  memberContext: _memberContext,
 }: AccountFormClientProps) {
   const { t: tAuth } = useT('auth');
   const { t: tCommon } = useT('common');
@@ -79,7 +81,7 @@ export function AccountFormClient({
   return (
     <NarrowContainer className="p-0!">
       <Stack>
-        <h2 className="text-lg font-semibold mb-6">
+        <h2 className="mb-6 text-lg font-semibold">
           {tAuth('changePassword.title')}
         </h2>
         <Form onSubmit={handleSubmit(onSubmit)}>

@@ -2,12 +2,13 @@
 
 import type { ColumnDef } from '@tanstack/react-table';
 import type { ComponentType } from 'react';
-import { HStack } from '@/app/components/ui/layout/layout';
+
 import { LocaleIcon } from '@/app/components/icons/locale-icon';
 import {
   TableTimestampCell,
   TableDateCell,
 } from '@/app/components/ui/data-display/table-date-cell';
+import { HStack } from '@/app/components/ui/layout/layout';
 import { startCase } from '@/lib/utils/string';
 
 const DEFAULT_LANGUAGE_TO_COUNTRY: Record<string, string> = {
@@ -39,7 +40,7 @@ function getCountryFlag(locale: string): string {
   if (countryCode.length !== 2) return locale;
 
   const codePoints = [...countryCode.toUpperCase()].map(
-    (char) => 127397 + char.charCodeAt(0)
+    (char) => 127397 + char.charCodeAt(0),
   );
   return String.fromCodePoint(...codePoints);
 }
@@ -98,7 +99,11 @@ export function createActionsColumn<TData, TPropName extends string>(
     meta: { isAction: true },
     cell: ({ row }) => (
       <HStack justify="end">
-        <ActionsComponent {...{ [entityPropName]: row.original } as { [K in TPropName]: TData }} />
+        <ActionsComponent
+          {...({ [entityPropName]: row.original } as {
+            [K in TPropName]: TData;
+          })}
+        />
       </HStack>
     ),
   };
@@ -114,17 +119,23 @@ export function createActionsColumn<TData, TPropName extends string>(
  */
 export function createCreationTimeColumn<
   TData extends { _creationTime: number },
->(tTables: TranslationFn, options?: CreationTimeColumnOptions): ColumnDef<TData> {
+>(
+  tTables: TranslationFn,
+  options?: CreationTimeColumnOptions,
+): ColumnDef<TData> {
   return {
     accessorKey: '_creationTime',
     header: () => (
-      <span className="text-right w-full block">
+      <span className="block w-full text-right">
         {tTables('headers.created')}
       </span>
     ),
     size: options?.size ?? 140,
     cell: ({ row }) => (
-      <TableTimestampCell timestamp={row.original._creationTime} preset="short" />
+      <TableTimestampCell
+        timestamp={row.original._creationTime}
+        preset="short"
+      />
     ),
   };
 }
@@ -149,7 +160,7 @@ export function createDateColumn<TData, K extends keyof TData>(
     accessorKey: accessorKey as string,
     header: alignRight
       ? () => (
-          <span className="text-right w-full block">{tTables(headerKey)}</span>
+          <span className="block w-full text-right">{tTables(headerKey)}</span>
         )
       : () => tTables(headerKey),
     size: options?.size ?? 140,
@@ -181,7 +192,7 @@ export function createSourceColumn<TData extends { source?: string | null }>(
     header: () => tTables('headers.source'),
     size: options?.size ?? 140,
     cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground">
+      <span className="text-muted-foreground text-xs">
         {row.original.source
           ? startCase(row.original.source.toLowerCase())
           : tTables('cells.unknown')}
@@ -203,7 +214,7 @@ export function createLocaleColumn<TData extends { locale?: string | null }>(
 ): ColumnDef<TData> {
   return {
     accessorKey: 'locale',
-    header: () => <LocaleIcon className="size-4 text-muted-foreground" />,
+    header: () => <LocaleIcon className="text-muted-foreground size-4" />,
     size: options?.size ?? 100,
     cell: ({ row }) => {
       const locale = row.original.locale || 'en';
@@ -238,7 +249,7 @@ export function createTextColumn<TData, K extends keyof TData>(
         <span
           className={
             options?.className ??
-            `text-xs text-muted-foreground ${options?.truncate ? 'truncate max-w-sm block' : ''}`
+            `text-muted-foreground text-xs ${options?.truncate ? 'block max-w-sm truncate' : ''}`
           }
         >
           {text}

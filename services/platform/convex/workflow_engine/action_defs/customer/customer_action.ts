@@ -29,17 +29,22 @@
  */
 
 import { v } from 'convex/values';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import { internal } from '../../../_generated/api';
-import type { Id } from '../../../_generated/dataModel';
-import type { QueryResult } from '../conversation/helpers/types';
-import {
-	customerStatusValidator,
-	customerSourceValidator,
-	customerAddressValidator,
-} from '../../../customers/validators';
-import { jsonRecordValidator, type ConvexJsonRecord } from '../../../../lib/shared/schemas/utils/json-value';
+
 import type { DataSource } from '../../../../lib/shared/schemas/common';
+import type { Id } from '../../../_generated/dataModel';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
+import type { QueryResult } from '../conversation/helpers/types';
+
+import {
+  jsonRecordValidator,
+  type ConvexJsonRecord,
+} from '../../../../lib/shared/schemas/utils/json-value';
+import { internal } from '../../../_generated/api';
+import {
+  customerStatusValidator,
+  customerSourceValidator,
+  customerAddressValidator,
+} from '../../../customers/validators';
 
 // Type definitions for customer operations
 type CreateCustomerResult = {
@@ -51,13 +56,13 @@ type CreateCustomerResult = {
 const statusValidator = v.optional(customerStatusValidator);
 
 const customerUpdateValidator = v.object({
-	name: v.optional(v.string()),
-	email: v.optional(v.string()),
-	status: v.optional(customerStatusValidator),
-	source: v.optional(v.string()),
-	locale: v.optional(v.string()),
-	address: v.optional(customerAddressValidator),
-	metadata: v.optional(jsonRecordValidator),
+  name: v.optional(v.string()),
+  email: v.optional(v.string()),
+  status: v.optional(customerStatusValidator),
+  source: v.optional(v.string()),
+  locale: v.optional(v.string()),
+  address: v.optional(customerAddressValidator),
+  metadata: v.optional(jsonRecordValidator),
 });
 
 const paginationOptsValidator = v.object({
@@ -153,7 +158,6 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
 
     switch (params.operation) {
       case 'create': {
-
         const result = (await ctx.runMutation!(
           internal.customers.internal_mutations.createCustomer,
           {
@@ -204,17 +208,20 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
 
       case 'query': {
         // Note: organizationId is already validated at the start of execute()
-        const result = (await ctx.runQuery!(internal.customers.internal_queries.queryCustomers, {
-          organizationId,
-          externalId: params.externalId,
-          status: params.status,
-          source: params.source as
-            | 'manual_import'
-            | 'file_upload'
-            | 'circuly'
-            | undefined,
-          paginationOpts: params.paginationOpts,
-        })) as QueryResult;
+        const result = (await ctx.runQuery!(
+          internal.customers.internal_queries.queryCustomers,
+          {
+            organizationId,
+            externalId: params.externalId,
+            status: params.status,
+            source: params.source as
+              | 'manual_import'
+              | 'file_upload'
+              | 'circuly'
+              | undefined,
+            paginationOpts: params.paginationOpts,
+          },
+        )) as QueryResult;
 
         return {
           page: result.page,
@@ -227,10 +234,13 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
         // Extract customerId to avoid duplicate type assertion
         const customerId = params.customerId as Id<'customers'>;
 
-        await ctx.runMutation!(internal.customers.internal_mutations.updateCustomers, {
-          customerId, // Required by validator
-          updates: params.updates, // Required by validator
-        });
+        await ctx.runMutation!(
+          internal.customers.internal_mutations.updateCustomers,
+          {
+            customerId, // Required by validator
+            updates: params.updates, // Required by validator
+          },
+        );
 
         // Fetch and return the updated entity
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }

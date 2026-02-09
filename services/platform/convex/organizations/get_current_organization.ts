@@ -3,8 +3,9 @@
  */
 
 import type { QueryCtx } from '../_generated/server';
-import { authComponent } from '../auth';
+
 import { components } from '../_generated/api';
+import { authComponent } from '../auth';
 
 /**
  * Resolve the current user's organization.

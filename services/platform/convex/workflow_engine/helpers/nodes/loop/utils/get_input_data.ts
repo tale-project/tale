@@ -2,9 +2,9 @@
  * Get and validate input data from configuration
  */
 
-import { StepExecutionContext } from '../../../../types/workflow';
-import { LoopNodeConfig } from '../../../../types/nodes';
 import { replaceVariables } from '../../../../../lib/variables/replace_variables';
+import { LoopNodeConfig } from '../../../../types/nodes';
+import { StepExecutionContext } from '../../../../types/workflow';
 
 export function getInputData(
   ctx: StepExecutionContext,

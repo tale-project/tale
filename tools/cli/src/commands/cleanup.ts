@@ -1,12 +1,13 @@
-import { Command } from "commander";
-import { ensureConfig } from "../lib/config/ensure-config";
-import { loadEnv } from "../utils/load-env";
-import * as logger from "../utils/logger";
-import { cleanup } from "../lib/actions/cleanup";
+import { Command } from 'commander';
+
+import { cleanup } from '../lib/actions/cleanup';
+import { ensureConfig } from '../lib/config/ensure-config';
+import { loadEnv } from '../utils/load-env';
+import * as logger from '../utils/logger';
 
 export function createCleanupCommand(): Command {
-  return new Command("cleanup")
-    .description("Remove inactive (non-current) color containers")
+  return new Command('cleanup')
+    .description('Remove inactive (non-current) color containers')
     .action(async () => {
       try {
         const deployDir = await ensureConfig();

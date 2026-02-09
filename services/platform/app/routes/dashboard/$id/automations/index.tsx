@@ -1,13 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { AutomationsClient } from '@/app/features/automations/components/automations-client';
-import { AutomationsTableSkeleton } from '@/app/features/automations/components/automations-table-skeleton';
+import { Workflow, Sparkles } from 'lucide-react';
+
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { ContentWrapper } from '@/app/components/layout/content-wrapper';
-import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
-import { Workflow, Sparkles } from 'lucide-react';
+import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
+import { AutomationsClient } from '@/app/features/automations/components/automations-client';
+import { AutomationsTableSkeleton } from '@/app/features/automations/components/automations-table-skeleton';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/automations/')({

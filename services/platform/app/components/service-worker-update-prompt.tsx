@@ -1,8 +1,8 @@
 'use client';
 
+import { Button } from '@/app/components/ui/primitives/button';
 import { useServiceWorker } from '@/app/hooks/use-service-worker';
 import { useT } from '@/lib/i18n/client';
-import { Button } from '@/app/components/ui/primitives/button';
 import { cn } from '@/lib/utils/cn';
 
 interface ServiceWorkerUpdatePromptProps {
@@ -23,14 +23,14 @@ export function ServiceWorkerUpdatePrompt({
     <div
       className={cn(
         'fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-lg border bg-background p-4 shadow-lg',
-        className
+        className,
       )}
       role="alert"
       aria-live="polite"
     >
       <div className="flex-1">
         <p className="text-sm font-medium">{t('update.newVersionAvailable')}</p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           {t('update.reloadForUpdates')}
         </p>
       </div>

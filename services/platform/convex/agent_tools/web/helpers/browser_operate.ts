@@ -6,9 +6,11 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
+
+import type { WebBrowserOperateResult, OperatorChatResponse } from './types';
+
 import { createDebugLog } from '../../../lib/debug_log';
 import { getOperatorServiceUrl } from './get_operator_service_url';
-import type { WebBrowserOperateResult, OperatorChatResponse } from './types';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -40,7 +42,9 @@ export async function browserOperate(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Operator service error: ${response.status} ${errorText}`);
+      throw new Error(
+        `Operator service error: ${response.status} ${errorText}`,
+      );
     }
 
     const result = (await response.json()) as OperatorChatResponse;

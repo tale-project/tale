@@ -4,6 +4,7 @@
 
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
 import type { RLSContext } from '../types';
+
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 import { getOrganizationMember } from '../organization/get_organization_member';
 

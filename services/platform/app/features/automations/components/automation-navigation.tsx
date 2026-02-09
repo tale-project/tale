@@ -2,26 +2,6 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { usePublishAutomationDraft } from '../hooks/use-publish-automation-draft';
-import { useCreateDraftFromActive } from '../hooks/use-create-draft-from-active';
-import { useUnpublishAutomation } from '../hooks/use-unpublish-automation';
-import { useAutomationVersionNavigation } from '../hooks/use-automation-version-navigation';
-import { Button } from '@/app/components/ui/primitives/button';
-import {
-  TabNavigation,
-  type TabNavigationItem,
-} from '@/app/components/ui/navigation/tab-navigation';
-import { useToast } from '@/app/hooks/use-toast';
-import { useState } from 'react';
-import { useAuth } from '@/app/hooks/use-convex-auth';
-import type { Doc, Id } from '@/convex/_generated/dataModel';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/app/components/ui/overlays/dropdown-menu';
 import {
   ChevronDown,
   CircleStop,
@@ -29,8 +9,31 @@ import {
   Upload,
   Pencil,
 } from 'lucide-react';
+import { useState } from 'react';
+
+import type { Doc, Id } from '@/convex/_generated/dataModel';
+
+import {
+  TabNavigation,
+  type TabNavigationItem,
+} from '@/app/components/ui/navigation/tab-navigation';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/app/components/ui/overlays/dropdown-menu';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useToast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+import { useAutomationVersionNavigation } from '../hooks/use-automation-version-navigation';
+import { useCreateDraftFromActive } from '../hooks/use-create-draft-from-active';
+import { usePublishAutomationDraft } from '../hooks/use-publish-automation-draft';
+import { useUnpublishAutomation } from '../hooks/use-unpublish-automation';
 
 interface AutomationNavigationProps {
   organizationId: string;
@@ -222,7 +225,7 @@ export function AutomationNavigation({
       standalone={false}
       ariaLabel={tCommon('aria.automationsNavigation')}
     >
-      <div className="flex items-center gap-2 ml-auto">
+      <div className="ml-auto flex items-center gap-2">
         {/* Version select - hidden on mobile (shown in first header row instead) */}
         {automation && versions && versions.length > 0 && (
           <DropdownMenu>
@@ -230,7 +233,7 @@ export function AutomationNavigation({
               <Button
                 variant="outline"
                 size="sm"
-                className="hidden md:flex text-sm h-8"
+                className="hidden h-8 text-sm md:flex"
               >
                 {automation.version}
                 <ChevronDown className="ml-1 size-3" aria-hidden="true" />
@@ -244,7 +247,7 @@ export function AutomationNavigation({
                   className={cn(version._id === automationId && 'bg-accent/50')}
                 >
                   <span>{version.version}</span>
-                  <span className="text-xs text-muted-foreground ml-1">
+                  <span className="text-muted-foreground ml-1 text-xs">
                     {version.status === 'draft' && tCommon('status.draft')}
                     {version.status === 'active' && tCommon('status.active')}
                     {version.status === 'archived' &&
@@ -257,7 +260,7 @@ export function AutomationNavigation({
         )}
 
         {/* Desktop: Show buttons directly */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden items-center gap-4 md:flex">
           {(automation?.status === 'draft' ||
             automation?.status === 'archived') && (
             <Button onClick={handlePublish} disabled={isPublishing} size="sm">

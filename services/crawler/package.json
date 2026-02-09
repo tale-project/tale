@@ -8,6 +8,8 @@
     "build": "echo 'No build step'",
     "lint": "uv run ruff check app",
     "lint:fix": "uv run ruff check --fix app",
+    "format": "uv run ruff format app",
+    "format:check": "uv run ruff format --check app",
     "test": "uv run pytest",
     "test:watch": "uv run ptw",
     "test:coverage": "uv run pytest --cov=app --cov-report=html"

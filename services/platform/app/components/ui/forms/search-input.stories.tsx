@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { fn } from '@storybook/test';
+
 import { SearchInput } from './search-input';
 
 const meta: Meta<typeof SearchInput> = {
@@ -127,14 +129,10 @@ export const Disabled: Story = {
 export const InFilterBar: Story = {
   render: () => (
     <div className="flex items-center gap-3">
-      <SearchInput
-        value=""
-        onChange={fn()}
-        placeholder="Search customers..."
-      />
+      <SearchInput value="" onChange={fn()} placeholder="Search customers..." />
       <button
         type="button"
-        className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-accent"
+        className="border-border hover:bg-accent rounded-lg border px-3 py-2 text-sm"
       >
         Filters
       </button>
@@ -152,11 +150,7 @@ export const InFilterBar: Story = {
 export const Multiple: Story = {
   render: () => (
     <div className="flex flex-col gap-4">
-      <SearchInput
-        value=""
-        onChange={fn()}
-        placeholder="Search customers..."
-      />
+      <SearchInput value="" onChange={fn()} placeholder="Search customers..." />
       <SearchInput value="" onChange={fn()} placeholder="Search products..." />
       <SearchInput value="" onChange={fn()} placeholder="Search orders..." />
     </div>

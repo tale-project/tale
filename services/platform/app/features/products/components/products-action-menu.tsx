@@ -1,19 +1,23 @@
 'use client';
 
-import { useState, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Plus, HardDrive } from 'lucide-react';
-import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
-import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
+import { useState, useCallback } from 'react';
+
 import { CirculyIcon } from '@/app/components/icons/circuly-icon';
-import { ProductsImportDialog } from './products-import-dialog';
+import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
+import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { useT } from '@/lib/i18n/client';
+
+import { ProductsImportDialog } from './products-import-dialog';
 
 interface ProductsActionMenuProps {
   organizationId: string;
 }
 
-export function ProductsActionMenu({ organizationId }: ProductsActionMenuProps) {
+export function ProductsActionMenu({
+  organizationId,
+}: ProductsActionMenuProps) {
   const { t: tProducts } = useT('products');
   const navigate = useNavigate();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);

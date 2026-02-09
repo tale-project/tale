@@ -1,15 +1,19 @@
 'use client';
 
 import { Globe } from 'lucide-react';
+
 import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
-import { WebsitesActionMenu } from './websites-action-menu';
 import { useT } from '@/lib/i18n/client';
+
+import { WebsitesActionMenu } from './websites-action-menu';
 
 interface WebsitesEmptyStateProps {
   organizationId: string;
 }
 
-export function WebsitesEmptyState({ organizationId }: WebsitesEmptyStateProps) {
+export function WebsitesEmptyState({
+  organizationId,
+}: WebsitesEmptyStateProps) {
   const { t } = useT('emptyStates');
 
   return (

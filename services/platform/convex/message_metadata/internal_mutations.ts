@@ -1,7 +1,11 @@
 import { v } from 'convex/values';
-import { internalMutation } from '../_generated/server';
+
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-import { subAgentUsageItemValidator, contextStatsValidator } from '../streaming/validators';
+import { internalMutation } from '../_generated/server';
+import {
+  subAgentUsageItemValidator,
+  contextStatsValidator,
+} from '../streaming/validators';
 
 const MAX_CONTEXT_WINDOW_CHARS = 500_000;
 
@@ -52,7 +56,8 @@ export const saveMessageMetadata = internalMutation({
         reasoning: args.reasoning ?? existing.reasoning,
         providerMetadata: args.providerMetadata ?? existing.providerMetadata,
         durationMs: args.durationMs ?? existing.durationMs,
-        timeToFirstTokenMs: args.timeToFirstTokenMs ?? existing.timeToFirstTokenMs,
+        timeToFirstTokenMs:
+          args.timeToFirstTokenMs ?? existing.timeToFirstTokenMs,
         subAgentUsage: args.subAgentUsage ?? existing.subAgentUsage,
         contextWindow: contextWindow ?? existing.contextWindow,
         contextStats: args.contextStats ?? existing.contextStats,

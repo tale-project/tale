@@ -7,6 +7,7 @@
 
 import type { StepExecutionResult } from '../../../../types';
 import type { NormalizedConfig, LLMExecutionResult } from '../types';
+
 import { isTerminationSignal } from '../types/workflow_termination';
 
 /**
@@ -25,7 +26,7 @@ export function createLLMResult(
   // Note: temperature is auto-determined by createAgentConfig based on outputFormat
   // (json→0.2, text→0.5) and is not stored in NormalizedConfig
   const meta = {
-    ...(config.contextVariables ?? {}),
+    ...config.contextVariables,
     llm: {
       model: config.model,
       outputFormat: config.outputFormat,

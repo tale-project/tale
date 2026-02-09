@@ -325,4 +325,3 @@ jexlInstance.addTransform(
     return timestamp > compareTimestamp;
   },
 );
-

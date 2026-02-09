@@ -33,12 +33,12 @@ class ImageService(BaseConverterService):
             '[class*="cookie" i] [class*="close" i]',
             '[id*="cookie" i] button[class*="close" i]',
             # Common cookie consent frameworks
-            '#onetrust-accept-btn-handler',
-            '.onetrust-close-btn-handler',
-            '#CybotCookiebotDialogBodyButtonAccept',
-            '#CybotCookiebotDialogBodyButtonDecline',
-            '.cc-btn.cc-dismiss',
-            '.cc-btn.cc-allow',
+            "#onetrust-accept-btn-handler",
+            ".onetrust-close-btn-handler",
+            "#CybotCookiebotDialogBodyButtonAccept",
+            "#CybotCookiebotDialogBodyButtonDecline",
+            ".cc-btn.cc-dismiss",
+            ".cc-btn.cc-allow",
             '[data-cookie-consent="accept"]',
             '[data-gdpr-consent="accept"]',
             # Generic patterns
@@ -183,9 +183,7 @@ class ImageService(BaseConverterService):
                     try:
                         await page.wait_for_load_state(wait_until, timeout=timeout)
                     except PlaywrightTimeoutError:
-                        logger.warning(
-                            f"'{wait_until}' timed out after {timeout}ms, using domcontentloaded"
-                        )
+                        logger.warning(f"'{wait_until}' timed out after {timeout}ms, using domcontentloaded")
 
             # Dismiss cookie consent dialogs before taking screenshot
             await self._dismiss_cookie_dialogs(page)
@@ -248,4 +246,3 @@ def get_image_service() -> ImageService:
     if _image_service is None:
         _image_service = ImageService()
     return _image_service
-

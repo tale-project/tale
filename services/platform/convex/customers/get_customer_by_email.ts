@@ -2,8 +2,8 @@
  * Get a customer by email within an organization (business logic)
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export async function getCustomerByEmail(
   ctx: QueryCtx,

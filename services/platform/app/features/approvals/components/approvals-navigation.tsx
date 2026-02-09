@@ -1,10 +1,10 @@
 'use client';
 
-import { useT } from '@/lib/i18n/client';
 import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
+import { useT } from '@/lib/i18n/client';
 
 interface ApprovalsNavigationProps {
   organizationId: string;

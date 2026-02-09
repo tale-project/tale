@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+
 import { Stack, VStack } from '@/app/components/ui/layout/layout';
 
 interface AuthFormLayoutProps {
@@ -11,7 +12,7 @@ export function AuthFormLayout({ title, children }: AuthFormLayoutProps) {
     <div className="relative">
       <VStack
         gap={8}
-        className="mx-auto w-full max-w-[24.875rem] px-4 relative"
+        className="relative mx-auto w-full max-w-[24.875rem] px-4"
       >
         <Stack gap={2} className="text-center">
           <h1 className="text-xl font-semibold tracking-[-0.12px]">{title}</h1>

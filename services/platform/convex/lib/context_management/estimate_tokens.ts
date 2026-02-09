@@ -35,7 +35,8 @@ const MESSAGE_OVERHEAD_TOKENS = 4;
  * - Hiragana, Katakana
  * - Hangul
  */
-const CJK_PATTERN = /[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g;
+const CJK_PATTERN =
+  /[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g;
 
 /**
  * Estimate token count for a string with CJK awareness.

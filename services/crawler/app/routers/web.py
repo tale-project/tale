@@ -44,26 +44,19 @@ def validate_url_not_private(url_str: str) -> str:
         )
 
     try:
-        resolved_ips = {
-            ip_address(info[4][0])
-            for info in socket.getaddrinfo(hostname, None)
-        }
+        resolved_ips = {ip_address(info[4][0]) for info in socket.getaddrinfo(hostname, None)}
     except socket.gaierror:
         logger.warning(f"SSRF protection: unable to resolve hostname '{hostname}'")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unable to resolve URL host",
-        )
+        ) from None
 
-    blocked_ips = [
-        ip for ip in resolved_ips
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
-    ]
+    blocked_ips = [ip for ip in resolved_ips if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved]
 
     if blocked_ips:
         logger.warning(
-            f"SSRF protection: blocked request to '{hostname}' "
-            f"(resolved to private/internal IPs: {blocked_ips})"
+            f"SSRF protection: blocked request to '{hostname}' (resolved to private/internal IPs: {blocked_ips})"
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

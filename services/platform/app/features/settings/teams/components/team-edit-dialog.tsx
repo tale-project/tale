@@ -1,14 +1,16 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+
 import type { Team } from '../hooks/use-list-teams';
 
 interface TeamEditDialogProps {

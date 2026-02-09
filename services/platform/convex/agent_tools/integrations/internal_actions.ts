@@ -1,18 +1,33 @@
 import { v, Infer } from 'convex/values';
-import { internalAction, type ActionCtx } from '../../_generated/server';
-import { internal } from '../../_generated/api';
-import { jsonValueValidator, jsonRecordValidator, type JsonRecord } from '../../../lib/shared/schemas/utils/json-value';
-import { integrationAction } from '../../workflow_engine/action_defs/integration/integration_action';
+
+import type {
+  Integration,
+  SqlIntegration,
+  SqlOperation,
+} from '../../integrations/types';
 import type { SqlExecutionResult } from '../../node_only/sql/types';
-import { isIntrospectionOperation } from '../../workflow_engine/action_defs/integration/helpers/is_introspection_operation';
-import { getIntrospectTablesQuery } from '../../workflow_engine/action_defs/integration/helpers/get_introspect_tables_query';
-import { getIntrospectColumnsQuery } from '../../workflow_engine/action_defs/integration/helpers/get_introspect_columns_query';
-import { getIntrospectionOperations } from '../../workflow_engine/action_defs/integration/helpers/get_introspection_operations';
+
+import {
+  jsonValueValidator,
+  jsonRecordValidator,
+} from '../../../lib/shared/schemas/utils/json-value';
+import { internal } from '../../_generated/api';
+import { internalAction, type ActionCtx } from '../../_generated/server';
+import {
+  getIntegrationType,
+  isSqlIntegration,
+} from '../../integrations/helpers';
 import { decryptSqlCredentials } from '../../workflow_engine/action_defs/integration/helpers/decrypt_sql_credentials';
-import { requiresApproval, getOperationType } from '../../workflow_engine/action_defs/integration/helpers/detect_write_operation';
+import {
+  requiresApproval,
+  getOperationType,
+} from '../../workflow_engine/action_defs/integration/helpers/detect_write_operation';
+import { getIntrospectColumnsQuery } from '../../workflow_engine/action_defs/integration/helpers/get_introspect_columns_query';
+import { getIntrospectTablesQuery } from '../../workflow_engine/action_defs/integration/helpers/get_introspect_tables_query';
+import { getIntrospectionOperations } from '../../workflow_engine/action_defs/integration/helpers/get_introspection_operations';
+import { isIntrospectionOperation } from '../../workflow_engine/action_defs/integration/helpers/is_introspection_operation';
 import { validateRequiredParameters } from '../../workflow_engine/action_defs/integration/helpers/validate_required_parameters';
-import type { Integration, SqlIntegration, SqlOperation } from '../../integrations/types';
-import { getIntegrationType, isSqlIntegration } from '../../integrations/helpers';
+import { integrationAction } from '../../workflow_engine/action_defs/integration/integration_action';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 type ConvexJsonRecord = Infer<typeof jsonRecordValidator>;
@@ -32,7 +47,15 @@ export const executeIntegration = internalAction({
     messageId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { organizationId, integrationName, operation, params, skipApprovalCheck, threadId, messageId } = args;
+    const {
+      organizationId,
+      integrationName,
+      operation,
+      params,
+      skipApprovalCheck,
+      threadId,
+      messageId,
+    } = args;
 
     console.log('[executeIntegration] Received context:', {
       hasThreadId: threadId !== undefined,
@@ -94,9 +117,12 @@ export const executeApprovedOperation = internalAction({
       resourceType: string;
       organizationId: string;
       metadata?: Record<string, ConvexJsonValue>;
-    } | null = await ctx.runQuery(internal.approvals.internal_queries.getApprovalById, {
-      approvalId: args.approvalId,
-    });
+    } | null = await ctx.runQuery(
+      internal.approvals.internal_queries.getApprovalById,
+      {
+        approvalId: args.approvalId,
+      },
+    );
 
     if (!approval) {
       throw new Error('Approval not found');
@@ -114,7 +140,9 @@ export const executeApprovedOperation = internalAction({
       );
     }
 
-    const metadata = approval.metadata as unknown as IntegrationOperationMetadataLocal | undefined;
+    const metadata = approval.metadata as unknown as
+      | IntegrationOperationMetadataLocal
+      | undefined;
 
     if (!metadata?.integrationName || !metadata?.operationName) {
       throw new Error(
@@ -124,8 +152,7 @@ export const executeApprovedOperation = internalAction({
 
     try {
       const result = await ctx.runAction(
-        internal.agent_tools.integrations.internal_actions
-          .executeIntegration,
+        internal.agent_tools.integrations.internal_actions.executeIntegration,
         {
           organizationId: approval.organizationId,
           integrationName: metadata.integrationName,
@@ -147,7 +174,8 @@ export const executeApprovedOperation = internalAction({
 
       return result as ConvexJsonValue;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       await ctx.runMutation(
         internal.agent_tools.integrations.internal_mutations
@@ -222,7 +250,8 @@ export const executeBatchIntegration = internalAction({
   },
   returns: batchResultValidator,
   handler: async (ctx, args): Promise<BatchResult> => {
-    const { organizationId, integrationName, operations, threadId, messageId } = args;
+    const { organizationId, integrationName, operations, threadId, messageId } =
+      args;
     const startTime = Date.now();
 
     console.log('[executeBatchIntegration] Starting batch:', {
@@ -260,18 +289,37 @@ export const executeBatchIntegration = internalAction({
 
     // For SQL integrations, optimize by decrypting credentials once
     if (integrationType === 'sql' && isSqlIntegration(integration)) {
-      return executeSqlBatch(ctx, integration, operations, threadId, messageId, startTime);
+      return executeSqlBatch(
+        ctx,
+        integration,
+        operations,
+        threadId,
+        messageId,
+        startTime,
+      );
     }
 
     // For REST API integrations, fall back to sequential execution
-    return executeRestApiBatch(ctx, integration, operations, organizationId, threadId, messageId, startTime);
+    return executeRestApiBatch(
+      ctx,
+      integration,
+      operations,
+      organizationId,
+      threadId,
+      messageId,
+      startTime,
+    );
   },
 });
 
 async function executeSqlBatch(
   ctx: ActionCtx,
   integration: SqlIntegration,
-  operations: Array<{ id?: string; operation: string; params?: Record<string, unknown> }>,
+  operations: Array<{
+    id?: string;
+    operation: string;
+    params?: Record<string, unknown>;
+  }>,
   threadId: string | undefined,
   messageId: string | undefined,
   startTime: number,
@@ -316,7 +364,9 @@ async function executeSqlBatch(
             queryParams = {};
           } else if (op.operation === 'introspect_columns') {
             if (!params.schemaName || !params.tableName) {
-              throw new Error('introspect_columns requires schemaName and tableName parameters');
+              throw new Error(
+                'introspect_columns requires schemaName and tableName parameters',
+              );
             }
             const introspectionQuery = getIntrospectColumnsQuery(
               sqlConnectionConfig.engine,
@@ -329,14 +379,18 @@ async function executeSqlBatch(
             throw new Error(`Unknown introspection operation: ${op.operation}`);
           }
         } else {
-          operationConfig = sqlOperations.find((sqlOp) => sqlOp.name === op.operation);
+          operationConfig = sqlOperations.find(
+            (sqlOp) => sqlOp.name === op.operation,
+          );
 
           if (!operationConfig) {
             const availableOps = [
               ...getIntrospectionOperations(),
               ...sqlOperations.map((sqlOp) => sqlOp.name),
             ].join(', ');
-            throw new Error(`Operation "${op.operation}" not found. Available: ${availableOps}`);
+            throw new Error(
+              `Operation "${op.operation}" not found. Available: ${availableOps}`,
+            );
           }
 
           query = operationConfig.query;
@@ -346,7 +400,8 @@ async function executeSqlBatch(
             const operationType = getOperationType(operationConfig);
 
             const approvalId = await ctx.runMutation(
-              internal.agent_tools.integrations.internal_mutations.createIntegrationApproval,
+              internal.agent_tools.integrations.internal_mutations
+                .createIntegrationApproval,
               {
                 organizationId: integration.organizationId,
                 integrationId: integration._id,
@@ -373,7 +428,9 @@ async function executeSqlBatch(
           }
         }
 
-        const isWriteOperation = operationConfig ? getOperationType(operationConfig) === 'write' : false;
+        const isWriteOperation = operationConfig
+          ? getOperationType(operationConfig) === 'write'
+          : false;
 
         const result = (await ctx.runAction(
           internal.node_only.sql.internal_actions.executeQuery,
@@ -441,9 +498,13 @@ async function executeSqlBatch(
   });
 
   const totalTime = Date.now() - startTime;
-  const successCount = processedResults.filter((r) => r.success && !r.requiresApproval).length;
+  const successCount = processedResults.filter(
+    (r) => r.success && !r.requiresApproval,
+  ).length;
   const failureCount = processedResults.filter((r) => !r.success).length;
-  const approvalCount = processedResults.filter((r) => r.requiresApproval).length;
+  const approvalCount = processedResults.filter(
+    (r) => r.requiresApproval,
+  ).length;
 
   console.log('[executeBatchIntegration] SQL batch complete:', {
     totalTime,
@@ -468,7 +529,11 @@ async function executeSqlBatch(
 async function executeRestApiBatch(
   ctx: ActionCtx,
   integration: Integration,
-  operations: Array<{ id?: string; operation: string; params?: Record<string, unknown> }>,
+  operations: Array<{
+    id?: string;
+    operation: string;
+    params?: Record<string, unknown>;
+  }>,
   organizationId: string,
   threadId: string | undefined,
   messageId: string | undefined,
@@ -494,8 +559,14 @@ async function executeRestApiBatch(
 
         const duration = Date.now() - opStartTime;
 
-        if (result && typeof result === 'object' && 'requiresApproval' in result && result.requiresApproval) {
-          const approvalId = 'approvalId' in result ? String(result.approvalId) : undefined;
+        if (
+          result &&
+          typeof result === 'object' &&
+          'requiresApproval' in result &&
+          result.requiresApproval
+        ) {
+          const approvalId =
+            'approvalId' in result ? String(result.approvalId) : undefined;
           return {
             id: op.id,
             operation: op.operation,
@@ -506,9 +577,10 @@ async function executeRestApiBatch(
           };
         }
 
-        const rowCount = result && typeof result === 'object' && 'rowCount' in result
-          ? (result.rowCount as number | undefined)
-          : undefined;
+        const rowCount =
+          result && typeof result === 'object' && 'rowCount' in result
+            ? (result.rowCount as number | undefined)
+            : undefined;
 
         return {
           id: op.id,
@@ -543,9 +615,13 @@ async function executeRestApiBatch(
   });
 
   const totalTime = Date.now() - startTime;
-  const successCount = processedResults.filter((r) => r.success && !r.requiresApproval).length;
+  const successCount = processedResults.filter(
+    (r) => r.success && !r.requiresApproval,
+  ).length;
   const failureCount = processedResults.filter((r) => !r.success).length;
-  const approvalCount = processedResults.filter((r) => r.requiresApproval).length;
+  const approvalCount = processedResults.filter(
+    (r) => r.requiresApproval,
+  ).length;
 
   console.log('[executeBatchIntegration] REST API batch complete:', {
     totalTime,

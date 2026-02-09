@@ -1,16 +1,18 @@
 'use client';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { VendorImportForm } from './vendor-import-form';
-import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useMemo, useCallback } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
+import { z } from 'zod';
+
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { useFileImport, vendorMappers } from '@/app/hooks/use-file-import';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useBulkCreateVendors } from '../hooks/use-bulk-create-vendors';
-import { useEffect, useMemo, useCallback } from 'react';
 import { useT } from '@/lib/i18n/client';
-import { useFileImport, vendorMappers } from '@/app/hooks/use-file-import';
+
+import { useBulkCreateVendors } from '../hooks/use-bulk-create-vendors';
+import { VendorImportForm } from './vendor-import-form';
 
 // Type for the form data
 type FormValues = {
@@ -186,11 +188,10 @@ export function ImportVendorsDialog({
       t,
       onSuccess,
       handleClose,
-    ]
+    ],
   );
 
-  const dialogTitle =
-    mode === 'manual' ? t('addVendors') : t('uploadVendors');
+  const dialogTitle = mode === 'manual' ? t('addVendors') : t('uploadVendors');
 
   return (
     <FormDialog

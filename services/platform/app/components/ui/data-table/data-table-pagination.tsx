@@ -1,10 +1,11 @@
 'use client';
 
-import { Button } from '@/app/components/ui/primitives/button';
-import { Select } from '@/app/components/ui/forms/select';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
+
+import { Select } from '@/app/components/ui/forms/select';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 export interface DataTablePaginationProps {
   /** Current page number (1-based) */
@@ -35,7 +36,7 @@ export interface DataTablePaginationProps {
 
 /**
  * Pagination component for DataTable.
- * 
+ *
  * Supports both traditional pagination (with total count) and
  * cursor-based pagination (with hasNextPage/hasPreviousPage).
  */
@@ -58,17 +59,15 @@ export function DataTablePagination({
   // Calculate range
   const startIdx = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endIdx = Math.min(currentPage * pageSize, total);
-  
+
   // Use provided totalPages or calculate from total and pageSize
   const totalPageCount = totalPages ?? Math.ceil(total / pageSize);
-  
+
   // Determine if buttons should be disabled
   const isPrevDisabled =
-    isLoading || currentPage === 1 || (hasPreviousPage === false);
+    isLoading || currentPage === 1 || hasPreviousPage === false;
   const isNextDisabled =
-    isLoading ||
-    currentPage >= totalPageCount ||
-    hasNextPage === false;
+    isLoading || currentPage >= totalPageCount || hasNextPage === false;
 
   const handlePrevious = () => {
     if (!isPrevDisabled && onPageChange) {
@@ -90,14 +89,21 @@ export function DataTablePagination({
   };
 
   return (
-    <div className={cn('flex items-center justify-between sm:justify-start gap-2 flex-wrap', className)}>
+    <div
+      className={cn(
+        'flex items-center justify-between sm:justify-start gap-2 flex-wrap',
+        className,
+      )}
+    >
       {showPageSizeSelector && onPageSizeChange && (
-        <div className="hidden sm:flex items-center gap-2 mr-4">
-          <span className="text-xs text-muted-foreground">{t('pagination.rowsPerPage')}</span>
+        <div className="mr-4 hidden items-center gap-2 sm:flex">
+          <span className="text-muted-foreground text-xs">
+            {t('pagination.rowsPerPage')}
+          </span>
           <Select
             value={pageSize.toString()}
             onValueChange={(value) => onPageSizeChange(parseInt(value, 10))}
-            className="w-auto min-w-16 h-8"
+            className="h-8 w-auto min-w-16"
             options={pageSizeOptions.map((size) => ({
               value: size.toString(),
               label: size.toString(),
@@ -125,7 +131,7 @@ export function DataTablePagination({
         <Select
           value={currentPage.toString()}
           onValueChange={handlePageSelect}
-          className="w-auto min-w-16 h-8"
+          className="h-8 w-auto min-w-16"
           options={Array.from({ length: totalPageCount }, (_, i) => ({
             value: (i + 1).toString(),
             label: (i + 1).toString(),
@@ -149,11 +155,10 @@ export function DataTablePagination({
       </Button>
 
       {total > 0 && (
-        <span className="hidden sm:inline text-xs font-semibold text-muted-foreground whitespace-nowrap">
+        <span className="text-muted-foreground hidden text-xs font-semibold whitespace-nowrap sm:inline">
           {t('pagination.showing', { start: startIdx, end: endIdx, total })}
         </span>
       )}
     </div>
   );
 }
-

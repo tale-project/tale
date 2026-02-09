@@ -3,7 +3,9 @@
  */
 
 import type { Infer } from 'convex/values';
+
 import type { Id } from '../_generated/dataModel';
+
 import {
   documentItemValidator,
   documentListResponseValidator,
@@ -138,7 +140,11 @@ export interface GenerateDocumentImageOptions {
 }
 
 /** Valid Playwright wait_until values */
-export type WaitUntilType = 'load' | 'domcontentloaded' | 'networkidle' | 'commit';
+export type WaitUntilType =
+  | 'load'
+  | 'domcontentloaded'
+  | 'networkidle'
+  | 'commit';
 
 export interface GenerateDocumentUrlOptions {
   waitUntil?: WaitUntilType;

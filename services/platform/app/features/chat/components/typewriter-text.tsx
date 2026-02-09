@@ -47,9 +47,11 @@ import {
   useCallback,
   type ComponentType,
 } from 'react';
+
+import { cn } from '@/lib/utils/cn';
+
 import { useStreamBuffer } from '../hooks/use-stream-buffer';
 import { IncrementalMarkdown } from './incremental-markdown';
-import { cn } from '@/lib/utils/cn';
 
 // ============================================================================
 // TYPES

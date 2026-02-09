@@ -8,6 +8,7 @@
  */
 
 import { v } from 'convex/values';
+
 import { internalAction } from './_generated/server';
 
 interface RefreshTokenResult {
@@ -85,7 +86,9 @@ export const refreshToken = internalAction({
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OAuth2 token refresh failed:', errorText);
-      throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
+      throw new Error(
+        `Token refresh failed: ${response.status} - ${errorText}`,
+      );
     }
 
     const data = (await response.json()) as {

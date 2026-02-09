@@ -3,9 +3,11 @@
  */
 
 import { v } from 'convex/values';
-import { mutation } from '../../_generated/server';
-import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+
 import type { ToolName } from '../../agent_tools/tool_registry';
+import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+
+import { mutation } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import { startAgentChat } from '../../lib/agent_chat';
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';

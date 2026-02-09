@@ -1,6 +1,7 @@
+import { render, renderHook } from '@testing-library/react';
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, renderHook } from '@testing-library/react';
+
 import { useInfiniteScroll } from '../use-infinite-scroll';
 
 interface TestComponentProps {
@@ -12,9 +13,26 @@ interface TestComponentProps {
   root?: React.RefObject<HTMLElement | null>;
 }
 
-function TestComponent({ onLoadMore, hasMore, isLoading, threshold, enabled, root }: TestComponentProps) {
-  const { sentinelRef } = useInfiniteScroll({ onLoadMore, hasMore, isLoading, threshold, enabled, root });
-  return React.createElement('div', { ref: sentinelRef, 'data-testid': 'sentinel' });
+function TestComponent({
+  onLoadMore,
+  hasMore,
+  isLoading,
+  threshold,
+  enabled,
+  root,
+}: TestComponentProps) {
+  const { sentinelRef } = useInfiniteScroll({
+    onLoadMore,
+    hasMore,
+    isLoading,
+    threshold,
+    enabled,
+    root,
+  });
+  return React.createElement('div', {
+    ref: sentinelRef,
+    'data-testid': 'sentinel',
+  });
 }
 
 describe('useInfiniteScroll', () => {
@@ -30,7 +48,10 @@ describe('useInfiniteScroll', () => {
     observerOptions = undefined;
 
     global.IntersectionObserver = class MockIntersectionObserver {
-      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+      constructor(
+        callback: IntersectionObserverCallback,
+        options?: IntersectionObserverInit,
+      ) {
         observerCallback = callback;
         observerOptions = options;
       }
@@ -57,7 +78,7 @@ describe('useInfiniteScroll', () => {
           onLoadMore,
           hasMore: true,
           isLoading: false,
-        })
+        }),
       );
 
       expect(result.current.sentinelRef).toBeDefined();
@@ -73,7 +94,7 @@ describe('useInfiniteScroll', () => {
           onLoadMore,
           hasMore: true,
           isLoading: false,
-        })
+        }),
       );
 
       result.current.sentinelRef.current = sentinelElement;
@@ -92,7 +113,7 @@ describe('useInfiniteScroll', () => {
           hasMore: true,
           isLoading: false,
           enabled: false,
-        })
+        }),
       );
 
       expect(mockObserve).not.toHaveBeenCalled();
@@ -107,7 +128,7 @@ describe('useInfiniteScroll', () => {
           hasMore: false,
           isLoading: false,
           enabled: true,
-        })
+        }),
       );
 
       expect(mockObserve).not.toHaveBeenCalled();
@@ -125,7 +146,7 @@ describe('useInfiniteScroll', () => {
           hasMore: true,
           isLoading: false,
           enabled: true,
-        })
+        }),
       );
 
       if (observerCallback) {
@@ -157,7 +178,7 @@ describe('useInfiniteScroll', () => {
           hasMore: true,
           isLoading: true,
           enabled: true,
-        })
+        }),
       );
 
       if (observerCallback) {
@@ -189,7 +210,7 @@ describe('useInfiniteScroll', () => {
           hasMore: false,
           isLoading: false,
           enabled: true,
-        })
+        }),
       );
 
       if (observerCallback) {
@@ -221,7 +242,7 @@ describe('useInfiniteScroll', () => {
           hasMore: true,
           isLoading: false,
           enabled: true,
-        })
+        }),
       );
 
       if (observerCallback) {
@@ -253,7 +274,7 @@ describe('useInfiniteScroll', () => {
           onLoadMore,
           hasMore: true,
           isLoading: false,
-        })
+        }),
       );
 
       expect(result.current.sentinelRef).toBeDefined();
@@ -268,7 +289,7 @@ describe('useInfiniteScroll', () => {
           hasMore: true,
           isLoading: false,
           threshold: 700,
-        })
+        }),
       );
 
       expect(true).toBe(true);
@@ -282,7 +303,7 @@ describe('useInfiniteScroll', () => {
           onLoadMore: vi.fn(),
           hasMore: true,
           isLoading: false,
-        })
+        }),
       );
 
       expect(observerOptions?.root).toBeNull();
@@ -298,7 +319,7 @@ describe('useInfiniteScroll', () => {
           hasMore: true,
           isLoading: false,
           root: rootRef,
-        })
+        }),
       );
 
       expect(observerOptions?.root).toBe(rootElement);
@@ -311,7 +332,7 @@ describe('useInfiniteScroll', () => {
           hasMore: true,
           isLoading: false,
           threshold: 400,
-        })
+        }),
       );
 
       expect(observerOptions?.rootMargin).toBe('0px 0px 400px 0px');
@@ -323,7 +344,7 @@ describe('useInfiniteScroll', () => {
           onLoadMore: vi.fn(),
           hasMore: true,
           isLoading: false,
-        })
+        }),
       );
 
       expect(observerOptions?.rootMargin).toBe('0px 0px 500px 0px');

@@ -1,11 +1,12 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { HStack } from '@/app/components/ui/layout/layout';
 import { Input } from '@/app/components/ui/forms/input';
+import { HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -108,25 +109,26 @@ export function ProtelIntegrationDialog({
     }
   };
 
-  const customFooter = isConnected && onDisconnect ? (
-    <>
-      <Button
-        variant="destructive"
-        onClick={handleDisconnect}
-        disabled={isSubmitting}
-        className="flex-1"
-      >
-        {isSubmitting ? t('integrations.protel.disconnecting') : t('integrations.protel.disconnect')}
-      </Button>
-      <Button
-        type="submit"
-        disabled={isSubmitting}
-        className="flex-1"
-      >
-        {isSubmitting ? t('integrations.protel.updating') : t('integrations.protel.update')}
-      </Button>
-    </>
-  ) : undefined;
+  const customFooter =
+    isConnected && onDisconnect ? (
+      <>
+        <Button
+          variant="destructive"
+          onClick={handleDisconnect}
+          disabled={isSubmitting}
+          className="flex-1"
+        >
+          {isSubmitting
+            ? t('integrations.protel.disconnecting')
+            : t('integrations.protel.disconnect')}
+        </Button>
+        <Button type="submit" disabled={isSubmitting} className="flex-1">
+          {isSubmitting
+            ? t('integrations.protel.updating')
+            : t('integrations.protel.update')}
+        </Button>
+      </>
+    ) : undefined;
 
   return (
     <FormDialog
@@ -142,11 +144,13 @@ export function ProtelIntegrationDialog({
       className="max-w-lg"
     >
       {isConnected ? (
-        <div className="rounded-md bg-success/10 p-4">
-          <p className="text-sm font-medium text-success">
-            {t('integrations.protel.connectedTo', { server: credentials?.server ?? '' })}
+        <div className="bg-success/10 rounded-md p-4">
+          <p className="text-success text-sm font-medium">
+            {t('integrations.protel.connectedTo', {
+              server: credentials?.server ?? '',
+            })}
           </p>
-          <p className="text-xs text-success/80 mt-1">
+          <p className="text-success/80 mt-1 text-xs">
             {t('integrations.protel.database')}: {credentials?.database}
           </p>
         </div>

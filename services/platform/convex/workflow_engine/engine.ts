@@ -6,38 +6,38 @@
  * Internal actions are in internal_actions.ts.
  */
 
-import { v } from 'convex/values';
 import { WorkflowManager } from '@convex-dev/workflow';
-import { components } from '../_generated/api';
-import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
+import { v } from 'convex/values';
 
+import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
+import { components } from '../_generated/api';
 import * as EngineHelpers from './helpers/engine';
 
 export const workflowManagers = [
-	new WorkflowManager(components.workflow),
-	new WorkflowManager(components.workflow_1),
-	new WorkflowManager(components.workflow_2),
-	new WorkflowManager(components.workflow_3),
+  new WorkflowManager(components.workflow),
+  new WorkflowManager(components.workflow_1),
+  new WorkflowManager(components.workflow_2),
+  new WorkflowManager(components.workflow_3),
 ];
 
 export const workflowManager = workflowManagers[0];
 
 const dynamicWorkflowDef = {
-	args: {
-		organizationId: v.string(),
-		executionId: v.id('wfExecutions'),
-		workflowDefinition: jsonValueValidator,
-		steps: v.array(jsonValueValidator),
-		input: v.optional(jsonValueValidator),
-		triggeredBy: v.string(),
-		triggerData: v.optional(jsonValueValidator),
-		resumeFromStepSlug: v.optional(v.string()),
-		resumeVariables: v.optional(jsonValueValidator),
-		threadId: v.optional(v.string()),
-	},
-	handler: async (step: any, args: any): Promise<void> => {
-		await EngineHelpers.handleDynamicWorkflow(step, args);
-	},
+  args: {
+    organizationId: v.string(),
+    executionId: v.id('wfExecutions'),
+    workflowDefinition: jsonValueValidator,
+    steps: v.array(jsonValueValidator),
+    input: v.optional(jsonValueValidator),
+    triggeredBy: v.string(),
+    triggerData: v.optional(jsonValueValidator),
+    resumeFromStepSlug: v.optional(v.string()),
+    resumeVariables: v.optional(jsonValueValidator),
+    threadId: v.optional(v.string()),
+  },
+  handler: async (step: any, args: any): Promise<void> => {
+    await EngineHelpers.handleDynamicWorkflow(step, args);
+  },
 };
 
 export const dynamicWorkflow = workflowManagers[0].define(dynamicWorkflowDef);

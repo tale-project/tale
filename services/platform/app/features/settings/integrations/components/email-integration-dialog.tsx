@@ -1,9 +1,27 @@
 'use client';
 
+import { useQuery } from 'convex/react';
+import {
+  Plus,
+  Trash2,
+  MoreVertical,
+  TestTube,
+  Star,
+  Mail,
+  KeyRound,
+  Pencil,
+  RefreshCw,
+  Loader2,
+} from 'lucide-react';
 import { useState } from 'react';
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
+
+import type { Id, Doc } from '@/convex/_generated/dataModel';
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
+
+import { GmailIcon } from '@/app/components/icons/gmail-icon';
+import { OutlookIcon } from '@/app/components/icons/outlook-icon';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Button } from '@/app/components/ui/primitives/button';
+import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
@@ -13,26 +31,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { GmailIcon } from '@/app/components/icons/gmail-icon';
-import { OutlookIcon } from '@/app/components/icons/outlook-icon';
-import { Plus, Trash2, MoreVertical, TestTube, Star, Mail, KeyRound, Pencil, RefreshCw, Loader2 } from 'lucide-react';
+import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { toast } from '@/app/hooks/use-toast';
-import { EmailProviderTypeSelector } from './email-provider-type-selector';
-import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import type { Id, Doc } from '@/convex/_generated/dataModel';
-
-import { useDeleteEmailProvider } from '../hooks/use-delete-email-provider';
-import { useSetDefaultProvider } from '../hooks/use-set-default-provider';
-import { useTestEmailProvider } from '../hooks/use-test-email-provider';
-import { useGenerateOAuthUrl } from '../hooks/use-generate-oauth-url';
-import { useUpdateEmailProvider } from '../hooks/use-update-email-provider';
-import { useUpdateOAuth2Provider } from '../hooks/use-update-oauth2-provider';
-import { useSsoCredentials } from '../hooks/use-sso-credentials';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
-import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
+
+import { useDeleteEmailProvider } from '../hooks/use-delete-email-provider';
+import { useGenerateOAuthUrl } from '../hooks/use-generate-oauth-url';
+import { useSetDefaultProvider } from '../hooks/use-set-default-provider';
+import { useSsoCredentials } from '../hooks/use-sso-credentials';
+import { useTestEmailProvider } from '../hooks/use-test-email-provider';
+import { useUpdateEmailProvider } from '../hooks/use-update-email-provider';
+import { useUpdateOAuth2Provider } from '../hooks/use-update-oauth2-provider';
+import { EmailProviderTypeSelector } from './email-provider-type-selector';
 
 type EmailProviderDoc = Doc<'emailProviders'>;
 
@@ -56,10 +69,11 @@ export function EmailIntegrationDialog({
   const [testingProviderId, setTestingProviderId] = useState<string | null>(
     null,
   );
-  const [authorizingProviderId, setAuthorizingProviderId] = useState<string | null>(
-    null,
-  );
-  const [editingProvider, setEditingProvider] = useState<EmailProviderDoc | null>(null);
+  const [authorizingProviderId, setAuthorizingProviderId] = useState<
+    string | null
+  >(null);
+  const [editingProvider, setEditingProvider] =
+    useState<EmailProviderDoc | null>(null);
   const [editName, setEditName] = useState('');
   const [editClientId, setEditClientId] = useState('');
   const [editClientSecret, setEditClientSecret] = useState('');
@@ -84,7 +98,8 @@ export function EmailIntegrationDialog({
   const updateOAuth2Provider = useUpdateOAuth2Provider();
   const fetchSsoCredentials = useSsoCredentials();
 
-  const hasSsoConfigured = !!ssoProvider && ssoProvider.providerId === 'entra-id';
+  const hasSsoConfigured =
+    !!ssoProvider && ssoProvider.providerId === 'entra-id';
 
   const handleAddProvider = () => {
     setShowTypeSelector(true);
@@ -106,7 +121,10 @@ export function EmailIntegrationDialog({
         toast({
           title: t('integrations.connectionSuccessful'),
           variant: 'success',
-          description: t('integrations.allTestsPassed', { smtp: result.smtp.latencyMs, imap: result.imap.latencyMs }),
+          description: t('integrations.allTestsPassed', {
+            smtp: result.smtp.latencyMs,
+            imap: result.imap.latencyMs,
+          }),
         });
       } else {
         const errors = [];
@@ -190,10 +208,14 @@ export function EmailIntegrationDialog({
     const nameChanged = editName.trim() !== editingProvider.name;
 
     if (editingProvider.authMethod === 'oauth2') {
-      const clientIdChanged = editClientId !== (editingProvider.oauth2Auth?.clientId || '');
+      const clientIdChanged =
+        editClientId !== (editingProvider.oauth2Auth?.clientId || '');
       const clientSecretChanged = editClientSecret.length > 0;
-      const tenantIdChanged = editTenantId !== ((editingProvider.metadata?.tenantId as string) || '');
-      return nameChanged || clientIdChanged || clientSecretChanged || tenantIdChanged;
+      const tenantIdChanged =
+        editTenantId !== ((editingProvider.metadata?.tenantId as string) || '');
+      return (
+        nameChanged || clientIdChanged || clientSecretChanged || tenantIdChanged
+      );
     }
 
     return nameChanged;
@@ -206,7 +228,8 @@ export function EmailIntegrationDialog({
     setIsUpdating(true);
     try {
       if (editingProvider.authMethod === 'oauth2') {
-        const hasCredentialChanges = editClientId !== (editingProvider.oauth2Auth?.clientId || '') ||
+        const hasCredentialChanges =
+          editClientId !== (editingProvider.oauth2Auth?.clientId || '') ||
           editClientSecret.length > 0;
         const tenantId =
           editingProvider.vendor === 'outlook' && editTenantId.trim()
@@ -219,7 +242,9 @@ export function EmailIntegrationDialog({
           clientSecret: editClientSecret || undefined,
           tenantId,
           credentialsSource: hasCredentialChanges
-            ? (didSyncFromSso ? 'sso' : 'manual')
+            ? didSyncFromSso
+              ? 'sso'
+              : 'manual'
             : undefined,
         });
       } else {
@@ -314,7 +339,7 @@ export function EmailIntegrationDialog({
 
   const footer = (
     <Button onClick={handleAddProvider} fullWidth>
-      <Plus className="size-4 mr-2" />
+      <Plus className="mr-2 size-4" />
       {t('integrations.addEmailProvider')}
     </Button>
   );
@@ -332,7 +357,7 @@ export function EmailIntegrationDialog({
             {[1, 2].map((i) => (
               <div
                 key={i}
-                className="h-32 bg-secondary/20 rounded-lg animate-pulse"
+                className="bg-secondary/20 h-32 animate-pulse rounded-lg"
               />
             ))}
           </Stack>
@@ -341,12 +366,12 @@ export function EmailIntegrationDialog({
             {providers.map((provider) => (
               <div
                 key={provider._id}
-                className="bg-card border border-border rounded-lg p-4"
+                className="bg-card border-border rounded-lg border p-4"
               >
                 <HStack align="start" justify="between" className="mb-3">
                   <HStack gap={2}>
                     {getVendorIcon(provider.vendor)}
-                    <h3 className="font-medium text-base text-foreground">
+                    <h3 className="text-foreground text-base font-medium">
                       {provider.name}
                     </h3>
                   </HStack>
@@ -407,10 +432,10 @@ export function EmailIntegrationDialog({
                 </HStack>
 
                 {provider.status === 'pending_authorization' && (
-                  <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-3">
+                  <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
                     <HStack justify="between" align="center" gap={3}>
                       <HStack gap={2} align="center">
-                        <div className="size-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <div className="flex size-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
                           <KeyRound className="size-4 text-amber-600" />
                         </div>
                         <div>
@@ -429,9 +454,9 @@ export function EmailIntegrationDialog({
                         className="flex-shrink-0"
                       >
                         {authorizingProviderId === provider._id ? (
-                          <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
                         ) : (
-                          <KeyRound className="size-3.5 mr-1.5" />
+                          <KeyRound className="mr-1.5 size-3.5" />
                         )}
                         {t('integrations.authorize')}
                       </Button>
@@ -445,7 +470,7 @@ export function EmailIntegrationDialog({
                       variant="orange"
                       className="[&>span]:flex [&>span]:items-center"
                     >
-                      <Star className="size-3.5 mr-1" />
+                      <Star className="mr-1 size-3.5" />
                       {t('integrations.default')}
                     </Badge>
                   )}
@@ -457,17 +482,21 @@ export function EmailIntegrationDialog({
                   )}
                 </HStack>
 
-                <Stack gap={1} className="text-xs text-muted-foreground">
+                <Stack gap={1} className="text-muted-foreground text-xs">
                   {provider.authMethod === 'oauth2' &&
                     provider.metadata?.oauth2_user && (
                       <div>
-                        <span className="font-medium">{t('integrations.account')}:</span>{' '}
+                        <span className="font-medium">
+                          {t('integrations.account')}:
+                        </span>{' '}
                         {provider.metadata.oauth2_user as string}
                       </div>
                     )}
                   {provider.sendMethod && (
                     <div>
-                      <span className="font-medium">{t('integrations.sendMethod')}:</span>{' '}
+                      <span className="font-medium">
+                        {t('integrations.sendMethod')}:
+                      </span>{' '}
                       {provider.sendMethod === 'api'
                         ? t('integrations.apiGmailGraph')
                         : t('integrations.smtp')}
@@ -475,21 +504,33 @@ export function EmailIntegrationDialog({
                   )}
                   {provider.smtpConfig && (
                     <div>
-                      <span className="font-medium">{t('integrations.smtp')}:</span>{' '}
-                      {provider.smtpConfig.host}:{provider.smtpConfig.port}{' '}
-                      ({provider.smtpConfig.secure ? t('integrations.ssl') : t('integrations.tls')})
+                      <span className="font-medium">
+                        {t('integrations.smtp')}:
+                      </span>{' '}
+                      {provider.smtpConfig.host}:{provider.smtpConfig.port} (
+                      {provider.smtpConfig.secure
+                        ? t('integrations.ssl')
+                        : t('integrations.tls')}
+                      )
                     </div>
                   )}
                   {provider.imapConfig && (
                     <div>
-                      <span className="font-medium">{t('integrations.imap')}:</span>{' '}
-                      {provider.imapConfig.host}:{provider.imapConfig.port}{' '}
-                      ({provider.imapConfig.secure ? t('integrations.ssl') : t('integrations.tls')})
+                      <span className="font-medium">
+                        {t('integrations.imap')}:
+                      </span>{' '}
+                      {provider.imapConfig.host}:{provider.imapConfig.port} (
+                      {provider.imapConfig.secure
+                        ? t('integrations.ssl')
+                        : t('integrations.tls')}
+                      )
                     </div>
                   )}
                   {provider.passwordAuth && (
                     <div>
-                      <span className="font-medium">{t('integrations.user')}:</span>{' '}
+                      <span className="font-medium">
+                        {t('integrations.user')}:
+                      </span>{' '}
                       {provider.passwordAuth.user}
                     </div>
                   )}
@@ -498,12 +539,12 @@ export function EmailIntegrationDialog({
             ))}
           </Stack>
         ) : (
-          <div className="text-center py-8">
-            <Mail className="size-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm text-muted-foreground mb-2">
+          <div className="py-8 text-center">
+            <Mail className="mx-auto mb-2 size-8 opacity-50" />
+            <p className="text-muted-foreground mb-2 text-sm">
               {t('integrations.noProvidersYet')}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {t('integrations.addProviderToStart')}
             </p>
           </div>
@@ -542,7 +583,7 @@ export function EmailIntegrationDialog({
               {editingProvider.vendor === 'outlook' &&
                 hasSsoConfigured &&
                 editingProvider.metadata?.credentialsSource === 'sso' && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-2.5">
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-2.5">
                     <HStack justify="between" align="center">
                       <div>
                         <p className="text-xs font-medium text-green-800">
@@ -560,9 +601,9 @@ export function EmailIntegrationDialog({
                         disabled={isSyncingSso}
                       >
                         {isSyncingSso ? (
-                          <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                          <Loader2 className="mr-1.5 size-3.5 animate-spin" />
                         ) : (
-                          <RefreshCw className="size-3.5 mr-1.5" />
+                          <RefreshCw className="mr-1.5 size-3.5" />
                         )}
                         {t('integrations.syncFromSso')}
                       </Button>
@@ -571,21 +612,27 @@ export function EmailIntegrationDialog({
                 )}
               <Input
                 id="edit-client-id"
-                label={editingProvider.vendor === 'outlook'
-                  ? t('integrations.microsoftClientId')
-                  : t('integrations.googleClientId')}
+                label={
+                  editingProvider.vendor === 'outlook'
+                    ? t('integrations.microsoftClientId')
+                    : t('integrations.googleClientId')
+                }
                 value={editClientId}
                 onChange={(e) => setEditClientId(e.target.value)}
-                placeholder={editingProvider.vendor === 'outlook'
-                  ? t('integrations.microsoftClientIdPlaceholder')
-                  : t('integrations.googleClientIdPlaceholder')}
+                placeholder={
+                  editingProvider.vendor === 'outlook'
+                    ? t('integrations.microsoftClientIdPlaceholder')
+                    : t('integrations.googleClientIdPlaceholder')
+                }
               />
               <Input
                 id="edit-client-secret"
                 type="password"
-                label={editingProvider.vendor === 'outlook'
-                  ? t('integrations.microsoftClientSecret')
-                  : t('integrations.googleClientSecret')}
+                label={
+                  editingProvider.vendor === 'outlook'
+                    ? t('integrations.microsoftClientSecret')
+                    : t('integrations.googleClientSecret')
+                }
                 value={editClientSecret}
                 onChange={(e) => setEditClientSecret(e.target.value)}
                 placeholder={t('integrations.leaveEmptyToKeep')}

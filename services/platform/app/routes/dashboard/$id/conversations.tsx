@@ -1,12 +1,13 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
-import { ConversationsNavigation } from '@/app/features/conversations/components/conversations-navigation';
+
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
-import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
+import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
+import { ConversationsNavigation } from '@/app/features/conversations/components/conversations-navigation';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/conversations')({
@@ -26,7 +27,7 @@ function ConversationsLayout() {
   const { t } = useT('conversations');
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       <StickyHeader>
         <AdaptiveHeaderRoot standalone={false}>
           <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
@@ -34,7 +35,7 @@ function ConversationsLayout() {
         <ConversationsNavigation organizationId={organizationId} />
       </StickyHeader>
       <LayoutErrorBoundary organizationId={organizationId}>
-        <ContentWrapper className="flex flex-row size-full flex-1 max-h-full">
+        <ContentWrapper className="flex size-full max-h-full flex-1 flex-row">
           <Outlet />
         </ContentWrapper>
       </LayoutErrorBoundary>

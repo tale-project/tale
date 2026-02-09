@@ -1,5 +1,6 @@
 """Document management endpoints for Tale RAG service."""
 
+import contextlib
 import json
 import os
 from typing import Any
@@ -16,13 +17,15 @@ from ..models import (
     DocumentAddResponse,
     DocumentDeleteResponse,
 )
+from ..secret_scanner import scan_file_for_secrets
 from ..services import job_store_db as job_store
 from ..services.cognee import cognee_service
-from ..secret_scanner import scan_file_for_secrets
 from ..services.cognee.utils import sanitize_team_id
 from ..utils import cleanup_memory
 
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
+
+_FILE_UPLOAD = File(..., description="File to upload")
 
 
 def _parse_team_ids(team_ids: str | None, *, required: bool = False) -> list[str] | None:
@@ -209,7 +212,7 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
 
 @router.post("/documents/upload", response_model=DocumentAddResponse)
 async def upload_document(
-    file: UploadFile = File(..., description="File to upload"),
+    file: UploadFile = _FILE_UPLOAD,
     metadata: str | None = Form(None, description="Optional metadata as JSON string"),
     document_id: str | None = Form(None, description="Optional custom document ID"),
     user_id: str | None = Form(None, description="User ID for multi-tenant isolation"),
@@ -231,58 +234,114 @@ async def upload_document(
 
     SUPPORTED_EXTENSIONS = {
         # Documents
-        ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
+        ".pdf",
+        ".docx",
+        ".doc",
+        ".pptx",
+        ".ppt",
+        ".xlsx",
+        ".xls",
         # Images
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".tiff",
+        ".webp",
         # Text / markup
-        ".txt", ".md", ".mdx", ".rst", ".tex", ".csv", ".tsv",
-        ".html", ".htm", ".css", ".scss", ".sass", ".less",
+        ".txt",
+        ".md",
+        ".mdx",
+        ".rst",
+        ".tex",
+        ".csv",
+        ".tsv",
+        ".html",
+        ".htm",
+        ".css",
+        ".scss",
+        ".sass",
+        ".less",
         # Data / config
-        ".json", ".yaml", ".yml", ".toml", ".xml", ".ini", ".cfg",
-        ".conf", ".properties",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".xml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".properties",
         # Code
-        ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
-        ".py", ".pyi",
-        ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx",
-        ".rs", ".go", ".swift", ".kt", ".java",
-        ".rb", ".php", ".pl", ".lua", ".r",
-        ".scala", ".groovy", ".dart", ".ex", ".exs",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".mjs",
+        ".cjs",
+        ".py",
+        ".pyi",
+        ".c",
+        ".h",
+        ".cpp",
+        ".hpp",
+        ".cc",
+        ".cxx",
+        ".rs",
+        ".go",
+        ".swift",
+        ".kt",
+        ".java",
+        ".rb",
+        ".php",
+        ".pl",
+        ".lua",
+        ".r",
+        ".scala",
+        ".groovy",
+        ".dart",
+        ".ex",
+        ".exs",
         # Shell / scripts
-        ".sh", ".bash", ".zsh", ".ps1", ".bat", ".cmd",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".ps1",
+        ".bat",
+        ".cmd",
         # Query / schema
-        ".sql", ".graphql", ".gql", ".proto",
+        ".sql",
+        ".graphql",
+        ".gql",
+        ".proto",
         # Build / project
-        ".gradle", ".cmake", ".lock",
+        ".gradle",
+        ".cmake",
+        ".lock",
     }
 
     tmp_path: str | None = None
     try:
         if not file.filename:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Filename is required"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
 
         file_ext = Path(file.filename).suffix.lower()
         if not file_ext:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File must have an extension. Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
+                detail=f"File must have an extension. Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}",
             )
 
         if file_ext not in SUPPORTED_EXTENSIONS:
-            supported = ', '.join(sorted(SUPPORTED_EXTENSIONS))
+            supported = ", ".join(sorted(SUPPORTED_EXTENSIONS))
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported file type: {file_ext}. Supported formats: {supported}"
+                detail=f"Unsupported file type: {file_ext}. Supported formats: {supported}",
             )
 
         # Validate file size (50MB default limit from config)
-        max_size_mb = (
-            settings.max_document_size_mb
-            if hasattr(settings, "max_document_size_mb")
-            else 50
-        )
+        max_size_mb = settings.max_document_size_mb if hasattr(settings, "max_document_size_mb") else 50
         max_size_bytes = max_size_mb * 1024 * 1024
 
         # Create file on disk with original extension in the ingest directory
@@ -331,7 +390,7 @@ async def upload_document(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid metadata format. Must be valid JSON string.",
-                )
+                ) from None
 
         # Add file metadata
         parsed_metadata["filename"] = file.filename
@@ -440,23 +499,19 @@ async def upload_document(
     except HTTPException:
         # Clean up temp file on validation errors
         if tmp_path and os.path.exists(tmp_path):
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
         raise
     except Exception as e:
         # Clean up temp file on unexpected errors
         if tmp_path and os.path.exists(tmp_path):
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
         logger.error(f"Failed to upload file: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload file. Please try again.",
-        )
+        ) from e
 
 
 @router.delete("/documents/{document_id}", response_model=DocumentDeleteResponse)
@@ -480,9 +535,7 @@ async def delete_document(
     team_id_list = _parse_team_ids(team_ids, required=False)
 
     try:
-        result = await cognee_service.delete_document(
-            document_id, mode=mode, team_ids=team_id_list
-        )
+        result = await cognee_service.delete_document(document_id, mode=mode, team_ids=team_id_list)
 
         return DocumentDeleteResponse(
             success=result["success"],
@@ -497,7 +550,7 @@ async def delete_document(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete document. Please try again.",
-        )
+        ) from e
 
 
 @router.post("/reset")
@@ -519,4 +572,4 @@ async def reset_knowledge_base():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reset knowledge base. Please try again.",
-        )
+        ) from e

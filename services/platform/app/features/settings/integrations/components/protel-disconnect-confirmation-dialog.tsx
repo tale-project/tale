@@ -1,7 +1,8 @@
 'use client';
 
-import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useState } from 'react';
+
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -53,8 +54,9 @@ export function ProtelDisconnectConfirmationDialog({
       description={
         <>
           {t('integrations.protel.disconnectConfirmation')}{' '}
-          <strong>{server}</strong> ({t('integrations.protel.database')}: <strong>{database}</strong>).
-          {' '}{t('integrations.protel.disconnectWarning')}
+          <strong>{server}</strong> ({t('integrations.protel.database')}:{' '}
+          <strong>{database}</strong>).{' '}
+          {t('integrations.protel.disconnectWarning')}
         </>
       }
       confirmText={t('integrations.protel.disconnect')}

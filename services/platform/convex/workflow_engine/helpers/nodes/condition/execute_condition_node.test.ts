@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { executeConditionNode } from './execute_condition_node';
 
 describe('executeConditionNode', () => {

@@ -1,4 +1,5 @@
 import type { GenericDocument } from 'convex/server';
+
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -54,7 +55,8 @@ export async function paginateWithFilter<T extends GenericDocument>(
   return {
     page: items,
     isDone: !hasMore,
-    continueCursor: items.length > 0 ? (items[items.length - 1]._id as string) : '',
+    continueCursor:
+      items.length > 0 ? (items[items.length - 1]._id as string) : '',
   };
 }
 

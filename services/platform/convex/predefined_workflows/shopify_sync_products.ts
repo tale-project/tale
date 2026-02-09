@@ -133,7 +133,8 @@ const shopifySyncProductsWorkflow = {
         type: 'product',
         parameters: {
           operation: 'update',
-          productId: '{{steps.query_existing_product.output.data.items[0]._id}}',
+          productId:
+            '{{steps.query_existing_product.output.data.items[0]._id}}',
           updates: {
             name: '{{loop.item.title}}',
             status: '{{loop.item.status}}',

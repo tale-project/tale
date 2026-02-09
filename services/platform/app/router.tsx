@@ -1,10 +1,12 @@
-import { createRouter as createTanStackRouter } from '@tanstack/react-router';
-import { QueryClient } from '@tanstack/react-query';
 import { ConvexQueryClient } from '@convex-dev/react-query';
 import * as Sentry from '@sentry/tanstackstart-react';
-import { routeTree } from './routeTree.gen';
-import { getEnv } from '@/lib/env';
+import { QueryClient } from '@tanstack/react-query';
+import { createRouter as createTanStackRouter } from '@tanstack/react-router';
+
 import { GlobalErrorDisplay } from '@/app/components/error-boundaries/displays/global-error-display';
+import { getEnv } from '@/lib/env';
+
+import { routeTree } from './routeTree.gen';
 
 export interface RouterContext {
   queryClient: QueryClient;

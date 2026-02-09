@@ -1,8 +1,8 @@
 'use client';
 
-import type { ReactNode } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import type { ReactNode } from 'react';
+
 import {
   Table,
   TableBody,
@@ -11,9 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/data-display/table';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { DataTablePagination } from './data-table-pagination';
 import { cn } from '@/lib/utils/cn';
+
+import { DataTablePagination } from './data-table-pagination';
 
 /** Skeleton type for different cell content patterns */
 type SkeletonType = 'text' | 'badge' | 'id-copy' | 'avatar-text' | 'action';
@@ -81,7 +83,12 @@ function normalizeColumns(
 ): DataTableSkeletonColumn[] {
   const normalized = columns.map((col) => {
     // Check if it's already a simple column config
-    if ('isAction' in col || 'hasAvatar' in col || 'align' in col || 'skeleton' in col) {
+    if (
+      'isAction' in col ||
+      'hasAvatar' in col ||
+      'align' in col ||
+      'skeleton' in col
+    ) {
       return col as DataTableSkeletonColumn;
     }
 
@@ -144,7 +151,11 @@ export function DataTableSkeleton({
                   col.align === 'right' && 'text-right',
                   col.align === 'center' && 'text-center',
                 )}
-                style={col.size && !col.isExpandColumn ? { width: col.size } : undefined}
+                style={
+                  col.size && !col.isExpandColumn
+                    ? { width: col.size }
+                    : undefined
+                }
               >
                 {col.isExpandColumn || col.isAction
                   ? null
@@ -191,14 +202,14 @@ export function DataTableSkeleton({
               } else if (skeletonType === 'id-copy') {
                 cellContent = (
                   <HStack gap={2}>
-                    <Skeleton className="h-3.5 flex-1 max-w-[120px]" />
-                    <Skeleton className="size-6 rounded-md shrink-0" />
+                    <Skeleton className="h-3.5 max-w-[120px] flex-1" />
+                    <Skeleton className="size-6 shrink-0 rounded-md" />
                   </HStack>
                 );
               } else if (showAvatar || skeletonType === 'avatar-text') {
                 cellContent = (
                   <HStack gap={3}>
-                    <Skeleton className="size-8 rounded-md shrink-0" />
+                    <Skeleton className="size-8 shrink-0 rounded-md" />
                     <Stack gap={1} className="flex-1">
                       <Skeleton className="h-3.5 w-full max-w-48" />
                       <Skeleton className="h-3 w-2/3 max-w-24" />
@@ -240,13 +251,13 @@ export function DataTableSkeleton({
   const hasHeader =
     searchPlaceholder || showFilters || showDateRange || actionMenu;
   const headerContent = hasHeader ? (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 w-full sm:w-auto">
+    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+      <div className="flex w-full flex-col items-start gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
         <HStack gap={3} className="w-full sm:w-auto">
           {searchPlaceholder && (
-            <Skeleton className="h-9 flex-1 sm:flex-none sm:w-[18.75rem]" />
+            <Skeleton className="h-9 flex-1 sm:w-[18.75rem] sm:flex-none" />
           )}
-          {showFilters && <Skeleton className="h-9 w-9 rounded-md shrink-0" />}
+          {showFilters && <Skeleton className="h-9 w-9 shrink-0 rounded-md" />}
         </HStack>
         {showDateRange && <Skeleton className="h-9 w-[15rem]" />}
       </div>
@@ -267,7 +278,7 @@ export function DataTableSkeleton({
 
   // Infinite scroll content (load more button skeleton) for cursor-based pagination
   const infiniteScrollContent = infiniteScroll && (
-    <div className="flex justify-center py-3 border-t border-border">
+    <div className="border-border flex justify-center border-t py-3">
       <Skeleton className="h-9 w-24" />
     </div>
   );
@@ -276,10 +287,8 @@ export function DataTableSkeleton({
   if (stickyLayout) {
     return (
       <div className={cn('flex flex-col flex-1 min-h-0', className)}>
-        {headerContent && (
-          <div className="shrink-0 pb-4">{headerContent}</div>
-        )}
-        <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-border">
+        {headerContent && <div className="shrink-0 pb-4">{headerContent}</div>}
+        <div className="border-border min-h-0 flex-1 overflow-auto rounded-xl border">
           {tableContent}
           {infiniteScrollContent}
         </div>
@@ -293,7 +302,7 @@ export function DataTableSkeleton({
   return (
     <Stack gap={4} className={cn('w-full', className)}>
       {headerContent}
-      <div className="rounded-xl border border-border">
+      <div className="border-border rounded-xl border">
         {tableContent}
         {infiniteScrollContent}
       </div>

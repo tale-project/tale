@@ -1,8 +1,10 @@
 import i18n from 'i18next';
-import { initReactI18next } from 'react-i18next';
 import ICU from 'i18next-icu';
+import { initReactI18next } from 'react-i18next';
+
 import enMessages from '@/messages/en.json';
 import globalMessages from '@/messages/global.json';
+
 import { defaultLocale } from './config';
 
 i18n

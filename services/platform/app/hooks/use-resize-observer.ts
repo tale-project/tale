@@ -1,6 +1,11 @@
 'use client';
 
-import { useEffect, useRef, type RefObject, type MutableRefObject } from 'react';
+import {
+  useEffect,
+  useRef,
+  type RefObject,
+  type MutableRefObject,
+} from 'react';
 
 type RefInput =
   | RefObject<HTMLElement | null>
@@ -55,10 +60,16 @@ export function useResizeObserver(
     }
     // Handle MutableRefObject<Array>
     else if ('current' in refs && Array.isArray(refs.current)) {
-      validElements = refs.current.filter((el): el is HTMLElement => el !== null);
+      validElements = refs.current.filter(
+        (el): el is HTMLElement => el !== null,
+      );
     }
     // Handle single RefObject
-    else if ('current' in refs && refs.current && !Array.isArray(refs.current)) {
+    else if (
+      'current' in refs &&
+      refs.current &&
+      !Array.isArray(refs.current)
+    ) {
       validElements = [refs.current as HTMLElement];
     }
 
@@ -75,6 +86,6 @@ export function useResizeObserver(
     return () => {
       resizeObserver.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- deps is spread to allow dynamic dependency tracking; refs are stable objects
   }, [...deps]);
 }

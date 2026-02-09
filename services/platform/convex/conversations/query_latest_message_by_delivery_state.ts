@@ -5,9 +5,9 @@
  * - 5-field index when providerId is not provided
  */
 
-import type { QueryCtx } from '../_generated/server';
-import type { Id } from '../_generated/dataModel';
 import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
+import type { Id } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export interface QueryLatestMessageByDeliveryStateArgs {
   organizationId: string;

@@ -1,7 +1,13 @@
 'use client';
 
+import {
+  ComponentPropsWithoutRef,
+  forwardRef,
+  useState,
+  useEffect,
+} from 'react';
+
 import { cn } from '@/lib/utils/cn';
-import { ComponentPropsWithoutRef, forwardRef, useState, useEffect } from 'react';
 
 const PLACEHOLDER_IMAGE = '/assets/placeholder-image.png';
 

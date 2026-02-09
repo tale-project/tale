@@ -1,13 +1,14 @@
 import { Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
-import { useSyncStatus } from '@/app/hooks/use-sync-status';
-import { useMutationQueue } from '@/app/hooks/use-mutation-queue';
-import { cn } from '@/lib/utils/cn';
-import { Button } from '@/app/components/ui/primitives/button';
+
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/app/components/ui/overlays/tooltip';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useMutationQueue } from '@/app/hooks/use-mutation-queue';
+import { useSyncStatus } from '@/app/hooks/use-sync-status';
+import { cn } from '@/lib/utils/cn';
 
 interface SyncStatusIndicatorProps {
   className?: string;
@@ -33,18 +34,18 @@ export function SyncStatusIndicator({
 
   const getStatusIcon = () => {
     if (!isOnline) {
-      return <CloudOff className="h-4 w-4 text-muted-foreground" />;
+      return <CloudOff className="text-muted-foreground h-4 w-4" />;
     }
     if (isSyncing) {
-      return <RefreshCw className="h-4 w-4 animate-spin text-primary" />;
+      return <RefreshCw className="text-primary h-4 w-4 animate-spin" />;
     }
     if (hasIssues) {
-      return <AlertCircle className="h-4 w-4 text-destructive" />;
+      return <AlertCircle className="text-destructive h-4 w-4" />;
     }
     if (hasPending) {
-      return <RefreshCw className="h-4 w-4 text-warning" />;
+      return <RefreshCw className="text-warning h-4 w-4" />;
     }
-    return <Cloud className="h-4 w-4 text-success" />;
+    return <Cloud className="text-success h-4 w-4" />;
   };
 
   const getStatusText = () => {
@@ -83,7 +84,7 @@ export function SyncStatusIndicator({
         >
           {getStatusIcon()}
           {showLabel && (
-            <span className="text-sm text-muted-foreground">
+            <span className="text-muted-foreground text-sm">
               {getStatusText()}
             </span>
           )}
@@ -93,7 +94,7 @@ export function SyncStatusIndicator({
                 'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-medium',
                 hasIssues
                   ? 'bg-destructive text-destructive-foreground'
-                  : 'bg-warning text-warning-foreground'
+                  : 'bg-warning text-warning-foreground',
               )}
             >
               {hasIssues ? failedCount : pendingCount}

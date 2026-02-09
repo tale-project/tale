@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+
 import { updateExecutionVariables } from '../../workflows/executions/update_execution_variables';
 
 function createMockCtx(executionOverrides: Record<string, unknown> = {}) {

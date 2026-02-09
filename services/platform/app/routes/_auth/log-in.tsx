@@ -1,20 +1,25 @@
-import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  createFileRoute,
+  useNavigate,
+  useSearch,
+} from '@tanstack/react-router';
+import { useQuery } from 'convex/react';
 import { useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useQuery } from 'convex/react';
-import { useQueryClient } from '@tanstack/react-query';
-import { api } from '@/convex/_generated/api';
-import { authClient } from '@/lib/auth-client';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Input } from '@/app/components/ui/forms/input';
+
+import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { Form } from '@/app/components/ui/forms/form';
+import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
-import { toast } from '@/app/hooks/use-toast';
-import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
+import { Button } from '@/app/components/ui/primitives/button';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
 const searchSchema = z.object({

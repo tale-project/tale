@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import {
   CreditCard,
   Keyboard,
@@ -11,6 +12,9 @@ import {
   User,
   UserPlus,
 } from 'lucide-react';
+import { useState } from 'react';
+
+import { Button } from '../primitives/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,8 +32,6 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from './dropdown-menu';
-import { Button } from '../primitives/button';
-import { useState } from 'react';
 
 const meta: Meta<typeof DropdownMenu> = {
   title: 'Overlays/DropdownMenu',

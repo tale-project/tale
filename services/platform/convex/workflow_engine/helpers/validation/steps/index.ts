@@ -11,11 +11,11 @@ export * from './condition';
 export * from './action';
 export * from './loop';
 
-import { validateStartStep } from './start';
-import { validateLlmStep } from './llm';
-import { validateConditionStep } from './condition';
 import { validateActionStep } from './action';
+import { validateConditionStep } from './condition';
+import { validateLlmStep } from './llm';
 import { validateLoopStep } from './loop';
+import { validateStartStep } from './start';
 
 /**
  * Map of step type to validator function
@@ -35,7 +35,7 @@ const stepValidators: Record<
  * Get the validator function for a step type
  */
 export function getStepValidator(
-  stepType: StepType
+  stepType: StepType,
 ): (config: Record<string, unknown>) => ValidationResult {
   return stepValidators[stepType];
 }
@@ -45,7 +45,7 @@ export function getStepValidator(
  */
 export function validateStepByType(
   stepType: StepType,
-  config: Record<string, unknown>
+  config: Record<string, unknown>,
 ): ValidationResult {
   const validator = stepValidators[stepType];
   return validator(config);

@@ -1,8 +1,10 @@
-import { jsonRecordValidator, type ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
-
 import { v } from 'convex/values';
-import { mutationWithRLS } from '../lib/rls';
 
+import {
+  jsonRecordValidator,
+  type ConvexJsonValue,
+} from '../../lib/shared/schemas/utils/json-value';
+import { mutationWithRLS } from '../lib/rls';
 import {
   vendorSourceValidator,
   vendorAddressValidator,
@@ -35,7 +37,8 @@ export const updateVendor = mutationWithRLS({
     const checkEmailConflict =
       updateData.email && updateData.email !== existingVendor.email;
     const checkExternalIdConflict =
-      updateData.externalId && updateData.externalId !== existingVendor.externalId;
+      updateData.externalId &&
+      updateData.externalId !== existingVendor.externalId;
 
     const [emailConflict, externalIdConflict] = await Promise.all([
       checkEmailConflict
@@ -105,7 +108,11 @@ export const bulkCreateVendors = mutationWithRLS({
     const results = {
       success: 0,
       failed: 0,
-      errors: [] as Array<{ index: number; error: string; vendor: ConvexJsonValue }>,
+      errors: [] as Array<{
+        index: number;
+        error: string;
+        vendor: ConvexJsonValue;
+      }>,
     };
 
     for (let i = 0; i < args.vendors.length; i++) {

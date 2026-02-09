@@ -5,10 +5,11 @@
  */
 
 import { v } from 'convex/values';
+
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
-import { updateUserPassword as updateUserPasswordHelper } from './update_user_password';
 import { createMember as createMemberHelper } from './create_member';
+import { updateUserPassword as updateUserPasswordHelper } from './update_user_password';
 import { roleValidator } from './validators';
 
 export const updateUserPassword = mutation({

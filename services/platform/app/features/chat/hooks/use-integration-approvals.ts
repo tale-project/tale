@@ -3,8 +3,10 @@
  */
 
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+
 import type { Id } from '@/convex/_generated/dataModel';
+
+import { api } from '@/convex/_generated/api';
 
 /**
  * Metadata for an integration operation approval
@@ -47,17 +49,27 @@ export function useIntegrationApprovals(threadId: string | undefined) {
 
   // Transform the approvals to a more usable format
   const integrationApprovals: IntegrationApproval[] = (approvals || [])
-    .filter((a: ApprovalItem): a is ApprovalItem & { metadata: NonNullable<ApprovalItem['metadata']> } =>
-      a.resourceType === 'integration_operation' && a.metadata !== undefined)
-    .map((a: ApprovalItem & { metadata: NonNullable<ApprovalItem['metadata']> }): IntegrationApproval => ({
-      _id: a._id,
-      status: a.status as 'pending' | 'approved' | 'rejected',
-      metadata: a.metadata as unknown as IntegrationOperationMetadata,
-      executedAt: a.executedAt,
-      executionError: a.executionError,
-      _creationTime: a._creationTime,
-      messageId: a.messageId,
-    }));
+    .filter(
+      (
+        a: ApprovalItem,
+      ): a is ApprovalItem & {
+        metadata: NonNullable<ApprovalItem['metadata']>;
+      } =>
+        a.resourceType === 'integration_operation' && a.metadata !== undefined,
+    )
+    .map(
+      (
+        a: ApprovalItem & { metadata: NonNullable<ApprovalItem['metadata']> },
+      ): IntegrationApproval => ({
+        _id: a._id,
+        status: a.status as 'pending' | 'approved' | 'rejected',
+        metadata: a.metadata as unknown as IntegrationOperationMetadata,
+        executedAt: a.executedAt,
+        executionError: a.executionError,
+        _creationTime: a._creationTime,
+        messageId: a.messageId,
+      }),
+    );
 
   return {
     approvals: integrationApprovals,

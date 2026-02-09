@@ -4,11 +4,12 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-import { components } from '../../_generated/api';
 import type {
   BetterAuthFindManyResult,
   BetterAuthSession,
 } from '../../members/types';
+
+import { components } from '../../_generated/api';
 
 export interface CreateSessionForTrustedUserArgs {
   userId: string;
@@ -70,9 +71,18 @@ export async function createSessionForTrustedUser(
       } else if (existingSession.expiresAt > now) {
         // Same user, session still valid - extend it and update trusted fields
         // Check if trusted headers values have changed
-        const sessionRecord = existingSession as unknown as Record<string, unknown>;
-        const existingRole = sessionRecord.trustedRole as string | null | undefined;
-        const existingTeams = sessionRecord.trustedTeams as string | null | undefined;
+        const sessionRecord = existingSession as unknown as Record<
+          string,
+          unknown
+        >;
+        const existingRole = sessionRecord.trustedRole as
+          | string
+          | null
+          | undefined;
+        const existingTeams = sessionRecord.trustedTeams as
+          | string
+          | null
+          | undefined;
         const trustedHeadersChanged =
           (existingRole ?? null) !== (args.trustedRole ?? null) ||
           (existingTeams ?? null) !== (args.trustedTeams ?? null);
@@ -127,8 +137,14 @@ export async function createSessionForTrustedUser(
     if (session.expiresAt > now) {
       // Check if trusted headers values have changed
       const sessionRecord = session as unknown as Record<string, unknown>;
-      const existingRole = sessionRecord.trustedRole as string | null | undefined;
-      const existingTeams = sessionRecord.trustedTeams as string | null | undefined;
+      const existingRole = sessionRecord.trustedRole as
+        | string
+        | null
+        | undefined;
+      const existingTeams = sessionRecord.trustedTeams as
+        | string
+        | null
+        | undefined;
       const trustedHeadersChanged =
         (existingRole ?? null) !== (args.trustedRole ?? null) ||
         (existingTeams ?? null) !== (args.trustedTeams ?? null);
@@ -153,7 +169,7 @@ export async function createSessionForTrustedUser(
       });
       return {
         sessionToken: session.token,
-        shouldClearOldSession: args.existingSessionToken ? true : false,
+        shouldClearOldSession: !!args.existingSessionToken,
         trustedHeadersChanged,
       };
     }
@@ -183,7 +199,7 @@ export async function createSessionForTrustedUser(
 
   return {
     sessionToken,
-    shouldClearOldSession: args.existingSessionToken ? true : false,
+    shouldClearOldSession: !!args.existingSessionToken,
     trustedHeadersChanged: true,
   };
 }

@@ -7,11 +7,12 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { createDocumentAgent, DOCUMENT_AGENT_INSTRUCTIONS } from './agent';
+
 import {
   generateAgentResponse,
   type GenerateResponseResult,
 } from '../../lib/agent_response';
+import { createDocumentAgent, DOCUMENT_AGENT_INSTRUCTIONS } from './agent';
 
 export interface GenerateDocumentResponseArgs {
   ctx: ActionCtx;

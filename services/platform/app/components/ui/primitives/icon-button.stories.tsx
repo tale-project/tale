@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { fn } from '@storybook/test';
 import {
   Trash2,
@@ -10,6 +11,7 @@ import {
   Copy,
   Download,
 } from 'lucide-react';
+
 import { IconButton } from './icon-button';
 
 const meta: Meta<typeof IconButton> = {
@@ -121,7 +123,7 @@ export const AllSizes: Story = {
 
 export const CommonActions: Story = {
   render: () => (
-    <div className="flex items-center gap-2 p-4 border rounded-lg">
+    <div className="flex items-center gap-2 rounded-lg border p-4">
       <IconButton icon={Edit} aria-label="Edit" />
       <IconButton icon={Copy} aria-label="Copy" />
       <IconButton icon={Download} aria-label="Download" />
@@ -145,13 +147,13 @@ export const CommonActions: Story = {
 
 export const CloseButton: Story = {
   render: () => (
-    <div className="relative p-8 border rounded-lg">
+    <div className="relative rounded-lg border p-8">
       <IconButton
         icon={X}
         aria-label="Close"
         className="absolute top-2 right-2"
       />
-      <p className="text-sm text-muted-foreground">Modal or panel content</p>
+      <p className="text-muted-foreground text-sm">Modal or panel content</p>
     </div>
   ),
   parameters: {
@@ -165,7 +167,12 @@ export const Disabled: Story = {
   render: () => (
     <div className="flex gap-4">
       <IconButton icon={Edit} aria-label="Edit" disabled />
-      <IconButton icon={Trash2} aria-label="Delete" variant="destructive" disabled />
+      <IconButton
+        icon={Trash2}
+        aria-label="Delete"
+        variant="destructive"
+        disabled
+      />
     </div>
   ),
 };
@@ -173,7 +180,7 @@ export const Disabled: Story = {
 export const PressAnimation: Story = {
   render: () => (
     <div className="flex flex-col items-center gap-4">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         Click and hold to see the press animation
       </p>
       <IconButton icon={Plus} aria-label="Add" variant="primary" iconSize={5} />

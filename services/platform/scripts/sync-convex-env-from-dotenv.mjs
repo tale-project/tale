@@ -18,11 +18,11 @@
 	- This script targets LOCAL development backend only.
 	*/
 
-import { readFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -201,28 +201,28 @@ function runConvexEnvRemove(key) {
 async function main() {
   const envMap = findEnv();
 
-	  // If SITE_URL is absent, default to http://localhost:3000
-	  if (!envMap.SITE_URL) {
-	    const inferred = 'http://localhost:3000';
-	    console.log(
-	      `[sync-convex-env] SITE_URL not set in .env; using default: ${inferred}`,
-	    );
-	    envMap.SITE_URL = inferred;
-	  }
+  // If SITE_URL is absent, default to http://localhost:3000
+  if (!envMap.SITE_URL) {
+    const inferred = 'http://localhost:3000';
+    console.log(
+      `[sync-convex-env] SITE_URL not set in .env; using default: ${inferred}`,
+    );
+    envMap.SITE_URL = inferred;
+  }
 
-	  // Get all keys from the environment map
-	  const keys = Object.keys(envMap);
+  // Get all keys from the environment map
+  const keys = Object.keys(envMap);
 
-	  if (keys.length === 0) {
-	    console.log(
-	      '[sync-convex-env] No environment variables found in .env/.env.local',
-	    );
-	    return;
-	  }
+  if (keys.length === 0) {
+    console.log(
+      '[sync-convex-env] No environment variables found in .env/.env.local',
+    );
+    return;
+  }
 
-	  console.log(
-	    `[sync-convex-env] Found ${keys.length} environment variables to sync`,
-	  );
+  console.log(
+    `[sync-convex-env] Found ${keys.length} environment variables to sync`,
+  );
 
   // Step 1: Get all existing environment variables from Convex
   console.log('[sync-convex-env] Fetching existing environment variables...');

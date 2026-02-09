@@ -2,11 +2,12 @@
  * Generate tone of voice from example messages using AI
  */
 
+import { generateObject } from 'ai';
+import { z } from 'zod/v4';
+
 import { internal } from '../_generated/api';
 import { ActionCtx } from '../_generated/server';
 import { openai } from '../lib/openai_provider';
-import { generateObject } from 'ai';
-import { z } from 'zod/v4';
 import { ExampleMessageContent, GenerateToneResponse } from './types';
 
 export async function generateToneOfVoice(
@@ -64,10 +65,13 @@ Format your response with proper line breaks between sections for readability. U
 
     const generatedTone = result.object.tone;
 
-    await ctx.runMutation(internal.tone_of_voice.internal_mutations.saveGeneratedTone, {
-      organizationId: args.organizationId,
-      generatedTone,
-    });
+    await ctx.runMutation(
+      internal.tone_of_voice.internal_mutations.saveGeneratedTone,
+      {
+        organizationId: args.organizationId,
+        generatedTone,
+      },
+    );
 
     return {
       success: true,

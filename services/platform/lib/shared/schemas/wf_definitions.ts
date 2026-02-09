@@ -1,20 +1,20 @@
 import { z } from 'zod/v4';
 import { jsonRecordSchema } from './utils/json-value';
 
-export const workflowStatusLiterals = ['draft', 'active', 'archived'] as const;
+const workflowStatusLiterals = ['draft', 'active', 'archived'] as const;
 export const workflowStatusSchema = z.enum(workflowStatusLiterals);
-export type WorkflowStatus = z.infer<typeof workflowStatusSchema>;
+type WorkflowStatus = z.infer<typeof workflowStatusSchema>;
 
-export const workflowTypeLiterals = ['predefined'] as const;
+const workflowTypeLiterals = ['predefined'] as const;
 export const workflowTypeSchema = z.literal('predefined');
-export type WorkflowType = z.infer<typeof workflowTypeSchema>;
+type WorkflowType = z.infer<typeof workflowTypeSchema>;
 
 export const retryPolicySchema = z.object({
 	maxRetries: z.number(),
 	backoffMs: z.number(),
 });
 
-export type RetryPolicy = z.infer<typeof retryPolicySchema>;
+type RetryPolicy = z.infer<typeof retryPolicySchema>;
 
 export const secretConfigSchema = z.object({
 	kind: z.literal('inlineEncrypted'),
@@ -22,7 +22,7 @@ export const secretConfigSchema = z.object({
 	keyId: z.string().optional(),
 });
 
-export type SecretConfig = z.infer<typeof secretConfigSchema>;
+type SecretConfig = z.infer<typeof secretConfigSchema>;
 
 export const workflowConfigSchema = z.object({
 	timeout: z.number().optional(),
@@ -31,7 +31,7 @@ export const workflowConfigSchema = z.object({
 	secrets: z.record(z.string(), secretConfigSchema).optional(),
 });
 
-export type WorkflowConfig = z.infer<typeof workflowConfigSchema>;
+type WorkflowConfig = z.infer<typeof workflowConfigSchema>;
 
 export const workflowUpdateSchema = z.object({
 	name: z.string().optional(),
@@ -43,4 +43,4 @@ export const workflowUpdateSchema = z.object({
 	metadata: jsonRecordSchema.optional(),
 });
 
-export type WorkflowUpdate = z.infer<typeof workflowUpdateSchema>;
+type WorkflowUpdate = z.infer<typeof workflowUpdateSchema>;

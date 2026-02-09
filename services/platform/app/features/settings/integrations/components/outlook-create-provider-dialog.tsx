@@ -1,25 +1,33 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Input } from '@/app/components/ui/forms/input';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/navigation/tabs';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { OutlookIcon } from '@/app/components/icons/outlook-icon';
-import { ExternalLink, Shield, Key, Loader2 } from 'lucide-react';
-import { toast } from '@/app/hooks/use-toast';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { ExternalLink, Shield, Key, Loader2 } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
+
+import { OutlookIcon } from '@/app/components/icons/outlook-icon';
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Input } from '@/app/components/ui/forms/input';
+import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/app/components/ui/navigation/tabs';
+import { Button } from '@/app/components/ui/primitives/button';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
+
 import { useCreateEmailProvider } from '../hooks/use-create-email-provider';
 import { useCreateOAuth2Provider } from '../hooks/use-create-oauth2-provider';
-import { useTestEmailConnection } from '../hooks/use-test-email-connection';
 import { useSsoCredentials } from '../hooks/use-sso-credentials';
-import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
+import { useTestEmailConnection } from '../hooks/use-test-email-connection';
 
 type PasswordFormData = {
   name: string;
@@ -58,18 +66,30 @@ export function OutlookCreateProviderDialog({
   const { t: tCommon } = useT('common');
   const siteUrl = useSiteUrl();
 
-  const [useSsoCredentialsChecked, setUseSsoCredentialsChecked] = useState(false);
+  const [useSsoCredentialsChecked, setUseSsoCredentialsChecked] =
+    useState(false);
   const [isLoadingSsoCredentials, setIsLoadingSsoCredentials] = useState(false);
   const fetchSsoCredentials = useSsoCredentials();
 
-  const hasSsoConfigured = !!ssoProvider && ssoProvider.providerId === 'entra-id';
+  const hasSsoConfigured =
+    !!ssoProvider && ssoProvider.providerId === 'entra-id';
 
   const passwordSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tCommon('validation.required', { field: t('integrations.providerName') })),
+        name: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('integrations.providerName'),
+          }),
+        ),
         email: z.string().email(tCommon('validation.email')),
-        password: z.string().min(1, tCommon('validation.required', { field: t('integrations.appPassword') })),
+        password: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('integrations.appPassword'),
+          }),
+        ),
         isDefault: z.boolean(),
       }),
     [t, tCommon],
@@ -78,11 +98,26 @@ export function OutlookCreateProviderDialog({
   const oauth2Schema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tCommon('validation.required', { field: t('integrations.providerName') })),
+        name: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('integrations.providerName'),
+          }),
+        ),
         isDefault: z.boolean(),
         useApiSending: z.boolean(),
-        clientId: z.string().min(1, tCommon('validation.required', { field: t('integrations.microsoftClientId') })),
-        clientSecret: z.string().min(1, tCommon('validation.required', { field: t('integrations.microsoftClientSecret') })),
+        clientId: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('integrations.microsoftClientId'),
+          }),
+        ),
+        clientSecret: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('integrations.microsoftClientSecret'),
+          }),
+        ),
         tenantId: z.string(),
       }),
     [t, tCommon],
@@ -140,7 +175,14 @@ export function OutlookCreateProviderDialog({
           setIsLoadingSsoCredentials(false);
         });
     }
-  }, [useSsoCredentialsChecked, hasSsoConfigured, organizationId, fetchSsoCredentials, oauth2Form, t]);
+  }, [
+    useSsoCredentialsChecked,
+    hasSsoConfigured,
+    organizationId,
+    fetchSsoCredentials,
+    oauth2Form,
+    t,
+  ]);
 
   useEffect(() => {
     if (!open) {
@@ -194,7 +236,9 @@ export function OutlookCreateProviderDialog({
     } catch (error) {
       console.error('Failed to create OAuth2 provider:', error);
       toast({
-        title: t('integrations.failedToCreateProvider', { provider: 'Outlook' }),
+        title: t('integrations.failedToCreateProvider', {
+          provider: 'Outlook',
+        }),
         variant: 'destructive',
       });
     } finally {
@@ -274,7 +318,11 @@ export function OutlookCreateProviderDialog({
       });
 
       toast({
-        title: t('integrations.providerCreated', { provider: 'Outlook', smtp: testResult.smtp.latencyMs, imap: testResult.imap.latencyMs }),
+        title: t('integrations.providerCreated', {
+          provider: 'Outlook',
+          smtp: testResult.smtp.latencyMs,
+          imap: testResult.imap.latencyMs,
+        }),
         variant: 'success',
       });
 
@@ -283,7 +331,9 @@ export function OutlookCreateProviderDialog({
     } catch (error) {
       console.error('Failed to create Outlook provider:', error);
       toast({
-        title: t('integrations.failedToCreateProvider', { provider: 'Outlook' }),
+        title: t('integrations.failedToCreateProvider', {
+          provider: 'Outlook',
+        }),
         variant: 'destructive',
       });
     } finally {
@@ -293,10 +343,12 @@ export function OutlookCreateProviderDialog({
 
   const customHeader = (
     <HStack gap={3}>
-      <div className="size-8 bg-background border border-border rounded-md grid place-items-center">
+      <div className="bg-background border-border grid size-8 place-items-center rounded-md border">
         <OutlookIcon className="size-5" />
       </div>
-      <span className="font-semibold">{t('integrations.addProvider', { provider: 'Outlook' })}</span>
+      <span className="font-semibold">
+        {t('integrations.addProvider', { provider: 'Outlook' })}
+      </span>
     </HStack>
   );
 
@@ -314,11 +366,11 @@ export function OutlookCreateProviderDialog({
         value={authMethod}
         onValueChange={(value) => setAuthMethod(value as AuthMethod)}
       >
-        <TabsList className="grid w-full grid-cols-2 mb-4">
+        <TabsList className="mb-4 grid w-full grid-cols-2">
           <TabsTrigger value="oauth2" className="gap-2">
             <Shield className="size-4" />
             {t('integrations.oauth2Tab')}
-            <span className="ml-1 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+            <span className="ml-1 rounded bg-green-100 px-1.5 py-0.5 text-[10px] text-green-700">
               {t('integrations.recommended')}
             </span>
           </TabsTrigger>
@@ -329,42 +381,46 @@ export function OutlookCreateProviderDialog({
         </TabsList>
 
         <TabsContent value="oauth2" className="mt-0">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 mb-3">
-            <p className="text-xs text-blue-700 mb-1.5">
+          <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-2.5">
+            <p className="mb-1.5 text-xs text-blue-700">
               {t('integrations.microsoftOAuthCredentialsInfo')}
             </p>
-            <code className="block text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded mb-1.5 break-all">
+            <code className="mb-1.5 block rounded bg-blue-100 px-2 py-1 text-xs break-all text-blue-800">
               {siteUrl}/api/auth/oauth2/callback
             </code>
             <a
               href="https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
             >
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="h-3 w-3" />
               {t('integrations.microsoftOAuth2Guide')}
             </a>
           </div>
 
           {hasSsoConfigured && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-2.5 mb-3">
+            <div className="mb-3 rounded-lg border border-green-200 bg-green-50 p-2.5">
               <HStack gap={2} className="items-start">
                 <Checkbox
                   id="use-sso-credentials"
                   checked={useSsoCredentialsChecked}
-                  onCheckedChange={(checked) => setUseSsoCredentialsChecked(!!checked)}
+                  onCheckedChange={(checked) =>
+                    setUseSsoCredentialsChecked(!!checked)
+                  }
                   disabled={isLoadingSsoCredentials}
                 />
                 <div className="flex-1">
                   <label
                     htmlFor="use-sso-credentials"
-                    className="text-xs font-medium text-green-800 cursor-pointer flex items-center gap-1.5"
+                    className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-green-800"
                   >
                     {t('integrations.useSsoCredentials')}
-                    {isLoadingSsoCredentials && <Loader2 className="size-3 animate-spin" />}
+                    {isLoadingSsoCredentials && (
+                      <Loader2 className="size-3 animate-spin" />
+                    )}
                   </label>
-                  <p className="text-xs text-green-700 mt-0.5">
+                  <p className="mt-0.5 text-xs text-green-700">
                     {t('integrations.useSsoCredentialsDescription')}
                   </p>
                 </div>
@@ -439,18 +495,18 @@ export function OutlookCreateProviderDialog({
         </TabsContent>
 
         <TabsContent value="password" className="mt-0">
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-2.5 mb-3">
-            <p className="text-xs text-orange-800 mb-1">
+          <div className="mb-3 rounded-lg border border-orange-200 bg-orange-50 p-2.5">
+            <p className="mb-1 text-xs text-orange-800">
               <strong>{t('integrations.outlookLimitedAvailability')}</strong>
             </p>
-            <p className="text-xs text-orange-700 mb-1.5">
+            <p className="mb-1.5 text-xs text-orange-700">
               {t('integrations.outlookSecurityWarning')}
             </p>
             <a
               href="https://support.microsoft.com/en-us/account-billing/manage-app-passwords-for-two-step-verification-d6dc8c6d-4bf7-4851-ad95-6d07799387e9"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-orange-600 hover:underline inline-flex items-center gap-1"
+              className="inline-flex items-center gap-1 text-xs text-orange-600 hover:underline"
             >
               <ExternalLink className="size-3" />
               {t('integrations.microsoftAppPasswordsGuide')}

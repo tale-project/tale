@@ -1,4 +1,5 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
+
 import { authClient } from '@/lib/auth-client';
 
 const sessionQueryOptions = {

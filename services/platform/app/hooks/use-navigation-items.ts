@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import {
   MessageCircle,
   CircleCheck,
@@ -8,6 +7,8 @@ import {
   BrainIcon,
   Network,
 } from 'lucide-react';
+import { useMemo } from 'react';
+
 import { useT } from '@/lib/i18n/client';
 
 export interface NavItem {
@@ -25,6 +26,7 @@ export function useNavigationItems(businessId: string): NavItem[] {
   const { t: tNav } = useT('navigation');
   const { t: tKnowledge } = useT('knowledge');
   const { t: tConversations } = useT('conversations');
+  const { t: tApprovals } = useT('approvals');
 
   return useMemo(
     (): NavItem[] => [
@@ -119,6 +121,20 @@ export function useNavigationItems(businessId: string): NavItem[] {
         params: { id: businessId, status: 'pending' },
         href: `/dashboard/${businessId}/approvals/pending`,
         icon: CircleCheck,
+        subItems: [
+          {
+            label: tApprovals('status.pending'),
+            to: '/dashboard/$id/approvals/$status',
+            params: { id: businessId, status: 'pending' },
+            href: `/dashboard/${businessId}/approvals/pending`,
+          },
+          {
+            label: tApprovals('status.resolved'),
+            to: '/dashboard/$id/approvals/$status',
+            params: { id: businessId, status: 'resolved' },
+            href: `/dashboard/${businessId}/approvals/resolved`,
+          },
+        ],
       },
       {
         label: tNav('automations'),
@@ -129,7 +145,7 @@ export function useNavigationItems(businessId: string): NavItem[] {
         roles: ['admin', 'developer'],
       },
     ],
-    [businessId, tNav, tKnowledge, tConversations],
+    [businessId, tNav, tKnowledge, tConversations, tApprovals],
   );
 }
 

@@ -5,7 +5,9 @@
  */
 
 import type { GenericMutationCtx, GenericActionCtx } from 'convex/server';
+
 import type { DataModel } from '../../_generated/dataModel';
+
 import { rateLimiter, type RateLimitName } from './index';
 
 export class RateLimitExceededError extends Error {

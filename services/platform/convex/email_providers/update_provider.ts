@@ -1,5 +1,5 @@
-import type { MutationCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import type { SmtpConfig, ImapConfig, EmailProviderStatus } from './types';
 
 interface UpdateProviderArgs {
@@ -63,7 +63,7 @@ export async function updateProvider(
     updateData.errorMessage = args.errorMessage;
   if (args.metadata !== undefined) {
     updateData.metadata = {
-      ...(provider.metadata || {}),
+      ...provider.metadata,
       ...args.metadata,
     };
   }

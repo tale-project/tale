@@ -1,16 +1,18 @@
-import { mutation } from '../../_generated/server';
-import { v } from 'convex/values';
-import { components, internal } from '../../_generated/api';
 import { saveMessage } from '@convex-dev/agent';
-import { persistentStreaming } from '../../streaming/helpers';
-import { getUserTeamIds } from '../../lib/get_user_teams';
-import { getOrganizationMember } from '../../lib/rls';
+import { v } from 'convex/values';
+
 import type { HumanInputRequestMetadata } from '../../../lib/shared/schemas/approvals';
+
+import { components, internal } from '../../_generated/api';
+import { mutation } from '../../_generated/server';
 import {
   CHAT_AGENT_CONFIG,
   getChatAgentRuntimeConfig,
   createChatHookHandles,
 } from '../../agents/chat/config';
+import { getUserTeamIds } from '../../lib/get_user_teams';
+import { getOrganizationMember } from '../../lib/rls';
+import { persistentStreaming } from '../../streaming/helpers';
 
 export const submitHumanInputResponse = mutation({
   args: {
@@ -50,7 +52,8 @@ export const submitHumanInputResponse = mutation({
 
     await getOrganizationMember(ctx, organizationId);
 
-    const existingMetadata = (approval.metadata || {}) as HumanInputRequestMetadata;
+    const existingMetadata = (approval.metadata ||
+      {}) as HumanInputRequestMetadata;
     const respondedBy = identity.email ?? identity.subject;
 
     const updatedMetadata: HumanInputRequestMetadata = {
@@ -107,23 +110,27 @@ export const submitHumanInputResponse = mutation({
     const runtimeConfig = getChatAgentRuntimeConfig();
     const hooks = await createChatHookHandles(ctx);
 
-    await ctx.scheduler.runAfter(0, internal.lib.agent_chat.internal_actions.runAgentGeneration, {
-      agentType: 'chat',
-      agentConfig: CHAT_AGENT_CONFIG,
-      model: runtimeConfig.model,
-      provider: runtimeConfig.provider,
-      debugTag: runtimeConfig.debugTag,
-      enableStreaming: runtimeConfig.enableStreaming,
-      hooks,
-      threadId,
-      organizationId,
-      promptMessage: responseMessage,
-      streamId,
-      promptMessageId,
-      maxSteps: 500,
-      userId: thread?.userId,
-      userTeamIds,
-    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.lib.agent_chat.internal_actions.runAgentGeneration,
+      {
+        agentType: 'chat',
+        agentConfig: CHAT_AGENT_CONFIG,
+        model: runtimeConfig.model,
+        provider: runtimeConfig.provider,
+        debugTag: runtimeConfig.debugTag,
+        enableStreaming: runtimeConfig.enableStreaming,
+        hooks,
+        threadId,
+        organizationId,
+        promptMessage: responseMessage,
+        streamId,
+        promptMessageId,
+        maxSteps: 500,
+        userId: thread?.userId,
+        userTeamIds,
+      },
+    );
 
     return {
       success: true,

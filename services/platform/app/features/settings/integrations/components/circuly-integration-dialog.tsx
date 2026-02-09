@@ -1,14 +1,15 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { Description } from '@/app/components/ui/forms/description';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
-import { Stack } from '@/app/components/ui/layout/layout';
+import { Description } from '@/app/components/ui/forms/description';
 import { Input } from '@/app/components/ui/forms/input';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -48,12 +49,36 @@ export function CirculyIntegrationDialog({
       z.object({
         username: z
           .string()
-          .min(2, tCommon('validation.minLength', { field: t('integrations.circuly.username'), min: 2 }))
-          .max(50, tCommon('validation.maxLength', { field: t('integrations.circuly.username'), max: 50 })),
+          .min(
+            2,
+            tCommon('validation.minLength', {
+              field: t('integrations.circuly.username'),
+              min: 2,
+            }),
+          )
+          .max(
+            50,
+            tCommon('validation.maxLength', {
+              field: t('integrations.circuly.username'),
+              max: 50,
+            }),
+          ),
         password: z
           .string()
-          .min(2, tCommon('validation.minLength', { field: t('integrations.circuly.password'), min: 2 }))
-          .max(50, tCommon('validation.maxLength', { field: t('integrations.circuly.password'), max: 50 })),
+          .min(
+            2,
+            tCommon('validation.minLength', {
+              field: t('integrations.circuly.password'),
+              min: 2,
+            }),
+          )
+          .max(
+            50,
+            tCommon('validation.maxLength', {
+              field: t('integrations.circuly.password'),
+              max: 50,
+            }),
+          ),
       }),
     [t, tCommon],
   );
@@ -86,7 +111,9 @@ export function CirculyIntegrationDialog({
       await onConnect(values);
 
       toast({
-        title: isConnected ? t('integrations.updateSuccessful') : t('integrations.connectionSuccessful'),
+        title: isConnected
+          ? t('integrations.updateSuccessful')
+          : t('integrations.connectionSuccessful'),
         description: t('integrations.connectedTo', { provider: 'Circuly' }),
         variant: 'success',
       });
@@ -99,8 +126,12 @@ export function CirculyIntegrationDialog({
     } catch (error) {
       console.error('Failed to connect to Circuly:', error);
       toast({
-        title: isConnected ? t('integrations.updateFailed') : t('integrations.connectionTestFailed'),
-        description: t('integrations.failedToDisconnect', { provider: 'Circuly' }),
+        title: isConnected
+          ? t('integrations.updateFailed')
+          : t('integrations.connectionTestFailed'),
+        description: t('integrations.failedToDisconnect', {
+          provider: 'Circuly',
+        }),
         variant: 'destructive',
       });
     }
@@ -121,42 +152,49 @@ export function CirculyIntegrationDialog({
     }
   };
 
-  const footer = isConnected && onDisconnect ? (
-    <>
-      <Button
-        variant="destructive"
-        onClick={handleDisconnect}
-        disabled={isSubmitting}
-        className="flex-1"
-      >
-        {isSubmitting ? t('integrations.disconnecting') : t('integrations.disconnect')}
-      </Button>
-      <Button
-        onClick={handleSubmit(handleConnect)}
-        disabled={isSubmitting || !username || !password}
-        className="flex-1"
-      >
-        {isSubmitting ? t('integrations.circuly.updating') : t('integrations.circuly.update')}
-      </Button>
-    </>
-  ) : (
-    <>
-      <Button
-        variant="outline"
-        className="flex-1"
-        onClick={() => onOpenChange?.(false)}
-      >
-        {tCommon('actions.cancel')}
-      </Button>
-      <Button
-        onClick={handleSubmit(handleConnect)}
-        className="flex-1"
-        disabled={isSubmitting || !username || !password}
-      >
-        {isSubmitting ? t('integrations.circuly.connecting') : t('integrations.circuly.connect')}
-      </Button>
-    </>
-  );
+  const footer =
+    isConnected && onDisconnect ? (
+      <>
+        <Button
+          variant="destructive"
+          onClick={handleDisconnect}
+          disabled={isSubmitting}
+          className="flex-1"
+        >
+          {isSubmitting
+            ? t('integrations.disconnecting')
+            : t('integrations.disconnect')}
+        </Button>
+        <Button
+          onClick={handleSubmit(handleConnect)}
+          disabled={isSubmitting || !username || !password}
+          className="flex-1"
+        >
+          {isSubmitting
+            ? t('integrations.circuly.updating')
+            : t('integrations.circuly.update')}
+        </Button>
+      </>
+    ) : (
+      <>
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => onOpenChange?.(false)}
+        >
+          {tCommon('actions.cancel')}
+        </Button>
+        <Button
+          onClick={handleSubmit(handleConnect)}
+          className="flex-1"
+          disabled={isSubmitting || !username || !password}
+        >
+          {isSubmitting
+            ? t('integrations.circuly.connecting')
+            : t('integrations.circuly.connect')}
+        </Button>
+      </>
+    );
 
   return (
     <FormDialog
@@ -174,10 +212,10 @@ export function CirculyIntegrationDialog({
           </StatusIndicator>
 
           <Stack gap={2}>
-            <span className="text-sm font-medium text-foreground/80">
+            <span className="text-foreground/80 text-sm font-medium">
               {t('integrations.circuly.connectedUsername')}
             </span>
-            <div className="p-3 bg-muted rounded-md text-sm">
+            <div className="bg-muted rounded-md p-3 text-sm">
               {existingUsername || t('integrations.circuly.connected')}
             </div>
           </Stack>

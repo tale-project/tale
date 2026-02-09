@@ -10,10 +10,15 @@
  */
 
 import { v } from 'convex/values';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import { internal } from '../../../_generated/api';
+
 import type { Id } from '../../../_generated/dataModel';
-import { jsonRecordValidator, type ConvexJsonRecord } from '../../../../lib/shared/schemas/utils/json-value';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
+
+import {
+  jsonRecordValidator,
+  type ConvexJsonRecord,
+} from '../../../../lib/shared/schemas/utils/json-value';
+import { internal } from '../../../_generated/api';
 
 // Type for document operation params (discriminated union)
 type DocumentActionParams = {
@@ -53,16 +58,19 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         // Extract documentId to avoid duplicate type assertion
         const documentId = params.documentId as Id<'documents'>;
 
-        await ctx.runMutation!(internal.documents.internal_mutations.updateDocument, {
-          documentId, // Required by validator
-          title: params.title,
-          content: params.content,
-          metadata: params.metadata as ConvexJsonRecord | undefined,
-          fileId: params.fileId as Id<'_storage'> | undefined,
-          mimeType: params.mimeType,
-          extension: params.extension,
-          sourceProvider: params.sourceProvider,
-        });
+        await ctx.runMutation!(
+          internal.documents.internal_mutations.updateDocument,
+          {
+            documentId, // Required by validator
+            title: params.title,
+            content: params.content,
+            metadata: params.metadata as ConvexJsonRecord | undefined,
+            fileId: params.fileId as Id<'_storage'> | undefined,
+            mimeType: params.mimeType,
+            extension: params.extension,
+            sourceProvider: params.sourceProvider,
+          },
+        );
 
         // Fetch and return the updated entity
         const updatedDocument = await ctx.runQuery!(

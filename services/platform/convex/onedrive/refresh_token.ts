@@ -46,7 +46,10 @@ export async function refreshToken(args: {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('refreshToken: Token refresh failed:', errorText);
-      return { success: false, error: `Token refresh failed: ${response.status}` };
+      return {
+        success: false,
+        error: `Token refresh failed: ${response.status}`,
+      };
     }
 
     const data = (await response.json()) as {

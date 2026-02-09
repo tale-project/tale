@@ -7,18 +7,21 @@
  * 2. Detail mode: Returns full details for a specific operation
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
-import { internal } from '../../_generated/api';
 import type {
   IntrospectionSummaryResult,
   OperationDetailResult,
 } from './types';
+
+import { internal } from '../../_generated/api';
+import { isSqlIntegration } from '../../integrations/helpers';
 import { getPredefinedIntegration } from '../../predefined_integrations';
 import { getIntrospectionOperations } from '../../workflow_engine/action_defs/integration/helpers/get_introspection_operations';
-import { isSqlIntegration } from '../../integrations/helpers';
 
 const integrationIntrospectArgs = z.object({
   integrationName: z.string().describe('Integration name to introspect'),
@@ -57,9 +60,7 @@ Returns operation names and types. Use 'operation' param to get parameter detail
       );
 
       if (!integration) {
-        throw new Error(
-          `Integration not found: "${args.integrationName}"`,
-        );
+        throw new Error(`Integration not found: "${args.integrationName}"`);
       }
 
       // Handle SQL integrations
@@ -160,7 +161,9 @@ Returns operation names and types. Use 'operation' param to get parameter detail
           title: op.title,
           description: op.description,
           operationType: op.operationType,
-          parametersSchema: op.parametersSchema as Record<string, unknown> | undefined,
+          parametersSchema: op.parametersSchema as
+            | Record<string, unknown>
+            | undefined,
         };
       }
 

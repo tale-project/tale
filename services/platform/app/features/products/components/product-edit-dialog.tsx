@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -8,6 +9,7 @@ import { Grid } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+
 import { useUpdateProduct } from '../hooks/use-update-product';
 
 interface EditProductDialogProps {
@@ -117,9 +119,7 @@ export function ProductEditDialog({
         label={tProducts('edit.labels.name')}
         required
         value={formData.name}
-        onChange={(e) =>
-          setFormData({ ...formData, name: e.target.value })
-        }
+        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
         placeholder={tProducts('edit.namePlaceholder')}
         disabled={isSubmitting}
       />
@@ -143,9 +143,7 @@ export function ProductEditDialog({
         type="url"
         label={tProducts('edit.labels.imageUrl')}
         value={formData.imageUrl}
-        onChange={(e) =>
-          setFormData({ ...formData, imageUrl: e.target.value })
-        }
+        onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
         placeholder={tProducts('edit.imageUrlPlaceholder')}
         disabled={isSubmitting}
       />
@@ -159,9 +157,7 @@ export function ProductEditDialog({
           min="0"
           label={tProducts('edit.labels.price')}
           value={formData.price}
-          onChange={(e) =>
-            setFormData({ ...formData, price: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
           placeholder={tProducts('edit.pricePlaceholder')}
           disabled={isSubmitting}
         />
@@ -186,9 +182,7 @@ export function ProductEditDialog({
           min="0"
           label={tProducts('edit.labels.stock')}
           value={formData.stock}
-          onChange={(e) =>
-            setFormData({ ...formData, stock: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
           placeholder={tProducts('edit.stockPlaceholder')}
           disabled={isSubmitting}
         />

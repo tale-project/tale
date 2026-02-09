@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+
 import { validateCircularDependencies } from './circular_dependency_validator';
 
 type TestStep = {

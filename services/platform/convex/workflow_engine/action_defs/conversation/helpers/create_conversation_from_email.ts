@@ -1,16 +1,20 @@
-import type { ActionCtx } from '../../../../_generated/server';
-import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
-import type { EmailType, ConversationStatus, ConversationPriority } from './types';
-import { checkMessageExists } from './check_message_exists';
-import { checkConversationExists } from './check_conversation_exists';
-import { findOrCreateCustomerFromEmail } from './find_or_create_customer_from_email';
-import { addMessageToConversation } from './add_message_to_conversation';
-import { updateMessage } from './update_message';
-import { buildInitialMessage } from './build_initial_message';
-import { buildConversationMetadata } from './build_conversation_metadata';
+import type { ActionCtx } from '../../../../_generated/server';
+import type {
+  EmailType,
+  ConversationStatus,
+  ConversationPriority,
+} from './types';
 
+import { internal } from '../../../../_generated/api';
 import { createDebugLog } from '../../../../lib/debug_log';
+import { addMessageToConversation } from './add_message_to_conversation';
+import { buildConversationMetadata } from './build_conversation_metadata';
+import { buildInitialMessage } from './build_initial_message';
+import { checkConversationExists } from './check_conversation_exists';
+import { checkMessageExists } from './check_message_exists';
+import { findOrCreateCustomerFromEmail } from './find_or_create_customer_from_email';
+import { updateMessage } from './update_message';
 
 const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
 

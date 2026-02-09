@@ -23,7 +23,7 @@ from ...config import settings
 
 
 @asynccontextmanager
-async def _pg_connection() -> "AsyncGenerator[asyncpg.Connection, None]":
+async def _pg_connection() -> AsyncGenerator[asyncpg.Connection, None]:
     """Connect to PostgreSQL using the configured database URL.
 
     Raises:
@@ -139,8 +139,7 @@ async def ensure_vector_hnsw_indexes() -> dict:
 
     except ImportError:
         logger.debug(
-            "asyncpg not available, skipping HNSW index creation. "
-            "Install asyncpg to enable automatic index management."
+            "asyncpg not available, skipping HNSW index creation. Install asyncpg to enable automatic index management."
         )
     except ValueError as e:
         logger.debug("Skipping HNSW index creation: {}", e)
@@ -192,9 +191,7 @@ async def migrate_vector_dimensions() -> None:
             )
 
             if not vector_tables:
-                logger.info(
-                    "No vector tables found in database, skipping dimension migration"
-                )
+                logger.info("No vector tables found in database, skipping dimension migration")
                 return
 
             mismatched_tables = []
@@ -292,9 +289,7 @@ async def cleanup_legacy_site_packages_data() -> None:
         legacy_substring = "/site-packages/cognee/.data_storage/"
 
         async with get_async_session(auto_commit=False) as session:
-            result = await session.execute(
-                select(Data).where(Data.raw_data_location.contains(legacy_substring))
-            )
+            result = await session.execute(select(Data).where(Data.raw_data_location.contains(legacy_substring)))
             legacy_rows = result.scalars().all()
 
             if not legacy_rows:
@@ -313,9 +308,7 @@ async def cleanup_legacy_site_packages_data() -> None:
                 legacy_substring,
             )
     except Exception as cleanup_err:
-        if "UndefinedTableError" in str(type(cleanup_err).__name__) or "does not exist" in str(
-            cleanup_err
-        ):
+        if "UndefinedTableError" in str(type(cleanup_err).__name__) or "does not exist" in str(cleanup_err):
             logger.warning(
                 "Cognee data table does not exist yet, skipping legacy cleanup (this is normal on first run)"
             )
@@ -402,9 +395,7 @@ async def cleanup_missing_local_files_data() -> None:
                 data_root_prefix,
             )
     except Exception as cleanup_err:
-        if "UndefinedTableError" in str(type(cleanup_err).__name__) or "does not exist" in str(
-            cleanup_err
-        ):
+        if "UndefinedTableError" in str(type(cleanup_err).__name__) or "does not exist" in str(cleanup_err):
             logger.warning(
                 "Cognee data table does not exist yet, skipping missing-file cleanup (this is normal on first run)"
             )
@@ -446,9 +437,7 @@ async def ensure_original_content_hash_column() -> bool:
             return True
 
     except ImportError:
-        logger.debug(
-            "asyncpg not available, skipping original_content_hash migration"
-        )
+        logger.debug("asyncpg not available, skipping original_content_hash migration")
         return False
     except ValueError as e:
         logger.debug("Skipping original_content_hash migration: {}", e)
@@ -461,4 +450,3 @@ async def ensure_original_content_hash_column() -> bool:
         else:
             logger.warning("Failed to ensure original_content_hash column: {}", e)
         return False
-

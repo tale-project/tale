@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useCallback } from 'react';
 import { Loader2, RotateCw } from 'lucide-react';
+import { useState, useCallback } from 'react';
+
+import type { Id } from '@/convex/_generated/dataModel';
+import type { RagStatus } from '@/types/documents';
+
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Badge, type BadgeProps } from '@/app/components/ui/feedback/badge';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import type { RagStatus } from '@/types/documents';
-import type { Id } from '@/convex/_generated/dataModel';
+
 import { useRetryRagIndexing } from '../hooks/use-retry-rag-indexing';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 
 interface RagStatusBadgeProps {
   status: RagStatus | undefined;
@@ -111,7 +114,7 @@ export function RagStatusBadge({
     <Button
       size="icon"
       variant="ghost"
-      className="size-6 rounded-full hover:bg-muted p-1"
+      className="hover:bg-muted size-6 rounded-full p-1"
       onClick={handleRetry}
       disabled={isRetrying || !documentId}
       title={t('rag.retryIndexing')}
@@ -190,10 +193,10 @@ export function RagStatusBadge({
           description={t('rag.dialog.failed.description')}
         >
           <div className="mt-4">
-            <p className="text-sm font-medium mb-2">
+            <p className="mb-2 text-sm font-medium">
               {t('rag.dialog.failed.errorDetails')}
             </p>
-            <pre className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap">
+            <pre className="bg-muted max-h-[200px] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
               {error || t('rag.dialog.failed.unknownError')}
             </pre>
           </div>

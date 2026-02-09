@@ -5,12 +5,12 @@
  * wrapper in `convex/documents.ts`.
  */
 
-import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
-import { base64ToBytes } from '../lib/crypto/base64_to_bytes';
-import { buildDownloadUrl } from './generate_document_helpers';
+import type { ActionCtx } from '../_generated/server';
 
+import { base64ToBytes } from '../lib/crypto/base64_to_bytes';
 import { createDebugLog } from '../lib/debug_log';
+import { buildDownloadUrl } from './generate_document_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 

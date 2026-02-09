@@ -1,4 +1,4 @@
-import * as readline from "node:readline";
+import * as readline from 'node:readline';
 
 export async function confirm(message: string): Promise<boolean> {
   const rl = readline.createInterface({
@@ -10,7 +10,7 @@ export async function confirm(message: string): Promise<boolean> {
     rl.question(`${message} (y/N): `, (answer) => {
       rl.close();
       const normalized = answer.trim().toLowerCase();
-      resolve(normalized === "y" || normalized === "yes");
+      resolve(normalized === 'y' || normalized === 'yes');
     });
   });
 }

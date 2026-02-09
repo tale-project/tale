@@ -8,8 +8,9 @@ import type {
   ActionCtx,
 } from '../../../_generated/server';
 import type { AuthenticatedUser } from '../types';
-import { UnauthenticatedError } from '../errors';
+
 import { authComponent } from '../../../auth';
+import { UnauthenticatedError } from '../errors';
 
 /**
  * Require authenticated user from context

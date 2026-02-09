@@ -1,4 +1,7 @@
 import { useSyncExternalStore, useCallback } from 'react';
+
+import type { QueuedMutation } from '@/lib/offline';
+
 import {
   subscribeToQueueChanges,
   getQueueStats,
@@ -8,7 +11,6 @@ import {
   retryAllFailedMutations,
   clearAllMutations,
 } from '@/lib/offline';
-import type { QueuedMutation } from '@/lib/offline';
 
 interface MutationQueueState {
   pendingCount: number;

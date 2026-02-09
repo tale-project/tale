@@ -13,10 +13,10 @@
  * SAFETY: At least one of customerId OR (organizationId + additional filter) is required
  */
 
-import type { MutationCtx } from '../_generated/server';
-import type { Doc, Id } from '../_generated/dataModel';
 import { set, merge } from 'lodash';
 
+import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import type { UpdateCustomersResult } from './types';
 
 /**
@@ -86,50 +86,52 @@ export async function updateCustomers(
   }
 
   // Build patches for each customer
-  const patches: Array<{ id: Id<'customers'>; patch: Record<string, unknown> }> =
-    customersToUpdate.map((customer) => {
-      const patch: Record<string, unknown> = {};
+  const patches: Array<{
+    id: Id<'customers'>;
+    patch: Record<string, unknown>;
+  }> = customersToUpdate.map((customer) => {
+    const patch: Record<string, unknown> = {};
 
-      // Copy direct field updates
-      if (args.updates.name !== undefined) patch.name = args.updates.name;
-      if (args.updates.email !== undefined) patch.email = args.updates.email;
-      if (args.updates.status !== undefined) patch.status = args.updates.status;
-      if (args.updates.source !== undefined) patch.source = args.updates.source;
-      if (args.updates.locale !== undefined) patch.locale = args.updates.locale;
-      if (args.updates.address !== undefined)
-        patch.address = args.updates.address;
+    // Copy direct field updates
+    if (args.updates.name !== undefined) patch.name = args.updates.name;
+    if (args.updates.email !== undefined) patch.email = args.updates.email;
+    if (args.updates.status !== undefined) patch.status = args.updates.status;
+    if (args.updates.source !== undefined) patch.source = args.updates.source;
+    if (args.updates.locale !== undefined) patch.locale = args.updates.locale;
+    if (args.updates.address !== undefined)
+      patch.address = args.updates.address;
 
-      // Handle metadata updates with lodash
-      if (args.updates.metadata) {
-        // Use type guard to safely access existing metadata
-        const existingMetadata = isPlainRecord(customer.metadata)
-          ? customer.metadata
-          : {};
-        const updatedMetadata: Record<string, unknown> = {
-          ...existingMetadata,
-        };
+    // Handle metadata updates with lodash
+    if (args.updates.metadata) {
+      // Use type guard to safely access existing metadata
+      const existingMetadata = isPlainRecord(customer.metadata)
+        ? customer.metadata
+        : {};
+      const updatedMetadata: Record<string, unknown> = {
+        ...existingMetadata,
+      };
 
-        for (const [key, value] of Object.entries(args.updates.metadata)) {
-          if (key.includes('.')) {
-            // Use lodash.set for dot-notation keys
-            set(updatedMetadata, key, value);
+      for (const [key, value] of Object.entries(args.updates.metadata)) {
+        if (key.includes('.')) {
+          // Use lodash.set for dot-notation keys
+          set(updatedMetadata, key, value);
+        } else {
+          // For top-level keys, use merge for objects if both are plain records
+          const existingValue = updatedMetadata[key];
+
+          if (isPlainRecord(value) && isPlainRecord(existingValue)) {
+            updatedMetadata[key] = merge({}, existingValue, value);
           } else {
-            // For top-level keys, use merge for objects if both are plain records
-            const existingValue = updatedMetadata[key];
-
-            if (isPlainRecord(value) && isPlainRecord(existingValue)) {
-              updatedMetadata[key] = merge({}, existingValue, value);
-            } else {
-              updatedMetadata[key] = value;
-            }
+            updatedMetadata[key] = value;
           }
         }
-
-        patch.metadata = updatedMetadata;
       }
 
-      return { id: customer._id, patch };
-    });
+      patch.metadata = updatedMetadata;
+    }
+
+    return { id: customer._id, patch };
+  });
 
   // Apply all patches in parallel
   await Promise.all(patches.map(({ id, patch }) => ctx.db.patch(id, patch)));

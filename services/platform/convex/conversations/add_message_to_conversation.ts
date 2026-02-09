@@ -1,5 +1,6 @@
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
 import { emitEvent } from '../workflows/triggers/emit_event';
@@ -55,8 +56,9 @@ export async function addMessageToConversation(
     : 'outbound';
   const deliveryState = resolveDeliveryState(args.status, direction);
 
-  const deliveredAt = args.deliveredAt
-    ?? (direction === 'inbound' && args.sentAt ? args.sentAt : undefined);
+  const deliveredAt =
+    args.deliveredAt ??
+    (direction === 'inbound' && args.sentAt ? args.sentAt : undefined);
 
   const safeMetadata =
     typeof args.metadata === 'object' &&

@@ -1,15 +1,16 @@
 'use node';
 
-import { v } from 'convex/values';
 import { saveMessage } from '@convex-dev/agent';
-import { action } from '../../_generated/server';
+import { v } from 'convex/values';
+
 import { components, internal } from '../../_generated/api';
+import { action } from '../../_generated/server';
+import { authComponent } from '../../auth';
 import {
   buildMultiModalContent,
   registerFilesWithAgent,
   type FileAttachment,
 } from '../../lib/attachments';
-import { authComponent } from '../../auth';
 import { generateWorkflowResponse } from './generate_response';
 
 export const chatWithWorkflowAssistant = action({
@@ -42,9 +43,12 @@ export const chatWithWorkflowAssistant = action({
     try {
       const additionalContext: Record<string, string> = {};
       if (args.workflowId) {
-        const workflow = await ctx.runQuery(internal.wf_definitions.internal_queries.resolveWorkflow, {
-          wfDefinitionId: args.workflowId,
-        });
+        const workflow = await ctx.runQuery(
+          internal.wf_definitions.internal_queries.resolveWorkflow,
+          {
+            wfDefinitionId: args.workflowId,
+          },
+        );
         if (workflow) {
           additionalContext.target_workflow_id = String(args.workflowId);
           additionalContext.target_workflow_name = workflow.name;

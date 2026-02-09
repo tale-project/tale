@@ -1,21 +1,23 @@
 'use client';
 
-import { CardContent } from '@/app/components/ui/layout/card';
-import { useEffect, useRef } from 'react';
-import { lazyComponent } from '@/lib/utils/lazy-component';
-import { Message } from './message';
-import { ConversationHeader } from './conversation-header';
-import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
-import { Stack, VStack, Center } from '@/app/components/ui/layout/layout';
 import { useQuery as useConvexQuery } from 'convex/react';
+import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+
+import { CardContent } from '@/app/components/ui/layout/card';
+import { Stack, VStack, Center } from '@/app/components/ui/layout/layout';
+import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n/client';
+import { lazyComponent } from '@/lib/utils/lazy-component';
+
+import { useGenerateUploadUrl } from '../hooks/use-generate-upload-url';
 import { useMarkAsRead } from '../hooks/use-mark-as-read';
 import { useSendMessageViaEmail } from '../hooks/use-send-message-via-email';
-import { useGenerateUploadUrl } from '../hooks/use-generate-upload-url';
-import { toast } from '@/app/hooks/use-toast';
-import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
-import { useT } from '@/lib/i18n/client';
+import { ConversationHeader } from './conversation-header';
+import { Message } from './message';
 
 const MessageEditor = lazyComponent(
   () =>
@@ -23,14 +25,14 @@ const MessageEditor = lazyComponent(
   {
     loading: () => (
       <div className="flex items-center justify-center p-4">
-        <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+        <Loader2Icon className="text-muted-foreground size-6 animate-spin" />
       </div>
     ),
   },
 );
 
-import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
 
 interface AttachedFile {
   id: string;
@@ -247,12 +249,12 @@ export function ConversationPanel({
     return (
       <Center className="flex-1 px-4">
         <VStack gap={6} align="center" className="w-full max-w-[316px]">
-          <MessageSquareMoreIcon className="size-5 text-muted-foreground" />
-          <VStack gap={3} align="center" className="h-14 text-center w-full">
-            <h2 className="font-semibold text-lg text-foreground tracking-[-0.12px]">
+          <MessageSquareMoreIcon className="text-muted-foreground size-5" />
+          <VStack gap={3} align="center" className="h-14 w-full text-center">
+            <h2 className="text-foreground text-lg font-semibold tracking-[-0.12px]">
               {tConversations('panel.noSelected')}
             </h2>
-            <p className="font-normal text-sm text-muted-foreground tracking-[-0.084px] leading-[20px]">
+            <p className="text-muted-foreground text-sm leading-[20px] font-normal tracking-[-0.084px]">
               {tConversations('panel.selectToView')}
             </p>
           </VStack>
@@ -265,30 +267,30 @@ export function ConversationPanel({
     return (
       <CardContent
         ref={containerRef}
-        className="flex-[1_1_0] p-0 relative flex flex-col overflow-y-auto"
+        className="relative flex flex-[1_1_0] flex-col overflow-y-auto p-0"
       >
         {/* Skeleton Header */}
-        <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border">
-          <div className="flex items-center gap-3 flex-1">
-            <div className="size-10 rounded-full bg-muted animate-pulse" />
-            <div className="flex flex-col gap-1.5 flex-1">
-              <div className="h-4 w-40 bg-muted animate-pulse rounded" />
-              <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+        <div className="bg-background/50 border-border sticky top-0 z-50 flex h-16 flex-[0_0_auto] border-b px-4 py-3 backdrop-blur-sm">
+          <div className="flex flex-1 items-center gap-3">
+            <div className="bg-muted size-10 animate-pulse rounded-full" />
+            <div className="flex flex-1 flex-col gap-1.5">
+              <div className="bg-muted h-4 w-40 animate-pulse rounded" />
+              <div className="bg-muted h-3 w-24 animate-pulse rounded" />
             </div>
           </div>
         </div>
 
         {/* Skeleton Messages */}
-        <div className="pt-6 mx-auto max-w-3xl flex-1 w-full px-4">
+        <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-6">
           <Stack gap={4} className="mb-8">
             {/* Left-aligned message */}
             <div className="flex flex-col">
               <div className="flex justify-start">
                 <div className="relative">
-                  <div className="max-w-[40rem] bg-white rounded-2xl overflow-hidden">
-                    <div className="h-24 w-96 bg-muted animate-pulse" />
+                  <div className="max-w-[40rem] overflow-hidden rounded-2xl bg-white">
+                    <div className="bg-muted h-24 w-96 animate-pulse" />
                   </div>
-                  <div className="h-3 w-20 bg-muted/60 animate-pulse rounded mt-1" />
+                  <div className="bg-muted/60 mt-1 h-3 w-20 animate-pulse rounded" />
                 </div>
               </div>
             </div>
@@ -297,8 +299,8 @@ export function ConversationPanel({
             <div className="flex flex-col">
               <div className="flex justify-end">
                 <div className="relative mb-6">
-                  <div className="max-w-[40rem] bg-muted rounded-2xl shadow-sm overflow-hidden">
-                    <div className="h-20 w-80 bg-muted/80 animate-pulse" />
+                  <div className="bg-muted max-w-[40rem] overflow-hidden rounded-2xl shadow-sm">
+                    <div className="bg-muted/80 h-20 w-80 animate-pulse" />
                   </div>
                 </div>
               </div>
@@ -308,10 +310,10 @@ export function ConversationPanel({
             <div className="flex flex-col">
               <div className="flex justify-start">
                 <div className="relative">
-                  <div className="max-w-[40rem] bg-white rounded-2xl overflow-hidden">
-                    <div className="h-16 w-72 bg-muted animate-pulse" />
+                  <div className="max-w-[40rem] overflow-hidden rounded-2xl bg-white">
+                    <div className="bg-muted h-16 w-72 animate-pulse" />
                   </div>
-                  <div className="h-3 w-20 bg-muted/60 animate-pulse rounded mt-1" />
+                  <div className="bg-muted/60 mt-1 h-3 w-20 animate-pulse rounded" />
                 </div>
               </div>
             </div>
@@ -319,9 +321,9 @@ export function ConversationPanel({
         </div>
 
         {/* Skeleton Message Editor */}
-        <div className="sticky bottom-0 z-50 bg-background px-2">
-          <div className="max-w-3xl mx-auto w-full px-4 py-4">
-            <div className="h-32 w-full bg-muted/40 animate-pulse rounded-lg border border-border" />
+        <div className="bg-background sticky bottom-0 z-50 px-2">
+          <div className="mx-auto w-full max-w-3xl px-4 py-4">
+            <div className="bg-muted/40 border-border h-32 w-full animate-pulse rounded-lg border" />
           </div>
         </div>
       </CardContent>
@@ -359,9 +361,9 @@ export function ConversationPanel({
   return (
     <CardContent
       ref={containerRef}
-      className="flex-[1_1_0] p-0 relative flex flex-col overflow-y-auto"
+      className="relative flex flex-[1_1_0] flex-col overflow-y-auto p-0"
     >
-      <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border">
+      <div className="bg-background/50 border-border sticky top-0 z-50 flex h-16 flex-[0_0_auto] border-b px-4 py-3 backdrop-blur-sm">
         <ConversationHeader
           conversation={conversation}
           onResolve={() => {
@@ -375,19 +377,19 @@ export function ConversationPanel({
           }}
         />
       </div>
-      <div className="pt-2 mx-auto max-w-3xl flex-1 w-full px-4">
+      <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
         {messageGroups.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
+          <div className="text-muted-foreground flex h-full items-center justify-center">
             <p className="text-sm">{tConversations('panel.noMessages')}</p>
           </div>
         ) : (
           messageGroups.map((group) => (
             <div key={group.date} className="relative">
               {/* Sticky Date Header */}
-              <div className="sticky top-16 py-2 mb-4 z-10">
+              <div className="sticky top-16 z-10 mb-4 py-2">
                 <div className="flex justify-center">
-                  <div className="bg-background px-2 py-0.5 rounded-full shadow-sm border border-border">
-                    <span className="text-xs font-medium text-primary">
+                  <div className="bg-background border-border rounded-full border px-2 py-0.5 shadow-sm">
+                    <span className="text-primary text-xs font-medium">
                       {formatDateHeader(group.date)}
                     </span>
                   </div>
@@ -404,9 +406,9 @@ export function ConversationPanel({
           ))
         )}
       </div>
-      <div className="sticky bottom-0 z-50 bg-background px-2">
+      <div className="bg-background sticky bottom-0 z-50 px-2">
         {conversation.status === 'open' ? (
-          <div ref={messageComposerRef} className="max-w-3xl mx-auto w-full">
+          <div ref={messageComposerRef} className="mx-auto w-full max-w-3xl">
             <MessageEditor
               key={conversation.id}
               onSave={handleSaveMessage}
@@ -425,7 +427,7 @@ export function ConversationPanel({
           </div>
         ) : (
           <div className="px-8 py-10">
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-center text-sm">
               {conversation.status === 'spam'
                 ? tConversations('panel.markedAsSpam')
                 : tConversations('panel.markedAsClosed')}

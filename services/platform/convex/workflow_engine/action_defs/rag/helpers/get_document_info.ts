@@ -1,8 +1,9 @@
-import type { RagActionParams } from './types';
-import type { ActionCtx } from '../../../../_generated/server';
-import { api, internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../_generated/server';
 import type { DocumentMetadata } from '../../../../documents/types';
+import type { RagActionParams } from './types';
+
+import { api, internal } from '../../../../_generated/api';
 
 /**
  * Document information without downloading content
@@ -32,16 +33,20 @@ export async function getDocumentInfo(
     throw new Error('recordId is required');
   }
 
-  const document = await ctx.runQuery?.(internal.documents.internal_queries.getDocumentByIdRaw, {
-    documentId: params.recordId as Id<'documents'>,
-  });
+  const document = await ctx.runQuery?.(
+    internal.documents.internal_queries.getDocumentByIdRaw,
+    {
+      documentId: params.recordId as Id<'documents'>,
+    },
+  );
 
   if (!document) {
     throw new Error(`Document not found: ${params.recordId}`);
   }
 
   // Type the metadata for safe access
-  const baseMetadata = (document.metadata as DocumentMetadata | undefined) || {};
+  const baseMetadata =
+    (document.metadata as DocumentMetadata | undefined) || {};
   const organizationId = document.organizationId;
 
   // Check if document has file content
@@ -86,4 +91,3 @@ export async function getDocumentInfo(
 
   throw new Error(`Document has no content or file: ${params.recordId}`);
 }
-

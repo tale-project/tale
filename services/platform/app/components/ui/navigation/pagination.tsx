@@ -1,10 +1,11 @@
 'use client';
 
-import { Button } from '@/app/components/ui/primitives/button';
-import { Select } from '@/app/components/ui/forms/select';
 import { useNavigate, useLocation, useSearch } from '@tanstack/react-router';
-import { useState, useEffect, useTransition } from 'react';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useState, useEffect, useTransition } from 'react';
+
+import { Select } from '@/app/components/ui/forms/select';
+import { Button } from '@/app/components/ui/primitives/button';
 
 interface PaginationProps {
   currentPage: number;
@@ -28,7 +29,10 @@ export function Pagination({
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
-  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const search = useSearch({ strict: false }) as Record<
+    string,
+    string | undefined
+  >;
   const [loadingStates, setLoadingStates] = useState({
     prev: false,
     next: false,
@@ -134,7 +138,7 @@ export function Pagination({
       <Select
         value={currentPage.toString()}
         onValueChange={handlePageSelect}
-        className="w-auto min-w-16 h-8"
+        className="h-8 w-auto min-w-16"
         options={Array.from({ length: totalPageCount }, (_, i) => ({
           value: (i + 1).toString(),
           label: (i + 1).toString(),
@@ -155,7 +159,7 @@ export function Pagination({
         )}
       </Button>
 
-      <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+      <span className="text-muted-foreground text-xs font-semibold whitespace-nowrap">
         {`${startIdx}-${endIdx} of ${total}`}
       </span>
     </div>

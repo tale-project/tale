@@ -1,5 +1,6 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
+
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const documentsTable = defineTable({
@@ -10,7 +11,11 @@ export const documentsTable = defineTable({
   mimeType: v.optional(v.string()),
   extension: v.optional(v.string()),
   sourceProvider: v.optional(
-    v.union(v.literal('onedrive'), v.literal('upload'), v.literal('sharepoint')),
+    v.union(
+      v.literal('onedrive'),
+      v.literal('upload'),
+      v.literal('sharepoint'),
+    ),
   ),
   externalItemId: v.optional(v.string()),
   siteId: v.optional(v.string()),

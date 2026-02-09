@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
-import { queryWithRLS } from '../lib/rls';
-import { cursorPaginationOptsValidator } from '../lib/pagination';
+
 import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
+import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { queryWithRLS } from '../lib/rls';
 import * as CustomersHelpers from './helpers';
 import { customerValidator } from './validators';
 

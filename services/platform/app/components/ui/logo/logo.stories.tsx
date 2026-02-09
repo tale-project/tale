@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { TaleLogo } from './tale-logo';
 import { TaleLogoText } from './tale-logo-text';
 
@@ -56,7 +57,7 @@ export const Combined: Story = {
 
 export const InNavigation: Story = {
   render: () => (
-    <nav className="flex items-center justify-between p-4 border rounded-lg w-96">
+    <nav className="flex w-96 items-center justify-between rounded-lg border p-4">
       <div className="flex items-center gap-2">
         <TaleLogo />
         <TaleLogoText />
@@ -78,7 +79,7 @@ export const InNavigation: Story = {
 
 export const LogoOnly: Story = {
   render: () => (
-    <div className="flex items-center justify-center p-8 border rounded-lg">
+    <div className="flex items-center justify-center rounded-lg border p-8">
       <TaleLogo />
     </div>
   ),
@@ -93,7 +94,7 @@ export const LogoOnly: Story = {
 
 export const OnDarkBackground: Story = {
   render: () => (
-    <div className="flex items-center gap-4 p-6 bg-gray-900 rounded-lg dark">
+    <div className="dark flex items-center gap-4 rounded-lg bg-gray-900 p-6">
       <TaleLogo />
       <TaleLogoText />
     </div>
@@ -101,7 +102,8 @@ export const OnDarkBackground: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Logo automatically switches to light version on dark backgrounds.',
+        story:
+          'Logo automatically switches to light version on dark backgrounds.',
       },
     },
   },

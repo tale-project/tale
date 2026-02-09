@@ -1,0 +1,23 @@
+{
+  "singleQuote": true,
+  "printWidth": 80,
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": true,
+  "trailingComma": "all",
+  "arrowParens": "always",
+  "experimentalSortImports": {},
+  "experimentalTailwindcss": {},
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "build",
+    ".output",
+    ".vinxi",
+    "**/_generated",
+    "*.gen.ts",
+    "*.gen.tsx",
+    "lib/shared",
+    "storybook-static"
+  ]
+}

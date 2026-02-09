@@ -1,59 +1,59 @@
 import { z } from 'zod/v4';
 import { jsonRecordSchema } from './utils/json-value';
 
-export const emailProviderVendorLiterals = ['gmail', 'outlook', 'smtp', 'resend', 'other'] as const;
+const emailProviderVendorLiterals = ['gmail', 'outlook', 'smtp', 'resend', 'other'] as const;
 export const emailProviderVendorSchema = z.enum(emailProviderVendorLiterals);
 export type EmailProviderVendor = z.infer<typeof emailProviderVendorSchema>;
 
-export const emailProviderAuthMethodLiterals = ['password', 'oauth2'] as const;
+const emailProviderAuthMethodLiterals = ['password', 'oauth2'] as const;
 export const emailProviderAuthMethodSchema = z.enum(emailProviderAuthMethodLiterals);
-export type EmailProviderAuthMethod = z.infer<typeof emailProviderAuthMethodSchema>;
+type EmailProviderAuthMethod = z.infer<typeof emailProviderAuthMethodSchema>;
 
-export const emailProviderStatusLiterals = ['active', 'error', 'testing', 'pending_authorization'] as const;
+const emailProviderStatusLiterals = ['active', 'error', 'testing', 'pending_authorization'] as const;
 export const emailProviderStatusSchema = z.enum(emailProviderStatusLiterals);
-export type EmailProviderStatus = z.infer<typeof emailProviderStatusSchema>;
+type EmailProviderStatus = z.infer<typeof emailProviderStatusSchema>;
 
-export const sendMethodLiterals = ['smtp', 'api'] as const;
+const sendMethodLiterals = ['smtp', 'api'] as const;
 export const sendMethodSchema = z.enum(sendMethodLiterals);
-export type SendMethod = z.infer<typeof sendMethodSchema>;
+type SendMethod = z.infer<typeof sendMethodSchema>;
 
-export const accountTypeLiterals = ['personal', 'organizational', 'both'] as const;
-export const accountTypeSchema = z.enum(accountTypeLiterals);
-export type AccountType = z.infer<typeof accountTypeSchema>;
+const accountTypeLiterals = ['personal', 'organizational', 'both'] as const;
+const accountTypeSchema = z.enum(accountTypeLiterals);
+type AccountType = z.infer<typeof accountTypeSchema>;
 
 export const smtpConfigSchema = z.object({
 	host: z.string(),
 	port: z.number(),
 	secure: z.boolean(),
 });
-export type SmtpConfig = z.infer<typeof smtpConfigSchema>;
+type SmtpConfig = z.infer<typeof smtpConfigSchema>;
 
 export const imapConfigSchema = z.object({
 	host: z.string(),
 	port: z.number(),
 	secure: z.boolean(),
 });
-export type ImapConfig = z.infer<typeof imapConfigSchema>;
+type ImapConfig = z.infer<typeof imapConfigSchema>;
 
 export const passwordAuthSchema = z.object({
 	user: z.string(),
 	pass: z.string(),
 });
-export type PasswordAuth = z.infer<typeof passwordAuthSchema>;
+type PasswordAuth = z.infer<typeof passwordAuthSchema>;
 
 export const passwordAuthEncryptedSchema = z.object({
 	user: z.string(),
 	passEncrypted: z.string(),
 });
-export type PasswordAuthEncrypted = z.infer<typeof passwordAuthEncryptedSchema>;
+type PasswordAuthEncrypted = z.infer<typeof passwordAuthEncryptedSchema>;
 
-export const oauth2AuthInputSchema = z.object({
+const oauth2AuthInputSchema = z.object({
 	provider: z.string(),
 	clientId: z.string(),
 	clientSecret: z.string(),
 	tokenUrl: z.string().optional(),
 });
-export type OAuth2AuthInput = z.infer<typeof oauth2AuthInputSchema>;
+type OAuth2AuthInput = z.infer<typeof oauth2AuthInputSchema>;
 
 export const oauth2AuthStoredSchema = z.object({
 	provider: z.string(),
@@ -64,41 +64,41 @@ export const oauth2AuthStoredSchema = z.object({
 	tokenExpiry: z.number().optional(),
 	tokenUrl: z.string().optional(),
 });
-export type OAuth2AuthStored = z.infer<typeof oauth2AuthStoredSchema>;
+type OAuth2AuthStored = z.infer<typeof oauth2AuthStoredSchema>;
 
-export const oauth2AuthSimpleSchema = z.object({
+const oauth2AuthSimpleSchema = z.object({
 	user: z.string(),
 	accessToken: z.string(),
 });
-export type OAuth2AuthSimple = z.infer<typeof oauth2AuthSimpleSchema>;
+type OAuth2AuthSimple = z.infer<typeof oauth2AuthSimpleSchema>;
 
-export const connectionTestItemSchema = z.object({
+const connectionTestItemSchema = z.object({
 	success: z.boolean(),
 	latencyMs: z.number(),
 	error: z.string().optional(),
 });
-export type ConnectionTestItem = z.infer<typeof connectionTestItemSchema>;
+type ConnectionTestItem = z.infer<typeof connectionTestItemSchema>;
 
 export const connectionTestResultSchema = z.object({
 	success: z.boolean(),
 	smtp: connectionTestItemSchema,
 	imap: connectionTestItemSchema,
 });
-export type ConnectionTestResult = z.infer<typeof connectionTestResultSchema>;
+type ConnectionTestResult = z.infer<typeof connectionTestResultSchema>;
 
-export const oauth2CallbackResponseSchema = z.object({
+const oauth2CallbackResponseSchema = z.object({
 	success: z.boolean(),
 	userEmail: z.string().optional(),
 	redirectUri: z.string().optional(),
 	redirectOrigin: z.string().optional(),
 });
-export type OAuth2CallbackResponse = z.infer<typeof oauth2CallbackResponseSchema>;
+type OAuth2CallbackResponse = z.infer<typeof oauth2CallbackResponseSchema>;
 
-export const sendMessageResponseSchema = z.object({
+const sendMessageResponseSchema = z.object({
 	success: z.boolean(),
 	messageId: z.string().optional(),
 });
-export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
+type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
 
 export const emailProviderDocSchema = z.object({
 	_id: z.string(),
@@ -120,4 +120,4 @@ export const emailProviderDocSchema = z.object({
 	errorMessage: z.string().optional(),
 	metadata: jsonRecordSchema.optional(),
 });
-export type EmailProviderDoc = z.infer<typeof emailProviderDocSchema>;
+type EmailProviderDoc = z.infer<typeof emailProviderDocSchema>;

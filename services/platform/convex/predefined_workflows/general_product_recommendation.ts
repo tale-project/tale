@@ -63,28 +63,23 @@ const generalProductRecommendationWorkflow: PredefinedWorkflowDefinition = {
           variables: [
             {
               name: 'currentCustomer',
-              value:
-                '{{steps.find_unprocessed_customer.output.data}}',
+              value: '{{steps.find_unprocessed_customer.output.data}}',
             },
             {
               name: 'currentCustomerId',
-              value:
-                '{{steps.find_unprocessed_customer.output.data._id}}',
+              value: '{{steps.find_unprocessed_customer.output.data._id}}',
             },
             {
               name: 'currentCustomerName',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.name}}',
+              value: '{{steps.find_unprocessed_customer.output.data.name}}',
             },
             {
               name: 'currentCustomerEmail',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.email}}',
+              value: '{{steps.find_unprocessed_customer.output.data.email}}',
             },
             {
               name: 'currentCustomerStatus',
-              value:
-                '{{steps.find_unprocessed_customer.output.data.status}}',
+              value: '{{steps.find_unprocessed_customer.output.data.status}}',
             },
           ],
         },
@@ -151,7 +146,8 @@ If tools are available, call them as needed to look up products or search the kn
                 properties: {
                   productId: {
                     type: 'string',
-                    description: 'The unique product identifier from the database',
+                    description:
+                      'The unique product identifier from the database',
                   },
                   productName: {
                     type: 'string',
@@ -167,11 +163,13 @@ If tools are available, call them as needed to look up products or search the kn
                   },
                   reason: {
                     type: 'string',
-                    description: 'Why this product is recommended for the customer',
+                    description:
+                      'Why this product is recommended for the customer',
                   },
                   confidence: {
                     type: 'number',
-                    description: 'Confidence score for this recommendation (0-1)',
+                    description:
+                      'Confidence score for this recommendation (0-1)',
                   },
                 },
                 required: ['productId', 'productName', 'reason', 'confidence'],
@@ -179,7 +177,8 @@ If tools are available, call them as needed to look up products or search the kn
             },
             summary: {
               type: 'string',
-              description: 'Short summary of the overall recommendation strategy',
+              description:
+                'Short summary of the overall recommendation strategy',
             },
           },
           required: ['recommendations', 'summary'],
@@ -217,8 +216,7 @@ If tools are available, call them as needed to look up products or search the kn
       stepType: 'condition',
       order: 8,
       config: {
-        expression:
-          'steps.hydrate_recommendations.output.data|length > 0',
+        expression: 'steps.hydrate_recommendations.output.data|length > 0',
         description:
           'Check if AI generated any recommendations for this customer',
       },

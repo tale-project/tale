@@ -17,10 +17,13 @@ import { internalMutation } from '../_generated/server';
 export const removeDeprecatedLLMFields = internalMutation({
   args: {},
   handler: async (ctx) => {
-    // eslint-disable-next-line no-restricted-syntax -- One-time migration needs all rows
     const steps = await ctx.db.query('wfStepDefs').collect();
     let updated = 0;
-    const details: Array<{ stepId: string; stepSlug: string; removed: string[] }> = [];
+    const details: Array<{
+      stepId: string;
+      stepSlug: string;
+      removed: string[];
+    }> = [];
 
     for (const step of steps) {
       if (step.stepType !== 'llm' || !step.config) {
@@ -29,13 +32,20 @@ export const removeDeprecatedLLMFields = internalMutation({
 
       const config = step.config as Record<string, unknown>;
       const deprecatedFields = ['temperature', 'maxTokens', 'maxSteps'];
-      const fieldsToRemove = deprecatedFields.filter((field) => field in config);
+      const fieldsToRemove = deprecatedFields.filter(
+        (field) => field in config,
+      );
 
       if (fieldsToRemove.length === 0) {
         continue;
       }
 
-      const { temperature: _temperature, maxTokens: _maxTokens, maxSteps: _maxSteps, ...cleanConfig } = config;
+      const {
+        temperature: _temperature,
+        maxTokens: _maxTokens,
+        maxSteps: _maxSteps,
+        ...cleanConfig
+      } = config;
       await ctx.db.patch(step._id, { config: cleanConfig });
       updated++;
       details.push({

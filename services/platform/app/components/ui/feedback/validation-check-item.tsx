@@ -1,10 +1,11 @@
 'use client';
 
-import * as React from 'react';
 import { Check, X } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
+import * as React from 'react';
+
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 interface ValidationCheckItemProps {
   /** Whether the validation check passes */
@@ -35,7 +36,9 @@ const ValidationCheckItem = React.memo(function ValidationCheckItem({
       <Icon
         className={cn(
           'size-4 shrink-0',
-          isValid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+          isValid
+            ? 'text-green-600 dark:text-green-400'
+            : 'text-red-600 dark:text-red-400',
         )}
         aria-hidden="true"
       />

@@ -3,14 +3,17 @@
  */
 
 import { v } from 'convex/values';
+
 import { internalMutation } from '../_generated/server';
-import { updateSyncConfig as updateSyncConfigImpl } from './update_sync_config';
 import * as MicrosoftAccountsModel from '../accounts/helpers';
+import { updateSyncConfig as updateSyncConfigImpl } from './update_sync_config';
 
 export const updateSyncConfig = internalMutation({
   args: {
     configId: v.id('onedriveSyncConfigs'),
-    status: v.optional(v.union(v.literal('active'), v.literal('inactive'), v.literal('error'))),
+    status: v.optional(
+      v.union(v.literal('active'), v.literal('inactive'), v.literal('error')),
+    ),
     lastSyncAt: v.optional(v.number()),
     lastSyncStatus: v.optional(v.string()),
     errorMessage: v.optional(v.string()),

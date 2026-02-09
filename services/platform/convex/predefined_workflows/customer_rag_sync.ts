@@ -84,10 +84,8 @@ const customerRagSyncWorkflow = {
         type: 'rag',
         parameters: {
           operation: 'upload_text',
-          recordId:
-            '{{steps.find_unprocessed_customer.output.data._id}}',
-          content:
-            '{{steps.find_unprocessed_customer.output.data|string}}',
+          recordId: '{{steps.find_unprocessed_customer.output.data._id}}',
+          content: '{{steps.find_unprocessed_customer.output.data|string}}',
           metadata: {
             _id: '{{steps.find_unprocessed_customer.output.data._id}}',
           },
@@ -109,8 +107,7 @@ const customerRagSyncWorkflow = {
         parameters: {
           operation: 'record_processed',
           tableName: 'customers',
-          recordId:
-            '{{steps.find_unprocessed_customer.output.data._id}}',
+          recordId: '{{steps.find_unprocessed_customer.output.data._id}}',
         },
       },
       nextSteps: {

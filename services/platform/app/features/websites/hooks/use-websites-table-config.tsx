@@ -1,11 +1,13 @@
 'use client';
 
 import { Loader } from 'lucide-react';
-import { HStack } from '@/app/components/ui/layout/layout';
+
 import { WebsiteIcon } from '@/app/components/icons/website-icon';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { WebsiteRowActions } from '../components/website-row-actions';
+import { HStack } from '@/app/components/ui/layout/layout';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
+
+import { WebsiteRowActions } from '../components/website-row-actions';
 
 export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
   {
@@ -19,10 +21,10 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       size: 256,
       cell: ({ row }) => (
         <HStack gap={2}>
-          <div className="shrink-0 size-5 rounded flex items-center justify-center bg-muted">
-            <WebsiteIcon className="size-3 text-muted-foreground" />
+          <div className="bg-muted flex size-5 shrink-0 items-center justify-center rounded">
+            <WebsiteIcon className="text-muted-foreground size-3" />
           </div>
-          <span className="font-medium text-sm text-foreground truncate">
+          <span className="text-foreground truncate text-sm font-medium">
             {row.original.domain}
           </span>
         </HStack>
@@ -33,7 +35,7 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       header: () => tTables('headers.title'),
       size: 192,
       cell: ({ row }) => (
-        <div className="max-w-sm truncate text-sm text-foreground">
+        <div className="text-foreground max-w-sm truncate text-sm">
           {row.original.title || tTables('cells.empty')}
         </div>
       ),
@@ -43,7 +45,7 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       header: () => tTables('headers.description'),
       size: 256,
       cell: ({ row }) => (
-        <div className="max-w-sm truncate text-xs text-muted-foreground">
+        <div className="text-muted-foreground max-w-sm truncate text-xs">
           {row.original.description
             ? `"${row.original.description}"`
             : tTables('cells.empty')}
@@ -62,19 +64,19 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
             className="text-xs"
           />
         ) : (
-          <Loader className="size-4 animate-spin text-muted-foreground" />
+          <Loader className="text-muted-foreground size-4 animate-spin" />
         ),
     },
     {
       accessorKey: 'scanInterval',
       header: () => (
-        <span className="text-right w-full block">
+        <span className="block w-full text-right">
           {tTables('headers.interval')}
         </span>
       ),
       size: 96,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground text-right w-full block">
+        <span className="text-muted-foreground block w-full text-right text-xs">
           {row.original.scanInterval}
         </span>
       ),

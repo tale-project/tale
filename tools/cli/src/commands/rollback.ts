@@ -1,16 +1,17 @@
-import { Command } from "commander";
-import { ensureConfig } from "../lib/config/ensure-config";
-import { ensureEnv } from "../lib/config/ensure-env";
-import { loadEnv } from "../utils/load-env";
-import * as logger from "../utils/logger";
-import { rollback } from "../lib/actions/rollback";
+import { Command } from 'commander';
+
+import { rollback } from '../lib/actions/rollback';
+import { ensureConfig } from '../lib/config/ensure-config';
+import { ensureEnv } from '../lib/config/ensure-env';
+import { loadEnv } from '../utils/load-env';
+import * as logger from '../utils/logger';
 
 export function createRollbackCommand(): Command {
-  return new Command("rollback")
-    .description("Rollback to the previous version or a specific version")
+  return new Command('rollback')
+    .description('Rollback to the previous version or a specific version')
     .option(
-      "-v, --version <version>",
-      "Specific version to rollback to (e.g., v1.0.0)"
+      '-v, --version <version>',
+      'Specific version to rollback to (e.g., v1.0.0)',
     )
     .action(async (options) => {
       try {

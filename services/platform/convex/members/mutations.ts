@@ -1,20 +1,33 @@
 import { v } from 'convex/values';
-import { mutation } from '../_generated/server';
+
+import type {
+  BetterAuthMember,
+  BetterAuthUser,
+  BetterAuthCreateResult,
+  BetterAuthFindManyResult,
+} from './types';
+
 import { components } from '../_generated/api';
-import { authComponent } from '../auth';
+import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
-import type { BetterAuthMember, BetterAuthUser, BetterAuthCreateResult, BetterAuthFindManyResult } from './types';
+import { authComponent } from '../auth';
 import { memberRoleValidator } from './validators';
 
-function findOneMember(res: BetterAuthFindManyResult<BetterAuthMember> | undefined) {
+function findOneMember(
+  res: BetterAuthFindManyResult<BetterAuthMember> | undefined,
+) {
   return res?.page?.[0];
 }
 
-function findOneUser(res: BetterAuthFindManyResult<BetterAuthUser> | undefined) {
+function findOneUser(
+  res: BetterAuthFindManyResult<BetterAuthUser> | undefined,
+) {
   return res?.page?.[0];
 }
 
-function isBetterAuthCreateResult(value: unknown): value is BetterAuthCreateResult {
+function isBetterAuthCreateResult(
+  value: unknown,
+): value is BetterAuthCreateResult {
   return typeof value === 'object' && value !== null && '_id' in value;
 }
 
@@ -36,7 +49,11 @@ export const addMember = mutation({
         model: 'member',
         paginationOpts: { cursor: null, numItems: 1 },
         where: [
-          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+          {
+            field: 'organizationId',
+            value: args.organizationId,
+            operator: 'eq',
+          },
           { field: 'userId', value: String(authUser._id), operator: 'eq' },
         ],
       }),
@@ -54,19 +71,24 @@ export const addMember = mutation({
     );
 
     const role = (args.role ?? 'member').toLowerCase();
-    const created = await ctx.runMutation(components.betterAuth.adapter.create, {
-      input: {
-        model: 'member',
-        data: {
-          organizationId: args.organizationId,
-          userId: args.userId,
-          role,
-          createdAt: Date.now(),
+    const created = await ctx.runMutation(
+      components.betterAuth.adapter.create,
+      {
+        input: {
+          model: 'member',
+          data: {
+            organizationId: args.organizationId,
+            userId: args.userId,
+            role,
+            createdAt: Date.now(),
+          },
         },
       },
-    });
+    );
 
-    const memberId = String(isBetterAuthCreateResult(created) ? created._id : created);
+    const memberId = String(
+      isBetterAuthCreateResult(created) ? created._id : created,
+    );
 
     await AuditLogHelpers.logSuccess(
       ctx,
@@ -119,7 +141,11 @@ export const removeMember = mutation({
         model: 'member',
         paginationOpts: { cursor: null, numItems: 1 },
         where: [
-          { field: 'organizationId', value: member.organizationId, operator: 'eq' },
+          {
+            field: 'organizationId',
+            value: member.organizationId,
+            operator: 'eq',
+          },
           { field: 'userId', value: String(authUser._id), operator: 'eq' },
         ],
       }),
@@ -197,7 +223,11 @@ export const updateMemberRole = mutation({
         model: 'member',
         paginationOpts: { cursor: null, numItems: 1 },
         where: [
-          { field: 'organizationId', value: member.organizationId, operator: 'eq' },
+          {
+            field: 'organizationId',
+            value: member.organizationId,
+            operator: 'eq',
+          },
           { field: 'userId', value: String(authUser._id), operator: 'eq' },
         ],
       }),
@@ -292,7 +322,11 @@ export const updateMemberDisplayName = mutation({
           model: 'member',
           paginationOpts: { cursor: null, numItems: 1 },
           where: [
-            { field: 'organizationId', value: member.organizationId, operator: 'eq' },
+            {
+              field: 'organizationId',
+              value: member.organizationId,
+              operator: 'eq',
+            },
             { field: 'userId', value: String(authUser._id), operator: 'eq' },
           ],
         }),

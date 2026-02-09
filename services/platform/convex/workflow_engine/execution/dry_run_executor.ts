@@ -74,7 +74,10 @@ function simulateStepOutput(
       };
 
     case 'condition': {
-      const expression = typeof step.config.expression === 'string' ? step.config.expression : '';
+      const expression =
+        typeof step.config.expression === 'string'
+          ? step.config.expression
+          : '';
       return {
         output: {
           type: 'condition',
@@ -89,7 +92,8 @@ function simulateStepOutput(
     }
 
     case 'action': {
-      const actionType = typeof step.config.type === 'string' ? step.config.type : 'unknown';
+      const actionType =
+        typeof step.config.type === 'string' ? step.config.type : 'unknown';
       return {
         output: {
           type: 'action',

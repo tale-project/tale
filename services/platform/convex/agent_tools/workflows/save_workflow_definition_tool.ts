@@ -12,12 +12,15 @@
  * - Config structure for each step type
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
-import type { ToolDefinition } from '../types';
-import { internal } from '../../_generated/api';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { Id } from '../../_generated/dataModel';
+import type { ToolDefinition } from '../types';
+
+import { internal } from '../../_generated/api';
 import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
 
 const workflowConfigSchema = z.object({

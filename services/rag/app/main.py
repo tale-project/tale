@@ -1,6 +1,7 @@
 """Main FastAPI application for Tale RAG service."""
 
 import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 
@@ -69,6 +70,7 @@ async def lifespan(app: FastAPI):
     # Initialize job store database table
     try:
         from .services import job_store_db
+
         await job_store_db.init_job_store()
         logger.info("Job store database initialized")
     except Exception:
@@ -78,29 +80,27 @@ async def lifespan(app: FastAPI):
     if settings.job_cleanup_on_startup:
         try:
             from .services import job_store_db
+
             result = await job_store_db.cleanup_stale_jobs()
             if result["deleted"] > 0:
-                logger.info(
-                    f"Cleaned up {result['deleted']} stale jobs on startup: "
-                    f"{result['by_reason']}"
-                )
+                logger.info(f"Cleaned up {result['deleted']} stale jobs on startup: {result['by_reason']}")
         except Exception:
             logger.exception("Failed to cleanup stale jobs on startup")
 
     # Ensure HNSW indexes exist on vector tables for fast similarity search
     try:
         from .services.cognee.cleanup import ensure_vector_hnsw_indexes
+
         index_result = await ensure_vector_hnsw_indexes()
         if index_result["created"]:
-            logger.info(
-                f"Created {len(index_result['created'])} HNSW index(es) on startup"
-            )
+            logger.info(f"Created {len(index_result['created'])} HNSW index(es) on startup")
     except Exception:
         logger.exception("Failed to ensure HNSW indexes on startup")
 
     # Ensure original_content_hash column exists for deduplication
     try:
         from .services.cognee.cleanup import ensure_original_content_hash_column
+
         await ensure_original_content_hash_column()
     except Exception:
         logger.exception("Failed to ensure original_content_hash column on startup")
@@ -124,20 +124,18 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     gc_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await gc_task
-    except asyncio.CancelledError:
-        pass
 
     # Close job store database connection pool
     try:
         from .services import job_store_db
+
         await job_store_db.close_pool()
     except Exception:
         logger.exception("Failed to close job store database pool")
 
     logger.info("Shutting down Tale RAG service...")
-
 
 
 # Create FastAPI application

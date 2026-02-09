@@ -25,7 +25,9 @@ export function DocumentDeleteDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={tDocuments('deleteFile.title')}
-      description={tDocuments('deleteFile.confirmation', { name: fileName ?? tDocuments('deleteFile.thisFile') })}
+      description={tDocuments('deleteFile.confirmation', {
+        name: fileName ?? tDocuments('deleteFile.thisFile'),
+      })}
       deleteText={tDocuments('deleteFile.deleteButton')}
       isDeleting={isLoading}
       onDelete={onConfirmDelete}

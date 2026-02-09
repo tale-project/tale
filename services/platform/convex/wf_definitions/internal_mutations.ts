@@ -1,6 +1,8 @@
 import { v } from 'convex/values';
-import { internalMutation } from '../_generated/server';
+
 import { internal } from '../_generated/api';
+import { internalMutation } from '../_generated/server';
+import { stepConfigValidator } from '../workflow_engine/types/nodes';
 import { createWorkflowWithSteps as createWorkflowWithStepsHelper } from '../workflows/definitions/create_workflow_with_steps';
 import {
   cancelAndDeleteExecutionsBatch,
@@ -10,8 +12,10 @@ import {
 import { publishDraft as publishDraftLogic } from '../workflows/definitions/publish_draft';
 import { saveWorkflowWithSteps as saveWorkflowWithStepsHelper } from '../workflows/definitions/save_workflow_with_steps';
 import { updateWorkflowStatus as updateWorkflowStatusHelper } from '../workflows/definitions/update_workflow_status';
-import { workflowConfigValidator, workflowStatusValidator } from '../workflows/definitions/validators';
-import { stepConfigValidator } from '../workflow_engine/types/nodes';
+import {
+  workflowConfigValidator,
+  workflowStatusValidator,
+} from '../workflows/definitions/validators';
 import { stepTypeValidator } from '../workflows/steps/validators';
 
 const workflowConfigArg = v.object({
@@ -100,12 +104,16 @@ export const batchDeleteWorkflowExecutions = internalMutation({
       return;
     }
 
-    const result = await cancelAndDeleteExecutionsBatch(ctx, currentDefinitionId);
+    const result = await cancelAndDeleteExecutionsBatch(
+      ctx,
+      currentDefinitionId,
+    );
 
     if (result.hasMore) {
       await ctx.scheduler.runAfter(
         0,
-        internal.wf_definitions.internal_mutations.batchDeleteWorkflowExecutions,
+        internal.wf_definitions.internal_mutations
+          .batchDeleteWorkflowExecutions,
         {
           wfDefinitionIds,
           currentIndex,
@@ -158,7 +166,8 @@ export const batchDeleteWorkflowAuditLogs = internalMutation({
       if (currentIndex + 1 < wfDefinitionIds.length) {
         await ctx.scheduler.runAfter(
           0,
-          internal.wf_definitions.internal_mutations.batchDeleteWorkflowExecutions,
+          internal.wf_definitions.internal_mutations
+            .batchDeleteWorkflowExecutions,
           {
             wfDefinitionIds,
             currentIndex: currentIndex + 1,

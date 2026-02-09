@@ -1,12 +1,13 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 import { useQuery, useConvexAuth } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { Navigation } from '@/app/components/ui/navigation/navigation';
-import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
+
 import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
+import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
+import { Navigation } from '@/app/components/ui/navigation/navigation';
+import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute('/dashboard/$id')({
   component: DashboardLayout,
@@ -23,8 +24,8 @@ function DashboardLayout() {
 
   return (
     <AdaptiveHeaderProvider>
-      <div className="flex flex-col md:flex-row size-full overflow-hidden">
-        <div className="md:hidden flex items-center gap-2 h-[--nav-size] p-2 bg-background">
+      <div className="flex size-full flex-col overflow-hidden md:flex-row">
+        <div className="bg-background flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
           <MobileNavigation
             organizationId={organizationId}
             role={memberContext?.role}
@@ -32,14 +33,14 @@ function DashboardLayout() {
           <AdaptiveHeaderSlot />
         </div>
 
-        <div className="hidden md:flex md:flex-[0_0_var(--nav-size)] h-full px-2">
+        <div className="hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
           <Navigation
             organizationId={organizationId}
             role={memberContext?.role}
           />
         </div>
 
-        <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden md:border-l border-border bg-background">
+        <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
           {isAuthLoading ? null : <Outlet />}
         </div>
       </div>

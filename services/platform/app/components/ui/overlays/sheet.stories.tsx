@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { useState } from 'react';
+
+import { Input } from '../forms/input';
+import { Button } from '../primitives/button';
 import {
   Sheet,
   SheetContent,
@@ -9,8 +13,6 @@ import {
   SheetTrigger,
   SheetFooter,
 } from './sheet';
-import { Button } from '../primitives/button';
-import { Input } from '../forms/input';
 
 const meta: Meta<typeof Sheet> = {
   title: 'Overlays/Sheet',
@@ -67,7 +69,7 @@ export const Default: Story = {
             Make changes to your profile here. Click save when you&apos;re done.
           </SheetDescription>
         </SheetHeader>
-        <div className="py-4 space-y-4">
+        <div className="space-y-4 py-4">
           <Input label="Name" defaultValue="John Doe" />
           <Input label="Email" type="email" defaultValue="john@example.com" />
         </div>
@@ -81,7 +83,9 @@ export const Default: Story = {
 
 export const Sides: Story = {
   render: function Render() {
-    const [side, setSide] = useState<'top' | 'right' | 'bottom' | 'left'>('right');
+    const [side, setSide] = useState<'top' | 'right' | 'bottom' | 'left'>(
+      'right',
+    );
     const [open, setOpen] = useState(false);
 
     return (
@@ -134,7 +138,7 @@ export const HideClose: Story = {
           </SheetDescription>
         </SheetHeader>
         <div className="py-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Press Escape or click outside to close.
           </p>
         </div>
@@ -160,7 +164,7 @@ export const WithForm: Story = {
             </SheetDescription>
           </SheetHeader>
           <form
-            className="py-4 space-y-4"
+            className="space-y-4 py-4"
             onSubmit={(e) => {
               e.preventDefault();
               setOpen(false);
@@ -169,7 +173,11 @@ export const WithForm: Story = {
             <Input label="Title" required />
             <Input label="Description" />
             <SheetFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit">Create</Button>

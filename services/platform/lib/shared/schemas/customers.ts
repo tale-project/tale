@@ -2,12 +2,12 @@ import { z } from 'zod/v4';
 import { dataSourceSchema } from './common';
 import { jsonRecordSchema } from './utils/json-value';
 
-export const customerStatusLiterals = ['active', 'churned', 'potential'] as const;
+const customerStatusLiterals = ['active', 'churned', 'potential'] as const;
 export const customerStatusSchema = z.enum(customerStatusLiterals);
-export type CustomerStatus = z.infer<typeof customerStatusSchema>;
+type CustomerStatus = z.infer<typeof customerStatusSchema>;
 
 export const customerSourceSchema = dataSourceSchema;
-export type CustomerSource = z.infer<typeof customerSourceSchema>;
+type CustomerSource = z.infer<typeof customerSourceSchema>;
 
 export const customerAddressSchema = z.object({
 	street: z.string().optional(),
@@ -16,7 +16,7 @@ export const customerAddressSchema = z.object({
 	country: z.string().optional(),
 	postalCode: z.string().optional(),
 });
-export type CustomerAddress = z.infer<typeof customerAddressSchema>;
+type CustomerAddress = z.infer<typeof customerAddressSchema>;
 
 export const customerSchema = z.object({
 	_id: z.string(),
@@ -31,4 +31,4 @@ export const customerSchema = z.object({
 	address: customerAddressSchema.optional(),
 	metadata: jsonRecordSchema.optional(),
 });
-export type Customer = z.infer<typeof customerSchema>;
+type Customer = z.infer<typeof customerSchema>;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+
 import {
   parseImportFile,
   parseCSVWithMapper,
@@ -80,7 +81,7 @@ export function useFileImport<T>({
         setIsParsing(false);
       }
     },
-    [csvMapper, excelMapper]
+    [csvMapper, excelMapper],
   );
 
   const parseCSV = useCallback(
@@ -102,7 +103,7 @@ export function useFileImport<T>({
         return { data: [], errors: [errorMessage] };
       }
     },
-    [csvMapper]
+    [csvMapper],
   );
 
   const clearError = useCallback(() => {
@@ -216,7 +217,7 @@ export const productMappers = {
   validateStatus: (
     value: unknown,
     validStatuses: readonly string[],
-    defaultStatus: string
+    defaultStatus: string,
   ): string => {
     if (typeof value !== 'string') return defaultStatus;
     const lowerValue = value.toLowerCase();

@@ -1,5 +1,6 @@
-import type { QueryCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { QueryCtx } from '../../_generated/server';
+
 import { components } from '../../_generated/api';
 
 const workflow = components.workflow;
@@ -19,7 +20,9 @@ export async function getExecutionStepJournal(
     ? JSON.parse(execution.metadata)
     : {};
   const rawIds = Array.isArray(metadata.componentWorkflowIds)
-    ? metadata.componentWorkflowIds.filter((x: unknown): x is string => typeof x === 'string')
+    ? metadata.componentWorkflowIds.filter(
+        (x: unknown): x is string => typeof x === 'string',
+      )
     : [];
   const idsOrdered: string[] = Array.from(
     new Set([
@@ -42,9 +45,10 @@ export async function getExecutionStepJournal(
     const entries = journals[i].journalEntries || [];
     const sorted = entries
       .slice()
-      .sort((a: Record<string, unknown>, b: Record<string, unknown>) =>
-        (typeof a.stepNumber === 'number' ? a.stepNumber : 0) -
-        (typeof b.stepNumber === 'number' ? b.stepNumber : 0),
+      .sort(
+        (a: Record<string, unknown>, b: Record<string, unknown>) =>
+          (typeof a.stepNumber === 'number' ? a.stepNumber : 0) -
+          (typeof b.stepNumber === 'number' ? b.stepNumber : 0),
       );
 
     for (const e of sorted) {

@@ -1,18 +1,6 @@
 'use client';
 
-import { memo, useState } from 'react';
 import { useMutation, useAction } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
-import { IntegrationOperationMetadata } from '@/convex/approvals/types';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Badge } from '@/app/components/ui/feedback/badge';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/app/components/ui/overlays/tooltip';
 import {
   CheckCircle,
   XCircle,
@@ -21,9 +9,22 @@ import {
   Globe,
   Loader2,
 } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
-import { useT } from '@/lib/i18n/client';
+import { memo, useState } from 'react';
+
+import { Badge } from '@/app/components/ui/feedback/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/app/components/ui/overlays/tooltip';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
+import { IntegrationOperationMetadata } from '@/convex/approvals/types';
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 interface IntegrationApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -53,9 +54,11 @@ function IntegrationApprovalCardComponent({
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const updateApprovalStatus = useMutation(api.approvals.mutations.updateApprovalStatus);
+  const updateApprovalStatus = useMutation(
+    api.approvals.mutations.updateApprovalStatus,
+  );
   const executeApprovedOperation = useAction(
-    api.approvals.actions.executeApprovedIntegrationOperation
+    api.approvals.actions.executeApprovedIntegrationOperation,
   );
 
   const isPending = status === 'pending';
@@ -74,7 +77,9 @@ function IntegrationApprovalCardComponent({
         approvalId,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to approve operation');
+      setError(
+        err instanceof Error ? err.message : 'Failed to approve operation',
+      );
       console.error('Failed to approve:', err);
     } finally {
       setIsApproving(false);
@@ -94,7 +99,9 @@ function IntegrationApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reject operation');
+      setError(
+        err instanceof Error ? err.message : 'Failed to reject operation',
+      );
       console.error('Failed to reject:', err);
     } finally {
       setIsRejecting(false);
@@ -103,12 +110,16 @@ function IntegrationApprovalCardComponent({
 
   // Format parameters for display
   const formatParameters = (params: Record<string, unknown>) => {
-    const entries = Object.entries(params).filter(([_, v]) => v !== undefined && v !== null);
+    const entries = Object.entries(params).filter(
+      ([_, v]) => v !== undefined && v !== null,
+    );
     if (entries.length === 0) return null;
     return entries.slice(0, 3).map(([key, value]) => (
-      <div key={key} className="text-xs text-muted-foreground truncate">
+      <div key={key} className="text-muted-foreground truncate text-xs">
         <span className="font-medium">{key}:</span>{' '}
-        <span>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+        <span>
+          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+        </span>
       </div>
     ));
   };
@@ -122,18 +133,18 @@ function IntegrationApprovalCardComponent({
         status === 'approved' && 'border-success/30 bg-success/5',
         status === 'rejected' && 'border-destructive/30 bg-destructive/5',
         status === 'pending' && 'border-warning/30 bg-warning/5',
-        className
+        className,
       )}
     >
       {/* Header */}
-      <div className="flex items-start justify-between gap-2 mb-3">
+      <div className="mb-3 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-md bg-muted">
-            <IntegrationIcon className="size-4 text-muted-foreground" />
+          <div className="bg-muted rounded-md p-1.5">
+            <IntegrationIcon className="text-muted-foreground size-4" />
           </div>
           <div>
-            <div className="font-medium text-sm">{metadata.operationTitle}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-sm font-medium">{metadata.operationTitle}</div>
+            <div className="text-muted-foreground text-xs">
               {metadata.integrationName}
             </div>
           </div>
@@ -146,33 +157,35 @@ function IntegrationApprovalCardComponent({
                 ? 'destructive'
                 : 'orange'
           }
-          className="capitalize text-xs"
+          className="text-xs capitalize"
         >
           {status}
         </Badge>
       </div>
 
       {/* Operation Details */}
-      <div className="space-y-2 mb-3">
+      <div className="mb-3 space-y-2">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">
             {metadata.operationType === 'write' ? (
-              <AlertTriangle className="size-3 mr-1" />
+              <AlertTriangle className="mr-1 size-3" />
             ) : null}
             {metadata.operationType}
           </Badge>
-          <span className="text-xs text-muted-foreground font-mono">
+          <span className="text-muted-foreground font-mono text-xs">
             {metadata.operationName}
           </span>
         </div>
 
         {/* Parameters Preview */}
         {metadata.parameters && Object.keys(metadata.parameters).length > 0 && (
-          <div className="bg-muted/50 rounded-md p-2 space-y-0.5">
+          <div className="bg-muted/50 space-y-0.5 rounded-md p-2">
             {formatParameters(metadata.parameters)}
             {Object.keys(metadata.parameters).length > 3 && (
-              <div className="text-xs text-muted-foreground">
-                {t('moreParameters', { count: Object.keys(metadata.parameters).length - 3 })}
+              <div className="text-muted-foreground text-xs">
+                {t('moreParameters', {
+                  count: Object.keys(metadata.parameters).length - 3,
+                })}
               </div>
             )}
           </div>
@@ -180,7 +193,7 @@ function IntegrationApprovalCardComponent({
 
         {/* Estimated Impact */}
         {metadata.estimatedImpact && (
-          <div className="text-xs text-muted-foreground italic">
+          <div className="text-muted-foreground text-xs italic">
             {metadata.estimatedImpact}
           </div>
         )}
@@ -188,7 +201,7 @@ function IntegrationApprovalCardComponent({
 
       {/* Execution Result (if approved and executed) */}
       {status === 'approved' && executedAt && !executionError && (
-        <div className="text-xs text-green-600 flex items-center gap-1 mb-3">
+        <div className="mb-3 flex items-center gap-1 text-xs text-green-600">
           <CheckCircle className="size-3" />
           {t('executedSuccessfully')}
         </div>
@@ -196,7 +209,7 @@ function IntegrationApprovalCardComponent({
 
       {/* Execution Error (persisted from backend) */}
       {status === 'approved' && executionError && (
-        <div className="text-xs text-destructive mb-3 flex items-center gap-1">
+        <div className="text-destructive mb-3 flex items-center gap-1 text-xs">
           <XCircle className="size-3" />
           {executionError}
         </div>
@@ -204,7 +217,7 @@ function IntegrationApprovalCardComponent({
 
       {/* Error Message (temporary UI error) */}
       {error && (
-        <div className="text-xs text-destructive mb-3 flex items-center gap-1">
+        <div className="text-destructive mb-3 flex items-center gap-1 text-xs">
           <XCircle className="size-3" />
           {error}
         </div>
@@ -224,9 +237,9 @@ function IntegrationApprovalCardComponent({
                   className="flex-1"
                 >
                   {isApproving ? (
-                    <Loader2 className="size-4 animate-spin mr-1" />
+                    <Loader2 className="mr-1 size-4 animate-spin" />
                   ) : (
-                    <CheckCircle className="size-4 mr-1" />
+                    <CheckCircle className="mr-1 size-4" />
                   )}
                   {t('approve')}
                 </Button>
@@ -244,9 +257,9 @@ function IntegrationApprovalCardComponent({
                   className="flex-1"
                 >
                   {isRejecting ? (
-                    <Loader2 className="size-4 animate-spin mr-1" />
+                    <Loader2 className="mr-1 size-4 animate-spin" />
                   ) : (
-                    <XCircle className="size-4 mr-1" />
+                    <XCircle className="mr-1 size-4" />
                   )}
                   {t('reject')}
                 </Button>
@@ -259,7 +272,7 @@ function IntegrationApprovalCardComponent({
 
       {/* Status message for resolved approvals */}
       {!isPending && (
-        <div className="text-xs text-muted-foreground">
+        <div className="text-muted-foreground text-xs">
           {status === 'approved' && executionError
             ? t('statusApprovedFailed')
             : status === 'approved'
@@ -282,6 +295,5 @@ export const IntegrationApprovalCard = memo(
       prevProps.executedAt === nextProps.executedAt &&
       prevProps.executionError === nextProps.executionError
     );
-  }
+  },
 );
-

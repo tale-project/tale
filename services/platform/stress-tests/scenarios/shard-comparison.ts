@@ -21,9 +21,10 @@
  */
 
 import { ConvexHttpClient } from 'convex/browser';
+
 import { api } from '../../convex/_generated/api';
-import { MetricsCollector } from '../metrics';
 import { getShardIndex } from '../../convex/workflow_engine/helpers/engine/shard';
+import { MetricsCollector } from '../metrics';
 import { pollExecutionViaConvexRun } from '../poll';
 
 const WORKFLOWS_PER_PHASE = 10;
@@ -68,7 +69,7 @@ async function runPhase(
 
     try {
       const executionId = await client.mutation(
-        api.workflow_engine.engine.startWorkflow,
+        api.workflow_engine.mutations.startWorkflow,
         {
           organizationId,
           wfDefinitionId: defId as never,

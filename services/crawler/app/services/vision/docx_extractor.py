@@ -138,8 +138,6 @@ async def extract_text_from_docx_bytes(
     elements.sort(key=lambda x: x[0])
     content_list = [elem[1] for elem in elements]
 
-    logger.info(
-        f"DOCX processing complete: {len(content_list)} elements, Vision API used: {vision_used}"
-    )
+    logger.info(f"DOCX processing complete: {len(content_list)} elements, Vision API used: {vision_used}")
 
     return content_list, vision_used

@@ -1,9 +1,11 @@
-import { ConvexHttpClient } from 'convex/browser';
 import type {
   FunctionReference,
   FunctionReturnType,
   FunctionArgs,
 } from 'convex/server';
+
+import { ConvexHttpClient } from 'convex/browser';
+
 import { getEnv } from '@/lib/env';
 
 let cachedConvexHttpUrl: string | null = null;
@@ -28,7 +30,7 @@ interface ServerOptions {
   token?: string;
 }
 
-export async function fetchQuery<Query extends FunctionReference<'query'>>(
+async function fetchQuery<Query extends FunctionReference<'query'>>(
   query: Query,
   args: FunctionArgs<Query>,
   options?: ServerOptions,

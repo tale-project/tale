@@ -2,15 +2,16 @@
  * Define RLS rules for all tables using convex-helpers
  */
 
-import type { QueryCtx } from '../../../_generated/server';
-import type { DataModel } from '../../../_generated/dataModel';
 import { Rules } from 'convex-helpers/server/rowLevelSecurity';
+
+import type { DataModel } from '../../../_generated/dataModel';
+import type { QueryCtx } from '../../../_generated/server';
 import type { RLSRuleContext } from '../types';
-import { getAuthenticatedUser } from '../auth/get_authenticated_user';
-import { getUserOrganizations } from '../organization/get_user_organizations';
-import { getUserTeamIds } from '../../get_user_teams';
 
 import { authorizeRls } from '../../../auth';
+import { getUserTeamIds } from '../../get_user_teams';
+import { getAuthenticatedUser } from '../auth/get_authenticated_user';
+import { getUserOrganizations } from '../organization/get_user_organizations';
 
 /**
  * Define RLS rules for all tables

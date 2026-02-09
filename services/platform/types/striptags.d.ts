@@ -1,7 +1,7 @@
 // Type declarations for striptags (HTML tag stripper)
 // These types cover only the API used by this project
 
-declare module "striptags" {
+declare module 'striptags' {
   interface StriptagsOptions {
     allowedTags?: string[];
     tagReplacement?: string;
@@ -10,7 +10,7 @@ declare module "striptags" {
   function striptags(
     html: string,
     allowedTags?: string[] | string,
-    tagReplacement?: string
+    tagReplacement?: string,
   ): string;
 
   function striptags(html: string, options: StriptagsOptions): string;

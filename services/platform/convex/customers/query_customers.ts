@@ -6,10 +6,14 @@
  * remaining filters in memory via paginateWithFilter.
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
-import { paginateWithFilter, type CursorPaginatedResult } from '../lib/pagination';
+import type { QueryCtx } from '../_generated/server';
 import type { CustomerStatus, CustomerSource } from './types';
+
+import {
+  paginateWithFilter,
+  type CursorPaginatedResult,
+} from '../lib/pagination';
 
 export interface QueryCustomersArgs {
   organizationId: string;
@@ -90,7 +94,9 @@ export async function queryCustomers(
 
         if (searchLower) {
           const nameMatch = customer.name?.toLowerCase().includes(searchLower);
-          const emailMatch = customer.email?.toLowerCase().includes(searchLower);
+          const emailMatch = customer.email
+            ?.toLowerCase()
+            .includes(searchLower);
           const externalIdMatch = customer.externalId
             ? String(customer.externalId).toLowerCase().includes(searchLower)
             : false;

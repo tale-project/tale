@@ -1,4 +1,4 @@
-import { getLockFilePath } from "./get-lock-file-path";
+import { getLockFilePath } from './get-lock-file-path';
 
 export interface LockInfo {
   pid: number;
@@ -8,11 +8,11 @@ export interface LockInfo {
 
 function isLockInfo(value: unknown): value is LockInfo {
   if (
-    typeof value !== "object" ||
+    typeof value !== 'object' ||
     value === null ||
-    typeof (value as LockInfo).pid !== "number" ||
-    typeof (value as LockInfo).startedAt !== "string" ||
-    typeof (value as LockInfo).command !== "string"
+    typeof (value as LockInfo).pid !== 'number' ||
+    typeof (value as LockInfo).startedAt !== 'string' ||
+    typeof (value as LockInfo).command !== 'string'
   ) {
     return false;
   }

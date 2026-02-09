@@ -7,7 +7,14 @@
  */
 export interface FieldDefinition {
   field: string;
-  type: 'string' | 'number' | 'boolean' | 'datetime' | 'enum' | 'object' | 'array';
+  type:
+    | 'string'
+    | 'number'
+    | 'boolean'
+    | 'datetime'
+    | 'enum'
+    | 'object'
+    | 'array';
   values?: string[]; // For enum types, the valid values
   note?: string; // Additional hints for the AI
 }

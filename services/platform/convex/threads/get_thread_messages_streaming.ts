@@ -15,10 +15,15 @@
  *   warnings and missing user messages.
  */
 
+import { listUIMessages, syncStreams } from '@convex-dev/agent';
+
+import type {
+  GetThreadMessagesStreamingArgs,
+  StreamingMessagesResult,
+} from './types';
+
 import { components } from '../_generated/api';
 import { QueryCtx } from '../_generated/server';
-import { listUIMessages, syncStreams } from '@convex-dev/agent';
-import type { GetThreadMessagesStreamingArgs, StreamingMessagesResult } from './types';
 
 export async function getThreadMessagesStreaming(
   ctx: QueryCtx,

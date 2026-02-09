@@ -3,10 +3,13 @@
  *  Parse PDF documents to extract text content.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
+
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { parseFile, type ParseFileResult } from './helpers/parse_file';
@@ -70,7 +73,9 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
       fileName: z
         .string()
         .optional()
-        .describe("For 'generate': Base name for the PDF file (without extension)"),
+        .describe(
+          "For 'generate': Base name for the PDF file (without extension)",
+        ),
       sourceType: z
         .enum(['markdown', 'html', 'url'])
         .optional()
@@ -78,7 +83,9 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
       content: z
         .string()
         .optional()
-        .describe("For 'generate': Markdown text, HTML content, or URL to capture"),
+        .describe(
+          "For 'generate': Markdown text, HTML content, or URL to capture",
+        ),
       pdfOptions: z
         .object({
           format: z.string().optional(),
@@ -205,4 +212,3 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
     },
   }),
 } as const satisfies ToolDefinition;
-

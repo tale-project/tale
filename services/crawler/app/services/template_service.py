@@ -120,4 +120,3 @@ def get_template_service() -> TemplateService:
     if _template_service is None:
         _template_service = TemplateService()
     return _template_service
-

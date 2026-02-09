@@ -1,5 +1,6 @@
-import Mustache from 'mustache';
 import { isBoolean, isNil, isNumber, isString, toString, trim } from 'lodash';
+import Mustache from 'mustache';
+
 import { buildContext } from './build_context';
 import { jexlInstance } from './jexl_instance';
 

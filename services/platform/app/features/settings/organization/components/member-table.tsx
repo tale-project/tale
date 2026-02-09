@@ -1,15 +1,18 @@
 'use client';
 
+import type { ColumnDef } from '@tanstack/react-table';
+
+import { ChevronDownIcon } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
-import { Button } from '@/app/components/ui/primitives/button';
+
+import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { ChevronDownIcon } from 'lucide-react';
-import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
-import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-cell';
-import { MemberRowActions } from './member-row-actions';
-import type { ColumnDef } from '@tanstack/react-table';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
+import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
+
+import { MemberRowActions } from './member-row-actions';
 
 type Member = {
   _id: string;
@@ -54,7 +57,7 @@ export function MemberTable({
         header: () => (
           <Button
             variant="ghost"
-            className="h-auto p-0 font-medium text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground h-auto p-0 font-medium"
             onClick={handleSort}
           >
             {tTables('headers.member')}
@@ -69,13 +72,13 @@ export function MemberTable({
           const member = row.original;
           return (
             <Stack gap={0}>
-              <span className="block text-sm text-foreground font-medium">
+              <span className="text-foreground block text-sm font-medium">
                 {member.displayName || member.email || tTables('cells.unknown')}
               </span>
               {member.displayName &&
                 member.email &&
                 member.displayName !== member.email && (
-                  <span className="block text-xs text-muted-foreground">
+                  <span className="text-muted-foreground block text-xs">
                     {member.email}
                   </span>
                 )}
@@ -94,7 +97,7 @@ export function MemberTable({
             : 'roles.disabled';
           return (
             <span
-              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleBadgeClasses(
+              className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getRoleBadgeClasses(
                 role,
               )}`}
             >

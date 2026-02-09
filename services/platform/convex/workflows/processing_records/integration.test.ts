@@ -3,8 +3,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseFilterExpression } from './parse_filter_expression';
+
 import { selectOptimalIndex } from './index_selection';
+import { parseFilterExpression } from './parse_filter_expression';
 
 describe('Integration: parseFilterExpression + selectOptimalIndex', () => {
   const organizationId = 'test-org-123';
@@ -177,7 +178,9 @@ describe('Integration: parseFilterExpression + selectOptimalIndex', () => {
     });
 
     it('should handle product recommendation workflow', () => {
-      const parsed = parseFilterExpression('status == "active" && category == "electronics"');
+      const parsed = parseFilterExpression(
+        'status == "active" && category == "electronics"',
+      );
 
       expect(parsed.conditions).toHaveLength(2);
       expect(parsed.equalityConditions).toEqual({

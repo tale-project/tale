@@ -1,14 +1,15 @@
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import * as logger from "../../utils/logger";
-import { getLockFilePath } from "./get-lock-file-path";
-import { type LockInfo, getLockInfo } from "./get-lock-info";
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
+
+import * as logger from '../../utils/logger';
+import { getLockFilePath } from './get-lock-file-path';
+import { type LockInfo, getLockInfo } from './get-lock-info';
 
 function isProcessRunning(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "EPERM") {
+    if ((err as NodeJS.ErrnoException).code === 'EPERM') {
       return true;
     }
     return false;
@@ -17,7 +18,7 @@ function isProcessRunning(pid: number): boolean {
 
 export async function acquireLock(
   deployDir: string,
-  command: string
+  command: string,
 ): Promise<boolean> {
   const lockPath = getLockFilePath(deployDir);
 
@@ -26,7 +27,7 @@ export async function acquireLock(
     const isRunning = isProcessRunning(existingLock.pid);
     if (isRunning) {
       logger.error(
-        `Deployment already in progress (PID: ${existingLock.pid}, started: ${existingLock.startedAt})`
+        `Deployment already in progress (PID: ${existingLock.pid}, started: ${existingLock.startedAt})`,
       );
       return false;
     }
@@ -46,12 +47,14 @@ export async function acquireLock(
 
   try {
     await mkdir(deployDir, { recursive: true });
-    await writeFile(lockPath, JSON.stringify(lockInfo, null, 2), { flag: "wx" });
+    await writeFile(lockPath, JSON.stringify(lockInfo, null, 2), {
+      flag: 'wx',
+    });
     logger.debug(`Acquired deployment lock (PID: ${process.pid})`);
     return true;
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "EEXIST") {
-      logger.error("Deployment already in progress (lock file already exists)");
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+      logger.error('Deployment already in progress (lock file already exists)');
       return false;
     }
     throw err;

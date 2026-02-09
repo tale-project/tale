@@ -1,11 +1,15 @@
 'use client';
 
+import { Settings, Mail } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
+
+import type { Doc, Id } from '@/convex/_generated/dataModel';
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
+
 import { CirculyIcon } from '@/app/components/icons/circuly-icon';
 import { ProtelIcon } from '@/app/components/icons/protel-icon';
+import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { Button } from '@/app/components/ui/primitives/button';
 import {
   Card,
   CardContent,
@@ -14,24 +18,23 @@ import {
   CardDescription,
 } from '@/app/components/ui/layout/card';
 import { Stack, HStack, Grid, Center } from '@/app/components/ui/layout/layout';
-import { Settings, Mail } from 'lucide-react';
-import type { Doc, Id } from '@/convex/_generated/dataModel';
+import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
-import { useCreateIntegration } from '../hooks/use-create-integration';
-import { useUpdateIntegration } from '../hooks/use-update-integration';
-import { useTestIntegration } from '../hooks/use-test-integration';
-import { useDeleteIntegration } from '../hooks/use-delete-integration';
-import { OAuth2Banner } from './oauth2-banner';
 import { useT } from '@/lib/i18n/client';
-import { ShopifyIntegrationDialog } from './shopify-integration-dialog';
-import { CirculyIntegrationDialog } from './circuly-integration-dialog';
+
+import { useCreateIntegration } from '../hooks/use-create-integration';
+import { useDeleteIntegration } from '../hooks/use-delete-integration';
+import { useTestIntegration } from '../hooks/use-test-integration';
+import { useUpdateIntegration } from '../hooks/use-update-integration';
 import { CirculyDisconnectConfirmationDialog } from './circuly-disconnect-confirmation-dialog';
-import { ShopifyDisconnectConfirmationDialog } from './shopify-disconnect-confirmation-dialog';
+import { CirculyIntegrationDialog } from './circuly-integration-dialog';
 import { EmailIntegrationDialog } from './email-integration-dialog';
-import { ProtelIntegrationDialog } from './protel-integration-dialog';
+import { OAuth2Banner } from './oauth2-banner';
 import { ProtelDisconnectConfirmationDialog } from './protel-disconnect-confirmation-dialog';
+import { ProtelIntegrationDialog } from './protel-integration-dialog';
+import { ShopifyDisconnectConfirmationDialog } from './shopify-disconnect-confirmation-dialog';
+import { ShopifyIntegrationDialog } from './shopify-integration-dialog';
 import { SSOCard } from './sso-card';
-import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
 type Integration = Doc<'integrations'> | null;
 type EmailProvider = Doc<'emailProviders'>;
@@ -366,17 +369,17 @@ export function IntegrationsClient({
       <OAuth2Banner />
 
       <Grid cols={1} md={2} lg={3}>
-        <SSOCard
-          organizationId={organizationId}
-          ssoProvider={ssoProvider}
-        />
+        <SSOCard organizationId={organizationId} ssoProvider={ssoProvider} />
         {integrations.map((integration) => {
           const IconComponent = integration.icon;
           return (
-            <Card key={integration.id} className="flex flex-col justify-between">
+            <Card
+              key={integration.id}
+              className="flex flex-col justify-between"
+            >
               <CardContent className="p-5">
                 <Stack gap={3}>
-                  <Center className="w-11 h-11 border border-border rounded-md">
+                  <Center className="border-border h-11 w-11 rounded-md border">
                     <IconComponent className="size-6" />
                   </Center>
                   <Stack gap={1}>
@@ -390,7 +393,7 @@ export function IntegrationsClient({
                 </Stack>
               </CardContent>
 
-              <CardFooter className="border-t border-border px-5 py-4">
+              <CardFooter className="border-border border-t px-5 py-4">
                 <HStack justify="between" className="w-full">
                   <Button
                     variant="link"
@@ -406,7 +409,7 @@ export function IntegrationsClient({
                         handleManageClick(integration.id);
                       }
                     }}
-                    className="flex items-center gap-1 text-sm h-6"
+                    className="flex h-6 items-center gap-1 text-sm"
                   >
                     <Settings className="size-4" />
                     {t('integrations.manage')}

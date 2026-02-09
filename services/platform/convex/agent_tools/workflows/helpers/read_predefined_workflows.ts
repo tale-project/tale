@@ -7,7 +7,10 @@ import { workflows } from '../../../predefined_workflows';
 /**
  * Workflow categories and use cases for agent guidance
  */
-const WORKFLOW_METADATA: Record<string, { category: string; useCases: string[] }> = {
+const WORKFLOW_METADATA: Record<
+  string,
+  { category: string; useCases: string[] }
+> = {
   // Entity Processing - process one entity at a time
   generalCustomerStatusAssessment: {
     category: 'entity_processing',
@@ -15,7 +18,11 @@ const WORKFLOW_METADATA: Record<string, { category: string; useCases: string[] }
   },
   generalProductRecommendation: {
     category: 'entity_processing',
-    useCases: ['product recommendations', 'AI recommendations', 'personalization'],
+    useCases: [
+      'product recommendations',
+      'AI recommendations',
+      'personalization',
+    ],
   },
   productRecommendationEmail: {
     category: 'entity_processing',
@@ -112,10 +119,16 @@ export type WorkflowReadGetPredefinedResult = {
  * List all predefined workflows with basic info
  */
 export function listPredefinedWorkflows(): WorkflowReadListPredefinedResult {
-  const workflowEntries = Object.entries(workflows) as [string, WorkflowDefinition][];
+  const workflowEntries = Object.entries(workflows) as [
+    string,
+    WorkflowDefinition,
+  ][];
 
   const workflowList = workflowEntries.map(([key, wf]) => {
-    const metadata = WORKFLOW_METADATA[key] || { category: 'other', useCases: [] };
+    const metadata = WORKFLOW_METADATA[key] || {
+      category: 'other',
+      useCases: [],
+    };
     return {
       key,
       name: wf.workflowConfig.name,
@@ -128,11 +141,14 @@ export function listPredefinedWorkflows(): WorkflowReadListPredefinedResult {
   });
 
   // Group by category for summary
-  const byCategory = workflowList.reduce((acc, wf) => {
-    if (!acc[wf.category]) acc[wf.category] = [];
-    acc[wf.category].push(wf.key);
-    return acc;
-  }, {} as Record<string, string[]>);
+  const byCategory = workflowList.reduce(
+    (acc, wf) => {
+      if (!acc[wf.category]) acc[wf.category] = [];
+      acc[wf.category].push(wf.key);
+      return acc;
+    },
+    {} as Record<string, string[]>,
+  );
 
   const categorySummary = Object.entries(byCategory)
     .map(([cat, keys]) => `${cat}: ${keys.join(', ')}`)
@@ -153,19 +169,22 @@ export function getPredefinedWorkflow(args: {
   workflowKey: string;
 }): WorkflowReadGetPredefinedResult {
   const { workflowKey } = args;
-  
-  const workflowEntries = Object.entries(workflows) as [string, WorkflowDefinition][];
-  
+
+  const workflowEntries = Object.entries(workflows) as [
+    string,
+    WorkflowDefinition,
+  ][];
+
   // Try exact match first
   let found = workflowEntries.find(([key]) => key === workflowKey);
-  
+
   // Try case-insensitive match
   if (!found) {
     found = workflowEntries.find(
-      ([key]) => key.toLowerCase() === workflowKey.toLowerCase()
+      ([key]) => key.toLowerCase() === workflowKey.toLowerCase(),
     );
   }
-  
+
   // Try partial match (contains) - but only if there's exactly one match
   if (!found) {
     const partialMatches = workflowEntries.filter(([key]) =>
@@ -200,4 +219,3 @@ export function getPredefinedWorkflow(args: {
     workflow,
   };
 }
-

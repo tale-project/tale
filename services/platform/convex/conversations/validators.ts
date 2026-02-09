@@ -5,8 +5,9 @@
  * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
  */
 
-import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
+
 import {
   conversationStatusSchema,
   conversationPrioritySchema,
@@ -33,14 +34,20 @@ export {
 import { approvalItemValidator } from '../approvals/validators';
 
 // Simple schemas without z.lazy()
-export const conversationStatusValidator = zodToConvex(conversationStatusSchema);
-export const conversationPriorityValidator = zodToConvex(conversationPrioritySchema);
+export const conversationStatusValidator = zodToConvex(
+  conversationStatusSchema,
+);
+export const conversationPriorityValidator = zodToConvex(
+  conversationPrioritySchema,
+);
 export const messageStatusValidator = zodToConvex(messageStatusSchema);
 export const messageDirectionValidator = zodToConvex(messageDirectionSchema);
 export const messageValidator = zodToConvex(messageSchema);
 export const customerInfoValidator = zodToConvex(customerInfoSchema);
 export const attachmentValidator = zodToConvex(attachmentSchema);
-export const bulkOperationResultValidator = zodToConvex(bulkOperationResultSchema);
+export const bulkOperationResultValidator = zodToConvex(
+  bulkOperationResultSchema,
+);
 
 // Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
 export const conversationItemValidator = v.object({

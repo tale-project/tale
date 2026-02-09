@@ -5,20 +5,19 @@
  * Iterates through an array of items one at a time.
  */
 
+import { createDebugLog } from '../../../../lib/debug_log';
+import { LoopNodeConfig } from '../../../types/nodes';
 import {
   StepExecutionContext,
   StepExecutionResult,
   LoopVars,
 } from '../../../types/workflow';
-import { LoopNodeConfig } from '../../../types/nodes';
 import { PORTS } from '../constants';
-import { isLoopInProgress } from './utils/is_loop_in_progress';
-import { getLoopItems } from './utils/get_loop_items';
-import { getInputData } from './utils/get_input_data';
-import { createLoopState } from './utils/create_loop_state';
 import { createLoopResult } from './utils/create_loop_result';
-
-import { createDebugLog } from '../../../../lib/debug_log';
+import { createLoopState } from './utils/create_loop_state';
+import { getInputData } from './utils/get_input_data';
+import { getLoopItems } from './utils/get_loop_items';
+import { isLoopInProgress } from './utils/is_loop_in_progress';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 

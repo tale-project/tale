@@ -1,5 +1,8 @@
 import type { ConvexReactClient } from 'convex/react';
 import type { FunctionReference } from 'convex/server';
+
+import type { QueuedMutation, OfflineState } from './types';
+
 import { db } from './db';
 import {
   getPendingMutations,
@@ -7,7 +10,6 @@ import {
   incrementRetryCount,
   removeMutation,
 } from './mutation-queue';
-import type { QueuedMutation, OfflineState } from './types';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 5000, 15000];
@@ -46,7 +48,7 @@ export function subscribeSyncState(listener: SyncListener): () => void {
 }
 
 export async function processMutationQueue(
-  convex: ConvexReactClient
+  convex: ConvexReactClient,
 ): Promise<{ processed: number; failed: number }> {
   if (syncState.isSyncing) {
     return { processed: 0, failed: 0 };
@@ -86,7 +88,8 @@ export async function processMutationQueue(
     isSyncing: false,
     pendingMutations: stats.pending,
     failedMutations: stats.failed,
-    lastSuccessfulSync: failed === 0 ? new Date() : syncState.lastSuccessfulSync,
+    lastSuccessfulSync:
+      failed === 0 ? new Date() : syncState.lastSuccessfulSync,
   });
 
   return { processed, failed };
@@ -94,7 +97,7 @@ export async function processMutationQueue(
 
 async function executeMutation(
   convex: ConvexReactClient,
-  mutation: QueuedMutation
+  mutation: QueuedMutation,
 ): Promise<unknown> {
   const mutationRef = mutation.mutationFn as unknown as FunctionReference<
     'mutation',
@@ -153,13 +156,16 @@ export function initSyncManager(convex: ConvexReactClient): () => void {
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      navigator.serviceWorker?.removeEventListener('message', handleSyncMessage);
+      navigator.serviceWorker?.removeEventListener(
+        'message',
+        handleSyncMessage,
+      );
     }
   };
 }
 
 export async function forceSyncNow(
-  convex: ConvexReactClient
+  convex: ConvexReactClient,
 ): Promise<{ processed: number; failed: number }> {
   if (!navigator.onLine) {
     return { processed: 0, failed: 0 };

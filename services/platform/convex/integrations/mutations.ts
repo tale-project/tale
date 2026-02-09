@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
+
 import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
 import * as AuditLogHelpers from '../audit_logs/helpers';
+import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { deleteIntegration as deleteIntegrationHelper } from './delete_integration';
 
@@ -21,11 +22,15 @@ export const deleteIntegration = mutation({
       throw new Error('Integration not found');
     }
 
-    const member = await getOrganizationMember(ctx, integration.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
+    const member = await getOrganizationMember(
+      ctx,
+      integration.organizationId,
+      {
+        userId: String(authUser._id),
+        email: authUser.email,
+        name: authUser.name,
+      },
+    );
 
     await deleteIntegrationHelper(ctx, args.integrationId);
 

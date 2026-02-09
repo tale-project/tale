@@ -265,7 +265,8 @@ const conversationAutoReplyWorkflow = {
           properties: {
             needs_reply: {
               type: 'boolean',
-              description: 'Whether the conversation needs a reply from support',
+              description:
+                'Whether the conversation needs a reply from support',
             },
             reason: {
               type: 'string',

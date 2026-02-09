@@ -11,6 +11,7 @@
 
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
+
 import type { JsonSchemaDefinition } from '../workflow_engine/types/nodes';
 
 /**
@@ -18,7 +19,7 @@ import type { JsonSchemaDefinition } from '../workflow_engine/types/nodes';
  */
 export interface JsonOutputToolResult {
   /** The tool to add to the agent's tools */
-   
+
   tool: ReturnType<typeof createTool<any, string>>;
   /** Function to get the captured output (returns null if not called) */
   getCapturedOutput: () => unknown;
@@ -68,4 +69,3 @@ IMPORTANT: You MUST call this tool to complete the task. After gathering all nec
     wasCalled: () => called,
   };
 }
-

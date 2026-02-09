@@ -15,6 +15,7 @@ import type {
   Identifier,
   ParsedFilterExpression,
 } from './types';
+
 import { extractLiteralValue } from './extract_literal_value';
 import { getFullFieldPath } from './get_full_field_path';
 

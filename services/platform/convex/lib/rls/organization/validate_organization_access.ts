@@ -4,8 +4,9 @@
 
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
 import type { RLSContext } from '../types';
-import { UnauthorizedError } from '../errors';
+
 import { createRLSContext } from '../context/create_rls_context';
+import { UnauthorizedError } from '../errors';
 
 export type OrgRole = 'admin' | 'developer' | 'editor' | 'member' | 'disabled';
 

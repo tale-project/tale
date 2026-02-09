@@ -5,13 +5,17 @@
  * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
  */
 
-import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
+
+import {
+  jsonRecordValidator,
+  jsonValueValidator,
+} from '../../lib/shared/schemas/utils/json-value';
 import {
   vendorSourceSchema,
   vendorAddressSchema,
 } from '../../lib/shared/schemas/vendors';
-import { jsonRecordValidator, jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export {
   vendorSourceSchema,

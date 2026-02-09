@@ -1,25 +1,26 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useNavigate } from '@tanstack/react-router';
 import { Clock, Search, Plus } from 'lucide-react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 
-import { useT } from '@/lib/i18n/client';
-import { Button } from '@/app/components/ui/primitives/button';
+import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+} from '@/app/components/ui/overlays/sheet';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/app/components/ui/overlays/tooltip';
-import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-} from '@/app/components/ui/overlays/sheet';
-import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
+import { useT } from '@/lib/i18n/client';
+
 import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ChatSearchDialog } from './chat-search-dialog';
 
@@ -115,7 +116,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
         </SheetContent>
       </Sheet>
 
-      <div className="hidden md:flex items-center gap-1 px-5 h-13 border-b border-border">
+      <div className="border-border hidden h-13 items-center gap-1 border-b px-5 md:flex">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -130,7 +131,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="py-1.5">
               {isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')}
-              <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
+              <span className="text-muted bg-muted-foreground/60 ml-3 rounded-sm px-1 py-0.5 text-xs">
                 {historyShortcut}
               </span>
             </TooltipContent>
@@ -149,7 +150,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="py-1.5">
               {isSearchOpen ? tChat('hideSearch') : tChat('searchChat')}
-              <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
+              <span className="text-muted bg-muted-foreground/60 ml-3 rounded-sm px-1 py-0.5 text-xs">
                 {findShortcut}
               </span>
             </TooltipContent>
@@ -168,7 +169,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="py-1.5">
               {tChat('newChat')}
-              <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
+              <span className="text-muted bg-muted-foreground/60 ml-3 rounded-sm px-1 py-0.5 text-xs">
                 {newChatShortcut}
               </span>
             </TooltipContent>

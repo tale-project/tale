@@ -5,6 +5,7 @@
  */
 
 import { zodToConvex } from 'convex-helpers/server/zod4';
+
 import { roleSchema } from '../../lib/shared/schemas/users';
 
 export const roleValidator = zodToConvex(roleSchema);

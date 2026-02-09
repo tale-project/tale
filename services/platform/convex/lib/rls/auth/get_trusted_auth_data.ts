@@ -5,7 +5,11 @@
  * and included in the JWT claims. This helper extracts and parses that data.
  */
 
-import type { QueryCtx, MutationCtx, ActionCtx } from '../../../_generated/server';
+import type {
+  QueryCtx,
+  MutationCtx,
+  ActionCtx,
+} from '../../../_generated/server';
 
 export interface TrustedAuthData {
   trustedRole: string;
@@ -39,13 +43,17 @@ export async function getTrustedAuthData(
   }
 
   // Parse trustedTeamIds from JSON string with runtime validation
-  const trustedTeamIdsRaw = (identity as { trustedTeamIds?: string }).trustedTeamIds;
+  const trustedTeamIdsRaw = (identity as { trustedTeamIds?: string })
+    .trustedTeamIds;
   let trustedTeamIds: string[] = [];
 
   if (trustedTeamIdsRaw) {
     try {
       const parsed = JSON.parse(trustedTeamIdsRaw);
-      if (Array.isArray(parsed) && parsed.every((id) => typeof id === 'string')) {
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((id) => typeof id === 'string')
+      ) {
         trustedTeamIds = parsed;
       }
     } catch {

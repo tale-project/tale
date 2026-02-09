@@ -1,8 +1,9 @@
 'use client';
 
 import type { ReactNode, ComponentType } from 'react';
-import { cn } from '@/lib/utils/cn';
+
 import { VStack, Center } from '@/app/components/ui/layout/layout';
+import { cn } from '@/lib/utils/cn';
 
 /** Icon component type that accepts className prop */
 export type IconComponent = ComponentType<{ className?: string }>;
@@ -20,7 +21,7 @@ export interface DataTableEmptyStateProps {
   className?: string;
 }
 
-export interface DataTableFilteredEmptyStateProps {
+interface DataTableFilteredEmptyStateProps {
   /** Title text */
   title: string;
   /** Description text */
@@ -51,9 +52,9 @@ export function DataTableEmptyState({
         className,
       )}
     >
-      <VStack align="center" className="text-center max-w-[24rem]">
-        {Icon && <Icon className="size-6 text-secondary mb-4" />}
-        <div className="text-lg font-semibold leading-tight mb-1">{title}</div>
+      <VStack align="center" className="max-w-[24rem] text-center">
+        {Icon && <Icon className="text-secondary mb-4 size-6" />}
+        <div className="mb-1 text-lg leading-tight font-semibold">{title}</div>
         {description && (
           <p
             className={cn(
@@ -76,7 +77,7 @@ export function DataTableEmptyState({
  * Includes header content (search/filters) and simpler styling.
  * Note: No action button since it's already in the header.
  */
-export function DataTableFilteredEmptyState({
+function DataTableFilteredEmptyState({
   title,
   description,
   headerContent,
@@ -85,9 +86,9 @@ export function DataTableFilteredEmptyState({
 }: DataTableFilteredEmptyStateProps) {
   const content = (
     <VStack align="center" className={cn('text-center', className)}>
-      <h4 className="text-base font-semibold text-foreground mb-1">{title}</h4>
+      <h4 className="text-foreground mb-1 text-base font-semibold">{title}</h4>
       {description && (
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <p className="text-muted-foreground text-sm">{description}</p>
       )}
     </VStack>
   );

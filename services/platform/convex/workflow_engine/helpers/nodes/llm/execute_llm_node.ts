@@ -5,19 +5,17 @@
  * Uses AI SDK with OpenAI provider and Agent SDK for tool integration.
  */
 
-import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
-import type { ActionCtx } from '../../../../_generated/server';
 import type { Id } from '../../../../_generated/dataModel';
-
-// Validation
-import { validateAndNormalizeConfig } from './utils/validate_and_normalize_config';
-import { processPrompts } from './utils/process_prompts';
+import type { ActionCtx } from '../../../../_generated/server';
+import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
 
 // Agent execution
 import { executeAgentWithTools } from './execute_agent_with_tools';
-
 // Result creation
 import { createLLMResult } from './utils/create_llm_result';
+import { processPrompts } from './utils/process_prompts';
+// Validation
+import { validateAndNormalizeConfig } from './utils/validate_and_normalize_config';
 
 // =============================================================================
 // HELPER FUNCTION
@@ -41,11 +39,16 @@ export async function executeLLMNode(
   const prompts = processPrompts(normalizedConfig, variables);
 
   // 3. Execute using Convex agent with tools
-  const llmResult = await executeAgentWithTools(ctx, normalizedConfig, prompts, {
-    executionId,
-    organizationId,
-    threadId, // Pass shared threadId when reusing conversation context across steps
-  });
+  const llmResult = await executeAgentWithTools(
+    ctx,
+    normalizedConfig,
+    prompts,
+    {
+      executionId,
+      organizationId,
+      threadId, // Pass shared threadId when reusing conversation context across steps
+    },
+  );
 
   // 4. Create and return result
   return createLLMResult(llmResult, normalizedConfig, {

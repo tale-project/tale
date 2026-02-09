@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
@@ -28,7 +29,9 @@ export function CirculyDisconnectConfirmationDialog({
       await onConfirm();
 
       toast({
-        title: t('integrations.disconnectedSuccessfully', { provider: 'Circuly' }),
+        title: t('integrations.disconnectedSuccessfully', {
+          provider: 'Circuly',
+        }),
         variant: 'success',
       });
     } catch (error) {
@@ -59,20 +62,20 @@ export function CirculyDisconnectConfirmationDialog({
       <Stack gap={3}>
         {username && (
           <Stack gap={1}>
-            <p className="text-sm font-medium text-foreground">
+            <p className="text-foreground text-sm font-medium">
               {t('integrations.circuly.connectedAccount')}
             </p>
-            <p className="text-sm text-muted-foreground">{username}</p>
+            <p className="text-muted-foreground text-sm">{username}</p>
           </Stack>
         )}
 
         <Stack gap={2}>
-          <p className="text-sm text-foreground">
+          <p className="text-foreground text-sm">
             {t('integrations.circuly.disconnectQuestion')}
           </p>
 
-          <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
-            <p className="text-sm text-destructive">
+          <div className="bg-destructive/10 border-destructive/20 rounded-md border p-3">
+            <p className="text-destructive text-sm">
               {t('integrations.circuly.disconnectWarning')}
             </p>
           </div>

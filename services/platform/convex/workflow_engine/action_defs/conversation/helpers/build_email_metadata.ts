@@ -1,5 +1,5 @@
-import type { EmailType } from './types';
 import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
+import type { EmailType } from './types';
 
 /**
  * Build rich metadata object for email message

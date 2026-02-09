@@ -10,7 +10,7 @@ export const toneOfVoiceSchema = z.object({
 	metadata: jsonRecordSchema.optional(),
 });
 
-export type ToneOfVoice = z.infer<typeof toneOfVoiceSchema>;
+type ToneOfVoice = z.infer<typeof toneOfVoiceSchema>;
 
 export const exampleMessageSchema = z.object({
 	_id: z.string(),
@@ -23,20 +23,20 @@ export const exampleMessageSchema = z.object({
 	metadata: jsonRecordSchema.optional(),
 });
 
-export type ExampleMessage = z.infer<typeof exampleMessageSchema>;
+type ExampleMessage = z.infer<typeof exampleMessageSchema>;
 
 export const toneOfVoiceWithExamplesSchema = z.object({
 	toneOfVoice: toneOfVoiceSchema,
 	examples: z.array(exampleMessageSchema),
 });
 
-export type ToneOfVoiceWithExamples = z.infer<typeof toneOfVoiceWithExamplesSchema>;
+type ToneOfVoiceWithExamples = z.infer<typeof toneOfVoiceWithExamplesSchema>;
 
 export const exampleMessageContentSchema = z.object({
 	content: z.string(),
 });
 
-export type ExampleMessageContent = z.infer<typeof exampleMessageContentSchema>;
+type ExampleMessageContent = z.infer<typeof exampleMessageContentSchema>;
 
 export const generateToneResponseSchema = z.object({
 	success: z.boolean(),
@@ -44,4 +44,4 @@ export const generateToneResponseSchema = z.object({
 	error: z.string().optional(),
 });
 
-export type GenerateToneResponse = z.infer<typeof generateToneResponseSchema>;
+type GenerateToneResponse = z.infer<typeof generateToneResponseSchema>;

@@ -5,12 +5,14 @@
  * Mirrors final status to wfExecutions table.
  */
 
-import type { MutationCtx } from '../../../_generated/server';
-import { internal } from '../../../_generated/api';
-import type { Id, Doc } from '../../../_generated/dataModel';
-import type { ComponentRunResult } from '../../types';
 import { Infer } from 'convex/values';
+
+import type { Id, Doc } from '../../../_generated/dataModel';
+import type { MutationCtx } from '../../../_generated/server';
+import type { ComponentRunResult } from '../../types';
+
 import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { internal } from '../../../_generated/api';
 import { emitEvent } from '../../../workflows/triggers/emit_event';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
@@ -41,10 +43,13 @@ export async function handleWorkflowComplete(
   const result = args.result as ComponentRunResult;
   const kind = result?.kind;
   if (kind === 'success') {
-    await ctx.runMutation(internal.wf_executions.internal_mutations.completeExecution, {
-      executionId: exec._id as Id<'wfExecutions'>,
-      output: result.returnValue as unknown as ConvexJsonValue,
-    });
+    await ctx.runMutation(
+      internal.wf_executions.internal_mutations.completeExecution,
+      {
+        executionId: exec._id as Id<'wfExecutions'>,
+        output: result.returnValue as unknown as ConvexJsonValue,
+      },
+    );
     await emitEvent(ctx, {
       organizationId: exec.organizationId,
       eventType: 'workflow.completed',
@@ -55,10 +60,13 @@ export async function handleWorkflowComplete(
       },
     });
   } else if (kind === 'failed') {
-    await ctx.runMutation(internal.wf_executions.internal_mutations.failExecution, {
-      executionId: exec._id as Id<'wfExecutions'>,
-      error: result.error || 'failed',
-    });
+    await ctx.runMutation(
+      internal.wf_executions.internal_mutations.failExecution,
+      {
+        executionId: exec._id as Id<'wfExecutions'>,
+        error: result.error || 'failed',
+      },
+    );
     await emitEvent(ctx, {
       organizationId: exec.organizationId,
       eventType: 'workflow.failed',
@@ -70,11 +78,14 @@ export async function handleWorkflowComplete(
       },
     });
   } else if (kind === 'canceled') {
-    await ctx.runMutation(internal.wf_executions.internal_mutations.updateExecutionStatus, {
-      executionId: exec._id as Id<'wfExecutions'>,
-      status: 'failed',
-      error: 'canceled',
-    });
+    await ctx.runMutation(
+      internal.wf_executions.internal_mutations.updateExecutionStatus,
+      {
+        executionId: exec._id as Id<'wfExecutions'>,
+        status: 'failed',
+        error: 'canceled',
+      },
+    );
     await emitEvent(ctx, {
       organizationId: exec.organizationId,
       eventType: 'workflow.failed',

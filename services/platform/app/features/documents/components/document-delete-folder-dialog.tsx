@@ -26,24 +26,34 @@ export function DocumentDeleteFolderDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={tDocuments('deleteSyncFolder.title')}
-      description={<>{tDocuments('deleteSyncFolder.confirmation')} {folderName}?</>}
+      description={
+        <>
+          {tDocuments('deleteSyncFolder.confirmation')} {folderName}?
+        </>
+      }
       deleteText={tDocuments('deleteSyncFolder.deleteButton')}
       isDeleting={isLoading}
       onDelete={onConfirmDelete}
     >
       <Stack gap={4}>
         <Stack gap={2}>
-          <p className="text-sm text-muted-foreground">{tDocuments('deleteSyncFolder.thisWillDelete')}</p>
-          <ul className="text-sm text-muted-foreground ml-4 space-y-1 list-disc">
-            <li>{tDocuments('deleteSyncFolder.willDelete.filesAndSubfolders')}</li>
+          <p className="text-muted-foreground text-sm">
+            {tDocuments('deleteSyncFolder.thisWillDelete')}
+          </p>
+          <ul className="text-muted-foreground ml-4 list-disc space-y-1 text-sm">
+            <li>
+              {tDocuments('deleteSyncFolder.willDelete.filesAndSubfolders')}
+            </li>
             <li>{tDocuments('deleteSyncFolder.willDelete.autoSyncConfig')}</li>
             <li>{tDocuments('deleteSyncFolder.willDelete.syncHistory')}</li>
           </ul>
         </Stack>
         <Stack gap={2}>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {tDocuments('deleteSyncFolder.willNotDelete.prefix')}{' '}
-            <strong className="text-foreground">{tDocuments('deleteSyncFolder.willNotDelete.not')}</strong>{' '}
+            <strong className="text-foreground">
+              {tDocuments('deleteSyncFolder.willNotDelete.not')}
+            </strong>{' '}
             {tDocuments('deleteSyncFolder.willNotDelete.suffix')}
           </p>
         </Stack>

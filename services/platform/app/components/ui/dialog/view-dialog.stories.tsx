@@ -1,11 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
+import { Copy, ExternalLink, Pencil } from 'lucide-react';
 import { useState } from 'react';
-import { ViewDialog } from './view-dialog';
-import { Button } from '../primitives/button';
+
 import { Badge } from '../feedback/badge';
 import { Field, FieldGroup } from '../forms/field';
+import { Button } from '../primitives/button';
 import { IconButton } from '../primitives/icon-button';
-import { Copy, ExternalLink, Pencil } from 'lucide-react';
+import { ViewDialog } from './view-dialog';
 
 const meta: Meta<typeof ViewDialog> = {
   title: 'Dialog/ViewDialog',
@@ -118,7 +120,8 @@ export const WithHeaderActions: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Header actions for quick operations without leaving the dialog.',
+        story:
+          'Header actions for quick operations without leaving the dialog.',
       },
     },
   },
@@ -136,7 +139,7 @@ export const WithFooter: Story = {
           onOpenChange={setOpen}
           title="Order #12345"
           customFooter={
-            <div className="flex justify-between w-full">
+            <div className="flex w-full justify-between">
               <Button variant="outline" onClick={() => setOpen(false)}>
                 Close
               </Button>
@@ -188,29 +191,31 @@ export const LargeSize: Story = {
               <Field label="Report Period">January 2024</Field>
               <Field label="Generated">January 31, 2024</Field>
             </FieldGroup>
-            <div className="border rounded-lg p-4">
-              <h4 className="font-medium mb-2">Summary</h4>
-              <p className="text-sm text-muted-foreground">
+            <div className="rounded-lg border p-4">
+              <h4 className="mb-2 font-medium">Summary</h4>
+              <p className="text-muted-foreground text-sm">
                 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-                eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-                ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-                aliquip ex ea commodo consequat.
+                eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
+                enim ad minim veniam, quis nostrud exercitation ullamco laboris
+                nisi ut aliquip ex ea commodo consequat.
               </p>
             </div>
-            <div className="border rounded-lg p-4">
-              <h4 className="font-medium mb-2">Key Metrics</h4>
+            <div className="rounded-lg border p-4">
+              <h4 className="mb-2 font-medium">Key Metrics</h4>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold">1,234</div>
-                  <div className="text-sm text-muted-foreground">Total Users</div>
+                  <div className="text-muted-foreground text-sm">
+                    Total Users
+                  </div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold">$45.6K</div>
-                  <div className="text-sm text-muted-foreground">Revenue</div>
+                  <div className="text-muted-foreground text-sm">Revenue</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold">98.5%</div>
-                  <div className="text-sm text-muted-foreground">Uptime</div>
+                  <div className="text-muted-foreground text-sm">Uptime</div>
                 </div>
               </div>
             </div>
@@ -246,7 +251,7 @@ export const HideCloseButton: Story = {
             </Button>
           }
         >
-          <div className="text-sm text-muted-foreground space-y-4">
+          <div className="text-muted-foreground space-y-4 text-sm">
             <p>
               By using this service, you agree to our terms and conditions.
               Please read the following carefully.

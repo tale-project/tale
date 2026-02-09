@@ -1,16 +1,18 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useNavigate } from '@tanstack/react-router';
 import { useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { useNavigate } from '@tanstack/react-router';
-import { useForm } from 'react-hook-form';
-import z from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from '@/app/hooks/use-toast';
-import { useCreateAutomation } from '../hooks/use-create-automation';
 import { useT } from '@/lib/i18n/client';
+
+import { useCreateAutomation } from '../hooks/use-create-automation';
 
 type FormData = {
   name: string;
@@ -34,7 +36,9 @@ export function CreateAutomationDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tCommon('validation.required', { field: t('form.name') })),
+        name: z
+          .string()
+          .min(1, tCommon('validation.required', { field: t('form.name') })),
         description: z.string().optional(),
       }),
     [t, tCommon],

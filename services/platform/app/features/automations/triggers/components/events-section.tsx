@@ -1,28 +1,32 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import { useQuery } from 'convex/react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { api } from '@/convex/_generated/api';
+
+import { useQuery } from 'convex/react';
+import { Plus, Zap, Trash2, Pencil } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+
 import type { Id } from '@/convex/_generated/dataModel';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Switch } from '@/app/components/ui/forms/switch';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Plus, Zap, Trash2, Pencil } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { Switch } from '@/app/components/ui/forms/switch';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
-import {
-  useToggleEventSubscription,
-  useDeleteEventSubscription,
-} from '../hooks/use-trigger-mutations';
-import { EventCreateDialog } from './event-create-dialog';
-import { CollapsibleSection } from './collapsible-section';
+import { api } from '@/convex/_generated/api';
 import {
   EVENT_TYPES,
   getFilterFieldsForEventType,
 } from '@/convex/workflows/triggers/event_types';
+import { useT } from '@/lib/i18n/client';
+
+import {
+  useToggleEventSubscription,
+  useDeleteEventSubscription,
+} from '../hooks/use-trigger-mutations';
+import { CollapsibleSection } from './collapsible-section';
+import { EventCreateDialog } from './event-create-dialog';
 
 interface EventsSectionProps {
   workflowRootId: Id<'wfDefinitions'>;
@@ -30,7 +34,9 @@ interface EventsSectionProps {
 }
 
 type EventSubscription = NonNullable<
-  ReturnType<typeof useQuery<typeof api.workflows.triggers.queries.getEventSubscriptions>>
+  ReturnType<
+    typeof useQuery<typeof api.workflows.triggers.queries.getEventSubscriptions>
+  >
 >[number];
 
 export function EventsSection({
@@ -46,9 +52,7 @@ export function EventsSection({
 
   const hasWorkflowFilter = useMemo(
     () =>
-      subscriptions?.some(
-        (s) => s.eventFilter?.rootWfDefinitionId,
-      ) ?? false,
+      subscriptions?.some((s) => s.eventFilter?.rootWfDefinitionId) ?? false,
     [subscriptions],
   );
 
@@ -72,7 +76,9 @@ export function EventsSection({
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<EventSubscription | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<EventSubscription | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EventSubscription | null>(
+    null,
+  );
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleToggle = useCallback(
@@ -159,16 +165,14 @@ export function EventsSection({
         header: t('triggers.events.columns.eventType'),
         cell: ({ row }) => {
           const { eventType, eventFilter } = row.original;
-          const filterEntries = eventFilter
-            ? Object.entries(eventFilter)
-            : [];
+          const filterEntries = eventFilter ? Object.entries(eventFilter) : [];
           return (
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <code className="text-sm font-mono bg-muted px-2 py-0.5 rounded">
+                <code className="bg-muted rounded px-2 py-0.5 font-mono text-sm">
                   {eventType}
                 </code>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-muted-foreground text-xs">
                   {getEventLabel(eventType)}
                 </span>
               </div>
@@ -204,7 +208,7 @@ export function EventsSection({
         id: 'lastTriggered',
         header: t('triggers.events.columns.lastTriggered'),
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-muted-foreground text-sm">
             {formatDate(row.original.lastTriggeredAt)}
           </span>
         ),
@@ -214,7 +218,7 @@ export function EventsSection({
         id: 'createdBy',
         header: t('triggers.events.columns.createdBy'),
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-muted-foreground text-sm">
             {row.original.createdBy}
           </span>
         ),
@@ -224,7 +228,7 @@ export function EventsSection({
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex items-center gap-1 justify-end">
+          <div className="flex items-center justify-end gap-1">
             <Button
               variant="ghost"
               size="sm"
@@ -266,8 +270,12 @@ export function EventsSection({
           description: t('triggers.events.emptyDescription'),
         }}
         actionMenu={
-          <Button variant="outline" size="sm" onClick={() => setIsCreateOpen(true)}>
-            <Plus className="size-4 mr-2" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsCreateOpen(true)}
+          >
+            <Plus className="mr-2 size-4" />
             {t('triggers.events.createButton')}
           </Button>
         }
@@ -283,14 +291,16 @@ export function EventsSection({
         }}
         workflowRootId={workflowRootId}
         organizationId={organizationId}
-        existingEventTypes={
-          subscriptions?.map((s) => s.eventType) ?? []
+        existingEventTypes={subscriptions?.map((s) => s.eventType) ?? []}
+        editing={
+          editTarget
+            ? {
+                _id: editTarget._id,
+                eventType: editTarget.eventType,
+                eventFilter: editTarget.eventFilter,
+              }
+            : null
         }
-        editing={editTarget ? {
-          _id: editTarget._id,
-          eventType: editTarget.eventType,
-          eventFilter: editTarget.eventFilter,
-        } : null}
       />
 
       <DeleteDialog

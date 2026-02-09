@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { Button } from '@/app/components/ui/primitives/button';
+import { useEffect } from 'react';
+
 import { Stack, Center, HStack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
+
 import { useErrorLogger } from '../hooks/use-error-logger';
 
 interface ErrorDisplayCompactProps {
@@ -55,16 +57,16 @@ export function ErrorDisplayCompact({
   }, [error, organizationId, logError]);
 
   return (
-    <Center className="flex-col px-4 py-16 min-h-200">
-      <Stack gap={4} className="w-full text-center max-w-md">
+    <Center className="min-h-200 flex-col px-4 py-16">
+      <Stack gap={4} className="w-full max-w-md text-center">
         {/* Error icon */}
         <Center>
           <div
-            className="bg-red-100 rounded-full grid place-items-center size-12"
+            className="grid size-12 place-items-center rounded-full bg-red-100"
             role="img"
             aria-label={t('errors.somethingWentWrong')}
           >
-            <AlertTriangle className="text-red-600 size-6" />
+            <AlertTriangle className="size-6 text-red-600" />
           </div>
         </Center>
 
@@ -85,14 +87,14 @@ export function ErrorDisplayCompact({
             className="flex-1"
             aria-label={t('errors.tryAgain')}
           >
-            <RefreshCw className="size-4 mr-2" />
+            <RefreshCw className="mr-2 size-4" />
             {t('errors.tryAgain')}
           </Button>
         </HStack>
 
         {/* Support message */}
         <p
-          className="text-sm text-muted-foreground"
+          className="text-muted-foreground text-sm"
           role="status"
           aria-live="polite"
         >

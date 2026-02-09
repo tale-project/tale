@@ -5,6 +5,7 @@ This feature extends the existing integration system to support direct SQL datab
 ## Overview
 
 The SQL integration feature allows you to:
+
 - Connect to SQL databases (MS SQL Server, PostgreSQL, MySQL)
 - Define reusable SQL queries as operations
 - Use SQL integrations in workflows and agent tools
@@ -41,24 +42,29 @@ Integration Action
 ## Implementation Files
 
 ### Core Types
+
 - `convex/model/integrations/types.ts` - Added SQL validators and TypeScript types
 
 ### SQL Executor
+
 - `convex/node_only/sql/types.ts` - SQL execution type definitions
 - `convex/node_only/sql/execute_query.ts` - Generic SQL query executor (Node.js action)
 
 ### Integration Action Updates
+
 - `convex/workflow/actions/integration/integration_action.ts` - Added SQL routing logic
 - `convex/workflow/actions/integration/helpers/execute_sql_integration.ts` - SQL execution handler
 - `convex/workflow/actions/integration/helpers/sql_introspection.ts` - Schema introspection queries
 
 ### Database Schema
+
 - `convex/schema.ts` - Extended integrations table with SQL fields:
   - `type` - Integration type discriminator
   - `sqlConnectionConfig` - SQL connection settings
   - `sqlOperations` - SQL query definitions
 
 ### Documentation
+
 - `docs/sql-integrations/README.md` - This file
 - `docs/sql-integrations/protel-example.md` - Complete Protel PMS example
 
@@ -108,32 +114,32 @@ Integration Action
 
 ```javascript
 // In your database
-await ctx.db.insert("integrations", {
-  organizationId: "org_123",
-  name: "protel",
-  title: "Protel PMS",
-  type: "sql",
-  authMethod: "basic_auth",
+await ctx.db.insert('integrations', {
+  organizationId: 'org_123',
+  name: 'protel',
+  title: 'Protel PMS',
+  type: 'sql',
+  authMethod: 'basic_auth',
   basicAuth: {
-    username: "readonly_user",
-    passwordEncrypted: await encryptPassword("password"),
+    username: 'readonly_user',
+    passwordEncrypted: await encryptPassword('password'),
   },
   sqlConnectionConfig: {
-    engine: "mssql",
-    server: "protel.hotel.local",
-    database: "protel_db",
+    engine: 'mssql',
+    server: 'protel.hotel.local',
+    database: 'protel_db',
     readOnly: true,
   },
   sqlOperations: [
     {
-      name: "get_reservations",
-      query: "SELECT * FROM buch WHERE status = @status",
+      name: 'get_reservations',
+      query: 'SELECT * FROM buch WHERE status = @status',
       parametersSchema: {
-        properties: { status: { type: "number" } },
+        properties: { status: { type: 'number' } },
       },
     },
   ],
-  status: "active",
+  status: 'active',
   isActive: true,
 });
 ```
@@ -183,46 +189,55 @@ await ctx.db.insert("integrations", {
 ## Security Features
 
 ### 1. Read-Only Enforcement
+
 ```typescript
 // Blocks: INSERT, UPDATE, DELETE, DROP, TRUNCATE, ALTER, CREATE, EXEC
 validateQuery(query, readOnly: true);
 ```
 
 ### 2. Encrypted Credentials
+
 ```typescript
 // Passwords stored encrypted, decrypted just-in-time
 passwordEncrypted: await ctx.runAction(internal.oauth2.encryptStringInternal);
 ```
 
 ### 3. Connection Limits
+
 - Maximum 5 connections per pool
 - Pools keyed by (server, database, user) for isolation
 
 ### 4. Query Timeouts
+
 - Default 30-second timeout per query
 - Configurable per integration
 
 ### 5. Result Size Limits
+
 - Maximum 10,000 rows per query
 - Prevents memory exhaustion
 
 ### 6. Parameterized Queries
+
 - All user inputs passed as parameters
 - SQL injection prevention
 
 ## Supported SQL Engines
 
 ### MS SQL Server (mssql)
+
 - Placeholder syntax: `@paramName`
 - Default port: 1433
 - Package: `mssql`
 
 ### PostgreSQL (pg)
+
 - Placeholder syntax: `$1, $2, $3` (positional)
 - Default port: 5432
 - Package: `pg`
 
 ### MySQL (mysql2)
+
 - Placeholder syntax: `?` (positional)
 - Default port: 3306
 - Package: `mysql2`
@@ -232,29 +247,39 @@ passwordEncrypted: await ctx.runAction(internal.oauth2.encryptStringInternal);
 Every SQL integration automatically includes these operations:
 
 ### introspect_tables
+
 Lists all tables in the database.
 
 **Returns:**
+
 ```javascript
 [
-  { schemaName: "dbo", tableName: "customers", tableType: "BASE TABLE" },
-  { schemaName: "proteluser", tableName: "buch", tableType: "BASE TABLE" },
-]
+  { schemaName: 'dbo', tableName: 'customers', tableType: 'BASE TABLE' },
+  { schemaName: 'proteluser', tableName: 'buch', tableType: 'BASE TABLE' },
+];
 ```
 
 ### introspect_columns
+
 Lists columns in a specific table.
 
 **Parameters:**
+
 - `schemaName` (string, required)
 - `tableName` (string, required)
 
 **Returns:**
+
 ```javascript
 [
-  { columnName: "id", dataType: "int", isNullable: "NO" },
-  { columnName: "name", dataType: "varchar", isNullable: "YES", maxLength: 255 },
-]
+  { columnName: 'id', dataType: 'int', isNullable: 'NO' },
+  {
+    columnName: 'name',
+    dataType: 'varchar',
+    isNullable: 'YES',
+    maxLength: 255,
+  },
+];
 ```
 
 ## Migration Guide
@@ -262,6 +287,7 @@ Lists columns in a specific table.
 ### Backward Compatibility
 
 Existing REST API integrations continue to work unchanged:
+
 - `type` field defaults to `"rest_api"`
 - No changes required to existing integrations
 - SQL-specific fields are optional
@@ -302,6 +328,7 @@ See `docs/sql-integrations/protel-example.md` for a complete working example.
 ## Dependencies
 
 New npm packages installed:
+
 - `mssql` - MS SQL Server client
 - `pg` - PostgreSQL client
 - `mysql2` - MySQL client (promise-based)
@@ -309,16 +336,19 @@ New npm packages installed:
 ## Performance Considerations
 
 ### Connection Pooling
+
 - Pools reused across invocations
 - Lazy initialization
 - Automatic cleanup
 
 ### Query Optimization
+
 - Row limits prevent large result sets
 - Timeout enforcement
 - Connection limits per integration
 
 ### Memory Management
+
 - Result sets limited to 10,000 rows
 - Streaming not implemented (future enhancement)
 
@@ -327,20 +357,24 @@ New npm packages installed:
 ### Common Issues
 
 **"Query contains forbidden keyword"**
+
 - Integration has `readOnly: true`
 - Remove write operations or set `readOnly: false`
 
 **"Connection timeout"**
+
 - Check server accessibility
 - Verify firewall rules
 - Increase `connectionTimeout`
 
 **"Query timeout"**
+
 - Optimize query
 - Increase `queryTimeoutMs`
 - Add indexes to database
 
 **"Operation not found"**
+
 - Verify operation name matches `sqlOperations`
 - Check for typos
 - Remember introspection ops are auto-available
@@ -348,6 +382,7 @@ New npm packages installed:
 ## Support
 
 For questions or issues:
+
 1. Check the Protel example in `protel-example.md`
 2. Review integration logs in Convex dashboard
 3. Test connection with introspection operations

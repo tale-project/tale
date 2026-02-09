@@ -3,7 +3,9 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
+
 import type { SubAgentType } from './types';
+
 import { errorResponse, type ToolResponse } from './tool_response';
 
 interface ValidatedContext {
@@ -30,14 +32,18 @@ export function validateToolContext(
   if (!threadId) {
     return {
       valid: false,
-      error: errorResponse(`threadId is required for ${toolName} to create sub-threads`),
+      error: errorResponse(
+        `threadId is required for ${toolName} to create sub-threads`,
+      ),
     };
   }
 
   if (options?.requireUserId && !userId) {
     return {
       valid: false,
-      error: errorResponse(`Both threadId and userId are required for ${toolName}`),
+      error: errorResponse(
+        `Both threadId and userId are required for ${toolName}`,
+      ),
     };
   }
 

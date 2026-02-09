@@ -5,10 +5,13 @@
  *  Uses ctx.storage.get() for direct Convex storage access (like image_tool).
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
+
 import { createDebugLog } from '../../lib/debug_log';
 import { analyzeTextContent } from './helpers/analyze_text';
 
@@ -51,7 +54,9 @@ const txtArgs = z.discriminatedUnion('operation', [
     filename: z.string().describe("Original filename (e.g., 'data.txt')"),
     user_input: z
       .string()
-      .describe('The user question or instruction about what to analyze in the text file'),
+      .describe(
+        'The user question or instruction about what to analyze in the text file',
+      ),
   }),
   z.object({
     operation: z.literal('generate').describe('Generate a new text file'),
@@ -101,7 +106,9 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
         });
 
         try {
-          const blob = new Blob([content], { type: 'text/plain; charset=utf-8' });
+          const blob = new Blob([content], {
+            type: 'text/plain; charset=utf-8',
+          });
           const fileId = await ctx.storage.store(blob);
           const url = await ctx.storage.getUrl(fileId);
 
@@ -128,7 +135,8 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
             line_count: lineCount,
           };
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
           console.error('[tool:txt generate] error', {
             filename,
             error: errorMessage,
@@ -167,7 +175,10 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
       debugLog('tool:txt parse start', {
         fileId,
         filename,
-        user_input: user_input.length > 100 ? user_input.substring(0, 100) + '...' : user_input,
+        user_input:
+          user_input.length > 100
+            ? user_input.substring(0, 100) + '...'
+            : user_input,
       });
 
       try {
@@ -197,7 +208,8 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
           error: result.error,
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         console.error('[tool:txt parse] error', {
           fileId,
           filename,

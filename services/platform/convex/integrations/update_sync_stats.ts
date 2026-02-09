@@ -2,8 +2,8 @@
  * Update sync statistics for an integration
  */
 
-import { MutationCtx } from '../_generated/server';
 import { Id } from '../_generated/dataModel';
+import { MutationCtx } from '../_generated/server';
 
 export interface UpdateSyncStatsArgs {
   integrationId: Id<'integrations'>;
@@ -31,4 +31,3 @@ export async function updateSyncStats(
     },
   });
 }
-

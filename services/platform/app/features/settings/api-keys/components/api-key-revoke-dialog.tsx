@@ -3,8 +3,10 @@
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { useRevokeApiKey } from '../hooks/use-api-keys';
+
 import type { ApiKey } from '../types';
+
+import { useRevokeApiKey } from '../hooks/use-api-keys';
 
 interface ApiKeyRevokeDialogProps {
   open: boolean;
@@ -22,7 +24,8 @@ export function ApiKeyRevokeDialog({
   onSuccess,
 }: ApiKeyRevokeDialogProps) {
   const { t: tSettings } = useT('settings');
-  const { mutate: revokeKey, isPending: isRevoking } = useRevokeApiKey(organizationId);
+  const { mutate: revokeKey, isPending: isRevoking } =
+    useRevokeApiKey(organizationId);
 
   const handleConfirm = () => {
     if (isRevoking) return;

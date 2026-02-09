@@ -6,9 +6,10 @@
  * action that handles the token exchange and storage.
  */
 
-import { httpAction } from '../_generated/server';
-import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+
+import { internal } from '../_generated/api';
+import { httpAction } from '../_generated/server';
 
 type OAuthProvider = 'gmail' | 'microsoft';
 
@@ -126,9 +127,12 @@ export const oauth2CallbackHandler = httpAction(async (ctx, req) => {
       },
     );
 
-    console.log('[OAuth2 Callback] Successfully processed callback for provider:', {
-      emailProviderId,
-    });
+    console.log(
+      '[OAuth2 Callback] Successfully processed callback for provider:',
+      {
+        emailProviderId,
+      },
+    );
 
     // Redirect to success page
     const redirectUrl = buildRedirectUrl(organizationId, {

@@ -2,14 +2,13 @@
  * Business logic for testing an integration connection
  */
 
-import { ActionCtx } from '../_generated/server';
-import { Id } from '../_generated/dataModel';
 import { api, internal } from '../_generated/api';
-import { TestConnectionResult } from './types';
-import { testShopifyConnection } from './test_shopify_connection';
-import { testCirculyConnection } from './test_circuly_connection';
-
+import { Id } from '../_generated/dataModel';
+import { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
+import { testCirculyConnection } from './test_circuly_connection';
+import { testShopifyConnection } from './test_shopify_connection';
+import { TestConnectionResult } from './types';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -39,9 +38,12 @@ export async function testConnectionLogic(
     debugLog(`Test Connection Testing ${integration.name} integration...`);
 
     if (integration.apiKeyAuth) {
-      const key = await ctx.runAction(internal.lib.crypto.internal_actions.decryptString, {
-        jwe: integration.apiKeyAuth.keyEncrypted,
-      });
+      const key = await ctx.runAction(
+        internal.lib.crypto.internal_actions.decryptString,
+        {
+          jwe: integration.apiKeyAuth.keyEncrypted,
+        },
+      );
 
       // Test Shopify connection
       if (integration.name === 'shopify') {
@@ -74,12 +76,15 @@ export async function testConnectionLogic(
       throw new Error(`Testing not implemented for ${integration.name}`);
     }
 
-    await ctx.runMutation(internal.integrations.internal_mutations.updateIntegration, {
-      integrationId: args.integrationId,
-      status: 'active',
-      isActive: true,
-      errorMessage: undefined,
-    });
+    await ctx.runMutation(
+      internal.integrations.internal_mutations.updateIntegration,
+      {
+        integrationId: args.integrationId,
+        status: 'active',
+        isActive: true,
+        errorMessage: undefined,
+      },
+    );
 
     debugLog(
       `Test Connection Successfully tested ${integration.name} integration`,
@@ -95,11 +100,14 @@ export async function testConnectionLogic(
       error,
     );
 
-    await ctx.runMutation(internal.integrations.internal_mutations.updateIntegration, {
-      integrationId: args.integrationId,
-      status: 'error',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    });
+    await ctx.runMutation(
+      internal.integrations.internal_mutations.updateIntegration,
+      {
+        integrationId: args.integrationId,
+        status: 'error',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      },
+    );
 
     return {
       success: false,

@@ -3,6 +3,7 @@
  */
 
 import type { QueryCtx } from '../_generated/server';
+
 import * as MicrosoftAccountsModel from '../accounts/helpers';
 
 export interface GetUserTokenResult {

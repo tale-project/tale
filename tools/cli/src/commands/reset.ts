@@ -1,20 +1,21 @@
-import { Command } from "commander";
-import { ensureConfig } from "../lib/config/ensure-config";
-import { ensureEnv } from "../lib/config/ensure-env";
-import { loadEnv } from "../utils/load-env";
-import * as logger from "../utils/logger";
-import { reset } from "../lib/actions/reset";
+import { Command } from 'commander';
+
+import { reset } from '../lib/actions/reset';
+import { ensureConfig } from '../lib/config/ensure-config';
+import { ensureEnv } from '../lib/config/ensure-env';
+import { loadEnv } from '../utils/load-env';
+import * as logger from '../utils/logger';
 
 export function createResetCommand(): Command {
-  return new Command("reset")
-    .description("Remove ALL blue-green containers")
-    .option("-f, --force", "Skip confirmation prompt", false)
+  return new Command('reset')
+    .description('Remove ALL blue-green containers')
+    .option('-f, --force', 'Skip confirmation prompt', false)
     .option(
-      "-a, --all",
-      "Also remove infrastructure (db, graph-db, proxy)",
-      false
+      '-a, --all',
+      'Also remove infrastructure (db, graph-db, proxy)',
+      false,
     )
-    .option("--dry-run", "Preview reset without making changes", false)
+    .option('--dry-run', 'Preview reset without making changes', false)
     .action(async (options) => {
       try {
         const deployDir = await ensureConfig();

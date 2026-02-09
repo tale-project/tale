@@ -2,8 +2,8 @@
  * Business logic for decrypting and refreshing OAuth2 tokens
  */
 
-import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
 
 import { createDebugLog } from '../lib/debug_log';
 
@@ -83,6 +83,7 @@ export async function decryptAndRefreshOAuth2Token(
       console.error('Failed to decrypt refresh token:', error);
       throw new Error(
         'Failed to decrypt refresh token. This usually means the ENCRYPTION_SECRET environment variable is missing or has changed. Please check your Convex environment variables or re-authorize the provider.',
+        { cause: error },
       );
     }
 
@@ -92,6 +93,7 @@ export async function decryptAndRefreshOAuth2Token(
       console.error('Failed to decrypt client secret:', error);
       throw new Error(
         'Failed to decrypt client secret. This usually means the ENCRYPTION_SECRET environment variable is missing or has changed. Please check your Convex environment variables or re-authorize the provider.',
+        { cause: error },
       );
     }
 
@@ -130,6 +132,7 @@ export async function decryptAndRefreshOAuth2Token(
       );
       throw new Error(
         'Failed to refresh OAuth2 token. Please re-authorize the provider by clicking "Authorize" or "Connect".',
+        { cause: error },
       );
     }
   } else {
@@ -144,6 +147,7 @@ export async function decryptAndRefreshOAuth2Token(
       console.error('Failed to decrypt access token:', error);
       throw new Error(
         'Failed to decrypt access token. This usually means the ENCRYPTION_SECRET environment variable is missing or has changed. Please check your Convex environment variables in the dashboard, or re-authorize the provider.',
+        { cause: error },
       );
     }
   }
@@ -166,6 +170,7 @@ export async function decryptPasswordAuth(
     console.error('Failed to decrypt password:', error);
     throw new Error(
       'Failed to decrypt password. This usually means the ENCRYPTION_SECRET environment variable is missing or has changed. Please check your Convex environment variables in the dashboard.',
+      { cause: error },
     );
   }
 }

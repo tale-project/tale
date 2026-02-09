@@ -1,4 +1,5 @@
 import { zodToConvex } from 'convex-helpers/server/zod4';
+
 import {
   chatTypeSchema,
   messageRoleSchema,
@@ -28,4 +29,6 @@ export const threadMessageValidator = zodToConvex(threadMessageSchema);
 export const threadListItemValidator = zodToConvex(threadListItemSchema);
 export const latestToolMessageValidator = zodToConvex(latestToolMessageSchema);
 export const subAgentTypeValidator = zodToConvex(subAgentTypeSchema);
-export const getOrCreateSubThreadResultValidator = zodToConvex(getOrCreateSubThreadResultSchema);
+export const getOrCreateSubThreadResultValidator = zodToConvex(
+  getOrCreateSubThreadResultSchema,
+);

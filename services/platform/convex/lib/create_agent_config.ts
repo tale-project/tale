@@ -1,9 +1,11 @@
-import { openai } from './openai_provider';
 import { Agent } from '@convex-dev/agent';
-import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
+
 import type { ToolName } from '../agent_tools/tool_registry';
+
+import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
 import { createDebugLog } from './debug_log';
 import { getEnvOrThrow } from './get_or_throw';
+import { openai } from './openai_provider';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');
 
@@ -41,8 +43,8 @@ export function createAgentConfig(opts: {
 
   // Merge Convex tools + extra tools into a single tools object
   const mergedTools: Record<string, unknown> = {
-    ...(convexToolsObject || {}),
-    ...(opts.extraTools || {}),
+    ...convexToolsObject,
+    ...opts.extraTools,
   };
 
   const hasAnyTools = Object.keys(mergedTools).length > 0;

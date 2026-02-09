@@ -2,8 +2,9 @@
  * Update a conversation message (business logic)
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
 import * as AuditLogHelpers from '../audit_logs/helpers';
 
 export async function updateConversationMessage(
@@ -24,7 +25,8 @@ export async function updateConversationMessage(
   }
 
   const previousState: Record<string, unknown> = {};
-  if (args.deliveryState !== undefined) previousState.deliveryState = message.deliveryState;
+  if (args.deliveryState !== undefined)
+    previousState.deliveryState = message.deliveryState;
 
   // Build update object with only provided fields
   const updateData: Record<string, unknown> = {};
@@ -33,8 +35,7 @@ export async function updateConversationMessage(
   if (args.deliveryState !== undefined)
     updateData.deliveryState = args.deliveryState;
   if (args.sentAt !== undefined) updateData.sentAt = args.sentAt;
-  if (args.deliveredAt !== undefined)
-    updateData.deliveredAt = args.deliveredAt;
+  if (args.deliveredAt !== undefined) updateData.deliveredAt = args.deliveredAt;
   if (args.retryCount !== undefined) updateData.retryCount = args.retryCount;
   if (args.metadata !== undefined) {
     // Merge metadata to preserve existing fields
@@ -49,7 +50,8 @@ export async function updateConversationMessage(
   await ctx.db.patch(args.messageId, updateData);
 
   const newState: Record<string, unknown> = {};
-  if (args.deliveryState !== undefined) newState.deliveryState = args.deliveryState;
+  if (args.deliveryState !== undefined)
+    newState.deliveryState = args.deliveryState;
 
   await AuditLogHelpers.logSuccess(
     ctx,
@@ -66,4 +68,3 @@ export async function updateConversationMessage(
     newState,
   );
 }
-

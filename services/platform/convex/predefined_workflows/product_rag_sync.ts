@@ -84,10 +84,8 @@ const productRagSyncWorkflow = {
         type: 'rag',
         parameters: {
           operation: 'upload_text',
-          recordId:
-            '{{steps.find_unprocessed_product.output.data._id}}',
-          content:
-            '{{steps.find_unprocessed_product.output.data|string}}',
+          recordId: '{{steps.find_unprocessed_product.output.data._id}}',
+          content: '{{steps.find_unprocessed_product.output.data|string}}',
           metadata: {
             _id: '{{steps.find_unprocessed_product.output.data._id}}',
           },
@@ -109,8 +107,7 @@ const productRagSyncWorkflow = {
         parameters: {
           operation: 'record_processed',
           tableName: 'products',
-          recordId:
-            '{{steps.find_unprocessed_product.output.data._id}}',
+          recordId: '{{steps.find_unprocessed_product.output.data._id}}',
         },
       },
       nextSteps: {

@@ -126,7 +126,9 @@ export async function uploadFileDirect({
       statusText: response.statusText,
       url,
       errorText: errorText || '(empty response)',
-      headers: Object.fromEntries(response.headers as unknown as Iterable<[string, string]>),
+      headers: Object.fromEntries(
+        response.headers as unknown as Iterable<[string, string]>,
+      ),
     });
     throw new Error(
       `RAG service error: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`,
@@ -150,4 +152,3 @@ export async function uploadFileDirect({
     jobId,
   };
 }
-

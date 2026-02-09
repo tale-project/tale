@@ -1,5 +1,5 @@
-import type { QueryCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import type { ProductItem } from './types';
 
 export async function getProduct(

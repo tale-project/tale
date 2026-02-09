@@ -1,5 +1,9 @@
 import { v } from 'convex/values';
+
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
+import { createProviderInternal } from './create_provider_internal';
+import { updateProvider as updateProviderHelper } from './update_provider';
 import {
   emailProviderVendorValidator,
   emailProviderAuthMethodValidator,
@@ -10,9 +14,6 @@ import {
   passwordAuthEncryptedValidator,
   oauth2AuthStoredValidator,
 } from './validators';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-import { createProviderInternal } from './create_provider_internal';
-import { updateProvider as updateProviderHelper } from './update_provider';
 
 export const createProvider = internalMutation({
   args: {
@@ -36,7 +37,10 @@ export const createProvider = internalMutation({
 export const updateMetadata = internalMutation({
   args: {
     providerId: v.id('emailProviders'),
-    metadata: v.record(v.string(), v.union(v.string(), v.number(), v.boolean())),
+    metadata: v.record(
+      v.string(),
+      v.union(v.string(), v.number(), v.boolean()),
+    ),
   },
   handler: async (ctx, args) => {
     const provider = await ctx.db.get(args.providerId);
@@ -45,12 +49,11 @@ export const updateMetadata = internalMutation({
     }
 
     const updatedMetadata = {
-      ...(provider.metadata || {}),
+      ...provider.metadata,
       ...args.metadata,
     };
 
     await ctx.db.patch(args.providerId, {
-       
       metadata: updatedMetadata as any,
     });
 
@@ -78,7 +81,9 @@ export const updateOAuth2Tokens = internalMutation({
       oauth2Auth: {
         ...provider.oauth2Auth,
         accessTokenEncrypted: args.accessTokenEncrypted,
-        refreshTokenEncrypted: args.refreshTokenEncrypted ?? provider.oauth2Auth.refreshTokenEncrypted,
+        refreshTokenEncrypted:
+          args.refreshTokenEncrypted ??
+          provider.oauth2Auth.refreshTokenEncrypted,
         tokenExpiry: args.tokenExpiry,
         tokenUrl: args.tokenUrl ?? provider.oauth2Auth.tokenUrl,
       },

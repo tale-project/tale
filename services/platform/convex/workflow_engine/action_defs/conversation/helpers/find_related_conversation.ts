@@ -1,6 +1,7 @@
-import type { ActionCtx } from '../../../../_generated/server';
 import type { Id } from '../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../_generated/server';
 import type { EmailType } from './types';
+
 import { checkMessageExists } from './check_message_exists';
 
 /**
@@ -19,7 +20,7 @@ export async function findRelatedConversation(
   const references = email.headers['references'];
   const candidate =
     inReplyTo ||
-    (references ? references.split(/[,,\s]+/).filter(Boolean)[0] : undefined);
+    (references ? references.split(/[,,\s]+/).find(Boolean) : undefined);
 
   if (!candidate) {
     return null;

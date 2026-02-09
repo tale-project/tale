@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { JsonViewer } from './json-viewer';
 
 const meta: Meta<typeof JsonViewer> = {
@@ -36,7 +37,8 @@ import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
     collapsed: {
       control: 'select',
       options: [false, true, 1, 2, 3],
-      description: 'Whether to collapse nested objects (false = expanded, true/number = collapsed at depth)',
+      description:
+        'Whether to collapse nested objects (false = expanded, true/number = collapsed at depth)',
     },
     enableClipboard: {
       control: 'boolean',
@@ -76,7 +78,7 @@ export const Default: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-96 border rounded-lg overflow-hidden">
+      <div className="w-96 overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -90,7 +92,7 @@ export const WithClipboard: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-96 border rounded-lg overflow-hidden">
+      <div className="w-96 overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -111,7 +113,7 @@ export const Collapsed: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-96 border rounded-lg overflow-hidden">
+      <div className="w-96 overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -132,7 +134,7 @@ export const CollapsedAtDepth: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-96 border rounded-lg overflow-hidden">
+      <div className="w-96 overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -152,7 +154,7 @@ export const SimpleObject: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-64 border rounded-lg overflow-hidden">
+      <div className="w-64 overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -169,7 +171,7 @@ export const ArrayData: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-64 border rounded-lg overflow-hidden">
+      <div className="w-64 overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -182,7 +184,7 @@ export const StringInput: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-64 border rounded-lg overflow-hidden">
+      <div className="w-64 overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -203,7 +205,7 @@ export const CustomIndent: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-[28rem] border rounded-lg overflow-hidden">
+      <div className="w-[28rem] overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),
@@ -237,7 +239,7 @@ export const LargeData: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-[28rem] border rounded-lg overflow-hidden">
+      <div className="w-[28rem] overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),

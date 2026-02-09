@@ -1,6 +1,7 @@
 'use client';
 
 import { forwardRef, HTMLAttributes } from 'react';
+
 import { cn } from '@/lib/utils/cn';
 
 interface DescriptionProps extends HTMLAttributes<HTMLParagraphElement> {
@@ -15,11 +16,10 @@ export const Description = forwardRef<HTMLParagraphElement, DescriptionProps>(
       className={cn(
         'text-xs md:text-sm leading-relaxed',
         muted && 'text-muted-foreground',
-        className
+        className,
       )}
       {...props}
     />
-  )
+  ),
 );
 Description.displayName = 'Description';
-

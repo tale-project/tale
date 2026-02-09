@@ -38,6 +38,7 @@ def _detect_mime_type(image_bytes: bytes) -> str:
     }
     return mime_map.get(img_type, "image/png")
 
+
 # Default prompts for Vision API
 OCR_PROMPT = """Extract ALL text from this document image.
 Preserve the original layout and formatting as much as possible.
@@ -141,9 +142,7 @@ class VisionClient:
             return result
 
         except TimeoutError:
-            raise TimeoutError(
-                f"Vision API OCR request timed out after {settings.vision_request_timeout}s"
-            )
+            raise TimeoutError(f"Vision API OCR request timed out after {settings.vision_request_timeout}s") from None
         except Exception as e:
             logger.error(f"Vision API OCR request failed: {e}")
             raise
@@ -217,7 +216,7 @@ class VisionClient:
         except TimeoutError:
             raise TimeoutError(
                 f"Vision API describe_image request timed out after {settings.vision_request_timeout}s"
-            )
+            ) from None
         except Exception as e:
             logger.error(f"Vision API description request failed: {e}")
             raise

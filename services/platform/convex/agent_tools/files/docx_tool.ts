@@ -3,11 +3,14 @@
  *  Parse DOCX documents to extract text content.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
-import type { ToolDefinition } from '../types';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { Id } from '../../_generated/dataModel';
+import type { ToolDefinition } from '../types';
+
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { parseFile, type ParseFileResult } from './helpers/parse_file';
@@ -69,10 +72,7 @@ const sectionSchema = z.object({
     .array(z.string())
     .optional()
     .describe('List items (for bullets/numbered)'),
-  headers: z
-    .array(z.string())
-    .optional()
-    .describe('Table column headers'),
+  headers: z.array(z.string()).optional().describe('Table column headers'),
   rows: z
     .array(z.array(z.string()))
     .optional()
@@ -98,7 +98,7 @@ const docxArgs = z.object({
     .string()
     .optional()
     .describe(
-      "Convex storage ID of a DOCX template. When provided, the template is used as base, preserving headers, footers, fonts, and page setup.",
+      'Convex storage ID of a DOCX template. When provided, the template is used as base, preserving headers, footers, fonts, and page setup.',
     ),
   fileName: z
     .string()
@@ -280,9 +280,12 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         }
       }
       if (!hasContent) {
-        console.warn('[tool:docx] Sections array provided but all sections are empty', {
-          sections: JSON.stringify(args.sections),
-        });
+        console.warn(
+          '[tool:docx] Sections array provided but all sections are empty',
+          {
+            sections: JSON.stringify(args.sections),
+          },
+        );
         throw new Error(
           "Sections provided but contain no content. Each section needs 'text' for headings/paragraphs, 'items' for lists, or 'headers'/'rows' for tables.",
         );

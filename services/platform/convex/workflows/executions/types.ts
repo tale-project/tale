@@ -2,8 +2,8 @@
  * Type definitions for workflow executions
  */
 
-import type { Doc, Id } from '../../_generated/dataModel';
 import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-value';
+import type { Doc, Id } from '../../_generated/dataModel';
 
 // =============================================================================
 // MANUAL TYPES (these rely on Doc types, not validators)

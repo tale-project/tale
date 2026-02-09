@@ -5,14 +5,15 @@
  * offset-based pagination for traditional page navigation.
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
+import type { CustomerSource } from './types';
+
 import {
   buildOffsetPaginatedQuery,
   type IndexConfig,
   type OffsetPaginatedResult,
 } from '../lib/query_builder';
-import type { CustomerSource } from './types';
 
 type CustomerStatus = 'active' | 'churned' | 'potential' | 'lost';
 

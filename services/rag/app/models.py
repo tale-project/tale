@@ -1,6 +1,6 @@
 """Pydantic models for Tale RAG API."""
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
@@ -46,12 +46,15 @@ def _validate_and_sanitize_tenant_ids(
 
     return sanitized_ids
 
+
 # ============================================================================
 # Health & Status Models
 # ============================================================================
 
+
 class HealthResponse(BaseModel):
     """Health check response."""
+
     status: str = Field(..., description="Service health status")
     version: str = Field(..., description="Service version")
     cognee_initialized: bool = Field(..., description="Whether cognee is initialized")
@@ -59,6 +62,7 @@ class HealthResponse(BaseModel):
 
 class ConfigResponse(BaseModel):
     """Configuration response (non-sensitive values only)."""
+
     host: str
     port: int
     log_level: str
@@ -76,13 +80,16 @@ class ConfigResponse(BaseModel):
 # Document Management Models
 # ============================================================================
 
-class ContentType(str, Enum):
+
+class ContentType(StrEnum):
     """Content type for document addition (text only)."""
+
     TEXT = "text"
 
 
 class DocumentAddRequest(BaseModel):
     """Request to add a text document to the knowledge base."""
+
     content: str = Field(..., description="Document content (plain text)")
     content_type: ContentType = Field(
         default=ContentType.TEXT,
@@ -103,13 +110,13 @@ class DocumentAddRequest(BaseModel):
     user_id: str | None = Field(
         default=None,
         description="User ID for private document storage. If provided, document is stored "
-                    "in user's private dataset (team_ids is ignored). At least one of user_id "
-                    "or team_ids must be provided.",
+        "in user's private dataset (team_ids is ignored). At least one of user_id "
+        "or team_ids must be provided.",
     )
     team_ids: list[str] | None = Field(
         default=None,
         description="Team IDs for shared document storage. Document will be added to each "
-                    "team's dataset (tale_team_{team_id}). Ignored if user_id is provided.",
+        "team's dataset (tale_team_{team_id}). Ignored if user_id is provided.",
     )
 
     @model_validator(mode="after")
@@ -130,13 +137,9 @@ class DocumentAddResponse(BaseModel):
     "queued" will be set to True.
     """
 
-    success: bool = Field(
-        ..., description="Whether the operation (or enqueue) succeeded"
-    )
+    success: bool = Field(..., description="Whether the operation (or enqueue) succeeded")
     document_id: str = Field(..., description="ID of the added document")
-    chunks_created: int = Field(
-        ..., description="Number of chunks created (0 when queued)"
-    )
+    chunks_created: int = Field(..., description="Number of chunks created (0 when queued)")
     message: str = Field(..., description="Status message")
     queued: bool = Field(
         default=False,
@@ -149,7 +152,7 @@ class DocumentAddResponse(BaseModel):
     cleaned_datasets: list[str] | None = Field(
         default=None,
         description="List of old datasets that were cleaned up during upload "
-                    "(when document was moved to a different team/dataset)",
+        "(when document was moved to a different team/dataset)",
     )
     skipped: bool = Field(
         default=False,
@@ -191,7 +194,7 @@ class DocumentDeleteResponse(BaseModel):
 # ============================================================================
 
 
-class JobState(str, Enum):
+class JobState(StrEnum):
     """State of a background ingestion job."""
 
     QUEUED = "queued"
@@ -233,10 +236,12 @@ class JobStatus(BaseModel):
         description="Reason for skipping ingestion (e.g., 'content_unchanged')",
     )
     created_at: float = Field(
-        ..., description="Unix timestamp (seconds) when the job record was created",
+        ...,
+        description="Unix timestamp (seconds) when the job record was created",
     )
     updated_at: float = Field(
-        ..., description="Unix timestamp (seconds) when the job record was last updated",
+        ...,
+        description="Unix timestamp (seconds) when the job record was last updated",
     )
 
 
@@ -244,7 +249,8 @@ class JobStatus(BaseModel):
 # Query Models
 # ============================================================================
 
-class SearchType(str, Enum):
+
+class SearchType(StrEnum):
     """Search type for knowledge base queries.
 
     Available types (from Cognee 0.4.0):
@@ -255,6 +261,7 @@ class SearchType(str, Enum):
     - GRAPH_SUMMARY_COMPLETION: Graph summary with completion
     - TEMPORAL: Time-aware search
     """
+
     CHUNKS = "CHUNKS"
     GRAPH_COMPLETION = "GRAPH_COMPLETION"
     RAG_COMPLETION = "RAG_COMPLETION"
@@ -265,42 +272,31 @@ class SearchType(str, Enum):
 
 class QueryRequest(BaseModel):
     """Request to query the knowledge base."""
+
     query: str = Field(..., description="Query text")
     search_type: SearchType | None = Field(
         default=SearchType.CHUNKS,
         description="Type of search to perform. CHUNKS returns raw text passages (default), "
-                    "GRAPH_COMPLETION uses knowledge graph reasoning, "
-                    "RAG_COMPLETION provides shorter answers, "
-                    "SUMMARIES returns document summaries."
+        "GRAPH_COMPLETION uses knowledge graph reasoning, "
+        "RAG_COMPLETION provides shorter answers, "
+        "SUMMARIES returns document summaries.",
     )
-    top_k: int | None = Field(
-        default=None,
-        description="Number of results to return (overrides default)"
-    )
-    similarity_threshold: float | None = Field(
-        default=None,
-        description="Minimum similarity score (overrides default)"
-    )
-    include_metadata: bool = Field(
-        default=True,
-        description="Whether to include metadata in results"
-    )
-    filters: dict[str, Any] | None = Field(
-        default=None,
-        description="Optional filters for metadata"
-    )
+    top_k: int | None = Field(default=None, description="Number of results to return (overrides default)")
+    similarity_threshold: float | None = Field(default=None, description="Minimum similarity score (overrides default)")
+    include_metadata: bool = Field(default=True, description="Whether to include metadata in results")
+    filters: dict[str, Any] | None = Field(default=None, description="Optional filters for metadata")
     # Multi-tenancy support
     # Search can include both user's private dataset and team datasets
     user_id: str | None = Field(
         default=None,
         description="User ID for searching user's private documents. If provided, user's "
-                    "private dataset (tale_user_{uuid}) is included in search.",
+        "private dataset (tale_user_{uuid}) is included in search.",
     )
     team_ids: list[str] | None = Field(
         default=None,
         description="Team IDs for searching shared team documents. Each team's dataset "
-                    "(tale_team_{team_id}) is included in search. At least one of user_id "
-                    "or team_ids must be provided.",
+        "(tale_team_{team_id}) is included in search. At least one of user_id "
+        "or team_ids must be provided.",
     )
 
     @model_validator(mode="after")
@@ -314,20 +310,16 @@ class QueryRequest(BaseModel):
 
 class SearchResult(BaseModel):
     """A single search result."""
+
     content: str = Field(..., description="Content of the result")
     score: float = Field(..., description="Similarity score")
-    document_id: str | None = Field(
-        default=None,
-        description="Source document ID"
-    )
-    metadata: dict[str, Any] | None = Field(
-        default=None,
-        description="Result metadata"
-    )
+    document_id: str | None = Field(default=None, description="Source document ID")
+    metadata: dict[str, Any] | None = Field(default=None, description="Result metadata")
 
 
 class QueryResponse(BaseModel):
     """Response to a query."""
+
     success: bool = Field(..., description="Whether the query succeeded")
     query: str = Field(..., description="Original query")
     results: list[SearchResult] = Field(..., description="Search results")
@@ -339,6 +331,7 @@ class QueryResponse(BaseModel):
 # RAG Generation Models
 # ============================================================================
 
+
 class GenerateRequest(BaseModel):
     """Request to generate a response using RAG.
 
@@ -349,6 +342,7 @@ class GenerateRequest(BaseModel):
 
     These parameters are hardcoded for consistency and simplicity.
     """
+
     query: str = Field(..., description="User query")
     user_id: str | None = Field(
         default=None,
@@ -356,8 +350,7 @@ class GenerateRequest(BaseModel):
     )
     team_ids: list[str] | None = Field(
         default=None,
-        description="Team IDs to retrieve context from. At least one of user_id "
-                    "or team_ids must be provided.",
+        description="Team IDs to retrieve context from. At least one of user_id or team_ids must be provided.",
     )
 
     @model_validator(mode="after")
@@ -371,6 +364,7 @@ class GenerateRequest(BaseModel):
 
 class GenerateResponse(BaseModel):
     """Response from RAG generation."""
+
     success: bool = Field(..., description="Whether generation succeeded")
     query: str = Field(..., description="Original query")
     response: str = Field(..., description="Generated response")
@@ -382,17 +376,17 @@ class GenerateResponse(BaseModel):
 # Knowledge Graph Models
 # ============================================================================
 
+
 class GraphQueryRequest(BaseModel):
     """Request to query the knowledge graph."""
+
     query: str = Field(..., description="Graph query (Cypher or natural language)")
-    query_type: str = Field(
-        default="natural",
-        description="Query type: 'natural' or 'cypher'"
-    )
+    query_type: str = Field(default="natural", description="Query type: 'natural' or 'cypher'")
 
 
 class GraphQueryResponse(BaseModel):
     """Response from knowledge graph query."""
+
     success: bool = Field(..., description="Whether the query succeeded")
     results: list[dict[str, Any]] = Field(..., description="Query results")
     total_results: int = Field(..., description="Total number of results")
@@ -402,12 +396,10 @@ class GraphQueryResponse(BaseModel):
 # Error Models
 # ============================================================================
 
+
 class ErrorResponse(BaseModel):
     """Error response."""
+
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Error message")
-    details: dict[str, Any] | None = Field(
-        default=None,
-        description="Additional error details"
-    )
-
+    details: dict[str, Any] | None = Field(default=None, description="Additional error details")

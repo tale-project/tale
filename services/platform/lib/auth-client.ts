@@ -1,7 +1,7 @@
-import { createAuthClient } from 'better-auth/react';
 import { convexClient } from '@convex-dev/better-auth/client/plugins';
 import { apiKeyClient, organizationClient } from 'better-auth/client/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
+import { createAuthClient } from 'better-auth/react';
 
 // Mirror minimal access control on the client for type-safe checks
 const statement = {

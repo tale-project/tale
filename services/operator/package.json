@@ -1,0 +1,13 @@
+{
+  "name": "@tale/operator",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup": "uv sync --extra dev",
+    "build": "echo 'No build step'",
+    "lint": "uv run ruff check app",
+    "lint:fix": "uv run ruff check --fix app",
+    "format": "uv run ruff format app",
+    "format:check": "uv run ruff format --check app"
+  }
+}

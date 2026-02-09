@@ -1,10 +1,11 @@
 'use client';
 
+import type { LucideIcon } from 'lucide-react';
+
+import { MoreVertical } from 'lucide-react';
 import * as React from 'react';
 import { useState, useCallback, useMemo } from 'react';
-import { MoreVertical } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import { IconButton } from '@/app/components/ui/primitives/icon-button';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,8 +13,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/app/components/ui/overlays/dropdown-menu';
-import { cn } from '@/lib/utils/cn';
+import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 interface EntityRowAction {
   /** Unique key for the action */
@@ -75,17 +77,14 @@ export const EntityRowActions = React.memo(function EntityRowActions({
   // Filter visible actions
   const visibleActions = useMemo(
     () => actions.filter((action) => action.visible !== false),
-    [actions]
+    [actions],
   );
 
-  const handleActionClick = useCallback(
-    (action: EntityRowAction) => {
-      // Call action first, then close dropdown to prevent focus race conditions
-      action.onClick();
-      setIsOpen(false);
-    },
-    []
-  );
+  const handleActionClick = useCallback((action: EntityRowAction) => {
+    // Call action first, then close dropdown to prevent focus race conditions
+    action.onClick();
+    setIsOpen(false);
+  }, []);
 
   if (visibleActions.length === 0) {
     return null;
@@ -112,8 +111,7 @@ export const EntityRowActions = React.memo(function EntityRowActions({
               }}
               disabled={action.disabled}
               className={cn(
-                action.destructive &&
-                  'text-destructive focus:text-destructive'
+                action.destructive && 'text-destructive focus:text-destructive',
               )}
             >
               <action.icon className="mr-2 size-4" aria-hidden="true" />
@@ -155,8 +153,8 @@ export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
   const [openStates, setOpenStates] = useState<Record<T, boolean>>(() =>
     keysRef.current.reduce(
       (acc, key) => ({ ...acc, [key]: false }),
-      {} as Record<T, boolean>
-    )
+      {} as Record<T, boolean>,
+    ),
   );
 
   const open = useMemo(
@@ -166,9 +164,9 @@ export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
           ...acc,
           [key]: () => setOpenStates((prev) => ({ ...prev, [key]: true })),
         }),
-        {} as Record<T, () => void>
+        {} as Record<T, () => void>,
       ),
-    []
+    [],
   );
 
   const setOpen = useMemo(
@@ -179,17 +177,17 @@ export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
           [key]: (isOpen: boolean) =>
             setOpenStates((prev) => ({ ...prev, [key]: isOpen })),
         }),
-        {} as Record<T, (isOpen: boolean) => void>
+        {} as Record<T, (isOpen: boolean) => void>,
       ),
-    []
+    [],
   );
 
   const closeAll = useCallback(() => {
     setOpenStates(
       keysRef.current.reduce(
         (acc, key) => ({ ...acc, [key]: false }),
-        {} as Record<T, boolean>
-      )
+        {} as Record<T, boolean>,
+      ),
     );
   }, []);
 

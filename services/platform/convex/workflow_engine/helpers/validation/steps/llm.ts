@@ -5,8 +5,10 @@
  */
 
 import { z } from 'zod/v4';
-import type { ValidationResult } from '../types';
+
 import type { JsonSchemaDefinition } from '../../../types/nodes';
+import type { ValidationResult } from '../types';
+
 import { TOOL_NAMES } from '../../../../agent_tools/tool_registry';
 
 /**
@@ -112,4 +114,3 @@ export function validateLlmStep(
 
   return { valid: errors.length === 0, errors, warnings };
 }
-

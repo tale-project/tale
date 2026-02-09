@@ -1,6 +1,5 @@
 'use client';
 
-import { JsonInput } from '@/app/components/ui/forms/json-input';
 import {
   Sparkles,
   TestTubeDiagonal,
@@ -10,24 +9,27 @@ import {
   AlertCircle,
   AlertTriangle,
 } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+
+import { JsonInput } from '@/app/components/ui/forms/json-input';
 import {
   Tooltip,
   TooltipProvider,
   TooltipTrigger,
   TooltipContent,
 } from '@/app/components/ui/overlays/tooltip';
-import { cn } from '@/lib/utils/cn';
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Doc, Id } from '@/convex/_generated/dataModel';
-import { AutomationTester } from './automation-tester';
-import { AutomationAssistant } from './automation-assistant';
 import { Button } from '@/app/components/ui/primitives/button';
-import { useT } from '@/lib/i18n/client';
-import { useUpdateStep } from '../hooks/use-update-step';
-import { useStepValidation } from '../hooks/use-step-validation';
 import { toast } from '@/app/hooks/use-toast';
-import { NextStepsEditor } from './next-steps-editor';
+import { Doc, Id } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
+import { useStepValidation } from '../hooks/use-step-validation';
+import { useUpdateStep } from '../hooks/use-update-step';
 import { getStepIcon } from '../utils/step-icons';
+import { AutomationAssistant } from './automation-assistant';
+import { AutomationTester } from './automation-tester';
+import { NextStepsEditor } from './next-steps-editor';
 
 interface AutomationSidePanelProps {
   step: Doc<'wfStepDefs'> | null;
@@ -235,7 +237,7 @@ export function AutomationSidePanel({
     <div
       ref={panelRef}
       style={{ '--panel-width': `${width}px` } as React.CSSProperties}
-      className="bg-background border-l border-border flex flex-col flex-[0_0_auto] min-h-0 relative overflow-hidden w-(--panel-width) max-md:w-full max-md:absolute max-md:inset-0 max-md:z-10"
+      className="bg-background border-border relative flex min-h-0 w-(--panel-width) flex-[0_0_auto] flex-col overflow-hidden border-l max-md:absolute max-md:inset-0 max-md:z-10 max-md:w-full"
     >
       {/* Resize handle - hidden on mobile */}
       <div
@@ -245,30 +247,30 @@ export function AutomationSidePanel({
           'hover:bg-border transition-colors',
         )}
       >
-        <div className="absolute left-0 top-0 bottom-0 w-2 -translate-x-1/2" />
+        <div className="absolute top-0 bottom-0 left-0 w-2 -translate-x-1/2" />
       </div>
 
       {/* Panel header */}
-      <div className="bg-background/70 backdrop-blur-sm p-3 border-b border-border shrink-0 sticky top-0">
+      <div className="bg-background/70 border-border sticky top-0 shrink-0 border-b p-3 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           {showAIChat ? (
             <>
-              <div className="p-2 rounded-lg bg-purple-600 text-white dark:bg-purple-700">
+              <div className="rounded-lg bg-purple-600 p-2 text-white dark:bg-purple-700">
                 <Sparkles className="size-4" />
               </div>
               <div className="flex-1">
-                <h2 className="text-sm font-semibold text-foreground">
+                <h2 className="text-foreground text-sm font-semibold">
                   {t('sidePanel.aiAssistant')}
                 </h2>
               </div>
             </>
           ) : showTestPanel ? (
             <>
-              <div className="p-2 rounded-lg border bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              <div className="rounded-lg border bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                 <TestTubeDiagonal className="size-4" />
               </div>
               <div className="flex-1">
-                <h2 className="text-sm font-semibold text-foreground">
+                <h2 className="text-foreground text-sm font-semibold">
                   {t('sidePanel.testAutomation')}
                 </h2>
               </div>
@@ -300,7 +302,7 @@ export function AutomationSidePanel({
                 </Tooltip>
               </TooltipProvider>
               <div className="flex-1">
-                <h2 className="text-sm font-semibold text-foreground">
+                <h2 className="text-foreground text-sm font-semibold">
                   {step.name}
                 </h2>
               </div>
@@ -308,7 +310,7 @@ export function AutomationSidePanel({
           ) : null}
           {/* Desktop action buttons */}
           {showAIChat && canClearChat && (
-            <div className="hidden md:flex items-center shrink-0">
+            <div className="hidden shrink-0 items-center md:flex">
               <Button
                 variant="ghost"
                 size="icon"
@@ -321,7 +323,7 @@ export function AutomationSidePanel({
             </div>
           )}
           {/* Mobile action buttons */}
-          <div className="flex items-center gap-1 md:hidden shrink-0">
+          <div className="flex shrink-0 items-center gap-1 md:hidden">
             {showAIChat && canClearChat && (
               <Button
                 variant="ghost"
@@ -359,7 +361,7 @@ export function AutomationSidePanel({
         />
       ) : step ? (
         <>
-          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-4">
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-3">
             <JsonInput
               value={editedConfig}
               onChange={handleConfigChange}
@@ -376,12 +378,12 @@ export function AutomationSidePanel({
             />
 
             {errors.length > 0 && (
-              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
-                <div className="flex items-center gap-2 text-destructive text-sm font-medium mb-1">
+              <div className="border-destructive/50 bg-destructive/10 rounded-md border p-3">
+                <div className="text-destructive mb-1 flex items-center gap-2 text-sm font-medium">
                   <AlertCircle className="size-4" />
                   {t('sidePanel.validationErrors')}
                 </div>
-                <ul className="text-xs text-destructive space-y-1">
+                <ul className="text-destructive space-y-1 text-xs">
                   {errors.map((error, index) => (
                     <li key={`${error}-${index}`}>• {error}</li>
                   ))}
@@ -391,11 +393,11 @@ export function AutomationSidePanel({
 
             {warnings.length > 0 && (
               <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
-                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-medium mb-1">
+                <div className="mb-1 flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="size-4" />
                   {t('sidePanel.validationWarnings')}
                 </div>
-                <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-1">
+                <ul className="space-y-1 text-xs text-amber-600 dark:text-amber-400">
                   {warnings.map((warning, index) => (
                     <li key={`${warning}-${index}`}>• {warning}</li>
                   ))}
@@ -404,14 +406,14 @@ export function AutomationSidePanel({
             )}
           </div>
 
-          <div className="shrink-0 border-t bg-background p-3 flex">
+          <div className="bg-background flex shrink-0 border-t p-3">
             <Button
               onClick={handleSave}
               disabled={!isDirty || !isValid || isSaving || isValidating}
               size="sm"
               className="flex-1"
             >
-              <Save className="size-4 mr-1" />
+              <Save className="mr-1 size-4" />
               {isSaving ? t('sidePanel.saving') : tCommon('actions.save')}
             </Button>
           </div>

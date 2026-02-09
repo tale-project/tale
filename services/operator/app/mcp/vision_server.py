@@ -22,19 +22,13 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("Vision Analyzer")
 
-VISION_API_BASE = os.environ.get(
-    "OPENAI_VISION_BASE_URL", os.environ.get("OPENAI_BASE_URL", "")
-)
-VISION_API_KEY = os.environ.get(
-    "OPENAI_VISION_API_KEY", os.environ.get("OPENAI_API_KEY", "")
-)
+VISION_API_BASE = os.environ.get("OPENAI_VISION_BASE_URL", os.environ.get("OPENAI_BASE_URL", ""))
+VISION_API_KEY = os.environ.get("OPENAI_VISION_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
 VISION_MODEL = os.environ.get("OPENAI_VISION_MODEL", "gpt-4o")
 
 
 @mcp.tool()
-async def analyze_image(
-    image_path: str, prompt: str = "Describe this image in detail."
-) -> str:
+async def analyze_image(image_path: str, prompt: str = "Describe this image in detail.") -> str:
     """
     Analyze an image using a vision-capable LLM.
 
@@ -82,9 +76,7 @@ async def analyze_image(
                                 {"type": "text", "text": prompt},
                                 {
                                     "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:{mime_type};base64,{image_data}"
-                                    },
+                                    "image_url": {"url": f"data:{mime_type};base64,{image_data}"},
                                 },
                             ],
                         }

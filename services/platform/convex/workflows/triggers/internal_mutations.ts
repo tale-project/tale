@@ -1,5 +1,6 @@
-import { internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
+
+import { internalMutation } from '../../_generated/server';
 import { processEventHandler } from './process_event';
 
 export const updateScheduleLastTriggered = internalMutation({

@@ -1,7 +1,8 @@
 'use client';
 
-import { forwardRef, HTMLAttributes } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { forwardRef, HTMLAttributes } from 'react';
+
 import { cn } from '@/lib/utils/cn';
 
 const alertVariants = cva(
@@ -22,8 +23,7 @@ const alertVariants = cva(
 );
 
 interface AlertProps
-  extends HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof alertVariants> {
+  extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof alertVariants> {
   /** Urgency level for screen reader announcement */
   live?: 'polite' | 'assertive' | 'off';
 }
@@ -38,7 +38,7 @@ export const Alert = forwardRef<HTMLDivElement, AlertProps>(
       className={cn(alertVariants({ variant }), className)}
       {...props}
     />
-  )
+  ),
 );
 Alert.displayName = 'Alert';
 
@@ -46,6 +46,7 @@ export const AlertTitle = forwardRef<
   HTMLParagraphElement,
   HTMLAttributes<HTMLHeadingElement>
 >(({ className, ...props }, ref) => (
+  // oxlint-disable-next-line jsx-a11y/heading-has-content -- content is passed via props spread
   <h5
     ref={ref}
     className={cn('mb-1 font-medium leading-none tracking-tight', className)}
@@ -65,4 +66,3 @@ export const AlertDescription = forwardRef<
   />
 ));
 AlertDescription.displayName = 'AlertDescription';
-

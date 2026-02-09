@@ -1,5 +1,5 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useConvexConnectionState } from 'convex/react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 function subscribe(callback: () => void) {
   window.addEventListener('online', callback);

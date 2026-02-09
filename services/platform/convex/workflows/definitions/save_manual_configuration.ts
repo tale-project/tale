@@ -2,8 +2,8 @@
  * Save a manually authored workflow configuration and its steps.
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Doc, Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { StepConfig } from '../../workflow_engine/types/nodes';
 import type { WorkflowConfig } from './types';
 
@@ -77,4 +77,3 @@ export async function saveManualConfiguration(
     stepIds,
   };
 }
-

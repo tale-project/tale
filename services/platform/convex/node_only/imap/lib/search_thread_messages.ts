@@ -1,12 +1,13 @@
 'use node';
 
 import type { ImapFlow } from 'imapflow';
+
 import type { EmailMessage } from '../../../workflow_engine/action_defs/imap/helpers/types';
 
 import { createDebugLog } from '../../../lib/debug_log';
 import collectThreadMessageIds from './collect_thread_message_ids';
-import findMessageInFolders from './find_message_in_folders';
 import fetchMessagesFromSearchResults from './fetch_messages_from_search_results';
+import findMessageInFolders from './find_message_in_folders';
 import findRepliesToMessage from './find_replies_to_message';
 
 interface Options {

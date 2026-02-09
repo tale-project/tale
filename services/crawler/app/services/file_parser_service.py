@@ -71,8 +71,8 @@ class FileParserService:
         Returns:
             Extraction result with full_text and metadata
         """
-        from .vision.pdf_extractor import extract_text_from_pdf_bytes
         from .vision.openai_client import process_pages_with_llm
+        from .vision.pdf_extractor import extract_text_from_pdf_bytes
 
         try:
             pages_content, vision_used = await extract_text_from_pdf_bytes(
@@ -83,9 +83,7 @@ class FileParserService:
             )
 
             if user_input:
-                pages_content = await process_pages_with_llm(
-                    pages_content, user_input, max_concurrent=3
-                )
+                pages_content = await process_pages_with_llm(pages_content, user_input, max_concurrent=3)
 
             return {
                 "success": True,
@@ -169,9 +167,7 @@ class FileParserService:
             )
 
             if user_input:
-                content_list = await process_pages_with_llm(
-                    content_list, user_input, max_concurrent=3
-                )
+                content_list = await process_pages_with_llm(content_list, user_input, max_concurrent=3)
 
             return {
                 "success": True,
@@ -213,11 +209,13 @@ class FileParserService:
                                 if text:
                                     slide_text.append(text)
 
-                slides.append({
-                    "slide_number": slide_num,
-                    "text_content": slide_text,
-                    "full_text": "\n".join(slide_text),
-                })
+                slides.append(
+                    {
+                        "slide_number": slide_num,
+                        "text_content": slide_text,
+                        "full_text": "\n".join(slide_text),
+                    }
+                )
                 full_text_parts.extend(slide_text)
 
             core_props = prs.core_properties
@@ -252,8 +250,8 @@ class FileParserService:
         Returns:
             Extraction result with full_text and metadata
         """
-        from .vision.pptx_extractor import extract_text_from_pptx_bytes
         from .vision.openai_client import process_pages_with_llm
+        from .vision.pptx_extractor import extract_text_from_pptx_bytes
 
         try:
             slides_content, vision_used = await extract_text_from_pptx_bytes(
@@ -263,9 +261,7 @@ class FileParserService:
             )
 
             if user_input:
-                slides_content = await process_pages_with_llm(
-                    slides_content, user_input, max_concurrent=3
-                )
+                slides_content = await process_pages_with_llm(slides_content, user_input, max_concurrent=3)
 
             return {
                 "success": True,
@@ -327,17 +323,11 @@ class FileParserService:
         content_type_lower = content_type.lower() if content_type else ""
 
         if filename_lower.endswith(".pdf") or "pdf" in content_type_lower:
-            return await self.parse_pdf_with_vision(
-                file_bytes, filename, user_input, process_images, ocr_scanned_pages
-            )
+            return await self.parse_pdf_with_vision(file_bytes, filename, user_input, process_images, ocr_scanned_pages)
         elif filename_lower.endswith(".docx") or "wordprocessingml" in content_type_lower:
-            return await self.parse_docx_with_vision(
-                file_bytes, filename, user_input, process_images
-            )
+            return await self.parse_docx_with_vision(file_bytes, filename, user_input, process_images)
         elif filename_lower.endswith(".pptx") or "presentationml" in content_type_lower:
-            return await self.parse_pptx_with_vision(
-                file_bytes, filename, user_input, process_images
-            )
+            return await self.parse_pptx_with_vision(file_bytes, filename, user_input, process_images)
         else:
             return {
                 "success": False,

@@ -5,8 +5,10 @@
  * Each cache has an action reference, name (for versioning), and optional TTL.
  */
 
-import { ActionCache } from '@convex-dev/action-cache';
 import type { FunctionReference } from 'convex/server';
+
+import { ActionCache } from '@convex-dev/action-cache';
+
 import { components, internal } from '../../_generated/api';
 
 // Version prefix for cache invalidation when logic changes
@@ -63,11 +65,12 @@ export const imageAnalysisCache: ActionCache<
  * 24-hour TTL for daily refresh.
  */
 // Note: The internal_actions module needs to be regenerated (run `npx convex dev`)
- 
+
 export const toneOfVoiceCache: ActionCache<
   FunctionReference<'action', 'internal'>
 > = new ActionCache(components.actionCache, {
-  action: (internal.tone_of_voice as any).internal_actions.generateToneOfVoiceUncached,
+  action: (internal.tone_of_voice as any).internal_actions
+    .generateToneOfVoiceUncached,
   name: `tone_of_voice_${CACHE_VERSION}`,
   ttl: TTL.ONE_DAY,
 });

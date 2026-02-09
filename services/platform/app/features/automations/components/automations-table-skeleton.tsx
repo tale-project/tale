@@ -1,8 +1,9 @@
 'use client';
 
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { useAutomationsTableConfig } from './use-automations-table-config';
+
 import { AutomationsActionMenu } from './automations-action-menu';
+import { useAutomationsTableConfig } from './use-automations-table-config';
 
 interface AutomationsTableSkeletonProps {
   organizationId: string;
@@ -17,7 +18,7 @@ export function AutomationsTableSkeleton({
 
   return (
     <DataTableSkeleton
-      className="py-6 px-4"
+      className="px-4 py-6"
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}

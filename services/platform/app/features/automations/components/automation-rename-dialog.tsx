@@ -1,9 +1,10 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { useT } from '@/lib/i18n/client';
@@ -31,7 +32,12 @@ export function AutomationRenameDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tCommon('validation.required', { field: tAutomations('configuration.name') })),
+        name: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: tAutomations('configuration.name'),
+          }),
+        ),
       }),
     [tCommon, tAutomations],
   );

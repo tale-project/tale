@@ -11,8 +11,8 @@
  * @returns Object containing matched products array and count
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export async function searchProductsByMetadata(
   ctx: QueryCtx,
@@ -30,7 +30,9 @@ export async function searchProductsByMetadata(
   // Use async iteration for efficient streaming
   const query = ctx.db
     .query('products')
-    .withIndex('by_organizationId', (q) => q.eq('organizationId', organizationId));
+    .withIndex('by_organizationId', (q) =>
+      q.eq('organizationId', organizationId),
+    );
 
   for await (const product of query) {
     // Check if metadata contains the target string

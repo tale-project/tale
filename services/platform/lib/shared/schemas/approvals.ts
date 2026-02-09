@@ -2,14 +2,14 @@ import { z } from 'zod/v4';
 import { jsonRecordSchema } from './utils/json-value';
 import { prioritySchema } from './common';
 
-export const approvalStatusLiterals = ['pending', 'approved', 'rejected'] as const;
+const approvalStatusLiterals = ['pending', 'approved', 'rejected'] as const;
 export const approvalStatusSchema = z.enum(approvalStatusLiterals);
-export type ApprovalStatus = z.infer<typeof approvalStatusSchema>;
+type ApprovalStatus = z.infer<typeof approvalStatusSchema>;
 
 export const approvalPrioritySchema = prioritySchema;
-export type ApprovalPriority = z.infer<typeof approvalPrioritySchema>;
+type ApprovalPriority = z.infer<typeof approvalPrioritySchema>;
 
-export const approvalResourceTypeLiterals = [
+const approvalResourceTypeLiterals = [
 	'conversations',
 	'product_recommendation',
 	'integration_operation',
@@ -17,9 +17,9 @@ export const approvalResourceTypeLiterals = [
 	'human_input_request',
 ] as const;
 export const approvalResourceTypeSchema = z.enum(approvalResourceTypeLiterals);
-export type ApprovalResourceType = z.infer<typeof approvalResourceTypeSchema>;
+type ApprovalResourceType = z.infer<typeof approvalResourceTypeSchema>;
 
-export const approvalItemSchema = z.object({
+const approvalItemSchema = z.object({
 	_id: z.string(),
 	_creationTime: z.number(),
 	organizationId: z.string(),
@@ -39,30 +39,30 @@ export const approvalItemSchema = z.object({
 	messageId: z.string().optional(),
 });
 
-export type ApprovalItem = z.infer<typeof approvalItemSchema>;
+type ApprovalItem = z.infer<typeof approvalItemSchema>;
 
-export const humanInputFormatLiterals = [
+const humanInputFormatLiterals = [
 	'single_select',
 	'multi_select',
 	'text_input',
 	'yes_no',
 ] as const;
-export const humanInputFormatSchema = z.enum(humanInputFormatLiterals);
-export type HumanInputFormat = z.infer<typeof humanInputFormatSchema>;
+const humanInputFormatSchema = z.enum(humanInputFormatLiterals);
+type HumanInputFormat = z.infer<typeof humanInputFormatSchema>;
 
-export const humanInputOptionSchema = z.object({
+const humanInputOptionSchema = z.object({
 	label: z.string(),
 	description: z.string().optional(),
 	value: z.string().optional(),
 });
-export type HumanInputOption = z.infer<typeof humanInputOptionSchema>;
+type HumanInputOption = z.infer<typeof humanInputOptionSchema>;
 
-export const humanInputResponseSchema = z.object({
+const humanInputResponseSchema = z.object({
 	value: z.union([z.string(), z.array(z.string())]),
 	respondedBy: z.string(),
 	timestamp: z.number(),
 });
-export type HumanInputResponse = z.infer<typeof humanInputResponseSchema>;
+type HumanInputResponse = z.infer<typeof humanInputResponseSchema>;
 
 export const humanInputRequestMetadataSchema = z.object({
 	question: z.string(),

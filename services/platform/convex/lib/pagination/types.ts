@@ -7,8 +7,10 @@
  */
 
 import type { GenericValidator } from 'convex/values';
-import { v } from 'convex/values';
+
 import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
+
 import {
   cursorPaginationOptsSchema,
   offsetPaginationOptsSchema,
@@ -46,13 +48,17 @@ export interface CursorPaginatedResult<T> {
 /**
  * Validator for cursor pagination options input
  */
-export const cursorPaginationOptsValidator = zodToConvex(cursorPaginationOptsSchema);
+export const cursorPaginationOptsValidator = zodToConvex(
+  cursorPaginationOptsSchema,
+);
 
 /**
  * Creates a validator for cursor paginated results.
  * Generic preserves the concrete validator type for proper Infer<> inference.
  */
-export function cursorPaginatedResultValidator<V extends GenericValidator>(itemValidator: V) {
+export function cursorPaginatedResultValidator<V extends GenericValidator>(
+  itemValidator: V,
+) {
   return v.object({
     page: v.array(itemValidator),
     isDone: v.boolean(),
@@ -88,13 +94,17 @@ export interface OffsetPaginatedResult<T> {
 /**
  * Validator for offset pagination options input
  */
-export const offsetPaginationOptsValidator = zodToConvex(offsetPaginationOptsSchema);
+export const offsetPaginationOptsValidator = zodToConvex(
+  offsetPaginationOptsSchema,
+);
 
 /**
  * Creates a validator for offset paginated results.
  * Generic preserves the concrete validator type for proper Infer<> inference.
  */
-export function offsetPaginatedResultValidator<V extends GenericValidator>(itemValidator: V) {
+export function offsetPaginatedResultValidator<V extends GenericValidator>(
+  itemValidator: V,
+) {
   return v.object({
     items: v.array(itemValidator),
     total: v.number(),

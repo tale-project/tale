@@ -3,12 +3,12 @@
  * Reads from the wfSchedules table via getScheduledWorkflows.
  */
 
-import { ActionCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
-import { internal } from '../../../_generated/api';
-import { shouldTriggerWorkflow } from './should_trigger_workflow';
 
+import { internal } from '../../../_generated/api';
+import { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
+import { shouldTriggerWorkflow } from './should_trigger_workflow';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -25,14 +25,16 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
   try {
     debugLog('Starting scheduled workflow scan...');
 
-    const scheduled = await ctx.runQuery(
+    const scheduled = (await ctx.runQuery(
       internal.workflow_engine.internal_queries.getScheduledWorkflows,
       {},
-    ) as ScheduledWorkflow[];
+    )) as ScheduledWorkflow[];
 
     debugLog(`Found ${scheduled.length} scheduled workflows`);
 
-    const wfDefinitionIds = scheduled.map((wf: ScheduledWorkflow) => wf.wfDefinitionId);
+    const wfDefinitionIds = scheduled.map(
+      (wf: ScheduledWorkflow) => wf.wfDefinitionId,
+    );
     const lastExecutionTimesObj = await ctx.runQuery(
       internal.workflow_engine.internal_queries.getLastExecutionTimes,
       { wfDefinitionIds },
@@ -62,20 +64,24 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
             `Triggering scheduled workflow: ${name} (${wfDefinitionId})`,
           );
 
-          await ctx.runMutation(internal.workflow_engine.internal_mutations.startWorkflow, {
-            organizationId,
-            wfDefinitionId,
-            input: {},
-            triggeredBy: 'schedule',
-            triggerData: {
-              triggerType: 'schedule',
-              schedule,
-              timestamp: Date.now(),
+          await ctx.runMutation(
+            internal.workflow_engine.internal_mutations.startWorkflow,
+            {
+              organizationId,
+              wfDefinitionId,
+              input: {},
+              triggeredBy: 'schedule',
+              triggerData: {
+                triggerType: 'schedule',
+                schedule,
+                timestamp: Date.now(),
+              },
             },
-          });
+          );
 
           await ctx.runMutation(
-            internal.workflows.triggers.internal_mutations.updateScheduleLastTriggered,
+            internal.workflows.triggers.internal_mutations
+              .updateScheduleLastTriggered,
             { scheduleId, lastTriggeredAt: Date.now() },
           );
 

@@ -1,8 +1,9 @@
-import type { ActionCtx } from '../../../../_generated/server';
-import { internal } from '../../../../_generated/api';
-import type { Id } from '../../../../_generated/dataModel';
-import type { TableName, RecordProcessedResult } from './types';
 import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
+import type { Id } from '../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../_generated/server';
+import type { TableName, RecordProcessedResult } from './types';
+
+import { internal } from '../../../../_generated/api';
 
 export async function recordProcessed(
   ctx: ActionCtx,
@@ -30,7 +31,8 @@ export async function recordProcessed(
   // Fetch and return the full created entity
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   const createdRecord = await ctx.runQuery(
-    internal.workflows.processing_records.internal_queries.getProcessingRecordById,
+    internal.workflows.processing_records.internal_queries
+      .getProcessingRecordById,
     { processingRecordId },
   );
 

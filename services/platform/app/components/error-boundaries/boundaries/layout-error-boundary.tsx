@@ -1,7 +1,8 @@
 'use client';
 
-import { type ReactNode } from 'react';
 import { useLocation } from '@tanstack/react-router';
+import { type ReactNode } from 'react';
+
 import { ErrorBoundaryBase } from '../core/error-boundary-base';
 import { ErrorDisplayCompact } from '../displays/error-display-compact';
 

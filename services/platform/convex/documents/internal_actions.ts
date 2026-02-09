@@ -1,10 +1,11 @@
 'use node';
 
 import { v } from 'convex/values';
-import { internalAction } from '../_generated/server';
+
 import { internal } from '../_generated/api';
-import * as DocumentsHelpers from './helpers';
+import { internalAction } from '../_generated/server';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
+import * as DocumentsHelpers from './helpers';
 
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),
@@ -201,14 +202,17 @@ export const checkRagJobStatus = internalAction({
       console.warn(
         `[checkRagJobStatus] Max attempts (${maxAttempts}) reached for document ${args.documentId}`,
       );
-      await ctx.runMutation(internal.documents.internal_mutations.updateDocumentRagInfo, {
-        documentId: args.documentId,
-        ragInfo: {
-          status: 'failed',
-          jobId: document.ragInfo.jobId,
-          error: `Job status check timed out after ${maxAttempts} attempts`,
+      await ctx.runMutation(
+        internal.documents.internal_mutations.updateDocumentRagInfo,
+        {
+          documentId: args.documentId,
+          ragInfo: {
+            status: 'failed',
+            jobId: document.ragInfo.jobId,
+            error: `Job status check timed out after ${maxAttempts} attempts`,
+          },
         },
-      });
+      );
       return null;
     }
 
@@ -243,30 +247,36 @@ export const checkRagJobStatus = internalAction({
 
       // Terminate: job reached terminal state
       if (job.state === 'completed' || job.state === 'failed') {
-        await ctx.runMutation(internal.documents.internal_mutations.updateDocumentRagInfo, {
-          documentId: args.documentId,
-          ragInfo: {
-            status: job.state,
-            jobId: document.ragInfo.jobId,
-            indexedAt: job.state === 'completed' ? job.updated_at : undefined,
-            error:
-              job.state === 'failed'
-                ? job.error || job.message || 'Unknown error'
-                : undefined,
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocumentRagInfo,
+          {
+            documentId: args.documentId,
+            ragInfo: {
+              status: job.state,
+              jobId: document.ragInfo.jobId,
+              indexedAt: job.state === 'completed' ? job.updated_at : undefined,
+              error:
+                job.state === 'failed'
+                  ? job.error || job.message || 'Unknown error'
+                  : undefined,
+            },
           },
-        });
+        );
         return null;
       }
 
       // Update status if changed to running
       if (job.state === 'running' && document.ragInfo.status !== 'running') {
-        await ctx.runMutation(internal.documents.internal_mutations.updateDocumentRagInfo, {
-          documentId: args.documentId,
-          ragInfo: {
-            status: 'running',
-            jobId: document.ragInfo.jobId,
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocumentRagInfo,
+          {
+            documentId: args.documentId,
+            ragInfo: {
+              status: 'running',
+              jobId: document.ragInfo.jobId,
+            },
           },
-        });
+        );
       }
 
       // Schedule next attempt

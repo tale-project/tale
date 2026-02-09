@@ -17,11 +17,12 @@
  */
 
 import { v } from 'convex/values';
-import type { ActionDefinition } from '../helpers/nodes/action/types';
-import { replaceVariables } from '../../lib/variables/replace_variables';
-import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
 
+import type { ActionDefinition } from '../helpers/nodes/action/types';
+
+import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
 import { createDebugLog } from '../../lib/debug_log';
+import { replaceVariables } from '../../lib/variables/replace_variables';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 

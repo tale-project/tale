@@ -2,9 +2,9 @@
  * Persist execution result to database
  */
 
-import { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 import { Id } from '../../../_generated/dataModel';
+import { ActionCtx } from '../../../_generated/server';
 import { serializeVariables } from '../serialization/serialize_variables';
 import { StepDefinition, StepExecutionResult } from './types';
 
@@ -22,7 +22,7 @@ export async function persistExecutionResult(
     lastOutput: result.output,
     steps: stepsMap,
     // Merge any variables returned by the step (e.g., from set_variables action)
-    ...(result.variables ?? {}),
+    ...result.variables,
     // Extract and override loop variable to prevent large payloads and ensure correct loop restoration
     ...(essentialLoop ? { loop: essentialLoop as unknown } : {}),
     organizationId:
@@ -46,9 +46,12 @@ export async function persistExecutionResult(
     oldStorageId,
   );
 
-  await ctx.runMutation(internal.wf_executions.internal_mutations.updateExecutionVariables, {
-    executionId: executionId as Id<'wfExecutions'>,
-    variablesSerialized: serialized,
-    variablesStorageId: storageId,
-  });
+  await ctx.runMutation(
+    internal.wf_executions.internal_mutations.updateExecutionVariables,
+    {
+      executionId: executionId as Id<'wfExecutions'>,
+      variablesSerialized: serialized,
+      variablesStorageId: storageId,
+    },
+  );
 }

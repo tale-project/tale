@@ -1,23 +1,26 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import { CronExpressionParser } from 'cron-parser';
 import { Sparkles } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+
+import type { Id } from '@/convex/_generated/dataModel';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import type { Id } from '@/convex/_generated/dataModel';
+
+import { useGenerateCron } from '../hooks/use-generate-cron';
 import {
   useCreateSchedule,
   useUpdateSchedule,
 } from '../hooks/use-trigger-mutations';
-import { useGenerateCron } from '../hooks/use-generate-cron';
 
 interface ScheduleData {
   _id: Id<'wfSchedules'>;
@@ -73,17 +76,14 @@ export function ScheduleCreateDialog({
           .string()
           .trim()
           .min(1, 'Cron expression is required')
-          .refine(
-            (value) => {
-              try {
-                CronExpressionParser.parse(value);
-                return true;
-              } catch {
-                return false;
-              }
-            },
-            'Must be a valid 5-field cron expression',
-          ),
+          .refine((value) => {
+            try {
+              CronExpressionParser.parse(value);
+              return true;
+            } catch {
+              return false;
+            }
+          }, 'Must be a valid 5-field cron expression'),
       }),
     [],
   );
@@ -124,9 +124,7 @@ export function ScheduleCreateDialog({
       });
       setCronDescription(result.description);
     } catch {
-      setGenerateError(
-        t('triggers.schedules.form.ai.generateError' as any),
-      );
+      setGenerateError(t('triggers.schedules.form.ai.generateError' as any));
     } finally {
       setIsGenerating(false);
     }
@@ -188,9 +186,7 @@ export function ScheduleCreateDialog({
             <Input
               id="naturalLanguage"
               label={t('triggers.schedules.form.ai.label' as any)}
-              placeholder={t(
-                'triggers.schedules.form.ai.placeholder' as any,
-              )}
+              placeholder={t('triggers.schedules.form.ai.placeholder' as any)}
               value={naturalLanguage}
               onChange={(e) => setNaturalLanguage(e.target.value)}
               onKeyDown={(e) => {
@@ -212,16 +208,14 @@ export function ScheduleCreateDialog({
               isLoading={isGenerating}
               icon={Sparkles}
               className="mt-7 shrink-0"
-              aria-label={t(
-                'triggers.schedules.form.ai.generateButton' as any,
-              )}
+              aria-label={t('triggers.schedules.form.ai.generateButton' as any)}
             >
               {t('triggers.schedules.form.ai.generateButton' as any)}
             </Button>
           </div>
           {cronDescription && (
             <output
-              className="text-xs text-muted-foreground"
+              className="text-muted-foreground text-xs"
               aria-live="polite"
             >
               {cronDescription}
@@ -239,7 +233,7 @@ export function ScheduleCreateDialog({
             required
             errorMessage={formState.errors.cronExpression?.message}
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             {t('triggers.schedules.form.cronHelp')}
           </p>
           <div className="flex flex-wrap gap-2">

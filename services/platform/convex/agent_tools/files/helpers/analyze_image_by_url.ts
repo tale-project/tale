@@ -4,11 +4,12 @@
  * Helper for analyzing images by URL using the vision model.
  */
 
+import type { ActionCtx } from '../../../_generated/server';
+import type { AnalyzeImageResult } from './analyze_image';
+
 import { components } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
-import type { ActionCtx } from '../../../_generated/server';
 import { getVisionModel, createVisionAgent } from './vision_agent';
-import type { AnalyzeImageResult } from './analyze_image';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[ImageAnalysis]');
 

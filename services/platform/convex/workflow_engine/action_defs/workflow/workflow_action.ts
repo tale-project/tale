@@ -1,6 +1,8 @@
 import { v } from 'convex/values';
+
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { WorkflowActionParams } from './helpers/types';
+
 import { uploadAllWorkflows } from './helpers/upload_workflows';
 
 export const workflowAction: ActionDefinition<WorkflowActionParams> = {
@@ -29,7 +31,6 @@ export const workflowAction: ActionDefinition<WorkflowActionParams> = {
 
     switch (params.operation) {
       case 'upload_all_workflows': {
-
         const startTime = Date.now();
 
         // Upload all workflows to RAG service

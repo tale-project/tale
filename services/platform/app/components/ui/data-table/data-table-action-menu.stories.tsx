@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import {
   Plus,
   Download,
@@ -7,6 +8,7 @@ import {
   Copy,
   MoreHorizontal,
 } from 'lucide-react';
+
 import { DataTableActionMenu } from './data-table-action-menu';
 
 const meta: Meta<typeof DataTableActionMenu> = {
@@ -153,7 +155,7 @@ export const WithoutIcon: Story = {
 
 export const AllVariants: Story = {
   render: () => (
-    <div className="flex flex-wrap gap-4 items-center">
+    <div className="flex flex-wrap items-center gap-4">
       <DataTableActionMenu label="Default" icon={Plus} onClick={() => {}} />
       <DataTableActionMenu
         label="Outline"
@@ -208,8 +210,8 @@ export const WithChildren: Story = {
     label: 'Unused',
     children: (
       <div className="flex gap-2">
-        <button className="px-3 py-1 text-sm border rounded">Custom A</button>
-        <button className="px-3 py-1 text-sm border rounded">Custom B</button>
+        <button className="rounded border px-3 py-1 text-sm">Custom A</button>
+        <button className="rounded border px-3 py-1 text-sm">Custom B</button>
       </div>
     ),
   },

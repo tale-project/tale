@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { TabNavigation } from './tab-navigation';
-import { Button } from '../primitives/button';
+
 import { Plus } from 'lucide-react';
+
+import { Button } from '../primitives/button';
+import { TabNavigation } from './tab-navigation';
 
 const meta: Meta<typeof TabNavigation> = {
   title: 'Navigation/TabNavigation',
@@ -199,7 +201,8 @@ export const NonStandalone: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Without sticky positioning (for use inside StickyHeader wrapper).',
+        story:
+          'Without sticky positioning (for use inside StickyHeader wrapper).',
       },
     },
   },

@@ -8,8 +8,8 @@
  * - Paginates BEFORE collecting all data when possible
  */
 
-import { QueryCtx } from '../_generated/server';
 import { Doc } from '../_generated/dataModel';
+import { QueryCtx } from '../_generated/server';
 import {
   normalizePaginationOptions,
   calculatePaginationMeta,
@@ -189,8 +189,16 @@ async function getProductsWithSearch(
     sortOrder: SortOrder;
   },
 ): Promise<ProductListResponse> {
-  const { organizationId, status, category, searchQuery, currentPage, pageSize, sortBy, sortOrder } =
-    args;
+  const {
+    organizationId,
+    status,
+    category,
+    searchQuery,
+    currentPage,
+    pageSize,
+    sortBy,
+    sortOrder,
+  } = args;
 
   // Use search index with optional filters
   const searchResults: Array<Doc<'products'>> = [];
@@ -235,7 +243,12 @@ async function getProductsWithSearch(
 
   for await (const product of baseQuery) {
     if (nameMatchIds.has(product._id)) continue;
-    if (!('category' in indexedFields) && category !== undefined && product.category !== category) continue;
+    if (
+      !('category' in indexedFields) &&
+      category !== undefined &&
+      product.category !== category
+    )
+      continue;
     if (product.description?.toLowerCase().includes(searchQuery)) {
       descriptionMatches.push(product);
     }
@@ -302,7 +315,10 @@ async function getProductsWithSortedIndex(
 
   // Apply pagination (already sorted by index)
   const startIndex = (currentPage - 1) * pageSize;
-  const paginatedProducts = allProducts.slice(startIndex, startIndex + pageSize);
+  const paginatedProducts = allProducts.slice(
+    startIndex,
+    startIndex + pageSize,
+  );
 
   return {
     products: paginatedProducts.map(mapProduct),
@@ -343,7 +359,8 @@ async function getProductsWithIteration(
     category,
   });
 
-  const needsCategoryFilter = !('category' in indexedFields) && category !== undefined;
+  const needsCategoryFilter =
+    !('category' in indexedFields) && category !== undefined;
   const matchingProducts: Array<Doc<'products'>> = [];
 
   for await (const product of query) {

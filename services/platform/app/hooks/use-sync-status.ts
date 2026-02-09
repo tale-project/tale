@@ -1,5 +1,6 @@
-import { useSyncExternalStore, useCallback } from 'react';
 import { useConvex } from 'convex/react';
+import { useSyncExternalStore, useCallback } from 'react';
+
 import {
   subscribeSyncState,
   getSyncState,
@@ -28,7 +29,7 @@ export function useSyncStatus() {
   const state = useSyncExternalStore(
     subscribeSyncState,
     getSnapshot,
-    getServerSnapshot
+    getServerSnapshot,
   );
 
   const syncNow = useCallback(async () => {

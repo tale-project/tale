@@ -33,7 +33,7 @@ export interface OfflineState {
   isSyncing: boolean;
 }
 
-export interface UseOfflineEntityDataReturn<TItem> {
+interface UseOfflineEntityDataReturn<TItem> {
   data: TItem[];
   totalCount: number;
   filteredCount: number;
@@ -43,7 +43,7 @@ export interface UseOfflineEntityDataReturn<TItem> {
   lastSyncTime: Date | null;
 }
 
-export interface MutationQueueConfig<TArgs = Record<string, unknown>> {
+interface MutationQueueConfig<TArgs = Record<string, unknown>> {
   mutationFn: FunctionReference<'mutation', 'public'>;
   getOptimisticData?: (args: TArgs) => unknown;
   getCacheKey: (args: TArgs) => string;

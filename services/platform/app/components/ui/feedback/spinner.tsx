@@ -1,6 +1,7 @@
 'use client';
 
 import { cva, type VariantProps } from 'class-variance-authority';
+
 import { cn } from '@/lib/utils/cn';
 
 const spinnerVariants = cva(
@@ -16,7 +17,7 @@ const spinnerVariants = cva(
     defaultVariants: {
       size: 'md',
     },
-  }
+  },
 );
 
 interface SpinnerProps extends VariantProps<typeof spinnerVariants> {
@@ -36,4 +37,3 @@ export function Spinner({ size, className, label = 'Loading' }: SpinnerProps) {
     </div>
   );
 }
-

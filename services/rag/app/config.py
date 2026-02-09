@@ -136,33 +136,23 @@ class Settings(BaseSettings):
         # API key: prefer RAG_OPENAI_API_KEY (openai_api_key), then OPENAI_API_KEY
         api_key = self.openai_api_key or os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError(
-                "OPENAI_API_KEY must be set in environment. "
-                "No default API key is provided."
-            )
+            raise ValueError("OPENAI_API_KEY must be set in environment. No default API key is provided.")
 
         # Base URL: prefer RAG_OPENAI_BASE_URL (openai_base_url), then OPENAI_BASE_URL
         base_url = self.openai_base_url or os.environ.get("OPENAI_BASE_URL")
         if not base_url:
-            raise ValueError(
-                "OPENAI_BASE_URL must be set in environment. "
-                "No default base URL is provided."
-            )
+            raise ValueError("OPENAI_BASE_URL must be set in environment. No default base URL is provided.")
 
         # Model: use OPENAI_FAST_MODEL (required)
         model = os.environ.get("OPENAI_FAST_MODEL")
         if not model:
-            raise ValueError(
-                "OPENAI_FAST_MODEL must be set in environment. "
-                "No default model is provided."
-            )
+            raise ValueError("OPENAI_FAST_MODEL must be set in environment. No default model is provided.")
 
         # Embedding model: use OPENAI_EMBEDDING_MODEL (required)
         embedding_model = os.environ.get("OPENAI_EMBEDDING_MODEL")
         if not embedding_model:
             raise ValueError(
-                "OPENAI_EMBEDDING_MODEL must be set in environment. "
-                "No default embedding model is provided."
+                "OPENAI_EMBEDDING_MODEL must be set in environment. No default embedding model is provided."
             )
 
         # Max tokens: prefer RAG_OPENAI_MAX_TOKENS (openai_max_tokens), then OPENAI_MAX_TOKENS
@@ -229,11 +219,9 @@ class Settings(BaseSettings):
         except ValueError:
             raise ValueError(
                 f"EMBEDDING_DIMENSIONS must be a valid positive integer, got: {dimensions_str!r}"
-            )
+            ) from None
         if dimensions <= 0:
-            raise ValueError(
-                f"EMBEDDING_DIMENSIONS must be a positive integer, got: {dimensions}"
-            )
+            raise ValueError(f"EMBEDDING_DIMENSIONS must be a positive integer, got: {dimensions}")
         return dimensions
 
     def get_vision_model(self) -> str:
@@ -248,10 +236,7 @@ class Settings(BaseSettings):
         """
         vision_model = self.openai_vision_model or os.environ.get("OPENAI_VISION_MODEL")
         if not vision_model:
-            raise ValueError(
-                "OPENAI_VISION_MODEL must be set in environment. "
-                "No default vision model is provided."
-            )
+            raise ValueError("OPENAI_VISION_MODEL must be set in environment. No default vision model is provided.")
         return vision_model
 
     def get_allowed_origins_list(self) -> list[str]:
@@ -263,4 +248,3 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
-

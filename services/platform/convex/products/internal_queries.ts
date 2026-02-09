@@ -1,11 +1,9 @@
 import { v } from 'convex/values';
+
 import { internalQuery } from '../_generated/server';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
 import * as ProductsHelpers from './helpers';
-import {
-  productStatusValidator,
-  productDocValidator,
-} from './validators';
+import { productStatusValidator, productDocValidator } from './validators';
 
 export const getProductById = internalQuery({
   args: {

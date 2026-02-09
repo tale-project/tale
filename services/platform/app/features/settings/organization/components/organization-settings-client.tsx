@@ -1,22 +1,24 @@
 'use client';
 
+import { useQuery } from 'convex/react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useQuery } from 'convex/react';
-import { authClient } from '@/lib/auth-client';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Input } from '@/app/components/ui/forms/input';
+
+import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
 import { Form } from '@/app/components/ui/forms/form';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { api } from '@/convex/_generated/api';
-import { Plus } from 'lucide-react';
+import { Input } from '@/app/components/ui/forms/input';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
+import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useDebounce } from '@/app/hooks/use-debounce';
 import { useToast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { authClient } from '@/lib/auth-client';
+import { useT } from '@/lib/i18n/client';
+
 import { AddMemberDialog } from './member-add-dialog';
 import { MemberTable } from './member-table';
-import { useDebounce } from '@/app/hooks/use-debounce';
-import { useT } from '@/lib/i18n/client';
-import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
 
 type Member = {
   _id: string;
@@ -132,7 +134,7 @@ export function OrganizationSettingsClient({
             id="org-name"
             label={tSettings('organization.title')}
             {...register('name')}
-            className="flex-1 max-w-sm"
+            className="max-w-sm flex-1"
           />
           <Button
             type="submit"
@@ -147,7 +149,11 @@ export function OrganizationSettingsClient({
       </Form>
 
       {organization && (
-        <HStack gap={2} align="center" className="text-sm text-muted-foreground">
+        <HStack
+          gap={2}
+          align="center"
+          className="text-muted-foreground text-sm"
+        >
           <span>{tSettings('organization.organizationId')}:</span>
           <CopyableText value={organization._id} />
         </HStack>
@@ -155,10 +161,10 @@ export function OrganizationSettingsClient({
 
       <Stack className="pt-4">
         <Stack gap={1}>
-          <h2 className="text-base font-semibold text-foreground">
+          <h2 className="text-foreground text-base font-semibold">
             {tSettings('organization.membersTitle')}
           </h2>
-          <p className="text-sm text-muted-foreground tracking-[-0.084px]">
+          <p className="text-muted-foreground text-sm tracking-[-0.084px]">
             {tSettings('organization.manageAccess')}
           </p>
         </Stack>
@@ -176,7 +182,7 @@ export function OrganizationSettingsClient({
               onClick={() => setIsAddMemberDialogOpen(true)}
               className="bg-foreground text-background hover:bg-foreground/90"
             >
-              <Plus className="size-4 mr-2" />
+              <Plus className="mr-2 size-4" />
               {tSettings('organization.addMember')}
             </Button>
           )}
@@ -201,7 +207,9 @@ export function OrganizationSettingsClient({
                   role: memberContext.role || null,
                   isAdmin: memberContext.isAdmin || false,
                   canManageMembers:
-                    memberContext.canManageMembers ?? memberContext.isAdmin ?? false,
+                    memberContext.canManageMembers ??
+                    memberContext.isAdmin ??
+                    false,
                 }
               : undefined
           }

@@ -1,22 +1,26 @@
+import { Upload, Trash2 } from 'lucide-react';
+import { useFormContext } from 'react-hook-form';
+
+import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
+import { Description } from '@/app/components/ui/forms/description';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { Form } from '@/app/components/ui/forms/form';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
 import {
   Tabs,
   TabsList,
   TabsTrigger,
 } from '@/app/components/ui/navigation/tabs';
-import { useFormContext } from 'react-hook-form';
-import { Form } from '@/app/components/ui/forms/form';
-import { Description } from '@/app/components/ui/forms/description';
-import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
-import { Upload, Trash2 } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Button } from '@/app/components/ui/primitives/button';
+import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { toast } from '@/app/hooks/use-toast';
-import { isSpreadsheet, SPREADSHEET_IMPORT_ACCEPT } from '@/lib/shared/file-types';
+import {
+  isSpreadsheet,
+  SPREADSHEET_IMPORT_ACCEPT,
+} from '@/lib/shared/file-types';
+import { cn } from '@/lib/utils/cn';
 
 interface VendorImportFormProps {
   hideTabs?: boolean;
@@ -91,7 +95,7 @@ export function VendorImportForm({
             {...register('vendors')}
           />
           <Description className="text-xs">
-            <ul className="list-disc list-outside pl-4 space-y-2">
+            <ul className="list-outside list-disc space-y-2 pl-4">
               <li>{t('importForm.localeHint')}</li>
             </ul>
           </Description>
@@ -111,32 +115,32 @@ export function VendorImportForm({
               )}
             >
               <FileUpload.Overlay className="rounded-lg" />
-              <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
+              <Upload className="text-muted-foreground mx-auto mb-2 size-8" />
               <p className="text-sm font-medium">
                 {tCommon('upload.clickToUpload')}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-muted-foreground mt-1 text-xs">
                 {tCommon('upload.supportedFormats')}
               </p>
             </FileUpload.DropZone>
           </FileUpload.Root>
           <Description className="text-xs">
-            <ul className="list-disc list-outside pl-4 space-y-2">
+            <ul className="list-outside list-disc space-y-2 pl-4">
               <li>{t('importForm.localeHint')}</li>
             </ul>
           </Description>
           {errors.file?.message && (
-            <p className="text-sm text-destructive">
+            <p className="text-destructive text-sm">
               {errors.file.message as string}
             </p>
           )}
           {fileValue && (
-            <VStack gap={2} className="border border-border p-3 rounded-xl">
+            <VStack gap={2} className="border-border rounded-xl border p-3">
               <HStack gap={3} className="w-full">
-                <HStack gap={2} className="flex-1 min-w-0">
+                <HStack gap={2} className="min-w-0 flex-1">
                   <DocumentIcon fileName={fileValue.name} />
-                  <VStack gap={0} className="flex-1 min-w-0">
-                    <div className="font-medium text-sm text-foreground truncate">
+                  <VStack gap={0} className="min-w-0 flex-1">
+                    <div className="text-foreground truncate text-sm font-medium">
                       {fileValue.name}
                     </div>
                   </VStack>

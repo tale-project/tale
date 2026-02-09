@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { useState } from 'react';
+
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import {
   MessageCircle,
   Inbox,
@@ -8,20 +9,22 @@ import {
   Network,
   Menu,
 } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
-import { Button } from '@/app/components/ui/primitives/button';
+import { useState } from 'react';
+
 import {
   Sheet,
   SheetContent,
   SheetTitle,
   SheetDescription,
 } from '@/app/components/ui/overlays/sheet';
+import { Button } from '@/app/components/ui/primitives/button';
+import { cn } from '@/lib/utils/cn';
+
 import {
   NavigationMenu,
   NavigationMenuItem,
   NavigationMenuList,
 } from './navigation-menu';
-import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 
 // NOTE: The full MobileNavigation component requires TanStack Router (Link, useLocation),
 // useNavigationItems hook, and UserButton. These stories use a visual replica with the same
@@ -93,7 +96,7 @@ function MobileNavItemVisual({
         <span className="text-sm font-medium">{item.label}</span>
       </button>
       {item.subItems && item.isActive && (
-        <div className="ml-8 mt-2 space-y-2">
+        <div className="mt-2 ml-8 space-y-2">
           {item.subItems.map((subItem) => (
             <button
               key={subItem.label}
@@ -141,14 +144,14 @@ function MobileNavigationVisual({
             <SheetTitle>Menu</SheetTitle>
             <SheetDescription>Navigation menu</SheetDescription>
           </VisuallyHidden.Root>
-          <NavigationMenu className="flex flex-col bg-background h-full max-w-none w-full">
-            <div className="flex-shrink-0 h-14 px-4 py-2 border-b border-border flex items-center">
-              <div className="size-8 rounded bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
+          <NavigationMenu className="bg-background flex h-full w-full max-w-none flex-col">
+            <div className="border-border flex h-14 flex-shrink-0 items-center border-b px-4 py-2">
+              <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded text-xs font-bold">
                 T
               </div>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-4">
-              <NavigationMenuList className="flex flex-col space-y-2 w-full">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <NavigationMenuList className="flex w-full flex-col space-y-2">
                 {items.map((item) => (
                   <MobileNavItemVisual
                     key={item.label}
@@ -158,10 +161,10 @@ function MobileNavigationVisual({
                 ))}
               </NavigationMenuList>
             </div>
-            <div className="flex-shrink-0 h-14 px-4 py-2 border-t border-border flex items-center">
+            <div className="border-border flex h-14 flex-shrink-0 items-center border-t px-4 py-2">
               <div className="flex items-center gap-2">
-                <div className="size-8 rounded-full bg-muted" />
-                <span className="text-sm text-muted-foreground">Settings</span>
+                <div className="bg-muted size-8 rounded-full" />
+                <span className="text-muted-foreground text-sm">Settings</span>
               </div>
             </div>
           </NavigationMenu>

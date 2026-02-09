@@ -1,6 +1,7 @@
-import type { DeploymentColor } from "../compose/types";
-import { getCurrentColor } from "./get-current-color";
-import { getPreviousVersion } from "./get-previous-version";
+import type { DeploymentColor } from '../compose/types';
+
+import { getCurrentColor } from './get-current-color';
+import { getPreviousVersion } from './get-previous-version';
 
 export interface DeploymentState {
   currentColor: DeploymentColor | null;
@@ -8,7 +9,7 @@ export interface DeploymentState {
 }
 
 export async function getDeploymentState(
-  deployDir: string
+  deployDir: string,
 ): Promise<DeploymentState> {
   const [currentColor, previousVersion] = await Promise.all([
     getCurrentColor(deployDir),

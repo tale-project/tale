@@ -1,16 +1,20 @@
 'use client';
 
-import { useState, useCallback } from 'react';
 import { Plus } from 'lucide-react';
+import { useState, useCallback } from 'react';
+
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
-import { AddWebsiteDialog } from './website-add-dialog';
 import { useT } from '@/lib/i18n/client';
+
+import { AddWebsiteDialog } from './website-add-dialog';
 
 interface WebsitesActionMenuProps {
   organizationId: string;
 }
 
-export function WebsitesActionMenu({ organizationId }: WebsitesActionMenuProps) {
+export function WebsitesActionMenu({
+  organizationId,
+}: WebsitesActionMenuProps) {
   const { t: tWebsites } = useT('websites');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 

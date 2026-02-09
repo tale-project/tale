@@ -2,8 +2,8 @@
  * Get conversation by external message ID
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export async function getConversationByExternalMessageId(
   ctx: QueryCtx,

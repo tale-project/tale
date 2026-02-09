@@ -1,10 +1,11 @@
-import type { DeploymentColor } from "../compose/types";
-import * as logger from "../../utils/logger";
-import { getStateFilePath } from "./get-state-file-path";
+import type { DeploymentColor } from '../compose/types';
+
+import * as logger from '../../utils/logger';
+import { getStateFilePath } from './get-state-file-path';
 
 export async function setCurrentColor(
   deployDir: string,
-  color: DeploymentColor
+  color: DeploymentColor,
 ): Promise<void> {
   const statePath = getStateFilePath(deployDir);
   await Bun.write(statePath, color);

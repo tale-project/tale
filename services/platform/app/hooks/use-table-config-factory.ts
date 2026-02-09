@@ -1,11 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
+
+import { useMemo } from 'react';
+
 import type { Doc, TableNames } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n/client';
 import type { Namespace } from '@/lib/i18n/types';
+
 import * as columnBuilders from '@/app/components/ui/data-table/column-builders';
+import { useT } from '@/lib/i18n/client';
 
 type TranslationFn = (key: string) => string;
 
@@ -135,4 +138,4 @@ export function createTableConfigHook<TTableName extends TableNames>(
   };
 }
 
-export type { TableConfig, CreateTableConfigOptions, ColumnBuilderContext };
+export type { TableConfig, CreateTableConfigOptions };

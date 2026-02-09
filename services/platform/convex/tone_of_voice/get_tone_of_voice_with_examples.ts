@@ -2,8 +2,8 @@
  * Get tone of voice with example messages
  */
 
-import { QueryCtx } from '../_generated/server';
 import { Doc } from '../_generated/dataModel';
+import { QueryCtx } from '../_generated/server';
 import { ToneOfVoiceWithExamples } from './types';
 
 export async function getToneOfVoiceWithExamples(

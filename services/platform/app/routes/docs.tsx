@@ -1,7 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense, lazy, useMemo } from 'react';
-import { Stack } from '@/app/components/ui/layout/layout';
+
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { Stack } from '@/app/components/ui/layout/layout';
+
 import 'swagger-ui-react/swagger-ui.css';
 
 const SwaggerUI = lazy(() => import('swagger-ui-react'));
@@ -49,7 +51,7 @@ function ApiDocsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       <main className="swagger-ui-standalone">
         <Suspense fallback={<SwaggerSkeleton />}>
           <SwaggerUI {...swaggerConfig} />

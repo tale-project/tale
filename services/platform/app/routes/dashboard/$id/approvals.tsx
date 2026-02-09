@@ -1,12 +1,13 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
-import { ApprovalsNavigation } from '@/app/features/approvals/components/approvals-navigation';
+
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
-import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
+import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
+import { ApprovalsNavigation } from '@/app/features/approvals/components/approvals-navigation';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/approvals')({
@@ -26,7 +27,7 @@ function ApprovalsLayout() {
   const { t } = useT('approvals');
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       <StickyHeader>
         <AdaptiveHeaderRoot standalone={false}>
           <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>

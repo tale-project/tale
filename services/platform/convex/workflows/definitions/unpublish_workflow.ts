@@ -3,8 +3,8 @@
  * All triggers stop firing automatically since getActiveWorkflowVersion() returns null.
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 
 export interface UnpublishWorkflowArgs {
   wfDefinitionId: Id<'wfDefinitions'>;

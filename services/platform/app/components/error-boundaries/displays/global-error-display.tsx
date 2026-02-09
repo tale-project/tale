@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from '@tanstack/react-router';
 import * as Sentry from '@sentry/tanstackstart-react';
+import { useRouter } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 
 interface GlobalErrorDisplayProps {
   error: Error;
@@ -89,9 +89,6 @@ export function GlobalErrorDisplay({ error, reset }: GlobalErrorDisplayProps) {
   const [showError, setShowError] = useState(false);
   const isDarkMode = useIsDarkMode();
 
-  const logoSrc = isDarkMode
-    ? '/assets/logo-white.svg'
-    : '/assets/logo-black.svg';
   const textColor = isDarkMode ? '#f3f4f6' : '#111827';
   const mutedColor = isDarkMode ? '#9ca3af' : '#6b7280';
 

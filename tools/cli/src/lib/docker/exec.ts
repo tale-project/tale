@@ -1,4 +1,4 @@
-import * as logger from "../../utils/logger";
+import * as logger from '../../utils/logger';
 
 export interface ExecResult {
   success: boolean;
@@ -10,18 +10,18 @@ export interface ExecResult {
 export async function exec(
   command: string,
   args: string[],
-  options: { cwd?: string; silent?: boolean; timeout?: number } = {}
+  options: { cwd?: string; silent?: boolean; timeout?: number } = {},
 ): Promise<ExecResult> {
   const { cwd, silent = false, timeout } = options;
 
   if (!silent) {
-    logger.debug(`Executing: ${command} ${args.join(" ")}`);
+    logger.debug(`Executing: ${command} ${args.join(' ')}`);
   }
 
   const proc = Bun.spawn([command, ...args], {
     cwd,
-    stdout: "pipe",
-    stderr: "pipe",
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
 
   const exitPromise = timeout
@@ -31,7 +31,7 @@ export async function exec(
           setTimeout(() => {
             proc.kill();
             reject(new Error(`Command timed out after ${timeout}s`));
-          }, timeout * 1000)
+          }, timeout * 1000),
         ),
       ])
     : proc.exited;
@@ -49,4 +49,3 @@ export async function exec(
     exitCode,
   };
 }
-

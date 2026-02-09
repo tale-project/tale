@@ -1,9 +1,9 @@
 'use node';
 
-import nodemailer from 'nodemailer';
-import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
+import nodemailer from 'nodemailer';
 
+import { internalAction } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');

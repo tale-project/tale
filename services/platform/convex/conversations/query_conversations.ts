@@ -10,10 +10,14 @@
  * - default: by_organizationId
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
-import { paginateWithFilter, type CursorPaginatedResult } from '../lib/pagination';
+import type { QueryCtx } from '../_generated/server';
 import type { QueryConversationsArgs } from './types';
+
+import {
+  paginateWithFilter,
+  type CursorPaginatedResult,
+} from '../lib/pagination';
 
 function buildQuery(ctx: QueryCtx, args: QueryConversationsArgs) {
   const { organizationId } = args;
@@ -23,7 +27,9 @@ function buildQuery(ctx: QueryCtx, args: QueryConversationsArgs) {
       query: ctx.db
         .query('conversations')
         .withIndex('by_organizationId_and_direction', (q) =>
-          q.eq('organizationId', organizationId).eq('direction', args.direction!),
+          q
+            .eq('organizationId', organizationId)
+            .eq('direction', args.direction!),
         ),
       indexedFields: { direction: true } as const,
     };
@@ -67,7 +73,9 @@ function buildQuery(ctx: QueryCtx, args: QueryConversationsArgs) {
       query: ctx.db
         .query('conversations')
         .withIndex('by_organizationId_and_customerId', (q) =>
-          q.eq('organizationId', organizationId).eq('customerId', args.customerId!),
+          q
+            .eq('organizationId', organizationId)
+            .eq('customerId', args.customerId!),
         ),
       indexedFields: { customerId: true } as const,
     };
@@ -89,21 +97,38 @@ export async function queryConversations(
 ): Promise<CursorPaginatedResult<Doc<'conversations'>>> {
   const { query, indexedFields } = buildQuery(ctx, args);
 
-  const needsDirectionFilter = !('direction' in indexedFields) && args.direction !== undefined;
-  const needsChannelFilter = !('channel' in indexedFields) && args.channel !== undefined;
-  const needsStatusFilter = !('status' in indexedFields) && args.status !== undefined;
-  const needsPriorityFilter = !('priority' in indexedFields) && args.priority !== undefined;
-  const needsCustomerIdFilter = !('customerId' in indexedFields) && args.customerId !== undefined;
+  const needsDirectionFilter =
+    !('direction' in indexedFields) && args.direction !== undefined;
+  const needsChannelFilter =
+    !('channel' in indexedFields) && args.channel !== undefined;
+  const needsStatusFilter =
+    !('status' in indexedFields) && args.status !== undefined;
+  const needsPriorityFilter =
+    !('priority' in indexedFields) && args.priority !== undefined;
+  const needsCustomerIdFilter =
+    !('customerId' in indexedFields) && args.customerId !== undefined;
   const needsFilter =
-    needsDirectionFilter || needsChannelFilter || needsStatusFilter || needsPriorityFilter || needsCustomerIdFilter;
+    needsDirectionFilter ||
+    needsChannelFilter ||
+    needsStatusFilter ||
+    needsPriorityFilter ||
+    needsCustomerIdFilter;
 
   const filter = needsFilter
     ? (conversation: Doc<'conversations'>): boolean => {
-        if (needsDirectionFilter && conversation.direction !== args.direction) return false;
-        if (needsChannelFilter && conversation.channel !== args.channel) return false;
-        if (needsStatusFilter && conversation.status !== args.status) return false;
-        if (needsPriorityFilter && conversation.priority !== args.priority) return false;
-        if (needsCustomerIdFilter && conversation.customerId !== args.customerId) return false;
+        if (needsDirectionFilter && conversation.direction !== args.direction)
+          return false;
+        if (needsChannelFilter && conversation.channel !== args.channel)
+          return false;
+        if (needsStatusFilter && conversation.status !== args.status)
+          return false;
+        if (needsPriorityFilter && conversation.priority !== args.priority)
+          return false;
+        if (
+          needsCustomerIdFilter &&
+          conversation.customerId !== args.customerId
+        )
+          return false;
         return true;
       }
     : undefined;

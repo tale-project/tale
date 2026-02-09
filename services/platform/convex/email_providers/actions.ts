@@ -1,17 +1,23 @@
 'use node';
 
 import { v } from 'convex/values';
-import { action } from '../_generated/server';
+
+import type { EmailProviderVendor } from '../../lib/shared/schemas/email_providers';
+import type { Id } from '../_generated/dataModel';
+import type { TestResult } from './test_existing_provider';
+
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
+import { action } from '../_generated/server';
 import { authComponent } from '../auth';
-import { encryptString } from '../lib/crypto/encrypt_string';
 import { decryptString } from '../lib/crypto/decrypt_string';
-import { createProviderLogic } from './create_provider_logic';
+import { encryptString } from '../lib/crypto/encrypt_string';
 import { createOAuth2ProviderLogic } from './create_oauth2_provider_logic';
-import { updateOAuth2ProviderLogic } from './update_oauth2_provider_logic';
+import { createProviderLogic } from './create_provider_logic';
 import { generateOAuth2AuthUrlLogic } from './generate_oauth2_auth_url_logic';
 import { storeOAuth2TokensLogic } from './store_oauth2_tokens_logic';
 import { testExistingProviderLogic } from './test_existing_provider_logic';
+import { updateOAuth2ProviderLogic } from './update_oauth2_provider_logic';
 import {
   emailProviderVendorValidator,
   emailProviderAuthMethodValidator,
@@ -20,10 +26,6 @@ import {
   imapConfigValidator,
   passwordAuthValidator,
 } from './validators';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-import type { Id } from '../_generated/dataModel';
-import type { EmailProviderVendor } from '../../lib/shared/schemas/email_providers';
-import type { TestResult } from './test_existing_provider';
 
 export const create = action({
   args: {
@@ -57,7 +59,11 @@ export const create = action({
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
           internal.email_providers.internal_mutations.createProvider,
-          params,
+          {
+            ...params,
+            vendor: params.vendor as EmailProviderVendor,
+            authMethod: params.authMethod as 'password' | 'oauth2',
+          },
         );
       },
     });
@@ -84,7 +90,9 @@ export const createOAuth2Provider = action({
     tenantId: v.optional(v.string()),
     clientId: v.optional(v.string()),
     clientSecret: v.optional(v.string()),
-    credentialsSource: v.optional(v.union(v.literal('sso'), v.literal('manual'))),
+    credentialsSource: v.optional(
+      v.union(v.literal('sso'), v.literal('manual')),
+    ),
   },
   handler: async (ctx, args): Promise<Id<'emailProviders'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -97,7 +105,11 @@ export const createOAuth2Provider = action({
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
           internal.email_providers.internal_mutations.createProvider,
-          params,
+          {
+            ...params,
+            vendor: params.vendor as EmailProviderVendor,
+            authMethod: params.authMethod as 'password' | 'oauth2',
+          },
         );
       },
     });
@@ -248,7 +260,9 @@ export const updateOAuth2Provider = action({
     clientSecret: v.optional(v.string()),
     tenantId: v.optional(v.string()),
     sendMethod: v.optional(sendMethodValidator),
-    credentialsSource: v.optional(v.union(v.literal('sso'), v.literal('manual'))),
+    credentialsSource: v.optional(
+      v.union(v.literal('sso'), v.literal('manual')),
+    ),
   },
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);

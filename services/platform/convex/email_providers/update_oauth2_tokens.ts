@@ -2,8 +2,8 @@
  * Update OAuth2 tokens for an email provider
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 import { createDebugLog } from '../lib/debug_log';
 
@@ -41,7 +41,7 @@ export async function updateOAuth2Tokens(
   ) {
     const issuer = process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER;
     if (issuer) {
-      const match = issuer.match(/\/([^\/]+)\/v2\.0$/);
+      const match = issuer.match(/\/([^/]+)\/v2\.0$/);
       if (match) {
         const tenantId = match[1];
         tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;

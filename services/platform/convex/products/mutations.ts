@@ -1,11 +1,12 @@
 import { v } from 'convex/values';
+
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { mutationWithRLS } from '../lib/rls';
 import * as ProductsHelpers from './helpers';
 import {
   productStatusValidator,
   productTranslationValidator,
 } from './validators';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const createProduct = mutationWithRLS({
   args: {
@@ -19,9 +20,7 @@ export const createProduct = mutationWithRLS({
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     status: v.optional(productStatusValidator),
-    translations: v.optional(
-      v.array(productTranslationValidator),
-    ),
+    translations: v.optional(v.array(productTranslationValidator)),
     metadata: v.optional(jsonRecordValidator),
   },
   returns: v.id('products'),
@@ -42,9 +41,7 @@ export const updateProduct = mutationWithRLS({
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     status: v.optional(productStatusValidator),
-    translations: v.optional(
-      v.array(productTranslationValidator),
-    ),
+    translations: v.optional(v.array(productTranslationValidator)),
     metadata: v.optional(jsonRecordValidator),
   },
   returns: v.id('products'),

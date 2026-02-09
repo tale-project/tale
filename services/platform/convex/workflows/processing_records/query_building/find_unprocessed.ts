@@ -22,11 +22,12 @@
 
 import type { MutationCtx } from '../../../_generated/server';
 import type { FindUnprocessedArgs, FindUnprocessedResult } from './types';
+
 import { calculateCutoffTimestamp } from '../calculate_cutoff_timestamp';
 import { findAndClaimUnprocessed } from '../find_and_claim_unprocessed';
 import { selectOptimalIndex } from '../index_selection';
-import { createQueryBuilder } from './create_query_builder';
 import { createExpressionFilter } from './create_expression_filter';
+import { createQueryBuilder } from './create_query_builder';
 
 export async function findUnprocessed(
   ctx: MutationCtx,
@@ -58,9 +59,10 @@ export async function findUnprocessed(
   );
 
   // Create additional filter if post-filtering is needed
-  const additionalFilter = requiresPostFilter && filterExpression
-    ? createExpressionFilter(filterExpression)
-    : undefined;
+  const additionalFilter =
+    requiresPostFilter && filterExpression
+      ? createExpressionFilter(filterExpression)
+      : undefined;
 
   return await findAndClaimUnprocessed(ctx, {
     organizationId,

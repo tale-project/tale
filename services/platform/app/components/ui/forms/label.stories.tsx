@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { Label } from './label';
 
 const meta: Meta<typeof Label> = {
@@ -82,13 +83,13 @@ export const ErrorState: Story = {
 
 export const WithInput: Story = {
   render: () => (
-    <div className="space-y-2 w-64">
+    <div className="w-64 space-y-2">
       <Label htmlFor="email-example">Email address</Label>
       <input
         id="email-example"
         type="email"
         placeholder="Enter your email"
-        className="w-full px-3 py-2 border rounded-md text-sm"
+        className="w-full rounded-md border px-3 py-2 text-sm"
       />
     </div>
   ),
@@ -103,7 +104,7 @@ export const WithInput: Story = {
 
 export const RequiredWithInput: Story = {
   render: () => (
-    <div className="space-y-2 w-64">
+    <div className="w-64 space-y-2">
       <Label htmlFor="name-example" required>
         Full name
       </Label>
@@ -111,7 +112,7 @@ export const RequiredWithInput: Story = {
         id="name-example"
         type="text"
         placeholder="Enter your name"
-        className="w-full px-3 py-2 border rounded-md text-sm"
+        className="w-full rounded-md border px-3 py-2 text-sm"
         required
       />
     </div>
@@ -127,7 +128,7 @@ export const RequiredWithInput: Story = {
 
 export const ErrorWithInput: Story = {
   render: () => (
-    <div className="space-y-2 w-64">
+    <div className="w-64 space-y-2">
       <Label htmlFor="invalid-email" required error>
         Email address
       </Label>
@@ -135,10 +136,12 @@ export const ErrorWithInput: Story = {
         id="invalid-email"
         type="email"
         defaultValue="invalid-email"
-        className="w-full px-3 py-2 border border-red-500 rounded-md text-sm"
+        className="w-full rounded-md border border-red-500 px-3 py-2 text-sm"
         aria-invalid="true"
       />
-      <p className="text-xs text-destructive">Please enter a valid email address</p>
+      <p className="text-destructive text-xs">
+        Please enter a valid email address
+      </p>
     </div>
   ),
   parameters: {
@@ -152,21 +155,25 @@ export const ErrorWithInput: Story = {
 
 export const FormGroup: Story = {
   render: () => (
-    <div className="space-y-4 w-64">
+    <div className="w-64 space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="firstname" required>First name</Label>
+        <Label htmlFor="firstname" required>
+          First name
+        </Label>
         <input
           id="firstname"
           type="text"
-          className="w-full px-3 py-2 border rounded-md text-sm"
+          className="w-full rounded-md border px-3 py-2 text-sm"
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="lastname" required>Last name</Label>
+        <Label htmlFor="lastname" required>
+          Last name
+        </Label>
         <input
           id="lastname"
           type="text"
-          className="w-full px-3 py-2 border rounded-md text-sm"
+          className="w-full rounded-md border px-3 py-2 text-sm"
         />
       </div>
       <div className="space-y-2">
@@ -174,7 +181,7 @@ export const FormGroup: Story = {
         <input
           id="bio"
           type="text"
-          className="w-full px-3 py-2 border rounded-md text-sm"
+          className="w-full rounded-md border px-3 py-2 text-sm"
         />
       </div>
     </div>

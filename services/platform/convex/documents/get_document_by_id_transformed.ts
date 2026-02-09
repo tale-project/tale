@@ -2,9 +2,10 @@
  * Get document by ID with transformation (for public API)
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import type { DocumentItemResponse } from './types';
+
 import { getDocumentById } from './get_document_by_id';
 import { transformDocumentsBatch } from './transform_to_document_item';
 

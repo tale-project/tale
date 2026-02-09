@@ -11,19 +11,21 @@
  */
 
 import { v } from 'convex/values';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
+
 import type { Id } from '../../../_generated/dataModel';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
+import type { ConversationStatus, ConversationPriority } from './helpers/types';
+
+import {
+  jsonRecordValidator,
+  jsonValueValidator,
+} from '../../../../lib/shared/schemas/utils/json-value';
 import { createConversation } from './helpers/create_conversation';
+import { createConversationFromEmail } from './helpers/create_conversation_from_email';
+import { createConversationFromSentEmail } from './helpers/create_conversation_from_sent_email';
 import { queryConversationMessages } from './helpers/query_conversation_messages';
 import { queryLatestMessageByDeliveryState } from './helpers/query_latest_message_by_delivery_state';
 import { updateConversations } from './helpers/update_conversations';
-import { createConversationFromEmail } from './helpers/create_conversation_from_email';
-import { createConversationFromSentEmail } from './helpers/create_conversation_from_sent_email';
-import type { ConversationStatus, ConversationPriority } from './helpers/types';
-import {
-	jsonRecordValidator,
-	jsonValueValidator,
-} from '../../../../lib/shared/schemas/utils/json-value';
 
 // Common field validators
 const paginationOptsValidator = v.object({
@@ -218,9 +220,12 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
 
       case 'get_by_id': {
         const { internal } = await import('../../../_generated/api');
-        return await ctx.runQuery(internal.conversations.internal_queries.getConversationById, {
-          conversationId: params.conversationId,
-        });
+        return await ctx.runQuery(
+          internal.conversations.internal_queries.getConversationById,
+          {
+            conversationId: params.conversationId,
+          },
+        );
       }
 
       case 'query_messages': {

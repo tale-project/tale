@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/app/components/ui/overlays/dropdown-menu';
+import { useQuery } from 'convex/react';
 import { MoreVertical } from 'lucide-react';
 import {
   ArrowLeft,
@@ -14,21 +9,28 @@ import {
   ShieldX,
   UserIcon,
 } from 'lucide-react';
-import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { toast } from '@/app/hooks/use-toast';
-import { useT } from '@/lib/i18n/client';
-
 import { useState } from 'react';
-import { useQuery } from 'convex/react';
+
+import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/app/components/ui/overlays/dropdown-menu';
+import { Button } from '@/app/components/ui/primitives/button';
+import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n/client';
+
 import type { ConversationWithMessages } from '../types';
-import { DotIcon } from './dot-icon';
+
 import { useCloseConversation } from '../hooks/use-close-conversation';
-import { useReopenConversation } from '../hooks/use-reopen-conversation';
 import { useMarkAsSpam } from '../hooks/use-mark-as-spam';
+import { useReopenConversation } from '../hooks/use-reopen-conversation';
+import { DotIcon } from './dot-icon';
 
 interface ConversationHeaderProps {
   conversation: ConversationWithMessages;
@@ -143,20 +145,20 @@ export function ConversationHeader({
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden shrink-0"
+            className="shrink-0 md:hidden"
             onClick={onBack}
             aria-label={tCommon('actions.back')}
           >
             <ArrowLeft className="size-5" />
           </Button>
         )}
-        <Stack className="min-w-0 overflow-hidden space-y-1">
+        <Stack className="min-w-0 space-y-1 overflow-hidden">
           {/* Title */}
-          <h2 className="flex items-center gap-2 text-base font-medium text-foreground tracking-tight whitespace-nowrap [&>*]:leading-none">
+          <h2 className="text-foreground flex items-center gap-2 text-base font-medium tracking-tight whitespace-nowrap [&>*]:leading-none">
             {customer.name && (
               <>
                 <button
-                  className="hover:underline cursor-pointer"
+                  className="cursor-pointer hover:underline"
                   onClick={() => setIsCustomerInfoOpen(true)}
                 >
                   {customer.name}
@@ -164,7 +166,7 @@ export function ConversationHeader({
                 <DotIcon className="flex-shrink-0" />
               </>
             )}
-            <span title={conversation.title} className="truncate max-w-xl">
+            <span title={conversation.title} className="max-w-xl truncate">
               {conversation.title}
             </span>
           </h2>
@@ -172,10 +174,10 @@ export function ConversationHeader({
           {/* Metadata */}
           <HStack
             gap={1}
-            className="text-sm font-normal text-muted-foreground tracking-tight whitespace-nowrap"
+            className="text-muted-foreground text-sm font-normal tracking-tight whitespace-nowrap"
           >
             <button
-              className="hover:underline cursor-pointer"
+              className="cursor-pointer hover:underline"
               onClick={() => setIsCustomerInfoOpen(true)}
             >
               {customer.email}
@@ -198,20 +200,20 @@ export function ConversationHeader({
                 size="icon"
                 aria-label={tCommon('aria.actionsMenu')}
               >
-                <MoreVertical className="size-5 text-muted-foreground" />
+                <MoreVertical className="text-muted-foreground size-5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-[14rem] p-2 border border-border rounded-xl shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              className="border-border w-[14rem] rounded-xl border p-2 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
             >
               <DropdownMenuItem
                 onClick={() => setIsCustomerInfoOpen(true)}
                 disabled={isLoading}
-                className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted cursor-pointer"
+                className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-lg p-2"
               >
-                <UserIcon className="size-5 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">
+                <UserIcon className="text-muted-foreground size-5" />
+                <span className="text-muted-foreground text-sm font-medium">
                   {t('header.customerInfo')}
                 </span>
               </DropdownMenuItem>
@@ -219,10 +221,10 @@ export function ConversationHeader({
                 <DropdownMenuItem
                   onClick={handleResolveConversation}
                   disabled={isLoading}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted cursor-pointer"
+                  className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-lg p-2"
                 >
-                  <MessageSquareOff className="size-5 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">
+                  <MessageSquareOff className="text-muted-foreground size-5" />
+                  <span className="text-muted-foreground text-sm font-medium">
                     {isResolvingLoading
                       ? t('header.closing')
                       : t('header.closeConversation')}
@@ -233,10 +235,10 @@ export function ConversationHeader({
                 <DropdownMenuItem
                   onClick={handleReopenConversation}
                   disabled={isLoading}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted cursor-pointer"
+                  className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-lg p-2"
                 >
-                  <MessageSquare className="size-5 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">
+                  <MessageSquare className="text-muted-foreground size-5" />
+                  <span className="text-muted-foreground text-sm font-medium">
                     {isReopeningLoading
                       ? t('header.reopening')
                       : t('header.reopenConversation')}
@@ -247,10 +249,10 @@ export function ConversationHeader({
                 <DropdownMenuItem
                   onClick={handleMarkAsSpam}
                   disabled={isLoading}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted cursor-pointer"
+                  className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-lg p-2"
                 >
-                  <ShieldX className="size-5 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">
+                  <ShieldX className="text-muted-foreground size-5" />
+                  <span className="text-muted-foreground text-sm font-medium">
                     {isMarkingSpamLoading
                       ? t('header.markingAsSpam')
                       : t('header.markAsSpam')}

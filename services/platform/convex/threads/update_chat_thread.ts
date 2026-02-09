@@ -1,5 +1,5 @@
-import { MutationCtx } from '../_generated/server';
 import { components } from '../_generated/api';
+import { MutationCtx } from '../_generated/server';
 
 export async function updateChatThread(
   ctx: MutationCtx,

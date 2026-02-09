@@ -1,11 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { Dialog } from './dialog';
-import type { DialogSize } from './dialog';
-import { cn } from '@/lib/utils/cn';
+
 import { DialogErrorBoundary } from '@/app/components/error-boundaries/boundaries/dialog-error-boundary';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { cn } from '@/lib/utils/cn';
+
+import type { DialogSize } from './dialog';
+
+import { Dialog } from './dialog';
 
 export interface ViewDialogProps {
   /** Whether the dialog is open */

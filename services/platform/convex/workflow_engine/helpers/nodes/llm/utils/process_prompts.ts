@@ -4,9 +4,10 @@
  * Validates templates and processes prompts with variable substitution.
  */
 
-import { validateTemplate } from '../../../../../lib/variables/validate_template';
-import { replaceVariables } from '../../../../../lib/variables/replace_variables';
 import type { NormalizedConfig, ProcessedPrompts } from '../types';
+
+import { replaceVariables } from '../../../../../lib/variables/replace_variables';
+import { validateTemplate } from '../../../../../lib/variables/validate_template';
 
 /**
  * Validates templates and processes prompts with variable substitution
@@ -48,7 +49,7 @@ export function processPrompts(
   if (!trimmedSystemPrompt && !trimmedUserPrompt) {
     throw new Error(
       'Both systemPrompt and userPrompt are empty after variable substitution. ' +
-        'At least one prompt must have content.'
+        'At least one prompt must have content.',
     );
   }
 
@@ -57,7 +58,8 @@ export function processPrompts(
   if (!trimmedUserPrompt && trimmedSystemPrompt) {
     return {
       systemPrompt: trimmedSystemPrompt,
-      userPrompt: 'Please proceed with the task described in your instructions.',
+      userPrompt:
+        'Please proceed with the task described in your instructions.',
       availableSteps: [],
       missingVariables: [],
     };

@@ -2,12 +2,13 @@
  * Type definitions for the generic agent response generator.
  */
 
-import type { ActionCtx } from '../../_generated/server';
 import type { Agent } from '@convex-dev/agent';
 import type { ModelMessage } from 'ai';
+
+import type { ActionCtx } from '../../_generated/server';
+import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management';
 import type { StructuredContextResult } from '../context_management';
-import type { FileAttachment, MessageContentPart } from '../attachments';
 
 /**
  * Configuration for creating a generic agent response generator.

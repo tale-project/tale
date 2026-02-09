@@ -3,13 +3,16 @@
  */
 
 import type { ActionCtx } from '../_generated/server';
-import { internal } from '../_generated/api';
 import type { UploadAndCreateDocDependencies } from './upload_and_create_document';
+
+import { internal } from '../_generated/api';
 
 /**
  * Create dependencies for the uploadAndCreateDocument function.
  */
-export function createUploadAndCreateDocDeps(ctx: ActionCtx): UploadAndCreateDocDependencies {
+export function createUploadAndCreateDocDeps(
+  ctx: ActionCtx,
+): UploadAndCreateDocDependencies {
   return {
     storageStore: async (blob) => ctx.storage.store(blob),
     createDocument: async (args) => {
@@ -27,12 +30,15 @@ export function createUploadAndCreateDocDeps(ctx: ActionCtx): UploadAndCreateDoc
       return { documentId };
     },
     updateDocument: async (args) => {
-      await ctx.runMutation(internal.documents.internal_mutations.updateDocument, {
-        documentId: args.documentId,
-        title: args.title,
-        fileId: args.fileId,
-        metadata: args.metadata,
-      });
+      await ctx.runMutation(
+        internal.documents.internal_mutations.updateDocument,
+        {
+          documentId: args.documentId,
+          title: args.title,
+          fileId: args.fileId,
+          metadata: args.metadata,
+        },
+      );
     },
   };
 }

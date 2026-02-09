@@ -2,9 +2,9 @@
  * Bulk create customers (business logic)
  */
 
+import type { DataSource } from '../../lib/shared/schemas/common';
 import type { MutationCtx } from '../_generated/server';
 import type { BulkCreateResult } from './types';
-import type { DataSource } from '../../lib/shared/schemas/common';
 
 export interface BulkCreateCustomerData {
   name?: string;
@@ -73,7 +73,6 @@ export async function bulkCreateCustomers(
         }
       }
 
-       
       await ctx.db.insert('customers', {
         organizationId,
         ...customerData,

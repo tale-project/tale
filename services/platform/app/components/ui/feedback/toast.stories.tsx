@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import {
   Toast,
   ToastProvider,
@@ -83,7 +84,9 @@ export const Destructive: Story = {
     <Toast variant="destructive" open>
       <div className="grid gap-1">
         <ToastTitle>Error</ToastTitle>
-        <ToastDescription>Something went wrong. Please try again.</ToastDescription>
+        <ToastDescription>
+          Something went wrong. Please try again.
+        </ToastDescription>
       </div>
       <ToastClose />
     </Toast>
@@ -160,7 +163,8 @@ export const LongContent: Story = {
       <div className="grid gap-1">
         <ToastTitle>Update Available</ToastTitle>
         <ToastDescription>
-          A new version of the application is available. Please refresh the page to get the latest features and improvements.
+          A new version of the application is available. Please refresh the page
+          to get the latest features and improvements.
         </ToastDescription>
       </div>
       <ToastAction altText="Refresh">Refresh</ToastAction>

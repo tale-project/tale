@@ -78,5 +78,4 @@ else:
     CogneeService = _UnavailableCogneeService  # type: ignore[misc,assignment]
     cognee_service = _UnavailableCogneeService()
 
-__all__ = ["CogneeService", "cognee_service", "COGNEE_AVAILABLE"]
-
+__all__ = ["COGNEE_AVAILABLE", "CogneeService", "cognee_service"]

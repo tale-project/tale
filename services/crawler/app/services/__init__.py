@@ -37,4 +37,3 @@ __all__ = [
     "get_pptx_service",
     "get_template_service",
 ]
-

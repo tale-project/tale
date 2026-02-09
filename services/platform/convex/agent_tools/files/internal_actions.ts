@@ -5,10 +5,17 @@
  * These wrap helper functions so they can be cached by ActionCache.
  */
 
-import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
-import { parseFile as parseFileHelper, type ParseFileResult } from './helpers/parse_file';
-import { analyzeImage as analyzeImageHelper, type AnalyzeImageResult } from './helpers/analyze_image';
+
+import { internalAction } from '../../_generated/server';
+import {
+  analyzeImage as analyzeImageHelper,
+  type AnalyzeImageResult,
+} from './helpers/analyze_image';
+import {
+  parseFile as parseFileHelper,
+  type ParseFileResult,
+} from './helpers/parse_file';
 
 /**
  * Internal action for parsing files (PDF, DOCX, PPTX).
@@ -38,7 +45,12 @@ export const parseFileUncached = internalAction({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args): Promise<ParseFileResult> => {
-    return await parseFileHelper(ctx, args.fileId, args.filename, args.toolName);
+    return await parseFileHelper(
+      ctx,
+      args.fileId,
+      args.filename,
+      args.toolName,
+    );
   },
 });
 

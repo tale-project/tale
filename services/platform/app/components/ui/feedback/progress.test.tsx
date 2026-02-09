@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@/test/utils/render';
+
 import { checkAccessibility } from '@/test/utils/a11y';
+import { render, screen } from '@/test/utils/render';
+
 import { Progress } from './progress';
 
 describe('Progress', () => {
@@ -34,7 +36,7 @@ describe('Progress', () => {
       render(<Progress value={150} max={100} />);
       expect(screen.getByRole('progressbar')).toHaveAttribute(
         'aria-valuenow',
-        '150'
+        '150',
       );
     });
 
@@ -60,7 +62,7 @@ describe('Progress', () => {
       render(<Progress value={75} />);
       expect(screen.getByRole('progressbar')).toHaveAttribute(
         'aria-valuenow',
-        '75'
+        '75',
       );
     });
 
@@ -68,7 +70,7 @@ describe('Progress', () => {
       render(<Progress value={50} />);
       expect(screen.getByRole('progressbar')).toHaveAttribute(
         'aria-valuemin',
-        '0'
+        '0',
       );
     });
 
@@ -76,7 +78,7 @@ describe('Progress', () => {
       render(<Progress value={50} />);
       expect(screen.getByRole('progressbar')).toHaveAttribute(
         'aria-valuemax',
-        '100'
+        '100',
       );
     });
 
@@ -84,7 +86,7 @@ describe('Progress', () => {
       render(<Progress value={3} max={5} />);
       expect(screen.getByRole('progressbar')).toHaveAttribute(
         'aria-valuemax',
-        '5'
+        '5',
       );
     });
 
@@ -92,7 +94,7 @@ describe('Progress', () => {
       render(<Progress value={50} label="Uploading file" />);
       expect(screen.getByRole('progressbar')).toHaveAttribute(
         'aria-label',
-        'Uploading file'
+        'Uploading file',
       );
     });
 
@@ -111,7 +113,7 @@ describe('Progress', () => {
 
     it('applies custom indicatorClassName', () => {
       const { container } = render(
-        <Progress value={50} indicatorClassName="bg-green-500" />
+        <Progress value={50} indicatorClassName="bg-green-500" />,
       );
       const indicator = container.querySelector('[aria-hidden="true"]');
       expect(indicator).toHaveClass('bg-green-500');

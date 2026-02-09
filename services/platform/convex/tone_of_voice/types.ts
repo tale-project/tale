@@ -3,6 +3,7 @@
  */
 
 import type { Infer } from 'convex/values';
+
 import {
   exampleMessageContentValidator,
   exampleMessageValidator,
@@ -16,5 +17,7 @@ export type ExampleMessage = Infer<typeof exampleMessageValidator>;
 export type ToneOfVoiceWithExamples = Infer<
   typeof toneOfVoiceWithExamplesValidator
 >;
-export type ExampleMessageContent = Infer<typeof exampleMessageContentValidator>;
+export type ExampleMessageContent = Infer<
+  typeof exampleMessageContentValidator
+>;
 export type GenerateToneResponse = Infer<typeof generateToneResponseValidator>;

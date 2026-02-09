@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
 import { ChevronRight, type LucideIcon } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+
 import { cn } from '@/lib/utils/cn';
 
 interface CollapsibleSectionProps {
@@ -24,12 +25,12 @@ export function CollapsibleSection({
 
   return (
     <section aria-labelledby={headingId}>
-      <h3 id={headingId} className="text-sm font-medium text-foreground">
+      <h3 id={headingId} className="text-foreground text-sm font-medium">
         <button
           type="button"
           aria-expanded={isOpen}
           aria-controls={`${id}-content`}
-          className="flex w-full items-center gap-2 select-none py-1"
+          className="flex w-full items-center gap-2 py-1 select-none"
           onClick={() => setIsOpen(!isOpen)}
         >
           <ChevronRight
@@ -38,7 +39,7 @@ export function CollapsibleSection({
               isOpen && 'rotate-90',
             )}
           />
-          <Icon className="size-4 text-muted-foreground" />
+          <Icon className="text-muted-foreground size-4" />
           <span>{title}</span>
         </button>
       </h3>

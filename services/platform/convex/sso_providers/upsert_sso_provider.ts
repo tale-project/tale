@@ -1,87 +1,111 @@
 import { GenericActionCtx } from 'convex/server';
-import { DataModel } from '../_generated/dataModel';
+
+import type {
+  PlatformRole,
+  ProviderFeatures,
+  RoleMappingRule,
+} from '@/lib/shared/schemas/sso_providers';
+
 import { internal } from '../_generated/api';
+import { DataModel } from '../_generated/dataModel';
 import { validateSsoConfig } from './validate_sso_config';
-import type { PlatformRole, ProviderFeatures, RoleMappingRule } from '@/lib/shared/schemas/sso_providers';
 
 type UpsertSsoProviderArgs = {
-	organizationId: string;
-	providerId: string;
-	issuer: string;
-	clientId: string;
-	clientSecret?: string;
-	scopes: string[];
-	autoProvisionRole: boolean;
-	roleMappingRules: RoleMappingRule[];
-	defaultRole: PlatformRole;
-	providerFeatures?: ProviderFeatures;
+  organizationId: string;
+  providerId: string;
+  issuer: string;
+  clientId: string;
+  clientSecret?: string;
+  scopes: string[];
+  autoProvisionRole: boolean;
+  roleMappingRules: RoleMappingRule[];
+  defaultRole: PlatformRole;
+  providerFeatures?: ProviderFeatures;
 };
 
-export async function upsertSsoProvider(ctx: GenericActionCtx<DataModel>, args: UpsertSsoProviderArgs): Promise<string> {
-	const authUser = await ctx.runQuery(
-		internal.sso_providers.internal_queries.getAuthUser,
-		{},
-	);
-	if (!authUser) {
-		throw new Error('Unauthenticated');
-	}
+export async function upsertSsoProvider(
+  ctx: GenericActionCtx<DataModel>,
+  args: UpsertSsoProviderArgs,
+): Promise<string> {
+  const authUser = await ctx.runQuery(
+    internal.sso_providers.internal_queries.getAuthUser,
+    {},
+  );
+  if (!authUser) {
+    throw new Error('Unauthenticated');
+  }
 
-	const callerRole = await ctx.runQuery(internal.sso_providers.internal_queries.getCallerRole, {
-		organizationId: args.organizationId,
-		userId: authUser._id,
-	});
+  const callerRole = await ctx.runQuery(
+    internal.sso_providers.internal_queries.getCallerRole,
+    {
+      organizationId: args.organizationId,
+      userId: authUser._id,
+    },
+  );
 
-	if (callerRole !== 'admin') {
-		throw new Error('Only Admins can configure SSO providers');
-	}
+  if (callerRole !== 'admin') {
+    throw new Error('Only Admins can configure SSO providers');
+  }
 
-	const existingProvider = await ctx.runQuery(internal.sso_providers.internal_queries.getByOrganization, {
-		organizationId: args.organizationId,
-	});
+  const existingProvider = await ctx.runQuery(
+    internal.sso_providers.internal_queries.getByOrganization,
+    {
+      organizationId: args.organizationId,
+    },
+  );
 
-	let clientIdEncrypted: string;
-	let clientSecretEncrypted: string;
+  let clientIdEncrypted: string;
+  let clientSecretEncrypted: string;
 
-	if (args.clientSecret) {
-		const validation = await validateSsoConfig({
-			issuer: args.issuer,
-			clientId: args.clientId,
-			clientSecret: args.clientSecret,
-		});
+  if (args.clientSecret) {
+    const validation = await validateSsoConfig({
+      issuer: args.issuer,
+      clientId: args.clientId,
+      clientSecret: args.clientSecret,
+    });
 
-		if (!validation.valid) {
-			throw new Error(validation.error || 'Invalid SSO configuration');
-		}
+    if (!validation.valid) {
+      throw new Error(validation.error || 'Invalid SSO configuration');
+    }
 
-		clientIdEncrypted = await ctx.runAction(internal.lib.crypto.internal_actions.encryptString, {
-			plaintext: args.clientId,
-		});
+    clientIdEncrypted = await ctx.runAction(
+      internal.lib.crypto.internal_actions.encryptString,
+      {
+        plaintext: args.clientId,
+      },
+    );
 
-		clientSecretEncrypted = await ctx.runAction(internal.lib.crypto.internal_actions.encryptString, {
-			plaintext: args.clientSecret,
-		});
-	} else if (existingProvider) {
-		clientIdEncrypted = existingProvider.clientIdEncrypted;
-		clientSecretEncrypted = existingProvider.clientSecretEncrypted;
-	} else {
-		throw new Error('Client secret is required for new SSO configuration');
-	}
+    clientSecretEncrypted = await ctx.runAction(
+      internal.lib.crypto.internal_actions.encryptString,
+      {
+        plaintext: args.clientSecret,
+      },
+    );
+  } else if (existingProvider) {
+    clientIdEncrypted = existingProvider.clientIdEncrypted;
+    clientSecretEncrypted = existingProvider.clientSecretEncrypted;
+  } else {
+    throw new Error('Client secret is required for new SSO configuration');
+  }
 
-	const providerId = await ctx.runMutation(internal.sso_providers.internal_mutations.upsertProvider, {
-		organizationId: args.organizationId,
-		providerId: args.providerId,
-		issuer: args.issuer,
-		clientIdEncrypted,
-		clientSecretEncrypted,
-		scopes: args.scopes,
-		autoProvisionRole: args.autoProvisionRole,
-		roleMappingRules: args.roleMappingRules,
-		defaultRole: args.defaultRole,
-		providerFeatures: args.providerFeatures,
-		actorId: authUser._id,
-		actorEmail: authUser.email,
-		actorRole: callerRole,
-	});
+  const providerId = await ctx.runMutation(
+    internal.sso_providers.internal_mutations.upsertProvider,
+    {
+      organizationId: args.organizationId,
+      providerId: args.providerId,
+      issuer: args.issuer,
+      clientIdEncrypted,
+      clientSecretEncrypted,
+      scopes: args.scopes,
+      autoProvisionRole: args.autoProvisionRole,
+      roleMappingRules: args.roleMappingRules,
+      defaultRole: args.defaultRole,
+      providerFeatures: args.providerFeatures,
+      actorId: authUser._id,
+      actorEmail: authUser.email,
+      actorRole: callerRole,
+    },
+  );
 
-	return providerId;
+  return providerId;
 }

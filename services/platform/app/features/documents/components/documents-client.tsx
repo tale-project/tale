@@ -1,31 +1,34 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { useQuery } from 'convex/react';
 import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
-import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { api } from '@/convex/_generated/api';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { HStack } from '@/app/components/ui/layout/layout';
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { BreadcrumbNavigation } from './breadcrumb-navigation';
-import { formatBytes } from '@/lib/utils/format/number';
+import { useMemo, useState, useCallback } from 'react';
+
+import type { DocumentItem } from '@/types/documents';
+
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
-import type { DocumentItem } from '@/types/documents';
-import { DocumentRowActions } from './document-row-actions';
-import { DocumentPreviewDialog } from './document-preview-dialog';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { RagStatusBadge } from './rag-status-badge';
-import { DocumentsActionMenu } from './documents-action-menu';
-import { useT } from '@/lib/i18n/client';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import { useDebounce } from '@/app/hooks/use-debounce';
+import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
+import { Badge } from '@/app/components/ui/feedback/badge';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { HStack } from '@/app/components/ui/layout/layout';
 import { useListTeams } from '@/app/features/settings/teams/hooks/use-list-teams';
+import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+import { formatBytes } from '@/lib/utils/format/number';
+
+import { BreadcrumbNavigation } from './breadcrumb-navigation';
+import { DocumentPreviewDialog } from './document-preview-dialog';
+import { DocumentRowActions } from './document-row-actions';
+import { DocumentsActionMenu } from './documents-action-menu';
+import { RagStatusBadge } from './rag-status-badge';
 
 interface DocumentsClientProps {
   organizationId: string;
@@ -235,7 +238,7 @@ export function DocumentsClient({
                 className="text-left"
                 onClick={(e) => handleDocumentClick(row.original, e)}
               >
-                <div className="text-sm font-medium text-primary hover:underline truncate max-w-[30rem]">
+                <div className="text-primary max-w-[30rem] truncate text-sm font-medium hover:underline">
                   {fileName}
                 </div>
               </button>
@@ -246,13 +249,13 @@ export function DocumentsClient({
       {
         accessorKey: 'size',
         header: () => (
-          <span className="text-right w-full block">
+          <span className="block w-full text-right">
             {tTables('headers.size')}
           </span>
         ),
         size: 128,
         cell: ({ row }) => (
-          <span className="whitespace-nowrap text-right block">
+          <span className="block text-right whitespace-nowrap">
             {row.original.type === 'folder' || !row.original.size
               ? '—'
               : formatBytes(row.original.size)}
@@ -262,7 +265,7 @@ export function DocumentsClient({
       {
         id: 'source',
         header: () => (
-          <span className="text-center w-full block">
+          <span className="block w-full text-center">
             {tTables('headers.source')}
           </span>
         ),
@@ -276,7 +279,7 @@ export function DocumentsClient({
                   title={tDocuments('sourceType.oneDriveSynced')}
                 >
                   <OneDriveIcon className="size-6" />
-                  <RefreshCw className="size-4 text-background absolute bottom-0 right-0.5 p-0.5 rounded-full bg-foreground" />
+                  <RefreshCw className="text-background bg-foreground absolute right-0.5 bottom-0 size-4 rounded-full p-0.5" />
                 </div>
               )}
             {row.original.sourceProvider === 'onedrive' &&
@@ -292,7 +295,7 @@ export function DocumentsClient({
                   title={tDocuments('sourceType.sharePointSynced')}
                 >
                   <SharePointIcon className="size-6" />
-                  <RefreshCw className="size-4 text-background absolute bottom-0 right-0.5 p-0.5 rounded-full bg-foreground" />
+                  <RefreshCw className="text-background bg-foreground absolute right-0.5 bottom-0 size-4 rounded-full p-0.5" />
                 </div>
               )}
             {row.original.sourceProvider === 'sharepoint' &&
@@ -366,7 +369,7 @@ export function DocumentsClient({
             return <span className="text-muted-foreground text-sm">—</span>;
           }
           return (
-            <span className="text-sm text-muted-foreground truncate max-w-[10rem]">
+            <span className="text-muted-foreground max-w-[10rem] truncate text-sm">
               {row.original.createdByName ?? '—'}
             </span>
           );
@@ -375,7 +378,7 @@ export function DocumentsClient({
       {
         accessorKey: 'lastModified',
         header: () => (
-          <span className="text-right w-full block">
+          <span className="block w-full text-right">
             {tTables('headers.modified')}
           </span>
         ),
@@ -406,7 +409,7 @@ export function DocumentsClient({
         ),
       },
     ],
-    [handleDocumentClick, isLoadingTeams, tTables, teamMap],
+    [handleDocumentClick, isLoadingTeams, tTables, tDocuments, teamMap],
   );
 
   if (documentsResult === undefined) {

@@ -5,12 +5,14 @@
  * wrapper in `convex/documents.ts`.
  */
 
-import type { ActionCtx } from '../_generated/server';
-import type { Id } from '../_generated/dataModel';
 import { decode as decodeBase64 } from 'base64-arraybuffer';
-import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
-import { createDebugLog } from '../lib/debug_log';
+
+import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
 import type { DocxContent } from './generate_docx';
+
+import { createDebugLog } from '../lib/debug_log';
+import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 
@@ -84,7 +86,9 @@ export async function generateDocxFromTemplate(
       status: response.status,
       errorText,
     });
-    throw new Error(`Crawler generateDocxFromTemplate failed: ${response.status}`);
+    throw new Error(
+      `Crawler generateDocxFromTemplate failed: ${response.status}`,
+    );
   }
 
   const result = await response.json();
@@ -136,4 +140,3 @@ export async function generateDocxFromTemplate(
     size: docxBytes.length,
   };
 }
-

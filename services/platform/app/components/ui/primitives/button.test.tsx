@@ -1,15 +1,36 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@/test/utils/render';
-import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
-import { Button, LinkButton } from './button';
 import { Mail } from 'lucide-react';
+import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
+
+import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
+import { render, screen } from '@/test/utils/render';
+
+import { Button, LinkButton } from './button';
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: React.forwardRef(
+    (
+      {
+        to,
+        children,
+        preload: _preload,
+        ...props
+      }: { to: string; children: React.ReactNode; preload?: string | false },
+      ref: React.ForwardedRef<HTMLAnchorElement>,
+    ) => (
+      <a ref={ref} href={to} {...props}>
+        {children}
+      </a>
+    ),
+  ),
+}));
 
 describe('Button', () => {
   describe('rendering', () => {
     it('renders with default props', () => {
       render(<Button>Click me</Button>);
       expect(
-        screen.getByRole('button', { name: /click me/i })
+        screen.getByRole('button', { name: /click me/i }),
       ).toBeInTheDocument();
     });
 
@@ -50,7 +71,7 @@ describe('Button', () => {
       (size) => {
         render(<Button size={size}>Button</Button>);
         expect(screen.getByRole('button')).toBeInTheDocument();
-      }
+      },
     );
   });
 
@@ -68,7 +89,7 @@ describe('Button', () => {
       const { user } = render(
         <Button onClick={handleClick} disabled>
           Click me
-        </Button>
+        </Button>,
       );
 
       await user.click(screen.getByRole('button'));
@@ -80,7 +101,7 @@ describe('Button', () => {
       const { user } = render(
         <Button onClick={handleClick} isLoading>
           Click me
-        </Button>
+        </Button>,
       );
 
       await user.click(screen.getByRole('button'));
@@ -90,7 +111,7 @@ describe('Button', () => {
     it('responds to keyboard Enter', async () => {
       const handleClick = vi.fn();
       const { user } = render(
-        <Button onClick={handleClick}>Press Enter</Button>
+        <Button onClick={handleClick}>Press Enter</Button>,
       );
 
       const button = screen.getByRole('button');
@@ -102,7 +123,7 @@ describe('Button', () => {
     it('responds to keyboard Space', async () => {
       const handleClick = vi.fn();
       const { user } = render(
-        <Button onClick={handleClick}>Press Space</Button>
+        <Button onClick={handleClick}>Press Space</Button>,
       );
 
       const button = screen.getByRole('button');
@@ -145,7 +166,7 @@ describe('Button', () => {
       render(<Button isLoading>Loading</Button>);
       expect(screen.getByRole('button')).toHaveAttribute(
         'aria-disabled',
-        'true'
+        'true',
       );
     });
 
@@ -183,7 +204,7 @@ describe('LinkButton', () => {
     render(
       <LinkButton href="/test" icon={Mail}>
         Send
-      </LinkButton>
+      </LinkButton>,
     );
     const link = screen.getByRole('link');
     expect(link.querySelector('svg')).toBeInTheDocument();
@@ -193,7 +214,7 @@ describe('LinkButton', () => {
     render(
       <LinkButton href="/test" icon={Mail}>
         Send
-      </LinkButton>
+      </LinkButton>,
     );
     const link = screen.getByRole('link');
     const svg = link.querySelector('svg');

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { getShardIndex, NUM_SHARDS, safeShardIndex } from './shard';
 
 describe('getShardIndex', () => {

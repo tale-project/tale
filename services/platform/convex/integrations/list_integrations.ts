@@ -2,8 +2,8 @@
  * List all integrations for an organization
  */
 
-import { QueryCtx } from '../_generated/server';
 import { Doc } from '../_generated/dataModel';
+import { QueryCtx } from '../_generated/server';
 
 export interface ListIntegrationsArgs {
   organizationId: string;

@@ -1,14 +1,23 @@
 'use node';
 
 import { v } from 'convex/values';
-import { internalAction } from '../_generated/server';
+import { ImapFlow } from 'imapflow';
+import nodemailer from 'nodemailer';
+
+import type {
+  VerifySmtpConnectionParams,
+  VerifyImapConnectionParams,
+} from './test_connection_types';
+
 import { internal } from '../_generated/api';
+import { internalAction } from '../_generated/server';
+import { decryptString } from '../lib/crypto/decrypt_string';
+import { encryptString } from '../lib/crypto/encrypt_string';
+import { saveRelatedWorkflows } from './save_related_workflows';
 import { sendMessageViaAPI as sendMessageViaAPIHandler } from './send_message_via_api';
 import { sendMessageViaSMTP as sendMessageViaSMTPHandler } from './send_message_via_smtp';
-import { testNewProviderConnectionLogic } from './test_new_provider_connection_logic';
 import { storeOAuth2TokensLogic } from './store_oauth2_tokens_logic';
-import { encryptString } from '../lib/crypto/encrypt_string';
-import { decryptString } from '../lib/crypto/decrypt_string';
+import { testNewProviderConnectionLogic } from './test_new_provider_connection_logic';
 import {
   emailProviderVendorValidator,
   emailProviderAuthMethodValidator,
@@ -16,15 +25,10 @@ import {
   imapConfigValidator,
   connectionTestResultValidator,
 } from './validators';
-import type {
-  VerifySmtpConnectionParams,
-  VerifyImapConnectionParams,
-} from './test_connection_types';
-import { saveRelatedWorkflows } from './save_related_workflows';
-import nodemailer from 'nodemailer';
-import { ImapFlow } from 'imapflow';
 
-async function verifySmtpConnection(params: VerifySmtpConnectionParams): Promise<void> {
+async function verifySmtpConnection(
+  params: VerifySmtpConnectionParams,
+): Promise<void> {
   const transporter = nodemailer.createTransport({
     host: params.smtpConfig.host,
     port: params.smtpConfig.port,
@@ -39,7 +43,9 @@ async function verifySmtpConnection(params: VerifySmtpConnectionParams): Promise
   transporter.close();
 }
 
-async function verifyImapConnection(params: VerifyImapConnectionParams): Promise<void> {
+async function verifyImapConnection(
+  params: VerifyImapConnectionParams,
+): Promise<void> {
   const auth: { user: string; pass?: string; accessToken?: string } = {
     user: params.auth.user,
   };
@@ -332,10 +338,13 @@ export const handleOAuth2Callback = internalAction({
         organizationId: providerForWorkflow.organizationId,
         accountEmail: '',
       });
-      console.log('[OAuth2 Callback] Created email sync workflows for provider:', {
-        emailProviderId: args.emailProviderId,
-        organizationId: providerForWorkflow.organizationId,
-      });
+      console.log(
+        '[OAuth2 Callback] Created email sync workflows for provider:',
+        {
+          emailProviderId: args.emailProviderId,
+          organizationId: providerForWorkflow.organizationId,
+        },
+      );
     }
 
     console.log('[OAuth2 Callback] Successfully stored tokens for provider:', {

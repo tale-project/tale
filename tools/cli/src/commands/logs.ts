@@ -1,20 +1,21 @@
-import { Command } from "commander";
-import { ensureConfig } from "../lib/config/ensure-config";
-import { loadEnv } from "../utils/load-env";
-import * as logger from "../utils/logger";
-import { logs } from "../lib/actions/logs";
+import { Command } from 'commander';
+
+import { logs } from '../lib/actions/logs';
+import { ensureConfig } from '../lib/config/ensure-config';
+import { loadEnv } from '../utils/load-env';
+import * as logger from '../utils/logger';
 
 export function createLogsCommand(): Command {
-  return new Command("logs")
-    .description("View logs from a service")
+  return new Command('logs')
+    .description('View logs from a service')
     .argument(
-      "<service>",
-      "Service name (platform, rag, crawler, search, db, graph-db, proxy)"
+      '<service>',
+      'Service name (platform, rag, crawler, search, db, graph-db, proxy)',
     )
-    .option("-c, --color <color>", "Deployment color (blue or green)")
-    .option("-f, --follow", "Follow log output", false)
-    .option("--since <duration>", "Show logs since duration (e.g., 1h, 30m)")
-    .option("-n, --tail <lines>", "Number of lines to show from end")
+    .option('-c, --color <color>', 'Deployment color (blue or green)')
+    .option('-f, --follow', 'Follow log output', false)
+    .option('--since <duration>', 'Show logs since duration (e.g., 1h, 30m)')
+    .option('-n, --tail <lines>', 'Number of lines to show from end')
     .action(async (service: string, options) => {
       try {
         const deployDir = await ensureConfig();
@@ -22,11 +23,11 @@ export function createLogsCommand(): Command {
 
         if (
           options.color &&
-          options.color !== "blue" &&
-          options.color !== "green"
+          options.color !== 'blue' &&
+          options.color !== 'green'
         ) {
           logger.error(
-            `Invalid color: ${options.color}. Must be "blue" or "green".`
+            `Invalid color: ${options.color}. Must be "blue" or "green".`,
           );
           process.exit(1);
         }
@@ -36,7 +37,7 @@ export function createLogsCommand(): Command {
           tail = parseInt(options.tail, 10);
           if (Number.isNaN(tail) || tail < 0) {
             logger.error(
-              `Invalid --tail value: ${options.tail}. Must be a non-negative number.`
+              `Invalid --tail value: ${options.tail}. Must be a non-negative number.`,
             );
             process.exit(1);
           }

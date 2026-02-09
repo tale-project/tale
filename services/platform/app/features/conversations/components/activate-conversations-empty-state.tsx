@@ -1,7 +1,8 @@
 'use client';
 
-import { LinkButton } from '@/app/components/ui/primitives/button';
 import { MessageSquare, Plus } from 'lucide-react';
+
+import { LinkButton } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 interface ActivateConversationsEmptyStateProps {
@@ -14,13 +15,13 @@ export function ActivateConversationsEmptyState({
   const { t } = useT('conversations');
 
   return (
-    <div className="flex items-center justify-center flex-1 ring-1 ring-border rounded-xl py-12 px-4 m-4">
-      <div className="flex flex-col items-center text-center max-w-md">
-        <MessageSquare className="size-6 text-muted-foreground mb-4" />
-        <h2 className="text-lg font-semibold text-foreground mb-1">
+    <div className="ring-border m-4 flex flex-1 items-center justify-center rounded-xl px-4 py-12 ring-1">
+      <div className="flex max-w-md flex-col items-center text-center">
+        <MessageSquare className="text-muted-foreground mb-4 size-6" />
+        <h2 className="text-foreground mb-1 text-lg font-semibold">
           {t('activate.title')}
         </h2>
-        <p className="text-sm text-muted-foreground mb-4">
+        <p className="text-muted-foreground mb-4 text-sm">
           {t('activate.description')}
         </p>
         <LinkButton

@@ -148,9 +148,7 @@ class UrlToPdfRequest(BaseModel):
         "load",
         description="Wait condition (load, domcontentloaded, networkidle, commit)",
     )
-    timeout: int = Field(
-        60000, description="Navigation timeout in ms (default: 60s)", ge=5000, le=120000
-    )
+    timeout: int = Field(60000, description="Navigation timeout in ms (default: 60s)", ge=5000, le=120000)
 
 
 class UrlToImageRequest(BaseModel):

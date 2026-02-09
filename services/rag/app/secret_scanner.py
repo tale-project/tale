@@ -11,10 +11,13 @@ _SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("Token assignment", re.compile(r"(?i)token\s*[=:]\s*\S+")),
     ("Private key assignment", re.compile(r"(?i)private[_-]?key\s*[=:]\s*\S+")),
     ("Bearer token", re.compile(r"Bearer\s+[A-Za-z0-9\-_.]{20,}")),
-    ("Connection string", re.compile(
-        r"(?i)(?:mongodb|postgres|mysql|redis|amqp|mssql)"
-        r"(?:\+\w+)?://\S+"
-    )),
+    (
+        "Connection string",
+        re.compile(
+            r"(?i)(?:mongodb|postgres|mysql|redis|amqp|mssql)"
+            r"(?:\+\w+)?://\S+"
+        ),
+    ),
     ("AWS access key", re.compile(r"AKIA[0-9A-Z]{16}")),
     ("Hex token (40+ chars)", re.compile(r"(?i)(?:key|secret|token|password)\s*[=:]\s*[0-9a-f]{40,}")),
     ("Base64 token (40+ chars)", re.compile(r"(?i)(?:key|secret|token|password)\s*[=:]\s*[A-Za-z0-9+/]{40,}={0,2}")),

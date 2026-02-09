@@ -1,15 +1,17 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
-import { Doc, Id } from '@/convex/_generated/dataModel';
 import { toast } from '@/app/hooks/use-toast';
+import { Doc, Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+
 import { useUpdateVendor } from '../hooks/use-update-vendor';
 
 type VendorFormData = {
@@ -52,11 +54,18 @@ export function VendorEditDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tCommon('validation.required', { field: tVendors('name') })),
+        name: z
+          .string()
+          .min(1, tCommon('validation.required', { field: tVendors('name') })),
         email: z.string().email(tCommon('validation.email')),
-        locale: z.string().min(1, tCommon('validation.required', { field: tVendors('locale') })),
+        locale: z
+          .string()
+          .min(
+            1,
+            tCommon('validation.required', { field: tVendors('locale') }),
+          ),
       }),
-    [tVendors, tCommon]
+    [tVendors, tCommon],
   );
 
   const {
@@ -149,7 +158,9 @@ export function VendorEditDialog({
 
       <Select
         value={locale}
-        onValueChange={(value) => setValue('locale', value, { shouldDirty: true })}
+        onValueChange={(value) =>
+          setValue('locale', value, { shouldDirty: true })
+        }
         disabled={isSubmitting}
         id="locale"
         label={tVendors('locale')}

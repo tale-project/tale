@@ -5,8 +5,9 @@
  * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
  */
 
-import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
+
 import {
   exampleMessageContentSchema,
   generateToneResponseSchema,
@@ -22,8 +23,12 @@ export {
 } from '../../lib/shared/schemas/tone_of_voice';
 
 // Simple schemas without z.lazy()
-export const exampleMessageContentValidator = zodToConvex(exampleMessageContentSchema);
-export const generateToneResponseValidator = zodToConvex(generateToneResponseSchema);
+export const exampleMessageContentValidator = zodToConvex(
+  exampleMessageContentSchema,
+);
+export const generateToneResponseValidator = zodToConvex(
+  generateToneResponseSchema,
+);
 
 // Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
 export const toneOfVoiceValidator = v.object({

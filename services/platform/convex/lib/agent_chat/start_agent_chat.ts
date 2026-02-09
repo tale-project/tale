@@ -11,19 +11,21 @@
  * Configuration is passed as parameters - lib/ has no dependencies on agents/.
  */
 
-import type { MutationCtx } from '../../_generated/server';
-import { components, internal } from '../../_generated/api';
 import { listMessages, saveMessage } from '@convex-dev/agent';
+
+import type { MutationCtx } from '../../_generated/server';
+import type { FileAttachment } from '../attachments';
+import type { AgentType } from '../context_management/constants';
+import type { SerializableAgentConfig, AgentHooksConfig } from './types';
+
+import { components, internal } from '../../_generated/api';
+import { persistentStreaming } from '../../streaming/helpers';
+import { createDebugLog } from '../debug_log';
+import { getUserTeamIds } from '../get_user_teams';
 import {
   computeDeduplicationState,
   type AgentListMessagesResult,
 } from '../message_deduplication';
-import { persistentStreaming } from '../../streaming/helpers';
-import { getUserTeamIds } from '../get_user_teams';
-import { createDebugLog } from '../debug_log';
-import type { AgentType } from '../context_management/constants';
-import type { FileAttachment } from '../attachments';
-import type { SerializableAgentConfig, AgentHooksConfig } from './types';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[startAgentChat]');
 
@@ -119,18 +121,24 @@ export async function startAgentChat(
 
   // Get thread to retrieve userId, then get user's team IDs for RAG search
   // Include org-level ID to access public documents (documents without team tags)
-  const thread = await ctx.runQuery(components.agent.threads.getThread, { threadId });
+  const thread = await ctx.runQuery(components.agent.threads.getThread, {
+    threadId,
+  });
   const teamIds = thread?.userId
     ? await getUserTeamIds(ctx, thread.userId)
     : [];
   const userTeamIds = [`org_${organizationId}`, ...teamIds];
 
   // Load recent non-tool messages for deduplication
-  const existingMessages: AgentListMessagesResult = await listMessages(ctx, components.agent, {
-    threadId,
-    paginationOpts: { cursor: null, numItems: 10 },
-    excludeToolMessages: true,
-  });
+  const existingMessages: AgentListMessagesResult = await listMessages(
+    ctx,
+    components.agent,
+    {
+      threadId,
+      paginationOpts: { cursor: null, numItems: 10 },
+      excludeToolMessages: true,
+    },
+  );
 
   const { lastUserMessage, messageAlreadyExists, trimmedMessage } =
     computeDeduplicationState(existingMessages, message);
@@ -152,7 +160,9 @@ export async function startAgentChat(
     promptMessageId = messageId;
   } else {
     if (!lastUserMessage) {
-      throw new Error('Expected lastUserMessage to exist when messageAlreadyExists is true');
+      throw new Error(
+        'Expected lastUserMessage to exist when messageAlreadyExists is true',
+      );
     }
     promptMessageId = lastUserMessage._id;
   }
@@ -173,25 +183,29 @@ export async function startAgentChat(
     threadId,
     timestamp: new Date().toISOString(),
   });
-  await ctx.scheduler.runAfter(0, internal.lib.agent_chat.internal_actions.runAgentGeneration, {
-    agentType,
-    agentConfig,
-    model,
-    provider,
-    debugTag,
-    enableStreaming,
-    hooks,
-    threadId,
-    organizationId,
-    userId: thread?.userId,
-    promptMessage: trimmedMessage,
-    attachments: actionAttachments,
-    streamId: streamId || undefined,
-    promptMessageId,
-    maxSteps,
-    userTeamIds,
-    additionalContext,
-  });
+  await ctx.scheduler.runAfter(
+    0,
+    internal.lib.agent_chat.internal_actions.runAgentGeneration,
+    {
+      agentType,
+      agentConfig,
+      model,
+      provider,
+      debugTag,
+      enableStreaming,
+      hooks,
+      threadId,
+      organizationId,
+      userId: thread?.userId,
+      promptMessage: trimmedMessage,
+      attachments: actionAttachments,
+      streamId: streamId || undefined,
+      promptMessageId,
+      maxSteps,
+      userTeamIds,
+      additionalContext,
+    },
+  );
 
   return { messageAlreadyExists, streamId };
 }

@@ -2,8 +2,8 @@
  * Delete a document (for public API)
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 export async function deleteDocument(
   ctx: MutationCtx,
@@ -16,4 +16,3 @@ export async function deleteDocument(
 
   await ctx.db.delete(documentId);
 }
-

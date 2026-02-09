@@ -109,4 +109,3 @@ async def generate(request: GenerateRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate response. Please try again.",
         ) from e
-

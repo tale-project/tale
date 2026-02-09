@@ -4,10 +4,11 @@
  * Saves metadata for the assistant message in the thread.
  */
 
-import type { MutationCtx } from '../../_generated/server';
-import { components, internal } from '../../_generated/api';
 import { listMessages } from '@convex-dev/agent';
 
+import type { MutationCtx } from '../../_generated/server';
+
+import { components, internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_ROUTING_AGENT', '[RoutingAgent]');
@@ -116,23 +117,26 @@ export async function onChatComplete(
     const firstMessageInResponse = messagesInCurrentResponse[0];
 
     if (firstMessageInResponse && result.usage) {
-      await ctx.runMutation(internal.message_metadata.internal_mutations.saveMessageMetadata, {
-        messageId: firstMessageInResponse._id,
-        threadId: result.threadId,
-        model: result.model,
-        provider: result.provider,
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        totalTokens: result.usage.totalTokens,
-        reasoningTokens: result.usage.reasoningTokens,
-        cachedInputTokens: result.usage.cachedInputTokens,
-        reasoning: result.reasoning,
-        durationMs: result.durationMs,
-        timeToFirstTokenMs: result.timeToFirstTokenMs,
-        subAgentUsage: result.subAgentUsage,
-        contextWindow: result.contextWindow,
-        contextStats: result.contextStats,
-      });
+      await ctx.runMutation(
+        internal.message_metadata.internal_mutations.saveMessageMetadata,
+        {
+          messageId: firstMessageInResponse._id,
+          threadId: result.threadId,
+          model: result.model,
+          provider: result.provider,
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          totalTokens: result.usage.totalTokens,
+          reasoningTokens: result.usage.reasoningTokens,
+          cachedInputTokens: result.usage.cachedInputTokens,
+          reasoning: result.reasoning,
+          durationMs: result.durationMs,
+          timeToFirstTokenMs: result.timeToFirstTokenMs,
+          subAgentUsage: result.subAgentUsage,
+          contextWindow: result.contextWindow,
+          contextStats: result.contextStats,
+        },
+      );
       debugLog('onChatComplete metadata saved', {
         messageId: firstMessageInResponse._id,
         model: result.model,

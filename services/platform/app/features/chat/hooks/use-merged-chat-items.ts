@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import type { ChatMessage } from './use-message-processing';
-import type { IntegrationApproval } from './use-integration-approvals';
-import type { WorkflowCreationApproval } from './use-workflow-creation-approvals';
+
 import type { HumanInputRequest } from './use-human-input-requests';
+import type { IntegrationApproval } from './use-integration-approvals';
+import type { ChatMessage } from './use-message-processing';
+import type { WorkflowCreationApproval } from './use-workflow-creation-approvals';
 
 export type ChatItem =
   | { type: 'message'; data: ChatMessage }
@@ -102,5 +103,10 @@ export function useMergedChatItems({
     });
 
     return items;
-  }, [messages, integrationApprovals, workflowCreationApprovals, humanInputRequests]);
+  }, [
+    messages,
+    integrationApprovals,
+    workflowCreationApprovals,
+    humanInputRequests,
+  ]);
 }

@@ -1,7 +1,7 @@
 // Type declarations for dagre layout library
 // These types cover only the API used by this project
 
-declare module "dagre" {
+declare module 'dagre' {
   export interface NodeConfig {
     width: number;
     height: number;
@@ -12,15 +12,15 @@ declare module "dagre" {
   }
 
   export interface GraphLabel {
-    rankdir?: "TB" | "BT" | "LR" | "RL";
-    align?: "UL" | "UR" | "DL" | "DR";
+    rankdir?: 'TB' | 'BT' | 'LR' | 'RL';
+    align?: 'UL' | 'UR' | 'DL' | 'DR';
     nodesep?: number;
     edgesep?: number;
     ranksep?: number;
     marginx?: number;
     marginy?: number;
     acyclicer?: string;
-    ranker?: "network-simplex" | "tight-tree" | "longest-path";
+    ranker?: 'network-simplex' | 'tight-tree' | 'longest-path';
   }
 
   export interface NodeInfo {

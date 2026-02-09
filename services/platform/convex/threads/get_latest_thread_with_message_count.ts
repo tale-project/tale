@@ -1,6 +1,8 @@
-import type { QueryCtx } from '../_generated/server';
-import { components } from '../_generated/api';
 import { listUIMessages } from '@convex-dev/agent';
+
+import type { QueryCtx } from '../_generated/server';
+
+import { components } from '../_generated/api';
 
 export async function getLatestThreadWithMessageCount(
   ctx: QueryCtx,
@@ -28,4 +30,3 @@ export async function getLatestThreadWithMessageCount(
     messageCount: messagesResult.page.length,
   };
 }
-

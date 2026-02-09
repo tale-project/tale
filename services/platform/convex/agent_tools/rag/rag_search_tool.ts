@@ -5,10 +5,13 @@
  * Uses team IDs passed from the parent context (resolved in mutation where auth identity is available).
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
+
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -49,7 +52,9 @@ WHEN NOT TO USE:
 
 Returns a generated response based on the most relevant documents.`,
     args: z.object({
-      query: z.string().describe('Query text to search and generate response for'),
+      query: z
+        .string()
+        .describe('Query text to search and generate response for'),
     }),
     handler: async (ctx: ToolCtx, args): Promise<string> => {
       const { userId, userTeamIds, ragPrefetchCache } = ctx;
@@ -85,7 +90,7 @@ Returns a generated response based on the most relevant documents.`,
       if (!userId) {
         throw new Error(
           'rag_search requires userId in ToolCtx. ' +
-          'Ensure the thread was created with a userId.'
+            'Ensure the thread was created with a userId.',
         );
       }
 
@@ -93,7 +98,7 @@ Returns a generated response based on the most relevant documents.`,
       if (teamIds.length === 0) {
         throw new Error(
           'rag_search requires at least one team ID. ' +
-          'Ensure userTeamIds is provided in ToolCtx.'
+            'Ensure userTeamIds is provided in ToolCtx.',
         );
       }
 

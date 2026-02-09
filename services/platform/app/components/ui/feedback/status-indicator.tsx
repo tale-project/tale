@@ -1,7 +1,8 @@
 'use client';
 
-import { forwardRef, HTMLAttributes } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { forwardRef, HTMLAttributes } from 'react';
+
 import { cn } from '@/lib/utils/cn';
 
 const statusIndicatorVariants = cva('flex items-center space-x-2 text-sm', {

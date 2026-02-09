@@ -1,16 +1,20 @@
 'use client';
 
-import { Loader2, CheckCircle2 } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
-import { Button } from '@/app/components/ui/primitives/button';
-import { MessageBubble } from './message-bubble';
-import { IntegrationApprovalCard } from './integration-approval-card';
-import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
-import { HumanInputRequestCard } from './human-input-request-card';
-import { ThinkingAnimation } from './thinking-animation';
-import type { ChatItem } from '../hooks/use-merged-chat-items';
 import type { UIMessage } from '@convex-dev/agent/react';
 import type { RefObject } from 'react';
+
+import { Loader2, CheckCircle2 } from 'lucide-react';
+
+import { Button } from '@/app/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
+
+import type { ChatItem } from '../hooks/use-merged-chat-items';
+
+import { HumanInputRequestCard } from './human-input-request-card';
+import { IntegrationApprovalCard } from './integration-approval-card';
+import { MessageBubble } from './message-bubble';
+import { ThinkingAnimation } from './thinking-animation';
+import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
 
 interface ChatMessagesProps {
   items: ChatItem[];
@@ -50,7 +54,7 @@ export function ChatMessages({
 
   return (
     <div
-      className="max-w-(--chat-max-width) mx-auto space-y-4 pt-10"
+      className="mx-auto max-w-(--chat-max-width) space-y-4 pt-10"
       role="log"
       aria-live="polite"
       aria-label={t('aria.messageHistory')}
@@ -87,16 +91,13 @@ export function ChatMessages({
             // Parse the response from the message content
             // Format: "User responded to question \"<question>\": <response>"
             const match = message.content.match(
-              /^User responded to question "(.*?)": ([\s\S]+)$/
+              /^User responded to question "(.*?)": ([\s\S]+)$/,
             );
             const response = match?.[2] ?? message.content;
 
             return (
-              <div
-                key={message.key}
-                className="flex justify-end"
-              >
-                <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-sm">
+              <div key={message.key} className="flex justify-end">
+                <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
                   <CheckCircle2 className="size-4" />
                   <span>{response}</span>
                 </div>

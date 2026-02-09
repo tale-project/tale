@@ -3,10 +3,11 @@
  * Accepts any version ID (including root) and finds the latest archived version.
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
-import { activateVersion } from './activate_version';
+import type { MutationCtx } from '../../_generated/server';
 import type { ActivateVersionResult } from './types';
+
+import { activateVersion } from './activate_version';
 
 export interface RepublishWorkflowArgs {
   wfDefinitionId: Id<'wfDefinitions'>;
@@ -22,7 +23,10 @@ export async function republishWorkflow(
     throw new Error(`Workflow ${args.wfDefinitionId} not found`);
   }
 
-  let latestArchived: { _id: Id<'wfDefinitions'>; versionNumber: number } | null = null;
+  let latestArchived: {
+    _id: Id<'wfDefinitions'>;
+    versionNumber: number;
+  } | null = null;
   for await (const version of ctx.db
     .query('wfDefinitions')
     .withIndex('by_org_name_status', (q) =>
@@ -31,8 +35,14 @@ export async function republishWorkflow(
         .eq('name', workflow.name)
         .eq('status', 'archived'),
     )) {
-    if (!latestArchived || version.versionNumber > latestArchived.versionNumber) {
-      latestArchived = { _id: version._id, versionNumber: version.versionNumber };
+    if (
+      !latestArchived ||
+      version.versionNumber > latestArchived.versionNumber
+    ) {
+      latestArchived = {
+        _id: version._id,
+        versionNumber: version.versionNumber,
+      };
     }
   }
 

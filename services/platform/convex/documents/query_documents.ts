@@ -1,6 +1,10 @@
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
-import { paginateWithFilter, type CursorPaginatedResult } from '../lib/pagination';
+import type { QueryCtx } from '../_generated/server';
+
+import {
+  paginateWithFilter,
+  type CursorPaginatedResult,
+} from '../lib/pagination';
 
 export interface QueryDocumentsArgs {
   organizationId: string;

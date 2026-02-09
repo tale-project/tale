@@ -85,8 +85,7 @@ const documentRagSyncWorkflow: PredefinedWorkflowDefinition = {
         type: 'rag',
         parameters: {
           operation: 'upload_document',
-          recordId:
-            '{{steps.find_unprocessed_document.output.data._id}}',
+          recordId: '{{steps.find_unprocessed_document.output.data._id}}',
         },
       },
       nextSteps: {
@@ -104,8 +103,7 @@ const documentRagSyncWorkflow: PredefinedWorkflowDefinition = {
         type: 'document',
         parameters: {
           operation: 'update',
-          documentId:
-            '{{steps.find_unprocessed_document.output.data._id}}',
+          documentId: '{{steps.find_unprocessed_document.output.data._id}}',
           metadata: {
             rag_job_id: '{{steps.upload_to_rag.output.data.jobId}}',
           },
@@ -127,8 +125,7 @@ const documentRagSyncWorkflow: PredefinedWorkflowDefinition = {
         parameters: {
           operation: 'record_processed',
           tableName: 'documents',
-          recordId:
-            '{{steps.find_unprocessed_document.output.data._id}}',
+          recordId: '{{steps.find_unprocessed_document.output.data._id}}',
         },
       },
       nextSteps: {

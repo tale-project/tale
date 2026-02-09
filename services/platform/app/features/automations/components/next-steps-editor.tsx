@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Select } from '@/app/components/ui/forms/select';
-import { useT } from '@/lib/i18n/client';
-import { Doc } from '@/convex/_generated/dataModel';
 import { StopCircle } from 'lucide-react';
+import { useMemo } from 'react';
+
+import { Select } from '@/app/components/ui/forms/select';
+import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n/client';
+
 import { getStepIcon } from '../utils/step-icons';
 
 interface AvailableStep {

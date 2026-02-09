@@ -1,8 +1,9 @@
 'use client';
 
-import { cn } from '@/lib/utils/cn';
-import { Image } from '@/app/components/ui/data-display/image';
 import { ComponentPropsWithoutRef } from 'react';
+
+import { Image } from '@/app/components/ui/data-display/image';
+import { cn } from '@/lib/utils/cn';
 
 interface ProductImageProps extends ComponentPropsWithoutRef<'div'> {
   images: string[];
@@ -31,26 +32,26 @@ export function ProductImage({
         alt={productName}
         width={80}
         height={80}
-        className="w-full h-full object-cover"
+        className="h-full w-full object-cover"
       />
       {hasImages && images.length > 1 && (
         <>
-          <div className="hidden group-hover:flex absolute -right-4 -top-4 bg-background rounded-full size-6 items-center justify-center text-xs text-muted-foreground border">
+          <div className="bg-background text-muted-foreground absolute -top-4 -right-4 hidden size-6 items-center justify-center rounded-full border text-xs group-hover:flex">
             +{images.length - 1}
           </div>
-          <div className="hidden group-hover:block absolute top-0 left-full ml-2 z-50 bg-background p-4 rounded-md shadow-lg border min-w-[280px]">
+          <div className="bg-background absolute top-0 left-full z-50 ml-2 hidden min-w-[280px] rounded-md border p-4 shadow-lg group-hover:block">
             <div className="grid grid-cols-2 gap-4">
               {images.map((image, imgIndex) => (
                 <div
                   key={imgIndex}
-                  className="relative w-32 h-32 bg-muted rounded-md overflow-hidden"
+                  className="bg-muted relative h-32 w-32 overflow-hidden rounded-md"
                 >
                   <Image
                     src={image}
                     alt={`${productName} - ${imgIndex + 1}`}
                     width={128}
                     height={128}
-                    className="w-full h-full object-cover"
+                    className="h-full w-full object-cover"
                   />
                 </div>
               ))}

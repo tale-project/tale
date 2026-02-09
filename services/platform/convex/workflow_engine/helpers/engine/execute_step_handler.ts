@@ -4,17 +4,17 @@
  * Contains the business logic for executing a single workflow step.
  */
 
-import type { ActionCtx } from '../../../_generated/server';
 import type { Doc } from '../../../_generated/dataModel';
-import { replaceVariables } from '../../../lib/variables/replace_variables';
-import { loadAndValidateExecution } from '../step_execution/load_and_validate_execution';
-import { initializeExecutionVariables } from '../step_execution/initialize_execution_variables';
-import { executeStepByType } from '../step_execution/execute_step_by_type';
-import { buildStepsMap } from '../step_execution/build_steps_map';
-import { extractEssentialLoopVariables } from '../step_execution/extract_essential_loop_variables';
-import { persistExecutionResult } from '../step_execution/persist_execution_result';
+import type { ActionCtx } from '../../../_generated/server';
 
 import { createDebugLog } from '../../../lib/debug_log';
+import { replaceVariables } from '../../../lib/variables/replace_variables';
+import { buildStepsMap } from '../step_execution/build_steps_map';
+import { executeStepByType } from '../step_execution/execute_step_by_type';
+import { extractEssentialLoopVariables } from '../step_execution/extract_essential_loop_variables';
+import { initializeExecutionVariables } from '../step_execution/initialize_execution_variables';
+import { loadAndValidateExecution } from '../step_execution/load_and_validate_execution';
+import { persistExecutionResult } from '../step_execution/persist_execution_result';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -88,14 +88,24 @@ export async function handleExecuteStep(
   // Debug: Log before variable replacement for LLM steps
   if (args.stepType === 'llm') {
     const llmConfig = stepDef.config as Record<string, unknown>;
-    const stepsData = fullVariables.steps as Record<string, Record<string, unknown>> | undefined;
+    const stepsData = fullVariables.steps as
+      | Record<string, Record<string, unknown>>
+      | undefined;
 
     debugLog('Before replaceVariables (LLM step):', {
       stepSlug: args.stepSlug,
       hasUserPrompt: !!llmConfig.userPrompt,
-      userPromptLength: typeof llmConfig.userPrompt === 'string' ? llmConfig.userPrompt.length : 0,
-      userPromptPreview: typeof llmConfig.userPrompt === 'string' ? llmConfig.userPrompt.substring(0, 100) : '',
-      hasTemplateMarkers: /\{\{/.test(typeof llmConfig.userPrompt === 'string' ? llmConfig.userPrompt : ''),
+      userPromptLength:
+        typeof llmConfig.userPrompt === 'string'
+          ? llmConfig.userPrompt.length
+          : 0,
+      userPromptPreview:
+        typeof llmConfig.userPrompt === 'string'
+          ? llmConfig.userPrompt.substring(0, 100)
+          : '',
+      hasTemplateMarkers: /\{\{/.test(
+        typeof llmConfig.userPrompt === 'string' ? llmConfig.userPrompt : '',
+      ),
       availableVariableKeys: Object.keys(fullVariables),
       stepsKeys: stepsData ? Object.keys(stepsData) : [],
     });
@@ -117,9 +127,18 @@ export async function handleExecuteStep(
     const processedLlmConfig = processedConfig as Record<string, unknown>;
     debugLog('After replaceVariables (LLM step):', {
       stepSlug: args.stepSlug,
-      userPromptLength: typeof processedLlmConfig.userPrompt === 'string' ? processedLlmConfig.userPrompt.length : 0,
-      userPromptPreview: typeof processedLlmConfig.userPrompt === 'string' ? processedLlmConfig.userPrompt.substring(0, 100) : '',
-      systemPromptLength: typeof processedLlmConfig.systemPrompt === 'string' ? processedLlmConfig.systemPrompt.length : 0,
+      userPromptLength:
+        typeof processedLlmConfig.userPrompt === 'string'
+          ? processedLlmConfig.userPrompt.length
+          : 0,
+      userPromptPreview:
+        typeof processedLlmConfig.userPrompt === 'string'
+          ? processedLlmConfig.userPrompt.substring(0, 100)
+          : '',
+      systemPromptLength:
+        typeof processedLlmConfig.systemPrompt === 'string'
+          ? processedLlmConfig.systemPrompt.length
+          : 0,
     });
   }
 

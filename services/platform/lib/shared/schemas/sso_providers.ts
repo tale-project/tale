@@ -1,16 +1,16 @@
 import { z } from 'zod/v4';
 
-export const ssoProviderIdLiterals = ['entra-id', 'google-workspace', 'okta', 'generic-oidc'] as const;
-export const ssoProviderIdSchema = z.enum(ssoProviderIdLiterals);
-export type SsoProviderId = z.infer<typeof ssoProviderIdSchema>;
+const ssoProviderIdLiterals = ['entra-id', 'google-workspace', 'okta', 'generic-oidc'] as const;
+const ssoProviderIdSchema = z.enum(ssoProviderIdLiterals);
+type SsoProviderId = z.infer<typeof ssoProviderIdSchema>;
 
-export const platformRoleLiterals = ['admin', 'developer', 'editor', 'member', 'disabled'] as const;
+const platformRoleLiterals = ['admin', 'developer', 'editor', 'member', 'disabled'] as const;
 export const platformRoleSchema = z.enum(platformRoleLiterals);
 export type PlatformRole = z.infer<typeof platformRoleSchema>;
 
-export const roleMappingSourceLiterals = ['jobTitle', 'appRole', 'group', 'claim'] as const;
-export const roleMappingSourceSchema = z.enum(roleMappingSourceLiterals);
-export type RoleMappingSource = z.infer<typeof roleMappingSourceSchema>;
+const roleMappingSourceLiterals = ['jobTitle', 'appRole', 'group', 'claim'] as const;
+const roleMappingSourceSchema = z.enum(roleMappingSourceLiterals);
+type RoleMappingSource = z.infer<typeof roleMappingSourceSchema>;
 
 export const roleMappingRuleSchema = z.object({
 	source: roleMappingSourceSchema,
@@ -52,17 +52,17 @@ export const ssoGroupSchema = z.object({
 });
 export type SsoGroup = z.infer<typeof ssoGroupSchema>;
 
-export const entraIdFeaturesSchema = z.object({
+const entraIdFeaturesSchema = z.object({
 	enableOneDriveAccess: z.boolean().optional(),
 	autoProvisionTeam: z.boolean().optional(),
 	excludeGroups: z.array(z.string()).optional(),
 });
-export type EntraIdFeatures = z.infer<typeof entraIdFeaturesSchema>;
+type EntraIdFeatures = z.infer<typeof entraIdFeaturesSchema>;
 
-export const googleWorkspaceFeaturesSchema = z.object({
+const googleWorkspaceFeaturesSchema = z.object({
 	enableGoogleDriveAccess: z.boolean().optional(),
 });
-export type GoogleWorkspaceFeatures = z.infer<typeof googleWorkspaceFeaturesSchema>;
+type GoogleWorkspaceFeatures = z.infer<typeof googleWorkspaceFeaturesSchema>;
 
 export const providerFeaturesSchema = z.object({
 	entraId: entraIdFeaturesSchema.optional(),

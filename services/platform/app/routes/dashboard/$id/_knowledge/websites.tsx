@@ -1,10 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { z } from 'zod';
-import { api } from '@/convex/_generated/api';
+
+import { WebsitesEmptyState } from '@/app/features/websites/components/websites-empty-state';
 import { WebsitesTable } from '@/app/features/websites/components/websites-table';
 import { WebsitesTableSkeleton } from '@/app/features/websites/components/websites-table-skeleton';
-import { WebsitesEmptyState } from '@/app/features/websites/components/websites-empty-state';
+import { api } from '@/convex/_generated/api';
 
 const searchSchema = z.object({
   query: z.string().optional(),

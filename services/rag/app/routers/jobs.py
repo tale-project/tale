@@ -39,12 +39,8 @@ class JobStatsResponse(BaseModel):
     """Response containing job statistics."""
 
     total: int = Field(..., description="Total number of jobs")
-    by_state: dict[str, int] = Field(
-        ..., description="Count of jobs by state (queued, running, completed, failed)"
-    )
-    stale: int = Field(
-        ..., description="Number of stale jobs that would be cleaned up with default TTLs"
-    )
+    by_state: dict[str, int] = Field(..., description="Count of jobs by state (queued, running, completed, failed)")
+    stale: int = Field(..., description="Number of stale jobs that would be cleaned up with default TTLs")
     oldest_by_state: dict[str, float | None] = Field(
         ..., description="Age in hours of the oldest job for each state (null if no jobs in that state)"
     )
@@ -78,9 +74,7 @@ class DeletedJobInfo(BaseModel):
     """Information about a deleted job."""
 
     job_id: str = Field(..., description="ID of the deleted job")
-    reason: str = Field(
-        ..., description="Reason for deletion (completed_expired, failed_expired, orphaned)"
-    )
+    reason: str = Field(..., description="Reason for deletion (completed_expired, failed_expired, orphaned)")
     age_hours: float = Field(..., description="Age of the job in hours when deleted")
 
 
@@ -89,12 +83,8 @@ class CleanupResponse(BaseModel):
 
     scanned: int = Field(..., description="Total number of jobs scanned")
     deleted: int = Field(..., description="Number of jobs deleted (or would be deleted if dry_run)")
-    by_reason: dict[str, int] = Field(
-        ..., description="Count of deletions by reason"
-    )
-    deleted_jobs: list[DeletedJobInfo] = Field(
-        ..., description="Details of deleted jobs"
-    )
+    by_reason: dict[str, int] = Field(..., description="Count of deletions by reason")
+    deleted_jobs: list[DeletedJobInfo] = Field(..., description="Details of deleted jobs")
     dry_run: bool = Field(..., description="Whether this was a dry run")
 
 

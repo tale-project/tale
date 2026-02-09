@@ -53,7 +53,8 @@ export function ThemeProvider({
   const [mounted, setMounted] = useState(false);
 
   const updateResolvedTheme = useCallback((currentTheme: Theme) => {
-    const resolved = currentTheme === 'system' ? getSystemTheme() : currentTheme;
+    const resolved =
+      currentTheme === 'system' ? getSystemTheme() : currentTheme;
     setResolvedTheme(resolved);
 
     const root = document.documentElement;

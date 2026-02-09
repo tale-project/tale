@@ -1,29 +1,29 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
-import { Button } from '@/app/components/ui/primitives/button';
-import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { useChatLayout } from '../context/chat-layout-context';
+
 import type { FileAttachment } from '../types';
 
+import { useChatLayout } from '../context/chat-layout-context';
+import { useChatPendingState } from '../hooks/use-chat-pending-state';
+import { useHumanInputRequests } from '../hooks/use-human-input-requests';
+import { useIntegrationApprovals } from '../hooks/use-integration-approvals';
+import { useMergedChatItems } from '../hooks/use-merged-chat-items';
+import { useMessageProcessing } from '../hooks/use-message-processing';
+import { usePendingMessages } from '../hooks/use-pending-messages';
+import { useSendMessage } from '../hooks/use-send-message';
+import { useWorkflowCreationApprovals } from '../hooks/use-workflow-creation-approvals';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
-
-import { useMessageProcessing } from '../hooks/use-message-processing';
-import { useMergedChatItems } from '../hooks/use-merged-chat-items';
-import { useIntegrationApprovals } from '../hooks/use-integration-approvals';
-import { useWorkflowCreationApprovals } from '../hooks/use-workflow-creation-approvals';
-import { useHumanInputRequests } from '../hooks/use-human-input-requests';
-import { useChatPendingState } from '../hooks/use-chat-pending-state';
-import { useSendMessage } from '../hooks/use-send-message';
-import { usePendingMessages } from '../hooks/use-pending-messages';
 
 interface ChatInterfaceProps {
   organizationId: string;
@@ -199,7 +199,7 @@ export function ChatInterface({
   return (
     <div
       ref={containerRef}
-      className="flex flex-col h-full flex-1 min-h-0 overflow-y-auto"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto"
     >
       <div
         ref={contentRef}
@@ -231,7 +231,7 @@ export function ChatInterface({
 
       <div className="sticky bottom-0 z-50">
         {/* Scroll to bottom button */}
-        <div className="max-w-(--chat-max-width) mx-auto w-full relative">
+        <div className="relative mx-auto w-full max-w-(--chat-max-width)">
           <AnimatePresence>
             {showScrollButton && (
               <motion.div
@@ -239,13 +239,13 @@ export function ChatInterface({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.95 }}
                 transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-                className="absolute -top-10 right-2 sm:right-0 z-10"
+                className="absolute -top-10 right-2 z-10 sm:right-0"
               >
                 <Button
                   onClick={scrollToBottom}
                   size="icon"
                   variant="secondary"
-                  className="rounded-full shadow-lg backdrop-blur-sm bg-opacity-60"
+                  className="bg-opacity-60 rounded-full shadow-lg backdrop-blur-sm"
                   aria-label={t('aria.scrollToBottom')}
                 >
                   <ArrowDown className="h-4 w-4" />
@@ -257,7 +257,7 @@ export function ChatInterface({
         <FileUpload.Root>
           <ChatInput
             key={threadId || 'new-chat'}
-            className="max-w-(--chat-max-width) mx-auto w-full"
+            className="mx-auto w-full max-w-(--chat-max-width)"
             value={inputValue}
             onChange={setInputValue}
             onSendMessage={handleSendMessage}

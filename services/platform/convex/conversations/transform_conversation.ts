@@ -2,11 +2,11 @@
  * Transform conversation to include computed fields (business logic)
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import type { ConversationItem, CustomerInfo, MessageInfo } from './types';
-import { getPendingApprovalForResource } from '../approvals/helpers';
 
+import { getPendingApprovalForResource } from '../approvals/helpers';
 import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
@@ -104,9 +104,17 @@ export async function transformConversation(
     }
 
     const rawAttachment = (m.metadata as { attachment?: unknown })?.attachment;
-    const attachment = rawAttachment && typeof rawAttachment === 'object' && rawAttachment !== null
-      ? (rawAttachment as { url: string; filename: string; contentType?: string; size?: number })
-      : undefined;
+    const attachment =
+      rawAttachment &&
+      typeof rawAttachment === 'object' &&
+      rawAttachment !== null
+        ? (rawAttachment as {
+            url: string;
+            filename: string;
+            contentType?: string;
+            size?: number;
+          })
+        : undefined;
 
     return {
       id: String(m._id),
@@ -116,7 +124,9 @@ export async function transformConversation(
       content: m.content,
       timestamp,
       isCustomer: m.direction === 'inbound',
-      status: (m.deliveryState as 'queued' | 'sent' | 'delivered' | 'failed') || 'sent',
+      status:
+        (m.deliveryState as 'queued' | 'sent' | 'delivered' | 'failed') ||
+        'sent',
       attachment,
     };
   });

@@ -1,5 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { Stack, HStack, VStack, Grid, Center, Spacer, NarrowContainer } from './layout';
+
+import {
+  Stack,
+  HStack,
+  VStack,
+  Grid,
+  Center,
+  Spacer,
+  NarrowContainer,
+} from './layout';
 
 const meta: Meta = {
   title: 'Layout/Primitives',
@@ -38,8 +47,16 @@ import { Stack, HStack, Grid } from '@/app/components/ui/layout/layout';
 
 export default meta;
 
-const Box = ({ children, className = '' }: { children?: React.ReactNode; className?: string }) => (
-  <div className={`bg-primary/10 border border-primary/20 rounded-md p-3 text-sm ${className}`}>
+const Box = ({
+  children,
+  className = '',
+}: {
+  children?: React.ReactNode;
+  className?: string;
+}) => (
+  <div
+    className={`bg-primary/10 border-primary/20 rounded-md border p-3 text-sm ${className}`}
+  >
     {children || 'Box'}
   </div>
 );
@@ -68,7 +85,7 @@ export const StackGaps: StoryObj = {
     <div className="flex gap-8">
       {([1, 2, 4, 6, 8] as const).map((gap) => (
         <div key={gap}>
-          <p className="text-xs text-muted-foreground mb-2">gap={gap}</p>
+          <p className="text-muted-foreground mb-2 text-xs">gap={gap}</p>
           <Stack gap={gap}>
             <Box className="h-8 w-16" />
             <Box className="h-8 w-16" />
@@ -100,16 +117,24 @@ export const HStackComponent: StoryObj = {
 export const HStackAlignment: StoryObj = {
   render: () => (
     <Stack gap={6}>
-      {(['start', 'center', 'end', 'stretch', 'baseline'] as const).map((align) => (
-        <div key={align}>
-          <p className="text-xs text-muted-foreground mb-2">align="{align}"</p>
-          <HStack gap={4} align={align} className="bg-muted/30 p-2 rounded h-20">
-            <Box className="h-8">Short</Box>
-            <Box className="h-12">Medium</Box>
-            <Box className="h-16">Tall</Box>
-          </HStack>
-        </div>
-      ))}
+      {(['start', 'center', 'end', 'stretch', 'baseline'] as const).map(
+        (align) => (
+          <div key={align}>
+            <p className="text-muted-foreground mb-2 text-xs">
+              align="{align}"
+            </p>
+            <HStack
+              gap={4}
+              align={align}
+              className="bg-muted/30 h-20 rounded p-2"
+            >
+              <Box className="h-8">Short</Box>
+              <Box className="h-12">Medium</Box>
+              <Box className="h-16">Tall</Box>
+            </HStack>
+          </div>
+        ),
+      )}
     </Stack>
   ),
 };
@@ -117,16 +142,24 @@ export const HStackAlignment: StoryObj = {
 export const HStackJustify: StoryObj = {
   render: () => (
     <Stack gap={6}>
-      {(['start', 'center', 'end', 'between', 'around', 'evenly'] as const).map((justify) => (
-        <div key={justify}>
-          <p className="text-xs text-muted-foreground mb-2">justify="{justify}"</p>
-          <HStack gap={4} justify={justify} className="bg-muted/30 p-2 rounded">
-            <Box className="w-16">1</Box>
-            <Box className="w-16">2</Box>
-            <Box className="w-16">3</Box>
-          </HStack>
-        </div>
-      ))}
+      {(['start', 'center', 'end', 'between', 'around', 'evenly'] as const).map(
+        (justify) => (
+          <div key={justify}>
+            <p className="text-muted-foreground mb-2 text-xs">
+              justify="{justify}"
+            </p>
+            <HStack
+              gap={4}
+              justify={justify}
+              className="bg-muted/30 rounded p-2"
+            >
+              <Box className="w-16">1</Box>
+              <Box className="w-16">2</Box>
+              <Box className="w-16">3</Box>
+            </HStack>
+          </div>
+        ),
+      )}
     </Stack>
   ),
 };
@@ -178,7 +211,8 @@ export const GridResponsive: StoryObj = {
   parameters: {
     docs: {
       description: {
-        story: 'Grid supports responsive column counts at different breakpoints.',
+        story:
+          'Grid supports responsive column counts at different breakpoints.',
       },
     },
   },
@@ -186,7 +220,7 @@ export const GridResponsive: StoryObj = {
 
 export const CenterComponent: StoryObj = {
   render: () => (
-    <Center className="h-40 bg-muted/30 rounded-lg">
+    <Center className="bg-muted/30 h-40 rounded-lg">
       <Box>Centered Content</Box>
     </Center>
   ),
@@ -218,7 +252,7 @@ export const SpacerComponent: StoryObj = {
 
 export const NarrowContainerComponent: StoryObj = {
   render: () => (
-    <div className="w-full bg-muted/30 py-8">
+    <div className="bg-muted/30 w-full py-8">
       <NarrowContainer>
         <Stack gap={4}>
           <Box>Form field 1</Box>
@@ -231,7 +265,8 @@ export const NarrowContainerComponent: StoryObj = {
   parameters: {
     docs: {
       description: {
-        story: 'NarrowContainer provides a max-width centered container for forms.',
+        story:
+          'NarrowContainer provides a max-width centered container for forms.',
       },
     },
   },
@@ -251,8 +286,8 @@ export const CombinedExample: StoryObj = {
         {Array.from({ length: 6 }).map((_, i) => (
           <Box key={i} className="p-4">
             <Stack gap={2}>
-              <div className="h-4 w-3/4 bg-primary/20 rounded" />
-              <div className="h-3 w-1/2 bg-primary/10 rounded" />
+              <div className="bg-primary/20 h-4 w-3/4 rounded" />
+              <div className="bg-primary/10 h-3 w-1/2 rounded" />
             </Stack>
           </Box>
         ))}
@@ -262,7 +297,8 @@ export const CombinedExample: StoryObj = {
   parameters: {
     docs: {
       description: {
-        story: 'Example combining Stack, HStack, and Grid for a typical dashboard layout.',
+        story:
+          'Example combining Stack, HStack, and Grid for a typical dashboard layout.',
       },
     },
   },

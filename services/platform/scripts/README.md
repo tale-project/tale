@@ -7,7 +7,6 @@ This directory contains development and utility scripts for the project.
 ### Development Scripts
 
 - **`dev.mjs`** - Main development orchestrator
-
   - Starts Convex backend in LOCAL mode
   - Syncs environment variables
   - Starts Vite dev server

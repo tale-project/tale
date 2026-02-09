@@ -5,8 +5,8 @@
  * - Creates new draft based on activated version
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Doc, Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { ActivateVersionResult } from './types';
 
 export interface ActivateVersionArgs {

@@ -5,9 +5,19 @@
  * For SQL integrations, pass sqlConnectionConfig with the database connection details.
  */
 
-import { ActionCtx } from '../_generated/server';
-import { Id } from '../_generated/dataModel';
+import type {
+  AuditLogActorType,
+  AuditLogCategory,
+  AuditLogStatus,
+} from '../audit_logs/types';
+
 import { api, internal } from '../_generated/api';
+import { Id } from '../_generated/dataModel';
+import { ActionCtx } from '../_generated/server';
+import { createDebugLog } from '../lib/debug_log';
+import { encryptCredentials } from './encrypt_credentials';
+import { runHealthCheck } from './run_health_check';
+import { saveRelatedWorkflows } from './save_related_workflows';
 import {
   AuthMethod,
   ApiKeyAuth,
@@ -18,12 +28,6 @@ import {
   SqlConnectionConfig,
   SqlOperation,
 } from './types';
-import { saveRelatedWorkflows } from './save_related_workflows';
-import { encryptCredentials } from './encrypt_credentials';
-import { runHealthCheck } from './run_health_check';
-
-import { createDebugLog } from '../lib/debug_log';
-import type { AuditLogActorType, AuditLogCategory, AuditLogStatus } from '../audit_logs/types';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -63,14 +67,22 @@ export async function createIntegrationLogic(
     if (!args.sqlConnectionConfig) {
       throw new Error('SQL integration requires sqlConnectionConfig');
     }
-    if (!args.sqlConnectionConfig.server || args.sqlConnectionConfig.server.trim() === '') {
+    if (
+      !args.sqlConnectionConfig.server ||
+      args.sqlConnectionConfig.server.trim() === ''
+    ) {
       throw new Error('SQL integration requires a server address');
     }
-    if (!args.sqlConnectionConfig.database || args.sqlConnectionConfig.database.trim() === '') {
+    if (
+      !args.sqlConnectionConfig.database ||
+      args.sqlConnectionConfig.database.trim() === ''
+    ) {
       throw new Error('SQL integration requires a database name');
     }
     if (!args.sqlConnectionConfig.engine) {
-      throw new Error('SQL integration requires an engine type (mssql, postgres, or mysql)');
+      throw new Error(
+        'SQL integration requires an engine type (mssql, postgres, or mysql)',
+      );
     }
   }
 
@@ -94,16 +106,28 @@ export async function createIntegrationLogic(
       // Set to 'active' since health check passed (or SQL integration)
       status: 'active',
       isActive: true,
-      authMethod: args.authMethod === 'bearer_token' ? 'api_key' : args.authMethod,
+      authMethod:
+        args.authMethod === 'bearer_token' ? 'api_key' : args.authMethod,
       apiKeyAuth,
-      basicAuth: basicAuth ? { username: basicAuth.username ?? '', passwordEncrypted: basicAuth.passwordEncrypted } : undefined,
+      basicAuth: basicAuth
+        ? {
+            username: basicAuth.username ?? '',
+            passwordEncrypted: basicAuth.passwordEncrypted,
+          }
+        : undefined,
       oauth2Auth,
-      connectionConfig: args.connectionConfig as Record<string, unknown> | undefined,
+      connectionConfig: args.connectionConfig as
+        | Record<string, unknown>
+        | undefined,
       capabilities: args.capabilities,
       // SQL integration fields
       type: args.type,
-      sqlConnectionConfig: args.sqlConnectionConfig as Record<string, unknown> | undefined,
-      sqlOperations: args.sqlOperations as Record<string, unknown>[] | undefined,
+      sqlConnectionConfig: args.sqlConnectionConfig as
+        | Record<string, unknown>
+        | undefined,
+      sqlOperations: args.sqlOperations as
+        | Record<string, unknown>[]
+        | undefined,
       metadata: args.metadata,
     },
   );
@@ -122,25 +146,31 @@ export async function createIntegrationLogic(
   debugLog(`Integration Create Saved ${workflowIds.length} related workflows`);
 
   try {
-    await ctx.runMutation(internal.audit_logs.internal_mutations.createAuditLog, {
-      organizationId: args.organizationId,
-      actorId: 'system',
-      actorType: 'system' as AuditLogActorType,
-      action: 'create_integration',
-      category: 'integration' as AuditLogCategory,
-      resourceType: 'integration',
-      resourceId: String(integrationId),
-      resourceName: args.name,
-      newState: {
-        name: args.name,
-        title: args.title,
-        type: args.type ?? 'rest_api',
-        authMethod: args.authMethod,
+    await ctx.runMutation(
+      internal.audit_logs.internal_mutations.createAuditLog,
+      {
+        organizationId: args.organizationId,
+        actorId: 'system',
+        actorType: 'system' as AuditLogActorType,
+        action: 'create_integration',
+        category: 'integration' as AuditLogCategory,
+        resourceType: 'integration',
+        resourceId: String(integrationId),
+        resourceName: args.name,
+        newState: {
+          name: args.name,
+          title: args.title,
+          type: args.type ?? 'rest_api',
+          authMethod: args.authMethod,
+        },
+        status: 'success' as AuditLogStatus,
       },
-      status: 'success' as AuditLogStatus,
-    });
+    );
   } catch (error) {
-    debugLog(`Failed to create audit log for integration ${integrationId}:`, error);
+    debugLog(
+      `Failed to create audit log for integration ${integrationId}:`,
+      error,
+    );
   }
 
   return integrationId;

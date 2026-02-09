@@ -8,9 +8,12 @@
  * - default: by_organizationId
  */
 
-import { QueryCtx } from '../_generated/server';
 import { Doc } from '../_generated/dataModel';
-import { paginateWithFilter, type CursorPaginatedResult } from '../lib/pagination';
+import { QueryCtx } from '../_generated/server';
+import {
+  paginateWithFilter,
+  type CursorPaginatedResult,
+} from '../lib/pagination';
 import { ProductStatus } from './types';
 
 export interface QueryProductsArgs {
@@ -112,7 +115,10 @@ export async function queryProducts(
     }
     if (args.minStock !== undefined) {
       products = products.filter(
-        (p) => p.stock !== undefined && p.stock !== null && p.stock >= args.minStock!,
+        (p) =>
+          p.stock !== undefined &&
+          p.stock !== null &&
+          p.stock >= args.minStock!,
       );
     }
 
@@ -120,7 +126,9 @@ export async function queryProducts(
     products.sort((a, b) => b._creationTime - a._creationTime);
 
     // Apply cursor-based pagination
-    const startIndex = cursor ? products.findIndex((p) => p._id === cursor) + 1 : 0;
+    const startIndex = cursor
+      ? products.findIndex((p) => p._id === cursor) + 1
+      : 0;
     const paginatedProducts = products.slice(startIndex, startIndex + numItems);
     const hasMore = startIndex + numItems < products.length;
 
@@ -136,17 +144,25 @@ export async function queryProducts(
 
   const { query, indexedFields } = buildQuery(ctx, args);
 
-  const needsStatusFilter = !('status' in indexedFields) && args.status !== undefined;
-  const needsCategoryFilter = !('category' in indexedFields) && args.category !== undefined;
+  const needsStatusFilter =
+    !('status' in indexedFields) && args.status !== undefined;
+  const needsCategoryFilter =
+    !('category' in indexedFields) && args.category !== undefined;
   const needsMinStockFilter = args.minStock !== undefined;
-  const needsFilter = needsStatusFilter || needsCategoryFilter || needsMinStockFilter;
+  const needsFilter =
+    needsStatusFilter || needsCategoryFilter || needsMinStockFilter;
 
   const filter = needsFilter
     ? (product: Doc<'products'>): boolean => {
         if (needsStatusFilter && product.status !== args.status) return false;
-        if (needsCategoryFilter && product.category !== args.category) return false;
+        if (needsCategoryFilter && product.category !== args.category)
+          return false;
         if (needsMinStockFilter) {
-          if (product.stock === undefined || product.stock === null || product.stock < args.minStock!) {
+          if (
+            product.stock === undefined ||
+            product.stock === null ||
+            product.stock < args.minStock!
+          ) {
             return false;
           }
         }

@@ -2,8 +2,8 @@
  * Type definitions for SQL execution
  */
 
-import type { SqlEngine } from '../../integrations/types';
 import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-value';
+import type { SqlEngine } from '../../integrations/types';
 
 export interface SqlCredentials {
   server: string;

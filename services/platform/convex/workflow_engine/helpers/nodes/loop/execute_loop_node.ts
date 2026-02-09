@@ -4,12 +4,12 @@
  * Helper function for loop node execution.
  */
 
-import { StepExecutionContext, StepExecutionResult } from '../../../types';
-import { LoopNodeConfig } from '../../../types/nodes';
-import { LoopNodeExecutor } from './loop_node_executor';
 import type { Id } from '../../../../_generated/dataModel';
 
 import { createDebugLog } from '../../../../lib/debug_log';
+import { StepExecutionContext, StepExecutionResult } from '../../../types';
+import { LoopNodeConfig } from '../../../types/nodes';
+import { LoopNodeExecutor } from './loop_node_executor';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 

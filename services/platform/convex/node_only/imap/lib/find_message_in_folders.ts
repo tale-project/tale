@@ -1,6 +1,7 @@
 'use node';
 
 import type { ImapFlow } from 'imapflow';
+
 import normalizeMessageIdForSearch from './normalize_message_id_for_search';
 import searchInFolder from './search_in_folder';
 

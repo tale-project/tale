@@ -2,7 +2,6 @@
  * Helper to encrypt credentials for integrations.
  */
 
-import { encryptString } from '../lib/crypto/encrypt_string';
 import type {
   ApiKeyAuth,
   BasicAuth,
@@ -11,6 +10,8 @@ import type {
   BasicAuthEncrypted,
   OAuth2AuthEncrypted,
 } from './types';
+
+import { encryptString } from '../lib/crypto/encrypt_string';
 
 export interface EncryptableCredentials {
   apiKeyAuth?: ApiKeyAuth;
@@ -46,7 +47,9 @@ export async function encryptCredentials(
   }
 
   if (args.oauth2Auth) {
-    const accessTokenEncrypted = await encryptString(args.oauth2Auth.accessToken);
+    const accessTokenEncrypted = await encryptString(
+      args.oauth2Auth.accessToken,
+    );
     const refreshTokenEncrypted = args.oauth2Auth.refreshToken
       ? await encryptString(args.oauth2Auth.refreshToken)
       : undefined;
@@ -61,4 +64,3 @@ export async function encryptCredentials(
 
   return { apiKeyAuth, basicAuth, oauth2Auth };
 }
-

@@ -9,16 +9,20 @@
  * - get_table_schema: Get filterable fields for a specific table
  */
 
-import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
 
+import {
+  getSupportedTables,
+  getTableSchema,
+} from './helpers/schema_definitions';
 import {
   JEXL_TRANSFORMS,
   type DatabaseSchemaListTablesResult,
   type DatabaseSchemaGetTableResult,
 } from './helpers/types';
-import { getSupportedTables, getTableSchema } from './helpers/schema_definitions';
 
 const databaseSchemaArgs = z.object({
   operation: z
@@ -73,7 +77,9 @@ FILTER EXPRESSION EXAMPLES:
     handler: async (
       _ctx,
       args,
-    ): Promise<DatabaseSchemaListTablesResult | DatabaseSchemaGetTableResult> => {
+    ): Promise<
+      DatabaseSchemaListTablesResult | DatabaseSchemaGetTableResult
+    > => {
       // Use the shared JEXL_TRANSFORMS constant for consistency
       const jexlTransforms = [...JEXL_TRANSFORMS];
 

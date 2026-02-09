@@ -1,5 +1,6 @@
-import { internal } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
+
+import { internal } from '../../_generated/api';
 import { getActiveWorkflowVersion } from './queries';
 
 function matchesFilter(
@@ -19,7 +20,8 @@ function isSelfTrigger(
   eventData: Record<string, unknown> | undefined,
   subscriptionWorkflowRootId: string,
 ): boolean {
-  if (eventType !== 'workflow.completed' && eventType !== 'workflow.failed') return false;
+  if (eventType !== 'workflow.completed' && eventType !== 'workflow.failed')
+    return false;
   const sourceRoot = eventData?.rootWfDefinitionId as string | undefined;
   return !!sourceRoot && sourceRoot === subscriptionWorkflowRootId;
 }
@@ -30,11 +32,16 @@ interface ProcessEventArgs {
   eventData?: Record<string, unknown>;
 }
 
-export async function processEventHandler(ctx: MutationCtx, args: ProcessEventArgs) {
+export async function processEventHandler(
+  ctx: MutationCtx,
+  args: ProcessEventArgs,
+) {
   const subscriptions = ctx.db
     .query('wfEventSubscriptions')
     .withIndex('by_org_eventType', (q) =>
-      q.eq('organizationId', args.organizationId).eq('eventType', args.eventType),
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('eventType', args.eventType),
     );
 
   const eventData = args.eventData as Record<string, unknown> | undefined;
@@ -46,7 +53,10 @@ export async function processEventHandler(ctx: MutationCtx, args: ProcessEventAr
 
     if (!matchesFilter(eventData, sub.eventFilter)) continue;
 
-    const activeVersion = await getActiveWorkflowVersion(ctx, sub.workflowRootId);
+    const activeVersion = await getActiveWorkflowVersion(
+      ctx,
+      sub.workflowRootId,
+    );
     if (!activeVersion) continue;
 
     await ctx.scheduler.runAfter(
@@ -68,13 +78,16 @@ export async function processEventHandler(ctx: MutationCtx, args: ProcessEventAr
 
     await ctx.db.patch(sub._id, { lastTriggeredAt: Date.now() });
 
-    await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
-      organizationId: args.organizationId,
-      workflowRootId: sub.workflowRootId,
-      wfDefinitionId: activeVersion._id,
-      triggerType: 'event',
-      status: 'accepted',
-    });
+    await ctx.runMutation(
+      internal.workflows.triggers.internal_mutations.createTriggerLog,
+      {
+        organizationId: args.organizationId,
+        workflowRootId: sub.workflowRootId,
+        wfDefinitionId: activeVersion._id,
+        triggerType: 'event',
+        status: 'accepted',
+      },
+    );
   }
 
   return null;

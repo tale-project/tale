@@ -1,18 +1,25 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Input } from '@/app/components/ui/forms/input';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/navigation/tabs';
-import { Form } from '@/app/components/ui/forms/form';
-import { ExternalLink, Shield, Key } from 'lucide-react';
-import { toast } from '@/app/hooks/use-toast';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { ExternalLink, Shield, Key } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+
+import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Form } from '@/app/components/ui/forms/form';
+import { Input } from '@/app/components/ui/forms/input';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/app/components/ui/navigation/tabs';
+import { Button } from '@/app/components/ui/primitives/button';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+
 import { useCreateEmailProvider } from '../hooks/use-create-email-provider';
 import { useCreateOAuth2Provider } from '../hooks/use-create-oauth2-provider';
 import { useTestEmailConnection } from '../hooks/use-test-email-connection';
@@ -53,9 +60,19 @@ export function GmailCreateProviderDialog({
   const passwordSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tCommon('validation.required', { field: t('integrations.providerName') })),
+        name: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('integrations.providerName'),
+          }),
+        ),
         email: z.string().email(tCommon('validation.email')),
-        password: z.string().min(1, tCommon('validation.required', { field: t('integrations.appPassword') })),
+        password: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('integrations.appPassword'),
+          }),
+        ),
         isDefault: z.boolean(),
       }),
     [t, tCommon],
@@ -64,11 +81,26 @@ export function GmailCreateProviderDialog({
   const oauth2Schema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tCommon('validation.required', { field: t('integrations.providerName') })),
+        name: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('integrations.providerName'),
+          }),
+        ),
         isDefault: z.boolean(),
         useApiSending: z.boolean(),
-        clientId: z.string().min(1, tCommon('validation.required', { field: t('integrations.googleClientId') })),
-        clientSecret: z.string().min(1, tCommon('validation.required', { field: t('integrations.googleClientSecret') })),
+        clientId: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('integrations.googleClientId'),
+          }),
+        ),
+        clientSecret: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('integrations.googleClientSecret'),
+          }),
+        ),
       }),
     [t, tCommon],
   );
@@ -222,7 +254,11 @@ export function GmailCreateProviderDialog({
       });
 
       toast({
-        title: t('integrations.providerCreated', { provider: 'Gmail', smtp: testResult.smtp.latencyMs, imap: testResult.imap.latencyMs }),
+        title: t('integrations.providerCreated', {
+          provider: 'Gmail',
+          smtp: testResult.smtp.latencyMs,
+          imap: testResult.imap.latencyMs,
+        }),
         variant: 'success',
       });
 
@@ -250,7 +286,7 @@ export function GmailCreateProviderDialog({
         value={authMethod}
         onValueChange={(value) => setAuthMethod(value as AuthMethod)}
       >
-        <TabsList className="grid w-full grid-cols-2 mb-4">
+        <TabsList className="mb-4 grid w-full grid-cols-2">
           <TabsTrigger value="oauth2" className="gap-2">
             <Shield className="size-4" />
             {t('integrations.oauth2Tab')}
@@ -262,22 +298,25 @@ export function GmailCreateProviderDialog({
         </TabsList>
 
         <TabsContent value="oauth2" className="mt-0">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 mb-3">
-            <p className="text-xs text-blue-700 mb-1.5">
+          <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-2.5">
+            <p className="mb-1.5 text-xs text-blue-700">
               {t('integrations.googleOAuthCredentialsInfo')}
             </p>
             <a
               href="https://console.cloud.google.com/apis/credentials"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
             >
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="h-3 w-3" />
               {t('integrations.googleOAuth2Guide')}
             </a>
           </div>
 
-          <Form onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)} className="space-y-3">
+          <Form
+            onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)}
+            className="space-y-3"
+          >
             <Input
               id="oauth2-client-id"
               label={t('integrations.googleClientId')}
@@ -321,22 +360,23 @@ export function GmailCreateProviderDialog({
         </TabsContent>
 
         <TabsContent value="password" className="mt-0">
-          <div className="border border-border rounded-lg p-2.5 mb-3">
-            <p className="text-xs">
-              {t('integrations.gmailAppPasswordInfo')}
-            </p>
+          <div className="border-border mb-3 rounded-lg border p-2.5">
+            <p className="text-xs">{t('integrations.gmailAppPasswordInfo')}</p>
             <a
               href="https://support.google.com/accounts/answer/185833"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
+              className="mt-1 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
             >
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="h-3 w-3" />
               {t('integrations.googleAppPasswordsGuide')}
             </a>
           </div>
 
-          <Form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-3">
+          <Form
+            onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
+            className="space-y-3"
+          >
             <Input
               id="name"
               label={t('integrations.providerName')}

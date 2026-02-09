@@ -2,8 +2,8 @@
  * Create a new workflow (starts as draft v1)
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { WorkflowConfig } from './types';
 
 export interface CreateWorkflowDraftArgs {

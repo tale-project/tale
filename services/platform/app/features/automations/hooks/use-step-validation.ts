@@ -5,10 +5,12 @@
  */
 
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { useDebounce } from '@/app/hooks/use-debounce';
 import { useMemo } from 'react';
+
 import type { Id } from '@/convex/_generated/dataModel';
+
+import { useDebounce } from '@/app/hooks/use-debounce';
+import { api } from '@/convex/_generated/api';
 
 interface StepConfig {
   stepSlug?: string;

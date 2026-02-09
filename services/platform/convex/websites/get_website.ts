@@ -2,8 +2,8 @@
  * Get a single website by ID
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Id, Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 /**
  * Get a single website by ID
@@ -14,4 +14,3 @@ export async function getWebsite(
 ): Promise<Doc<'websites'> | null> {
   return await ctx.db.get(websiteId);
 }
-

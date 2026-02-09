@@ -3,7 +3,9 @@
  */
 
 import type { Infer } from 'convex/values';
+
 import type { Doc } from '../_generated/dataModel';
+
 import {
   apiKeyAuthEncryptedValidator,
   apiKeyAuthValidator,
@@ -104,4 +106,3 @@ export interface RestApiIntegration extends Integration {
   type: 'rest_api' | undefined;
   connector: ConnectorConfig;
 }
-

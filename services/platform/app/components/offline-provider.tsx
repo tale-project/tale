@@ -1,5 +1,6 @@
-import { useEffect, type ReactNode } from 'react';
 import { useConvex } from 'convex/react';
+import { useEffect, type ReactNode } from 'react';
+
 import { initSyncManager } from '@/lib/offline';
 
 interface OfflineProviderProps {

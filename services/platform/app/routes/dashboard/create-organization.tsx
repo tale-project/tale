@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery, useConvexAuth } from 'convex/react';
 import { useEffect } from 'react';
-import { api } from '@/convex/_generated/api';
+
 import { OrganizationFormClient } from '@/app/features/organization/components/organization-form-client';
+import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute('/dashboard/create-organization')({
   component: CreateOrganizationPage,
@@ -23,13 +24,16 @@ function CreateOrganizationPage() {
     }
 
     if (organizations.length > 0) {
-      navigate({ to: '/dashboard/$id', params: { id: organizations[0].organizationId } });
+      navigate({
+        to: '/dashboard/$id',
+        params: { id: organizations[0].organizationId },
+      });
     }
   }, [isAuthLoading, isAuthenticated, organizations, navigate]);
 
   if (isAuthLoading || organizations === undefined) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex h-screen items-center justify-center">
         <div className="animate-pulse">Loading...</div>
       </div>
     );

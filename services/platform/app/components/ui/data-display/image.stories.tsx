@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { Image } from './image';
 
 const meta: Meta<typeof Image> = {
@@ -71,7 +72,8 @@ export const WithFallback: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Shows the fallback placeholder when the primary image fails to load.',
+        story:
+          'Shows the fallback placeholder when the primary image fails to load.',
       },
     },
   },
@@ -81,13 +83,15 @@ export const CustomFallback: Story = {
   args: {
     src: 'https://invalid-url-that-will-fail.com/image.jpg',
     alt: 'Image with custom fallback',
-    fallbackSrc: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=200&h=200&fit=crop',
+    fallbackSrc:
+      'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=200&h=200&fit=crop',
     className: 'w-32 h-32 object-cover rounded-lg',
   },
   parameters: {
     docs: {
       description: {
-        story: 'Use a custom fallback image instead of the default placeholder.',
+        story:
+          'Use a custom fallback image instead of the default placeholder.',
       },
     },
   },
@@ -103,7 +107,8 @@ export const Priority: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Disable lazy loading for above-the-fold images with the priority prop.',
+        story:
+          'Disable lazy loading for above-the-fold images with the priority prop.',
       },
     },
   },
@@ -130,17 +135,17 @@ export const Sizes: Story = {
       <Image
         src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop"
         alt="Small"
-        className="w-8 h-8 object-cover rounded"
+        className="h-8 w-8 rounded object-cover"
       />
       <Image
         src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop"
         alt="Medium"
-        className="w-16 h-16 object-cover rounded-lg"
+        className="h-16 w-16 rounded-lg object-cover"
       />
       <Image
         src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop"
         alt="Large"
-        className="w-32 h-32 object-cover rounded-xl"
+        className="h-32 w-32 rounded-xl object-cover"
       />
     </div>
   ),
@@ -159,17 +164,17 @@ export const AspectRatio: Story = {
       <Image
         src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop"
         alt="Landscape"
-        className="w-48 h-32 object-cover rounded-lg"
+        className="h-32 w-48 rounded-lg object-cover"
       />
       <Image
         src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=400&fit=crop"
         alt="Portrait"
-        className="w-32 h-48 object-cover rounded-lg"
+        className="h-48 w-32 rounded-lg object-cover"
       />
       <Image
         src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&h=300&fit=crop"
         alt="Square"
-        className="w-32 h-32 object-cover rounded-lg"
+        className="h-32 w-32 rounded-lg object-cover"
       />
     </div>
   ),

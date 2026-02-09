@@ -8,9 +8,18 @@
 
 import type { ValidationResult } from '../types';
 
-const VALID_SCHEMA_TYPES = ['string', 'number', 'integer', 'boolean', 'array', 'object'] as const;
+const VALID_SCHEMA_TYPES = [
+  'string',
+  'number',
+  'integer',
+  'boolean',
+  'array',
+  'object',
+] as const;
 
-export function validateStartStep(config: Record<string, unknown>): ValidationResult {
+export function validateStartStep(
+  config: Record<string, unknown>,
+): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -24,7 +33,9 @@ export function validateStartStep(config: Record<string, unknown>): ValidationRe
 
     if (schema.properties !== undefined) {
       if (typeof schema.properties !== 'object' || schema.properties === null) {
-        errors.push('Start step "inputSchema.properties" must be an object if provided');
+        errors.push(
+          'Start step "inputSchema.properties" must be an object if provided',
+        );
       } else {
         const properties = schema.properties as Record<string, unknown>;
         for (const [key, value] of Object.entries(properties)) {
@@ -33,9 +44,14 @@ export function validateStartStep(config: Record<string, unknown>): ValidationRe
             continue;
           }
           const prop = value as Record<string, unknown>;
-          if (!prop.type || !VALID_SCHEMA_TYPES.includes(prop.type as (typeof VALID_SCHEMA_TYPES)[number])) {
+          if (
+            !prop.type ||
+            !VALID_SCHEMA_TYPES.includes(
+              prop.type as (typeof VALID_SCHEMA_TYPES)[number],
+            )
+          ) {
             errors.push(
-              `Start step input property "${key}" has invalid type. Must be one of: ${VALID_SCHEMA_TYPES.join(', ')}`
+              `Start step input property "${key}" has invalid type. Must be one of: ${VALID_SCHEMA_TYPES.join(', ')}`,
             );
           }
         }
@@ -44,9 +60,17 @@ export function validateStartStep(config: Record<string, unknown>): ValidationRe
 
     if (schema.required !== undefined) {
       if (!Array.isArray(schema.required)) {
-        errors.push('Start step "inputSchema.required" must be an array if provided');
-      } else if (!(schema.required as unknown[]).every((item) => typeof item === 'string')) {
-        errors.push('Start step "inputSchema.required" must be an array of strings');
+        errors.push(
+          'Start step "inputSchema.required" must be an array if provided',
+        );
+      } else if (
+        !(schema.required as unknown[]).every(
+          (item) => typeof item === 'string',
+        )
+      ) {
+        errors.push(
+          'Start step "inputSchema.required" must be an array of strings',
+        );
       }
     }
   }

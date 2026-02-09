@@ -3,10 +3,11 @@
  */
 
 import { v } from 'convex/values';
+
 import { query } from '../_generated/server';
+import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { getToneOfVoiceWithExamples as getToneOfVoiceWithExamplesHelper } from './get_tone_of_voice_with_examples';
 import { hasExampleMessages as hasExampleMessagesHelper } from './has_example_messages';
-import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { toneOfVoiceWithExamplesValidator } from './validators';
 
 export const getToneOfVoiceWithExamples = query({

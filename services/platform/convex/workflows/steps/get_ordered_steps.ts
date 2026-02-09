@@ -2,8 +2,8 @@
  * Get steps ordered by execution order
  */
 
-import type { QueryCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
+import type { QueryCtx } from '../../_generated/server';
 import type { GetOrderedStepsArgs } from './types';
 
 export async function getOrderedSteps(
@@ -21,4 +21,3 @@ export async function getOrderedSteps(
   }
   return steps;
 }
-

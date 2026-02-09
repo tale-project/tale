@@ -14,10 +14,7 @@ function isAllowedOrigin(origin: string): boolean {
     return true;
   }
 
-  if (
-    siteOrigin.includes('127.0.0.1') ||
-    siteOrigin.includes('localhost')
-  ) {
+  if (siteOrigin.includes('127.0.0.1') || siteOrigin.includes('localhost')) {
     return true;
   }
 
@@ -36,8 +33,14 @@ function getCorsHeaders(request: Request): Record<string, string> {
   };
 }
 
-function jsonError(message: string, status: number, request?: Request): Response {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+function jsonError(
+  message: string,
+  status: number,
+  request?: Request,
+): Response {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
   if (request) {
     Object.assign(headers, getCorsHeaders(request));
   }
@@ -82,7 +85,11 @@ async function handleApiGateway(
   const convexJwt = getConvexJwtFromCookies(cookieHeader);
 
   if (!apiKey && !convexJwt) {
-    return jsonError('Missing x-api-key header or session cookie', 401, request);
+    return jsonError(
+      'Missing x-api-key header or session cookie',
+      401,
+      request,
+    );
   }
 
   let jwtToken: string;
@@ -123,7 +130,8 @@ async function handleApiGateway(
     return new Response(responseBody, {
       status: response.status,
       headers: {
-        'Content-Type': response.headers.get('Content-Type') || 'application/json',
+        'Content-Type':
+          response.headers.get('Content-Type') || 'application/json',
         ...getCorsHeaders(request),
       },
     });

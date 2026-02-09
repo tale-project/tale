@@ -1,6 +1,8 @@
 'use client';
 
-import { cn } from '@/lib/utils/cn';
+import { useQuery } from 'convex/react';
+import { CopyIcon, CheckIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Info } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
   ReactNode,
@@ -11,18 +13,12 @@ import {
   memo,
 } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
-import { CopyIcon, CheckIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
-import { highlightCode } from '@/lib/utils/shiki';
+import remarkGfm from 'remark-gfm';
+
 import { useTheme } from '@/app/components/theme/theme-provider';
-import {
-  isTextBasedFile,
-  getTextFileCategory,
-  getFileExtensionLower,
-} from '@/lib/utils/text-file-types';
-import { Button } from '@/app/components/ui/primitives/button';
+import { Image } from '@/app/components/ui/data-display/image';
 import {
   TableBody,
   TableCell,
@@ -30,23 +26,29 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/data-display/table';
-import { PaginatedMarkdownTable } from './paginated-markdown-table';
-import { Info } from 'lucide-react';
+import { Dialog } from '@/app/components/ui/dialog/dialog';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/app/components/ui/overlays/tooltip';
-import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Image } from '@/app/components/ui/data-display/image';
-import { useQuery } from 'convex/react';
+import { Button } from '@/app/components/ui/primitives/button';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import { MessageInfoDialog } from './message-info-dialog';
-import { useMessageMetadata } from '../hooks/use-message-metadata';
-import { TypewriterText } from './typewriter-text';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+import { highlightCode } from '@/lib/utils/shiki';
+import {
+  isTextBasedFile,
+  getTextFileCategory,
+  getFileExtensionLower,
+} from '@/lib/utils/text-file-types';
+
+import { useMessageMetadata } from '../hooks/use-message-metadata';
+import { MessageInfoDialog } from './message-info-dialog';
+import { PaginatedMarkdownTable } from './paginated-markdown-table';
+import { TypewriterText } from './typewriter-text';
 
 function getFileTypeLabel(
   fileName: string,
@@ -175,14 +177,34 @@ function FileTypeIcon({
       const category = getTextFileCategory(fileName);
       const ext = getFileExtensionLower(fileName).toUpperCase();
       if (category === 'code')
-        return { icon: '💻', label: ext || t('fileTypes.code'), bgColor: 'bg-purple-100' };
+        return {
+          icon: '💻',
+          label: ext || t('fileTypes.code'),
+          bgColor: 'bg-purple-100',
+        };
       if (category === 'config')
-        return { icon: '⚙️', label: ext || t('fileTypes.config'), bgColor: 'bg-yellow-100' };
+        return {
+          icon: '⚙️',
+          label: ext || t('fileTypes.config'),
+          bgColor: 'bg-yellow-100',
+        };
       if (category === 'data')
-        return { icon: '📊', label: ext || t('fileTypes.data'), bgColor: 'bg-green-100' };
+        return {
+          icon: '📊',
+          label: ext || t('fileTypes.data'),
+          bgColor: 'bg-green-100',
+        };
       if (category === 'markup')
-        return { icon: '📝', label: ext || t('fileTypes.markup'), bgColor: 'bg-teal-100' };
-      return { icon: '📄', label: ext || t('fileTypes.txt'), bgColor: 'bg-gray-100' };
+        return {
+          icon: '📝',
+          label: ext || t('fileTypes.markup'),
+          bgColor: 'bg-teal-100',
+        };
+      return {
+        icon: '📄',
+        label: ext || t('fileTypes.txt'),
+        bgColor: 'bg-gray-100',
+      };
     }
     return { icon: '📎', label: t('fileTypes.file'), bgColor: 'bg-gray-100' };
   };
@@ -191,11 +213,11 @@ function FileTypeIcon({
 
   return (
     <div
-      className={`${bgColor} rounded-lg flex items-center justify-center size-8 shrink-0`}
+      className={`${bgColor} flex size-8 shrink-0 items-center justify-center rounded-lg`}
     >
       <div className="flex flex-col items-center">
         <span className="text-xs leading-none">{icon}</span>
-        <span className="text-[8px] font-medium text-foreground/80 leading-none mt-0.5">
+        <span className="text-foreground/80 mt-0.5 text-[8px] leading-none font-medium">
           {label}
         </span>
       </div>
@@ -223,7 +245,7 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   if (isImage) {
     // Image attachment - small square thumbnail
     return (
-      <div className="size-11 rounded-lg bg-gray-200 bg-center bg-cover bg-no-repeat overflow-hidden">
+      <div className="size-11 overflow-hidden rounded-lg bg-gray-200 bg-cover bg-center bg-no-repeat">
         <img
           src={displayUrl}
           alt={attachment.fileName}
@@ -239,14 +261,14 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
       href={displayUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="bg-gray-100 rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-gray-200 transition-colors max-w-[216px]"
+      className="flex max-w-[216px] items-center gap-2 rounded-lg bg-gray-100 px-2 py-1.5 transition-colors hover:bg-gray-200"
     >
       <FileTypeIcon
         fileType={attachment.fileType}
         fileName={attachment.fileName}
       />
-      <div className="flex flex-col min-w-0 flex-1">
-        <div className="text-sm font-medium text-gray-800 truncate">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="truncate text-sm font-medium text-gray-800">
           {attachment.fileName}
         </div>
         <div className="text-xs text-gray-500">
@@ -269,7 +291,7 @@ const FilePartDisplay = memo(function FilePartDisplay({
   if (isImage) {
     // Image - small square thumbnail
     return (
-      <div className="size-11 rounded-lg bg-muted bg-center bg-cover bg-no-repeat overflow-hidden">
+      <div className="bg-muted size-11 overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat">
         <img
           src={filePart.url}
           alt={filePart.filename || t('fileTypes.image')}
@@ -285,17 +307,17 @@ const FilePartDisplay = memo(function FilePartDisplay({
       href={filePart.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="bg-muted rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-muted/80 transition-colors max-w-[13.5rem]"
+      className="bg-muted hover:bg-muted/80 flex max-w-[13.5rem] items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
     >
       <FileTypeIcon
         fileType={filePart.mediaType}
         fileName={filePart.filename || t('fileTypes.file')}
       />
-      <div className="flex flex-col min-w-0 flex-1">
-        <div className="text-sm font-medium text-foreground truncate">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="text-foreground truncate text-sm font-medium">
           {filePart.filename || t('fileTypes.file')}
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-muted-foreground text-xs">
           {getFileTypeLabel(filePart.filename || '', filePart.mediaType, t)}
         </div>
       </div>
@@ -331,7 +353,9 @@ const HighlightedCode = memo(function HighlightedCode({
     highlightCode(code, lang, shikiTheme).then((result) => {
       if (!cancelled && result) setHtml(extractShikiCodeContent(result));
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [code, lang, shikiTheme]);
 
   if (!html) {
@@ -339,15 +363,16 @@ const HighlightedCode = memo(function HighlightedCode({
     return (
       <code>
         {lines.map((line, i) => (
-          <span key={i} className="line">{line}{i < lines.length - 1 ? '\n' : ''}</span>
+          <span key={i} className="line">
+            {line}
+            {i < lines.length - 1 ? '\n' : ''}
+          </span>
         ))}
       </code>
     );
   }
 
-  return (
-    <code dangerouslySetInnerHTML={{ __html: html }} />
-  );
+  return <code dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
 // Code block with copy button
@@ -385,7 +410,7 @@ function CodeBlock({
   };
 
   return (
-    <div className="relative group code-line-numbers">
+    <div className="group code-line-numbers relative">
       <pre
         ref={preRef}
         {...props}
@@ -396,11 +421,11 @@ function CodeBlock({
       <Button
         variant="ghost"
         size="icon"
-        className="absolute top-2 right-2 size-7 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-background"
+        className="bg-background/80 hover:bg-background absolute top-2 right-2 size-7 opacity-0 transition-opacity group-hover:opacity-100"
         onClick={handleCopy}
       >
         {isCopied ? (
-          <CheckIcon className="size-3.5 text-success" />
+          <CheckIcon className="text-success size-3.5" />
         ) : (
           <CopyIcon className="size-3.5" />
         )}
@@ -478,13 +503,13 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
       title={t('imagePreview')}
       size="wide"
       hideClose
-      className="p-0 sm:p-0 border-0 ring-0 bg-black/95 flex flex-col"
+      className="flex flex-col border-0 bg-black/95 p-0 ring-0 sm:p-0"
       customHeader={
-        <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
-          <span className="text-white/80 text-sm truncate max-w-[60%]">
+        <div className="absolute top-4 right-4 left-4 z-10 flex items-center justify-between">
+          <span className="max-w-[60%] truncate text-sm text-white/80">
             {alt}
           </span>
-          <div className="flex items-center gap-1 bg-black/50 rounded-lg p-1">
+          <div className="flex items-center gap-1 rounded-lg bg-black/50 p-1">
             <Button
               variant="ghost"
               size="icon"
@@ -495,7 +520,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
             >
               <ZoomOut className="size-4" />
             </Button>
-            <span className="text-white text-sm min-w-[3rem] text-center">
+            <span className="min-w-[3rem] text-center text-sm text-white">
               {Math.round(zoom * 100)}%
             </span>
             <Button
@@ -524,7 +549,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
     >
       <div
         ref={containerRef}
-        className="flex-1 flex items-center justify-center overflow-auto p-8 pt-16"
+        className="flex flex-1 items-center justify-center overflow-auto p-8 pt-16"
       >
         <img
           src={src}
@@ -554,30 +579,21 @@ const MarkdownImage = memo(function MarkdownImage(
 
   const handleOpen = () => setIsOpen(true);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleOpen();
-    }
-  };
-
   return (
     <>
-      <span
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         onClick={handleOpen}
-        onKeyDown={handleKeyDown}
-        className="inline-block cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-lg my-2"
+        className="focus:ring-ring font-inherit my-2 inline-block cursor-pointer appearance-none rounded-lg border-none bg-transparent p-0 transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
       >
         <Image
           src={imageSrc}
           alt={altText}
           width={384}
           height={384}
-          className="max-w-[24rem] max-h-[24rem] w-auto object-contain rounded-lg"
+          className="max-h-[24rem] w-auto max-w-[24rem] rounded-lg object-contain"
         />
-      </span>
+      </button>
       <ImagePreviewDialog
         isOpen={isOpen}
         onOpenChange={setIsOpen}
@@ -734,15 +750,15 @@ function MessageBubbleComponent({
       {...restProps}
     >
       <div
-        className={`px-4 py-3 rounded-2xl ${
+        className={`rounded-2xl px-4 py-3 ${
           isUser
-            ? 'max-w-xs lg:max-w-md bg-muted text-foreground'
+            ? 'bg-muted text-foreground max-w-xs lg:max-w-md'
             : 'text-foreground bg-background'
         }`}
       >
         {/* File attachments - optimistic (local preview) */}
         {message.attachments && message.attachments.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div className="mb-2 flex flex-wrap gap-1">
             {message.attachments.map((attachment, index) => (
               <FileAttachmentDisplay key={index} attachment={attachment} />
             ))}
@@ -751,7 +767,7 @@ function MessageBubbleComponent({
 
         {/* File parts - from server (UIMessage.parts) */}
         {message.fileParts && message.fileParts.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div className="mb-2 flex flex-wrap gap-1">
             {message.fileParts.map((part, index) => (
               <FilePartDisplay key={index} filePart={part} />
             ))}
@@ -791,7 +807,7 @@ function MessageBubbleComponent({
                     onClick={handleCopy}
                   >
                     {isCopied ? (
-                      <CheckIcon className="size-4 text-success" />
+                      <CheckIcon className="text-success size-4" />
                     ) : (
                       <CopyIcon className="size-4" />
                     )}

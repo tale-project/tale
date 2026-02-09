@@ -1,22 +1,24 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+import { Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+
 import type { Id } from '@/convex/_generated/dataModel';
-import { useUpdateAutomationMetadata } from '@/app/features/automations/hooks/use-update-automation-metadata';
+
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
-import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Button } from '@/app/components/ui/primitives/button';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
+import { Textarea } from '@/app/components/ui/forms/textarea';
 import {
   Stack,
   Grid,
   NarrowContainer,
 } from '@/app/components/ui/layout/layout';
-import { toast } from '@/app/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useUpdateAutomationMetadata } from '@/app/features/automations/hooks/use-update-automation-metadata';
 import { useAuth } from '@/app/hooks/use-convex-auth';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 interface WorkflowConfig {
@@ -226,7 +228,7 @@ function ConfigurationPage() {
               placeholder={tAutomations('configuration.timeoutPlaceholder')}
               min={1000}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {tAutomations('configuration.timeoutHelp')}
             </p>
           </Stack>
@@ -242,7 +244,7 @@ function ConfigurationPage() {
               min={0}
               max={10}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {tAutomations('configuration.maxRetriesHelp')}
             </p>
           </Stack>
@@ -258,7 +260,7 @@ function ConfigurationPage() {
             placeholder={tAutomations('configuration.backoffPlaceholder')}
             min={100}
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             {tAutomations('configuration.backoffHelp')}
           </p>
         </Stack>
@@ -275,7 +277,7 @@ function ConfigurationPage() {
           <Button onClick={handleSave} disabled={!hasChanges || isSaving}>
             {isSaving ? (
               <>
-                <Loader2 className="size-4 mr-2 animate-spin" />
+                <Loader2 className="mr-2 size-4 animate-spin" />
                 {tCommon('actions.saving')}
               </>
             ) : (

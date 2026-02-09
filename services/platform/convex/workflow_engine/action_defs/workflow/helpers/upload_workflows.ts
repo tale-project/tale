@@ -1,9 +1,9 @@
 import type { UploadAllWorkflowsResult } from './types';
+
+import { createDebugLog } from '../../../../lib/debug_log';
 import * as workflowExports from '../../../../predefined_workflows';
 import { getRagConfig } from '../../rag/helpers/get_rag_config';
 import { uploadTextDocument } from '../../rag/helpers/upload_text_document';
-
-import { createDebugLog } from '../../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -89,4 +89,3 @@ export async function uploadAllWorkflows(
     details,
   };
 }
-

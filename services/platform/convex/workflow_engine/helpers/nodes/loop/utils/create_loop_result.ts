@@ -2,9 +2,8 @@
  * Create loop result object
  */
 
-import { StepExecutionResult, LoopVars } from '../../../../types/workflow';
-
 import { createDebugLog } from '../../../../../lib/debug_log';
+import { StepExecutionResult, LoopVars } from '../../../../types/workflow';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 

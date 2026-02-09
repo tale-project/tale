@@ -5,7 +5,6 @@
  * This replaces embedding WORKFLOW_SYNTAX_COMPACT in system prompt.
  */
 
-
 /**
  * Syntax modules organized by category
  */
@@ -474,8 +473,10 @@ export function getSyntaxReference(opts: { category: string }): {
 // Category descriptions - kept in sync with SYNTAX_MODULES keys
 const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
   quick_start: '⭐ START HERE: Decision tree and common mistakes to avoid',
-  common_patterns: '⭐ Pattern skeletons: Entity Processing, Email, LLM Analysis, Data Sync, RAG',
-  start: 'Start step configuration (workflow entry point with optional inputSchema)',
+  common_patterns:
+    '⭐ Pattern skeletons: Entity Processing, Email, LLM Analysis, Data Sync, RAG',
+  start:
+    'Start step configuration (workflow entry point with optional inputSchema)',
   llm: 'LLM step configuration (AI agent with tools)',
   action: 'Action step types and parameters',
   condition: 'Condition step with JEXL expressions',
@@ -497,7 +498,8 @@ export function listSyntaxCategories(): {
     operation: 'list_syntax_categories',
     categories: Object.keys(SYNTAX_MODULES).map((key) => ({
       key,
-      description: SYNTAX_CATEGORY_DESCRIPTIONS[key] ?? 'No description available',
+      description:
+        SYNTAX_CATEGORY_DESCRIPTIONS[key] ?? 'No description available',
     })),
   };
 }

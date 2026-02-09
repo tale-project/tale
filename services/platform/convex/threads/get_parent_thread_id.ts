@@ -7,8 +7,9 @@
  */
 
 import type { ActionCtx } from '../_generated/server';
-import { components } from '../_generated/api';
 import type { SubThreadSummary } from '../agent_tools/sub_agents/helpers/types';
+
+import { components } from '../_generated/api';
 
 /**
  * Get the parent thread ID for a sub-thread from its summary.
@@ -32,7 +33,9 @@ export async function getParentThreadId(
 
   try {
     const summary = JSON.parse(thread.summary) as Partial<SubThreadSummary>;
-    return typeof summary.parentThreadId === 'string' ? summary.parentThreadId : null;
+    return typeof summary.parentThreadId === 'string'
+      ? summary.parentThreadId
+      : null;
   } catch {
     return null;
   }

@@ -2,8 +2,9 @@
  * Trigger a manual rescan of a website
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id, Doc } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
 import { internal } from '../_generated/api';
 
 /**
@@ -52,17 +53,20 @@ export async function rescanWebsite(
   }
 
   // Start the workflow immediately using the engine executor directly
-  await ctx.runMutation(internal.workflow_engine.internal_mutations.startWorkflow, {
-    organizationId: website.organizationId,
-    wfDefinitionId: workflowId,
-    input: { websiteId: website._id, domain: normalizedDomain },
-    triggeredBy: 'manual',
-    triggerData: {
-      triggerType: 'manual',
-      reason: 'rescan',
-      timestamp: Date.now(),
+  await ctx.runMutation(
+    internal.workflow_engine.internal_mutations.startWorkflow,
+    {
+      organizationId: website.organizationId,
+      wfDefinitionId: workflowId,
+      input: { websiteId: website._id, domain: normalizedDomain },
+      triggeredBy: 'manual',
+      triggerData: {
+        triggerType: 'manual',
+        reason: 'rescan',
+        timestamp: Date.now(),
+      },
     },
-  });
+  );
 
   // Optimistically update the last scanned timestamp/status
   await ctx.db.patch(websiteId, {

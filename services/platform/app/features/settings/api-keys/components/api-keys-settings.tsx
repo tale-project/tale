@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
-import { Button } from '@/app/components/ui/primitives/button';
+import { Plus } from 'lucide-react';
+import { useState } from 'react';
+
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
-import { ApiKeyTable } from './api-key-table';
-import { ApiKeyCreateDialog } from './api-key-create-dialog';
+
 import { useApiKeys } from '../hooks/use-api-keys';
+import { ApiKeyCreateDialog } from './api-key-create-dialog';
+import { ApiKeyTable } from './api-key-table';
 
 interface ApiKeysSettingsProps {
   organizationId: string;
@@ -23,10 +25,10 @@ export function ApiKeysSettings({ organizationId }: ApiKeysSettingsProps) {
   return (
     <Stack>
       <Stack gap={1}>
-        <h2 className="text-base font-semibold text-foreground">
+        <h2 className="text-foreground text-base font-semibold">
           {tSettings('apiKeys.title')}
         </h2>
-        <p className="text-sm text-muted-foreground tracking-[-0.084px]">
+        <p className="text-muted-foreground text-sm tracking-[-0.084px]">
           {tSettings('apiKeys.description')}{' '}
           <Link
             to="/docs"
@@ -44,7 +46,7 @@ export function ApiKeysSettings({ organizationId }: ApiKeysSettingsProps) {
           onClick={() => setIsCreateDialogOpen(true)}
           className="bg-foreground text-background hover:bg-foreground/90"
         >
-          <Plus className="size-4 mr-2" />
+          <Plus className="mr-2 size-4" />
           {tSettings('apiKeys.createKey')}
         </Button>
       </HStack>

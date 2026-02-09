@@ -1,8 +1,14 @@
-import { useMutation } from 'convex/react';
 import type { FunctionReference, OptionalRestArgs } from 'convex/server';
 
+import { useMutation } from 'convex/react';
+
 type MutationFunction = FunctionReference<'mutation', 'public', any, any>;
-type QueryFunction = FunctionReference<'query', 'public', { organizationId: string }, any[]>;
+type QueryFunction = FunctionReference<
+  'query',
+  'public',
+  { organizationId: string },
+  any[]
+>;
 
 interface UpdateMutationConfig<
   TMutation extends MutationFunction,
@@ -45,7 +51,6 @@ export function createUpdateMutation<
   return function useUpdateMutation(organizationId: string) {
     return useMutation(config.mutationFn).withOptimisticUpdate(
       (localStore, args) => {
-         
         const current = localStore.getQuery(config.getAllQuery as any, {
           organizationId,
         });
@@ -57,7 +62,7 @@ export function createUpdateMutation<
               ? config.applyUpdate(item, args)
               : item,
           );
-           
+
           localStore.setQuery(
             config.getAllQuery as any,
             { organizationId },
@@ -77,7 +82,6 @@ export function createDeleteMutation<
   return function useDeleteMutation(organizationId: string) {
     return useMutation(config.mutationFn).withOptimisticUpdate(
       (localStore, args) => {
-         
         const current = localStore.getQuery(config.getAllQuery as any, {
           organizationId,
         });
@@ -87,7 +91,7 @@ export function createDeleteMutation<
           const updated = (current as TItem[]).filter(
             (item) => config.getItemId(item) !== targetId,
           );
-           
+
           localStore.setQuery(
             config.getAllQuery as any,
             { organizationId },
@@ -107,7 +111,6 @@ export function createCreateMutation<
   return function useCreateMutation(organizationId: string) {
     return useMutation(config.mutationFn).withOptimisticUpdate(
       (localStore, args) => {
-         
         const current = localStore.getQuery(config.getAllQuery as any, {
           organizationId,
         });
@@ -115,7 +118,7 @@ export function createCreateMutation<
         if (current !== undefined) {
           const optimisticItem = config.createOptimisticItem(args);
           const updated = [...(current as TItem[]), optimisticItem];
-           
+
           localStore.setQuery(
             config.getAllQuery as any,
             { organizationId },

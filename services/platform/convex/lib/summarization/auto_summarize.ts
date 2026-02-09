@@ -14,16 +14,17 @@
  * This ensures the model always has a coherent view of the conversation.
  */
 
-import type { ActionCtx } from '../../_generated/server';
-import { components } from '../../_generated/api';
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
+
+import type { ActionCtx } from '../../_generated/server';
+
+import { components } from '../../_generated/api';
+import { createDebugLog } from '../debug_log';
 import {
   summarizeMessages,
   updateSummary,
   type MessageForSummary,
 } from '../summarize_context';
-
-import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_SUMMARIZATION', '[Summarization]');
 
@@ -136,7 +137,8 @@ export async function autoSummarizeIfNeededModel(
   // Count messages by type for logging
   const messageCounts = {
     user: newMessages.filter((m) => m.message?.role === 'user').length,
-    assistant: newMessages.filter((m) => m.message?.role === 'assistant').length,
+    assistant: newMessages.filter((m) => m.message?.role === 'assistant')
+      .length,
     tool: newMessages.filter((m) => m.message?.role === 'tool').length,
   };
 
@@ -162,9 +164,10 @@ export async function autoSummarizeIfNeededModel(
 
   // Determine which messages to summarize vs keep in recent context
   // We preserve the most recent messages and summarize older ones
-  const messagesToSummarize = newMessages.length > RECENT_MESSAGES_TO_PRESERVE
-    ? newMessages.slice(0, newMessages.length - RECENT_MESSAGES_TO_PRESERVE)
-    : [];
+  const messagesToSummarize =
+    newMessages.length > RECENT_MESSAGES_TO_PRESERVE
+      ? newMessages.slice(0, newMessages.length - RECENT_MESSAGES_TO_PRESERVE)
+      : [];
 
   // Skip if no messages to summarize (all are recent)
   if (messagesToSummarize.length === 0) {
@@ -186,16 +189,17 @@ export async function autoSummarizeIfNeededModel(
     .filter((m) => m.message?.content)
     .map((m) => {
       const role = m.message!.role as 'user' | 'assistant' | 'tool' | 'system';
-      const content = typeof m.message!.content === 'string'
-        ? m.message!.content
-        : JSON.stringify(m.message!.content);
+      const content =
+        typeof m.message!.content === 'string'
+          ? m.message!.content
+          : JSON.stringify(m.message!.content);
 
       // For tool messages, try to extract the tool name from content
       // Message content can include tool-result parts with toolName
       let toolName: string | undefined;
       if (role === 'tool' && Array.isArray(m.message!.content)) {
         const toolPart = (m.message!.content as ToolResultPart[]).find(
-          (p) => p.type === 'tool-result' && p.toolName
+          (p) => p.type === 'tool-result' && p.toolName,
         );
         if (toolPart) {
           toolName = toolPart.toolName;
@@ -243,7 +247,8 @@ export async function autoSummarizeIfNeededModel(
 
   // Update thread metadata
   // Use the last message that was summarized, not the last new message overall
-  const lastSummarizedMessage = messagesToSummarize[messagesToSummarize.length - 1];
+  const lastSummarizedMessage =
+    messagesToSummarize[messagesToSummarize.length - 1];
   const newTotalSummarized =
     (summaryData.totalMessagesSummarized || 0) + newMessagesForSummary.length;
 

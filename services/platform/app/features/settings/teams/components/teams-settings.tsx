@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { Button } from '@/app/components/ui/primitives/button';
+import { useState } from 'react';
+
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { useT } from '@/lib/i18n/client';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useDebounce } from '@/app/hooks/use-debounce';
-import { TeamTable } from './team-table';
-import { TeamCreateDialog } from './team-create-dialog';
+import { useT } from '@/lib/i18n/client';
+
 import { useListTeams } from '../hooks/use-list-teams';
+import { TeamCreateDialog } from './team-create-dialog';
+import { TeamTable } from './team-table';
 
 interface TeamsSettingsProps {
   organizationId: string;
@@ -25,7 +27,8 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
 
   // Fetch teams - in trusted headers mode, teams come from JWT claims
   // In normal auth mode, teams come from the teamMember database table
-  const { teams, isLoading, isExternallyManaged } = useListTeams(organizationId);
+  const { teams, isLoading, isExternallyManaged } =
+    useListTeams(organizationId);
 
   // Filter teams by search query
   const filteredTeams = teams?.filter((team: { id: string; name: string }) =>
@@ -35,10 +38,10 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
   return (
     <Stack>
       <Stack gap={1}>
-        <h2 className="text-base font-semibold text-foreground">
+        <h2 className="text-foreground text-base font-semibold">
           {tSettings('teams.title')}
         </h2>
-        <p className="text-sm text-muted-foreground tracking-[-0.084px]">
+        <p className="text-muted-foreground text-sm tracking-[-0.084px]">
           {isExternallyManaged
             ? tSettings('teams.externallyManagedDescription')
             : tSettings('teams.description')}
@@ -58,7 +61,7 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
             onClick={() => setIsCreateDialogOpen(true)}
             className="bg-foreground text-background hover:bg-foreground/90"
           >
-            <Plus className="size-4 mr-2" />
+            <Plus className="mr-2 size-4" />
             {tSettings('teams.createTeam')}
           </Button>
         )}

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { ItemPreview } from './item-preview';
 
 const meta: Meta<typeof ItemPreview> = {
@@ -82,7 +83,8 @@ export const PrimaryOnly: Story = {
 export const LongText: Story = {
   args: {
     primary: 'This is a very long item name that might wrap to multiple lines',
-    secondary: 'This is additional descriptive text that provides more context about the item being displayed',
+    secondary:
+      'This is additional descriptive text that provides more context about the item being displayed',
   },
   decorators: [
     (Story) => (
@@ -131,18 +133,9 @@ export const DocumentPreview: Story = {
 export const Multiple: Story = {
   render: () => (
     <div className="w-80 space-y-2">
-      <ItemPreview
-        primary="Customer A"
-        secondary="customer-a@example.com"
-      />
-      <ItemPreview
-        primary="Customer B"
-        secondary="customer-b@example.com"
-      />
-      <ItemPreview
-        primary="Customer C"
-        secondary="customer-c@example.com"
-      />
+      <ItemPreview primary="Customer A" secondary="customer-a@example.com" />
+      <ItemPreview primary="Customer B" secondary="customer-b@example.com" />
+      <ItemPreview primary="Customer C" secondary="customer-c@example.com" />
     </div>
   ),
   parameters: {

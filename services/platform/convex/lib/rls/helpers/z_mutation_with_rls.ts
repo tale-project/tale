@@ -5,12 +5,14 @@
 
 import { customCtx } from 'convex-helpers/server/customFunctions';
 import {
-	wrapDatabaseWriter,
-	type RLSConfig,
+  wrapDatabaseWriter,
+  type RLSConfig,
 } from 'convex-helpers/server/rowLevelSecurity';
 import { zCustomMutation } from 'convex-helpers/server/zod4';
-import { mutation, type MutationCtx } from '../../../_generated/server';
+
 import type { DataModel } from '../../../_generated/dataModel';
+
+import { mutation, type MutationCtx } from '../../../_generated/server';
 import { getAuthenticatedUser } from '../auth/get_authenticated_user';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import { rlsRules } from './rls_rules';
@@ -20,7 +22,7 @@ import { rlsRules } from './rls_rules';
  * By default, deny access to tables not explicitly listed in rules
  */
 const rlsConfig: RLSConfig = {
-	defaultPolicy: 'deny',
+  defaultPolicy: 'deny',
 };
 
 /**
@@ -46,19 +48,17 @@ const rlsConfig: RLSConfig = {
  * ```
  */
 export const zMutationWithRLS = zCustomMutation(
-	mutation,
-	customCtx(async (ctx: MutationCtx) => {
-		const rules = await rlsRules(ctx);
-		const user = await getAuthenticatedUser(ctx);
-		const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
+  mutation,
+  customCtx(async (ctx: MutationCtx) => {
+    const rules = await rlsRules(ctx);
+    const user = await getAuthenticatedUser(ctx);
+    const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
 
-		return {
-			db: wrapDatabaseWriter<{ user: typeof user; userOrganizations: typeof userOrganizations }, DataModel>(
-				{ user, userOrganizations },
-				ctx.db,
-				rules,
-				rlsConfig,
-			),
-		};
-	}),
+    return {
+      db: wrapDatabaseWriter<
+        { user: typeof user; userOrganizations: typeof userOrganizations },
+        DataModel
+      >({ user, userOrganizations }, ctx.db, rules, rlsConfig),
+    };
+  }),
 );

@@ -5,7 +5,7 @@ interface ServiceWorkerCallbacks {
 }
 
 export async function registerServiceWorker(
-  callbacks: ServiceWorkerCallbacks = {}
+  callbacks: ServiceWorkerCallbacks = {},
 ): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return null;
@@ -88,16 +88,16 @@ interface SyncRegistration extends ServiceWorkerRegistration {
   };
 }
 
-export async function registerBackgroundSync(
-  tag: string = 'mutation-sync'
+async function registerBackgroundSync(
+  tag: string = 'mutation-sync',
 ): Promise<boolean> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return false;
   }
 
   try {
-    const registration =
-      (await navigator.serviceWorker.ready) as SyncRegistration;
+    const registration = (await navigator.serviceWorker
+      .ready) as SyncRegistration;
 
     if (!('sync' in registration)) {
       return false;
@@ -111,7 +111,7 @@ export async function registerBackgroundSync(
   }
 }
 
-export async function isBackgroundSyncSupported(): Promise<boolean> {
+async function isBackgroundSyncSupported(): Promise<boolean> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return false;
   }
@@ -124,14 +124,13 @@ export async function isBackgroundSyncSupported(): Promise<boolean> {
   }
 }
 
-export function onServiceWorkerMessage(
-  callback: (event: MessageEvent) => void
+function onServiceWorkerMessage(
+  callback: (event: MessageEvent) => void,
 ): () => void {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return () => {};
   }
 
   navigator.serviceWorker.addEventListener('message', callback);
-  return () =>
-    navigator.serviceWorker.removeEventListener('message', callback);
+  return () => navigator.serviceWorker.removeEventListener('message', callback);
 }

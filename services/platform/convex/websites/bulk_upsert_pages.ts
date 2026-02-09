@@ -2,8 +2,8 @@
  * Bulk upsert website pages (create or update)
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import type { BulkUpsertPagesArgs, BulkUpsertPagesResult } from './types';
 
 export type { BulkUpsertPagesArgs, BulkUpsertPagesResult };
@@ -41,7 +41,10 @@ export async function bulkUpsertPages(
   }
 
   // Separate pages into updates and inserts
-  const updates: Array<{ id: Id<'websitePages'>; page: (typeof args.pages)[0] }> = [];
+  const updates: Array<{
+    id: Id<'websitePages'>;
+    page: (typeof args.pages)[0];
+  }> = [];
   const inserts: Array<(typeof args.pages)[0]> = [];
 
   for (const page of args.pages) {

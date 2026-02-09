@@ -2,11 +2,13 @@
  * Update workflow step
  */
 
-import type { MutationCtx } from '../../_generated/server';
-import type { Doc } from '../../_generated/dataModel';
-import type { UpdateStepArgs } from './types';
-import { validateStepConfig } from '../../workflow_engine/helpers/validation/validate_step_config';
 import { merge } from 'lodash';
+
+import type { Doc } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
+import type { UpdateStepArgs } from './types';
+
+import { validateStepConfig } from '../../workflow_engine/helpers/validation/validate_step_config';
 
 /** Partial update type for wfStepDefs - used for ctx.db.patch */
 type StepDefPatch = Partial<Omit<Doc<'wfStepDefs'>, '_id' | '_creationTime'>>;

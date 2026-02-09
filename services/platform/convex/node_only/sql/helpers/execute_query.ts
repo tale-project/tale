@@ -5,10 +5,11 @@
  */
 
 import type { SqlExecutionParams, SqlExecutionResult } from '../types';
-import { validateQuery } from './validate_query';
+
 import { executeMsSqlQuery } from './execute_mssql_query';
-import { executePostgresQuery } from './execute_postgres_query';
 import { executeMySqlQuery } from './execute_mysql_query';
+import { executePostgresQuery } from './execute_postgres_query';
+import { validateQuery } from './validate_query';
 
 export async function executeQuery(
   params: SqlExecutionParams,

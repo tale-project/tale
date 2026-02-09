@@ -9,8 +9,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { cn } from '@/lib/utils/cn';
+
 import { useResizeObserver } from '@/app/hooks/use-resize-observer';
+import { cn } from '@/lib/utils/cn';
 
 export interface TabNavigationItem {
   /** Display label for the tab */
@@ -129,10 +130,12 @@ export function TabNavigation({
 
   // Combine refs for resize observation
   const allRefs = useMemo(() => {
-    const refs: (HTMLElement | null)[] = [navRef.current, ...itemRefs.current];
+    const refs: (HTMLElement | null)[] = [
+      navRef.current,
+      ...itemRefs.current.slice(0, accessibleItems.length),
+    ];
     return { current: refs };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Rebuild refs array when item count changes
-  }, [accessibleItems.length]);
+  }, [accessibleItems]);
 
   // Re-measure on resize
   useResizeObserver(allRefs, updateIndicator, {

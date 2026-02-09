@@ -1,13 +1,14 @@
 'use client';
 
-import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
+import * as React from 'react';
 
-import { cn } from '@/lib/utils/cn';
-import { IconButton } from '../primitives/icon-button';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
+import { IconButton } from '../primitives/icon-button';
 
 const Sheet = DialogPrimitive.Root;
 
@@ -52,7 +53,8 @@ const sheetVariants = cva(
 );
 
 interface SheetContentProps
-  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
+  extends
+    React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
     VariantProps<typeof sheetVariants> {
   hideClose?: boolean;
 }
@@ -76,7 +78,7 @@ const SheetContent = React.forwardRef<
       {children}
       {!hideClose && (
         <DialogPrimitive.Close
-          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary"
+          className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none"
           asChild
         >
           <SheetCloseButton />
@@ -141,10 +143,7 @@ SheetFooter.displayName = 'SheetFooter';
 
 export {
   Sheet,
-  SheetPortal,
-  SheetOverlay,
   SheetTrigger,
-  SheetClose,
   SheetContent,
   SheetHeader,
   SheetFooter,

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { Separator } from './separator';
 
 const meta: Meta<typeof Separator> = {
@@ -47,16 +48,16 @@ type Story = StoryObj<typeof Separator>;
 export const Horizontal: Story = {
   render: () => (
     <div className="w-64">
-      <p className="text-sm mb-4">Content above</p>
+      <p className="mb-4 text-sm">Content above</p>
       <Separator />
-      <p className="text-sm mt-4">Content below</p>
+      <p className="mt-4 text-sm">Content below</p>
     </div>
   ),
 };
 
 export const Vertical: Story = {
   render: () => (
-    <div className="flex items-center h-8 gap-4">
+    <div className="flex h-8 items-center gap-4">
       <span className="text-sm">Item 1</span>
       <Separator orientation="vertical" />
       <span className="text-sm">Item 2</span>
@@ -71,17 +72,19 @@ export const InList: Story = {
     <div className="w-64">
       <div className="py-2">
         <h4 className="text-sm font-medium">Settings</h4>
-        <p className="text-xs text-muted-foreground">Manage your preferences</p>
+        <p className="text-muted-foreground text-xs">Manage your preferences</p>
       </div>
       <Separator />
       <div className="py-2">
         <h4 className="text-sm font-medium">Profile</h4>
-        <p className="text-xs text-muted-foreground">Edit your profile</p>
+        <p className="text-muted-foreground text-xs">Edit your profile</p>
       </div>
       <Separator />
       <div className="py-2">
         <h4 className="text-sm font-medium">Logout</h4>
-        <p className="text-xs text-muted-foreground">Sign out of your account</p>
+        <p className="text-muted-foreground text-xs">
+          Sign out of your account
+        </p>
       </div>
     </div>
   ),
@@ -89,15 +92,15 @@ export const InList: Story = {
 
 export const InToolbar: Story = {
   render: () => (
-    <div className="flex items-center gap-2 p-2 border rounded-lg">
-      <button className="p-2 hover:bg-muted rounded">Bold</button>
-      <button className="p-2 hover:bg-muted rounded">Italic</button>
+    <div className="flex items-center gap-2 rounded-lg border p-2">
+      <button className="hover:bg-muted rounded p-2">Bold</button>
+      <button className="hover:bg-muted rounded p-2">Italic</button>
       <Separator orientation="vertical" className="h-6" />
-      <button className="p-2 hover:bg-muted rounded">Left</button>
-      <button className="p-2 hover:bg-muted rounded">Center</button>
-      <button className="p-2 hover:bg-muted rounded">Right</button>
+      <button className="hover:bg-muted rounded p-2">Left</button>
+      <button className="hover:bg-muted rounded p-2">Center</button>
+      <button className="hover:bg-muted rounded p-2">Right</button>
       <Separator orientation="vertical" className="h-6" />
-      <button className="p-2 hover:bg-muted rounded">Link</button>
+      <button className="hover:bg-muted rounded p-2">Link</button>
     </div>
   ),
   parameters: {
@@ -115,9 +118,9 @@ export const NonDecorative: Story = {
   },
   render: (args) => (
     <div className="w-64">
-      <p className="text-sm mb-4">Section 1</p>
+      <p className="mb-4 text-sm">Section 1</p>
       <Separator {...args} />
-      <p className="text-sm mt-4">Section 2</p>
+      <p className="mt-4 text-sm">Section 2</p>
     </div>
   ),
   parameters: {

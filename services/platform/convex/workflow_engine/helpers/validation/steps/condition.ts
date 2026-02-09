@@ -4,13 +4,16 @@
  * Validates condition step configurations.
  */
 
-import { validateJexlExpression } from '../../../../lib/variables/validate_template';
 import type { ValidationResult } from '../types';
+
+import { validateJexlExpression } from '../../../../lib/variables/validate_template';
 
 /**
  * Validate a condition step configuration
  */
-export function validateConditionStep(config: Record<string, unknown>): ValidationResult {
+export function validateConditionStep(
+  config: Record<string, unknown>,
+): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -33,9 +36,10 @@ export function validateConditionStep(config: Record<string, unknown>): Validati
   // Validate JEXL syntax
   const jexlValidation = validateJexlExpression(config.expression);
   if (!jexlValidation.valid) {
-    errors.push(jexlValidation.error ?? 'Condition expression has invalid JEXL syntax');
+    errors.push(
+      jexlValidation.error ?? 'Condition expression has invalid JEXL syntax',
+    );
   }
 
   return { valid: errors.length === 0, errors, warnings };
 }
-

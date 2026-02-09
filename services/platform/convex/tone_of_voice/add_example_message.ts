@@ -2,9 +2,10 @@
  * Add an example message
  */
 
+import type { JsonRecord } from '../../lib/shared/schemas/utils/json-value';
+
 import { Id } from '../_generated/dataModel';
 import { MutationCtx } from '../_generated/server';
-import type { JsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 export async function addExampleMessage(
   ctx: MutationCtx,

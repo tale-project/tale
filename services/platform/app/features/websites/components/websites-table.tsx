@@ -2,12 +2,14 @@
 
 import { usePaginatedQuery } from 'convex/react';
 import { Globe } from 'lucide-react';
-import { api } from '@/convex/_generated/api';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { WebsitesActionMenu } from './websites-action-menu';
-import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
-import { useT } from '@/lib/i18n/client';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+
+import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
+import { WebsitesActionMenu } from './websites-action-menu';
 
 export interface WebsitesTableProps {
   organizationId: string;

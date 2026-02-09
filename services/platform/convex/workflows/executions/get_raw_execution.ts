@@ -1,5 +1,5 @@
-import type { QueryCtx } from '../../_generated/server';
 import type { Id, Doc } from '../../_generated/dataModel';
+import type { QueryCtx } from '../../_generated/server';
 
 export async function getRawExecution(
   ctx: QueryCtx,
@@ -7,4 +7,3 @@ export async function getRawExecution(
 ): Promise<Doc<'wfExecutions'> | null> {
   return await ctx.db.get(executionId);
 }
-

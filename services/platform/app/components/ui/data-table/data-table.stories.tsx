@@ -1,11 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { useState } from 'react';
+
 import { createColumnHelper } from '@tanstack/react-table';
-import { DataTable } from './data-table';
+import { Plus, Download, Filter } from 'lucide-react';
+import { useState } from 'react';
+
+import { TableDateCell } from '../data-display/table-date-cell';
 import { Badge } from '../feedback/badge';
 import { Button } from '../primitives/button';
-import { Plus, Download, Filter } from 'lucide-react';
-import { TableDateCell } from '../data-display/table-date-cell';
+import { DataTable } from './data-table';
 
 interface User {
   id: string;
@@ -17,11 +19,46 @@ interface User {
 }
 
 const sampleUsers: User[] = [
-  { id: '1', name: 'John Doe', email: 'john@example.com', role: 'admin', status: 'active', createdAt: Date.now() - 86400000 * 30 },
-  { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'member', status: 'active', createdAt: Date.now() - 86400000 * 20 },
-  { id: '3', name: 'Bob Wilson', email: 'bob@example.com', role: 'viewer', status: 'inactive', createdAt: Date.now() - 86400000 * 15 },
-  { id: '4', name: 'Alice Brown', email: 'alice@example.com', role: 'member', status: 'pending', createdAt: Date.now() - 86400000 * 10 },
-  { id: '5', name: 'Charlie Davis', email: 'charlie@example.com', role: 'viewer', status: 'active', createdAt: Date.now() - 86400000 * 5 },
+  {
+    id: '1',
+    name: 'John Doe',
+    email: 'john@example.com',
+    role: 'admin',
+    status: 'active',
+    createdAt: Date.now() - 86400000 * 30,
+  },
+  {
+    id: '2',
+    name: 'Jane Smith',
+    email: 'jane@example.com',
+    role: 'member',
+    status: 'active',
+    createdAt: Date.now() - 86400000 * 20,
+  },
+  {
+    id: '3',
+    name: 'Bob Wilson',
+    email: 'bob@example.com',
+    role: 'viewer',
+    status: 'inactive',
+    createdAt: Date.now() - 86400000 * 15,
+  },
+  {
+    id: '4',
+    name: 'Alice Brown',
+    email: 'alice@example.com',
+    role: 'member',
+    status: 'pending',
+    createdAt: Date.now() - 86400000 * 10,
+  },
+  {
+    id: '5',
+    name: 'Charlie Davis',
+    email: 'charlie@example.com',
+    role: 'viewer',
+    status: 'active',
+    createdAt: Date.now() - 86400000 * 5,
+  },
 ];
 
 const manyUsers: User[] = Array.from({ length: 50 }, (_, i) => ({
@@ -38,18 +75,26 @@ const columnHelper = createColumnHelper<User>();
 const columns = [
   columnHelper.accessor('name', {
     header: 'Name',
-    cell: (info) => <span className="font-medium">{info.getValue() as string}</span>,
+    cell: (info) => (
+      <span className="font-medium">{info.getValue() as string}</span>
+    ),
   }),
   columnHelper.accessor('email', {
     header: 'Email',
-    cell: (info) => <span className="text-muted-foreground">{info.getValue() as string}</span>,
+    cell: (info) => (
+      <span className="text-muted-foreground">{info.getValue() as string}</span>
+    ),
   }),
   columnHelper.accessor('role', {
     header: 'Role',
     cell: (info) => {
       const role = info.getValue() as string;
       return (
-        <Badge variant={role === 'admin' ? 'blue' : role === 'member' ? 'green' : 'outline'}>
+        <Badge
+          variant={
+            role === 'admin' ? 'blue' : role === 'member' ? 'green' : 'outline'
+          }
+        >
           {role}
         </Badge>
       );
@@ -60,7 +105,15 @@ const columns = [
     cell: (info) => {
       const status = info.getValue() as string;
       return (
-        <Badge variant={status === 'active' ? 'green' : status === 'pending' ? 'yellow' : 'destructive'}>
+        <Badge
+          variant={
+            status === 'active'
+              ? 'green'
+              : status === 'pending'
+                ? 'yellow'
+                : 'destructive'
+          }
+        >
           {status}
         </Badge>
       );
@@ -68,7 +121,9 @@ const columns = [
   }),
   columnHelper.accessor('createdAt', {
     header: 'Created',
-    cell: (info) => <TableDateCell date={info.getValue() as number} preset="relative" />,
+    cell: (info) => (
+      <TableDateCell date={info.getValue() as number} preset="relative" />
+    ),
   }),
 ];
 
@@ -134,7 +189,7 @@ export const WithSearch: Story = {
     const filteredData = sampleUsers.filter(
       (user) =>
         user.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchValue.toLowerCase())
+        user.email.toLowerCase().includes(searchValue.toLowerCase()),
     );
 
     return (
@@ -242,7 +297,11 @@ export const EmptyState: Story = {
       description: 'Get started by adding your first user.',
       icon: Plus,
     },
-    actionMenu: <Button size="sm" icon={Plus} onClick={() => alert('Add user clicked')}>Add User</Button>,
+    actionMenu: (
+      <Button size="sm" icon={Plus} onClick={() => alert('Add user clicked')}>
+        Add User
+      </Button>
+    ),
   },
   parameters: {
     docs: {
@@ -306,7 +365,10 @@ export const WithInfiniteScroll: Story = {
     const loadMore = () => {
       setIsLoading(true);
       setTimeout(() => {
-        setData((prev) => [...prev, ...manyUsers.slice(prev.length, prev.length + 10)]);
+        setData((prev) => [
+          ...prev,
+          ...manyUsers.slice(prev.length, prev.length + 10),
+        ]);
         setIsLoading(false);
       }, 1000);
     };
@@ -331,7 +393,8 @@ export const WithInfiniteScroll: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Automatic infinite scroll that triggers 200px before reaching the bottom.',
+        story:
+          'Automatic infinite scroll that triggers 200px before reaching the bottom.',
       },
     },
   },
@@ -345,7 +408,10 @@ export const WithManualLoadMore: Story = {
     const loadMore = () => {
       setIsLoading(true);
       setTimeout(() => {
-        setData((prev) => [...prev, ...manyUsers.slice(prev.length, prev.length + 10)]);
+        setData((prev) => [
+          ...prev,
+          ...manyUsers.slice(prev.length, prev.length + 10),
+        ]);
         setIsLoading(false);
       }, 1000);
     };
@@ -367,7 +433,8 @@ export const WithManualLoadMore: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Manual load more button (autoLoad disabled for backward compatibility).',
+        story:
+          'Manual load more button (autoLoad disabled for backward compatibility).',
       },
     },
   },
@@ -379,7 +446,7 @@ export const FullFeatured: Story = {
     const filteredData = manyUsers.filter(
       (user) =>
         user.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchValue.toLowerCase())
+        user.email.toLowerCase().includes(searchValue.toLowerCase()),
     );
 
     return (
@@ -422,7 +489,8 @@ export const FullFeatured: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Full featured example with search, pagination, and sticky layout.',
+        story:
+          'Full featured example with search, pagination, and sticky layout.',
       },
     },
   },

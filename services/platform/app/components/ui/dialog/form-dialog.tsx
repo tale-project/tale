@@ -1,13 +1,15 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
-import { Dialog } from './dialog';
-import { Button } from '../primitives/button';
-import { Stack } from '../layout/layout';
-import { cn } from '@/lib/utils/cn';
-import { useT } from '@/lib/i18n/client';
+
 import { DialogErrorBoundary } from '@/app/components/error-boundaries/boundaries/dialog-error-boundary';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
+import { Stack } from '../layout/layout';
+import { Button } from '../primitives/button';
+import { Dialog } from './dialog';
 
 const preventDefaultSubmit = (e: React.FormEvent) => e.preventDefault();
 
@@ -91,10 +93,13 @@ export function FormDialog({
   }, []);
 
   // Memoize the error handler to prevent inline function recreation
-  const handleBoundaryError = useCallback((error: Error) => {
-    onError?.(error);
-    onOpenChangeRef.current?.(false);
-  }, [onError]);
+  const handleBoundaryError = useCallback(
+    (error: Error) => {
+      onError?.(error);
+      onOpenChangeRef.current?.(false);
+    },
+    [onError],
+  );
 
   const footer = customFooter ?? (
     <>
@@ -106,11 +111,10 @@ export function FormDialog({
       >
         {cancelText ?? tCommon('actions.cancel')}
       </Button>
-      <Button
-        type="submit"
-        disabled={isSubmitting || submitDisabled}
-      >
-        {isSubmitting ? (submittingText ?? tCommon('actions.saving')) : (submitText ?? tCommon('actions.save'))}
+      <Button type="submit" disabled={isSubmitting || submitDisabled}>
+        {isSubmitting
+          ? (submittingText ?? tCommon('actions.saving'))
+          : (submitText ?? tCommon('actions.save'))}
       </Button>
     </>
   );
@@ -131,16 +135,12 @@ export function FormDialog({
             organizationId={orgId}
             onError={handleBoundaryError}
           >
-            <Stack>
-              {children}
-            </Stack>
+            <Stack>{children}</Stack>
           </DialogErrorBoundary>
         ) : (
-          <Stack>
-            {children}
-          </Stack>
+          <Stack>{children}</Stack>
         )}
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2">
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           {footer}
         </div>
       </form>

@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { useState } from 'react';
+
 import { DataTableFilters, type FilterConfig } from './data-table-filters';
 
 const sampleFilters: FilterConfig[] = [
@@ -276,7 +278,7 @@ export const WithChildren: Story = {
           placeholder: 'Search...',
         }}
       >
-        <span className="text-sm text-muted-foreground">3 results</span>
+        <span className="text-muted-foreground text-sm">3 results</span>
       </DataTableFilters>
     );
   },

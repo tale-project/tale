@@ -74,7 +74,8 @@ const circulySyncSubscriptionsWorkflow = {
       stepType: 'condition',
       order: 5,
       config: {
-        expression: 'steps.fetch_circuly_customers.output.data.items|length > 0',
+        expression:
+          'steps.fetch_circuly_customers.output.data.items|length > 0',
         description: 'Check if any Circuly customers exist in current page',
       },
       nextSteps: {

@@ -1,15 +1,17 @@
 'use client';
 
-import { useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Doc } from '@/convex/_generated/dataModel';
+import { useCallback } from 'react';
+
 import { EntityDeleteDialog } from '@/app/components/ui/entity/entity-delete-dialog';
 import {
   useDeleteDialog,
   useDeleteDialogTranslations,
 } from '@/app/components/ui/entity/use-delete-dialog';
+import { Button } from '@/app/components/ui/primitives/button';
+import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+
 import { useDeleteVendor } from '../hooks/use-delete-vendor';
 
 interface VendorDeleteDialogProps {

@@ -1,23 +1,23 @@
-import { docker } from "./docker";
+import { docker } from './docker';
 
 export async function getContainerHealth(
-  containerName: string
-): Promise<"healthy" | "unhealthy" | "starting" | "none"> {
+  containerName: string,
+): Promise<'healthy' | 'unhealthy' | 'starting' | 'none'> {
   const result = await docker(
-    "container",
-    "inspect",
-    "--format",
-    "{{.State.Health.Status}}",
-    containerName
+    'container',
+    'inspect',
+    '--format',
+    '{{.State.Health.Status}}',
+    containerName,
   );
 
   if (!result.success) {
-    return "none";
+    return 'none';
   }
 
   const status = result.stdout.trim();
-  if (status === "healthy" || status === "unhealthy" || status === "starting") {
+  if (status === 'healthy' || status === 'unhealthy' || status === 'starting') {
     return status;
   }
-  return "none";
+  return 'none';
 }

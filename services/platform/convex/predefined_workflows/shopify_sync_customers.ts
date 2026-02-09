@@ -112,7 +112,8 @@ const shopifySyncCustomersWorkflow = {
       stepType: 'condition',
       order: 5,
       config: {
-        expression: 'steps.query_existing_customer.output.data.items|length > 0',
+        expression:
+          'steps.query_existing_customer.output.data.items|length > 0',
         description: 'Check if customer already exists in database',
       },
       nextSteps: {

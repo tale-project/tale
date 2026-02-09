@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@/test/utils/render';
+
 import { checkAccessibility } from '@/test/utils/a11y';
+import { render, screen } from '@/test/utils/render';
+
 import { Spinner } from './spinner';
 
 describe('Spinner', () => {
@@ -51,12 +53,18 @@ describe('Spinner', () => {
 
     it('has default aria-label', () => {
       render(<Spinner />);
-      expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Loading');
+      expect(screen.getByRole('status')).toHaveAttribute(
+        'aria-label',
+        'Loading',
+      );
     });
 
     it('supports custom label', () => {
       render(<Spinner label="Saving" />);
-      expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Saving');
+      expect(screen.getByRole('status')).toHaveAttribute(
+        'aria-label',
+        'Saving',
+      );
     });
 
     it('has screen reader text', () => {

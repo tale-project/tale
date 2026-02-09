@@ -6,8 +6,11 @@
  * connector code (REST API) or SQL operations from the predefined definitions.
  */
 
-import { MutationCtx } from '../_generated/server';
+import type { ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
+
 import { Id } from '../_generated/dataModel';
+import { MutationCtx } from '../_generated/server';
+import { getPredefinedIntegration } from '../predefined_integrations';
 import {
   AuthMethod,
   Status,
@@ -20,8 +23,6 @@ import {
   SqlConnectionConfig,
   SqlOperation,
 } from './types';
-import { getPredefinedIntegration } from '../predefined_integrations';
-import type { ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
 
 export interface CreateIntegrationInternalArgs {
   organizationId: string;
@@ -68,10 +69,16 @@ export async function createIntegrationInternal(
 
       // Validate required SQL connection fields
       if (sqlConnectionConfig) {
-        if (!sqlConnectionConfig.server || sqlConnectionConfig.server.trim() === '') {
+        if (
+          !sqlConnectionConfig.server ||
+          sqlConnectionConfig.server.trim() === ''
+        ) {
           throw new Error('SQL integration requires a server address');
         }
-        if (!sqlConnectionConfig.database || sqlConnectionConfig.database.trim() === '') {
+        if (
+          !sqlConnectionConfig.database ||
+          sqlConnectionConfig.database.trim() === ''
+        ) {
           throw new Error('SQL integration requires a database name');
         }
       }
@@ -118,7 +125,7 @@ export async function createIntegrationInternal(
     sqlConnectionConfig,
     sqlOperations,
     lastTestedAt: Date.now(),
-     
+
     metadata: args.metadata as any,
   });
 

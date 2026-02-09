@@ -2,8 +2,8 @@
  * Delete an integration
  */
 
-import { MutationCtx } from '../_generated/server';
 import { Id } from '../_generated/dataModel';
+import { MutationCtx } from '../_generated/server';
 
 export async function deleteIntegration(
   ctx: MutationCtx,
@@ -16,4 +16,3 @@ export async function deleteIntegration(
 
   await ctx.db.delete(integrationId);
 }
-

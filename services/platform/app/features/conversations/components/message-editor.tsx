@@ -1,6 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef, useTransition } from 'react';
+import type { CrepeBuilder } from '@milkdown/crepe/builder';
+
+import { Crepe } from '@milkdown/crepe';
+import {
+  Milkdown,
+  MilkdownProvider,
+  useEditor,
+  useInstance,
+} from '@milkdown/react';
+import DOMPurify from 'dompurify';
 import {
   PaperclipIcon,
   XIcon,
@@ -13,35 +22,29 @@ import {
   LoaderIcon,
   LoaderCircleIcon,
 } from 'lucide-react';
-import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { Send } from 'lucide-react';
-import { Button } from '@/app/components/ui/primitives/button';
+import { useState, useEffect, useRef, useTransition } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+// Markdown -> HTML conversion using existing deps
+import ReactMarkdown from 'react-markdown';
+
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { cn } from '@/lib/utils/cn';
 import {
   TooltipProvider,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from '@/app/components/ui/overlays/tooltip';
-import { toast } from '@/app/hooks/use-toast';
-import type { Message as ConversationMessage } from '../types';
-import { Crepe } from '@milkdown/crepe';
-import type { CrepeBuilder } from '@milkdown/crepe/builder';
-import {
-  Milkdown,
-  MilkdownProvider,
-  useEditor,
-  useInstance,
-} from '@milkdown/react';
+import { Button } from '@/app/components/ui/primitives/button';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
+
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
-// Markdown -> HTML conversion using existing deps
-import ReactMarkdown from 'react-markdown';
-import { renderToStaticMarkup } from 'react-dom/server';
-import DOMPurify from 'dompurify';
+import type { Message as ConversationMessage } from '../types';
 
 // AI improvement
 import { improveMessage } from '../actions/improve-message';
@@ -216,8 +219,8 @@ function MilkdownEditorInner({
       setMessage(pending);
       setHasContent(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- setMessage is stable, setHasContent is intentionally excluded
-  }, [pendingMessage, message]);
+    // setMessage is stable, setHasContent is intentionally excluded
+  }, [pendingMessage, message, setMessage]);
 
   // Focus improve input when improve mode is activated
   useEffect(() => {
@@ -236,6 +239,7 @@ function MilkdownEditorInner({
       <ReactMarkdown
         components={{
           a: ({ node: _node, ...props }) => (
+            // oxlint-disable-next-line jsx-a11y/anchor-has-content -- content is passed via props spread
             <a {...props} target="_blank" rel="noopener noreferrer" />
           ),
         }}
@@ -393,8 +397,8 @@ function MilkdownEditorInner({
   };
 
   return (
-    <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2">
-      <div className="bg-background rounded-t-[0.875rem] relative px-3 pt-1 border border-muted-foreground/50 border-b-0">
+    <div className="border-muted mx-2 rounded-t-3xl border-[0.5rem] border-b-0">
+      <div className="bg-background border-muted-foreground/50 relative rounded-t-[0.875rem] border border-b-0 px-3 pt-1">
         {/* Editor Container */}
         <div
           className={cn(
@@ -430,7 +434,7 @@ function MilkdownEditorInner({
                   setImproveInstruction(e.target.value);
                 }}
                 placeholder={tConversations('suggestEditsPlaceholder')}
-                className="flex-1 resize-none border-0 outline-none bg-transparent p-2 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm text-muted-foreground h-auto min-h-[10rem]"
+                className="text-muted-foreground h-auto min-h-[10rem] flex-1 resize-none border-0 bg-transparent p-2 text-sm outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                   if (
                     e.key === 'Enter' &&
@@ -516,9 +520,9 @@ function MilkdownEditorInner({
 
           {/* Loading state during improvement */}
           {isImproving && (
-            <div className="flex items-center justify-center h-full pt-12 pb-4">
-              <LoaderIcon className="size-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center pt-12 pb-4">
+              <LoaderIcon className="text-muted-foreground size-6 animate-spin" />
+              <span className="text-muted-foreground ml-2 text-sm">
                 {tConversations('editor.improving')}
               </span>
             </div>
@@ -527,12 +531,12 @@ function MilkdownEditorInner({
 
         {/* File attachments */}
         {attachedFiles.length > 0 && (
-          <div className="py-2 border-t border-border">
+          <div className="border-border border-t py-2">
             <div className="flex flex-wrap gap-2">
               {attachedFiles.map((file) => (
                 <div
                   key={file.id}
-                  className="flex items-center gap-2 bg-muted rounded-md px-3 py-2 text-sm"
+                  className="bg-muted flex items-center gap-2 rounded-md px-3 py-2 text-sm"
                 >
                   {getFileIcon(file.type)}
                   <span className="max-w-[200px] truncate">
@@ -544,7 +548,7 @@ function MilkdownEditorInner({
                   <button
                     type="button"
                     onClick={() => handleRemoveFile(file.id)}
-                    className="ml-1 hover:bg-background rounded p-0.5"
+                    className="hover:bg-background ml-1 rounded p-0.5"
                   >
                     <XIcon className="size-3" />
                   </button>
@@ -589,7 +593,7 @@ function MilkdownEditorInner({
                       size="icon"
                     >
                       {isImproving ? (
-                        <LoaderCircleIcon className="size-4 animate-spin text-muted-foreground" />
+                        <LoaderCircleIcon className="text-muted-foreground size-4 animate-spin" />
                       ) : (
                         <WandSparklesIcon className="size-4" />
                       )}

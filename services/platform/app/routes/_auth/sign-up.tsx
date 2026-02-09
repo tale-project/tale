@@ -1,19 +1,20 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useQuery } from 'convex/react';
 import { useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { authClient } from '@/lib/auth-client';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Input } from '@/app/components/ui/forms/input';
+
+import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { Form } from '@/app/components/ui/forms/form';
+import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
-import { toast } from '@/app/hooks/use-toast';
-import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
+import { Button } from '@/app/components/ui/primitives/button';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/_auth/sign-up')({
@@ -30,7 +31,6 @@ function SignUpPage() {
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
 
-  // @ts-expect-error TS2589 - deep type instantiation in Convex queries
   const ssoConfig = useQuery(api.sso_providers.queries.isSsoConfigured, {});
 
   const signUpSchema = useMemo(
@@ -72,7 +72,8 @@ function SignUpPage() {
         { name: data.email, email: data.email, password: data.password },
         {
           onError: (ctx) => {
-            const errorMessage = ctx.error.message || t('signup.wrongCredentials');
+            const errorMessage =
+              ctx.error.message || t('signup.wrongCredentials');
             form.setError('password', { message: errorMessage });
           },
         },
@@ -140,20 +141,23 @@ function SignUpPage() {
                 {...form.register('password')}
               />
               {password && (
-                <Stack gap={1} className="text-xs text-muted-foreground list-none">
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                <Stack
+                  gap={1}
+                  className="text-muted-foreground list-none text-xs"
+                >
+                  <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
                     {t('requirements.length')}
                   </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                  <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
                     {t('requirements.lowercase')}
                   </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                  <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
                     {t('requirements.uppercase')}
                   </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                  <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
                     {t('requirements.number')}
                   </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                  <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
                     {t('requirements.specialChar')}
                   </li>
                 </Stack>

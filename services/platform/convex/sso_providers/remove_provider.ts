@@ -1,4 +1,5 @@
 import { GenericMutationCtx } from 'convex/server';
+
 import { DataModel } from '../_generated/dataModel';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 
@@ -15,7 +16,9 @@ export async function removeProvider(
 ): Promise<null> {
   const existing = await ctx.db
     .query('ssoProviders')
-    .withIndex('organizationId', (q) => q.eq('organizationId', args.organizationId))
+    .withIndex('organizationId', (q) =>
+      q.eq('organizationId', args.organizationId),
+    )
     .first();
 
   if (!existing) {

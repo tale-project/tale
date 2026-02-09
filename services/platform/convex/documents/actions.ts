@@ -1,8 +1,9 @@
 'use node';
 
 import { v } from 'convex/values';
-import { action } from '../_generated/server';
+
 import { internal } from '../_generated/api';
+import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
@@ -44,7 +45,9 @@ export const retryRagIndexing = action({
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : 'Failed to retry RAG indexing',
+          error instanceof Error
+            ? error.message
+            : 'Failed to retry RAG indexing',
       };
     }
   },

@@ -5,6 +5,7 @@
 
 import type { Doc } from '../../../../_generated/dataModel';
 import type { ActionDefinition } from '../../../helpers/nodes/action/types';
+
 import { internal } from '../../../../_generated/api';
 
 export async function buildSecretsFromIntegration(
@@ -38,4 +39,3 @@ export async function buildSecretsFromIntegration(
 
   return secrets;
 }
-

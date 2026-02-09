@@ -2,9 +2,10 @@
  * Create workflow step
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { CreateStepArgs } from './types';
+
 import { validateStepConfig } from '../../workflow_engine/helpers/validation/validate_step_config';
 
 export async function createStep(

@@ -1,18 +1,19 @@
-import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import * as logger from "../../utils/logger";
-import { ensureEnv } from "./ensure-env";
-import { getConfig } from "./get-config";
-import { getConfigFilePath } from "./get-config-file-path";
-import { setConfig } from "./set-config";
-import { CURRENT_CONFIG_VERSION, type GlobalConfig } from "./types";
+import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+import * as logger from '../../utils/logger';
+import { ensureEnv } from './ensure-env';
+import { getConfig } from './get-config';
+import { getConfigFilePath } from './get-config-file-path';
+import { setConfig } from './set-config';
+import { CURRENT_CONFIG_VERSION, type GlobalConfig } from './types';
 
 const isTTY = process.stdin.isTTY && process.stdout.isTTY;
 
 function getRecommendedDir(): string {
-  return join(homedir(), ".tale", "deployments");
+  return join(homedir(), '.tale', 'deployments');
 }
 
 export async function ensureConfig(): Promise<string> {
@@ -22,10 +23,10 @@ export async function ensureConfig(): Promise<string> {
   }
 
   if (!isTTY) {
-    logger.error("No deployment directory configured");
+    logger.error('No deployment directory configured');
     logger.blank();
-    logger.info("This appears to be your first time running Tale CLI.");
-    logger.info("Run the CLI interactively to complete the initial setup.");
+    logger.info('This appears to be your first time running Tale CLI.');
+    logger.info('Run the CLI interactively to complete the initial setup.');
     process.exit(1);
   }
 
@@ -33,11 +34,11 @@ export async function ensureConfig(): Promise<string> {
 }
 
 async function runFirstRunSetup(): Promise<string> {
-  const { select, input } = await import("@inquirer/prompts");
+  const { select, input } = await import('@inquirer/prompts');
 
   logger.blank();
-  logger.header("Welcome to Tale CLI");
-  logger.info("This appears to be your first time running Tale CLI.");
+  logger.header('Welcome to Tale CLI');
+  logger.info('This appears to be your first time running Tale CLI.');
   logger.info("Let's set up your deployment directory.");
   logger.blank();
 
@@ -45,22 +46,22 @@ async function runFirstRunSetup(): Promise<string> {
   const cwdDir = process.cwd();
 
   const choice = await select({
-    message: "Where would you like to store deployment state?",
+    message: 'Where would you like to store deployment state?',
     choices: [
       {
         name: `${recommendedDir} (recommended)`,
-        value: "recommended",
-        description: "Centralized location in your home directory",
+        value: 'recommended',
+        description: 'Centralized location in your home directory',
       },
       {
         name: `${cwdDir} (current directory)`,
-        value: "cwd",
-        description: "Use current working directory",
+        value: 'cwd',
+        description: 'Use current working directory',
       },
       {
-        name: "Custom path...",
-        value: "custom",
-        description: "Specify a custom directory",
+        name: 'Custom path...',
+        value: 'custom',
+        description: 'Specify a custom directory',
       },
     ],
   });
@@ -68,24 +69,24 @@ async function runFirstRunSetup(): Promise<string> {
   let deployDir: string;
 
   switch (choice) {
-    case "recommended":
+    case 'recommended':
       deployDir = recommendedDir;
       break;
-    case "cwd":
+    case 'cwd':
       deployDir = cwdDir;
       break;
-    case "custom":
+    case 'custom':
       deployDir = await input({
-        message: "Enter deployment directory path:",
+        message: 'Enter deployment directory path:',
         default: recommendedDir,
         validate: (value) => {
           if (!value.trim()) {
-            return "Path cannot be empty";
+            return 'Path cannot be empty';
           }
           return true;
         },
       });
-      if (deployDir.startsWith("~")) {
+      if (deployDir.startsWith('~')) {
         deployDir = join(homedir(), deployDir.slice(1));
       }
       break;
@@ -106,7 +107,7 @@ async function runFirstRunSetup(): Promise<string> {
   await setConfig(config);
 
   logger.blank();
-  logger.success("Configuration saved!");
+  logger.success('Configuration saved!');
   logger.info(`Deployment directory: ${deployDir}`);
   logger.info(`Config file: ${getConfigFilePath()}`);
 

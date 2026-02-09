@@ -1,5 +1,6 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
+
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const conversationsTable = defineTable({
@@ -34,10 +35,7 @@ export const conversationsTable = defineTable({
     'organizationId',
     'externalMessageId',
   ])
-  .index('by_organizationId_and_providerId', [
-    'organizationId',
-    'providerId',
-  ])
+  .index('by_organizationId_and_providerId', ['organizationId', 'providerId'])
   .index('by_org_status_lastMessageAt', [
     'organizationId',
     'status',
@@ -63,18 +61,9 @@ export const conversationMessagesTable = defineTable({
   deliveredAt: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
 })
-  .index('by_conversationId_and_deliveredAt', [
-    'conversationId',
-    'deliveredAt',
-  ])
-  .index('by_organizationId_and_deliveredAt', [
-    'organizationId',
-    'deliveredAt',
-  ])
-  .index('by_organizationId_and_direction', [
-    'organizationId',
-    'direction',
-  ])
+  .index('by_conversationId_and_deliveredAt', ['conversationId', 'deliveredAt'])
+  .index('by_organizationId_and_deliveredAt', ['organizationId', 'deliveredAt'])
+  .index('by_organizationId_and_direction', ['organizationId', 'direction'])
   .index('by_organizationId_and_externalMessageId', [
     'organizationId',
     'externalMessageId',

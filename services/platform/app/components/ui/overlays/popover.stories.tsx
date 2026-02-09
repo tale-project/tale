@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { Popover, PopoverContent, PopoverTrigger } from './popover';
-import { Button } from '../primitives/button';
+
 import { Input } from '../forms/input';
 import { Label } from '../forms/label';
+import { Button } from '../primitives/button';
+import { Popover, PopoverContent, PopoverTrigger } from './popover';
 
 const meta: Meta<typeof Popover> = {
   title: 'Overlays/Popover',
@@ -51,8 +52,8 @@ export const Default: Story = {
       <PopoverContent className="w-80">
         <div className="grid gap-4">
           <div className="space-y-2">
-            <h4 className="font-medium leading-none">Dimensions</h4>
-            <p className="text-sm text-muted-foreground">
+            <h4 className="leading-none font-medium">Dimensions</h4>
+            <p className="text-muted-foreground text-sm">
               Set the dimensions for the layer.
             </p>
           </div>
@@ -115,8 +116,8 @@ export const WithForm: Story = {
       <PopoverContent className="w-80">
         <form className="grid gap-4">
           <div className="space-y-1">
-            <h4 className="font-medium leading-none text-sm">Update email</h4>
-            <p className="text-sm text-muted-foreground">
+            <h4 className="text-sm leading-none font-medium">Update email</h4>
+            <p className="text-muted-foreground text-sm">
               Enter your new email address below.
             </p>
           </div>
@@ -151,7 +152,7 @@ export const SimpleContent: Story = {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           This is a simple informational popover with some helpful text.
         </p>
       </PopoverContent>

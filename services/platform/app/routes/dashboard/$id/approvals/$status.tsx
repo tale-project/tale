@@ -1,6 +1,7 @@
 import { createFileRoute, notFound, useLocation } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import { z } from 'zod';
+
 import { ApprovalsClient } from '@/app/features/approvals/components/approvals-client';
 
 const VALID_STATUSES = ['pending', 'resolved'] as const;

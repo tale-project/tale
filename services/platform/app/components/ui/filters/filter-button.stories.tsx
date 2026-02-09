@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { FilterButton } from './filter-button';
 
 const meta: Meta<typeof FilterButton> = {
@@ -90,22 +91,22 @@ export const LoadingWithActiveFilters: Story = {
 
 export const AllStates: Story = {
   render: () => (
-    <div className="flex gap-6 items-center">
+    <div className="flex items-center gap-6">
       <div className="flex flex-col items-center gap-2">
         <FilterButton hasActiveFilters={false} />
-        <span className="text-xs text-muted-foreground">Default</span>
+        <span className="text-muted-foreground text-xs">Default</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <FilterButton hasActiveFilters={true} />
-        <span className="text-xs text-muted-foreground">Active</span>
+        <span className="text-muted-foreground text-xs">Active</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <FilterButton hasActiveFilters={false} isLoading />
-        <span className="text-xs text-muted-foreground">Loading</span>
+        <span className="text-muted-foreground text-xs">Loading</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <FilterButton hasActiveFilters={true} isLoading />
-        <span className="text-xs text-muted-foreground">Loading + active</span>
+        <span className="text-muted-foreground text-xs">Loading + active</span>
       </div>
     </div>
   ),

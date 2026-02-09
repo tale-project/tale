@@ -5,9 +5,12 @@
  * This enables proactive summarization before hitting context limits.
  */
 
-import type { ActionCtx } from '../../_generated/server';
-import { components } from '../../_generated/api';
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
+
+import type { ActionCtx } from '../../_generated/server';
+
+import { components } from '../../_generated/api';
+import { createDebugLog } from '../debug_log';
 import {
   estimateMessageDocTokens,
   SYSTEM_INSTRUCTIONS_TOKENS,
@@ -15,7 +18,6 @@ import {
   DEFAULT_MODEL_CONTEXT_LIMIT,
   DEFAULT_RECENT_MESSAGES,
 } from './index';
-import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_CONTEXT_MANAGEMENT', '[ContextSize]');
 
@@ -97,7 +99,8 @@ export async function estimateContextSize(
 
   const totalTokens = Object.values(breakdown).reduce((a, b) => a + b, 0);
   const usagePercent = (totalTokens / modelContextLimit) * 100;
-  const needsSummarization = totalTokens > modelContextLimit * CONTEXT_SAFETY_MARGIN;
+  const needsSummarization =
+    totalTokens > modelContextLimit * CONTEXT_SAFETY_MARGIN;
 
   debugLog('Context size estimated', {
     threadId,

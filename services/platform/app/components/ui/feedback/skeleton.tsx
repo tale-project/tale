@@ -1,4 +1,5 @@
 import { cva, type VariantProps } from 'class-variance-authority';
+
 import { cn } from '@/lib/utils/cn';
 
 const skeletonVariants = cva('animate-pulse bg-gray-200', {
@@ -21,7 +22,8 @@ const skeletonVariants = cva('animate-pulse bg-gray-200', {
 });
 
 interface SkeletonProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends
+    React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof skeletonVariants> {
   /** Accessible label for screen readers */
   label?: string;
@@ -45,4 +47,3 @@ export function Skeleton({
     </div>
   );
 }
-

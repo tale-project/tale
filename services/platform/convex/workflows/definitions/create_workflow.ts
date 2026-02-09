@@ -5,8 +5,8 @@
  * Use createWorkflowDraft which includes proper version management.
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { WorkflowConfig } from './types';
 
 export interface CreateWorkflowArgs {

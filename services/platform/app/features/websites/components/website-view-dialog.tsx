@@ -2,8 +2,8 @@
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Stack, HStack, Grid } from '@/app/components/ui/layout/layout';
-import { Doc } from '@/convex/_generated/dataModel';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 interface ViewWebsiteDialogProps {
@@ -49,7 +49,7 @@ export function ViewWebsiteDialog({
             <Value>
               <HStack gap={2}>
                 <div
-                  className={`w-2 h-2 rounded-full ${
+                  className={`h-2 w-2 rounded-full ${
                     website.status === 'active'
                       ? 'bg-green-500'
                       : website.status === 'error'
@@ -92,9 +92,7 @@ export function ViewWebsiteDialog({
 
           <div>
             <Label>{t('viewDialog.created')}</Label>
-            <Value>
-              {formatDate(new Date(website._creationTime), 'long')}
-            </Value>
+            <Value>{formatDate(new Date(website._creationTime), 'long')}</Value>
           </div>
         </Grid>
       </Stack>
@@ -104,7 +102,7 @@ export function ViewWebsiteDialog({
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-xs font-medium text-muted-foreground mb-1">
+    <div className="text-muted-foreground mb-1 text-xs font-medium">
       {children}
     </div>
   );
@@ -118,7 +116,7 @@ function Value({
   className?: string;
 }) {
   return (
-    <div className={`text-sm text-foreground ${className || ''}`}>
+    <div className={`text-foreground text-sm ${className || ''}`}>
       {children}
     </div>
   );

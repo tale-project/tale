@@ -158,7 +158,7 @@ export interface OffsetPaginationState {
 /**
  * Cursor-based pagination state (for infinite scroll)
  */
-export interface CursorPaginationState {
+interface CursorPaginationState {
   cursor: string | null;
   numItems: number;
 }
@@ -166,7 +166,7 @@ export interface CursorPaginationState {
 /**
  * Pagination configuration
  */
-export interface PaginationConfig {
+interface PaginationConfig {
   /** Default page size */
   defaultPageSize?: number;
   /** Available page size options */
@@ -213,7 +213,7 @@ export interface UseUrlFiltersReturn<T extends FilterDefinitions> {
 /**
  * Return type for useOffsetPaginatedQuery hook
  */
-export interface UseOffsetPaginatedQueryReturn<TData> {
+interface UseOffsetPaginatedQueryReturn<TData> {
   /** Query result data */
   data: TData | undefined;
   /** Whether query is loading */
@@ -232,7 +232,7 @@ export interface UseOffsetPaginatedQueryReturn<TData> {
 /**
  * Return type for useCursorPaginatedQuery hook
  */
-export interface UseCursorPaginatedQueryReturn<TData> {
+interface UseCursorPaginatedQueryReturn<TData> {
   /** Query result data (accumulated pages) */
   data: TData[];
   /** Error that occurred during query, if any */

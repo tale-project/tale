@@ -1,30 +1,33 @@
 'use client';
 
+import type { ColumnDef } from '@tanstack/react-table';
+
+import { useQuery } from '@tanstack/react-query';
+import { useAction, useQuery as useConvexQuery } from 'convex/react';
+import { Home, Loader2, Database, Users } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
+
+import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
+import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
+import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
+import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Button } from '@/app/components/ui/primitives/button';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import {
   RadioGroup,
   RadioGroupItem,
 } from '@/app/components/ui/forms/radio-group';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { toast } from '@/app/hooks/use-toast';
-import { Home, Loader2, Database, Users } from 'lucide-react';
-import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
-import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
-import { formatBytes } from '@/lib/utils/format/number';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { useQuery } from '@tanstack/react-query';
-import { useAction, useQuery as useConvexQuery } from 'convex/react';
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import { MicrosoftReauthButton } from './microsoft-reauth-button';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import type { ColumnDef } from '@tanstack/react-table';
 import { useT } from '@/lib/i18n/client';
+import { formatBytes } from '@/lib/utils/format/number';
+
+import { MicrosoftReauthButton } from './microsoft-reauth-button';
 
 // Normalized OneDrive item type returned by Convex action
 type OneDriveApiItem = {
@@ -87,7 +90,11 @@ interface SharePointSitesTableProps {
   onSiteClick: (site: SharePointSite) => void;
 }
 
-function SharePointSitesTable({ sites, isLoading, onSiteClick }: SharePointSitesTableProps) {
+function SharePointSitesTable({
+  sites,
+  isLoading,
+  onSiteClick,
+}: SharePointSitesTableProps) {
   const { t } = useT('documents');
   const { t: tTables } = useT('tables');
 
@@ -100,15 +107,15 @@ function SharePointSitesTable({ sites, isLoading, onSiteClick }: SharePointSites
           const site = row.original;
           return (
             <HStack gap={3}>
-              <div className="flex items-center justify-center size-8 rounded-md bg-teal-100 dark:bg-teal-900/30">
+              <div className="flex size-8 items-center justify-center rounded-md bg-teal-100 dark:bg-teal-900/30">
                 <SharePointIcon className="size-5" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-foreground truncate cursor-pointer hover:text-blue-600">
+              <div className="min-w-0 flex-1">
+                <div className="text-foreground cursor-pointer truncate font-medium hover:text-blue-600">
                   {site.displayName}
                 </div>
                 {site.description && (
-                  <div className="text-xs text-muted-foreground truncate max-w-md">
+                  <div className="text-muted-foreground max-w-md truncate text-xs">
                     {site.description}
                   </div>
                 )}
@@ -119,9 +126,14 @@ function SharePointSitesTable({ sites, isLoading, onSiteClick }: SharePointSites
       },
       {
         id: 'url',
-        header: () => <div className="text-right">{t('microsoft365.siteUrl')}</div>,
+        header: () => (
+          <div className="text-right">{t('microsoft365.siteUrl')}</div>
+        ),
         cell: ({ row }) => (
-          <div className="text-sm text-muted-foreground text-right truncate max-w-[200px]" title={row.original.webUrl}>
+          <div
+            className="text-muted-foreground max-w-[200px] truncate text-right text-sm"
+            title={row.original.webUrl}
+          >
             {getPathFromUrl(row.original.webUrl)}
           </div>
         ),
@@ -131,17 +143,19 @@ function SharePointSitesTable({ sites, isLoading, onSiteClick }: SharePointSites
   );
 
   if (isLoading) {
-    return <DataTableSkeleton columns={columns} rows={5} showPagination={false} />;
+    return (
+      <DataTableSkeleton columns={columns} rows={5} showPagination={false} />
+    );
   }
 
   if (!sites || sites.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center py-12">
-        <SharePointIcon className="size-12 opacity-50 mb-4" />
-        <h3 className="text-lg font-medium text-foreground mb-2">
+      <div className="flex h-full flex-col items-center justify-center py-12 text-center">
+        <SharePointIcon className="mb-4 size-12 opacity-50" />
+        <h3 className="text-foreground mb-2 text-lg font-medium">
           {t('microsoft365.noSites')}
         </h3>
-        <p className="text-sm text-muted-foreground max-w-md">
+        <p className="text-muted-foreground max-w-md text-sm">
           {t('microsoft365.noSitesDescription')}
         </p>
       </div>
@@ -165,7 +179,11 @@ interface SharePointDrivesTableProps {
   onDriveClick: (drive: SharePointDrive) => void;
 }
 
-function SharePointDrivesTable({ drives, isLoading, onDriveClick }: SharePointDrivesTableProps) {
+function SharePointDrivesTable({
+  drives,
+  isLoading,
+  onDriveClick,
+}: SharePointDrivesTableProps) {
   const { t } = useT('documents');
   const { t: tTables } = useT('tables');
 
@@ -178,15 +196,15 @@ function SharePointDrivesTable({ drives, isLoading, onDriveClick }: SharePointDr
           const drive = row.original;
           return (
             <HStack gap={3}>
-              <div className="flex items-center justify-center size-8 rounded-md bg-amber-100 dark:bg-amber-900/30">
+              <div className="flex size-8 items-center justify-center rounded-md bg-amber-100 dark:bg-amber-900/30">
                 <Database className="size-4 text-amber-600 dark:text-amber-400" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-foreground truncate cursor-pointer hover:text-blue-600">
+              <div className="min-w-0 flex-1">
+                <div className="text-foreground cursor-pointer truncate font-medium hover:text-blue-600">
                   {drive.name}
                 </div>
                 {drive.description && (
-                  <div className="text-xs text-muted-foreground truncate max-w-md">
+                  <div className="text-muted-foreground max-w-md truncate text-xs">
                     {drive.description}
                   </div>
                 )}
@@ -197,9 +215,11 @@ function SharePointDrivesTable({ drives, isLoading, onDriveClick }: SharePointDr
       },
       {
         id: 'type',
-        header: () => <div className="text-right">{t('microsoft365.driveType')}</div>,
+        header: () => (
+          <div className="text-right">{t('microsoft365.driveType')}</div>
+        ),
         cell: ({ row }) => (
-          <div className="text-sm text-muted-foreground text-right capitalize">
+          <div className="text-muted-foreground text-right text-sm capitalize">
             {row.original.driveType}
           </div>
         ),
@@ -209,17 +229,19 @@ function SharePointDrivesTable({ drives, isLoading, onDriveClick }: SharePointDr
   );
 
   if (isLoading) {
-    return <DataTableSkeleton columns={columns} rows={5} showPagination={false} />;
+    return (
+      <DataTableSkeleton columns={columns} rows={5} showPagination={false} />
+    );
   }
 
   if (!drives || drives.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center py-12">
-        <Database className="size-12 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-medium text-foreground mb-2">
+      <div className="flex h-full flex-col items-center justify-center py-12 text-center">
+        <Database className="text-muted-foreground/50 mb-4 size-12" />
+        <h3 className="text-foreground mb-2 text-lg font-medium">
           {t('microsoft365.noDrives')}
         </h3>
-        <p className="text-sm text-muted-foreground max-w-md">
+        <p className="text-muted-foreground max-w-md text-sm">
           {t('microsoft365.noDrivesDescription')}
         </p>
       </div>
@@ -314,7 +336,7 @@ function OneDriveFileTable({
               <DocumentIcon fileName={item.name} isFolder={isFolder(item)} />
               <div
                 title={item.name}
-                className={`font-medium text-base text-foreground truncate max-w-[25rem] ${
+                className={`text-foreground max-w-[25rem] truncate text-base font-medium ${
                   isFolder(item) ? 'cursor-pointer hover:text-blue-600' : ''
                 }`}
                 onClick={
@@ -325,6 +347,19 @@ function OneDriveFileTable({
                       }
                     : undefined
                 }
+                onKeyDown={
+                  isFolder(item)
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleFolderClick(item);
+                        }
+                      }
+                    : undefined
+                }
+                role={isFolder(item) ? 'button' : undefined}
+                tabIndex={isFolder(item) ? 0 : undefined}
               >
                 {item.name}
               </div>
@@ -338,7 +373,7 @@ function OneDriveFileTable({
           <div className="text-right">{tTables('headers.modified')}</div>
         ),
         cell: ({ row }) => (
-          <div className="text-sm text-muted-foreground whitespace-nowrap text-right">
+          <div className="text-muted-foreground text-right text-sm whitespace-nowrap">
             {row.original.lastModified
               ? formatDate(new Date(row.original.lastModified), 'short')
               : ''}
@@ -351,7 +386,7 @@ function OneDriveFileTable({
           <div className="text-right">{tTables('headers.size')}</div>
         ),
         cell: ({ row }) => (
-          <div className="text-sm text-muted-foreground text-right whitespace-nowrap">
+          <div className="text-muted-foreground text-right text-sm whitespace-nowrap">
             {row.original.size ? formatBytes(row.original.size) : ''}
           </div>
         ),
@@ -419,9 +454,15 @@ export function OneDriveImportDialog({
   const listOneDriveFiles = useAction(api.onedrive.actions.listFiles);
   const importFilesAction = useAction(api.onedrive.actions.importFiles);
 
-  const listSharePointSites = useAction(api.onedrive.actions.listSharePointSites);
-  const listSharePointDrives = useAction(api.onedrive.actions.listSharePointDrives);
-  const listSharePointFiles = useAction(api.onedrive.actions.listSharePointFiles);
+  const listSharePointSites = useAction(
+    api.onedrive.actions.listSharePointSites,
+  );
+  const listSharePointDrives = useAction(
+    api.onedrive.actions.listSharePointDrives,
+  );
+  const listSharePointFiles = useAction(
+    api.onedrive.actions.listSharePointFiles,
+  );
 
   const [stage, setStage] = useState<Stage>('picker');
   const [importType, setImportType] = useState<ImportType>('one-time');
@@ -432,9 +473,13 @@ export function OneDriveImportDialog({
 
   // SharePoint navigation state
   const [selectedSite, setSelectedSite] = useState<SharePointSite | null>(null);
-  const [selectedDrive, setSelectedDrive] = useState<SharePointDrive | null>(null);
+  const [selectedDrive, setSelectedDrive] = useState<SharePointDrive | null>(
+    null,
+  );
   const [spFolderId, setSpFolderId] = useState<string | undefined>(undefined);
-  const [spFolderPath, setSpFolderPath] = useState<Array<{ id: string | undefined; name: string }>>([]);
+  const [spFolderPath, setSpFolderPath] = useState<
+    Array<{ id: string | undefined; name: string }>
+  >([]);
 
   // Import state
   const [isImporting, setIsImporting] = useState(false);
@@ -499,10 +544,7 @@ export function OneDriveImportDialog({
   });
 
   // React Query for SharePoint sites
-  const {
-    data: sitesData,
-    isLoading: loadingSites,
-  } = useQuery({
+  const { data: sitesData, isLoading: loadingSites } = useQuery({
     queryKey: ['sharepoint-sites'],
     queryFn: async () => {
       const result = await listSharePointSites({});
@@ -517,10 +559,7 @@ export function OneDriveImportDialog({
   });
 
   // React Query for SharePoint drives (document libraries)
-  const {
-    data: drivesData,
-    isLoading: loadingDrives,
-  } = useQuery({
+  const { data: drivesData, isLoading: loadingDrives } = useQuery({
     queryKey: ['sharepoint-drives', selectedSite?.id],
     queryFn: async () => {
       if (!selectedSite) throw new Error('No site selected');
@@ -530,19 +569,26 @@ export function OneDriveImportDialog({
       }
       return result.drives;
     },
-    enabled: stage === 'picker' && sourceTab === 'sharepoint' && !!selectedSite && !selectedDrive,
+    enabled:
+      stage === 'picker' &&
+      sourceTab === 'sharepoint' &&
+      !!selectedSite &&
+      !selectedDrive,
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
 
   // React Query for SharePoint files
-  const {
-    data: spFilesData,
-    isLoading: loadingSpFiles,
-  } = useQuery({
-    queryKey: ['sharepoint-files', selectedSite?.id, selectedDrive?.id, spFolderId],
+  const { data: spFilesData, isLoading: loadingSpFiles } = useQuery({
+    queryKey: [
+      'sharepoint-files',
+      selectedSite?.id,
+      selectedDrive?.id,
+      spFolderId,
+    ],
     queryFn: async () => {
-      if (!selectedSite || !selectedDrive) throw new Error('No site/drive selected');
+      if (!selectedSite || !selectedDrive)
+        throw new Error('No site/drive selected');
       const result = await listSharePointFiles({
         siteId: selectedSite.id,
         driveId: selectedDrive.id,
@@ -553,7 +599,11 @@ export function OneDriveImportDialog({
       }
       return result.items;
     },
-    enabled: stage === 'picker' && sourceTab === 'sharepoint' && !!selectedSite && !!selectedDrive,
+    enabled:
+      stage === 'picker' &&
+      sourceTab === 'sharepoint' &&
+      !!selectedSite &&
+      !!selectedDrive,
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
@@ -681,10 +731,9 @@ export function OneDriveImportDialog({
 
     if (isSelected) {
       // Find the item details from the correct data source based on current tab
-      const dataSource = sourceTab === 'sharepoint' ? (spFilesData || []) : (itemsData || []);
-      const item = dataSource.find(
-        (i: OneDriveApiItem) => i.id === itemId,
-      );
+      const dataSource =
+        sourceTab === 'sharepoint' ? spFilesData || [] : itemsData || [];
+      const item = dataSource.find((i: OneDriveApiItem) => i.id === itemId);
       if (item) {
         newSelectedItems.set(itemId, {
           id: item.id,
@@ -822,7 +871,8 @@ export function OneDriveImportDialog({
         selectedTeams.size > 0 ? Array.from(selectedTeams) : undefined;
 
       // Determine if this is a SharePoint import
-      const isSharePoint = sourceTab === 'sharepoint' && selectedSite && selectedDrive;
+      const isSharePoint =
+        sourceTab === 'sharepoint' && selectedSite && selectedDrive;
 
       const result = await importFilesAction({
         items: allFiles.map((file) => ({
@@ -905,7 +955,14 @@ export function OneDriveImportDialog({
     return (itemsData || []).filter((item: OneDriveApiItem) =>
       item.name.toLowerCase().includes(searchQuery.toLowerCase()),
     );
-  }, [sourceTab, selectedSite, selectedDrive, spFilesData, itemsData, searchQuery]);
+  }, [
+    sourceTab,
+    selectedSite,
+    selectedDrive,
+    spFilesData,
+    itemsData,
+    searchQuery,
+  ]);
 
   // Keep filteredItems for backward compatibility with OneDrive tab
   const filteredItems = currentItems;
@@ -931,17 +988,13 @@ export function OneDriveImportDialog({
         hideClose
         className="max-w-5xl p-0 sm:p-0"
         customHeader={
-          <div className="border-b border-border">
-            <HStack
-              align="start"
-              justify="between"
-              className="px-6 pt-6 pb-4"
-            >
+          <div className="border-border border-b">
+            <HStack align="start" justify="between" className="px-6 pt-6 pb-4">
               <Stack gap={1}>
-                <h2 className="text-base font-semibold leading-none tracking-tight text-foreground">
+                <h2 className="text-foreground text-base leading-none font-semibold tracking-tight">
                   {t('microsoft365.title')}
                 </h2>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   {t('microsoft365.selectDescription')}
                 </p>
               </Stack>
@@ -951,10 +1004,10 @@ export function OneDriveImportDialog({
               <button
                 type="button"
                 onClick={() => handleTabChange('onedrive')}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                className={`flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                   sourceTab === 'onedrive'
                     ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                    : 'text-muted-foreground hover:text-foreground border-transparent'
                 }`}
               >
                 <OneDriveIcon className="size-4" />
@@ -963,10 +1016,10 @@ export function OneDriveImportDialog({
               <button
                 type="button"
                 onClick={() => handleTabChange('sharepoint')}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                className={`flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                   sourceTab === 'sharepoint'
                     ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                    : 'text-muted-foreground hover:text-foreground border-transparent'
                 }`}
               >
                 <SharePointIcon className="size-4" />
@@ -982,7 +1035,7 @@ export function OneDriveImportDialog({
             <>
               {/* Breadcrumb Navigation */}
               {folderPath.length > 1 && (
-                <HStack gap={2} className="text-sm text-muted-foreground">
+                <HStack gap={2} className="text-muted-foreground text-sm">
                   {folderPath.map((folder, index) => (
                     <HStack key={folder.id || 'root'} gap={2}>
                       <button
@@ -990,7 +1043,11 @@ export function OneDriveImportDialog({
                         onClick={() => handleBreadcrumbClick(index)}
                         className="hover:text-blue-600 hover:underline"
                       >
-                        {index === 0 ? <Home className="size-4" /> : folder.name}
+                        {index === 0 ? (
+                          <Home className="size-4" />
+                        ) : (
+                          folder.name
+                        )}
                       </button>
                       {index < folderPath.length - 1 && (
                         <span className="text-muted-foreground">/</span>
@@ -1041,7 +1098,7 @@ export function OneDriveImportDialog({
           {sourceTab === 'sharepoint' && (
             <>
               {/* SharePoint Breadcrumb */}
-              <HStack gap={2} className="text-sm text-muted-foreground">
+              <HStack gap={2} className="text-muted-foreground text-sm">
                 {selectedSite && (
                   <>
                     <button
@@ -1053,7 +1110,7 @@ export function OneDriveImportDialog({
                         setSpFolderPath([]);
                         setSelectedItems(new Map());
                       }}
-                      className="hover:text-blue-600 hover:underline flex items-center gap-1"
+                      className="flex items-center gap-1 hover:text-blue-600 hover:underline"
                     >
                       <SharePointIcon className="size-4" />
                       {t('microsoft365.sharePointSites')}
@@ -1094,7 +1151,9 @@ export function OneDriveImportDialog({
                                   type="button"
                                   onClick={() => {
                                     setSpFolderId(folder.id);
-                                    setSpFolderPath(spFolderPath.slice(0, index + 1));
+                                    setSpFolderPath(
+                                      spFolderPath.slice(0, index + 1),
+                                    );
                                     setSelectedItems(new Map());
                                   }}
                                   className="hover:text-blue-600 hover:underline"
@@ -1105,11 +1164,15 @@ export function OneDriveImportDialog({
                             ))}
                           </>
                         ) : (
-                          <span className="text-foreground">{selectedDrive.name}</span>
+                          <span className="text-foreground">
+                            {selectedDrive.name}
+                          </span>
                         )}
                       </>
                     ) : (
-                      <span className="text-foreground">{selectedSite.displayName}</span>
+                      <span className="text-foreground">
+                        {selectedSite.displayName}
+                      </span>
                     )}
                   </>
                 )}
@@ -1169,7 +1232,10 @@ export function OneDriveImportDialog({
                       handleCheckChange={handleCheckChange}
                       handleFolderClick={(folder) => {
                         setSpFolderId(folder.id);
-                        setSpFolderPath([...spFolderPath, { id: folder.id, name: folder.name }]);
+                        setSpFolderPath([
+                          ...spFolderPath,
+                          { id: folder.id, name: folder.name },
+                        ]);
                         setSelectedItems(new Map());
                       }}
                       buildItemPath={buildItemPath}
@@ -1186,7 +1252,7 @@ export function OneDriveImportDialog({
 
   if (stage === 'settings') {
     const settingsFooter = (
-      <HStack gap={4} className="justify-stretch w-full">
+      <HStack gap={4} className="w-full justify-stretch">
         <Button
           variant="outline"
           onClick={() => setStage('picker')}
@@ -1202,14 +1268,14 @@ export function OneDriveImportDialog({
         >
           {isImporting ? (
             <>
-              <Loader2 className="size-4 mr-2 animate-spin" />
+              <Loader2 className="mr-2 size-4 animate-spin" />
               {importType === 'one-time'
                 ? t('onedrive.importing')
                 : t('onedrive.syncing')}
             </>
           ) : (
             <>
-              <Database className="size-4 mr-2" />
+              <Database className="mr-2 size-4" />
               {importType === 'one-time'
                 ? t('onedrive.importItems', { count: selectedItems.size })
                 : t('onedrive.syncItems', { count: selectedItems.size })}
@@ -1231,12 +1297,12 @@ export function OneDriveImportDialog({
         hideClose
         className="p-0 sm:p-0"
         customHeader={
-          <div className="border-b border-border flex items-start justify-between px-6 py-5">
+          <div className="border-border flex items-start justify-between border-b px-6 py-5">
             <div className="space-y-1">
-              <h2 className="text-base font-semibold leading-none tracking-tight text-foreground">
+              <h2 className="text-foreground text-base leading-none font-semibold tracking-tight">
                 {t('onedrive.importSettings')}
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 {t('onedrive.settingsDescription', {
                   count: selectedItems.size,
                 })}
@@ -1256,17 +1322,17 @@ export function OneDriveImportDialog({
             className="space-y-2"
           >
             {/* One-time Import Option */}
-            <div className="border border-border rounded-lg p-3 hover:bg-muted">
+            <div className="border-border hover:bg-muted rounded-lg border p-3">
               <div className="flex items-center gap-3">
                 <RadioGroupItem value="one-time" id="one-time" />
                 <div className="flex-1">
                   <label
                     htmlFor="one-time"
-                    className="font-medium text-base cursor-pointer"
+                    className="cursor-pointer text-base font-medium"
                   >
                     {t('onedrive.oneTimeImport')}
                   </label>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-muted-foreground text-sm">
                     {t('onedrive.oneTimeDescription')}
                   </div>
                 </div>
@@ -1274,17 +1340,17 @@ export function OneDriveImportDialog({
             </div>
 
             {/* Sync Import Option */}
-            <div className="border border-border rounded-lg p-3 hover:bg-muted">
+            <div className="border-border hover:bg-muted rounded-lg border p-3">
               <div className="flex items-center gap-3">
                 <RadioGroupItem value="sync" id="sync" />
                 <div className="flex-1">
                   <label
                     htmlFor="sync"
-                    className="font-medium text-base cursor-pointer"
+                    className="cursor-pointer text-base font-medium"
                   >
                     {t('onedrive.syncImport')}
                   </label>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-muted-foreground text-sm">
                     {t('onedrive.syncDescription')}
                   </div>
                 </div>
@@ -1293,11 +1359,11 @@ export function OneDriveImportDialog({
           </RadioGroup>
 
           {/* Team Selection */}
-          <div className="mt-4 pt-4 border-t border-border">
-            <p className="text-sm font-medium mb-2">
+          <div className="border-border mt-4 border-t pt-4">
+            <p className="mb-2 text-sm font-medium">
               {t('upload.selectTeams')}
             </p>
-            <p className="text-xs text-muted-foreground mb-3">
+            <p className="text-muted-foreground mb-3 text-xs">
               {t('upload.selectTeamsDescription')}
             </p>
 
@@ -1309,8 +1375,8 @@ export function OneDriveImportDialog({
               </div>
             ) : !teams || teams.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-4 text-center">
-                <Users className="size-6 text-muted-foreground/50 mb-2" />
-                <p className="text-sm text-muted-foreground">
+                <Users className="text-muted-foreground/50 mb-2 size-6" />
+                <p className="text-muted-foreground text-sm">
                   {t('upload.noTeamsAvailable')}
                 </p>
               </div>
@@ -1319,7 +1385,7 @@ export function OneDriveImportDialog({
                 {teams.map((team: { id: string; name: string }) => (
                   <div
                     key={team.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+                    className="bg-card hover:bg-accent/50 flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
                   >
                     <Checkbox
                       id={`onedrive-team-${team.id}`}
@@ -1333,7 +1399,7 @@ export function OneDriveImportDialog({
               </Stack>
             )}
 
-            <p className="text-xs text-muted-foreground mt-3">
+            <p className="text-muted-foreground mt-3 text-xs">
               {t('upload.allMembersHint')}
             </p>
           </div>

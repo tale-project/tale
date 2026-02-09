@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type {
   CrawlerActionParams,
@@ -67,7 +68,10 @@ type DiscoverUrlsParams = Extract<
 >;
 
 // Type for fetch_urls operation
-type FetchUrlsParams = Extract<CrawlerActionParams, { operation: 'fetch_urls' }>;
+type FetchUrlsParams = Extract<
+  CrawlerActionParams,
+  { operation: 'fetch_urls' }
+>;
 
 async function discoverUrls(
   params: DiscoverUrlsParams,

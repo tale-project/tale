@@ -1,12 +1,12 @@
-import { axe } from 'vitest-axe';
 import { RenderResult } from '@testing-library/react';
+import { axe } from 'vitest-axe';
 
 /**
  * Run axe accessibility audit on a container
  */
 export async function checkAccessibility(
   container: Element | RenderResult,
-  options?: Parameters<typeof axe>[1]
+  options?: Parameters<typeof axe>[1],
 ) {
   const element = 'container' in container ? container.container : container;
   const results = await axe(element, {
@@ -27,7 +27,7 @@ export async function checkAccessibility(
       .map(
         (violation) =>
           `${violation.id}: ${violation.description}\n` +
-          violation.nodes.map((node) => `  - ${node.html}`).join('\n')
+          violation.nodes.map((node) => `  - ${node.html}`).join('\n'),
       )
       .join('\n\n');
     throw new Error(`Accessibility violations:\n${violationMessages}`);
@@ -43,4 +43,3 @@ export function expectFocusable(element: HTMLElement) {
     throw new Error(`Expected element to be focusable, but it is not`);
   }
 }
-

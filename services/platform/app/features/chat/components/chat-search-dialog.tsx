@@ -1,17 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { api } from '@/convex/_generated/api';
-import { cn } from '@/lib/utils/cn';
-import { useT } from '@/lib/i18n/client';
-import { useDebounce } from '@/app/hooks/use-debounce';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { useDebounce } from '@/app/hooks/use-debounce';
+import { useFormatDate } from '@/app/hooks/use-format-date';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 interface ChatSearchDialogProps {
   isOpen: boolean;
@@ -95,7 +95,10 @@ export function ChatSearchDialog({
       } else if (e.key === 'Enter' && chats[selectedIndexRef.current]) {
         navigate({
           to: '/dashboard/$id/chat/$threadId',
-          params: { id: organizationId, threadId: chats[selectedIndexRef.current]._id },
+          params: {
+            id: organizationId,
+            threadId: chats[selectedIndexRef.current]._id,
+          },
         });
         onOpenChange(false);
       } else if (e.key === 'Escape') {
@@ -112,9 +115,9 @@ export function ChatSearchDialog({
       onOpenChange={onOpenChange}
       title={t('searchChat.title')}
       hideClose
-      className="p-0 sm:p-0 overflow-hidden gap-0"
+      className="gap-0 overflow-hidden p-0 sm:p-0"
       customHeader={
-        <div className="px-3 py-4 border-b border-border relative flex items-center">
+        <div className="border-border relative flex items-center border-b px-3 py-4">
           <Input
             ref={inputRef}
             placeholder={t('searchChat.placeholder')}
@@ -122,12 +125,12 @@ export function ChatSearchDialog({
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             variant="unstyled"
-            className="pr-9 p-0 h-6"
+            className="h-6 p-0 pr-9"
           />
           <button
             type="button"
             onClick={close}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            className="text-muted-foreground hover:text-foreground absolute top-1/2 right-4 -translate-y-1/2 transition-colors"
             aria-label={tCommon('actions.close')}
           >
             <X className="size-4" />
@@ -137,7 +140,7 @@ export function ChatSearchDialog({
     >
       <div className="h-[13.75rem] overflow-y-auto p-3">
         {threadsData !== undefined && chats.length === 0 ? (
-          <div className="text-sm text-muted-foreground px-4 py-6 size-full flex items-center justify-center">
+          <div className="text-muted-foreground flex size-full items-center justify-center px-4 py-6 text-sm">
             {t('searchChat.noResults')}
           </div>
         ) : (
@@ -159,9 +162,9 @@ export function ChatSearchDialog({
                     close();
                   }}
                 >
-                  <div className="text-sm text-foreground flex items-center gap-2 w-full min-w-0">
+                  <div className="text-foreground flex w-full min-w-0 items-center gap-2 text-sm">
                     <span className="truncate">{chat.title}</span>
-                    <span className="text-[0.625rem] text-muted-foreground shrink-0 ml-auto">
+                    <span className="text-muted-foreground ml-auto shrink-0 text-[0.625rem]">
                       {chat.formattedDate}
                     </span>
                   </div>

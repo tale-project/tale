@@ -4,11 +4,12 @@
  * Uses ctx.storage.get() for direct Convex storage access (like image_tool and txt_tool).
  */
 
+import type { Id } from '../../../_generated/dataModel';
+import type { ActionCtx } from '../../../_generated/server';
+
+import { getParseEndpoint } from '../../../../lib/shared/file-types';
 import { createDebugLog } from '../../../lib/debug_log';
 import { getCrawlerServiceUrl } from '../../web/helpers/get_crawler_service_url';
-import { getParseEndpoint } from '../../../../lib/shared/file-types';
-import type { ActionCtx } from '../../../_generated/server';
-import type { Id } from '../../../_generated/dataModel';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -27,7 +28,6 @@ export interface ParseFileResult {
   };
   error?: string;
 }
-
 
 /**
  * Parse a file by getting it from Convex storage and sending it to the crawler service.

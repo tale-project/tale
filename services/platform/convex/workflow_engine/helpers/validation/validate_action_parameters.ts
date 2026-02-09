@@ -120,11 +120,19 @@ export function validateActionParameters(
 
   // 5. Validate no extra fields in nested objects (e.g., updates)
   const nestedObjectFields = validatorInfo.getNestedObjectFields(operation);
-  for (const [fieldName, allowedNestedFields] of Object.entries(nestedObjectFields)) {
+  for (const [fieldName, allowedNestedFields] of Object.entries(
+    nestedObjectFields,
+  )) {
     const nestedValue = params[fieldName];
-    if (nestedValue && typeof nestedValue === 'object' && !Array.isArray(nestedValue)) {
+    if (
+      nestedValue &&
+      typeof nestedValue === 'object' &&
+      !Array.isArray(nestedValue)
+    ) {
       const opContext = operation ? ` for operation "${operation}"` : '';
-      for (const nestedField of Object.keys(nestedValue as Record<string, unknown>)) {
+      for (const nestedField of Object.keys(
+        nestedValue as Record<string, unknown>,
+      )) {
         if (!allowedNestedFields.includes(nestedField)) {
           errors.push(
             `Action "${actionType}"${opContext}: Unknown field "${nestedField}" in "${fieldName}". Allowed fields: ${allowedNestedFields.join(', ')}`,
@@ -249,10 +257,16 @@ function parseUnionValidator(
   const validOperations: string[] = [];
   const operationRequiredFields: Record<string, string[]> = {};
   const operationAllowedFields: Record<string, string[]> = {};
-  const operationNestedObjectFields: Record<string, Record<string, string[]>> = {};
+  const operationNestedObjectFields: Record<
+    string,
+    Record<string, string[]>
+  > = {};
 
   for (const variant of variants) {
-    const variantJson = variant as { type?: string; value?: Record<string, unknown> };
+    const variantJson = variant as {
+      type?: string;
+      value?: Record<string, unknown>;
+    };
 
     if (variantJson.type !== 'object' || !variantJson.value) {
       continue;
@@ -322,9 +336,11 @@ function parseUnionValidator(
 /**
  * Parse a field definition to extract optionality, literal values, and nested object fields
  */
-function parseFieldDefinition(
-  fieldDef: unknown,
-): { isOptional: boolean; literalValues: string[]; allowedFields?: string[] } | null {
+function parseFieldDefinition(fieldDef: unknown): {
+  isOptional: boolean;
+  literalValues: string[];
+  allowedFields?: string[];
+} | null {
   const def = fieldDef as {
     fieldType?: {
       type?: string;
@@ -354,7 +370,10 @@ function parseFieldDefinition(
   if (def.fieldType.type === 'union' && Array.isArray(def.fieldType.value)) {
     for (const variant of def.fieldType.value) {
       const variantDef = variant as { type?: string; value?: string };
-      if (variantDef.type === 'literal' && typeof variantDef.value === 'string') {
+      if (
+        variantDef.type === 'literal' &&
+        typeof variantDef.value === 'string'
+      ) {
         literalValues.push(variantDef.value);
       }
     }
@@ -368,4 +387,3 @@ function parseFieldDefinition(
 
   return { isOptional, literalValues, allowedFields };
 }
-

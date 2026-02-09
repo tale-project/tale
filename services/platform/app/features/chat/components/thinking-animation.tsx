@@ -1,8 +1,10 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { useT } from '@/lib/i18n/client';
 import type { UIMessage } from '@convex-dev/agent/react';
+
+import { motion } from 'framer-motion';
+
+import { useT } from '@/lib/i18n/client';
 
 interface ToolDetail {
   toolName: string;
@@ -27,7 +29,9 @@ interface ThinkingAnimationProps {
   streamingMessage?: UIMessage;
 }
 
-export function ThinkingAnimation({ streamingMessage }: ThinkingAnimationProps) {
+export function ThinkingAnimation({
+  streamingMessage,
+}: ThinkingAnimationProps) {
   const { t } = useT('chat');
 
   const formatToolDetail = (
@@ -168,7 +172,7 @@ export function ThinkingAnimation({ streamingMessage }: ThinkingAnimationProps) 
           duration: 0.3,
           ease: [0.25, 0.1, 0.25, 1],
         }}
-        className="text-sm text-muted-foreground flex items-center gap-2 px-4 py-3"
+        className="text-muted-foreground flex items-center gap-2 px-4 py-3 text-sm"
       >
         <motion.span
           key={animationKey}
@@ -184,13 +188,13 @@ export function ThinkingAnimation({ streamingMessage }: ThinkingAnimationProps) 
           {displayText}
         </motion.span>
         <div className="flex space-x-1">
-          <div className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce" />
+          <div className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full" />
           <div
-            className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce"
+            className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full"
             style={{ animationDelay: '0.1s' }}
           />
           <div
-            className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce"
+            className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full"
             style={{ animationDelay: '0.2s' }}
           />
         </div>
@@ -205,13 +209,13 @@ export function ThinkingAnimation({ streamingMessage }: ThinkingAnimationProps) 
 export function LoadingDots() {
   return (
     <div className="flex space-x-1.5">
-      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
+      <div className="bg-muted-foreground h-2 w-2 animate-bounce rounded-full" />
       <div
-        className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+        className="bg-muted-foreground h-2 w-2 animate-bounce rounded-full"
         style={{ animationDelay: '0.1s' }}
       />
       <div
-        className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+        className="bg-muted-foreground h-2 w-2 animate-bounce rounded-full"
         style={{ animationDelay: '0.2s' }}
       />
     </div>

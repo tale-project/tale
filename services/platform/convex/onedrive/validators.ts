@@ -1,5 +1,6 @@
-import { v } from 'convex/values';
 import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
+
 import {
   syncConfigStatusSchema,
   onedriveItemTypeSchema,
@@ -24,10 +25,18 @@ export const onedriveItemTypeValidator = zodToConvex(onedriveItemTypeSchema);
 export const driveItemValidator = zodToConvex(driveItemSchema);
 export const fileItemValidator = zodToConvex(fileItemSchema);
 export const listFilesResponseValidator = zodToConvex(listFilesResponseSchema);
-export const listFolderContentsResponseValidator = zodToConvex(listFolderContentsResponseSchema);
-export const uploadToStorageResponseValidator = zodToConvex(uploadToStorageResponseSchema);
-export const refreshTokenResponseValidator = zodToConvex(refreshTokenResponseSchema);
-export const getUserTokenResponseValidator = zodToConvex(getUserTokenResponseSchema);
+export const listFolderContentsResponseValidator = zodToConvex(
+  listFolderContentsResponseSchema,
+);
+export const uploadToStorageResponseValidator = zodToConvex(
+  uploadToStorageResponseSchema,
+);
+export const refreshTokenResponseValidator = zodToConvex(
+  refreshTokenResponseSchema,
+);
+export const getUserTokenResponseValidator = zodToConvex(
+  getUserTokenResponseSchema,
+);
 
 export const oneDriveItemValidator = v.object({
   id: v.string(),
@@ -51,13 +60,19 @@ export const importItemValidator = v.object({
   selectedParentPath: v.optional(v.string()),
   siteId: v.optional(v.string()),
   driveId: v.optional(v.string()),
-  sourceType: v.optional(v.union(v.literal('onedrive'), v.literal('sharepoint'))),
+  sourceType: v.optional(
+    v.union(v.literal('onedrive'), v.literal('sharepoint')),
+  ),
 });
 
 export const importFileResultValidator = v.object({
   fileId: v.string(),
   fileName: v.string(),
-  status: v.union(v.literal('success'), v.literal('skipped'), v.literal('error')),
+  status: v.union(
+    v.literal('success'),
+    v.literal('skipped'),
+    v.literal('error'),
+  ),
   documentId: v.optional(v.id('documents')),
   error: v.optional(v.string()),
 });

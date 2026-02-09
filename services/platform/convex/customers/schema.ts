@@ -1,7 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
-import { dataSourceValidator } from '../lib/validators/common';
+
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { dataSourceValidator } from '../lib/validators/common';
 
 export const customersTable = defineTable({
   organizationId: v.string(),
@@ -9,11 +10,7 @@ export const customersTable = defineTable({
   email: v.optional(v.string()),
   externalId: v.optional(v.union(v.string(), v.number())),
   status: v.optional(
-    v.union(
-      v.literal('active'),
-      v.literal('churned'),
-      v.literal('potential'),
-    ),
+    v.union(v.literal('active'), v.literal('churned'), v.literal('potential')),
   ),
   source: dataSourceValidator,
   locale: v.optional(v.string()),

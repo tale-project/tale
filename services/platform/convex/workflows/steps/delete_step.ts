@@ -12,4 +12,3 @@ export async function deleteStep(
   await ctx.db.delete(args.stepRecordId);
   return null;
 }
-

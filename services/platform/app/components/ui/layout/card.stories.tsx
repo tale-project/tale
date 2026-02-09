@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
+import { Button } from '../primitives/button';
 import {
   Card,
   CardHeader,
@@ -7,7 +9,6 @@ import {
   CardContent,
   CardFooter,
 } from './card';
-import { Button } from '../primitives/button';
 
 const meta: Meta<typeof Card> = {
   title: 'Layout/Card',
@@ -80,7 +81,7 @@ export const WithFooter: Story = {
         <CardDescription>Deploy your new project in one-click.</CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Your project will be deployed to our cloud infrastructure.
         </p>
       </CardContent>
@@ -109,7 +110,7 @@ export const TitleOnly: Story = {
         <CardTitle>Notifications</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           You have 3 unread messages.
         </p>
       </CardContent>
@@ -119,7 +120,7 @@ export const TitleOnly: Story = {
 
 export const Interactive: Story = {
   render: () => (
-    <Card className="hover:shadow-md transition-shadow cursor-pointer">
+    <Card className="cursor-pointer transition-shadow hover:shadow-md">
       <CardHeader>
         <CardTitle>Clickable Card</CardTitle>
         <CardDescription>Hover to see the effect</CardDescription>
@@ -140,14 +141,16 @@ export const Interactive: Story = {
 
 export const CardGrid: Story = {
   render: () => (
-    <div className="grid grid-cols-2 gap-4 w-[500px]">
+    <div className="grid w-[500px] grid-cols-2 gap-4">
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Revenue</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-2xl font-bold">$45,231.89</p>
-          <p className="text-xs text-muted-foreground">+20.1% from last month</p>
+          <p className="text-muted-foreground text-xs">
+            +20.1% from last month
+          </p>
         </CardContent>
       </Card>
       <Card>
@@ -156,7 +159,9 @@ export const CardGrid: Story = {
         </CardHeader>
         <CardContent>
           <p className="text-2xl font-bold">+2,350</p>
-          <p className="text-xs text-muted-foreground">+180.1% from last month</p>
+          <p className="text-muted-foreground text-xs">
+            +180.1% from last month
+          </p>
         </CardContent>
       </Card>
     </div>

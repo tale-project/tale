@@ -1,16 +1,18 @@
 'use client';
 
 import { Position } from '@xyflow/react';
-import { cn } from '@/lib/utils/cn';
-import { Doc } from '@/convex/_generated/dataModel';
+
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { useAutomationCallbacks } from './automation-callbacks-context';
-import { InvisibleHandle } from './invisible-handle';
+import { cn } from '@/lib/utils/cn';
+
 import {
   getStepIconComponent,
   getActionIconComponent,
 } from '../utils/step-icons';
+import { useAutomationCallbacks } from './automation-callbacks-context';
+import { InvisibleHandle } from './invisible-handle';
 
 interface AutomationStepProps {
   data: {
@@ -64,7 +66,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
 
     const IconComponent = getStepIconComponent(stepType, actionType);
     if (!IconComponent) {
-      return <div className="size-5 rounded-full bg-muted" />;
+      return <div className="bg-muted size-5 rounded-full" />;
     }
     return <IconComponent className={cn(baseClass, styleClass)} />;
   };
@@ -96,25 +98,25 @@ export function AutomationStep({ data }: AutomationStepProps) {
       )}
       onClick={() => onNodeClick(data.stepSlug)}
     >
-      <div className="py-2 px-2.5 flex gap-3">
+      <div className="flex gap-3 px-2.5 py-2">
         {/* Icon on left */}
         {getIcon(data.stepType, data.actionType)}
 
         {/* Content in center */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-sm text-foreground">
+            <h3 className="text-foreground text-sm font-semibold">
               {data.label}
             </h3>
             {/* Terminal Node Indicator */}
             {data.isTerminalNode && (
-              <span className="px-2 py-0.5 text-xs font-medium rounded bg-muted text-muted-foreground border border-muted-foreground/30">
+              <span className="bg-muted text-muted-foreground border-muted-foreground/30 rounded border px-2 py-0.5 text-xs font-medium">
                 {t('sidePanel.end')}
               </span>
             )}
           </div>
           {data.description && (
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+            <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">
               {data.description}
             </p>
           )}
@@ -123,7 +125,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
         {/* Step type label on right */}
         <Badge
           variant="outline"
-          className="text-xs text-muted-foreground px-1 py-0.5 h-fit"
+          className="text-muted-foreground h-fit px-1 py-0.5 text-xs"
         >
           {getStepTypeLabel(data.stepType)}
         </Badge>
@@ -138,7 +140,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
         type="target"
         position={Position.Top}
         id="top-target"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ top: 2, left: topTargetLeft, opacity: 0 }}
       />
@@ -148,7 +150,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
         type="source"
         position={Position.Top}
         id="top-source"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ top: 2, left: topSourceLeft, opacity: 0 }}
       />
@@ -158,7 +160,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
         type="target"
         position={Position.Left}
         id="left-target"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ left: 0, top: '50%', opacity: 0 }}
       />
@@ -168,7 +170,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
         type="source"
         position={Position.Right}
         id="right-source"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ right: 0, top: '50%', opacity: 0 }}
       />
@@ -180,7 +182,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
         type="target"
         position={Position.Bottom}
         id="bottom-target"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ bottom: 0, left: bottomTargetLeft, opacity: 0 }}
       />
@@ -190,7 +192,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
         type="source"
         position={Position.Bottom}
         id="bottom-source"
-        className="size-2! border-0! bg-transparent! z-10!"
+        className="z-10! size-2! border-0! bg-transparent!"
         isConnectable={true}
         style={{ bottom: 0, left: bottomSourceLeft, opacity: 0 }}
       />

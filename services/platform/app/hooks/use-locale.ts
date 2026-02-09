@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { isValidLocale } from '@/lib/utils/intl/is-valid-locale';
+
 import { loadDayjsLocale } from '@/lib/utils/date/format';
+import { isValidLocale } from '@/lib/utils/intl/is-valid-locale';
 
 function detectLocale(defaultLocale: string) {
   const savedLocale = localStorage.getItem('user-locale');
@@ -30,7 +31,7 @@ export function useLocale(defaultLocale = 'en-US') {
 
   useEffect(() => {
     loadDayjsLocale(locale).then(() => setLocaleState(locale));
-  }, []);
+  }, [locale]);
 
   const setLocale = useCallback(
     (newLocale: string) => {

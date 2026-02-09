@@ -1,16 +1,18 @@
 'use client';
 
-import { memo, useRef } from 'react';
-import { Mail, ClipboardList, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { HStack } from '@/app/components/ui/layout/layout';
-import striptags from 'striptags';
 import { decode } from 'he';
-import { useFormatDate } from '@/app/hooks/use-format-date';
-import type { Conversation } from '../types';
+import { Mail, ClipboardList, Sparkles } from 'lucide-react';
+import { memo, useRef } from 'react';
+import striptags from 'striptags';
+
+import { Badge } from '@/app/components/ui/feedback/badge';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { HStack } from '@/app/components/ui/layout/layout';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
+import type { Conversation } from '../types';
 
 // Get the last message content and truncate if necessary
 const getLastMessagePreview = (conversation: Conversation): string => {
@@ -147,35 +149,35 @@ const categoryConfig = {
 
 function ConversationsListSkeleton() {
   return (
-    <div className="divide-y divide-border border-b">
+    <div className="divide-border divide-y border-b">
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="p-4">
           <div className="flex items-start gap-3">
             {/* Checkbox */}
-            <div className="flex items-center mt-1">
-              <div className="size-4 rounded border-2 border-muted bg-background" />
+            <div className="mt-1 flex items-center">
+              <div className="border-muted bg-background size-4 rounded border-2" />
             </div>
 
             {/* Conversation Details */}
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               {/* Header with title and timestamp */}
-              <div className="flex items-start justify-between mb-1.5">
-                <div className="h-4 bg-muted animate-pulse rounded w-2/3" />
-                <div className="h-3 bg-muted animate-pulse rounded w-12 ml-4" />
+              <div className="mb-1.5 flex items-start justify-between">
+                <div className="bg-muted h-4 w-2/3 animate-pulse rounded" />
+                <div className="bg-muted ml-4 h-3 w-12 animate-pulse rounded" />
               </div>
 
               {/* Last message preview */}
-              <div className="flex items-center justify-between mb-3 gap-2">
-                <div className="h-4 bg-muted/70 animate-pulse rounded w-full" />
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="bg-muted/70 h-4 w-full animate-pulse rounded" />
               </div>
 
               {/* Badges */}
               <div className="flex gap-2">
                 {i % 3 === 0 && (
-                  <div className="h-5 bg-muted/50 animate-pulse rounded-full w-16" />
+                  <div className="bg-muted/50 h-5 w-16 animate-pulse rounded-full" />
                 )}
                 {i % 2 === 0 && (
-                  <div className="h-5 bg-muted/50 animate-pulse rounded-full w-20" />
+                  <div className="bg-muted/50 h-5 w-20 animate-pulse rounded-full" />
                 )}
               </div>
             </div>
@@ -229,10 +231,10 @@ const ConversationRow = memo(function ConversationRow({
       aria-pressed={isSelected}
     >
       {isSelected && (
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
+        <div className="bg-primary absolute top-0 bottom-0 left-0 w-1" />
       )}
       <div className="flex items-start gap-3">
-        <div className="flex items-center mt-1">
+        <div className="mt-1 flex items-center">
           <Checkbox
             checked={isChecked}
             onCheckedChange={handleCheckboxChange}
@@ -240,22 +242,22 @@ const ConversationRow = memo(function ConversationRow({
           />
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between mb-1.5">
-            <h3 className="text-sm font-medium text-foreground truncate flex-1 tracking-tight">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1.5 flex items-start justify-between">
+            <h3 className="text-foreground flex-1 truncate text-sm font-medium tracking-tight">
               {conversation?.title || conversation.customer?.name || 'Unknown'}
             </h3>
-            <span className="text-xs text-muted-foreground ml-4 flex-shrink-0 tracking-tight font-medium">
+            <span className="text-muted-foreground ml-4 flex-shrink-0 text-xs font-medium tracking-tight">
               {formatDateSmart(conversation.last_message_at || '')}
             </span>
           </div>
 
-          <div className="flex items-center justify-between mb-3 gap-2">
-            <p className="text-sm text-muted-foreground truncate flex-1 tracking-tight">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-muted-foreground flex-1 truncate text-sm tracking-tight">
               {getLastMessagePreview(conversation)}
             </p>
             {conversation.unread_count > 0 && (
-              <div className="bg-blue-600 text-primary-foreground text-xs h-5 min-w-5 rounded-full px-1 py-2 leading-none flex items-center justify-center flex-shrink-0">
+              <div className="text-primary-foreground flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 px-1 py-2 text-xs leading-none">
                 {conversation.unread_count}
               </div>
             )}
@@ -322,15 +324,19 @@ export function ConversationsList({
   const tDialogsRef = useRef(tDialogs);
   tDialogsRef.current = tDialogs;
 
-  const stableT = useRef(((key: string) => tRef.current(key)) as (key: string) => string).current;
-  const stableTDialogs = useRef(((key: string) => tDialogsRef.current(key)) as (key: string) => string).current;
+  const stableT = useRef(((key: string) => tRef.current(key)) as (
+    key: string,
+  ) => string).current;
+  const stableTDialogs = useRef(((key: string) => tDialogsRef.current(key)) as (
+    key: string,
+  ) => string).current;
 
   if (conversations === undefined) {
     return <ConversationsListSkeleton />;
   }
 
   return (
-    <div className="divide-y divide-border border-b">
+    <div className="divide-border divide-y border-b">
       {conversations.map((conversation) => (
         <ConversationRow
           key={conversation.id}

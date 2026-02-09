@@ -2,8 +2,8 @@
  * Get user by email - Business logic
  */
 
-import { QueryCtx } from '../_generated/server';
 import { components } from '../_generated/api';
+import { QueryCtx } from '../_generated/server';
 
 /**
  * Get user ID by email from Better Auth.

@@ -2,12 +2,13 @@
  * Update a draft workflow and replace all of its steps.
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
-import { validateWorkflowSteps } from '../../workflow_engine/helpers/validation/validate_workflow_steps';
-import type { WorkflowConfig, WorkflowType } from './types';
-import type { StepConfig } from '../../workflow_engine/types/nodes';
 import type { Doc } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
+import type { StepConfig } from '../../workflow_engine/types/nodes';
+import type { WorkflowConfig, WorkflowType } from './types';
+
+import { validateWorkflowSteps } from '../../workflow_engine/helpers/validation/validate_workflow_steps';
 
 export interface SaveWorkflowWithStepsArgs {
   organizationId: string;
@@ -60,7 +61,7 @@ export async function saveWorkflowWithSteps(
     workflowType: args.workflowConfig.workflowType ?? existing.workflowType,
     config: args.workflowConfig.config ?? existing.config ?? {},
     metadata: {
-      ...(existing.metadata || {}),
+      ...existing.metadata,
       updatedAt: Date.now(),
       updatedBy: 'system',
     },
@@ -70,7 +71,9 @@ export async function saveWorkflowWithSteps(
   const existingStepIds: Array<Id<'wfStepDefs'>> = [];
   for await (const step of ctx.db
     .query('wfStepDefs')
-    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.workflowId))) {
+    .withIndex('by_definition', (q) =>
+      q.eq('wfDefinitionId', args.workflowId),
+    )) {
     existingStepIds.push(step._id);
   }
 

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { StatusIndicator } from './status-indicator';
 
 const meta: Meta<typeof StatusIndicator> = {
@@ -151,19 +152,19 @@ export const DotOnly: Story = {
 export const InContext: Story = {
   render: () => (
     <div className="space-y-4">
-      <div className="flex items-center justify-between p-3 border rounded-lg">
+      <div className="flex items-center justify-between rounded-lg border p-3">
         <span className="font-medium">API Server</span>
         <StatusIndicator variant="success" size="sm">
           Operational
         </StatusIndicator>
       </div>
-      <div className="flex items-center justify-between p-3 border rounded-lg">
+      <div className="flex items-center justify-between rounded-lg border p-3">
         <span className="font-medium">Database</span>
         <StatusIndicator variant="warning" size="sm">
           High Latency
         </StatusIndicator>
       </div>
-      <div className="flex items-center justify-between p-3 border rounded-lg">
+      <div className="flex items-center justify-between rounded-lg border p-3">
         <span className="font-medium">CDN</span>
         <StatusIndicator variant="error" size="sm">
           Outage

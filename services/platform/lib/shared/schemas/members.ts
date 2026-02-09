@@ -11,7 +11,7 @@ export const memberListItemSchema = z.object({
 	displayName: z.string().optional(),
 	metadata: jsonRecordSchema.optional(),
 });
-export type MemberListItem = z.infer<typeof memberListItemSchema>;
+type MemberListItem = z.infer<typeof memberListItemSchema>;
 
 export const memberSchema = z.object({
 	_id: z.string(),
@@ -22,7 +22,7 @@ export const memberSchema = z.object({
 	role: z.string().optional(),
 	displayName: z.string().optional(),
 });
-export type Member = z.infer<typeof memberSchema>;
+type Member = z.infer<typeof memberSchema>;
 
 export const memberContextSchema = z.object({
 	member: memberSchema.nullable(),
@@ -31,9 +31,9 @@ export const memberContextSchema = z.object({
 	canManageMembers: z.boolean(),
 	canChangePassword: z.boolean(),
 });
-export type MemberContext = z.infer<typeof memberContextSchema>;
+type MemberContext = z.infer<typeof memberContextSchema>;
 
 export const addMemberResponseSchema = z.object({
 	memberId: z.string(),
 });
-export type AddMemberResponse = z.infer<typeof addMemberResponseSchema>;
+type AddMemberResponse = z.infer<typeof addMemberResponseSchema>;

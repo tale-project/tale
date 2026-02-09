@@ -2,8 +2,9 @@
  * Helper function to get the last execution start time (ms since epoch) for a workflow definition
  */
 
-import { QueryCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
+
+import { QueryCtx } from '../../../_generated/server';
 
 export async function getLastExecutionTime(
   ctx: QueryCtx,

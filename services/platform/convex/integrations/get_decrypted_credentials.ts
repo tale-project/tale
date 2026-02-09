@@ -2,9 +2,9 @@
  * Business logic for getting decrypted credentials
  */
 
-import { ActionCtx } from '../_generated/server';
-import { Id } from '../_generated/dataModel';
 import { api, internal } from '../_generated/api';
+import { Id } from '../_generated/dataModel';
+import { ActionCtx } from '../_generated/server';
 import { DecryptedCredentials } from './types';
 
 export interface GetDecryptedCredentialsArgs {
@@ -32,9 +32,12 @@ export async function getDecryptedCredentialsLogic(
   };
 
   if (integration.apiKeyAuth) {
-    const key = await ctx.runAction(internal.lib.crypto.internal_actions.decryptString, {
-      jwe: integration.apiKeyAuth.keyEncrypted,
-    });
+    const key = await ctx.runAction(
+      internal.lib.crypto.internal_actions.decryptString,
+      {
+        jwe: integration.apiKeyAuth.keyEncrypted,
+      },
+    );
     credentials.apiKey = key;
     credentials.keyPrefix = integration.apiKeyAuth.keyPrefix;
   }

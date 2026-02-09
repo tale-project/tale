@@ -1,24 +1,26 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
+import { ConvexHttpClient } from 'convex/browser';
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+
+import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Input } from '@/app/components/ui/forms/input';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { Select } from '@/app/components/ui/forms/select';
-import { useToast } from '@/app/hooks/use-toast';
 import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
-import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
-import { useAddMember } from '../hooks/use-add-member';
-import { useCreateMember } from '../hooks/use-create-member';
-import { ConvexHttpClient } from 'convex/browser';
+import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
+import { Stack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { useConvexUrl } from '@/lib/site-url-context';
+
+import { useAddMember } from '../hooks/use-add-member';
+import { useCreateMember } from '../hooks/use-create-member';
 
 // Type for the form data
 type AddMemberFormData = {
@@ -119,7 +121,7 @@ export function AddMemberDialog({
         message: tAuth('changePassword.requirements.number'),
       },
     ],
-    [password, tAuth]
+    [password, tAuth],
   );
 
   const onSubmit = async (data: AddMemberFormData) => {
@@ -131,9 +133,12 @@ export function AddMemberDialog({
       // First, check if user already exists
       const client = new ConvexHttpClient(convexUrl);
 
-      const existingUserId = await client.query(api.members.queries.getUserIdByEmail, {
-        email: data.email,
-      });
+      const existingUserId = await client.query(
+        api.members.queries.getUserIdByEmail,
+        {
+          email: data.email,
+        },
+      );
 
       if (existingUserId) {
         // User already exists - just add them to the organization
@@ -270,12 +275,7 @@ export function AddMemberDialog({
           onValueChange={(value) =>
             setValue(
               'role',
-              value as
-                | 'disabled'
-                | 'admin'
-                | 'developer'
-                | 'editor'
-                | 'member',
+              value as 'disabled' | 'admin' | 'developer' | 'editor' | 'member',
             )
           }
           label={tSettings('form.role')}
@@ -295,7 +295,7 @@ export function AddMemberDialog({
         title={tDialogs('memberAdded.title')}
       >
         <Stack gap={4}>
-          <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 p-4 text-sm text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
             {tDialogs('memberAdded.credentialsWarning')}
           </div>
 

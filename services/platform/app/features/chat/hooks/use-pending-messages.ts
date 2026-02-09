@@ -1,6 +1,8 @@
 import { useMemo, useEffect, useRef } from 'react';
-import { useChatLayout } from '../context/chat-layout-context';
+
 import type { ChatMessage } from './use-message-processing';
+
+import { useChatLayout } from '../context/chat-layout-context';
 
 interface UsePendingMessagesParams {
   threadId: string | undefined;

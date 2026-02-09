@@ -1,15 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { Id } from '@/convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { useStartWorkflow } from '../hooks/use-start-workflow';
-import { Button } from '@/app/components/ui/primitives/button';
-import { JsonInput } from '@/app/components/ui/forms/json-input';
-import { Stack, VStack } from '@/app/components/ui/layout/layout';
-import { toast } from '@/app/hooks/use-toast';
-import { useT } from '@/lib/i18n/client';
 import {
   Search,
   Play,
@@ -18,7 +9,18 @@ import {
   AlertCircle,
   ArrowRight,
 } from 'lucide-react';
+import { useState } from 'react';
+
+import { JsonInput } from '@/app/components/ui/forms/json-input';
+import { Stack, VStack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+import { useStartWorkflow } from '../hooks/use-start-workflow';
 
 interface AutomationTesterProps {
   organizationId: string;
@@ -186,11 +188,11 @@ export function AutomationTester({
                 : 'bg-destructive/10 border-destructive/50',
             )}
           >
-            <div className="flex items-center gap-2 mb-2">
+            <div className="mb-2 flex items-center gap-2">
               {dryRunResult.success ? (
                 <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
               ) : (
-                <AlertCircle className="size-4 text-destructive" />
+                <AlertCircle className="text-destructive size-4" />
               )}
               <span className="text-sm font-medium">
                 {dryRunResult.success
@@ -201,10 +203,10 @@ export function AutomationTester({
 
             {dryRunResult.errors.length > 0 && (
               <div className="mb-2">
-                <p className="text-xs font-medium text-destructive mb-1">
+                <p className="text-destructive mb-1 text-xs font-medium">
                   {t('tester.dryRun.errors')}:
                 </p>
-                <ul className="text-xs text-destructive space-y-0.5">
+                <ul className="text-destructive space-y-0.5 text-xs">
                   {dryRunResult.errors.map((err, index) => (
                     <li key={`${err}-${index}`}>• {err}</li>
                   ))}
@@ -214,10 +216,10 @@ export function AutomationTester({
 
             {dryRunResult.warnings.length > 0 && (
               <div className="mb-2">
-                <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1">
+                <p className="mb-1 text-xs font-medium text-amber-600 dark:text-amber-400">
                   {t('tester.dryRun.warnings')}:
                 </p>
-                <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-0.5">
+                <ul className="space-y-0.5 text-xs text-amber-600 dark:text-amber-400">
                   {dryRunResult.warnings.map((warn, index) => (
                     <li key={`${warn}-${index}`}>• {warn}</li>
                   ))}
@@ -226,7 +228,7 @@ export function AutomationTester({
             )}
 
             <div>
-              <p className="text-xs font-medium text-foreground mb-2">
+              <p className="text-foreground mb-2 text-xs font-medium">
                 {t('tester.dryRun.executionPath')}:
               </p>
               <div className="flex flex-wrap items-center gap-1">
@@ -241,7 +243,7 @@ export function AutomationTester({
                       {step.name}
                     </span>
                     {i < dryRunResult.stepResults.length - 1 && (
-                      <ArrowRight className="size-3 text-muted-foreground" />
+                      <ArrowRight className="text-muted-foreground size-3" />
                     )}
                   </div>
                 ))}
@@ -250,14 +252,14 @@ export function AutomationTester({
           </div>
         )}
 
-        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/20">
           <p className="text-xs text-blue-900 dark:text-blue-100">
             {t('tester.tip')}
           </p>
         </div>
       </Stack>
 
-      <div className="p-3 border-t border-border flex gap-2">
+      <div className="border-border flex gap-2 border-t p-3">
         <Button
           variant="outline"
           onClick={handleDryRun}
@@ -266,12 +268,12 @@ export function AutomationTester({
         >
           {isDryRunning ? (
             <>
-              <Loader2 className="size-4 mr-2 animate-spin" />
+              <Loader2 className="mr-2 size-4 animate-spin" />
               {t('tester.dryRunning')}
             </>
           ) : (
             <>
-              <Search className="size-4 mr-2" />
+              <Search className="mr-2 size-4" />
               {t('tester.dryRun.button')}
             </>
           )}
@@ -283,12 +285,12 @@ export function AutomationTester({
         >
           {isExecuting ? (
             <>
-              <Loader2 className="size-4 mr-2 animate-spin" />
+              <Loader2 className="mr-2 size-4 animate-spin" />
               {t('tester.executing')}
             </>
           ) : (
             <>
-              <Play className="size-4 mr-2" />
+              <Play className="mr-2 size-4" />
               {t('tester.execute')}
             </>
           )}

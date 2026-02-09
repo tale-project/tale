@@ -34,7 +34,8 @@ export async function downloadFile(
     }
 
     const content = await response.arrayBuffer();
-    const mimeType = response.headers.get('content-type') || 'application/octet-stream';
+    const mimeType =
+      response.headers.get('content-type') || 'application/octet-stream';
 
     return {
       success: true,

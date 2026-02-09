@@ -23,4 +23,3 @@ export async function getWorkflowByName(
 
   return (workflow as WorkflowDefinition | null) ?? null;
 }
-

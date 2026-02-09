@@ -1,20 +1,26 @@
 'use client';
 
+import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
-import { Copy, Check } from 'lucide-react';
+
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Stack, Grid } from '@/app/components/ui/layout/layout';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import { Stack, Grid } from '@/app/components/ui/layout/layout';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { formatNumber } from '@/lib/utils/format/number';
 import { useT } from '@/lib/i18n/client';
-import type { MessageMetadata, SubAgentUsage } from '../hooks/use-message-metadata';
+import { formatNumber } from '@/lib/utils/format/number';
+
+import type {
+  MessageMetadata,
+  SubAgentUsage,
+} from '../hooks/use-message-metadata';
+
 import { SubAgentDetailsDialog } from './sub-agent-details-dialog';
 
 function formatAgentName(toolName: string): string {
@@ -50,13 +56,13 @@ function ContextWindowToken({
   return (
     <>
       <Stack gap={0}>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-muted-foreground text-xs">
           {t('messageInfo.contextWindow')}
         </div>
         <button
           type="button"
           onClick={() => setIsDialogOpen(true)}
-          className="font-medium text-left cursor-pointer hover:underline"
+          className="cursor-pointer text-left font-medium hover:underline"
         >
           {formatNumber(tokenCount, locale)}
         </button>
@@ -67,16 +73,18 @@ function ContextWindowToken({
         onOpenChange={setIsDialogOpen}
         title={t('messageInfo.contextWindow')}
         description={t('messageInfo.contextWindowDescription')}
-        className="sm:max-w-[800px] max-h-[80vh]"
+        className="max-h-[80vh] sm:max-w-[800px]"
         headerActions={
           <IconButton
             icon={copied ? Check : Copy}
-            aria-label={copied ? tCommon('actions.copied') : tCommon('actions.copy')}
+            aria-label={
+              copied ? tCommon('actions.copied') : tCommon('actions.copy')
+            }
             onClick={handleCopy}
           />
         }
       >
-        <div className="context-window-content overflow-auto max-h-[60vh] [&_details]:border [&_details]:border-border [&_details]:rounded-md [&_details]:mb-2 [&_details]:overflow-hidden [&_details_summary]:px-3 [&_details_summary]:py-2 [&_details_summary]:cursor-pointer [&_details_summary]:font-medium [&_details_summary]:bg-muted [&_details_summary]:list-none [&_details[open]_summary]:border-b [&_details[open]_summary]:border-border [&_details>*:not(summary)]:p-3 [&_details>*:not(summary)]:font-mono [&_details>*:not(summary)]:text-xs [&_details>*:not(summary)]:whitespace-pre-wrap [&_details>*:not(summary)]:overflow-x-auto">
+        <div className="context-window-content [&_details]:border-border [&_details_summary]:bg-muted [&_details[open]_summary]:border-border max-h-[60vh] overflow-auto [&_details]:mb-2 [&_details]:overflow-hidden [&_details]:rounded-md [&_details]:border [&_details_summary]:cursor-pointer [&_details_summary]:list-none [&_details_summary]:px-3 [&_details_summary]:py-2 [&_details_summary]:font-medium [&_details>*:not(summary)]:overflow-x-auto [&_details>*:not(summary)]:p-3 [&_details>*:not(summary)]:font-mono [&_details>*:not(summary)]:text-xs [&_details>*:not(summary)]:whitespace-pre-wrap [&_details[open]_summary]:border-b">
           <Markdown
             rehypePlugins={[
               rehypeRaw,
@@ -120,7 +128,8 @@ export function MessageInfoDialog({
   const { formatDate, locale } = useFormatDate();
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
-  const [selectedSubAgent, setSelectedSubAgent] = useState<SubAgentUsage | null>(null);
+  const [selectedSubAgent, setSelectedSubAgent] =
+    useState<SubAgentUsage | null>(null);
 
   return (
     <ViewDialog
@@ -136,7 +145,7 @@ export function MessageInfoDialog({
         </Field>
 
         <Field label={t('messageInfo.messageId')}>
-          <div className="text-xs font-mono bg-muted px-2 py-1 rounded">
+          <div className="bg-muted rounded px-2 py-1 font-mono text-xs">
             {messageId}
           </div>
         </Field>
@@ -168,7 +177,7 @@ export function MessageInfoDialog({
                   )}
                   {metadata.inputTokens !== undefined && (
                     <Stack gap={0}>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-muted-foreground text-xs">
                         {t('messageInfo.input')}
                       </div>
                       <div className="font-medium">
@@ -178,7 +187,7 @@ export function MessageInfoDialog({
                   )}
                   {metadata.outputTokens !== undefined && (
                     <Stack gap={0}>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-muted-foreground text-xs">
                         {t('messageInfo.output')}
                       </div>
                       <div className="font-medium">
@@ -188,7 +197,7 @@ export function MessageInfoDialog({
                   )}
                   {metadata.totalTokens !== undefined && (
                     <Stack gap={0}>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-muted-foreground text-xs">
                         {t('messageInfo.total')}
                       </div>
                       <div className="font-medium">
@@ -199,7 +208,7 @@ export function MessageInfoDialog({
                   {metadata.reasoningTokens !== undefined &&
                     metadata.reasoningTokens > 0 && (
                       <Stack gap={0}>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-muted-foreground text-xs">
                           {t('messageInfo.reasoning')}
                         </div>
                         <div className="font-medium">
@@ -210,7 +219,7 @@ export function MessageInfoDialog({
                   {metadata.cachedInputTokens !== undefined &&
                     metadata.cachedInputTokens > 0 && (
                       <Stack gap={0}>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-muted-foreground text-xs">
                           {t('messageInfo.cached')}
                         </div>
                         <div className="font-medium">
@@ -222,12 +231,13 @@ export function MessageInfoDialog({
               </Field>
             )}
 
-            {(metadata.durationMs !== undefined || metadata.timeToFirstTokenMs !== undefined) && (
+            {(metadata.durationMs !== undefined ||
+              metadata.timeToFirstTokenMs !== undefined) && (
               <Field label={t('messageInfo.performance')}>
                 <Grid cols={2} gap={2} className="text-sm">
                   {metadata.durationMs !== undefined && (
                     <Stack gap={0}>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-muted-foreground text-xs">
                         {t('messageInfo.duration')}
                       </div>
                       <div className="font-medium">
@@ -237,7 +247,7 @@ export function MessageInfoDialog({
                   )}
                   {metadata.timeToFirstTokenMs !== undefined && (
                     <Stack gap={0}>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-muted-foreground text-xs">
                         {t('messageInfo.timeToFirstToken')}
                       </div>
                       <div className="font-medium">
@@ -257,28 +267,32 @@ export function MessageInfoDialog({
                       key={`${usage.toolName}-${index}`}
                       type="button"
                       onClick={() => setSelectedSubAgent(usage)}
-                      className="text-sm bg-muted px-3 py-2 rounded text-left cursor-pointer hover:bg-muted/80 transition-colors"
+                      className="bg-muted hover:bg-muted/80 cursor-pointer rounded px-3 py-2 text-left text-sm transition-colors"
                     >
-                      <div className="font-medium mb-1">
+                      <div className="mb-1 font-medium">
                         {formatAgentName(usage.toolName)}
                         {usage.model && (
-                          <span className="font-normal text-muted-foreground ml-2">
+                          <span className="text-muted-foreground ml-2 font-normal">
                             {usage.model}
                             {usage.provider && ` (${usage.provider})`}
                           </span>
                         )}
                       </div>
                       {usage.totalTokens !== undefined && (
-                        <div className="text-xs text-muted-foreground">
-                          {t('messageInfo.input')}: {formatNumber(usage.inputTokens ?? 0, locale)}
+                        <div className="text-muted-foreground text-xs">
+                          {t('messageInfo.input')}:{' '}
+                          {formatNumber(usage.inputTokens ?? 0, locale)}
                           {' · '}
-                          {t('messageInfo.output')}: {formatNumber(usage.outputTokens ?? 0, locale)}
+                          {t('messageInfo.output')}:{' '}
+                          {formatNumber(usage.outputTokens ?? 0, locale)}
                           {' · '}
-                          {t('messageInfo.total')}: {formatNumber(usage.totalTokens, locale)}
+                          {t('messageInfo.total')}:{' '}
+                          {formatNumber(usage.totalTokens, locale)}
                           {usage.durationMs !== undefined && (
                             <>
                               {' · '}
-                              {t('messageInfo.duration')}: {(usage.durationMs / 1000).toFixed(2)}s
+                              {t('messageInfo.duration')}:{' '}
+                              {(usage.durationMs / 1000).toFixed(2)}s
                             </>
                           )}
                         </div>
@@ -291,14 +305,14 @@ export function MessageInfoDialog({
 
             {metadata.reasoning && (
               <Field label={t('messageInfo.reasoning')}>
-                <div className="text-sm bg-muted px-3 py-2 rounded max-h-40 overflow-y-auto">
+                <div className="bg-muted max-h-40 overflow-y-auto rounded px-3 py-2 text-sm">
                   {metadata.reasoning}
                 </div>
               </Field>
             )}
           </>
         ) : (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-muted-foreground text-sm">
             {t('messageInfo.noMetadata')}
           </div>
         )}

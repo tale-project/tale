@@ -2,8 +2,8 @@
  * Update a document (internal helper)
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 export type UpdateDocumentInternalArgs = {
   documentId: Id<'documents'>;

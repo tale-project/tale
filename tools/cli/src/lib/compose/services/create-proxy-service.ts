@@ -1,31 +1,32 @@
-import { PROJECT_NAME } from "../../../utils/load-env";
-import type { ComposeService, ServiceConfig } from "../types";
-import { DEFAULT_LOGGING } from "../types";
+import type { ComposeService, ServiceConfig } from '../types';
+
+import { PROJECT_NAME } from '../../../utils/load-env';
+import { DEFAULT_LOGGING } from '../types';
 
 export function createProxyService(
   config: ServiceConfig,
-  hostAlias: string
+  hostAlias: string,
 ): ComposeService {
   return {
     image: `${config.registry}/tale-proxy:${config.version}`,
     container_name: `${PROJECT_NAME}-proxy`,
-    ports: ["80:80", "443:443"],
-    volumes: ["caddy-data:/data", "caddy-config:/config"],
-    env_file: [".env"],
-    restart: "unless-stopped",
+    ports: ['80:80', '443:443'],
+    volumes: ['caddy-data:/data', 'caddy-config:/config'],
+    env_file: ['.env'],
+    restart: 'unless-stopped',
     healthcheck: {
       test: [
-        "CMD",
-        "wget",
-        "--no-verbose",
-        "--tries=1",
-        "--spider",
-        "http://127.0.0.1:80/health",
+        'CMD',
+        'wget',
+        '--no-verbose',
+        '--tries=1',
+        '--spider',
+        'http://127.0.0.1:80/health',
       ],
-      interval: "30s",
-      timeout: "10s",
+      interval: '30s',
+      timeout: '10s',
       retries: 3,
-      start_period: "10s",
+      start_period: '10s',
     },
     logging: DEFAULT_LOGGING,
     networks: {

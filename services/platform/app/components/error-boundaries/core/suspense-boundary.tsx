@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, type ReactNode } from 'react';
+
 import { ErrorBoundaryBase } from './error-boundary-base';
 
 interface SuspenseBoundaryProps {

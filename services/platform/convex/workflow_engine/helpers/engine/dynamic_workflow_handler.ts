@@ -4,10 +4,13 @@
 
 import type { WorkflowCtx } from '@convex-dev/workflow';
 import type { RetryBehavior } from '@convex-dev/workpool';
-import { internal } from '../../../_generated/api';
-import type { Doc, Id } from '../../../_generated/dataModel';
+
 import { Infer } from 'convex/values';
+
+import type { Doc, Id } from '../../../_generated/dataModel';
+
 import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { internal } from '../../../_generated/api';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
@@ -46,7 +49,8 @@ export async function handleDynamicWorkflow(
   step: WorkflowCtx,
   args: DynamicWorkflowArgs,
 ): Promise<void> {
-  const workflowDefinition = args.workflowDefinition as unknown as Doc<'wfDefinitions'>;
+  const workflowDefinition =
+    args.workflowDefinition as unknown as Doc<'wfDefinitions'>;
   const stepDefinitions = args.steps as unknown as Array<Doc<'wfStepDefs'>>;
 
   debugLog('dynamicWorkflow Starting workflow execution', {
@@ -72,9 +76,12 @@ export async function handleDynamicWorkflow(
   const executionId = args.executionId;
 
   if (stepDefinitions.length === 0) {
-    await step.runAction(internal.workflow_engine.internal_actions.serializeAndCompleteExecution, {
-      executionId,
-    });
+    await step.runAction(
+      internal.workflow_engine.internal_actions.serializeAndCompleteExecution,
+      {
+        executionId,
+      },
+    );
     return;
   }
 
@@ -88,7 +95,9 @@ export async function handleDynamicWorkflow(
 
   let currentStepSlug =
     args.resumeFromStepSlug ??
-    (stepDefinitions.find((s) => s.stepType === 'start' || s.stepType === 'trigger')?.stepSlug ||
+    (stepDefinitions.find(
+      (s) => s.stepType === 'start' || s.stepType === 'trigger',
+    )?.stepSlug ||
       stepDefinitions[0]?.stepSlug);
 
   while (currentStepSlug) {
@@ -102,8 +111,13 @@ export async function handleDynamicWorkflow(
     const workflowRetryPolicy = workflowDefinition?.config?.retryPolicy ?? null;
     const stepConfig = stepDef.config as Record<string, unknown> | undefined;
     const stepRetryPolicy =
-      stepConfig && typeof stepConfig === 'object' && 'retryPolicy' in stepConfig
-        ? (stepConfig.retryPolicy as { maxRetries: number; backoffMs: number } | null)
+      stepConfig &&
+      typeof stepConfig === 'object' &&
+      'retryPolicy' in stepConfig
+        ? (stepConfig.retryPolicy as {
+            maxRetries: number;
+            backoffMs: number;
+          } | null)
         : null;
     const effectiveRetryPolicy =
       stepRetryPolicy ?? workflowRetryPolicy ?? undefined;
@@ -161,10 +175,13 @@ export async function handleDynamicWorkflow(
       const errorMsg = `Next step '${nextStepSlug}' not found in workflow steps (from '${stepDef.stepSlug}'). Available steps: ${Array.from(stepMap.keys()).join(', ')}`;
 
       // Mark execution as failed before throwing
-      await step.runMutation(internal.wf_executions.internal_mutations.failExecution, {
-        executionId,
-        error: errorMsg,
-      });
+      await step.runMutation(
+        internal.wf_executions.internal_mutations.failExecution,
+        {
+          executionId,
+          error: errorMsg,
+        },
+      );
 
       throw new Error(errorMsg);
     }
@@ -172,7 +189,10 @@ export async function handleDynamicWorkflow(
     currentStepSlug = nextStepSlug;
   }
 
-  await step.runAction(internal.workflow_engine.internal_actions.serializeAndCompleteExecution, {
-    executionId,
-  });
+  await step.runAction(
+    internal.workflow_engine.internal_actions.serializeAndCompleteExecution,
+    {
+      executionId,
+    },
+  );
 }

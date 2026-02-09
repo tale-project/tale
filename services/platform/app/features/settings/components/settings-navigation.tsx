@@ -1,10 +1,10 @@
 'use client';
 
-import { useT } from '@/lib/i18n/client';
 import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
+import { useT } from '@/lib/i18n/client';
 
 interface SettingsNavigationProps {
   organizationId: string;
@@ -12,7 +12,12 @@ interface SettingsNavigationProps {
   canChangePassword?: boolean;
 }
 
-type SettingsLabelKey = 'organization' | 'teams' | 'integrations' | 'apiKeys' | 'account';
+type SettingsLabelKey =
+  | 'organization'
+  | 'teams'
+  | 'integrations'
+  | 'apiKeys'
+  | 'account';
 
 export function SettingsNavigation({
   organizationId,
@@ -64,7 +69,7 @@ export function SettingsNavigation({
       userRole={userRole}
       matchMode="exact"
       standalone={false}
-      className="py-3 h-12"
+      className="h-12 py-3"
       ariaLabel={tCommon('aria.settingsNavigation')}
     />
   );

@@ -2,8 +2,8 @@
  * Get email provider by ID
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import type { GetProviderByIdArgs } from './types';
 
 export async function getProviderById(

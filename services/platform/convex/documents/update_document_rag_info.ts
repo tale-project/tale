@@ -2,8 +2,8 @@
  * Update document RAG info (internal helper)
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import type { RagInfo } from './types';
 
 export type UpdateDocumentRagInfoArgs = {

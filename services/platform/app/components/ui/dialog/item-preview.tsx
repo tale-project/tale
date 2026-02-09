@@ -1,7 +1,8 @@
 'use client';
 
-import { Stack } from '../layout/layout';
 import { cn } from '@/lib/utils/cn';
+
+import { Stack } from '../layout/layout';
 
 export interface ItemPreviewProps {
   /** Primary text (e.g., item name) */
@@ -15,12 +16,16 @@ export interface ItemPreviewProps {
 /**
  * Preview component for showing item details in delete/confirm dialogs.
  */
-export function ItemPreview({ primary, secondary, className }: ItemPreviewProps) {
+export function ItemPreview({
+  primary,
+  secondary,
+  className,
+}: ItemPreviewProps) {
   return (
     <Stack gap={1} className={cn('bg-secondary/20 rounded-lg p-4', className)}>
-      <div className="text-sm font-medium text-foreground">{primary}</div>
+      <div className="text-foreground text-sm font-medium">{primary}</div>
       {secondary && (
-        <div className="text-xs text-muted-foreground">{secondary}</div>
+        <div className="text-muted-foreground text-xs">{secondary}</div>
       )}
     </Stack>
   );

@@ -5,17 +5,25 @@
  * Significantly reduces latency when querying multiple data sources.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
-import { internal } from '../../_generated/api';
 import type { BatchOperationResult } from './types';
+
+import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
 const batchOperationSchema = z.object({
-  id: z.string().optional().describe('Optional ID for tracking in results (e.g., "query1", "query2")'),
-  operation: z.string().describe('Operation name (e.g., "get_guest", "get_reservations")'),
+  id: z
+    .string()
+    .optional()
+    .describe('Optional ID for tracking in results (e.g., "query1", "query2")'),
+  operation: z
+    .string()
+    .describe('Operation name (e.g., "get_guest", "get_reservations")'),
   params: z
     .record(z.string(), z.unknown())
     .optional()
@@ -54,10 +62,7 @@ Max 10 operations. Use 'id' field to identify results.`,
 
     args: integrationBatchArgs,
 
-    handler: async (
-      ctx: ToolCtx,
-      args,
-    ): Promise<BatchOperationResult> => {
+    handler: async (ctx: ToolCtx, args): Promise<BatchOperationResult> => {
       const { organizationId, threadId: currentThreadId, messageId } = ctx;
 
       // Look up parent thread from thread summary (stable, database-backed)
@@ -67,7 +72,7 @@ Max 10 operations. Use 'id' field to identify results.`,
       console.log('[integration_batch_tool] Starting batch execution:', {
         integrationName: args.integrationName,
         operationCount: args.operations.length,
-        operations: args.operations.map(op => op.operation),
+        operations: args.operations.map((op) => op.operation),
       });
 
       if (!organizationId) {
@@ -83,10 +88,13 @@ Max 10 operations. Use 'id' field to identify results.`,
           {
             organizationId,
             integrationName: args.integrationName,
-            operations: args.operations.map(op => ({
+            operations: args.operations.map((op) => ({
               id: op.id,
               operation: op.operation,
-              params: (op.params || {}) as Record<string, string | number | boolean | null>,
+              params: (op.params || {}) as Record<
+                string,
+                string | number | boolean | null
+              >,
             })),
             threadId,
             messageId,
@@ -111,6 +119,7 @@ Max 10 operations. Use 'id' field to identify results.`,
             `• Verify the integration name is correct\n` +
             `• Check if all operation names exist for this integration\n` +
             `• Ensure required parameters are provided for each operation`,
+          { cause: error },
         );
       }
     },

@@ -6,6 +6,7 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
+
 import { components } from '../../_generated/api';
 
 export async function loadContextSummary(
@@ -28,10 +29,13 @@ export async function loadContextSummary(
       ? summaryData.contextSummary
       : undefined;
   } catch (error) {
-    console.error('[loadContextSummary] Failed to load existing thread summary', {
-      threadId,
-      error,
-    });
+    console.error(
+      '[loadContextSummary] Failed to load existing thread summary',
+      {
+        threadId,
+        error,
+      },
+    );
     return undefined;
   }
 }

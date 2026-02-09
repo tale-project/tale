@@ -49,9 +49,8 @@ ${escapeHtml(content)}
 function safeStringify(value: unknown): string {
   if (typeof value === 'string') return value;
   try {
-    return JSON.stringify(
-      value,
-      (_, v) => (typeof v === 'bigint' ? v.toString() : v),
+    return JSON.stringify(value, (_, v) =>
+      typeof v === 'bigint' ? v.toString() : v,
     );
   } catch {
     return String(value);
@@ -127,7 +126,9 @@ export function formatHumanInputRequest(
   timestamp?: number,
 ): string {
   const t = timestamp ? `[${shortTime(timestamp)}]` : '';
-  const opts = options?.length ? ` Options: ${options.map((o) => o.label).join(', ')}` : '';
+  const opts = options?.length
+    ? ` Options: ${options.map((o) => o.label).join(', ')}`
+    : '';
   return `HumanInput${t} (${format}): ${question}${opts}`;
 }
 
@@ -218,7 +219,10 @@ export function formatCurrentTurnSection(content: string): string {
 /**
  * Format a system message
  */
-export function formatSystemMessage(content: string, timestamp: number): string {
+export function formatSystemMessage(
+  content: string,
+  timestamp: number,
+): string {
   return `System[${shortTime(timestamp)}]: ${content}`;
 }
 
@@ -244,7 +248,9 @@ export function formatCurrentTurn(params: {
   const t = shortTime(timestamp);
 
   if (toolCalls?.length) {
-    parts.push(`Tools: ${toolCalls.map((tc) => `${tc.toolName}(${tc.status})`).join(', ')}`);
+    parts.push(
+      `Tools: ${toolCalls.map((tc) => `${tc.toolName}(${tc.status})`).join(', ')}`,
+    );
   }
   if (assistantOutput) parts.push(`Assistant[${t}]: ${assistantOutput}`);
 

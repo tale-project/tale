@@ -15,12 +15,13 @@ import type {
   FieldSchema,
   StepType,
 } from './types';
+
+import { getActionOutputSchema } from './action_schemas';
 import {
   extractStepReferences,
   extractStepReferencesFromCondition,
 } from './parse';
 import { getStepTypeOutputSchema } from './step_schemas';
-import { getActionOutputSchema } from './action_schemas';
 
 // =============================================================================
 // TYPES
@@ -55,7 +56,9 @@ function getStepSchemaContext(step: StepInfo): StepSchemaContext {
 
   if (step.stepType === 'action' && step.config) {
     context.actionType = step.config.type as string | undefined;
-    const params = step.config.parameters as Record<string, unknown> | undefined;
+    const params = step.config.parameters as
+      | Record<string, unknown>
+      | undefined;
     context.operation = params?.operation as string | undefined;
     // Some actions have operation directly in config
     if (!context.operation && step.config.operation) {
@@ -72,8 +75,12 @@ function getStepSchemaContext(step: StepInfo): StepSchemaContext {
 function getOutputSchemaForStep(step: StepInfo): OutputSchema | null {
   if (step.stepType === 'action') {
     const actionType = step.config?.type as string | undefined;
-    const params = step.config?.parameters as Record<string, unknown> | undefined;
-    const operation = (params?.operation ?? step.config?.operation) as string | undefined;
+    const params = step.config?.parameters as
+      | Record<string, unknown>
+      | undefined;
+    const operation = (params?.operation ?? step.config?.operation) as
+      | string
+      | undefined;
 
     if (actionType) {
       return getActionOutputSchema(actionType, operation);
@@ -219,7 +226,10 @@ function validateJexlFilterUsage(
       // Navigate deeper if possible
       if (lastFieldSchema.type === 'object' && lastFieldSchema.fields) {
         currentFields = lastFieldSchema.fields;
-      } else if (lastFieldSchema.type === 'array' && lastFieldSchema.items?.fields) {
+      } else if (
+        lastFieldSchema.type === 'array' &&
+        lastFieldSchema.items?.fields
+      ) {
         currentFields = lastFieldSchema.items.fields;
       } else {
         currentFields = undefined;
@@ -305,7 +315,8 @@ function validateStepReferencePath(
         if (schema.isArray) {
           // Check if trying to access a property on an array result
           const firstField = fieldPath[0];
-          const isArrayIndex = /^\[\d+\]$/.test(firstField) || /^\d+$/.test(firstField);
+          const isArrayIndex =
+            /^\[\d+\]$/.test(firstField) || /^\d+$/.test(firstField);
 
           if (!isArrayIndex && firstField !== 'length') {
             warnings.push(
@@ -316,7 +327,12 @@ function validateStepReferencePath(
           }
         } else if (schema.fields) {
           // Validate field path against schema
-          const validationResult = validateFieldPath(fieldPath, schema, ref, referencedStep);
+          const validationResult = validateFieldPath(
+            fieldPath,
+            schema,
+            ref,
+            referencedStep,
+          );
           errors.push(...validationResult.errors);
           warnings.push(...validationResult.warnings);
           if (!validationResult.valid) {
@@ -377,7 +393,8 @@ function validateFieldPath(
     // Check if this field exists in the current schema level
     if (!(segment in currentFields)) {
       const availableFields = Object.keys(currentFields);
-      const pathSoFar = validatedPath.length > 0 ? `.${validatedPath.join('.')}` : '';
+      const pathSoFar =
+        validatedPath.length > 0 ? `.${validatedPath.join('.')}` : '';
 
       // Check for common mistake: duplicate 'data' in path
       if (segment === 'data' && validatedPath.length === 0) {
@@ -428,7 +445,8 @@ function validateFieldPath(
           return { valid: false, errors, warnings };
         }
 
-        const isArrayIndex = /^\[\d+\]$/.test(nextSegment) || /^\d+$/.test(nextSegment);
+        const isArrayIndex =
+          /^\[\d+\]$/.test(nextSegment) || /^\d+$/.test(nextSegment);
         if (!isArrayIndex && fieldSchema.items?.fields) {
           warnings.push(
             `Reference "${ref.originalTemplate}" accesses ".${nextSegment}" directly on array field "${segment}". ` +

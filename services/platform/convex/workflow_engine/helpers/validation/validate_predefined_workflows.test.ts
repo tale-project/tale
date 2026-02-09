@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+
 import { workflows } from '../../../predefined_workflows';
 import { validateWorkflowDefinition } from './validate_workflow_definition';
 
@@ -18,7 +19,12 @@ import { validateWorkflowDefinition } from './validate_workflow_definition';
 const workflowEntries = Object.entries(workflows);
 
 // Special step slugs that are valid terminations (not actual steps)
-const SPECIAL_TERMINATION_STEPS = new Set(['noop', 'end', 'terminate', 'complete']);
+const SPECIAL_TERMINATION_STEPS = new Set([
+  'noop',
+  'end',
+  'terminate',
+  'complete',
+]);
 
 describe('Predefined Workflows Validation', () => {
   // Test each workflow individually
@@ -50,13 +56,20 @@ describe('Predefined Workflows Validation', () => {
 
       it('should have all referenced steps existing', () => {
         const { stepsConfig } = workflowDefinition;
-        const stepSlugs = new Set(stepsConfig.map((s: { stepSlug: string }) => s.stepSlug));
+        const stepSlugs = new Set(
+          stepsConfig.map((s: { stepSlug: string }) => s.stepSlug),
+        );
 
         // Check that all nextSteps references exist
         for (const step of stepsConfig) {
-          const typedStep = step as { stepSlug: string; nextSteps?: Record<string, string> };
+          const typedStep = step as {
+            stepSlug: string;
+            nextSteps?: Record<string, string>;
+          };
           if (typedStep.nextSteps) {
-            for (const [outcome, targetSlug] of Object.entries(typedStep.nextSteps)) {
+            for (const [outcome, targetSlug] of Object.entries(
+              typedStep.nextSteps,
+            )) {
               // Skip empty, special termination steps
               if (!targetSlug || SPECIAL_TERMINATION_STEPS.has(targetSlug)) {
                 continue;
@@ -82,7 +95,10 @@ describe('Predefined Workflows Validation', () => {
     }> = [];
 
     for (const [key, workflow] of workflowEntries) {
-      const result = validateWorkflowDefinition({ name: key }, workflow.stepsConfig);
+      const result = validateWorkflowDefinition(
+        { name: key },
+        workflow.stepsConfig,
+      );
       allResults.push({
         key,
         valid: result.valid,
@@ -105,7 +121,9 @@ describe('Predefined Workflows Validation', () => {
       }
     }
 
-    const workflowsWithWarnings = allResults.filter((r) => r.warnings.length > 0);
+    const workflowsWithWarnings = allResults.filter(
+      (r) => r.warnings.length > 0,
+    );
     if (workflowsWithWarnings.length > 0) {
       console.log('\nWorkflows with warnings:');
       for (const wf of workflowsWithWarnings) {
@@ -117,4 +135,3 @@ describe('Predefined Workflows Validation', () => {
     expect(invalidWorkflows).toEqual([]);
   });
 });
-

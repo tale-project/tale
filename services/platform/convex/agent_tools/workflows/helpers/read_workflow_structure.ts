@@ -1,7 +1,9 @@
 import type { ToolCtx } from '@convex-dev/agent';
+
 import type { Doc, Id } from '../../../_generated/dataModel';
-import { internal } from '../../../_generated/api';
 import type { WorkflowReadGetStructureResult } from './types';
+
+import { internal } from '../../../_generated/api';
 
 export async function readWorkflowStructure(
   ctx: ToolCtx,
@@ -10,17 +12,23 @@ export async function readWorkflowStructure(
   // Cast string to Id at the boundary - validated by Convex runtime
   const wfDefinitionId = args.workflowId as Id<'wfDefinitions'>;
 
-  const workflow = await ctx.runQuery(internal.wf_definitions.internal_queries.resolveWorkflow, {
-    wfDefinitionId,
-  });
+  const workflow = await ctx.runQuery(
+    internal.wf_definitions.internal_queries.resolveWorkflow,
+    {
+      wfDefinitionId,
+    },
+  );
 
   if (!workflow) {
     return { operation: 'get_structure', workflow: null, steps: [] };
   }
 
-  const steps = await ctx.runQuery(internal.wf_step_defs.internal_queries.listWorkflowSteps, {
-    wfDefinitionId,
-  });
+  const steps = await ctx.runQuery(
+    internal.wf_step_defs.internal_queries.listWorkflowSteps,
+    {
+      wfDefinitionId,
+    },
+  );
 
   return {
     operation: 'get_structure',

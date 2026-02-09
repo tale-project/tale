@@ -79,7 +79,10 @@ export interface UseUrlStateReturn<T extends UrlStateDefinitions> {
 export function useUrlState<T extends UrlStateDefinitions>(
   options: UseUrlStateOptions<T>,
 ): UseUrlStateReturn<T> {
-  const search = useSearch({ strict: false }) as Record<string, string | undefined>;
+  const search = useSearch({ strict: false }) as Record<
+    string,
+    string | undefined
+  >;
   const navigate = useNavigate();
   const location = useLocation();
   const [isPending, startTransition] = useTransition();
@@ -107,9 +110,11 @@ export function useUrlState<T extends UrlStateDefinitions>(
       if (urlValue !== null) {
         (result as Record<string, UrlStateValue>)[key] = urlValue;
       } else if (initialValues && key in initialValues) {
-        (result as Record<string, UrlStateValue>)[key] = initialValues[key as keyof T] ?? definition.default ?? null;
+        (result as Record<string, UrlStateValue>)[key] =
+          initialValues[key as keyof T] ?? definition.default ?? null;
       } else {
-        (result as Record<string, UrlStateValue>)[key] = definition.default ?? null;
+        (result as Record<string, UrlStateValue>)[key] =
+          definition.default ?? null;
       }
     }
 
@@ -123,7 +128,10 @@ export function useUrlState<T extends UrlStateDefinitions>(
 
       // Preserve unmanaged keys and explicitly preserved keys
       for (const [key, value] of Object.entries(search)) {
-        if (value !== undefined && (!managedKeys.has(key) || preserveKeys.includes(key))) {
+        if (
+          value !== undefined &&
+          (!managedKeys.has(key) || preserveKeys.includes(key))
+        ) {
           newSearch[key] = value;
         }
       }
@@ -149,7 +157,11 @@ export function useUrlState<T extends UrlStateDefinitions>(
 
         const urlKey = definition.urlKey ?? key;
 
-        if (value === null || value === undefined || value === definition.default) {
+        if (
+          value === null ||
+          value === undefined ||
+          value === definition.default
+        ) {
           delete newSearch[urlKey];
         } else {
           newSearch[urlKey] = value;
@@ -164,7 +176,9 @@ export function useUrlState<T extends UrlStateDefinitions>(
   // Set a single state value
   const setState = useCallback(
     <K extends keyof T>(key: K, value: UrlStateValue) => {
-      const newSearch = buildSearch({ [key]: value } as Partial<ParsedUrlState<T>>);
+      const newSearch = buildSearch({ [key]: value } as Partial<
+        ParsedUrlState<T>
+      >);
 
       startTransition(() => {
         navigate({

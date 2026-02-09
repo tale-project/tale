@@ -2,8 +2,8 @@
  * Get all pages for a website
  */
 
-import type { QueryCtx } from '../_generated/server';
 import type { Doc, Id } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 export interface GetPagesByWebsiteArgs {
   websiteId: Id<'websites'>;
@@ -34,4 +34,3 @@ export async function getPagesByWebsite(
   }
   return pages;
 }
-

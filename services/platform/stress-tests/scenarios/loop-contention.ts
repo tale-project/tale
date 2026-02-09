@@ -13,9 +13,10 @@
  */
 
 import { ConvexHttpClient } from 'convex/browser';
+
 import { api } from '../../convex/_generated/api';
-import { MetricsCollector } from '../metrics';
 import { scenarios } from '../fixtures/stress-workflows';
+import { MetricsCollector } from '../metrics';
 
 const config = scenarios.loop_contention;
 
@@ -49,7 +50,7 @@ async function run() {
 
     try {
       const executionId = await client.mutation(
-        api.workflow_engine.engine.startWorkflow,
+        api.workflow_engine.mutations.startWorkflow,
         {
           organizationId,
           wfDefinitionId: wfDefinitionId as never,

@@ -7,8 +7,9 @@
  * workflow engine has finished its own cancellation/onComplete logic.
  */
 
-import type { MutationCtx } from '../../../_generated/server';
 import type { WorkflowManager, WorkflowId } from '@convex-dev/workflow';
+
+import type { MutationCtx } from '../../../_generated/server';
 
 export async function cleanupComponentWorkflow(
   workflowManager: WorkflowManager,

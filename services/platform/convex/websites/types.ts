@@ -3,13 +3,15 @@
  */
 
 import type { Infer } from 'convex/values';
+
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
+
 import {
   websitePageValidator,
   websiteStatusValidator,
   websiteValidator,
 } from './validators';
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 // =============================================================================
 // INFERRED TYPES (from validators)

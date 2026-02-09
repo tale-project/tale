@@ -9,7 +9,9 @@ import type { ValidationResult } from '../types';
 /**
  * Validate a loop step configuration
  */
-export function validateLoopStep(config: Record<string, unknown>): ValidationResult {
+export function validateLoopStep(
+  config: Record<string, unknown>,
+): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -27,9 +29,10 @@ export function validateLoopStep(config: Record<string, unknown>): ValidationRes
 
   // Warn if no items source is defined
   if (items === undefined) {
-    warnings.push('Loop step has no "items" defined - loop may not iterate over anything');
+    warnings.push(
+      'Loop step has no "items" defined - loop may not iterate over anything',
+    );
   }
 
   return { valid: errors.length === 0, errors, warnings };
 }
-

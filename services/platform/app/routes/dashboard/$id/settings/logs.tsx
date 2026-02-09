@@ -1,13 +1,24 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/layout/card';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/app/components/ui/layout/card';
 import { Stack } from '@/app/components/ui/layout/layout';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/navigation/tabs';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/app/components/ui/navigation/tabs';
+import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/settings/logs')({
@@ -20,7 +31,7 @@ function LogsSkeleton() {
   return (
     <Stack gap={4}>
       <div className="space-y-4">
-        <div className="inline-flex h-10 items-center gap-1 rounded-lg bg-muted p-1">
+        <div className="bg-muted inline-flex h-10 items-center gap-1 rounded-lg p-1">
           <Skeleton className="h-8 w-24 rounded-md" />
           <Skeleton className="h-8 w-28 rounded-md" />
           <Skeleton className="h-8 w-24 rounded-md" />
@@ -101,7 +112,7 @@ function LogsPage() {
               <CardTitle>{t('logs.activityLogs')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 {t('logs.activityDescription')}
               </p>
             </CardContent>
@@ -114,7 +125,7 @@ function LogsPage() {
               <CardTitle>{t('logs.errorLogs')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 {t('logs.errorDescription')}
               </p>
             </CardContent>

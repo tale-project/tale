@@ -1,10 +1,12 @@
 'use client';
 
 import type { Doc } from '@/convex/_generated/dataModel';
+
 import { HStack } from '@/app/components/ui/layout/layout';
+import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
+
 import { ProductImage } from '../components/product-image';
 import { ProductRowActions } from '../components/product-row-actions';
-import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
 export type Product = Doc<'products'>;
 
@@ -23,9 +25,9 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
           <ProductImage
             images={row.original.imageUrl ? [row.original.imageUrl] : []}
             productName={row.original.name}
-            className="size-8 rounded shrink-0"
+            className="size-8 shrink-0 rounded"
           />
-          <span className="font-medium text-sm text-foreground">
+          <span className="text-foreground text-sm font-medium">
             {row.original.name}
           </span>
         </HStack>
@@ -35,7 +37,7 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
       accessorKey: 'description',
       header: () => tTables('headers.description'),
       cell: ({ row }) => (
-        <div className="max-w-sm truncate text-xs text-muted-foreground">
+        <div className="text-muted-foreground max-w-sm truncate text-xs">
           {row.original.description ? `"${row.original.description}"` : '-'}
         </div>
       ),
@@ -43,17 +45,15 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
     {
       accessorKey: 'stock',
       header: () => (
-        <span className="text-right w-full block">
+        <span className="block w-full text-right">
           {tTables('headers.stock')}
         </span>
       ),
       size: 80,
       cell: ({ row }) => (
         <span
-          className={`text-xs text-right block ${
-            row.original.stock === 0
-              ? 'text-red-600'
-              : 'text-muted-foreground'
+          className={`block text-right text-xs ${
+            row.original.stock === 0 ? 'text-red-600' : 'text-muted-foreground'
           }`}
         >
           {row.original.stock !== undefined ? row.original.stock : '-'}

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs';
 
 const meta: Meta<typeof Tabs> = {
@@ -47,12 +48,12 @@ export const Default: Story = {
         <TabsTrigger value="password">Password</TabsTrigger>
       </TabsList>
       <TabsContent value="account">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Make changes to your account here. Click save when you&apos;re done.
         </p>
       </TabsContent>
       <TabsContent value="password">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Change your password here. After saving, you&apos;ll be logged out.
         </p>
       </TabsContent>
@@ -69,20 +70,20 @@ export const ThreeTabs: Story = {
         <TabsTrigger value="reports">Reports</TabsTrigger>
       </TabsList>
       <TabsContent value="overview" className="p-4">
-        <h3 className="font-semibold mb-2">Overview</h3>
-        <p className="text-sm text-muted-foreground">
+        <h3 className="mb-2 font-semibold">Overview</h3>
+        <p className="text-muted-foreground text-sm">
           View a summary of your account activity and key metrics.
         </p>
       </TabsContent>
       <TabsContent value="analytics" className="p-4">
-        <h3 className="font-semibold mb-2">Analytics</h3>
-        <p className="text-sm text-muted-foreground">
+        <h3 className="mb-2 font-semibold">Analytics</h3>
+        <p className="text-muted-foreground text-sm">
           Detailed analytics and performance data.
         </p>
       </TabsContent>
       <TabsContent value="reports" className="p-4">
-        <h3 className="font-semibold mb-2">Reports</h3>
-        <p className="text-sm text-muted-foreground">
+        <h3 className="mb-2 font-semibold">Reports</h3>
+        <p className="text-muted-foreground text-sm">
           Download and view generated reports.
         </p>
       </TabsContent>
@@ -101,15 +102,15 @@ export const WithDisabledTab: Story = {
         <TabsTrigger value="settings">Settings</TabsTrigger>
       </TabsList>
       <TabsContent value="active">
-        <p className="text-sm text-muted-foreground">This tab is active.</p>
+        <p className="text-muted-foreground text-sm">This tab is active.</p>
       </TabsContent>
       <TabsContent value="disabled">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           You cannot see this content.
         </p>
       </TabsContent>
       <TabsContent value="settings">
-        <p className="text-sm text-muted-foreground">Settings content here.</p>
+        <p className="text-muted-foreground text-sm">Settings content here.</p>
       </TabsContent>
     </Tabs>
   ),
@@ -139,17 +140,19 @@ export const FullWidth: Story = {
           Spam
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="inbox" className="p-4 border rounded-lg mt-2">
-        <p className="text-sm text-muted-foreground">Your inbox messages.</p>
+      <TabsContent value="inbox" className="mt-2 rounded-lg border p-4">
+        <p className="text-muted-foreground text-sm">Your inbox messages.</p>
       </TabsContent>
-      <TabsContent value="sent" className="p-4 border rounded-lg mt-2">
-        <p className="text-sm text-muted-foreground">Messages you&apos;ve sent.</p>
+      <TabsContent value="sent" className="mt-2 rounded-lg border p-4">
+        <p className="text-muted-foreground text-sm">
+          Messages you&apos;ve sent.
+        </p>
       </TabsContent>
-      <TabsContent value="drafts" className="p-4 border rounded-lg mt-2">
-        <p className="text-sm text-muted-foreground">Your draft messages.</p>
+      <TabsContent value="drafts" className="mt-2 rounded-lg border p-4">
+        <p className="text-muted-foreground text-sm">Your draft messages.</p>
       </TabsContent>
-      <TabsContent value="spam" className="p-4 border rounded-lg mt-2">
-        <p className="text-sm text-muted-foreground">Spam messages.</p>
+      <TabsContent value="spam" className="mt-2 rounded-lg border p-4">
+        <p className="text-muted-foreground text-sm">Spam messages.</p>
       </TabsContent>
     </Tabs>
   ),

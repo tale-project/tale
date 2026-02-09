@@ -1,13 +1,16 @@
 'use client';
 
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+
 import type { Id } from '@/convex/_generated/dataModel';
-import { Stack } from '@/app/components/ui/layout/layout';
+
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { Stack } from '@/app/components/ui/layout/layout';
+import { api } from '@/convex/_generated/api';
+
+import { EventsSection } from './components/events-section';
 import { SchedulesSection } from './components/schedules-section';
 import { WebhooksSection } from './components/webhooks-section';
-import { EventsSection } from './components/events-section';
 
 interface TriggersClientProps {
   automationId: Id<'wfDefinitions'>;
@@ -24,7 +27,7 @@ export function TriggersClient({
 
   if (!workflow) {
     return (
-      <div className="py-6 px-4 w-full">
+      <div className="w-full px-4 py-6">
         <Stack gap={4}>
           <Skeleton className="h-10 w-80" />
           <Skeleton className="h-32 w-full" />
@@ -40,7 +43,7 @@ export function TriggersClient({
   const workflowRootId = workflow.rootVersionId ?? workflow._id;
 
   return (
-    <div className="py-6 px-4 w-full">
+    <div className="w-full px-4 py-6">
       <Stack gap={6}>
         <SchedulesSection
           workflowRootId={workflowRootId}

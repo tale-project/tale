@@ -1,9 +1,10 @@
 'use client';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { CustomerInformation } from './customer-information';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+
+import { CustomerInformation } from './customer-information';
 
 interface CustomerInfoDialogProps {
   customer: Doc<'customers'>;
@@ -26,7 +27,7 @@ export function CustomerInfoDialog({
       title={t('customerInfo.title')}
       className={className}
     >
-      <div className="overflow-y-auto max-h-[calc(100vh-12rem)] space-y-8">
+      <div className="max-h-[calc(100vh-12rem)] space-y-8 overflow-y-auto">
         <CustomerInformation customer={customer} />
       </div>
     </ViewDialog>

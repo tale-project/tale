@@ -1,13 +1,15 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { Info, HelpCircle } from 'lucide-react';
+
+import { Button } from '../primitives/button';
+import { IconButton } from '../primitives/icon-button';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from './tooltip';
-import { Button } from '../primitives/button';
-import { IconButton } from '../primitives/icon-button';
 
 const meta: Meta<typeof Tooltip> = {
   title: 'Overlays/Tooltip',
@@ -117,11 +119,9 @@ export const WithIcon: Story = {
       <span className="text-sm">What is this?</span>
       <Tooltip>
         <TooltipTrigger>
-          <HelpCircle className="size-4 text-muted-foreground" />
+          <HelpCircle className="text-muted-foreground size-4" />
         </TooltipTrigger>
-        <TooltipContent>
-          This explains what the feature does.
-        </TooltipContent>
+        <TooltipContent>This explains what the feature does.</TooltipContent>
       </Tooltip>
     </div>
   ),

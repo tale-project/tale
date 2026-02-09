@@ -2,8 +2,8 @@
  * Update an existing website
  */
 
-import type { MutationCtx } from '../_generated/server';
 import type { Id, Doc } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 export interface UpdateWebsiteArgs {
   websiteId: Id<'websites'>;

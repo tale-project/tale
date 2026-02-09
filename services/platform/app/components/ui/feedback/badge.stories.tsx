@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import { Check, Clock, AlertCircle, Star } from 'lucide-react';
+
 import { Badge } from './badge';
 
 const meta: Meta<typeof Badge> = {
@@ -120,17 +122,17 @@ export const StatusExamples: Story = {
   render: () => (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <span className="text-sm w-24">Status:</span>
+        <span className="w-24 text-sm">Status:</span>
         <Badge variant="green" dot>
           Active
         </Badge>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-sm w-24">Priority:</span>
+        <span className="w-24 text-sm">Priority:</span>
         <Badge variant="destructive">High</Badge>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-sm w-24">Type:</span>
+        <span className="w-24 text-sm">Type:</span>
         <Badge variant="blue" icon={Star}>
           Premium
         </Badge>

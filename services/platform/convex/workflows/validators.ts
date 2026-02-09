@@ -10,9 +10,9 @@
 
 import { v } from 'convex/values';
 
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 // From workflow_engine
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 // =============================================================================
 // WORKFLOW DEFINITIONS VALIDATORS (re-export from definitions/validators.ts)

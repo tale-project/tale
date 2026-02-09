@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+
 import {
   MessageCircle,
   Inbox,
@@ -6,18 +7,20 @@ import {
   CircleCheck,
   Network,
 } from 'lucide-react';
+
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/app/components/ui/overlays/tooltip';
+import { cn } from '@/lib/utils/cn';
+
 import {
   NavigationMenu,
   NavigationMenuItem,
   NavigationMenuList,
 } from './navigation-menu';
-import { cn } from '@/lib/utils/cn';
 
 // NOTE: The full Navigation component requires TanStack Router (Link, useLocation),
 // useNavigationItems hook, and UserButton. These stories render a visual replica
@@ -82,23 +85,23 @@ function SidebarShell({
   showLogo?: boolean;
 }) {
   return (
-    <NavigationMenu className="flex flex-col bg-background border border-border h-[500px] w-14 rounded-lg">
+    <NavigationMenu className="bg-background border-border flex h-[500px] w-14 flex-col rounded-lg border">
       {showLogo && (
-        <div className="flex-shrink-0 py-3 flex items-center justify-center">
-          <div className="size-8 rounded bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
+        <div className="flex flex-shrink-0 items-center justify-center py-3">
+          <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded text-xs font-bold">
             T
           </div>
         </div>
       )}
-      <div className="flex-1 min-h-0 overflow-y-auto py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto py-4">
         <NavigationMenuList className="block space-y-2 space-x-0">
           {items.map((item) => (
             <NavigationItemVisual key={item.label} item={item} />
           ))}
         </NavigationMenuList>
       </div>
-      <div className="flex-shrink-0 py-3 flex items-center justify-center">
-        <div className="size-8 rounded-full bg-muted" />
+      <div className="flex flex-shrink-0 items-center justify-center py-3">
+        <div className="bg-muted size-8 rounded-full" />
       </div>
     </NavigationMenu>
   );

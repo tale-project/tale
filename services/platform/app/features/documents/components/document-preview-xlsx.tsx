@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
+import { useEffect, useState } from 'react';
+
 import { useT } from '@/lib/i18n/client';
 // Note: xlsx is dynamically imported to reduce initial bundle size
 
@@ -46,18 +47,18 @@ export function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
   }, [url, t]);
 
   return (
-    <div className="p-6 mx-auto relative overflow-y-auto w-full flex-1 overflow-x-auto">
+    <div className="relative mx-auto w-full flex-1 overflow-x-auto overflow-y-auto p-6">
       {loading && (
-        <div className="mt-4 text-gray-500 text-center">
+        <div className="mt-4 text-center text-gray-500">
           {t('preview.loading')}
         </div>
       )}
       {!loading && error && (
-        <div className="mt-4 text-red-500 text-center">{error}</div>
+        <div className="mt-4 text-center text-red-500">{error}</div>
       )}
       {!loading && !error && (
         <div
-          className="max-w-none [&_td]:border [&_td]:border-border [&_table]:bg-background text-foreground [&_table]:w-full [&_table]:border-collapse [&_th]:text-left [&_td]:align-top [&_tr]:border-b [&_td]:px-3 [&_td]:py-2"
+          className="[&_td]:border-border [&_table]:bg-background text-foreground max-w-none [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_th]:text-left [&_tr]:border-b"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       )}

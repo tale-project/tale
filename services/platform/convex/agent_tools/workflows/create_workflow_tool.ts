@@ -6,13 +6,16 @@
  * This enables AI to propose workflows in chat that users can review and approve.
  */
 
-import { z } from 'zod/v4';
-import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
+
+import { createTool } from '@convex-dev/agent';
+import { z } from 'zod/v4';
+
 import type { ToolDefinition } from '../types';
+
 import { internal } from '../../_generated/api';
-import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
+import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
 
 const workflowConfigSchema = z.object({
   name: z
@@ -147,11 +150,16 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
             workflowDescription: args.workflowConfig.description,
             workflowConfig: {
               ...args.workflowConfig,
-              config: args.workflowConfig.config as Record<string, string | number | boolean | null> | undefined,
+              config: args.workflowConfig.config as
+                | Record<string, string | number | boolean | null>
+                | undefined,
             },
-            stepsConfig: args.stepsConfig.map(step => ({
+            stepsConfig: args.stepsConfig.map((step) => ({
               ...step,
-              config: step.config as Record<string, string | number | boolean | null>,
+              config: step.config as Record<
+                string,
+                string | number | boolean | null
+              >,
             })),
             threadId,
           },

@@ -3,12 +3,14 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
+
 import type { Doc } from '../../../_generated/dataModel';
-import { internal } from '../../../_generated/api';
 import type {
   WorkflowReadListVersionHistoryResult,
   WorkflowVersionWithSteps,
 } from './types';
+
+import { internal } from '../../../_generated/api';
 
 export interface ReadVersionHistoryArgs {
   workflowName: string;
@@ -58,9 +60,12 @@ export async function readVersionHistory(
         let steps: Doc<'wfStepDefs'>[] | undefined;
 
         if (includeSteps) {
-          steps = (await ctx.runQuery(internal.wf_step_defs.internal_queries.listWorkflowSteps, {
-            wfDefinitionId: wf._id,
-          })) as Doc<'wfStepDefs'>[];
+          steps = (await ctx.runQuery(
+            internal.wf_step_defs.internal_queries.listWorkflowSteps,
+            {
+              wfDefinitionId: wf._id,
+            },
+          )) as Doc<'wfStepDefs'>[];
         }
 
         return {

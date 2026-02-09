@@ -12,7 +12,7 @@ export function DotIcon({ className }: DotIconProps) {
         className,
       )}
     >
-      <div className="size-[0.1875rem] rounded-full bg-muted-foreground" />
+      <div className="bg-muted-foreground size-[0.1875rem] rounded-full" />
     </div>
   );
 }

@@ -5,8 +5,8 @@
  * - Creates new draft (version + 1)
  */
 
-import type { MutationCtx } from '../../_generated/server';
 import type { Doc, Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
 import type { PublishDraftResult } from './types';
 
 export interface PublishDraftArgs {

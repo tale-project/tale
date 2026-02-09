@@ -103,14 +103,10 @@ def _pre_configure_database_env() -> None:
 
     # Validate URL components to avoid exporting misleading defaults
     if parsed.scheme not in ("postgresql", "postgres"):
-        logger.warning(
-            f"Invalid DATABASE_URL scheme '{parsed.scheme}' for pre-configuration; skipping DB_* export"
-        )
+        logger.warning(f"Invalid DATABASE_URL scheme '{parsed.scheme}' for pre-configuration; skipping DB_* export")
         return
     if not parsed.hostname or not parsed.username or not parsed.password:
-        logger.warning(
-            "DATABASE_URL missing required components (hostname/username/password); skipping DB_* export"
-        )
+        logger.warning("DATABASE_URL missing required components (hostname/username/password); skipping DB_* export")
         return
     if not parsed.path or parsed.path == "/":
         logger.warning("DATABASE_URL missing database name; skipping DB_* export")
@@ -169,9 +165,7 @@ try:
 
     logger.info("FalkorDB adapter registered successfully")
 except ImportError:
-    logger.warning(
-        "cognee-community-hybrid-adapter-falkor not installed, FalkorDB support unavailable"
-    )
+    logger.warning("cognee-community-hybrid-adapter-falkor not installed, FalkorDB support unavailable")
 
 
 def patch_tiktoken() -> None:
@@ -291,6 +285,7 @@ def _patch_litellm_aembedding() -> None:
                 if not input.strip():
                     logger.warning("aembedding: Empty string input, returning empty response")
                     from litellm import EmbeddingResponse
+
                     return EmbeddingResponse(
                         model=model,
                         data=[],
@@ -304,10 +299,7 @@ def _patch_litellm_aembedding() -> None:
             # Filter out empty or whitespace-only strings from list input
             original_input_len = len(input) if input else 0
             if input:
-                filtered_input = [
-                    item for item in input
-                    if item and (not isinstance(item, str) or item.strip())
-                ]
+                filtered_input = [item for item in input if item and (not isinstance(item, str) or item.strip())]
                 if len(filtered_input) < original_input_len:
                     logger.warning(
                         f"aembedding: Filtered {original_input_len - len(filtered_input)} empty inputs "
@@ -319,6 +311,7 @@ def _patch_litellm_aembedding() -> None:
             if not input:
                 logger.warning("aembedding: All inputs were empty, returning empty response")
                 from litellm import EmbeddingResponse
+
                 return EmbeddingResponse(
                     model=model,
                     data=[],
@@ -472,11 +465,7 @@ def _sanitize_identifier_for_cypher(name: str, default: str = "UNKNOWN") -> str:
         _unidecode = None
 
     # Convert non-ASCII to ASCII using unidecode (preserves meaning)
-    if _unidecode is not None:
-        ascii_name = _unidecode(name)
-    else:
-        # Fallback: remove non-ASCII characters
-        ascii_name = name.encode("ascii", "ignore").decode("ascii")
+    ascii_name = _unidecode(name) if _unidecode is not None else name.encode("ascii", "ignore").decode("ascii")
 
     # Replace non-alphanumeric with underscores (standard Cypher identifier rules)
     sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", ascii_name)
@@ -564,9 +553,7 @@ def _patch_falkordb_adapter_relationship_sanitize() -> None:
             result = self.query(query)
             # Original bug: result_set[0][0] fails with IndexError when graph is empty
             # because an empty graph returns an empty result_set
-            if not result.result_set:
-                return True  # Empty result means no nodes, so graph is empty
-            return False  # If any result exists, graph is not empty
+            return not result.result_set
 
         FalkorDBAdapter.is_empty = _patched_is_empty
         logger.info("Patched FalkorDB adapter is_empty to handle empty result sets")
@@ -622,9 +609,7 @@ def _patch_falkordb_adapter_add_node() -> None:
                         if field != sanitized_field:
                             vector_key = f"{field}_vector"
                             if vector_key in sanitized_properties:
-                                sanitized_properties[f"{sanitized_field}_vector"] = (
-                                    sanitized_properties.pop(vector_key)
-                                )
+                                sanitized_properties[f"{sanitized_field}_vector"] = sanitized_properties.pop(vector_key)
                     sanitized_properties["metadata"] = {**metadata, "index_fields": sanitized_fields}
 
             return await _original_add_node(self, node_id, sanitized_properties)
@@ -747,10 +732,7 @@ def _patch_falkordb_adapter_graph_name() -> None:
             # Ensure graph_name is never empty
             if not self.graph_name:
                 default_name = os.environ.get("GRAPH_DATABASE_NAME", "tale_default")
-                logger.warning(
-                    f"FalkorDB adapter instantiated with empty graph_name, "
-                    f"using default: {default_name}"
-                )
+                logger.warning(f"FalkorDB adapter instantiated with empty graph_name, using default: {default_name}")
                 self.graph_name = default_name
 
         FalkorDBAdapter.__init__ = _patched_init
@@ -823,15 +805,12 @@ def _patch_falkordb_adapter_add_nodes() -> None:
 
                     all_embeddable_values.extend(node_embeddable_values)
                     datapoint_nodes.append(node)
-                    node_metadata.append({
-                        "node": node,
-                        "vector_map": vector_map,
-                        "num_values": len(node_embeddable_values)
-                    })
+                    node_metadata.append(
+                        {"node": node, "vector_map": vector_map, "num_values": len(node_embeddable_values)}
+                    )
                 else:
                     raise ValueError(
-                        f"Invalid node format: {node}. Expected tuple (node_id, properties) "
-                        f"or DataPoint object."
+                        f"Invalid node format: {node}. Expected tuple (node_id, properties) or DataPoint object."
                     )
 
             # Phase 2: Batch embed all values at once (huge performance improvement)
@@ -843,13 +822,14 @@ def _patch_falkordb_adapter_add_nodes() -> None:
                     f"batching {len(all_embeddable_values)} embeddings from {len(datapoint_nodes)} DataPoint nodes"
                 )
                 import time
+
                 batch_start = time.time()
                 all_vectorized_values = await self.embed_data(all_embeddable_values)
                 batch_duration = time.time() - batch_start
                 logger.warning(
                     f"[PERF] Batch #{_add_nodes_call_count['count']} complete: "
                     f"{len(all_vectorized_values)} vectors in {batch_duration:.2f}s "
-                    f"({len(all_embeddable_values)/batch_duration:.1f} vectors/sec)"
+                    f"({len(all_embeddable_values) / batch_duration:.1f} vectors/sec)"
                 )
 
             # Phase 3: Add tuple nodes directly
@@ -864,20 +844,23 @@ def _patch_falkordb_adapter_add_nodes() -> None:
                 properties = {**node.model_dump()}
 
                 if vector_map and len(all_vectorized_values) >= max(vector_map.values()) + 1:
-                    properties.update({
-                        f"{property_name}_vector": all_vectorized_values[vector_idx]
-                        for property_name, vector_idx in vector_map.items()
-                    })
+                    properties.update(
+                        {
+                            f"{property_name}_vector": all_vectorized_values[vector_idx]
+                            for property_name, vector_idx in vector_map.items()
+                        }
+                    )
                 elif vector_map:
                     logger.warning(
                         f"Vector embedding mismatch for node {node.id}: "
-                        f"expected indices up to {max(vector_map.values())} but got {len(all_vectorized_values)} vectors. "
-                        f"Properties: {list(vector_map.keys())}. Skipping vector properties."
+                        f"expected indices up to {max(vector_map.values())} "
+                        f"but got {len(all_vectorized_values)} vectors. "
+                        f"Properties: {list(vector_map.keys())}. "
+                        f"Skipping vector properties."
                     )
                     if "metadata" in properties and "index_fields" in properties["metadata"]:
                         properties["metadata"]["index_fields"] = [
-                            field for field in properties["metadata"]["index_fields"]
-                            if field not in vector_map
+                            field for field in properties["metadata"]["index_fields"] if field not in vector_map
                         ]
 
                 await self.add_node(str(node.id), properties)
@@ -1066,16 +1049,10 @@ def _setup_vector_and_graph_config() -> None:
 
 def _setup_feature_flags() -> None:
     """Set up feature flags for Cognee storage/search backends."""
-    os.environ["ENABLE_GRAPH_STORAGE"] = (
-        "true" if settings.enable_graph_storage else "false"
-    )
-    os.environ["ENABLE_VECTOR_SEARCH"] = (
-        "true" if settings.enable_vector_search else "false"
-    )
+    os.environ["ENABLE_GRAPH_STORAGE"] = "true" if settings.enable_graph_storage else "false"
+    os.environ["ENABLE_VECTOR_SEARCH"] = "true" if settings.enable_vector_search else "false"
     os.environ["ENABLE_METRICS"] = "true" if settings.enable_metrics else "false"
-    os.environ["ENABLE_QUERY_LOGGING"] = (
-        "true" if settings.enable_query_logging else "false"
-    )
+    os.environ["ENABLE_QUERY_LOGGING"] = "true" if settings.enable_query_logging else "false"
 
     # Enable Cognee's backend access control for multi-tenant isolation.
     # FalkorDB is listed as a supported "Hybrid Database" in Cognee's documentation
@@ -1138,9 +1115,9 @@ def initialize_cognee() -> bool:
 
     try:
         import cognee  # noqa: F401
+
         logger.info("Cognee imported successfully with preconfigured base_config")
         return True
     except ImportError:
         logger.warning("cognee package not available")
         return False
-

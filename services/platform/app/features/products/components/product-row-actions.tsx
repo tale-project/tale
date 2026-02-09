@@ -1,19 +1,21 @@
 'use client';
 
-import { useMemo, useCallback, useState } from 'react';
 import { Eye, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { useMemo, useCallback, useState } from 'react';
+
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
-import { Id } from '@/convex/_generated/dataModel';
-import { ProductViewDialog } from './product-view-dialog';
-import { ProductEditDialog } from './product-edit-dialog';
-import { ProductDeleteDialog } from './product-delete-dialog';
-import { useDeleteProduct } from '../hooks/use-delete-product';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+
 import type { Product } from '../hooks/use-products-table-config';
+
+import { useDeleteProduct } from '../hooks/use-delete-product';
+import { ProductDeleteDialog } from './product-delete-dialog';
+import { ProductEditDialog } from './product-edit-dialog';
+import { ProductViewDialog } from './product-view-dialog';
 
 interface ProductRowActionsProps {
   product: Product;
@@ -83,7 +85,7 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
         separator: !hasExternalLink,
       },
     ],
-    [tCommon, dialogs.open, handleOpenExternalLink, hasExternalLink]
+    [tCommon, dialogs.open, handleOpenExternalLink, hasExternalLink],
   );
 
   return (

@@ -1,8 +1,9 @@
 'use client';
 
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { ProductsActionMenu } from './products-action-menu';
+
 import { useProductsTableConfig } from '../hooks/use-products-table-config';
+import { ProductsActionMenu } from './products-action-menu';
 
 interface ProductTableSkeletonProps {
   organizationId: string;

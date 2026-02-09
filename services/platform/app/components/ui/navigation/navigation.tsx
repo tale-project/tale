@@ -1,19 +1,14 @@
 'use client';
 
 import { Link, useLocation } from '@tanstack/react-router';
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuList,
-} from './navigation-menu';
-import { cn } from '@/lib/utils/cn';
+
+import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/app/components/ui/overlays/tooltip';
-import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { UserButton } from '@/app/components/user-button';
 import {
   useNavigationItems,
@@ -21,6 +16,13 @@ import {
   type NavItem,
 } from '@/app/hooks/use-navigation-items';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
+import {
+  NavigationMenu,
+  NavigationMenuItem,
+  NavigationMenuList,
+} from './navigation-menu';
 
 function isPathMatch(itemHref: string, currentPath: string): boolean {
   if (itemHref === currentPath) return true;
@@ -127,8 +129,8 @@ export function Navigation({ organizationId, role }: NavigationProps) {
   const navigationItems = useNavigationItems(organizationId);
 
   return (
-    <NavigationMenu className="flex flex-col bg-background border-border h-full">
-      <div className="flex-shrink-0 py-3 flex items-center justify-center">
+    <NavigationMenu className="bg-background border-border flex h-full flex-col">
+      <div className="flex flex-shrink-0 items-center justify-center py-3">
         <Link
           to="/dashboard/$id/chat"
           params={{ id: organizationId }}
@@ -137,14 +139,14 @@ export function Navigation({ organizationId, role }: NavigationProps) {
           <TaleLogo />
         </Link>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto py-4">
         <NavigationMenuList className="block space-y-2 space-x-0">
           {navigationItems.map((item) => (
             <NavigationItem key={item.href} item={item} role={role} />
           ))}
         </NavigationMenuList>
       </div>
-      <div className="flex-shrink-0 py-3 flex items-center justify-center">
+      <div className="flex flex-shrink-0 items-center justify-center py-3">
         <UserButton tooltipText={t('settingsAndMore')} />
       </div>
     </NavigationMenu>

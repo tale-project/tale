@@ -38,4 +38,3 @@ export interface AddMemberInternalArgs {
 export interface AddMemberInternalResult {
   memberId: string;
 }
-

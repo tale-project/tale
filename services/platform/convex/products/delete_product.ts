@@ -1,5 +1,5 @@
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 export async function deleteProduct(
   ctx: MutationCtx,

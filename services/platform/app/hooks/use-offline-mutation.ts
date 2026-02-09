@@ -1,6 +1,8 @@
+import type { FunctionReference } from 'convex/server';
+
 import { useMutation } from 'convex/react';
 import { useCallback, useState } from 'react';
-import type { FunctionReference } from 'convex/server';
+
 import { addToQueue } from '@/lib/offline';
 import {
   updateCacheItemById,
@@ -8,6 +10,7 @@ import {
   removeCacheItemById,
   createCacheKey,
 } from '@/lib/offline/cache-manager';
+
 import { useOnlineStatus } from './use-online-status';
 
 type MutationType = 'create' | 'update' | 'delete';
@@ -32,7 +35,7 @@ export function createOfflineMutation<
   TItem extends { _id: string },
 >(config: OfflineMutationConfig<TArgs, TItem>) {
   return function useOfflineMutation(
-    organizationId: string
+    organizationId: string,
   ): UseOfflineMutationReturn<TArgs> {
     const isOnline = useOnlineStatus();
     const [isPending, setIsPending] = useState(false);
@@ -78,15 +81,14 @@ export function createOfflineMutation<
 
           return queueId;
         } catch (err) {
-          const errorObj =
-            err instanceof Error ? err : new Error(String(err));
+          const errorObj = err instanceof Error ? err : new Error(String(err));
           setError(errorObj);
           throw errorObj;
         } finally {
           setIsPending(false);
         }
       },
-      [isOnline, onlineMutation, cacheKey]
+      [isOnline, onlineMutation, cacheKey],
     );
 
     return {
@@ -104,7 +106,7 @@ export function createOfflineUpdateMutation<
 >(
   mutationFn: FunctionReference<'mutation', 'public'>,
   queryName: string,
-  getOptimisticItem?: (args: TArgs) => Partial<TItem>
+  getOptimisticItem?: (args: TArgs) => Partial<TItem>,
 ) {
   return createOfflineMutation<TArgs, TItem>({
     mutationFn,
@@ -133,7 +135,7 @@ export function createOfflineCreateMutation<
 >(
   mutationFn: FunctionReference<'mutation', 'public'>,
   queryName: string,
-  getOptimisticItem: (args: TArgs) => Partial<TItem>
+  getOptimisticItem: (args: TArgs) => Partial<TItem>,
 ) {
   return createOfflineMutation<TArgs, TItem>({
     mutationFn,

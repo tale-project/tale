@@ -104,9 +104,7 @@ async def _extract_page_with_layout(
 
     # Check if this is a scanned page (low text content)
     if total_text_len < MIN_TEXT_THRESHOLD and ocr_scanned_pages:
-        logger.debug(
-            f"Page {page.number + 1}: Low text ({total_text_len} chars), sending to Vision API for OCR"
-        )
+        logger.debug(f"Page {page.number + 1}: Low text ({total_text_len} chars), sending to Vision API for OCR")
         ocr_text = await _ocr_page(page, semaphore)
         if ocr_text:
             elements = [(0, ocr_text)]
@@ -166,9 +164,7 @@ async def extract_text_from_pdf_bytes(
 
     async def process_page(page_num: int) -> tuple[int, str, bool]:
         page = doc[page_num]
-        content, vision_used = await _extract_page_with_layout(
-            page, doc, semaphore, process_images, ocr_scanned_pages
-        )
+        content, vision_used = await _extract_page_with_layout(page, doc, semaphore, process_images, ocr_scanned_pages)
         return page_num, f"--- Page {page_num + 1} ---\n{content}", vision_used
 
     tasks = [process_page(i) for i in range(total_pages)]
@@ -192,8 +188,6 @@ async def extract_text_from_pdf_bytes(
     pages_content.sort(key=lambda x: x[0])
     ordered_content = [p[1] for p in pages_content]
 
-    logger.info(
-        f"PDF processing complete: {total_pages} pages, Vision API used: {vision_used}"
-    )
+    logger.info(f"PDF processing complete: {total_pages} pages, Vision API used: {vision_used}")
 
     return ordered_content, vision_used

@@ -9,6 +9,7 @@
  */
 
 import { defineSchema } from 'convex/server';
+
 import { tables as generatedTables } from './generated_schema';
 
 // Extend the generated tables with custom indexes

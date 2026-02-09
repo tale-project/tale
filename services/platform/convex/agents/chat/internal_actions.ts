@@ -1,9 +1,13 @@
 'use node';
 
 import { v } from 'convex/values';
-import { internalAction } from '../../_generated/server';
+
 import { internal } from '../../_generated/api';
-import { agentResponseReturnsValidator, generateAgentResponse } from '../../lib/agent_response';
+import { internalAction } from '../../_generated/server';
+import {
+  agentResponseReturnsValidator,
+  generateAgentResponse,
+} from '../../lib/agent_response';
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { processAttachments } from '../../lib/attachments/index';
 import {
@@ -78,9 +82,12 @@ export const beforeContextHook = internalAction({
     const { threadId, organizationId } = args;
 
     // Load integrations list
-    const integrationsList: Record<string, unknown>[] = await ctx.runQuery(internal.integrations.internal_queries.listInternal, {
-      organizationId,
-    });
+    const integrationsList: Record<string, unknown>[] = await ctx.runQuery(
+      internal.integrations.internal_queries.listInternal,
+      {
+        organizationId,
+      },
+    );
 
     // Format integrations info
     let integrationsInfo: string | undefined;
@@ -90,7 +97,9 @@ export const beforeContextHook = internalAction({
           const type = integration.type || 'rest_api';
           const status = integration.status || 'active';
           const title = integration.title || integration.name;
-          const desc = integration.description ? ` - ${integration.description}` : '';
+          const desc = integration.description
+            ? ` - ${integration.description}`
+            : '';
           return `• ${integration.name} (${type}, ${status}): ${title}${desc}`;
         })
         .join('\n');
@@ -129,7 +138,8 @@ export const beforeGenerateHook = internalAction({
     contextExceedsBudget: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const { threadId, promptMessage, attachments, contextMessagesTokens } = args;
+    const { threadId, promptMessage, attachments, contextMessagesTokens } =
+      args;
 
     // Token budget check for logging
     const currentPromptTokens = estimateTokens(promptMessage || '');
@@ -174,7 +184,14 @@ export const onErrorHook = internalAction({
   },
   returns: v.null(),
   handler: async (_ctx, args) => {
-    const { threadId, errorName, errorMessage, errorStatus, errorType, errorCode } = args;
+    const {
+      threadId,
+      errorName,
+      errorMessage,
+      errorStatus,
+      errorType,
+      errorCode,
+    } = args;
 
     console.error('[RoutingAgent] generateAgentResponse error', {
       threadId,

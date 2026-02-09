@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   useState,
   Children,
@@ -9,9 +10,9 @@ import {
   type ReactNode,
   type ReactElement,
 } from 'react';
+
 import { TableBody, TableCell } from '@/app/components/ui/data-display/table';
 import { Select } from '@/app/components/ui/forms/select';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 interface PaginatedMarkdownTableProps {
@@ -132,7 +133,7 @@ export function PaginatedMarkdownTable({
   );
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border my-4 max-w-(--chat-max-width)">
+    <div className="border-border my-4 max-w-(--chat-max-width) overflow-hidden rounded-lg border">
       <div className="overflow-x-auto">
         <table className="w-full caption-bottom text-sm">
           {thead}
@@ -141,13 +142,13 @@ export function PaginatedMarkdownTable({
       </div>
 
       {showPagination && (
-        <div className="flex items-center gap-5 p-2 border-t border-border bg-background">
+        <div className="border-border bg-background flex items-center gap-5 border-t p-2">
           <div className="flex items-center gap-3">
             {/* Previous button */}
             <button
               onClick={handlePrevPage}
               disabled={currentPage === 1}
-              className="text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={t('aria.previousPage')}
             >
               <ChevronLeft className="size-5" />
@@ -157,7 +158,7 @@ export function PaginatedMarkdownTable({
             <Select
               value={currentPage.toString()}
               onValueChange={handlePageSelect}
-              className="h-7 w-auto min-w-[2.5rem] px-2 py-1.5 gap-1 text-sm font-medium text-muted-foreground"
+              className="text-muted-foreground h-7 w-auto min-w-[2.5rem] gap-1 px-2 py-1.5 text-sm font-medium"
               options={Array.from({ length: totalPages }, (_, i) => ({
                 value: (i + 1).toString(),
                 label: (i + 1).toString(),
@@ -168,7 +169,7 @@ export function PaginatedMarkdownTable({
             <button
               onClick={handleNextPage}
               disabled={currentPage === totalPages}
-              className="text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={t('aria.nextPage')}
             >
               <ChevronRight className="size-5" />
@@ -176,7 +177,7 @@ export function PaginatedMarkdownTable({
           </div>
 
           {/* Page info text */}
-          <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+          <span className="text-muted-foreground text-xs font-medium whitespace-nowrap">
             {t('pagination.showing', {
               start: startIdx + 1,
               end: endIdx,

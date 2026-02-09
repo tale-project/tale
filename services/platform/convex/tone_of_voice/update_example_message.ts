@@ -2,9 +2,10 @@
  * Update an example message
  */
 
-import { MutationCtx } from '../_generated/server';
-import { Id } from '../_generated/dataModel';
 import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
+
+import { Id } from '../_generated/dataModel';
+import { MutationCtx } from '../_generated/server';
 
 export async function updateExampleMessage(
   ctx: MutationCtx,
@@ -28,4 +29,3 @@ export async function updateExampleMessage(
 
   return null;
 }
-

@@ -1,14 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useT } from '@/lib/i18n/client';
+
 import { useTheme } from '@/app/components/theme/theme-provider';
+import { useT } from '@/lib/i18n/client';
 import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';
-import { getFileExtensionLower, getTextFileCategory } from '@/lib/utils/text-file-types';
+import {
+  getFileExtensionLower,
+  getTextFileCategory,
+} from '@/lib/utils/text-file-types';
 
 const STRICT_ENCODINGS = ['utf-8', 'utf-16le', 'utf-16be'] as const;
 
-function decodeWithEncoding(buffer: ArrayBuffer): { text: string; encoding: string } {
+function decodeWithEncoding(buffer: ArrayBuffer): {
+  text: string;
+  encoding: string;
+} {
   for (const encoding of STRICT_ENCODINGS) {
     try {
       const decoder = new TextDecoder(encoding, { fatal: true });
@@ -30,7 +37,10 @@ interface DocumentPreviewTextProps {
   fileName?: string;
 }
 
-export function DocumentPreviewText({ url, fileName }: DocumentPreviewTextProps) {
+export function DocumentPreviewText({
+  url,
+  fileName,
+}: DocumentPreviewTextProps) {
   const { t } = useT('documents');
   const { resolvedTheme } = useTheme();
   const [content, setContent] = useState<string | null>(null);
@@ -40,7 +50,11 @@ export function DocumentPreviewText({ url, fileName }: DocumentPreviewTextProps)
 
   const ext = getFileExtensionLower(fileName || '');
   const category = getTextFileCategory(fileName || '');
-  const isCodeFile = category === 'code' || category === 'markup' || category === 'config' || category === 'data';
+  const isCodeFile =
+    category === 'code' ||
+    category === 'markup' ||
+    category === 'config' ||
+    category === 'data';
   const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
 
   useEffect(() => {
@@ -64,7 +78,9 @@ export function DocumentPreviewText({ url, fileName }: DocumentPreviewTextProps)
       }
     };
     load();
-    return () => { controller.abort(); };
+    return () => {
+      controller.abort();
+    };
   }, [url, t]);
 
   useEffect(() => {
@@ -76,37 +92,43 @@ export function DocumentPreviewText({ url, fileName }: DocumentPreviewTextProps)
     highlightCode(content, lang, shikiTheme).then((html) => {
       if (!cancelled) setHighlightedHtml(html || null);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [content, ext, isCodeFile, shikiTheme]);
 
   return (
-    <div className="p-6 mx-auto relative overflow-y-auto w-full flex-1 overflow-x-auto">
+    <div className="relative mx-auto w-full flex-1 overflow-x-auto overflow-y-auto p-6">
       {loading && (
-        <div className="mt-4 text-muted-foreground text-center">
+        <div className="text-muted-foreground mt-4 text-center">
           {t('preview.loading')}
         </div>
       )}
       {!loading && error && (
-        <div className="mt-4 text-destructive text-center">{error}</div>
+        <div className="text-destructive mt-4 text-center">{error}</div>
       )}
-      {!loading && !error && content !== null && (
-        isCodeFile && highlightedHtml ? (
+      {!loading &&
+        !error &&
+        content !== null &&
+        (isCodeFile && highlightedHtml ? (
           <div
-            className="max-w-4xl mx-auto text-sm code-line-numbers [&_pre]:bg-transparent! [&_pre]:p-0! [&_pre]:m-0! [&_code]:text-xs [&_code]:leading-relaxed"
+            className="code-line-numbers mx-auto max-w-4xl text-sm [&_code]:text-xs [&_code]:leading-relaxed [&_pre]:m-0! [&_pre]:bg-transparent! [&_pre]:p-0!"
             dangerouslySetInnerHTML={{ __html: highlightedHtml }}
           />
         ) : (
-          <div className="max-w-4xl mx-auto code-line-numbers">
-            <pre className="bg-transparent! p-0! m-0!">
-              <code className="text-xs leading-relaxed font-mono whitespace-pre-wrap wrap-break-word text-foreground">
+          <div className="code-line-numbers mx-auto max-w-4xl">
+            <pre className="m-0! bg-transparent! p-0!">
+              <code className="text-foreground font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap">
                 {content.split('\n').map((line, i, arr) => (
-                  <span key={i} className="line">{line}{i < arr.length - 1 ? '\n' : ''}</span>
+                  <span key={i} className="line">
+                    {line}
+                    {i < arr.length - 1 ? '\n' : ''}
+                  </span>
                 ))}
               </code>
             </pre>
           </div>
-        )
-      )}
+        ))}
     </div>
   );
 }

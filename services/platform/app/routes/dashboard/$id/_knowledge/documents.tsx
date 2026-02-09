@@ -1,8 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { z } from 'zod';
-import { api } from '@/convex/_generated/api';
+
 import { DocumentsClient } from '@/app/features/documents/components/documents-client';
+import { api } from '@/convex/_generated/api';
 
 const searchSchema = z.object({
   query: z.string().optional(),

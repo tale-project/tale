@@ -13,20 +13,21 @@
 
 import { Agent } from '@convex-dev/agent';
 import { z } from 'zod/v4';
-import { components } from '../../../../_generated/api';
+
 import type { ActionCtx } from '../../../../_generated/server';
+import type { ToolName } from '../../../../agent_tools/tool_registry';
 import type {
   NormalizedConfig,
   ProcessedPrompts,
   LLMExecutionResult,
   ToolDiagnostics,
 } from './types';
-import { createAgentConfig } from '../../../../lib/create_agent_config';
-import type { ToolName } from '../../../../agent_tools/tool_registry';
-import { processAgentResult } from './utils/process_agent_result';
-import { extractSchemaFields } from './utils/extract_schema_fields';
 
+import { components } from '../../../../_generated/api';
+import { createAgentConfig } from '../../../../lib/create_agent_config';
 import { createDebugLog } from '../../../../lib/debug_log';
+import { extractSchemaFields } from './utils/extract_schema_fields';
+import { processAgentResult } from './utils/process_agent_result';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -70,8 +71,7 @@ export async function executeAgentWithTools(
   }
 
   const hasTools = config.tools && config.tools.length > 0;
-  const needsJsonOutput =
-    config.outputFormat === 'json' && config.outputSchema;
+  const needsJsonOutput = config.outputFormat === 'json' && config.outputSchema;
   const zodSchema =
     needsJsonOutput && config.outputSchema
       ? z.fromJSONSchema(config.outputSchema)
