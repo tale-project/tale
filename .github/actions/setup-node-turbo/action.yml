@@ -1,0 +1,28 @@
+name: Setup Node.js with Turbo Cache
+description: Installs Node.js, npm dependencies, and starts turbo cache server
+
+inputs:
+  node-version:
+    description: Node.js version
+    default: '22'
+  github-token:
+    description: GitHub token for turbo cache
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Start Turbo cache server
+      uses: felixmosh/turborepo-gh-artifacts@v3
+      with:
+        repo-token: ${{ inputs.github-token }}

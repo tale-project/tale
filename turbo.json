@@ -50,6 +50,14 @@
     "format:check": {
       "outputs": []
     },
+    "convex:codegen": {
+      "cache": false,
+      "outputs": ["convex/_generated/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["convex:codegen"],
+      "outputs": []
+    },
     "test": {
       "dependsOn": ["setup"],
       "outputs": []
@@ -59,12 +67,12 @@
       "cache": false,
       "persistent": true
     },
+    "test:ui": {
+      "outputs": []
+    },
     "test:coverage": {
       "dependsOn": ["setup"],
       "outputs": ["coverage/**"]
-    },
-    "typecheck": {
-      "outputs": []
     },
     "knip": {
       "cache": false,

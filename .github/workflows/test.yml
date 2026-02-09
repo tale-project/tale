@@ -1,4 +1,4 @@
-name: Lint
+name: Test
 
 on:
   pull_request:
@@ -9,12 +9,9 @@ on:
       - 'services/crawler/**'
       - 'services/rag/**'
       - 'services/graph-db/**'
-      - 'services/operator/**'
-      - 'tools/cli/**'
-      - '.github/workflows/lint.yml'
+      - '.github/workflows/test.yml'
       - 'package.json'
       - 'turbo.json'
-      - 'knip.config.ts'
   push:
     branches:
       - main
@@ -23,12 +20,9 @@ on:
       - 'services/crawler/**'
       - 'services/rag/**'
       - 'services/graph-db/**'
-      - 'services/operator/**'
-      - 'tools/cli/**'
-      - '.github/workflows/lint.yml'
+      - '.github/workflows/test.yml'
       - 'package.json'
       - 'turbo.json'
-      - 'knip.config.ts'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -54,11 +48,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Lint, format, typecheck
-        run: npx turbo run lint format:check typecheck --filter=@tale/platform --filter=@tale/cli
-
-      - name: Knip (unused code)
-        run: npm run knip
+      - name: Run tests
+        run: npx turbo run test test:ui --filter=@tale/platform
 
   python:
     name: Python
@@ -79,5 +70,5 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup, lint, format
-        run: npx turbo run setup lint format:check --filter=@tale/crawler --filter=@tale/rag --filter=@tale/graph-db --filter=@tale/operator
+      - name: Run tests
+        run: npx turbo run test --filter=@tale/crawler --filter=@tale/rag --filter=@tale/graph-db
