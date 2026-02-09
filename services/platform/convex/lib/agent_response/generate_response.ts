@@ -75,7 +75,7 @@ export async function generateAgentResponse(
     agentOptions,
     streamId,
     promptMessageId,
-    maxSteps: _maxSteps,
+    _maxSteps,
     userTeamIds,
   } = args;
 

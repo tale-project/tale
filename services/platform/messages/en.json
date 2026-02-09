@@ -580,7 +580,7 @@
       "teamUpdated": "Team updated",
       "teamUpdateFailed": "Failed to update team",
       "teamNameRequired": "Team name is required",
-      "manageMembers": "Manage members",
+      "manageMembers": "Members",
       "addMember": "Add member",
       "removeMember": "Remove member",
       "memberAdded": "Member added to team",

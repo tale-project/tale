@@ -592,7 +592,7 @@ export function DataTable<TData, TValue = unknown>({
           {showFilteredEmptyState ? (
             filteredEmptyContent
           ) : (
-            <div className="border-border rounded-xl border">
+            <div className="border-border overflow-hidden rounded-xl border">
               {tableContent}
               {infiniteScrollContent}
             </div>

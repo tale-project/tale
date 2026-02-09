@@ -10,7 +10,9 @@ import { z } from 'zod';
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { VStack, Center } from '@/app/components/ui/layout/layout';
+import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Button } from '@/app/components/ui/primitives/button';
+import { UserButton } from '@/app/components/user-button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -87,33 +89,39 @@ export function OrganizationFormClient() {
   });
 
   return (
-    <Center className="p-4">
-      <VStack className="w-full max-w-[24rem]">
-        <h1 className="mb-8 text-center text-base font-semibold">
-          {t('organization.createOrganization')}
-        </h1>
-        <Form onSubmit={handleSubmit}>
-          <Input
-            id="org-name"
-            type="text"
-            label={t('organization.organizationName')}
-            required
-            {...form.register('name')}
-            placeholder={t('organization.enterCompanyName')}
-            disabled={form.formState.isSubmitting}
-            errorMessage={form.formState.errors.name?.message}
-          />
-          <Button
-            type="submit"
-            fullWidth
-            disabled={form.formState.isSubmitting || !form.formState.isValid}
-          >
-            {form.formState.isSubmitting
-              ? t('organization.creating')
-              : tCommon('actions.create')}
-          </Button>
-        </Form>
-      </VStack>
-    </Center>
+    <div className="flex h-screen flex-col">
+      <header className="mx-auto flex w-full items-center justify-between px-4 py-3">
+        <TaleLogo />
+        <UserButton align="end" />
+      </header>
+      <Center className="flex-1 items-start px-4 py-16 pt-[15vh]">
+        <VStack className="w-full max-w-[24rem]">
+          <h1 className="mb-8 text-center text-base font-semibold">
+            {t('organization.createOrganization')}
+          </h1>
+          <Form onSubmit={handleSubmit}>
+            <Input
+              id="org-name"
+              type="text"
+              label={t('organization.organizationName')}
+              required
+              {...form.register('name')}
+              placeholder={t('organization.enterCompanyName')}
+              disabled={form.formState.isSubmitting}
+              errorMessage={form.formState.errors.name?.message}
+            />
+            <Button
+              type="submit"
+              fullWidth
+              disabled={form.formState.isSubmitting || !form.formState.isValid}
+            >
+              {form.formState.isSubmitting
+                ? t('organization.creating')
+                : tCommon('actions.create')}
+            </Button>
+          </Form>
+        </VStack>
+      </Center>
+    </div>
   );
 }

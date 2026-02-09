@@ -26,7 +26,7 @@ export function ChatSearchDialog({
 }: ChatSearchDialogProps) {
   const { t } = useT('dialogs');
   const { t: tCommon } = useT('common');
-  const { formatDateSmart } = useFormatDate();
+  const { formatDateHeader } = useFormatDate();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -46,12 +46,28 @@ export function ChatSearchDialog({
         _id: thread._id,
         title: thread.title ?? t('searchChat.untitledChat'),
         createdAt: thread._creationTime,
-        formattedDate: thread._creationTime
-          ? formatDateSmart(new Date(thread._creationTime))
-          : '',
       })) ?? [],
-    [threadsData, t, formatDateSmart],
+    [threadsData, t],
   );
+
+  const groupedChats = useMemo(() => {
+    const groups: { label: string; chats: typeof chats }[] = [];
+    let currentLabel = '';
+
+    for (const chat of chats) {
+      const label = chat.createdAt
+        ? formatDateHeader(new Date(chat.createdAt))
+        : '';
+      if (label !== currentLabel) {
+        currentLabel = label;
+        groups.push({ label, chats: [chat] });
+      } else {
+        groups[groups.length - 1].chats.push(chat);
+      }
+    }
+
+    return groups;
+  }, [chats, formatDateHeader]);
 
   useEffect(() => {
     if (isOpen) {
@@ -145,32 +161,50 @@ export function ChatSearchDialog({
           </div>
         ) : (
           <ul className="py-1">
-            {chats.map((chat, idx) => (
-              <li key={chat._id}>
-                <button
-                  type="button"
-                  className={cn(
-                    'w-full text-left flex items-start gap-3 p-3 hover:bg-muted transition-colors rounded-lg cursor-pointer',
-                    idx === selectedIndex && 'bg-muted',
+            {(() => {
+              let flatIdx = 0;
+              return groupedChats.map((group) => (
+                <li key={group.label}>
+                  {group.label && (
+                    <div className="text-muted-foreground px-2 pt-2 pb-1 text-xs font-medium">
+                      {group.label}
+                    </div>
                   )}
-                  onMouseEnter={() => setSelectedIndex(idx)}
-                  onClick={() => {
-                    navigate({
-                      to: '/dashboard/$id/chat/$threadId',
-                      params: { id: organizationId, threadId: chat._id },
-                    });
-                    close();
-                  }}
-                >
-                  <div className="text-foreground flex w-full min-w-0 items-center gap-2 text-sm">
-                    <span className="truncate">{chat.title}</span>
-                    <span className="text-muted-foreground ml-auto shrink-0 text-[0.625rem]">
-                      {chat.formattedDate}
-                    </span>
-                  </div>
-                </button>
-              </li>
-            ))}
+                  <ul>
+                    {group.chats.map((chat) => {
+                      const idx = flatIdx++;
+                      return (
+                        <li key={chat._id}>
+                          <button
+                            type="button"
+                            className={cn(
+                              'w-full text-left flex items-start gap-3 py-3 px-2 hover:bg-muted transition-colors rounded-lg cursor-pointer',
+                              idx === selectedIndex && 'bg-muted',
+                            )}
+                            onMouseEnter={() => setSelectedIndex(idx)}
+                            onMouseLeave={() => setSelectedIndex(-1)}
+                            onClick={() => {
+                              navigate({
+                                to: '/dashboard/$id/chat/$threadId',
+                                params: {
+                                  id: organizationId,
+                                  threadId: chat._id,
+                                },
+                              });
+                              close();
+                            }}
+                          >
+                            <span className="text-foreground truncate text-sm">
+                              {chat.title}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </li>
+              ));
+            })()}
           </ul>
         )}
       </div>

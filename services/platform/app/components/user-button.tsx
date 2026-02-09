@@ -153,7 +153,7 @@ export function UserButton({
         <DropdownMenuSeparator />
 
         {/* Settings - All users can access (tabs are role-restricted) */}
-        {!loading && user && (
+        {!loading && user && organizationId && (
           <>
             <DropdownMenuItem
               onClick={() => {

@@ -20,6 +20,7 @@ import {
 import { Button } from '@/app/components/ui/primitives/button';
 import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ChatSearchDialog } from './chat-search-dialog';
@@ -125,8 +126,16 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
                 variant="ghost"
                 onClick={handleToggleHistory}
                 aria-label={tChat('chatHistory')}
+                className={cn(
+                  isHistoryOpen && 'bg-accent text-accent-foreground',
+                )}
               >
-                <Clock className={baseIconClasses} />
+                <Clock
+                  className={cn(
+                    baseIconClasses,
+                    isHistoryOpen && 'text-accent-foreground',
+                  )}
+                />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="py-1.5">

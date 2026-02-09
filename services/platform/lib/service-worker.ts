@@ -78,6 +78,62 @@ export async function checkForServiceWorkerUpdate(): Promise<boolean> {
 }
 
 export function skipWaiting(waitingWorker: ServiceWorker): void {
-  // eslint-disable-next-line unicorn/require-post-message-target-origin -- ServiceWorker.postMessage does not accept targetOrigin
-  waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+  waitingWorker.postMessage(
+    { type: 'SKIP_WAITING' },
+    waitingWorker.location.origin,
+  );
+}
+
+interface SyncRegistration extends ServiceWorkerRegistration {
+  sync: {
+    register: (tag: string) => Promise<void>;
+    getTags: () => Promise<string[]>;
+  };
+}
+
+export async function registerBackgroundSync(
+  tag: string = 'mutation-sync',
+): Promise<boolean> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return false;
+  }
+
+  try {
+    const registration = (await navigator.serviceWorker
+      .ready) as SyncRegistration;
+
+    if (!('sync' in registration)) {
+      return false;
+    }
+
+    await registration.sync.register(tag);
+    return true;
+  } catch (error) {
+    console.error('Failed to register background sync:', error);
+    return false;
+  }
+}
+
+export async function isBackgroundSyncSupported(): Promise<boolean> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return false;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    return 'sync' in registration;
+  } catch {
+    return false;
+  }
+}
+
+export function onServiceWorkerMessage(
+  callback: (event: MessageEvent) => void,
+): () => void {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return () => {};
+  }
+
+  navigator.serviceWorker.addEventListener('message', callback);
+  return () => navigator.serviceWorker.removeEventListener('message', callback);
 }

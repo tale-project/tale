@@ -1,3 +1,5 @@
+import type { FunctionReference } from 'convex/server';
+
 export interface CachedQueryEntry {
   key: string;
   data: unknown[];
@@ -29,6 +31,22 @@ export interface OfflineState {
   lastSyncAttempt: Date | null;
   lastSuccessfulSync: Date | null;
   isSyncing: boolean;
+}
+
+export interface UseOfflineEntityDataReturn<TItem> {
+  data: TItem[];
+  totalCount: number;
+  filteredCount: number;
+  isLoading: boolean;
+  isOffline: boolean;
+  isStale: boolean;
+  lastSyncTime: Date | null;
+}
+
+export interface MutationQueueConfig<TArgs = Record<string, unknown>> {
+  mutationFn: FunctionReference<'mutation', 'public'>;
+  getOptimisticData?: (args: TArgs) => unknown;
+  getCacheKey: (args: TArgs) => string;
 }
 
 export interface CacheConfig {
