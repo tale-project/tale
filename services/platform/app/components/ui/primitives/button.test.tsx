@@ -1,10 +1,29 @@
 import { Mail } from 'lucide-react';
+import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 import { Button, LinkButton } from './button';
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: React.forwardRef(
+    (
+      {
+        to,
+        children,
+        preload: _preload,
+        ...props
+      }: { to: string; children: React.ReactNode; preload?: string | false },
+      ref: React.ForwardedRef<HTMLAnchorElement>,
+    ) => (
+      <a ref={ref} href={to} {...props}>
+        {children}
+      </a>
+    ),
+  ),
+}));
 
 describe('Button', () => {
   describe('rendering', () => {

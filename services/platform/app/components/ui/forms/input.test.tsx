@@ -41,7 +41,7 @@ describe('Input', () => {
       render(<Input type="password" label="Password" />);
       const input = screen.getByLabelText('Password');
       expect(input).toHaveAttribute('type', 'password');
-expect(
+      expect(
         screen.getByRole('button', { name: /show password/i }),
       ).toBeInTheDocument();
     });
@@ -49,7 +49,7 @@ expect(
     it('toggles password visibility', async () => {
       const { user } = render(<Input type="password" label="Password" />);
       const input = screen.getByLabelText('Password');
-const toggle = screen.getByRole('button', { name: /show password/i });
+      const toggle = screen.getByRole('button', { name: /show password/i });
 
       expect(input).toHaveAttribute('type', 'password');
 
@@ -65,7 +65,7 @@ const toggle = screen.getByRole('button', { name: /show password/i });
 
     it('password toggle has aria-pressed', async () => {
       const { user } = render(<Input type="password" label="Password" />);
-const toggle = screen.getByRole('button', { name: /show password/i });
+      const toggle = screen.getByRole('button', { name: /show password/i });
 
       expect(toggle).toHaveAttribute('aria-pressed', 'false');
 
