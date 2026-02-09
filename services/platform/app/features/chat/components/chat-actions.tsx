@@ -116,7 +116,20 @@ export function ChatActions({
         title={tChat('deleteChat')}
         description={
           <>
-            {tChat('deleteConfirmation', { title: chat.title })}
+            {(() => {
+              const parts = tChat('deleteConfirmation', {
+                title: '\x00',
+              }).split('\x00');
+              return (
+                <>
+                  {parts[0]}
+                  <span className="text-foreground font-semibold">
+                    {chat.title}
+                  </span>
+                  {parts[1]}
+                </>
+              );
+            })()}
             <br />
             <br />
             <span className="text-muted-foreground">

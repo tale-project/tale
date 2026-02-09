@@ -57,6 +57,7 @@ function LogInPage() {
       z.object({
         email: z
           .string()
+          .trim()
           .min(1, tCommon('validation.required', { field: t('email') }))
           .email(tCommon('validation.email')),
         password: z
@@ -76,15 +77,6 @@ function LogInPage() {
   });
 
   const { isSubmitting, errors } = form.formState;
-
-  const emailValue = form.watch('email');
-  const passwordValue = form.watch('password');
-
-  useEffect(() => {
-    if (errors.password) {
-      form.clearErrors('password');
-    }
-  }, [emailValue, passwordValue, form, errors.password]);
 
   const handleSubmit = async (data: LogInFormData) => {
     form.clearErrors('password');

@@ -96,15 +96,22 @@ function EntityDeleteDialogInner<TEntity>({
   }, [deleteMutation, entity, translations, onClose, onSuccess]);
 
   const description = React.useMemo(() => {
-    const mainDescription = translations.description.replace(
-      '{name}',
-      entityName,
-    );
+    const parts = translations.description.split('{name}');
+    const styledDescription =
+      parts.length > 1 ? (
+        <>
+          {parts[0]}
+          <span className="text-foreground font-semibold">{entityName}</span>
+          {parts[1]}
+        </>
+      ) : (
+        translations.description.replace('{name}', entityName)
+      );
 
     if (translations.warningText) {
       return (
         <>
-          {mainDescription}
+          {styledDescription}
           <br />
           <br />
           {translations.warningText}
@@ -112,7 +119,7 @@ function EntityDeleteDialogInner<TEntity>({
       );
     }
 
-    return mainDescription;
+    return styledDescription;
   }, [translations.description, translations.warningText, entityName]);
 
   return (

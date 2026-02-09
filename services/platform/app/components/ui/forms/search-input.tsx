@@ -30,7 +30,6 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
         <Input
           ref={ref}
           type="text"
-          size="sm"
           className={cn('pl-10', className)}
           {...props}
         />
