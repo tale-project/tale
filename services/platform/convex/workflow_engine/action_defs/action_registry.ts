@@ -1,4 +1,4 @@
-import type { ActionDefinition } from '../helpers/nodes/action/types';
+import type { ActionCtx } from '../../_generated/server';
 
 import { approvalAction } from './approval/approval_action';
 import { conversationAction } from './conversation/conversation_action';
@@ -22,7 +22,20 @@ import { workflowProcessingRecordsAction } from './workflow_processing_records/w
 // ACTION REGISTRY
 // =============================================================================
 
-type AnyActionDefinition = ActionDefinition<any>;
+// Structural base type for the registry — uses method syntax for execute to enable bivariant
+// parameter checking, avoiding contravariance issues with ActionDefinition<T>'s typed params
+interface AnyActionDefinition {
+  type: string;
+  parametersValidator?: unknown;
+  title?: string;
+  description?: string;
+  execute(
+    ctx: ActionCtx,
+    params: unknown,
+    variables: Record<string, unknown>,
+    extras?: { executionId?: string },
+  ): Promise<unknown>;
+}
 
 // Array-based registry for iteration (e.g., listing all actions)
 export const ACTIONS: AnyActionDefinition[] = [
@@ -52,7 +65,7 @@ export const ACTIONS_MAP: Record<string, AnyActionDefinition> =
 /**
  * Get an action by type
  */
-export function getAction(type: string): ActionDefinition<unknown> | undefined {
+export function getAction(type: string): AnyActionDefinition | undefined {
   return ACTIONS_MAP[type];
 }
 

@@ -105,7 +105,7 @@ function buildExpandedQuery(
 
     const truncated =
       msg.content.length > MAX_CONTEXT_CHARS
-        ? msg.content.substring(0, MAX_CONTEXT_CHARS) + '...'
+        ? msg.content.slice(0, MAX_CONTEXT_CHARS) + '...'
         : msg.content;
 
     contextParts.push(`${msg.role}: ${truncated}`);
@@ -170,7 +170,7 @@ export async function queryRagContext(
     const expandedQuery = buildExpandedQuery(userMessage, recentMessages);
 
     debugLog('Querying RAG service for context', {
-      userMessage: userMessage.substring(0, 100),
+      userMessage: userMessage.slice(0, 100),
       expandedQueryLength: expandedQuery.length,
       hasContextExpansion: expandedQuery !== userMessage,
       topK,

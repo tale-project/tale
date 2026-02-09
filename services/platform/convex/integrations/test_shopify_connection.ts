@@ -32,7 +32,7 @@ export async function testShopifyConnection(
   debugLog(`Shopify Health Check Testing connection to: ${shopDomain}`);
   debugLog(`Shopify Health Check Using API version: ${SHOPIFY_API_VERSION}`);
   debugLog(
-    `Shopify Health Check Access token starts with: ${accessToken.substring(0, 10)}...`,
+    `Shopify Health Check Access token starts with: ${accessToken.slice(0, 10)}...`,
   );
 
   try {

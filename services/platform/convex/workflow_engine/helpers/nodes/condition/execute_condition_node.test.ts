@@ -60,7 +60,7 @@ describe('executeConditionNode', () => {
     });
 
     it('should default to "false" when expression is undefined', () => {
-      const result = executeConditionNode({} as any, {});
+      const result = executeConditionNode({}, {});
 
       expect(result.port).toBe('false');
     });

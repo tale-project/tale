@@ -28,11 +28,12 @@ export interface QueryConversationMessagesArgs {
 
 function buildQuery(ctx: QueryCtx, args: QueryConversationMessagesArgs) {
   if (args.conversationId !== undefined) {
+    const { conversationId } = args;
     return {
       query: ctx.db
         .query('conversationMessages')
         .withIndex('by_conversationId_and_deliveredAt', (q) =>
-          q.eq('conversationId', args.conversationId!),
+          q.eq('conversationId', conversationId),
         )
         .order('asc'),
       indexedFields: { conversationId: true } as const,
@@ -40,14 +41,15 @@ function buildQuery(ctx: QueryCtx, args: QueryConversationMessagesArgs) {
   }
 
   if (args.channel !== undefined && args.direction !== undefined) {
+    const { channel, direction } = args;
     return {
       query: ctx.db
         .query('conversationMessages')
         .withIndex('by_org_channel_direction_deliveredAt', (q) =>
           q
             .eq('organizationId', args.organizationId)
-            .eq('channel', args.channel!)
-            .eq('direction', args.direction!),
+            .eq('channel', channel)
+            .eq('direction', direction),
         )
         .order('asc'),
       indexedFields: { channel: true, direction: true } as const,

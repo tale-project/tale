@@ -96,7 +96,10 @@ Provide a single, focused keyword or short phrase per call. If you need to searc
 
         // Transform to searchable format directly from MessageDoc
         for (const doc of result.page) {
-          const role = (doc.message?.role as string) || 'unknown';
+          const role =
+            typeof doc.message?.role === 'string'
+              ? doc.message.role
+              : 'unknown';
           // Filter out all user input messages; the agent already has them
           // in the thread, and we only want assistant/tool/content messages
           // as retrievable context here.

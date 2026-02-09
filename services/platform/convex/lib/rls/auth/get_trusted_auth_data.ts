@@ -34,17 +34,17 @@ export async function getTrustedAuthData(
     return null;
   }
 
-  // Check if JWT contains trusted headers data
-  const trustedRole = (identity as any).trustedRole;
+  // Convex UserIdentity doesn't type custom JWT claims, so casts are needed
+  const trustedRole = (identity as unknown as Record<string, unknown>)
+    .trustedRole as string | undefined;
 
   if (!trustedRole) {
-    // Not in trusted headers mode (or trustedRole not set)
     return null;
   }
 
   // Parse trustedTeamIds from JSON string with runtime validation
-  const trustedTeamIdsRaw = (identity as { trustedTeamIds?: string })
-    .trustedTeamIds;
+  const trustedTeamIdsRaw = (identity as unknown as Record<string, unknown>)
+    .trustedTeamIds as string | undefined;
   let trustedTeamIds: string[] = [];
 
   if (trustedTeamIdsRaw) {

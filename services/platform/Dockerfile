@@ -42,6 +42,8 @@ COPY services/platform/vite.config.ts \
      services/platform/package.json \
      ./
 
+COPY tsconfig.base.json /tsconfig.base.json
+
 COPY services/platform/app ./app
 COPY services/platform/lib ./lib
 COPY services/platform/convex ./convex

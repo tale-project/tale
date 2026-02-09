@@ -6,6 +6,9 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
+import type { Id } from '../../_generated/dataModel';
+import type { MutationCtx } from '../../_generated/server';
+
 import { completeExecution } from '../../workflows/executions/complete_execution';
 import { failExecution } from '../../workflows/executions/fail_execution';
 import { updateExecutionStatus } from '../../workflows/executions/update_execution_status';
@@ -14,7 +17,7 @@ function createMockCtx() {
   const patchedData: Record<string, unknown>[] = [];
   const deletedStorageIds: string[] = [];
   const storedExecution: Record<string, unknown> = {
-    _id: 'exec_1' as any,
+    _id: 'exec_1' as Id<'wfExecutions'>,
     organizationId: 'org_1',
     status: 'running',
     variablesStorageId: undefined,
@@ -24,7 +27,7 @@ function createMockCtx() {
   return {
     db: {
       get: vi.fn().mockResolvedValue(storedExecution),
-      patch: vi.fn(async (_id: any, data: Record<string, unknown>) => {
+      patch: vi.fn(async (_id: string, data: Record<string, unknown>) => {
         patchedData.push(data);
         Object.assign(storedExecution, data);
       }),
@@ -44,8 +47,8 @@ describe('failExecution', () => {
   it('should set status to failed with error in metadata', async () => {
     const ctx = createMockCtx();
 
-    await failExecution(ctx as any, {
-      executionId: 'exec_1' as any,
+    await failExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       error: 'Something went wrong',
     });
 
@@ -62,8 +65,8 @@ describe('failExecution', () => {
     const ctx = createMockCtx();
     const before = Date.now();
 
-    await failExecution(ctx as any, {
-      executionId: 'exec_1' as any,
+    await failExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       error: 'error',
     });
 
@@ -75,8 +78,8 @@ describe('failExecution', () => {
     const ctx = createMockCtx();
     ctx._storedExecution.variablesStorageId = 'storage_abc';
 
-    await failExecution(ctx as any, {
-      executionId: 'exec_1' as any,
+    await failExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       error: 'error',
     });
 
@@ -86,8 +89,8 @@ describe('failExecution', () => {
   it('should not delete storage if no variablesStorageId', async () => {
     const ctx = createMockCtx();
 
-    await failExecution(ctx as any, {
-      executionId: 'exec_1' as any,
+    await failExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       error: 'error',
     });
 
@@ -99,8 +102,8 @@ describe('completeExecution', () => {
   it('should set status to completed with output', async () => {
     const ctx = createMockCtx();
 
-    await completeExecution(ctx as any, {
-      executionId: 'exec_1' as any,
+    await completeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       output: { result: 'success' },
     });
 
@@ -117,8 +120,8 @@ describe('completeExecution', () => {
     const ctx = createMockCtx();
     const before = Date.now();
 
-    await completeExecution(ctx as any, {
-      executionId: 'exec_1' as any,
+    await completeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       output: {},
     });
 
@@ -130,11 +133,11 @@ describe('completeExecution', () => {
   it('should include variables when provided', async () => {
     const ctx = createMockCtx();
 
-    await completeExecution(ctx as any, {
-      executionId: 'exec_1' as any,
+    await completeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       output: {},
       variablesSerialized: '{"final": true}',
-      variablesStorageId: 'new_storage' as any,
+      variablesStorageId: 'new_storage' as Id<'_storage'>,
     });
 
     expect(ctx.db.patch).toHaveBeenCalledWith(
@@ -150,11 +153,11 @@ describe('completeExecution', () => {
     const ctx = createMockCtx();
     ctx._storedExecution.variablesStorageId = 'old_storage';
 
-    await completeExecution(ctx as any, {
-      executionId: 'exec_1' as any,
+    await completeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       output: {},
       variablesSerialized: '{}',
-      variablesStorageId: 'new_storage' as any,
+      variablesStorageId: 'new_storage' as Id<'_storage'>,
     });
 
     expect(ctx.storage.delete).toHaveBeenCalledWith('old_storage');
@@ -164,11 +167,11 @@ describe('completeExecution', () => {
     const ctx = createMockCtx();
     ctx._storedExecution.variablesStorageId = 'same_storage';
 
-    await completeExecution(ctx as any, {
-      executionId: 'exec_1' as any,
+    await completeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       output: {},
       variablesSerialized: '{}',
-      variablesStorageId: 'same_storage' as any,
+      variablesStorageId: 'same_storage' as Id<'_storage'>,
     });
 
     expect(ctx._deletedStorageIds).not.toContain('same_storage');
@@ -179,8 +182,8 @@ describe('updateExecutionStatus', () => {
   it('should update status', async () => {
     const ctx = createMockCtx();
 
-    await updateExecutionStatus(ctx as any, {
-      executionId: 'exec_1' as any,
+    await updateExecutionStatus(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       status: 'running',
     });
 
@@ -193,8 +196,8 @@ describe('updateExecutionStatus', () => {
   it('should update currentStepSlug when provided', async () => {
     const ctx = createMockCtx();
 
-    await updateExecutionStatus(ctx as any, {
-      executionId: 'exec_1' as any,
+    await updateExecutionStatus(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       status: 'running',
       currentStepSlug: 'step_2',
     });
@@ -209,8 +212,8 @@ describe('updateExecutionStatus', () => {
     const ctx = createMockCtx();
     const before = Date.now();
 
-    await updateExecutionStatus(ctx as any, {
-      executionId: 'exec_1' as any,
+    await updateExecutionStatus(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       status: 'completed',
     });
 
@@ -221,8 +224,8 @@ describe('updateExecutionStatus', () => {
   it('should not set completedAt for non-completed status', async () => {
     const ctx = createMockCtx();
 
-    await updateExecutionStatus(ctx as any, {
-      executionId: 'exec_1' as any,
+    await updateExecutionStatus(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       status: 'failed',
     });
 
@@ -233,8 +236,8 @@ describe('updateExecutionStatus', () => {
   it('should store error in metadata when provided', async () => {
     const ctx = createMockCtx();
 
-    await updateExecutionStatus(ctx as any, {
-      executionId: 'exec_1' as any,
+    await updateExecutionStatus(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       status: 'failed',
       error: 'Timeout exceeded',
     });
@@ -248,8 +251,8 @@ describe('updateExecutionStatus', () => {
   it('should set waitingFor when provided', async () => {
     const ctx = createMockCtx();
 
-    await updateExecutionStatus(ctx as any, {
-      executionId: 'exec_1' as any,
+    await updateExecutionStatus(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
       status: 'running',
       waitingFor: 'approval_task_123',
     });

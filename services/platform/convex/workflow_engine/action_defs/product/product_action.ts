@@ -169,7 +169,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
           );
         }
 
-        const result = (await ctx.runMutation!(
+        const result = (await ctx.runMutation(
           internal.products.internal_mutations.ingestProduct,
           {
             organizationId,
@@ -191,7 +191,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
 
         // Fetch and return the full created entity
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        const createdProduct = await ctx.runQuery!(
+        const createdProduct = await ctx.runQuery(
           internal.products.internal_queries.getProductById,
           { productId: result.productId },
         );
@@ -201,7 +201,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
 
       case 'get_by_id': {
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        const product = await ctx.runQuery!(
+        const product = await ctx.runQuery(
           internal.products.internal_queries.getProductById,
           {
             productId: params.productId as Id<'products'>, // Required by validator
@@ -218,7 +218,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
           );
         }
 
-        const result = (await ctx.runQuery!(
+        const result = (await ctx.runQuery(
           internal.products.internal_queries.queryProducts,
           {
             organizationId,
@@ -237,7 +237,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
       }
 
       case 'update': {
-        await ctx.runMutation!(
+        await ctx.runMutation(
           internal.products.internal_mutations.updateProducts,
           {
             productId: params.productId as Id<'products'>, // Required by validator
@@ -247,7 +247,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
 
         // Fetch and return the updated entity
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        const updatedProduct = await ctx.runQuery!(
+        const updatedProduct = await ctx.runQuery(
           internal.products.internal_queries.getProductById,
           { productId: params.productId as Id<'products'> },
         );
@@ -265,7 +265,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         }
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        const result = (await ctx.runQuery!(
+        const result = (await ctx.runQuery(
           internal.products.internal_queries.filterProducts,
           {
             organizationId,
@@ -277,32 +277,34 @@ export const productAction: ActionDefinition<ProductActionParams> = {
       }
 
       case 'hydrate_fields': {
-        const input: any[] = Array.isArray(params.items)
-          ? (params.items as any[])
+        const input: Record<string, unknown>[] = Array.isArray(params.items)
+          ? (params.items as Record<string, unknown>[])
           : [];
 
         const idField: string = params.idField ?? 'product_id';
         const mappings: Record<string, string> = params.mappings ?? {};
         const preserveExisting: boolean = params.preserveExisting ?? true;
 
-        const hydrated: any[] = [];
+        const hydrated: Record<string, unknown>[] = [];
         for (const item of input) {
           try {
-            const idVal = (item as any)?.[idField];
+            const idVal = (item as Record<string, unknown>)?.[idField];
             if (typeof idVal !== 'string') {
               hydrated.push(item);
               continue;
             }
-            const doc = await ctx.runQuery!(
+            const doc = await ctx.runQuery(
               internal.products.internal_queries.getProductById,
               {
                 productId: idVal as Id<'products'>,
               },
             );
-            const out: any = { ...item };
+            const out: Record<string, unknown> = { ...item };
             for (const [targetKey, sourceKey] of Object.entries(mappings)) {
               const currentVal = out?.[targetKey];
-              const sourceVal = (doc as any)?.[sourceKey];
+              const sourceVal = (doc as Record<string, unknown> | null)?.[
+                sourceKey
+              ];
               if (preserveExisting) {
                 const isEmpty =
                   currentVal === undefined ||

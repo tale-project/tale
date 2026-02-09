@@ -157,9 +157,10 @@ export function UserButton({
           <>
             <DropdownMenuItem
               onClick={() => {
+                if (!organizationId) return;
                 navigate({
                   to: '/dashboard/$id/settings',
-                  params: { id: organizationId! },
+                  params: { id: organizationId },
                 });
                 onNavigate?.();
               }}

@@ -39,11 +39,14 @@ export async function updateConversationMessage(
   if (args.retryCount !== undefined) updateData.retryCount = args.retryCount;
   if (args.metadata !== undefined) {
     // Merge metadata to preserve existing fields
-    const existingMetadata =
-      (message.metadata as Record<string, unknown>) || {};
+    const existingMetadata = message.metadata ?? {};
     updateData.metadata = {
       ...existingMetadata,
-      ...(args.metadata as Record<string, unknown>),
+      ...(typeof args.metadata === 'object' &&
+      args.metadata !== null &&
+      !Array.isArray(args.metadata)
+        ? args.metadata
+        : {}),
     };
   }
 

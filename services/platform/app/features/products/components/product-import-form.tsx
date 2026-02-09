@@ -51,7 +51,7 @@ export function ProductImportForm({
     }
   };
 
-  const fileValue = watch('file') as File | null;
+  const fileValue: File | null = watch('file');
 
   return (
     <Form>
@@ -81,10 +81,8 @@ export function ProductImportForm({
             <li className="text-blue-600">{t('import.draftStatusNote')}</li>
           </ul>
         </Description>
-        {errors.file?.message && (
-          <p className="text-destructive text-sm">
-            {errors.file.message as string}
-          </p>
+        {typeof errors.file?.message === 'string' && (
+          <p className="text-destructive text-sm">{errors.file.message}</p>
         )}
         {fileValue && (
           <VStack gap={2} className="border-border rounded-xl border p-3">

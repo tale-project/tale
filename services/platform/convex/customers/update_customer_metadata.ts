@@ -10,6 +10,7 @@
 
 import { set, merge } from 'lodash';
 
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
@@ -30,7 +31,7 @@ export async function updateCustomerMetadata(
   }
 
   // Get existing metadata or initialize empty object
-  const existingMetadata = (customer.metadata as Record<string, unknown>) ?? {};
+  const existingMetadata = customer.metadata ?? {};
 
   // Process metadata updates
   // Support both flat keys and dot-notation keys
@@ -51,11 +52,7 @@ export async function updateCustomerMetadata(
         !Array.isArray(updatedMetadata[key])
       ) {
         // Deep merge objects
-        updatedMetadata[key] = merge(
-          {},
-          updatedMetadata[key] as Record<string, unknown>,
-          value as Record<string, unknown>,
-        );
+        updatedMetadata[key] = merge({}, updatedMetadata[key], value);
       } else {
         // Direct assignment for primitives, arrays, or when replacing
         updatedMetadata[key] = value;
@@ -65,7 +62,8 @@ export async function updateCustomerMetadata(
 
   // Update the customer with the new metadata
   await ctx.db.patch(customerId, {
-    metadata: updatedMetadata as any,
+    // Convex patch expects ConvexJsonRecord but we have Record<string, unknown>
+    metadata: updatedMetadata as ConvexJsonRecord,
   });
 
   return {

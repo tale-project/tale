@@ -80,6 +80,7 @@ export function RagStatusBadge({
     setIsRetrying(true);
     try {
       const result = await retryRagIndexing({
+        // Component receives string ID — cast required for Convex API
         documentId: documentId as Id<'documents'>,
       });
       if (result.success) {

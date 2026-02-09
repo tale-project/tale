@@ -51,7 +51,7 @@ export function useMessageProcessing(
     loadMore,
     status: paginationStatus,
   } = useUIMessages(
-    // @ts-ignore - Deep api path may cause TS2589 depending on TypeScript state
+    // oxlint-disable-next-line typescript/no-explicit-any -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 100, stream: true },
@@ -97,6 +97,7 @@ export function useMessageProcessing(
         return false;
       })
       .map((m) => {
+        // UIMessage.parts is loosely typed — cast required to access file-specific fields
         const fileParts = (
           (m.parts || []) as {
             type: string;
@@ -121,6 +122,7 @@ export function useMessageProcessing(
           id: m.id,
           key: m.key,
           content: m.text,
+          // UIMessage.role is string — cast required to narrow to expected union
           role: m.role as 'user' | 'assistant' | 'system',
           timestamp: new Date(m._creationTime),
           fileParts: fileParts.length > 0 ? fileParts : undefined,
@@ -170,6 +172,7 @@ export function useMessageProcessing(
     );
     if (lastToolIndex === -1) return false;
 
+    // UIMessage.parts is loosely typed — cast required to access tool-specific fields
     const lastToolPart = lastAssistant.parts[lastToolIndex] as {
       type: string;
       state?: string;

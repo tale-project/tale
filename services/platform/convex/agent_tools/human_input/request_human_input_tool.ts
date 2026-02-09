@@ -171,7 +171,7 @@ Call this tool with:
 
         return {
           success: true,
-          requestId: requestId as string,
+          requestId,
           requestCreated: true,
           waitingForUser: true,
           message: `STOP - WAITING FOR USER INPUT

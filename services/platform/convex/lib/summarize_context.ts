@@ -278,7 +278,7 @@ ${formattedMessages}`;
   }
 
   // Generate unique userId for one-off summarization (messages won't be saved)
-  const userId = `summarizer-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const userId = `summarizer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
   const result = await summarizer.generateText(
     ctx,
@@ -334,7 +334,7 @@ ${formattedNewMessages}`;
   prompt += `\n\nPlease provide the updated summary:`;
 
   // Generate unique userId for one-off summarization (messages won't be saved)
-  const userId = `summarizer-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const userId = `summarizer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
   const result = await summarizer.generateText(
     ctx,

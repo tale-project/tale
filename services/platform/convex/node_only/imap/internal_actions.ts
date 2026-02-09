@@ -110,7 +110,7 @@ export const retrieveImapEmails = internalAction({
         }
       : {
           user: credentials.username,
-          pass: credentials.password!,
+          pass: credentials.password ?? '',
         };
 
     const client = new ImapFlow({

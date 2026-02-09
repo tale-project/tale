@@ -9,7 +9,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
-import { Doc, Id } from '@/convex/_generated/dataModel';
+import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateVendor } from '../hooks/use-update-vendor';
@@ -98,7 +98,7 @@ export function VendorEditDialog({
   const onSubmit = async (data: VendorFormData) => {
     try {
       await updateVendor({
-        vendorId: vendor._id as Id<'vendors'>,
+        vendorId: vendor._id,
         name: data.name.trim(),
         email: data.email.trim(),
         locale: data.locale,

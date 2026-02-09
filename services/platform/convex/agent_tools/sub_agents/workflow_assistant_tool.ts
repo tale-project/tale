@@ -74,7 +74,10 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
           organizationId,
           'workflow_assistant',
         );
-        if (!roleCheck.allowed) return roleCheck.error!;
+        if (!roleCheck.allowed)
+          return (
+            roleCheck.error ?? { success: false, response: 'Access denied' }
+          );
       }
 
       try {

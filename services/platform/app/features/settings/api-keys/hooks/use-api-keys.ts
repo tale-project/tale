@@ -22,6 +22,7 @@ export function useApiKeys(organizationId: string) {
       if (result.error) {
         throw new Error(result.error.message);
       }
+      // authClient.apiKey.list() returns loosely typed data — cast required for ApiKey shape
       return (result.data ?? []) as ApiKey[];
     },
   });

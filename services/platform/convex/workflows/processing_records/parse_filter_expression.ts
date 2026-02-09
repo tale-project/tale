@@ -18,7 +18,7 @@
  * - 'status == "closed" && daysAgo(metadata.resolved_at) > 30' => [{ field: 'status', operator: '==', value: 'closed' }] + hasComplexConditions
  */
 
-import type { ParsedFilterExpression } from './ast_helpers';
+import type { ASTNode, ParsedFilterExpression } from './ast_helpers';
 
 import { jexlInstance } from '../../lib/variables/jexl_instance';
 import { traverseAST } from './ast_helpers';
@@ -56,7 +56,7 @@ export function parseFilterExpression(
     const ast = compiled._getAst();
 
     // Traverse AST to extract indexable conditions
-    const result = traverseAST(ast as any);
+    const result = traverseAST(ast as ASTNode);
 
     // Build backward-compatible equalityConditions
     const equalityConditions: Record<string, unknown> = {};

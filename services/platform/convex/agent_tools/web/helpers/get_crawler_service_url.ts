@@ -7,8 +7,9 @@
 export function getCrawlerServiceUrl(
   variables?: Record<string, unknown>,
 ): string {
+  const fromVars = variables?.crawlerServiceUrl;
   return (
-    (variables?.crawlerServiceUrl as string) ||
+    (typeof fromVars === 'string' ? fromVars : '') ||
     process.env.CRAWLER_URL ||
     'http://localhost:8002'
   );

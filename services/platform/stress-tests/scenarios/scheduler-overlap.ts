@@ -17,6 +17,8 @@
 
 import { ConvexHttpClient } from 'convex/browser';
 
+import type { Id } from '../../convex/_generated/dataModel';
+
 import { api } from '../../convex/_generated/api';
 import { scenarios } from '../fixtures/stress-workflows';
 import { MetricsCollector } from '../metrics';
@@ -58,7 +60,8 @@ async function run() {
         api.workflow_engine.mutations.startWorkflow,
         {
           organizationId,
-          wfDefinitionId: wfDefinitionId as never,
+          // Config stores string IDs — cast required for Convex API
+          wfDefinitionId: wfDefinitionId as Id<'wfDefinitions'>,
           input: {
             stressTest: true,
             scenarioIndex: i,

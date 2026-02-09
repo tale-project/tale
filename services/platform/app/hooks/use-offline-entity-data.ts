@@ -71,6 +71,7 @@ export function createOfflineEntityDataHook<
     const {
       organizationId,
       search = '',
+      // {} is not assignable to arbitrary TFilters — cast required for default
       filters = {} as TFilters,
       sortBy = config.defaultSort.field,
       sortOrder = config.defaultSort.order,
@@ -84,6 +85,7 @@ export function createOfflineEntityDataHook<
     const cacheKey = createCacheKey(config.queryName, organizationId);
 
     const liveData = useQuery(
+      // oxlint-disable-next-line typescript/no-explicit-any -- Convex useQuery requires exact FunctionReference type; generic QueryFunction is not assignable
       config.queryFn as any,
       isOnline ? { organizationId } : 'skip',
     );
@@ -112,6 +114,7 @@ export function createOfflineEntityDataHook<
 
     useEffect(() => {
       if (isOnline && liveData) {
+        // Convex useQuery returns unknown[] — cast required to apply generic TItem
         setQueryCache(cacheKey, liveData as TItem[], organizationId);
         setCachedData(liveData as TItem[]);
         setLastSyncTime(new Date());
@@ -124,6 +127,7 @@ export function createOfflineEntityDataHook<
     const processed = useMemo(() => {
       if (!sourceData) return [];
 
+      // Convex useQuery returns unknown[] — cast required to apply generic TItem
       let result = sourceData as TItem[];
 
       if (search) {

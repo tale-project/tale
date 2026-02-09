@@ -6,7 +6,11 @@ import { Rules } from 'convex-helpers/server/rowLevelSecurity';
 
 import type { DataModel } from '../../../_generated/dataModel';
 import type { QueryCtx } from '../../../_generated/server';
-import type { AuthenticatedUser, RLSRuleContext } from '../types';
+import type {
+  AuthenticatedUser,
+  OrganizationMember,
+  RLSRuleContext,
+} from '../types';
 
 import { authorizeRls } from '../../../auth';
 import { getUserTeamIds } from '../../get_user_teams';
@@ -25,7 +29,7 @@ export async function rlsRules(
     userOrganizations: Array<{
       organizationId: string;
       role: 'disabled' | 'member' | 'editor' | 'developer' | 'admin';
-      member: any;
+      member: OrganizationMember;
     }>;
   },
 ): Promise<Rules<RLSRuleContext, DataModel>> {

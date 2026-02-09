@@ -103,7 +103,7 @@ export function buildOAuth2AuthUrl(config: OAuth2UrlConfig): string {
   debugLog('Generated OAuth2 authorization URL', {
     provider: config.provider,
     redirectUri,
-    clientId: config.clientId.substring(0, 10) + '...',
+    clientId: config.clientId.slice(0, 10) + '...',
     scope: providerConfig.scope.join(' '),
   });
 

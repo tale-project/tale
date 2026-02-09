@@ -46,23 +46,23 @@ export async function updateCustomer(
     updateData.externalId !== existingCustomer.externalId;
 
   const [emailConflict, externalIdConflict] = await Promise.all([
-    checkEmailConflict
+    checkEmailConflict && updateData.email
       ? ctx.db
           .query('customers')
           .withIndex('by_organizationId_and_email', (q) =>
             q
               .eq('organizationId', existingCustomer.organizationId)
-              .eq('email', updateData.email!),
+              .eq('email', updateData.email),
           )
           .first()
       : Promise.resolve(null),
-    checkExternalIdConflict
+    checkExternalIdConflict && updateData.externalId
       ? ctx.db
           .query('customers')
           .withIndex('by_organizationId_and_externalId', (q) =>
             q
               .eq('organizationId', existingCustomer.organizationId)
-              .eq('externalId', updateData.externalId!),
+              .eq('externalId', updateData.externalId),
           )
           .first()
       : Promise.resolve(null),
@@ -88,7 +88,7 @@ export async function updateCustomer(
   await emitEvent(ctx, {
     organizationId: existingCustomer.organizationId,
     eventType: 'customer.updated',
-    eventData: { customerId: customerId as string },
+    eventData: { customerId },
   });
 
   return await ctx.db.get(customerId);

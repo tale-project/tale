@@ -82,7 +82,7 @@ export function replaceVariables(
     for (const [key, val] of Object.entries(obj)) {
       // Replace variables in both key and value
       const processedKey = isString(key)
-        ? (replaceVariables(key, variables) as string)
+        ? replaceVariables(key, variables)
         : key;
       const processedValue = replaceVariables(val, variables);
       result[processedKey] = processedValue;

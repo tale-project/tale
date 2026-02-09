@@ -88,7 +88,9 @@ export function useMergedChatItems({
           return item.data._creationTime || item.data.timestamp.getTime();
         }
         const approval = item.data;
-        const messageTime = messageTimeMap.get(approval.messageId!);
+        const messageTime = approval.messageId
+          ? messageTimeMap.get(approval.messageId)
+          : undefined;
         if (messageTime !== undefined) {
           // Use different offsets to maintain consistent ordering
           let offset = 0.1;

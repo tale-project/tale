@@ -224,6 +224,7 @@ export function AddMemberDialog({
 
         <Select
           value={selectedRole}
+          // Radix Select onValueChange returns string — cast required
           onValueChange={(value) =>
             setValue(
               'role',

@@ -120,12 +120,11 @@ export const bulkCreateVendors = mutationWithRLS({
 
       try {
         if (vendorData.email) {
+          const { email } = vendorData;
           const existing = await ctx.db
             .query('vendors')
             .withIndex('by_organizationId_and_email', (q) =>
-              q
-                .eq('organizationId', args.organizationId)
-                .eq('email', vendorData.email!),
+              q.eq('organizationId', args.organizationId).eq('email', email),
             )
             .first();
 
@@ -137,12 +136,13 @@ export const bulkCreateVendors = mutationWithRLS({
         }
 
         if (vendorData.externalId) {
+          const { externalId } = vendorData;
           const existing = await ctx.db
             .query('vendors')
             .withIndex('by_organizationId_and_externalId', (q) =>
               q
                 .eq('organizationId', args.organizationId)
-                .eq('externalId', vendorData.externalId!),
+                .eq('externalId', externalId),
             )
             .first();
 

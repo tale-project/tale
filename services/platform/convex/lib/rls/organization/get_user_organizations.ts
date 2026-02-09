@@ -63,18 +63,20 @@ export async function getUserOrganizations(
     return [];
   }
 
-  return result.page.map((member: any) => {
-    // Get role from trusted headers if available, otherwise from database
-    const rawRole = trustedData?.trustedRole || member.role || 'member';
-    const normalizedRole = rawRole.toLowerCase();
-    const role: ValidRole = isValidRole(normalizedRole)
-      ? normalizedRole
-      : 'member';
+  return result.page.map(
+    (member: { organizationId: string; role?: string }) => {
+      // Get role from trusted headers if available, otherwise from database
+      const rawRole = trustedData?.trustedRole || member.role || 'member';
+      const normalizedRole = rawRole.toLowerCase();
+      const role: ValidRole = isValidRole(normalizedRole)
+        ? normalizedRole
+        : 'member';
 
-    return {
-      organizationId: member.organizationId,
-      role,
-      member,
-    };
-  });
+      return {
+        organizationId: member.organizationId,
+        role,
+        member,
+      };
+    },
+  );
 }

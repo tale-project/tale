@@ -115,7 +115,7 @@ BEST PRACTICES:
       | WorkflowReadListAllResult
       | WorkflowReadGetActiveVersionStepsResult
       | WorkflowReadListVersionHistoryResult
-      | { success: boolean; step: any }
+      | { success: boolean; step: unknown }
     > => {
       if (args.operation === 'get_structure') {
         if (!args.workflowId) {

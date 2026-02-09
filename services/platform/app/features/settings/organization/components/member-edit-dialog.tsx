@@ -27,6 +27,8 @@ type EditMemberFormData = {
   password?: string;
 };
 
+type MemberRole = EditMemberFormData['role'];
+
 type MemberLite = {
   _id: string;
   organizationId: string;
@@ -34,6 +36,16 @@ type MemberLite = {
   role?: string;
   email?: string;
 };
+
+function isValidRole(role?: string): role is MemberRole {
+  return (
+    role === 'disabled' ||
+    role === 'admin' ||
+    role === 'developer' ||
+    role === 'editor' ||
+    role === 'member'
+  );
+}
 
 interface EditMemberDialogProps {
   open: boolean;
@@ -70,13 +82,7 @@ export function EditMemberDialog({
     resolver: zodResolver(editMemberSchema),
     defaultValues: {
       displayName: member?.displayName,
-      role: member?.role as any as
-        | 'disabled'
-        | 'admin'
-        | 'developer'
-        | 'editor'
-        | 'member'
-        | undefined,
+      role: isValidRole(member?.role) ? member.role : undefined,
       email: member?.email,
       updatePassword: false,
       password: '',

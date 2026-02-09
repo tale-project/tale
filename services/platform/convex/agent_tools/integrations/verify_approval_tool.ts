@@ -75,12 +75,18 @@ Call after write operations to confirm approval was created.`,
         }
 
         // Extract metadata for integration operations
-        const metadata = approval.metadata as
-          | Record<string, unknown>
-          | undefined;
-        const operationName = metadata?.operationName as string | undefined;
-        const operationTitle = metadata?.operationTitle as string | undefined;
-        const integrationName = metadata?.integrationName as string | undefined;
+        const operationName =
+          typeof approval.metadata?.operationName === 'string'
+            ? approval.metadata.operationName
+            : undefined;
+        const operationTitle =
+          typeof approval.metadata?.operationTitle === 'string'
+            ? approval.metadata.operationTitle
+            : undefined;
+        const integrationName =
+          typeof approval.metadata?.integrationName === 'string'
+            ? approval.metadata.integrationName
+            : undefined;
 
         console.log('[verify_approval] Approval verified successfully:', {
           approvalId,
@@ -92,7 +98,7 @@ Call after write operations to confirm approval was created.`,
         return {
           exists: true,
           approvalId,
-          status: approval.status as 'pending' | 'approved' | 'rejected',
+          status: approval.status,
           operationName,
           operationTitle,
           integrationName,

@@ -94,7 +94,7 @@ function buildExpandedQuery(
 
     const truncated =
       msg.content.length > MAX_CONTEXT_CHARS
-        ? msg.content.substring(0, MAX_CONTEXT_CHARS) + '...'
+        ? msg.content.slice(0, MAX_CONTEXT_CHARS) + '...'
         : msg.content;
 
     contextParts.push(`${msg.role}: ${truncated}`);
@@ -131,9 +131,9 @@ async function getRecentMessagesForPrefetch(
         (m) => m.message?.role === 'user' || m.message?.role === 'assistant',
       )
       .map((m) => ({
-        role: m.message!.role as 'user' | 'assistant',
+        role: m.message?.role as 'user' | 'assistant',
         content:
-          typeof m.message!.content === 'string' ? m.message!.content : '',
+          typeof m.message?.content === 'string' ? m.message.content : '',
       }))
       .filter((m) => m.content.length > 0)
       .toReversed();
@@ -218,7 +218,7 @@ export function startRagPrefetch(
   const promise = (async (): Promise<string> => {
     debugLog('RAG prefetch started', {
       threadId: options.threadId,
-      userMessage: options.userMessage.substring(0, 100),
+      userMessage: options.userMessage.slice(0, 100),
     });
 
     const recentMessages = await getRecentMessagesForPrefetch(

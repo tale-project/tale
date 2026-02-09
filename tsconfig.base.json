@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  }
+}

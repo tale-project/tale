@@ -28,7 +28,6 @@ export async function readProductList(
   const numItems = args.numItems ?? 50;
   const cursor = args.cursor ?? null;
 
-  // @ts-ignore TS2589: Convex API type instantiation is excessively deep
   const result = (await ctx.runQuery(
     internal.products.internal_queries.queryProducts,
     {

@@ -28,7 +28,7 @@ export function groupMessagesByDate(messages: Message[]): MessageGroup[] {
     const dateKey = messageDate.format('YYYY-MM-DD');
 
     if (groupMap.has(dateKey)) {
-      groupMap.get(dateKey)!.messages.push(message);
+      groupMap.get(dateKey)?.messages.push(message);
     } else {
       groupMap.set(dateKey, {
         date: message.timestamp,

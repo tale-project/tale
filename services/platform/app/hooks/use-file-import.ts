@@ -121,6 +121,19 @@ export function useFileImport<T>({
 
 // Common mappers for reuse
 
+function getString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function getNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? undefined : parsed;
+  }
+  return undefined;
+}
+
 /**
  * Customer import mapper utilities.
  */
@@ -138,17 +151,17 @@ export const customerMappers = {
   },
   excel: (record: Record<string, unknown>) => {
     const email =
-      (record.email as string) ||
-      (record.Email as string) ||
-      (record.EMAIL as string);
+      getString(record.email) ||
+      getString(record.Email) ||
+      getString(record.EMAIL);
     if (!email) return null;
 
     return {
       email,
       locale:
-        (record.locale as string) ||
-        (record.Locale as string) ||
-        (record.LOCALE as string) ||
+        getString(record.locale) ||
+        getString(record.Locale) ||
+        getString(record.LOCALE) ||
         'en',
       status: 'churned' as const,
       source: 'file_upload' as const,
@@ -173,22 +186,22 @@ export const vendorMappers = {
   },
   excel: (record: Record<string, unknown>) => {
     const email =
-      (record.email as string) ||
-      (record.Email as string) ||
-      (record.EMAIL as string);
+      getString(record.email) ||
+      getString(record.Email) ||
+      getString(record.EMAIL);
     if (!email) return null;
 
     return {
       email,
       name:
-        (record.name as string) ||
-        (record.Name as string) ||
-        (record.NAME as string) ||
+        getString(record.name) ||
+        getString(record.Name) ||
+        getString(record.NAME) ||
         undefined,
       locale:
-        (record.locale as string) ||
-        (record.Locale as string) ||
-        (record.LOCALE as string) ||
+        getString(record.locale) ||
+        getString(record.Locale) ||
+        getString(record.LOCALE) ||
         'en',
       source: 'file_upload' as const,
     };
@@ -200,19 +213,8 @@ export const vendorMappers = {
  * Creates products with full field support including status, stock, currency, category.
  */
 export const productMappers = {
-  /** Helper to safely get string value */
-  getString: (value: unknown): string | undefined => {
-    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-  },
-  /** Helper to safely get number value */
-  getNumber: (value: unknown): number | undefined => {
-    if (typeof value === 'number') return value;
-    if (typeof value === 'string') {
-      const parsed = parseFloat(value);
-      return isNaN(parsed) ? undefined : parsed;
-    }
-    return undefined;
-  },
+  getString,
+  getNumber,
   /** Helper to validate product status */
   validateStatus: (
     value: unknown,
@@ -236,9 +238,6 @@ export const productMappers = {
     };
   },
   excel: (record: Record<string, unknown>) => {
-    const getString = productMappers.getString;
-    const getNumber = productMappers.getNumber;
-
     const name =
       getString(record.name) ||
       getString(record.Name) ||

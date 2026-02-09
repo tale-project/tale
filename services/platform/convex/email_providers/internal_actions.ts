@@ -250,7 +250,11 @@ export const handleOAuth2Callback = internalAction({
         clientId: string;
         clientSecretEncrypted: string;
       };
-      metadata?: Record<string, unknown>;
+      metadata?: {
+        accountType?: AccountType;
+        tenantId?: string;
+        [key: string]: unknown;
+      };
     };
 
     if (!emailProvider.oauth2Auth) {
@@ -261,10 +265,8 @@ export const handleOAuth2Callback = internalAction({
     const provider = oauth2Auth.provider as OAuthProvider;
 
     // Get account type and tenant ID from metadata (used for Microsoft tenant-specific endpoints)
-    const accountType = emailProvider.metadata?.accountType as
-      | AccountType
-      | undefined;
-    const tenantId = emailProvider.metadata?.tenantId as string | undefined;
+    const accountType = emailProvider.metadata?.accountType;
+    const tenantId = emailProvider.metadata?.tenantId;
 
     console.log('[OAuth2 Callback] Provider info:', {
       provider,

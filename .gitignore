@@ -58,6 +58,7 @@ compose.override.yml
 .claude/*
 !.claude/CLAUDE.md
 !.claude/settings.json
+!.claude/hooks/
 
 # Python
 __pycache__/

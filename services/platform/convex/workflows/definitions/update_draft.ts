@@ -39,7 +39,7 @@ export async function updateDraft(
   if (args.config !== undefined) updates.config = args.config;
 
   updates.metadata = {
-    ...(workflow.metadata as Record<string, unknown>),
+    ...workflow.metadata,
     updatedAt: Date.now(),
     updatedBy: args.updatedBy,
   };

@@ -54,7 +54,7 @@ export async function activateVersion(
   await ctx.db.patch(args.wfDefinitionId, {
     status: 'active',
     metadata: {
-      ...(workflow.metadata as Record<string, unknown>),
+      ...workflow.metadata,
       reactivatedAt: Date.now(),
       reactivatedBy: args.activatedBy,
       reactivationReason: args.changeLog ?? null,

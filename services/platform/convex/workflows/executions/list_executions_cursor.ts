@@ -59,7 +59,7 @@ export async function listExecutionsCursor(
         .withIndex('by_definition_triggeredBy_startedAt', (q) => {
           const base = q
             .eq('wfDefinitionId', args.wfDefinitionId)
-            .eq('triggeredBy', args.triggeredBy!);
+            .eq('triggeredBy', args.triggeredBy);
 
           if (fromDate !== undefined && toDate !== undefined) {
             return base.gte('startedAt', fromDate).lte('startedAt', toDate);

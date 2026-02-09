@@ -14,11 +14,12 @@ export async function getExampleMessages(
   },
 ): Promise<Array<ExampleMessage>> {
   if (args.toneOfVoiceId !== undefined) {
+    const toneOfVoiceId = args.toneOfVoiceId;
     const examples: Array<ExampleMessage> = [];
     for await (const example of ctx.db
       .query('exampleMessages')
       .withIndex('by_toneOfVoiceId', (q) =>
-        q.eq('toneOfVoiceId', args.toneOfVoiceId!),
+        q.eq('toneOfVoiceId', toneOfVoiceId),
       )) {
       examples.push(example);
     }

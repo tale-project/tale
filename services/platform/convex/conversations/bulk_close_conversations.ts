@@ -31,8 +31,7 @@ export async function bulkCloseConversations(
       continue;
     }
 
-    const existingMetadata =
-      (conversation.metadata as Record<string, unknown>) || {};
+    const existingMetadata = conversation.metadata ?? {};
     patches.push({
       id: conversationId,
       patch: {
@@ -52,10 +51,11 @@ export async function bulkCloseConversations(
 
   let successCount = 0;
   for (let i = 0; i < results.length; i++) {
-    if (results[i].status === 'fulfilled') {
+    const result = results[i];
+    if (result.status === 'fulfilled') {
       successCount++;
     } else {
-      const reason = (results[i] as PromiseRejectedResult).reason;
+      const reason = result.status === 'rejected' ? result.reason : undefined;
       errors.push(
         `Failed to close ${patches[i].id}: ${reason instanceof Error ? reason.message : 'Unknown error'}`,
       );

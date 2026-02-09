@@ -45,7 +45,7 @@ export async function closeConversation(
     organizationId: conversation.organizationId,
     eventType: 'conversation.closed',
     eventData: {
-      conversationId: args.conversationId as string,
+      conversationId: args.conversationId,
       previousStatus,
       resolvedBy: args.resolvedBy,
     },

@@ -37,7 +37,7 @@ export async function unpublishWorkflow(
   await ctx.db.patch(activeVersion._id, {
     status: 'archived',
     metadata: {
-      ...(activeVersion.metadata as Record<string, unknown>),
+      ...activeVersion.metadata,
       archivedAt: Date.now(),
       archivedBy: args.updatedBy,
     },

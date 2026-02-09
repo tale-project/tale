@@ -120,6 +120,7 @@ async function registerBackgroundSync(): Promise<void> {
   ) {
     try {
       const registration = await navigator.serviceWorker.ready;
+      // Background Sync API not in standard TS types — cast required to access sync.register
       await (
         registration as ServiceWorkerRegistration & {
           sync: { register: (tag: string) => Promise<void> };

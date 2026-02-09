@@ -16,6 +16,8 @@
 
 import { ConvexHttpClient } from 'convex/browser';
 
+import type { Id } from '../../convex/_generated/dataModel';
+
 import { api } from '../../convex/_generated/api';
 import { scenarios } from '../fixtures/stress-workflows';
 import { MetricsCollector } from '../metrics';
@@ -51,7 +53,8 @@ async function run() {
         api.workflow_engine.mutations.startWorkflow,
         {
           organizationId,
-          wfDefinitionId: wfDefinitionId as never,
+          // Config stores string IDs — cast required for Convex API
+          wfDefinitionId: wfDefinitionId as Id<'wfDefinitions'>,
           input: {
             stressTest: true,
             scenarioIndex: i,
@@ -83,8 +86,11 @@ async function run() {
   // Poll for completion via npx convex run (getRawExecution is internalQuery)
   const pending = new Map(
     launched
-      .filter((r) => r.executionId)
-      .map((r) => [r.id, r.executionId as string]),
+      .filter(
+        (r): r is typeof r & { executionId: Id<'wfExecutions'> } =>
+          r.executionId != null,
+      )
+      .map((r) => [r.id, r.executionId]),
   );
   const startTime = Date.now();
 

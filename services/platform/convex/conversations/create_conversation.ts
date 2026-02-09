@@ -2,6 +2,7 @@
  * Create a new conversation (business logic)
  */
 
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { MutationCtx } from '../_generated/server';
 import type { CreateConversationArgs } from './types';
 
@@ -23,7 +24,7 @@ export async function createConversation(
     channel: args.channel,
     direction: args.direction,
     providerId: args.providerId,
-    metadata: args.metadata as any,
+    metadata: args.metadata as ConvexJsonRecord,
   });
 
   await AuditLogHelpers.logSuccess(
@@ -50,10 +51,10 @@ export async function createConversation(
     organizationId: args.organizationId,
     eventType: 'conversation.created',
     eventData: {
-      conversationId: conversationId as string,
+      conversationId,
       channel: args.channel,
       direction: args.direction,
-      customerId: args.customerId as string | undefined,
+      customerId: args.customerId,
     },
   });
 

@@ -39,11 +39,11 @@ interface DataTableSkeletonColumn {
   isExpandColumn?: boolean;
 }
 
-export interface DataTableSkeletonProps {
+export interface DataTableSkeletonProps<TData = unknown, TValue = unknown> {
   /** Number of rows to display */
   rows?: number;
   /** Column configuration - accepts TanStack Table columns or simple column config */
-  columns: DataTableSkeletonColumn[] | ColumnDef<any, any>[];
+  columns: DataTableSkeletonColumn[] | ColumnDef<TData, TValue>[];
   /** Whether to show the header row */
   showHeader?: boolean;
   /** Search placeholder for search input skeleton */
@@ -77,8 +77,8 @@ interface ColumnMeta {
 }
 
 /** Extract skeleton column info from TanStack Table column definitions */
-function normalizeColumns(
-  columns: DataTableSkeletonColumn[] | ColumnDef<any, any>[],
+function normalizeColumns<TData, TValue>(
+  columns: DataTableSkeletonColumn[] | ColumnDef<TData, TValue>[],
   enableExpanding?: boolean,
 ): DataTableSkeletonColumn[] {
   const normalized = columns.map((col) => {
@@ -93,7 +93,7 @@ function normalizeColumns(
     }
 
     // Convert TanStack Table column definition
-    const tanstackCol = col as ColumnDef<unknown, unknown>;
+    const tanstackCol = col as ColumnDef<TData, TValue>;
     const meta = tanstackCol.meta as ColumnMeta | undefined;
     return {
       header:
@@ -119,7 +119,7 @@ function normalizeColumns(
  * Matches the DataTable layout to prevent CLS during loading.
  * Accepts TanStack Table column definitions directly for consistent column widths.
  */
-export function DataTableSkeleton({
+export function DataTableSkeleton<TData = unknown, TValue = unknown>({
   rows = 10,
   columns,
   showHeader = true,
@@ -134,7 +134,7 @@ export function DataTableSkeleton({
   showFilters = false,
   showDateRange = false,
   enableExpanding = false,
-}: DataTableSkeletonProps) {
+}: DataTableSkeletonProps<TData, TValue>) {
   const normalizedColumns = normalizeColumns(columns, enableExpanding);
 
   const tableContent = (

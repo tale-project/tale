@@ -5,10 +5,7 @@
  * accept strings, and size limits across the entire platform.
  */
 
-import {
-  isTextBasedFile,
-  TEXT_FILE_ACCEPT,
-} from '../utils/text-file-types';
+import { isTextBasedFile, TEXT_FILE_ACCEPT } from '../utils/text-file-types';
 
 // ---------------------------------------------------------------------------
 // MIME type constants
@@ -69,9 +66,7 @@ const SPREADSHEET_MIME_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.CSV,
 ]);
 
-const TEXT_MIME_TYPES: ReadonlySet<string> = new Set([
-  MIME_TYPES.PLAIN,
-]);
+const TEXT_MIME_TYPES: ReadonlySet<string> = new Set([MIME_TYPES.PLAIN]);
 
 // ---------------------------------------------------------------------------
 // File classification
@@ -88,12 +83,16 @@ export function isTextFile(mimeType: string, fileName?: string): boolean {
 
 export function isSpreadsheet(fileName: string): boolean {
   const lower = fileName.toLowerCase();
-  return lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv');
+  return (
+    lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')
+  );
 }
 
 function isParseable(fileName: string): boolean {
   const lower = fileName.toLowerCase();
-  return lower.endsWith('.pdf') || lower.endsWith('.docx') || lower.endsWith('.pptx');
+  return (
+    lower.endsWith('.pdf') || lower.endsWith('.docx') || lower.endsWith('.pptx')
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -221,10 +220,12 @@ export function getParseEndpoint(filename: string): string {
 export function getFileTypeLabelKey(mimeType: string): string {
   if (mimeType === MIME_TYPES.PDF) return 'pdf';
   if (mimeType.includes('word')) return 'doc';
-  if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'pptx';
+  if (mimeType.includes('presentation') || mimeType.includes('powerpoint'))
+    return 'pptx';
   if (mimeType === MIME_TYPES.PLAIN) return 'txt';
   if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType === MIME_TYPES.XLS || mimeType === MIME_TYPES.XLSX) return 'xlsx';
+  if (mimeType === MIME_TYPES.XLS || mimeType === MIME_TYPES.XLSX)
+    return 'xlsx';
   if (mimeType === MIME_TYPES.CSV) return 'csv';
   return 'file';
 }

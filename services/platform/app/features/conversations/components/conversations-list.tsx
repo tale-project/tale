@@ -210,7 +210,11 @@ const ConversationRow = memo(function ConversationRow({
   tDialogs,
 }: ConversationRowProps) {
   const handleClick = (event: React.MouseEvent) => {
-    if ((event.target as HTMLElement).closest('[data-state]')) return;
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest('[data-state]')
+    )
+      return;
     onSelect?.(conversation);
   };
 
@@ -264,6 +268,7 @@ const ConversationRow = memo(function ConversationRow({
           </div>
 
           <HStack gap={2}>
+            {/* TS `in` operator does not narrow the left operand — cast required */}
             {conversation.priority &&
               conversation.status === 'open' &&
               conversation.priority !== 'medium' &&
@@ -285,6 +290,7 @@ const ConversationRow = memo(function ConversationRow({
                 </Badge>
               )}
 
+            {/* TS `in` operator does not narrow the left operand — cast required */}
             {conversation.type && conversation.type in categoryConfig && (
               <Badge
                 variant="outline"
@@ -324,12 +330,10 @@ export function ConversationsList({
   const tDialogsRef = useRef(tDialogs);
   tDialogsRef.current = tDialogs;
 
-  const stableT = useRef(((key: string) => tRef.current(key)) as (
-    key: string,
-  ) => string).current;
-  const stableTDialogs = useRef(((key: string) => tDialogsRef.current(key)) as (
-    key: string,
-  ) => string).current;
+  const stableT = useRef((key: string) => tRef.current(key)).current;
+  const stableTDialogs = useRef((key: string) =>
+    tDialogsRef.current(key),
+  ).current;
 
   if (conversations === undefined) {
     return <ConversationsListSkeleton />;

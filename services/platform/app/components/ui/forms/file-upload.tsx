@@ -115,8 +115,10 @@ function DropZone({
 
   const handleClick = useCallback(() => {
     if (disabled || !clickable) return;
-    const input = document.getElementById(inputId) as HTMLInputElement;
-    input?.click();
+    const input = document.getElementById(inputId);
+    if (input instanceof HTMLInputElement) {
+      input.click();
+    }
   }, [inputId, disabled, clickable]);
 
   const handleKeyDown = useCallback(

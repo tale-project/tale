@@ -62,8 +62,9 @@ export function useIntegrationApprovals(threadId: string | undefined) {
         a: ApprovalItem & { metadata: NonNullable<ApprovalItem['metadata']> },
       ): IntegrationApproval => ({
         _id: a._id,
-        status: a.status as 'pending' | 'approved' | 'rejected',
-        metadata: a.metadata as unknown as IntegrationOperationMetadata,
+        status: a.status,
+        // Convex metadata uses v.any() — cast required to narrow to specific metadata shape
+        metadata: a.metadata as IntegrationOperationMetadata,
         executedAt: a.executedAt,
         executionError: a.executionError,
         _creationTime: a._creationTime,

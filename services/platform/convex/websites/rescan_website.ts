@@ -44,9 +44,8 @@ export async function rescanWebsite(
   }
 
   // Resolve the attached workflow id from metadata only.
-  const metadata =
-    (website.metadata as Record<string, unknown> | undefined) ?? {};
-  const workflowId = metadata['workflowId'] as Id<'wfDefinitions'> | undefined;
+  const metadata = website.metadata ?? {};
+  const workflowId: Id<'wfDefinitions'> | undefined = metadata['workflowId'];
 
   if (!workflowId) {
     throw new Error('Attached workflowId missing from website metadata');

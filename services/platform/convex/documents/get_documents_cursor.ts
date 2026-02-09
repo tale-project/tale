@@ -51,7 +51,7 @@ export async function getDocumentsCursor(
       const docTeamTags = doc.teamTags;
       if (docTeamTags && docTeamTags.length > 0) {
         const hasAccess = docTeamTags.some((tag) =>
-          args.userTeamIds!.includes(tag),
+          args.userTeamIds?.includes(tag),
         );
         if (!hasAccess) {
           return false;

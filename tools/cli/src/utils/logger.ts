@@ -11,7 +11,7 @@ const BLUE = isTTY ? '\x1b[34m' : '';
 const CYAN = isTTY ? '\x1b[36m' : '';
 
 function timestamp() {
-  return new Date().toISOString().substring(11, 19);
+  return new Date().toISOString().slice(11, 19);
 }
 
 export function info(message: string) {

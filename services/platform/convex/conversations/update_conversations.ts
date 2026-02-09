@@ -35,12 +35,11 @@ export async function updateConversations(
     }
     conversationsToUpdate = [conversation];
   } else if (args.organizationId) {
+    const orgId = args.organizationId;
     // Update by filters (batch update) using async iteration
     for await (const conversation of ctx.db
       .query('conversations')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId!),
-      )) {
+      .withIndex('by_organizationId', (q) => q.eq('organizationId', orgId))) {
       // Filter by other criteria
       if (args.status && conversation.status !== args.status) {
         continue;
@@ -69,8 +68,7 @@ export async function updateConversations(
 
     // Handle metadata updates with lodash
     if (updates.metadata) {
-      const existingMetadata =
-        (conversation.metadata as Record<string, unknown> | undefined) ?? {};
+      const existingMetadata = conversation.metadata ?? {};
       const updatedMetadata: Record<string, unknown> = {
         ...existingMetadata,
       };
@@ -92,11 +90,7 @@ export async function updateConversations(
             !Array.isArray(existingValue);
 
           if (isValueObject && isExistingObject) {
-            updatedMetadata[key] = merge(
-              {},
-              existingValue as Record<string, unknown>,
-              value as Record<string, unknown>,
-            );
+            updatedMetadata[key] = merge({}, existingValue, value);
           } else {
             updatedMetadata[key] = value;
           }

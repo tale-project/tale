@@ -13,9 +13,11 @@ export async function markConversationAsRead(
     throw new Error('Conversation not found');
   }
 
-  const existingMetadata =
-    (conversation.metadata as Record<string, unknown>) || {};
-  const previousUnreadCount = (existingMetadata.unread_count as number) || 0;
+  const existingMetadata = conversation.metadata ?? {};
+  const previousUnreadCount =
+    typeof existingMetadata.unread_count === 'number'
+      ? existingMetadata.unread_count
+      : 0;
 
   await ctx.db.patch(args.conversationId, {
     metadata: {

@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 
 import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
-import type { DataTableSearchConfig } from '@/app/components/ui/data-table/use-data-table';
+import type { DataTableSearchConfig } from '@/app/components/ui/data-table/data-table-types';
 
 import { filterByTextSearch, filterByFields } from '@/lib/utils/client-utils';
 

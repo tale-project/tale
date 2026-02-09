@@ -59,7 +59,9 @@ export async function getUserTeamIds(
 ): Promise<string[]> {
   // Check if JWT contains trusted teams (trusted headers mode)
   const identity = await ctx.auth.getUserIdentity();
-  const trustedTeamsRaw = (identity as any)?.trustedTeams;
+  // Convex UserIdentity doesn't type custom JWT claims, so cast is needed
+  const trustedTeamsRaw = (identity as unknown as Record<string, unknown>)
+    ?.trustedTeams as string | undefined;
 
   if (trustedTeamsRaw) {
     // Trusted headers mode: parse team IDs from JWT claim

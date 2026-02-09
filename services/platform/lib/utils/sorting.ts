@@ -71,9 +71,9 @@ export function sortByDate<T>(
     if (bVal == null) return order === 'asc' ? -1 : 1;
 
     const aTime =
-      typeof aVal === 'number' ? aVal : new Date(aVal as any).getTime();
+      typeof aVal === 'number' ? aVal : new Date(String(aVal)).getTime();
     const bTime =
-      typeof bVal === 'number' ? bVal : new Date(bVal as any).getTime();
+      typeof bVal === 'number' ? bVal : new Date(String(bVal)).getTime();
 
     return order === 'asc' ? aTime - bTime : bTime - aTime;
   };

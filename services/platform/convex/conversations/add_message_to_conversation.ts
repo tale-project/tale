@@ -64,7 +64,7 @@ export async function addMessageToConversation(
     typeof args.metadata === 'object' &&
     args.metadata !== null &&
     !Array.isArray(args.metadata)
-      ? (args.metadata as Record<string, unknown>)
+      ? args.metadata
       : {};
 
   const messageId = await ctx.db.insert('conversationMessages', {
@@ -93,20 +93,16 @@ export async function addMessageToConversation(
   }
 
   const now = Date.now();
-  const existingMetadata =
-    typeof parentConversation.metadata === 'object' &&
-    parentConversation.metadata !== null &&
-    !Array.isArray(parentConversation.metadata)
-      ? (parentConversation.metadata as Record<string, unknown>)
-      : {};
+  const existingMetadata = parentConversation.metadata ?? {};
   await ctx.db.patch(args.conversationId, {
     lastMessageAt: now,
     metadata: {
       ...existingMetadata,
       last_message_at: now,
       unread_count:
-        ((existingMetadata.unread_count as number) || 0) +
-        (args.isCustomer ? 1 : 0),
+        (typeof existingMetadata.unread_count === 'number'
+          ? existingMetadata.unread_count
+          : 0) + (args.isCustomer ? 1 : 0),
     },
   });
 
@@ -131,8 +127,8 @@ export async function addMessageToConversation(
     organizationId: args.organizationId,
     eventType: 'conversation.message_received',
     eventData: {
-      conversationId: args.conversationId as string,
-      messageId: messageId as string,
+      conversationId: args.conversationId,
+      messageId,
       direction,
       isCustomer: args.isCustomer,
       sender: args.sender,

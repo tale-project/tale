@@ -197,8 +197,14 @@ export function authorizeRls(
       ? (normalized as PlatformRoleName)
       : 'member';
   const r = platformRoles[key];
-  const req: any = { [table]: [action] };
-  const res = (r as any).authorize(req);
+  const req = { [table]: [action] } as Record<string, string[]>;
+  const res = (
+    r as {
+      authorize: (
+        req: Record<string, string[]>,
+      ) => { success?: boolean } | undefined;
+    }
+  ).authorize(req);
   return !!res?.success;
 }
 
@@ -256,8 +262,10 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           definePayload: ({ user, session }) => ({
             email: user.email,
             name: user.name,
-            trustedRole: (session as any).trustedRole,
-            trustedTeams: (session as any).trustedTeams,
+            trustedRole: (session as unknown as Record<string, unknown>)
+              .trustedRole,
+            trustedTeams: (session as unknown as Record<string, unknown>)
+              .trustedTeams,
           }),
         },
       }),

@@ -15,6 +15,9 @@
 
 import { ConvexHttpClient } from 'convex/browser';
 
+import type { Id } from '../convex/_generated/dataModel';
+import type { ExecutionStatus } from './metrics';
+
 import { api } from '../convex/_generated/api';
 import { MetricsCollector } from './metrics';
 
@@ -93,12 +96,13 @@ async function sleep(ms: number) {
 async function startWorkflow(
   client: ConvexHttpClient,
   config: StressTestConfig,
-): Promise<string> {
+): Promise<Id<'wfExecutions'>> {
   const executionId = await client.mutation(
     api.workflow_engine.mutations.startWorkflow,
     {
       organizationId: config.organizationId,
-      wfDefinitionId: config.wfDefinitionId as any,
+      // Config stores string IDs — cast required for Convex API
+      wfDefinitionId: config.wfDefinitionId as Id<'wfDefinitions'>,
       input: {
         stressTest: true,
         timestamp: Date.now(),
@@ -116,23 +120,22 @@ async function startWorkflow(
 
 async function pollExecution(
   client: ConvexHttpClient,
-  executionId: string,
-): Promise<{ status: string; error?: string }> {
+  executionId: Id<'wfExecutions'>,
+): Promise<{ status: ExecutionStatus; error?: string }> {
   const execution = await client.query(
     api.wf_executions.queries.getRawExecution,
-    { executionId: executionId as any },
+    { executionId },
   );
 
   if (!execution) {
     return { status: 'failed', error: 'Execution not found' };
   }
 
-  const metadata = execution.metadata
-    ? JSON.parse(execution.metadata as string)
-    : {};
+  const metadata = execution.metadata ? JSON.parse(execution.metadata) : {};
 
   return {
-    status: execution.status as string,
+    // Convex schema uses v.string() — cast needed to narrow to our status union
+    status: execution.status as ExecutionStatus,
     error: metadata.error,
   };
 }
@@ -152,7 +155,7 @@ async function runStressTest() {
   console.log('');
 
   // Launch workflows in batches
-  const executionIds: string[] = [];
+  const executionIds: Id<'wfExecutions'>[] = [];
   const batchCount = Math.ceil(config.total / config.concurrency);
   const delayBetweenBatches =
     config.rampUpSeconds > 0 ? (config.rampUpSeconds * 1000) / batchCount : 0;

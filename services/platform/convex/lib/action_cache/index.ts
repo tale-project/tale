@@ -69,8 +69,13 @@ export const imageAnalysisCache: ActionCache<
 export const toneOfVoiceCache: ActionCache<
   FunctionReference<'action', 'internal'>
 > = new ActionCache(components.actionCache, {
-  action: (internal.tone_of_voice as any).internal_actions
-    .generateToneOfVoiceUncached,
+  action: (
+    internal.tone_of_voice as unknown as {
+      internal_actions: {
+        generateToneOfVoiceUncached: FunctionReference<'action', 'internal'>;
+      };
+    }
+  ).internal_actions.generateToneOfVoiceUncached,
   name: `tone_of_voice_${CACHE_VERSION}`,
   ttl: TTL.ONE_DAY,
 });

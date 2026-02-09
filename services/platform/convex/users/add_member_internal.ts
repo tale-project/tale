@@ -39,8 +39,9 @@ export async function addMemberInternal(
       },
     },
   });
-  const memberId: string =
-    (created as any)?._id ?? (created as any)?.id ?? String(created);
+  // Better Auth adapter.create returns untyped data (any)
+  const rawId = created?._id ?? created?.id;
+  const memberId = typeof rawId === 'string' ? rawId : String(created);
 
   return {
     memberId,

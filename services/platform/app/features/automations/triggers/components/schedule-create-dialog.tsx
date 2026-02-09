@@ -124,7 +124,7 @@ export function ScheduleCreateDialog({
       });
       setCronDescription(result.description);
     } catch {
-      setGenerateError(t('triggers.schedules.form.ai.generateError' as any));
+      setGenerateError(t('triggers.schedules.form.ai.generateError'));
     } finally {
       setIsGenerating(false);
     }
@@ -185,8 +185,8 @@ export function ScheduleCreateDialog({
           <div className="flex gap-2">
             <Input
               id="naturalLanguage"
-              label={t('triggers.schedules.form.ai.label' as any)}
-              placeholder={t('triggers.schedules.form.ai.placeholder' as any)}
+              label={t('triggers.schedules.form.ai.label')}
+              placeholder={t('triggers.schedules.form.ai.placeholder')}
               value={naturalLanguage}
               onChange={(e) => setNaturalLanguage(e.target.value)}
               onKeyDown={(e) => {
@@ -208,9 +208,9 @@ export function ScheduleCreateDialog({
               isLoading={isGenerating}
               icon={Sparkles}
               className="mt-7 shrink-0"
-              aria-label={t('triggers.schedules.form.ai.generateButton' as any)}
+              aria-label={t('triggers.schedules.form.ai.generateButton')}
             >
-              {t('triggers.schedules.form.ai.generateButton' as any)}
+              {t('triggers.schedules.form.ai.generateButton')}
             </Button>
           </div>
           {cronDescription && (
@@ -245,7 +245,9 @@ export function ScheduleCreateDialog({
                 size="sm"
                 onClick={() => setValue('cronExpression', preset.value)}
               >
-                {t(`triggers.schedules.form.presets.${preset.label}` as any)}
+                {t(
+                  `triggers.schedules.form.presets.${preset.label}` as `triggers.schedules.form.presets.${(typeof CRON_PRESETS)[number]['label']}`,
+                )}
               </Button>
             ))}
           </div>

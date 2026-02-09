@@ -46,7 +46,7 @@ export async function uploadFileDirect({
 
   // Step 1: Download file from Convex storage
   console.log('[uploadFileDirect] Downloading file from storage:', {
-    fileUrl: fileUrl.substring(0, 100) + '...',
+    fileUrl: fileUrl.slice(0, 100) + '...',
     filename,
   });
 

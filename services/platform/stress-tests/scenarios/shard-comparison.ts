@@ -22,6 +22,8 @@
 
 import { ConvexHttpClient } from 'convex/browser';
 
+import type { Id } from '../../convex/_generated/dataModel';
+
 import { api } from '../../convex/_generated/api';
 import { getShardIndex } from '../../convex/workflow_engine/helpers/engine/shard';
 import { MetricsCollector } from '../metrics';
@@ -47,7 +49,8 @@ async function runPhase(
 ): Promise<PhaseResult> {
   const metrics = new MetricsCollector();
   const startTimings: number[] = [];
-  const executions: { id: string; executionId: string | null }[] = [];
+  const executions: { id: string; executionId: Id<'wfExecutions'> | null }[] =
+    [];
 
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`Phase: ${label}`);
@@ -72,7 +75,8 @@ async function runPhase(
         api.workflow_engine.mutations.startWorkflow,
         {
           organizationId,
-          wfDefinitionId: defId as never,
+          // Config stores string IDs — cast required for Convex API
+          wfDefinitionId: defId as Id<'wfDefinitions'>,
           input: {
             stressTest: true,
             phase: label,
@@ -111,8 +115,11 @@ async function runPhase(
   // Poll for completion
   const pending = new Map(
     launched
-      .filter((e) => e.executionId)
-      .map((e) => [e.id, e.executionId as string]),
+      .filter(
+        (e): e is typeof e & { executionId: Id<'wfExecutions'> } =>
+          e.executionId != null,
+      )
+      .map((e) => [e.id, e.executionId]),
   );
   const pollStart = Date.now();
 

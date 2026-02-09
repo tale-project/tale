@@ -7,12 +7,16 @@ on:
     paths:
       - 'services/**'
       - '.github/workflows/build.yml'
+      - 'package.json'
+      - 'package-lock.json'
   push:
     branches:
       - main
     paths:
       - 'services/**'
       - '.github/workflows/build.yml'
+      - 'package.json'
+      - 'package-lock.json'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -48,6 +52,8 @@ jobs:
               - 'services/proxy/**'
             graph-db:
               - 'services/graph-db/**'
+            operator:
+              - 'services/operator/**'
 
   build:
     name: Build ${{ matrix.service }}
@@ -73,6 +79,8 @@ jobs:
             context: '.'
           - service: graph-db
             context: 'services/graph-db'
+          - service: operator
+            context: '.'
 
     steps:
       - name: Checkout repository

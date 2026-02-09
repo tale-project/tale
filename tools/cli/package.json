@@ -10,8 +10,8 @@
     "build:windows": "bun build --compile --target=bun-windows-x64 --outfile=dist/tale.exe src/index.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "format": "oxfmt",
-    "format:check": "oxfmt --check",
+    "format": "oxfmt -c ../../.oxfmtrc.json",
+    "format:check": "oxfmt -c ../../.oxfmtrc.json --check",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

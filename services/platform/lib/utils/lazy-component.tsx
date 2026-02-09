@@ -14,7 +14,10 @@ interface LazyComponentOptions {
  * @returns A wrapped component that lazy loads the actual component
  */
 
-export function lazyComponent<P = any>(
+export function lazyComponent<
+  P extends Record<string, unknown> = Record<string, unknown>,
+>(
+  // oxlint-disable-next-line typescript/no-explicit-any -- Generic component wrapper requires flexible prop types for lazy loading arbitrary components
   importFn: () => Promise<{ default: ComponentType<any> }>,
   options: LazyComponentOptions = {},
 ): ComponentType<P> {
@@ -22,6 +25,7 @@ export function lazyComponent<P = any>(
 
   const WrappedComponent = (props: P) => (
     <Suspense fallback={options.loading?.() ?? null}>
+      {/* Generic P doesn't extend object — cast required for JSX spread */}
       <LazyComponent {...(props as object)} />
     </Suspense>
   );

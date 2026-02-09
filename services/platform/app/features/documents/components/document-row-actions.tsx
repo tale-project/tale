@@ -58,6 +58,7 @@ export function DocumentRowActions({
     try {
       setIsDeleting(true);
       await deleteDocument({
+        // Component receives string ID — cast required for Convex API
         documentId: documentId as Id<'documents'>,
       });
       dialogs.setOpen.delete(false);
@@ -76,6 +77,7 @@ export function DocumentRowActions({
     try {
       setIsDeleting(true);
       await deleteDocument({
+        // Component receives string ID — cast required for Convex API
         documentId: documentId as Id<'documents'>,
       });
       dialogs.setOpen.deleteFolder(false);
@@ -104,6 +106,7 @@ export function DocumentRowActions({
     setIsReindexing(true);
     try {
       const result = await retryRagIndexing({
+        // Component receives string ID — cast required for Convex API
         documentId: documentId as Id<'documents'>,
       });
       if (result.success) {

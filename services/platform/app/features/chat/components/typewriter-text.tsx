@@ -65,7 +65,7 @@ interface TypewriterTextProps {
   /** Callback when typing animation completes */
   onComplete?: () => void;
   /** Custom markdown components (passed to react-markdown) */
-  // biome-ignore lint/suspicious/noExplicitAny: Required for react-markdown component types
+  // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
   components?: Record<string, ComponentType<any>>;
   /** Additional CSS classes */
   className?: string;
@@ -168,6 +168,7 @@ function TypewriterTextComponent({
         {
           // Initialize CSS custom property
           '--reveal-chars': displayLength,
+          // CSS custom properties not in React.CSSProperties — cast required
         } as React.CSSProperties
       }
     >

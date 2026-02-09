@@ -16,6 +16,7 @@ export function BreadcrumbNavigation({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const location = useLocation();
+  // TanStack Router useSearch with strict: false returns unknown — cast required for search params
   const search = useSearch({ strict: false }) as Record<
     string,
     string | undefined

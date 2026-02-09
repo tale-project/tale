@@ -66,8 +66,9 @@ function calculateEdgeWeight(
  */
 function getNodeDimensions(node: Node): { width: number; height: number } {
   return {
-    width: (node.style?.width as number) || nodeWidth,
-    height: (node.style?.height as number) || nodeHeight,
+    width: typeof node.style?.width === 'number' ? node.style.width : nodeWidth,
+    height:
+      typeof node.style?.height === 'number' ? node.style.height : nodeHeight,
   };
 }
 
@@ -164,7 +165,7 @@ export function getLayoutedElements(
       if (!childNodesByParent.has(node.parentId)) {
         childNodesByParent.set(node.parentId, []);
       }
-      childNodesByParent.get(node.parentId)!.push(node);
+      childNodesByParent.get(node.parentId)?.push(node);
     }
   });
 
@@ -174,7 +175,10 @@ export function getLayoutedElements(
   childNodesByParent.forEach((children, parentId) => {
     // Get the parent node to determine its actual width
     const parentNode = layoutedParentNodes.find((n) => n.id === parentId);
-    const parentWidth = (parentNode?.style?.width as number) || 640;
+    const parentWidth =
+      typeof parentNode?.style?.width === 'number'
+        ? parentNode.style.width
+        : 640;
 
     // Get edges between these children
     const childIds = new Set(children.map((c) => c.id));
@@ -300,7 +304,10 @@ export function getLayoutedElements(
           parentNode.style.height = dynamicHeight;
         }
         // CRITICAL: Also update the node's width/height properties for React Flow
-        parentNode.width = (parentNode.style?.width as number) || 640;
+        parentNode.width =
+          typeof parentNode.style?.width === 'number'
+            ? parentNode.style.width
+            : 640;
         parentNode.height = dynamicHeight;
       }
     }

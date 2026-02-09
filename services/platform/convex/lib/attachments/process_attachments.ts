@@ -117,7 +117,7 @@ export async function processAttachments(
       try {
         const parseResult = await parseFile(
           ctx,
-          attachment.fileId as string,
+          attachment.fileId,
           attachment.fileName,
           toolName,
           userText,
@@ -194,7 +194,7 @@ export async function processAttachments(
     textFileAttachments.map(async (attachment) => {
       try {
         const result = await analyzeTextContent(ctx, {
-          fileId: attachment.fileId as string,
+          fileId: attachment.fileId,
           filename: attachment.fileName,
           userInput: userText || 'Analyze this file',
         });
@@ -261,7 +261,7 @@ export async function processAttachments(
     for (const doc of parsedDocuments) {
       const truncatedContent =
         doc.content.length > maxDocLength
-          ? doc.content.substring(0, maxDocLength) +
+          ? doc.content.slice(0, maxDocLength) +
             '\n\n[... Document truncated due to length ...]'
           : doc.content;
 

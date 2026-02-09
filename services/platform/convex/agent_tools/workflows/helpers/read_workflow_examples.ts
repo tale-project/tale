@@ -57,7 +57,7 @@ export async function readWorkflowExamples(
         const sortedSteps = steps.sort((a, b) => a.order - b.order);
 
         return {
-          workflowId: wf._id as string,
+          workflowId: wf._id,
           name: wf.name,
           description: wf.description || 'No description',
           status: wf.status,

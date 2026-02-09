@@ -62,11 +62,10 @@ export async function updateWebsite(
     updateData.metadata !== null &&
     typeof updateData.metadata === 'object'
   ) {
-    const existingMetadata =
-      (existingWebsite.metadata as Record<string, unknown> | undefined) ?? {};
+    const existingMetadata = existingWebsite.metadata ?? {};
     updateData.metadata = {
       ...existingMetadata,
-      ...(updateData.metadata as Record<string, unknown>),
+      ...updateData.metadata,
     };
   }
 

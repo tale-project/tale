@@ -46,7 +46,7 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
     );
   }
 
-  const apiKey = authHeader.substring('Bearer '.length).trim();
+  const apiKey = authHeader.slice('Bearer '.length).trim();
   if (!apiKey.startsWith('wfk_')) {
     return jsonResponse({ error: 'Invalid API key format' }, 401);
   }

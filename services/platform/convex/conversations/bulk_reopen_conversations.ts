@@ -28,7 +28,7 @@ export async function bulkReopenConversations(
       continue;
     }
 
-    const metadata = (conversation.metadata as Record<string, unknown>) || {};
+    const metadata = conversation.metadata ?? {};
     const { resolved_at: _, resolved_by: __, ...restMetadata } = metadata;
 
     patches.push({
@@ -49,7 +49,8 @@ export async function bulkReopenConversations(
     if (results[i].status === 'fulfilled') {
       successCount++;
     } else {
-      const reason = (results[i] as PromiseRejectedResult).reason;
+      const result = results[i];
+      const reason = result.status === 'rejected' ? result.reason : undefined;
       errors.push(
         `Failed to reopen ${patches[i].id}: ${reason instanceof Error ? reason.message : 'Unknown error'}`,
       );

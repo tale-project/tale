@@ -17,51 +17,53 @@ export const toolStatusSchema = z.union([z.enum(toolStatusLiterals), z.null()]);
 type ToolStatus = z.infer<typeof toolStatusSchema>;
 
 export const threadMessageSchema = z.object({
-	_id: z.string(),
-	_creationTime: z.number(),
-	role: messageRoleSchema,
-	content: z.string(),
+  _id: z.string(),
+  _creationTime: z.number(),
+  role: messageRoleSchema,
+  content: z.string(),
 });
 
 type ThreadMessage = z.infer<typeof threadMessageSchema>;
 
 const threadMessagesResponseSchema = z.object({
-	messages: z.array(threadMessageSchema),
+  messages: z.array(threadMessageSchema),
 });
 
 type ThreadMessagesResponse = z.infer<typeof threadMessagesResponseSchema>;
 
 export const threadListItemSchema = z.object({
-	_id: z.string(),
-	_creationTime: z.number(),
-	title: z.string().optional(),
-	status: threadStatusSchema,
-	userId: z.string().optional(),
+  _id: z.string(),
+  _creationTime: z.number(),
+  title: z.string().optional(),
+  status: threadStatusSchema,
+  userId: z.string().optional(),
 });
 
 type ThreadListItem = z.infer<typeof threadListItemSchema>;
 
 export const latestToolMessageSchema = z.object({
-	toolNames: z.array(z.string()),
-	status: toolStatusSchema,
-	timestamp: z.number().nullable(),
+  toolNames: z.array(z.string()),
+  status: toolStatusSchema,
+  timestamp: z.number().nullable(),
 });
 
 type LatestToolMessage = z.infer<typeof latestToolMessageSchema>;
 
 const subAgentTypeLiterals = [
-	'web_assistant',
-	'document_assistant',
-	'integration_assistant',
-	'workflow_assistant',
-	'crm_assistant',
+  'web_assistant',
+  'document_assistant',
+  'integration_assistant',
+  'workflow_assistant',
+  'crm_assistant',
 ] as const;
 export const subAgentTypeSchema = z.enum(subAgentTypeLiterals);
 type SubAgentType = z.infer<typeof subAgentTypeSchema>;
 
 export const getOrCreateSubThreadResultSchema = z.object({
-	threadId: z.string(),
-	isNew: z.boolean(),
+  threadId: z.string(),
+  isNew: z.boolean(),
 });
 
-type GetOrCreateSubThreadResult = z.infer<typeof getOrCreateSubThreadResultSchema>;
+type GetOrCreateSubThreadResult = z.infer<
+  typeof getOrCreateSubThreadResultSchema
+>;

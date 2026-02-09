@@ -79,7 +79,7 @@ jexlInstance.addTransform('filter', (arr: unknown[], condition: string) => {
       if (!match) return false;
 
       const [, fieldPath, operator, valueStr] = match;
-      const fieldValue = get(item as Record<string, unknown>, fieldPath.trim());
+      const fieldValue = get(item, fieldPath.trim());
       const compareValue = parseFloat(valueStr.trim());
 
       if (fieldValue === undefined || fieldValue === null) return false;
@@ -157,7 +157,7 @@ jexlInstance.addTransform(
 
       // Simple template replacement: "Product: {name}, Price: {price}"
       return template.replace(/\{([^}]+)\}/g, (_, key) => {
-        const value = get(item as Record<string, unknown>, key);
+        const value = get(item, key);
         return value != null ? toString(value) : '';
       });
     });
@@ -176,7 +176,7 @@ jexlInstance.addTransform(
 
     return arr.find((item) => {
       if (!item || typeof item !== 'object') return false;
-      const fieldValue = get(item as Record<string, unknown>, fieldPath);
+      const fieldValue = get(item, fieldPath);
       return fieldValue === value;
     });
   },
@@ -190,7 +190,7 @@ jexlInstance.addTransform(
 
     return arr.filter((item) => {
       if (!item || typeof item !== 'object') return false;
-      const fieldValue = get(item as Record<string, unknown>, fieldPath);
+      const fieldValue = get(item, fieldPath);
       return fieldValue === value;
     });
   },
@@ -214,11 +214,7 @@ jexlInstance.addTransform(
     if (!isArray(arr)) return [];
 
     // Use lodash orderBy for robust sorting
-    return orderBy(
-      arr,
-      [(item) => get(item as Record<string, unknown>, fieldPath)],
-      [order],
-    );
+    return orderBy(arr, [(item) => get(item, fieldPath)], [order]);
   },
 );
 

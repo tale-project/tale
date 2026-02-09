@@ -65,7 +65,8 @@ export function ConversationPanel({
   const conversation = useConvexQuery(
     api.conversations.queries.getConversationWithMessages,
     selectedConversationId
-      ? { conversationId: selectedConversationId as Id<'conversations'> }
+      ? // Component receives string IDs from router/state — cast required for Convex API
+        { conversationId: selectedConversationId as Id<'conversations'> }
       : 'skip',
   );
 
@@ -118,6 +119,7 @@ export function ConversationPanel({
 
       if (hasUnreadMessages) {
         markAsRead({
+          // Component receives string IDs from router/state — cast required for Convex API
           conversationId: selectedConversationId as Id<'conversations'>,
         }).catch((error: Error) => {
           console.error('Failed to mark conversation as read:', error);
@@ -157,20 +159,24 @@ export function ConversationPanel({
         // Then upload all files in parallel
         uploadedAttachments = await Promise.all(
           validAttachments.map(async (attachment, index) => {
+            const file = attachment.file;
+            if (!file)
+              throw new Error(tConversations('panel.invalidFileAttachment'));
+
             const response = await fetch(uploadUrls[index], {
               method: 'POST',
-              headers: { 'Content-Type': attachment.file!.type },
-              body: attachment.file,
+              headers: { 'Content-Type': file.type },
+              body: file,
             });
 
             const { storageId } = await response.json();
 
             return {
               storageId,
-              name: attachment.file!.name,
-              size: attachment.file!.size,
+              name: file.name,
+              size: file.size,
               type: attachment.type,
-              contentType: attachment.file!.type,
+              contentType: file.type,
             };
           }),
         );
@@ -199,6 +205,7 @@ export function ConversationPanel({
       if (typeof metadata.from === 'string') {
         customerEmail = metadata.from;
       } else if (Array.isArray(metadata.from) && metadata.from.length > 0) {
+        // Metadata from Convex uses v.any() — cast required for email from field structure
         const fromObj = metadata.from[0] as { address?: string; name?: string };
         customerEmail = fromObj.address || '';
       }
@@ -229,6 +236,7 @@ export function ConversationPanel({
     // Send message with attachments (backend handles channel-specific routing)
     // The backend will determine the sender email from the email provider
     await sendMessageViaEmail({
+      // Convex validator uses v.string() for IDs — cast required for mutation
       conversationId: conversation._id as Id<'conversations'>,
       organizationId: conversation.organizationId,
       content: message,

@@ -36,8 +36,7 @@ function getProviderEmail(provider: Doc<'emailProviders'>): string | undefined {
     return provider.passwordAuth.user;
   }
   if (provider.authMethod === 'oauth2' && provider.metadata) {
-    const oauth2User = (provider.metadata as Record<string, unknown>)
-      .oauth2_user;
+    const oauth2User = provider.metadata?.oauth2_user;
     return typeof oauth2User === 'string' ? oauth2User : undefined;
   }
   return undefined;
@@ -48,8 +47,7 @@ function extractSenderEmail(provider: Doc<'emailProviders'>): string {
     return provider.passwordAuth.user;
   }
   if (provider.authMethod === 'oauth2' && provider.metadata) {
-    const oauth2User = (provider.metadata as Record<string, unknown>)
-      .oauth2_user;
+    const oauth2User = provider.metadata?.oauth2_user;
     if (oauth2User && typeof oauth2User === 'string') {
       return oauth2User;
     }
@@ -68,8 +66,12 @@ function extractOriginalRecipientEmail(
   if (typeof metadata.to === 'string') return metadata.to;
 
   if (Array.isArray(metadata.to) && metadata.to.length > 0) {
-    const first = metadata.to[0] as { address?: string } | string;
-    return typeof first === 'string' ? first : first.address;
+    const first = metadata.to[0];
+    if (typeof first === 'string') return first;
+    if (typeof first === 'object' && first !== null && 'address' in first) {
+      return typeof first.address === 'string' ? first.address : undefined;
+    }
+    return undefined;
   }
 
   return undefined;
@@ -99,7 +101,7 @@ async function resolveProvider(
   }
 
   const originalRecipientEmail = extractOriginalRecipientEmail(
-    conversation.metadata as Record<string, unknown> | undefined,
+    conversation.metadata,
   );
   const activeProviderEmail = getProviderEmail(activeProvider);
 
@@ -189,8 +191,7 @@ export async function sendMessageViaEmail(
 
   await ctx.scheduler.runAfter(0, sendAction, emailPayload);
 
-  const existingMetadata =
-    (conversation.metadata as Record<string, unknown>) || {};
+  const existingMetadata = conversation.metadata ?? {};
   await ctx.db.patch(args.conversationId, {
     lastMessageAt: now,
     providerId: conversation.providerId || provider._id,
@@ -214,8 +215,7 @@ export async function sendMessageViaEmail(
 
   if (pendingApproval) {
     const approvedBy = auditContext.actor.id;
-    const approvalExistingMetadata =
-      (pendingApproval.metadata as Record<string, unknown>) || {};
+    const approvalExistingMetadata = pendingApproval.metadata ?? {};
 
     await ctx.db.patch(pendingApproval._id, {
       status: 'approved',

@@ -3,6 +3,7 @@
  */
 
 import type { DataSource } from '../../lib/shared/schemas/common';
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { MutationCtx } from '../_generated/server';
 import type { BulkCreateResult } from './types';
 
@@ -40,12 +41,11 @@ export async function bulkCreateCustomers(
     try {
       // Check for duplicates
       if (customerData.email) {
+        const { email } = customerData;
         const existing = await ctx.db
           .query('customers')
           .withIndex('by_organizationId_and_email', (q) =>
-            q
-              .eq('organizationId', organizationId)
-              .eq('email', customerData.email!),
+            q.eq('organizationId', organizationId).eq('email', email),
           )
           .first();
 
@@ -57,12 +57,11 @@ export async function bulkCreateCustomers(
       }
 
       if (customerData.externalId) {
+        const { externalId } = customerData;
         const existing = await ctx.db
           .query('customers')
           .withIndex('by_organizationId_and_externalId', (q) =>
-            q
-              .eq('organizationId', organizationId)
-              .eq('externalId', customerData.externalId!),
+            q.eq('organizationId', organizationId).eq('externalId', externalId),
           )
           .first();
 
@@ -76,7 +75,7 @@ export async function bulkCreateCustomers(
       await ctx.db.insert('customers', {
         organizationId,
         ...customerData,
-        metadata: customerData.metadata as any,
+        metadata: customerData.metadata as ConvexJsonRecord,
       });
 
       results.success++;

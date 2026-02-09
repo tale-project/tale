@@ -77,7 +77,7 @@ export const integrationAction: ActionDefinition<{
     }
 
     // 1. Load the integration from database by name
-    const integration = await ctx.runQuery!(
+    const integration = await ctx.runQuery(
       internal.integrations.internal_queries.getByName,
       { organizationId, name },
     );
@@ -143,7 +143,7 @@ export const integrationAction: ActionDefinition<{
       );
 
       // Create approval and return approval result instead of executing
-      const approvalId = await ctx.runMutation!(
+      const approvalId = await ctx.runMutation(
         internal.agent_tools.integrations.internal_mutations
           .createIntegrationApproval,
         {
@@ -179,7 +179,7 @@ export const integrationAction: ActionDefinition<{
     // 7. Execute the connector in sandbox (via Node.js action)
     debugLog(`Executing ${name}.${operation} (v${connectorConfig.version})`);
 
-    const result = (await ctx.runAction!(
+    const result = (await ctx.runAction(
       internal.node_only.integration_sandbox.internal_actions
         .executeIntegration,
       {
