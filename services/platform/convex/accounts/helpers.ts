@@ -14,6 +14,34 @@ import { createDebugLog } from '../lib/debug_log';
 const debugLog = createDebugLog('DEBUG_ACCOUNTS', '[Accounts]');
 
 // =============================================================================
+// CREDENTIAL ACCOUNT QUERIES
+// =============================================================================
+
+/**
+ * Check if current user has a credential (password) account.
+ * OAuth-only users (e.g. Microsoft SSO) won't have one.
+ */
+export async function hasCredentialAccount(ctx: QueryCtx): Promise<boolean> {
+  const authUser = await authComponent.getAuthUser(ctx);
+  if (!authUser) return false;
+
+  try {
+    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'account',
+      where: [
+        { field: 'userId', value: String(authUser._id), operator: 'eq' },
+        { field: 'providerId', value: 'credential', operator: 'eq' },
+      ],
+      paginationOpts: { cursor: null, numItems: 1 },
+    });
+
+    return (result?.page?.length ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
+// =============================================================================
 // MICROSOFT ACCOUNT QUERIES
 // =============================================================================
 

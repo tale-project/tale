@@ -14,6 +14,7 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
+import { useSetMemberPassword } from '../hooks/use-set-member-password';
 import { useUpdateMemberDisplayName } from '../hooks/use-update-member-display-name';
 import { useUpdateMemberRole } from '../hooks/use-update-member-role';
 
@@ -84,32 +85,32 @@ export function EditMemberDialog({
 
   const updateMemberRole = useUpdateMemberRole();
   const updateMemberDisplayName = useUpdateMemberDisplayName();
+  const setMemberPassword = useSetMemberPassword();
 
   const handleUpdateMember = async (
     memberId: string,
-    organizationId: string,
-    data: {
-      displayName: string;
-      role: 'disabled' | 'admin' | 'developer' | 'editor' | 'member';
-      email: string;
-    },
+    data: EditMemberFormData,
     original: { role?: string; displayName?: string },
   ) => {
     try {
       const promises: Promise<unknown>[] = [];
 
-      // Only call updateMemberRole if role actually changed
       const roleChanged =
         data.role.toLowerCase() !== original.role?.toLowerCase();
       if (roleChanged) {
         promises.push(updateMemberRole({ memberId, role: data.role }));
       }
 
-      // Only call updateMemberDisplayName if displayName actually changed
       const displayNameChanged = data.displayName !== original.displayName;
       if (displayNameChanged) {
         promises.push(
           updateMemberDisplayName({ memberId, displayName: data.displayName }),
+        );
+      }
+
+      if (data.updatePassword && data.password) {
+        promises.push(
+          setMemberPassword({ memberId, newPassword: data.password }),
         );
       }
 
@@ -135,7 +136,7 @@ export function EditMemberDialog({
 
   const onSubmit = async (data: EditMemberFormData) => {
     if (!member) return;
-    await handleUpdateMember(member._id, member.organizationId, data, {
+    await handleUpdateMember(member._id, data, {
       role: member.role,
       displayName: member.displayName,
     });

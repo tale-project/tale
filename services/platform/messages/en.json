@@ -326,6 +326,7 @@
       "created": "Successfully created",
       "duplicated": "Successfully duplicated",
       "passwordChanged": "Password changed successfully",
+      "passwordSet": "Password set successfully",
       "organizationUpdated": "Organization updated successfully",
       "memberAdded": "Member added successfully",
       "newMemberCreated": "New member created and added to organization",
@@ -507,6 +508,12 @@
         "mismatch": "Passwords do not match"
       },
       "ssoMessage": "Account details and passwords are managed by your identity provider and can't be changed here."
+    },
+    "setPassword": {
+      "title": "Set password",
+      "description": "Your account uses external sign-in. Set a password to also sign in with email and password.",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password"
     }
   },
   "settings": {
