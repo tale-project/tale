@@ -57,3 +57,47 @@ export function DataTableEmptyState({
     </Center>
   );
 }
+
+/**
+ * Filtered empty state component for DataTable.
+ * Shows when filters are applied but no results match.
+ * Includes header content (search/filters) and simpler styling.
+ * Note: No action button since it's already in the header.
+ */
+export function DataTableFilteredEmptyState({
+  title,
+  description,
+  headerContent,
+  stickyLayout = false,
+  className,
+}: DataTableFilteredEmptyStateProps) {
+  const content = (
+    <VStack align="center" className={cn('text-center', className)}>
+      <h4 className="text-foreground mb-1 text-base font-semibold">{title}</h4>
+      {description && (
+        <p className="text-muted-foreground text-sm">{description}</p>
+      )}
+    </VStack>
+  );
+
+  // If there's header content, wrap in a container with proper layout
+  if (headerContent) {
+    return (
+      <>
+        <div className={cn(stickyLayout && 'flex-shrink-0 pb-4')}>
+          {headerContent}
+        </div>
+        <Center
+          className={cn(
+            'rounded-xl border border-border',
+            stickyLayout ? 'flex-1 min-h-0' : 'py-16',
+          )}
+        >
+          {content}
+        </Center>
+      </>
+    );
+  }
+
+  return <Center className="py-16">{content}</Center>;
+}
