@@ -39,7 +39,7 @@ app.get('{*path}', (_req, res) => {
 
   const envConfig = getEnvConfig();
   const html = indexHtmlTemplate.replace(
-    'window.__ENV__ = "__ENV_PLACEHOLDER__";',
+    /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
     `window.__ENV__ = ${JSON.stringify(envConfig)};`,
   );
 
