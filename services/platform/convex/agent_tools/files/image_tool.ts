@@ -150,7 +150,7 @@ CRITICAL RULES:
         // REQUIRE fileId for uploaded images - imageUrl does not work for internal URLs
         if (!args.fileId) {
           const errorMsg = args.imageUrl
-            ? `ERROR: You provided imageUrl but not fileId. Internal URLs (like "${args.imageUrl.substring(0, 50)}...") are NOT accessible by the vision API. You MUST use the fileId parameter instead. Look for the fileId in the image attachment context (it looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj"). Please retry with fileId.`
+            ? `ERROR: You provided imageUrl but not fileId. Internal URLs (like "${args.imageUrl.slice(0, 50)}...") are NOT accessible by the vision API. You MUST use the fileId parameter instead. Look for the fileId in the image attachment context (it looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj"). Please retry with fileId.`
             : `ERROR: Missing required 'fileId' parameter. For uploaded images, you MUST provide the fileId from the image attachment context (it looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj"). Please check the attachment info and retry with fileId.`;
 
           return {

@@ -191,7 +191,7 @@ Built-in validation checks stepTypes, required fields, and nextSteps references.
 
         return {
           success: true,
-          workflowId: result.workflowId as string,
+          workflowId: result.workflowId,
           stepCount: args.stepsConfig.length,
           message: `Updated workflow "${args.workflowConfig.name}" with ${args.stepsConfig.length} steps (replaced existing steps)`,
           validationWarnings:

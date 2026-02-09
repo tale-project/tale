@@ -4,7 +4,10 @@
 
 import type { Infer } from 'convex/values';
 
-import type { llmStepConfigValidator } from '../../types/nodes';
+import type {
+  ActionNodeConfig,
+  llmStepConfigValidator,
+} from '../../types/nodes';
 
 import { internal } from '../../../_generated/api';
 import { ActionCtx } from '../../../_generated/server';
@@ -66,7 +69,8 @@ export async function executeStepByType(
           stepDef: {
             stepSlug: stepDef.stepSlug,
             stepType: 'action' as const,
-            config: stepDef.config as any,
+            // Dynamic config shape validated at runtime by action executor
+            config: stepDef.config as unknown as ActionNodeConfig,
           },
           variables,
           executionId,

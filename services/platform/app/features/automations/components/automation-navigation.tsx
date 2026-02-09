@@ -114,6 +114,7 @@ export function AutomationNavigation({
     setIsPublishing(true);
     try {
       await publishAutomation({
+        // Component receives string ID from router params — cast required for Convex API
         wfDefinitionId: automationId as Id<'wfDefinitions'>,
         publishedBy: user.email,
       });
@@ -148,6 +149,7 @@ export function AutomationNavigation({
     setIsCreatingDraft(true);
     try {
       const result = await createDraftFromActive({
+        // Component receives string ID from router params — cast required for Convex API
         wfDefinitionId: automationId as Id<'wfDefinitions'>,
         createdBy: user.email,
       });
@@ -196,6 +198,7 @@ export function AutomationNavigation({
     setIsUnpublishing(true);
     try {
       await unpublishAutomation({
+        // Component receives string ID from router params — cast required for Convex API
         wfDefinitionId: automationId as Id<'wfDefinitions'>,
         updatedBy: user.userId,
       });

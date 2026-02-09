@@ -64,7 +64,8 @@ export function ConversationHeader({
   const customerDoc = useQuery(
     api.customers.queries.getCustomer,
     isCustomerInfoOpen && conversation.customerId
-      ? { customerId: conversation.customerId as Id<'customers'> }
+      ? // Convex validator uses v.string() for IDs — cast required for query
+        { customerId: conversation.customerId as Id<'customers'> }
       : 'skip',
   );
 
@@ -72,6 +73,7 @@ export function ConversationHeader({
     setIsResolvingLoading(true);
     try {
       await closeConversation({
+        // Convex validator uses v.string() for IDs — cast required for mutation
         conversationId: conversation.id as Id<'conversations'>,
       });
 
@@ -95,6 +97,7 @@ export function ConversationHeader({
     setIsReopeningLoading(true);
     try {
       await reopenConversation({
+        // Convex validator uses v.string() for IDs — cast required for mutation
         conversationId: conversation.id as Id<'conversations'>,
       });
 
@@ -118,6 +121,7 @@ export function ConversationHeader({
     setIsMarkingSpamLoading(true);
     try {
       await markAsSpamMutation({
+        // Convex validator uses v.string() for IDs — cast required for mutation
         conversationId: conversation.id as Id<'conversations'>,
       });
 

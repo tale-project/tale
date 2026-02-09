@@ -69,7 +69,7 @@ export async function readVersionHistory(
         }
 
         return {
-          workflowId: wf._id as string,
+          workflowId: wf._id,
           name: wf.name,
           description: wf.description,
           version: wf.version,

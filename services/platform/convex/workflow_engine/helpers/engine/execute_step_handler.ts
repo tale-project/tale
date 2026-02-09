@@ -101,7 +101,7 @@ export async function handleExecuteStep(
           : 0,
       userPromptPreview:
         typeof llmConfig.userPrompt === 'string'
-          ? llmConfig.userPrompt.substring(0, 100)
+          ? llmConfig.userPrompt.slice(0, 100)
           : '',
       hasTemplateMarkers: /\{\{/.test(
         typeof llmConfig.userPrompt === 'string' ? llmConfig.userPrompt : '',
@@ -133,7 +133,7 @@ export async function handleExecuteStep(
           : 0,
       userPromptPreview:
         typeof processedLlmConfig.userPrompt === 'string'
-          ? processedLlmConfig.userPrompt.substring(0, 100)
+          ? processedLlmConfig.userPrompt.slice(0, 100)
           : '',
       systemPromptLength:
         typeof processedLlmConfig.systemPrompt === 'string'

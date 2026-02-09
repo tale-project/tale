@@ -179,7 +179,11 @@ export async function testExistingProviderLogic(
       passwordAuth,
       oauth2Auth,
       smtpConfig: { host: 'localhost', port: 587, secure: false },
-      imapConfig: providerData.imapConfig!,
+      imapConfig: providerData.imapConfig ?? {
+        host: '',
+        port: 993,
+        secure: true,
+      },
     });
 
     result = {
@@ -188,13 +192,18 @@ export async function testExistingProviderLogic(
       imap: imapOnlyResult.imap,
     };
   } else {
+    if (!providerData.smtpConfig || !providerData.imapConfig) {
+      throw new Error(
+        'SMTP and IMAP configuration are required for non-API send methods',
+      );
+    }
     result = await deps.testConnection({
       vendor: providerData.vendor,
       authMethod: providerData.authMethod,
       passwordAuth,
       oauth2Auth,
-      smtpConfig: providerData.smtpConfig!,
-      imapConfig: providerData.imapConfig!,
+      smtpConfig: providerData.smtpConfig,
+      imapConfig: providerData.imapConfig,
     });
   }
 

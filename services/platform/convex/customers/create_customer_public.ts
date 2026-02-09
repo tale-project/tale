@@ -3,6 +3,7 @@
  */
 
 import type { DataSource } from '../../lib/shared/schemas/common';
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
@@ -62,6 +63,6 @@ export async function createCustomerPublic(
 
   return await ctx.db.insert('customers', {
     ...args,
-    metadata: args.metadata as any,
+    metadata: args.metadata as ConvexJsonRecord,
   });
 }

@@ -69,7 +69,7 @@ export const sendEmail = internalAction({
 
     if (args.html && args.text) {
       // Multipart: both HTML and plain text
-      const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const boundary = `boundary_${Date.now()}_${Math.random().toString(36).slice(7)}`;
       emailLines.push(
         `Content-Type: multipart/alternative; boundary="${boundary}"`,
       );

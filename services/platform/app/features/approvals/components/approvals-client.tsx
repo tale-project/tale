@@ -259,7 +259,7 @@ export function ApprovalsClient({
       );
       if (!approval) return null;
 
-      const metadata = (approval.metadata || {}) as Record<string, unknown>;
+      const metadata: Record<string, unknown> = approval.metadata ?? {};
 
       const recommendedProducts = safeGetArray(
         metadata,
@@ -317,9 +317,8 @@ export function ApprovalsClient({
 
       const metaConfidence = (() => {
         const raw =
-          typeof (metadata as Record<string, unknown>)['confidence'] ===
-          'number'
-            ? ((metadata as Record<string, unknown>)['confidence'] as number)
+          typeof metadata['confidence'] === 'number'
+            ? metadata['confidence']
             : undefined;
         if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined;
         return raw <= 1 ? Math.round(raw * 100) : Math.round(raw);
@@ -329,25 +328,27 @@ export function ApprovalsClient({
         _id: approval._id,
         organizationId: approval.organizationId,
         customer: {
-          id: metadata['customerId'] as Id<'customers'> | undefined,
+          id: safeGetString(metadata, 'customerId', undefined) as
+            | Id<'customers'>
+            | undefined,
           name:
             typeof metadata['customerName'] === 'string'
-              ? (metadata['customerName'] as string).trim()
+              ? metadata['customerName'].trim()
               : '',
           email:
             typeof metadata['customerEmail'] === 'string'
-              ? (metadata['customerEmail'] as string)
+              ? metadata['customerEmail']
               : '',
         },
         resourceType: approval.resourceType,
-        status: approval.status as 'pending' | 'approved' | 'rejected',
-        priority: approval.priority as 'low' | 'medium' | 'high' | 'urgent',
+        status: approval.status,
+        priority: approval.priority,
         confidence: metaConfidence,
         createdAt: approval._creationTime,
-        reviewer: metadata['approverName'] as string | undefined,
+        reviewer: safeGetString(metadata, 'approverName', undefined),
         reviewedAt: approval.reviewedAt,
         decidedAt: approval.reviewedAt,
-        comments: metadata['comments'] as string | undefined,
+        comments: safeGetString(metadata, 'comments', undefined),
         recommendedProducts,
         previousPurchases,
       };
@@ -462,7 +463,7 @@ export function ApprovalsClient({
 
   const getCustomerLabel = useCallback(
     (approval: ApprovalItem) => {
-      const metadata = (approval.metadata || {}) as Record<string, unknown>;
+      const metadata = approval.metadata ?? {};
       return (
         safeGetString(metadata, 'customerName', '').trim() ||
         safeGetString(metadata, 'customerEmail', '').trim() ||
@@ -473,7 +474,7 @@ export function ApprovalsClient({
   );
 
   const getConfidencePercent = useCallback((approval: ApprovalItem) => {
-    const metadata = (approval.metadata || {}) as Record<string, unknown>;
+    const metadata = approval.metadata ?? {};
     const recs = safeGetArray(metadata, 'recommendedProducts', []);
     const firstConf =
       recs.length > 0 ? safeGetNumber(recs[0], 'confidence', 0) : 0;
@@ -514,10 +515,7 @@ export function ApprovalsClient({
       header: t('columns.event'),
       size: 256,
       cell: ({ row }) => {
-        const metadata = (row.original.metadata || {}) as Record<
-          string,
-          unknown
-        >;
+        const metadata = row.original.metadata ?? {};
         return (
           <div className="flex flex-col gap-1.5">
             <div className="text-foreground text-xs font-medium">
@@ -539,10 +537,7 @@ export function ApprovalsClient({
       header: t('columns.action'),
       size: 256,
       cell: ({ row }) => {
-        const metadata = (row.original.metadata || {}) as Record<
-          string,
-          unknown
-        >;
+        const metadata = row.original.metadata ?? {};
         return (
           <div className="flex flex-col gap-1.5">
             <div className="text-foreground text-xs font-medium">
@@ -650,10 +645,7 @@ export function ApprovalsClient({
       header: t('columns.event'),
       size: 256,
       cell: ({ row }) => {
-        const metadata = (row.original.metadata || {}) as Record<
-          string,
-          unknown
-        >;
+        const metadata = row.original.metadata ?? {};
         return (
           <div className="flex flex-col gap-1.5">
             <div className="text-foreground text-xs font-medium">
@@ -675,10 +667,7 @@ export function ApprovalsClient({
       header: t('columns.action'),
       size: 256,
       cell: ({ row }) => {
-        const metadata = (row.original.metadata || {}) as Record<
-          string,
-          unknown
-        >;
+        const metadata = row.original.metadata ?? {};
         return (
           <div className="flex flex-col gap-1.5">
             <div className="text-foreground text-xs font-medium">
@@ -702,10 +691,7 @@ export function ApprovalsClient({
       id: 'reviewer',
       header: t('columns.reviewer'),
       cell: ({ row }) => {
-        const metadata = (row.original.metadata || {}) as Record<
-          string,
-          unknown
-        >;
+        const metadata = row.original.metadata ?? {};
         return (
           <div className="text-sm">
             {safeGetString(metadata, 'approverName', '') ||

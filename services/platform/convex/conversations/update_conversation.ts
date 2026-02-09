@@ -36,11 +36,14 @@ export async function updateConversation(
   }
 
   if (args.metadata !== undefined) {
-    const existingMetadata =
-      (conversation.metadata as Record<string, unknown>) || {};
+    const existingMetadata = conversation.metadata ?? {};
     updateData.metadata = {
       ...existingMetadata,
-      ...(args.metadata as Record<string, unknown>),
+      ...(typeof args.metadata === 'object' &&
+      args.metadata !== null &&
+      !Array.isArray(args.metadata)
+        ? args.metadata
+        : {}),
     };
   }
 

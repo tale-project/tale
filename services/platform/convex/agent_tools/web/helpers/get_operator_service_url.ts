@@ -7,8 +7,9 @@
 export function getOperatorServiceUrl(
   variables?: Record<string, unknown>,
 ): string {
+  const fromVars = variables?.operatorServiceUrl;
   return (
-    (variables?.operatorServiceUrl as string) ||
+    (typeof fromVars === 'string' ? fromVars : '') ||
     process.env.OPERATOR_URL ||
     'http://localhost:8004'
   );

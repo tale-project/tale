@@ -60,16 +60,14 @@ export async function transformConversation(
   };
 
   if (customerDoc) {
-    const customerStatus =
-      (customerDoc.metadata as { status?: string })?.status || 'active';
+    const custMeta = customerDoc.metadata ?? {};
     customer = {
       id: customerDoc._id,
       name: customerDoc.name || 'Unknown Customer',
       email: customerDoc.email || 'unknown@example.com',
-      locale: (customerDoc.metadata as { locale?: string })?.locale || 'en',
-      status: customerStatus,
-      source:
-        (customerDoc.metadata as { source?: string })?.source || 'unknown',
+      locale: typeof custMeta.locale === 'string' ? custMeta.locale : 'en',
+      status: typeof custMeta.status === 'string' ? custMeta.status : 'active',
+      source: typeof custMeta.source === 'string' ? custMeta.source : 'unknown',
       created_at: new Date(customerDoc._creationTime).toISOString(),
     };
   }
@@ -103,67 +101,86 @@ export async function transformConversation(
       console.warn('Message missing sentAt:', m._id);
     }
 
-    const rawAttachment = (m.metadata as { attachment?: unknown })?.attachment;
+    const rawAttachment = m.metadata?.attachment;
     const attachment =
       rawAttachment &&
       typeof rawAttachment === 'object' &&
       rawAttachment !== null
-        ? (rawAttachment as {
-            url: string;
-            filename: string;
-            contentType?: string;
-            size?: number;
-          })
+        ? {
+            url: String(rawAttachment.url ?? ''),
+            filename: String(rawAttachment.filename ?? ''),
+            contentType:
+              typeof rawAttachment.contentType === 'string'
+                ? rawAttachment.contentType
+                : undefined,
+            size:
+              typeof rawAttachment.size === 'number'
+                ? rawAttachment.size
+                : undefined,
+          }
         : undefined;
 
     return {
       id: String(m._id),
       sender:
-        (m.metadata as { sender?: string })?.sender ||
-        (m.direction === 'inbound' ? 'Customer' : 'Agent'),
+        typeof m.metadata?.sender === 'string'
+          ? m.metadata.sender
+          : m.direction === 'inbound'
+            ? 'Customer'
+            : 'Agent',
       content: m.content,
       timestamp,
       isCustomer: m.direction === 'inbound',
-      status:
-        (m.deliveryState as 'queued' | 'sent' | 'delivered' | 'failed') ||
-        'sent',
+      status: m.deliveryState || 'sent',
       attachment,
     };
   });
 
-  const metadata = (conversation.metadata as Record<string, unknown>) || {};
+  const metadata = conversation.metadata ?? {};
 
   // Fetch pending approval for this conversation
   const pendingApproval = await getPendingApprovalForResource(ctx, {
-    resourceType: 'conversations' as const,
+    resourceType: 'conversations',
     resourceId: conversation._id,
   });
 
   // Base result conforming to ConversationItem type
+  // Cast needed: Doc<'conversations'> has branded Id<> types while ConversationItem expects plain strings
   const result = {
     ...conversation,
     id: conversation._id,
     title: conversation.subject || 'Untitled Conversation',
     description:
-      (metadata.description as string) ||
+      (typeof metadata.description === 'string' && metadata.description) ||
       conversation.subject ||
       'No description',
-    channel: conversation.channel || (metadata.channel as string) || 'Email',
+    channel:
+      conversation.channel ||
+      (typeof metadata.channel === 'string' ? metadata.channel : undefined) ||
+      'Email',
     type: conversation.type || 'General',
     customer_id: conversation.customerId || 'unknown',
     business_id: conversation.organizationId,
     message_count: messages.length,
-    unread_count: (metadata.unread_count as number) || 0,
+    unread_count:
+      typeof metadata.unread_count === 'number' ? metadata.unread_count : 0,
     last_message_at:
       messages.length > 0
         ? messages[messages.length - 1].timestamp
         : new Date(conversation._creationTime).toISOString(),
-    last_read_at: metadata.last_read_at as string | undefined,
-    resolved_at:
-      conversation.status === 'closed'
-        ? (metadata.resolved_at as string | undefined)
+    last_read_at:
+      typeof metadata.last_read_at === 'string'
+        ? metadata.last_read_at
         : undefined,
-    resolved_by: metadata.resolved_by as string | undefined,
+    resolved_at:
+      conversation.status === 'closed' &&
+      typeof metadata.resolved_at === 'string'
+        ? metadata.resolved_at
+        : undefined,
+    resolved_by:
+      typeof metadata.resolved_by === 'string'
+        ? metadata.resolved_by
+        : undefined,
     created_at: new Date(conversation._creationTime).toISOString(),
     updated_at: new Date(conversation._creationTime).toISOString(),
     customer,
@@ -171,5 +188,6 @@ export async function transformConversation(
     pendingApproval: pendingApproval || undefined,
   };
 
+  // Doc<'conversations'> spread has branded Id<> types while ConversationItem expects plain strings
   return result as ConversationItem;
 }

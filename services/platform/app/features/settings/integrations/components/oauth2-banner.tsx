@@ -21,6 +21,7 @@ import { useT } from '@/lib/i18n/client';
  */
 export function OAuth2Banner() {
   const { t } = useT('auth');
+  // TanStack Router useSearch with strict: false returns unknown — cast required for search params
   const search = useSearch({ strict: false }) as Record<
     string,
     string | undefined

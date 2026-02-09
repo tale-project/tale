@@ -23,59 +23,60 @@ function buildQuery(ctx: QueryCtx, args: QueryConversationsArgs) {
   const { organizationId } = args;
 
   if (args.direction !== undefined) {
+    const { direction } = args;
     return {
       query: ctx.db
         .query('conversations')
         .withIndex('by_organizationId_and_direction', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('direction', args.direction!),
+          q.eq('organizationId', organizationId).eq('direction', direction),
         ),
       indexedFields: { direction: true } as const,
     };
   }
 
   if (args.channel !== undefined) {
+    const { channel } = args;
     return {
       query: ctx.db
         .query('conversations')
         .withIndex('by_organizationId_and_channel', (q) =>
-          q.eq('organizationId', organizationId).eq('channel', args.channel!),
+          q.eq('organizationId', organizationId).eq('channel', channel),
         ),
       indexedFields: { channel: true } as const,
     };
   }
 
   if (args.status !== undefined) {
+    const { status } = args;
     return {
       query: ctx.db
         .query('conversations')
         .withIndex('by_organizationId_and_status', (q) =>
-          q.eq('organizationId', organizationId).eq('status', args.status!),
+          q.eq('organizationId', organizationId).eq('status', status),
         ),
       indexedFields: { status: true } as const,
     };
   }
 
   if (args.priority !== undefined) {
+    const { priority } = args;
     return {
       query: ctx.db
         .query('conversations')
         .withIndex('by_organizationId_and_priority', (q) =>
-          q.eq('organizationId', organizationId).eq('priority', args.priority!),
+          q.eq('organizationId', organizationId).eq('priority', priority),
         ),
       indexedFields: { priority: true } as const,
     };
   }
 
   if (args.customerId !== undefined) {
+    const { customerId } = args;
     return {
       query: ctx.db
         .query('conversations')
         .withIndex('by_organizationId_and_customerId', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('customerId', args.customerId!),
+          q.eq('organizationId', organizationId).eq('customerId', customerId),
         ),
       indexedFields: { customerId: true } as const,
     };

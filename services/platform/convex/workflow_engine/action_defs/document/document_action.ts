@@ -58,7 +58,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         // Extract documentId to avoid duplicate type assertion
         const documentId = params.documentId as Id<'documents'>;
 
-        await ctx.runMutation!(
+        await ctx.runMutation(
           internal.documents.internal_mutations.updateDocument,
           {
             documentId, // Required by validator
@@ -73,7 +73,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         );
 
         // Fetch and return the updated entity
-        const updatedDocument = await ctx.runQuery!(
+        const updatedDocument = await ctx.runQuery(
           internal.documents.internal_queries.getDocumentByIdRaw,
           { documentId },
         );

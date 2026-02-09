@@ -33,7 +33,7 @@ export async function analyzeImageByUrl(
   const visionModelId = getVisionModel();
 
   debugLog('analyzeImageByUrl starting', {
-    imageUrl: imageUrl.substring(0, 100),
+    imageUrl: imageUrl.slice(0, 100),
     question,
   });
 
@@ -95,7 +95,7 @@ export async function analyzeImageByUrl(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     debugLog('analyzeImageByUrl error', {
-      imageUrl: imageUrl.substring(0, 100),
+      imageUrl: imageUrl.slice(0, 100),
       error: errorMessage,
     });
 

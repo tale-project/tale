@@ -21,6 +21,7 @@ export async function getQueryCache<T>(key: string): Promise<T[] | null> {
     return null;
   }
 
+  // Dexie stores untyped data — cast required to apply generic type parameter
   return entry.data as T[];
 }
 
@@ -127,6 +128,7 @@ export async function updateCacheItem<T>(
   const entry = await db.queryCache.get(key);
   if (!entry) return false;
 
+  // Dexie stores untyped data — cast required to apply generic type parameter
   const updatedData = updater(entry.data as T[]);
   await db.queryCache.update(key, {
     data: updatedData,

@@ -188,17 +188,18 @@ export async function autoSummarizeIfNeededModel(
   const newMessagesForSummary: MessageForSummary[] = messagesToSummarize
     .filter((m) => m.message?.content)
     .map((m) => {
-      const role = m.message!.role as 'user' | 'assistant' | 'tool' | 'system';
+      const message = m.message;
+      const role = message?.role as 'user' | 'assistant' | 'tool' | 'system';
       const content =
-        typeof m.message!.content === 'string'
-          ? m.message!.content
-          : JSON.stringify(m.message!.content);
+        typeof message?.content === 'string'
+          ? message.content
+          : JSON.stringify(message?.content);
 
       // For tool messages, try to extract the tool name from content
       // Message content can include tool-result parts with toolName
       let toolName: string | undefined;
-      if (role === 'tool' && Array.isArray(m.message!.content)) {
-        const toolPart = (m.message!.content as ToolResultPart[]).find(
+      if (role === 'tool' && Array.isArray(message?.content)) {
+        const toolPart = (message.content as ToolResultPart[]).find(
           (p) => p.type === 'tool-result' && p.toolName,
         );
         if (toolPart) {

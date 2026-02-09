@@ -195,7 +195,7 @@ export function JsonInput({
       // Insert tab character(s) at cursor position
       const tabChar = '  '; // 2 spaces to match JSON formatting
       const newValue =
-        textValue.substring(0, start) + tabChar + textValue.substring(end);
+        textValue.slice(0, start) + tabChar + textValue.slice(end);
 
       setTextValue(newValue);
       validateJson(newValue);

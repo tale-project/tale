@@ -31,7 +31,6 @@ export async function countCustomers(
   while (attempts < MAX_PAGINATION_ATTEMPTS) {
     attempts++;
 
-    // @ts-ignore TS2589: Convex API type instantiation is excessively deep (known Convex limitation with deeply nested internal query types)
     const queryFn = internal.customers.internal_queries.queryCustomers;
     const result: PaginationResult = await ctx.runQuery(queryFn, {
       organizationId,

@@ -71,7 +71,8 @@ describe('createLoopResult', () => {
       'step_loop',
     );
 
-    const loopVars = result.variables!.loop as Record<string, unknown>;
+    expect(result.variables).toBeDefined();
+    const loopVars = result.variables?.loop as Record<string, unknown>;
     expect(loopVars.ownerStepSlug).toBe('step_loop');
     expect(loopVars.item).toBe(1);
     expect(loopVars.index).toBe(0);
@@ -98,7 +99,8 @@ describe('createLoopResult', () => {
       'inner_loop',
     );
 
-    const loopVars = result.variables!.loop as Record<string, unknown>;
+    expect(result.variables).toBeDefined();
+    const loopVars = result.variables?.loop as Record<string, unknown>;
     expect(loopVars.parent).toBe(parentLoop);
   });
 
@@ -115,7 +117,8 @@ describe('createLoopResult', () => {
     );
 
     expect(result.port).toBe('done');
-    const loopVars = result.variables!.loop as Record<string, unknown>;
+    expect(result.variables).toBeDefined();
+    const loopVars = result.variables?.loop as Record<string, unknown>;
     expect(loopVars.item).toBeNull();
     expect(loopVars.index).toBe(-1);
   });

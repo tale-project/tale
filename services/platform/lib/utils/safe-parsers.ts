@@ -29,6 +29,7 @@ export function safeGetString(
   fallback = '',
 ): string {
   if (typeof obj !== 'object' || obj === null) return fallback;
+  // TS narrows typeof === 'object' to object, not Record — cast required for property access
   const value = (obj as Record<string, unknown>)[key];
   return typeof value === 'string' ? value : fallback;
 }
@@ -47,6 +48,7 @@ export function safeGetNumber(
   fallback?: number,
 ): number | undefined {
   if (typeof obj !== 'object' || obj === null) return fallback;
+  // TS narrows typeof === 'object' to object, not Record — cast required for property access
   const value = (obj as Record<string, unknown>)[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
@@ -65,6 +67,8 @@ export function safeGetArray<T>(
   fallback: T[] = [],
 ): T[] {
   if (typeof obj !== 'object' || obj === null) return fallback;
+  // TS narrows typeof === 'object' to object, not Record — cast required for property access
   const value = (obj as Record<string, unknown>)[key];
+  // Array.isArray narrows to unknown[] — cast required to apply generic T
   return Array.isArray(value) ? (value as T[]) : fallback;
 }

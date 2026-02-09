@@ -66,22 +66,24 @@ function buildQuery(ctx: QueryCtx, args: GetProductsCursorArgs) {
   const { organizationId } = args;
 
   if (args.status !== undefined) {
+    const { status } = args;
     return {
       query: ctx.db
         .query('products')
         .withIndex('by_organizationId_and_status', (q) =>
-          q.eq('organizationId', organizationId).eq('status', args.status!),
+          q.eq('organizationId', organizationId).eq('status', status),
         ),
       indexedFields: { status: true } as const,
     };
   }
 
   if (args.category !== undefined) {
+    const { category } = args;
     return {
       query: ctx.db
         .query('products')
         .withIndex('by_organizationId_and_category', (q) =>
-          q.eq('organizationId', organizationId).eq('category', args.category!),
+          q.eq('organizationId', organizationId).eq('category', category),
         ),
       indexedFields: { category: true } as const,
     };

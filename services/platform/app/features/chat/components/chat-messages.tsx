@@ -112,6 +112,7 @@ export function ChatMessages({
               key={message.key}
               message={{
                 ...message,
+                // UIMessage.role is string — cast required to narrow to expected union
                 role: message.role as 'user' | 'assistant',
                 threadId: threadId,
               }}

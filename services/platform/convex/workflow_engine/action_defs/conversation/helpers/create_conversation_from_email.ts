@@ -122,9 +122,11 @@ export async function createConversationFromEmail(
             }
 
             // Determine if this is from the customer based on the conversation's stored root sender
-            const convRootFrom = (existingConvForRoot.metadata as any)?.from as
-              | Array<{ address?: string; name?: string }>
-              | undefined;
+            const convRootFrom = (
+              existingConvForRoot.metadata as
+                | Record<string, unknown>
+                | undefined
+            )?.from as Array<{ address?: string; name?: string }> | undefined;
             const convCustomerAddress = convRootFrom?.[0]?.address;
             const isCustomer = email.from[0]?.address === convCustomerAddress;
 

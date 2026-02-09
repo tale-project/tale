@@ -234,7 +234,7 @@ export const createApiKey = mutation({
 
     const key = generateApiKey();
     const keyHash = await hashSecret(key);
-    const keyPrefix = key.substring(0, 12);
+    const keyPrefix = key.slice(0, 12);
 
     const keyId = await ctx.db.insert('wfApiKeys', {
       organizationId: args.organizationId,

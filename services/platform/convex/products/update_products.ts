@@ -57,18 +57,19 @@ export async function updateProducts(
     productsToUpdate = [product];
   } else if (args.organizationId) {
     // Update by filters (batch update)
+    const { organizationId } = args;
     let products: Array<Doc<'products'>>;
 
     if (args.externalId !== undefined) {
       if (Array.isArray(args.externalId)) {
         // For array of externalIds, execute multiple targeted queries using .first()
-        const externalIdArray = args.externalId as Array<string | number>;
+        const externalIdArray = args.externalId;
         const productPromises = externalIdArray.map((externalId) =>
           ctx.db
             .query('products')
             .withIndex('by_organizationId_and_externalId', (q) =>
               q
-                .eq('organizationId', args.organizationId!)
+                .eq('organizationId', organizationId)
                 .eq('externalId', externalId),
             )
             .first(),
@@ -91,36 +92,34 @@ export async function updateProducts(
         });
       } else {
         // Single externalId - use the specific index with .first()
-        const singleExternalId = args.externalId as string | number;
+        const singleExternalId = args.externalId;
         const product = await ctx.db
           .query('products')
           .withIndex('by_organizationId_and_externalId', (q) =>
             q
-              .eq('organizationId', args.organizationId!)
+              .eq('organizationId', organizationId)
               .eq('externalId', singleExternalId),
           )
           .first();
         products = product ? [product] : [];
       }
     } else if (args.status !== undefined) {
+      const { status } = args;
       products = [];
       for await (const product of ctx.db
         .query('products')
         .withIndex('by_organizationId_and_status', (q) =>
-          q
-            .eq('organizationId', args.organizationId!)
-            .eq('status', args.status!),
+          q.eq('organizationId', organizationId).eq('status', status),
         )) {
         products.push(product);
       }
     } else if (args.category !== undefined) {
+      const { category } = args;
       products = [];
       for await (const product of ctx.db
         .query('products')
         .withIndex('by_organizationId_and_category', (q) =>
-          q
-            .eq('organizationId', args.organizationId!)
-            .eq('category', args.category!),
+          q.eq('organizationId', organizationId).eq('category', category),
         )) {
         products.push(product);
       }
@@ -129,7 +128,7 @@ export async function updateProducts(
       for await (const product of ctx.db
         .query('products')
         .withIndex('by_organizationId', (q) =>
-          q.eq('organizationId', args.organizationId!),
+          q.eq('organizationId', organizationId),
         )) {
         products.push(product);
       }
@@ -188,8 +187,8 @@ export async function updateProducts(
 
       // Handle metadata updates with lodash
       if (args.updates.metadata) {
-        const existingMetadata =
-          (product.metadata as Record<string, unknown>) ?? {};
+        const existingMetadata: Record<string, unknown> =
+          product.metadata ?? {};
         const updatedMetadata: Record<string, unknown> = {
           ...existingMetadata,
         };
@@ -208,11 +207,8 @@ export async function updateProducts(
               updatedMetadata[key] !== null &&
               !Array.isArray(updatedMetadata[key])
             ) {
-              updatedMetadata[key] = merge(
-                {},
-                updatedMetadata[key] as Record<string, unknown>,
-                value as Record<string, unknown>,
-              );
+              const existing = updatedMetadata[key];
+              updatedMetadata[key] = merge({}, existing, value);
             } else {
               updatedMetadata[key] = value;
             }

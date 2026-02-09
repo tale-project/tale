@@ -20,7 +20,7 @@ export async function deleteCustomer(
     organizationId: customer.organizationId,
     eventType: 'customer.deleted',
     eventData: {
-      customerId: customerId as string,
+      customerId,
       name: customer.name,
       email: customer.email,
     },

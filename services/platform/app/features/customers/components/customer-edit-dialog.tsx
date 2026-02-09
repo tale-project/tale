@@ -9,7 +9,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
-import { Doc, Id } from '@/convex/_generated/dataModel';
+import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateCustomer } from '../hooks/use-update-customer';
@@ -101,7 +101,7 @@ export function CustomerEditDialog({
   const onSubmit = async (data: CustomerFormData) => {
     try {
       await updateCustomer({
-        customerId: customer._id as Id<'customers'>,
+        customerId: customer._id,
         name: data.name.trim(),
         email: data.email.trim(),
         locale: data.locale,

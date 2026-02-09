@@ -42,7 +42,7 @@ export async function executeMySqlQuery(
 
       // Build values array in order
       for (const name of paramNames) {
-        values.push(params.params![name]);
+        values.push(params.params?.[name]);
       }
     }
 

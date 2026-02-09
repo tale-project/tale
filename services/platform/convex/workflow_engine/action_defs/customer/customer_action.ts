@@ -158,7 +158,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
 
     switch (params.operation) {
       case 'create': {
-        const result = (await ctx.runMutation!(
+        const result = (await ctx.runMutation(
           internal.customers.internal_mutations.createCustomer,
           {
             organizationId,
@@ -175,7 +175,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
 
         // Fetch and return the full created entity
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        const createdCustomer = await ctx.runQuery!(
+        const createdCustomer = await ctx.runQuery(
           internal.customers.internal_queries.getCustomerById,
           { customerId: result.customerId },
         );
@@ -195,7 +195,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
         // Note: organizationId is already validated at the start of execute()
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        const result = (await ctx.runQuery!(
+        const result = (await ctx.runQuery(
           internal.customers.internal_queries.filterCustomers,
           {
             organizationId,
@@ -208,7 +208,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
 
       case 'query': {
         // Note: organizationId is already validated at the start of execute()
-        const result = (await ctx.runQuery!(
+        const result = (await ctx.runQuery(
           internal.customers.internal_queries.queryCustomers,
           {
             organizationId,
@@ -234,7 +234,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
         // Extract customerId to avoid duplicate type assertion
         const customerId = params.customerId as Id<'customers'>;
 
-        await ctx.runMutation!(
+        await ctx.runMutation(
           internal.customers.internal_mutations.updateCustomers,
           {
             customerId, // Required by validator
@@ -244,7 +244,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
 
         // Fetch and return the updated entity
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        const updatedCustomer = await ctx.runQuery!(
+        const updatedCustomer = await ctx.runQuery(
           internal.customers.internal_queries.getCustomerById,
           { customerId },
         );

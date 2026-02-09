@@ -112,7 +112,12 @@ function AutomationStepsInner({
   });
 
   // Derive sidePanelMode from URL state
-  const sidePanelMode = panelState.panel as 'step' | 'ai-chat' | 'test' | null;
+  const sidePanelMode =
+    panelState.panel === 'step' ||
+    panelState.panel === 'ai-chat' ||
+    panelState.panel === 'test'
+      ? panelState.panel
+      : null;
   const selectedStepSlug = panelState.step;
 
   // Get the actual step object from the slug
@@ -271,10 +276,8 @@ function AutomationStepsInner({
         name: s.name,
         stepType: s.stepType,
         actionType:
-          s.stepType === 'action'
-            ? ((s.config as Record<string, unknown>)?.type as
-                | string
-                | undefined)
+          s.stepType === 'action' && 'type' in s.config
+            ? String(s.config.type)
             : undefined,
       })),
     [steps],
@@ -295,14 +298,7 @@ function AutomationStepsInner({
     const leafStepSlugs = new Set(
       sortedSteps
         .filter((step) => {
-          const nextSteps = step.nextSteps as
-            | Record<string, string>
-            | null
-            | undefined;
-          // Consider a step a leaf if nextSteps is null, undefined, or an empty object
-          if (!nextSteps) return true;
-          if (typeof nextSteps !== 'object') return true;
-          return Object.keys(nextSteps).length === 0;
+          return Object.keys(step.nextSteps).length === 0;
         })
         .map((step) => step.stepSlug),
     );
@@ -317,9 +313,9 @@ function AutomationStepsInner({
 
     loopNodes.forEach((loopNode) => {
       const bodyNodes = new Set<string>();
-      const nextSteps = loopNode.nextSteps as Record<string, string> | null;
+      const { nextSteps } = loopNode;
 
-      if (nextSteps && nextSteps.loop) {
+      if (nextSteps.loop) {
         // Get the exit node (where the loop's "done" edge points to)
         const exitNodeId = nextSteps.done;
 
@@ -332,7 +328,8 @@ function AutomationStepsInner({
         const queue = [nextSteps.loop];
 
         while (queue.length > 0) {
-          const current = queue.shift()!;
+          const current = queue.shift();
+          if (!current) continue;
 
           // Skip if already visited, is the loop itself, or is the exit node
           if (
@@ -358,23 +355,17 @@ function AutomationStepsInner({
           bodyNodes.add(current);
 
           // Add all next steps to the queue
-          const currentNextSteps = currentStep.nextSteps as Record<
-            string,
-            string
-          > | null;
-          if (currentNextSteps) {
-            Object.values(currentNextSteps).forEach((target) => {
-              // Add to queue if not visited, not the loop node, not the exit node, and not a leaf node
-              if (
-                !visited.has(target) &&
-                target !== loopNode.stepSlug &&
-                target !== exitNodeId &&
-                !leafStepSlugs.has(target)
-              ) {
-                queue.push(target);
-              }
-            });
-          }
+          Object.values(currentStep.nextSteps).forEach((target) => {
+            // Add to queue if not visited, not the loop node, not the exit node, and not a leaf node
+            if (
+              !visited.has(target) &&
+              target !== loopNode.stepSlug &&
+              target !== exitNodeId &&
+              !leafStepSlugs.has(target)
+            ) {
+              queue.push(target);
+            }
+          });
         }
       }
 
@@ -424,25 +415,22 @@ function AutomationStepsInner({
       // For each conditional node, check if it branches to both a nested loop AND other nodes
       let maxBranchWidth = 0;
       conditionalNodes.forEach((condNode) => {
-        const nextSteps = condNode.nextSteps as Record<string, string> | null;
-        if (!nextSteps) return;
-
-        const targets = Object.values(nextSteps);
+        const targets = Object.values(condNode.nextSteps);
         const targetNodes = targets
           .map((targetSlug) => children.find((c) => c.stepSlug === targetSlug))
           .filter(Boolean);
 
         // Check if branches include both loop and non-loop nodes
-        const hasLoopBranch = targetNodes.some((t) => t!.stepType === 'loop');
+        const hasLoopBranch = targetNodes.some((t) => t?.stepType === 'loop');
         const hasNonLoopBranch = targetNodes.some(
-          (t) => t!.stepType !== 'loop',
+          (t) => t?.stepType !== 'loop',
         );
 
         if (hasLoopBranch && hasNonLoopBranch) {
           // Calculate width needed for side-by-side branching
           const loopWidth = targetNodes
-            .filter((t) => t!.stepType === 'loop')
-            .map((t) => calculateLoopWidth(t!.stepSlug))
+            .filter((t) => t?.stepType === 'loop')
+            .map((t) => calculateLoopWidth(t?.stepSlug ?? ''))
             .reduce((max, w) => Math.max(max, w), 0);
 
           const nonLoopWidth = NODE_WIDTH; // Regular nodes are 300px
@@ -539,8 +527,8 @@ function AutomationStepsInner({
           stepType: step.stepType,
           stepSlug: step.stepSlug,
           actionType:
-            step.stepType === 'action'
-              ? ((step.config as Record<string, unknown>)?.type as string)
+            step.stepType === 'action' && 'type' in step.config
+              ? String(step.config.type)
               : undefined,
           isLeafNode: leafStepSlugs.has(step.stepSlug),
           isTerminalNode: leafStepSlugs.has(step.stepSlug),
@@ -592,18 +580,15 @@ function AutomationStepsInner({
         };
       }
 
-      const node = nodeConfig as Node;
-
-      return node;
+      // ReactFlow Node requires all fields, but we build incrementally with conditional properties
+      return nodeConfig as Node;
     });
 
     // Create edges based on actual step connections from nextSteps
     const edges: Edge[] = [];
     sortedSteps.forEach((step) => {
       if (step.nextSteps && typeof step.nextSteps === 'object') {
-        const nextSteps = step.nextSteps as Record<string, string>;
-
-        Object.entries(nextSteps).forEach(([key, targetStepSlug]) => {
+        Object.entries(step.nextSteps).forEach(([key, targetStepSlug]) => {
           // Only create edge if target step exists
           if (sortedSteps.find((s) => s.stepSlug === targetStepSlug)) {
             const keyLower = key.toLowerCase();
@@ -865,7 +850,7 @@ function AutomationStepsInner({
         if (!nodeHandles.has(edge.source)) {
           nodeHandles.set(edge.source, new Set());
         }
-        nodeHandles.get(edge.source)!.add(edge.sourceHandle);
+        nodeHandles.get(edge.source)?.add(edge.sourceHandle);
       }
 
       // Track handle usage at target node
@@ -876,7 +861,7 @@ function AutomationStepsInner({
         if (!nodeHandles.has(edge.target)) {
           nodeHandles.set(edge.target, new Set());
         }
-        nodeHandles.get(edge.target)!.add(edge.targetHandle);
+        nodeHandles.get(edge.target)?.add(edge.targetHandle);
       }
     });
 

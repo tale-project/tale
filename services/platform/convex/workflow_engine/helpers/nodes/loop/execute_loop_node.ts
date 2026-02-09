@@ -31,8 +31,8 @@ export async function executeLoopNode(
 
   const context: StepExecutionContext = {
     stepDef: {
-      _id: 'loop_stub' as any,
-      wfDefinitionId: 'loop_stub_def' as any,
+      _id: 'loop_stub',
+      wfDefinitionId: 'loop_stub_def',
       stepSlug,
       name: '',
       stepType: 'loop',

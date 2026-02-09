@@ -55,14 +55,21 @@ function getStepSchemaContext(step: StepInfo): StepSchemaContext {
   };
 
   if (step.stepType === 'action' && step.config) {
-    context.actionType = step.config.type as string | undefined;
-    const params = step.config.parameters as
-      | Record<string, unknown>
-      | undefined;
-    context.operation = params?.operation as string | undefined;
+    context.actionType =
+      typeof step.config.type === 'string' ? step.config.type : undefined;
+    const params =
+      typeof step.config.parameters === 'object' &&
+      step.config.parameters !== null
+        ? (step.config.parameters as Record<string, unknown>)
+        : undefined;
+    context.operation =
+      typeof params?.operation === 'string' ? params.operation : undefined;
     // Some actions have operation directly in config
     if (!context.operation && step.config.operation) {
-      context.operation = step.config.operation as string;
+      context.operation =
+        typeof step.config.operation === 'string'
+          ? step.config.operation
+          : undefined;
     }
   }
 
@@ -74,13 +81,16 @@ function getStepSchemaContext(step: StepInfo): StepSchemaContext {
  */
 function getOutputSchemaForStep(step: StepInfo): OutputSchema | null {
   if (step.stepType === 'action') {
-    const actionType = step.config?.type as string | undefined;
-    const params = step.config?.parameters as
-      | Record<string, unknown>
-      | undefined;
-    const operation = (params?.operation ?? step.config?.operation) as
-      | string
-      | undefined;
+    const actionType =
+      typeof step.config?.type === 'string' ? step.config.type : undefined;
+    const params =
+      typeof step.config?.parameters === 'object' &&
+      step.config.parameters !== null
+        ? (step.config.parameters as Record<string, unknown>)
+        : undefined;
+    const rawOperation = params?.operation ?? step.config?.operation;
+    const operation =
+      typeof rawOperation === 'string' ? rawOperation : undefined;
 
     if (actionType) {
       return getActionOutputSchema(actionType, operation);
@@ -103,7 +113,7 @@ function containsJinjaFilter(pathSegment: string): boolean {
  */
 function stripJinjaFilters(pathSegment: string): string {
   const pipeIndex = pathSegment.indexOf('|');
-  return pipeIndex === -1 ? pathSegment : pathSegment.substring(0, pipeIndex);
+  return pipeIndex === -1 ? pathSegment : pathSegment.slice(0, pipeIndex);
 }
 
 /**
@@ -111,7 +121,7 @@ function stripJinjaFilters(pathSegment: string): string {
  */
 function extractFilter(pathSegment: string): string | null {
   const pipeIndex = pathSegment.indexOf('|');
-  return pipeIndex === -1 ? null : pathSegment.substring(pipeIndex + 1);
+  return pipeIndex === -1 ? null : pathSegment.slice(pipeIndex + 1);
 }
 
 /**
@@ -484,9 +494,12 @@ function validateStepVariableReferences(
   let stepRefs = extractStepReferences(step.config);
 
   // For condition steps, also extract references from the JEXL expression (no mustache brackets)
-  if (step.stepType === 'condition' && step.config?.expression) {
+  if (
+    step.stepType === 'condition' &&
+    typeof step.config?.expression === 'string'
+  ) {
     const conditionRefs = extractStepReferencesFromCondition(
-      step.config.expression as string,
+      step.config.expression,
     );
     stepRefs = [...stepRefs, ...conditionRefs];
   }
@@ -566,10 +579,19 @@ export function validateWorkflowVariableReferences(
 
   for (let i = 0; i < stepsConfig.length; i++) {
     const stepConfig = stepsConfig[i];
-    const stepSlug = stepConfig.stepSlug as string;
-    const stepType = stepConfig.stepType as StepInfo['stepType'];
-    const order = stepConfig.order as number;
-    const config = stepConfig.config as Record<string, unknown>;
+    const stepSlug =
+      typeof stepConfig.stepSlug === 'string' ? stepConfig.stepSlug : '';
+    const stepType =
+      typeof stepConfig.stepType === 'string'
+        ? (stepConfig.stepType as StepInfo['stepType'])
+        : undefined;
+    const order = typeof stepConfig.order === 'number' ? stepConfig.order : 0;
+    const config =
+      typeof stepConfig.config === 'object' &&
+      stepConfig.config !== null &&
+      !Array.isArray(stepConfig.config)
+        ? (stepConfig.config as Record<string, unknown>)
+        : {};
 
     if (stepSlug && stepType) {
       const stepInfo: StepInfo = { stepSlug, stepType, order, config };

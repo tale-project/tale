@@ -1,13 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
 
+import type { Id } from '../../../_generated/dataModel';
+import type { ActionCtx } from '../../../_generated/server';
+
 import { serializeVariables, SIZE_THRESHOLD } from './serialize_variables';
 
-function createMockCtx(storageId = 'mock_storage_id' as any) {
+function createMockCtx(
+  storageId = 'mock_storage_id' as unknown as Id<'_storage'>,
+) {
   return {
     storage: {
       store: vi.fn().mockResolvedValue(storageId),
     },
-  } as any;
+  } as unknown as ActionCtx;
 }
 
 describe('serializeVariables', () => {
@@ -72,7 +77,11 @@ describe('serializeVariables', () => {
       const ctx = createMockCtx();
       const variables = { tiny: true };
 
-      const result = await serializeVariables(ctx, variables, 'old_id' as any);
+      const result = await serializeVariables(
+        ctx,
+        variables,
+        'old_id' as unknown as Id<'_storage'>,
+      );
 
       expect(ctx.storage.store).toHaveBeenCalledOnce();
       expect(result.storageId).toBe('mock_storage_id');

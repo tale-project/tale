@@ -1,3 +1,4 @@
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { MutationCtx } from '../_generated/server';
 import type { CreateProductResult, ProductStatus } from './types';
 
@@ -33,7 +34,7 @@ export async function createProduct(
     status: args.status,
     externalId: args.externalId,
 
-    metadata: args.metadata as any,
+    metadata: args.metadata as ConvexJsonRecord,
   });
 
   return {

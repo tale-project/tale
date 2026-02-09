@@ -355,7 +355,7 @@ function MilkdownEditorInner({
     const file = event.target.files?.[0];
     if (file) {
       const attachedFile: AttachedFile = {
-        id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
+        id: Date.now().toString() + Math.random().toString(36).slice(2, 11),
         file,
         type: getFileType(file),
       };

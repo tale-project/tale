@@ -16,7 +16,7 @@ type QueryFunction = FunctionReference<
   'query',
   'public',
   { organizationId: string },
-  any[]
+  unknown[]
 >;
 
 interface SortFieldConfig<TSortBy extends string, TItem> {
@@ -64,16 +64,19 @@ export function createEntityDataHook<
     const {
       organizationId,
       search = '',
+      // {} is not assignable to arbitrary TFilters — cast required for default
       filters = {} as TFilters,
       sortBy = config.defaultSort.field,
       sortOrder = config.defaultSort.order,
     } = options;
 
+    // oxlint-disable-next-line typescript/no-explicit-any -- Convex useQuery requires exact FunctionReference type; generic QueryFunction is not assignable
     const allItems = useQuery(config.queryFn as any, { organizationId });
 
     const processed = useMemo(() => {
       if (!allItems) return [];
 
+      // Convex useQuery returns unknown[] — cast required to apply generic TItem
       let result = allItems as TItem[];
 
       if (search) {
@@ -93,7 +96,8 @@ export function createEntityDataHook<
 
       const getSorter = () => {
         const actualField =
-          config.sortConfig.fieldMap?.[sortBy] ?? (sortBy as keyof TItem);
+          config.sortConfig.fieldMap?.[sortBy] ??
+          (sortBy as unknown as keyof TItem);
         if (config.sortConfig.number.includes(sortBy)) {
           return sortByNumber<TItem>(actualField, sortOrder);
         }

@@ -39,15 +39,19 @@ export class LoopNodeExecutor {
       loop?.ownerStepSlug === ctx.stepDef.stepSlug
     ) {
       const items = getLoopItems(loop, ctx, config);
+      const loopState = loop?.state;
+      if (!loopState) {
+        throw new Error('Loop state is required when continuing a loop');
+      }
       debugLog('LoopNodeExecutor Continuing loop:', {
         stepSlug: ctx.stepDef.stepSlug,
-        currentIndex: loop!.state!.currentIndex,
-        hasParent: !!loop!.parent,
+        currentIndex: loopState.currentIndex,
+        hasParent: !!loop?.parent,
       });
       return this.continueLoop(
         items,
-        loop!.state!,
-        loop!.parent,
+        loopState,
+        loop?.parent,
         ctx.stepDef.stepSlug,
       );
     }

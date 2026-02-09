@@ -18,7 +18,7 @@ export function ApprovalsNavigation({
   const { t } = useT('approvals');
 
   const navigationItems: TabNavigationItem[] = STATUSES.map((status) => ({
-    label: t(`status.${status}` as any),
+    label: t(`status.${status}` as `status.${(typeof STATUSES)[number]}`),
     href: `/dashboard/${organizationId}/approvals/${status}`,
   }));
 

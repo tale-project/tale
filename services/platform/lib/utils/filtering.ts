@@ -16,7 +16,7 @@ export interface FieldFilter<T> {
   /** The field to filter on */
   field: keyof T;
   /** Set of allowed values (empty set = no filter) */
-  values: Set<any>;
+  values: Set<unknown>;
 }
 
 /**

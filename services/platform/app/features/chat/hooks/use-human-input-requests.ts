@@ -2,12 +2,15 @@
  * Hook for fetching human input request approvals in a chat thread
  */
 
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery } from 'convex/react';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
 
 import { api } from '@/convex/_generated/api';
+import {
+  type HumanInputRequestMetadata,
+  humanInputRequestMetadataSchema,
+} from '@/lib/shared/schemas/approvals';
 
 export interface HumanInputRequest {
   _id: Id<'approvals'>;
@@ -21,7 +24,6 @@ export interface HumanInputRequest {
  * Hook to fetch human input requests for a chat thread
  */
 export function useHumanInputRequests(threadId: string | undefined) {
-  // @ts-ignore - Deep api path may cause TS2589 depending on TypeScript state
   const approvals = useQuery(
     api.approvals.queries.getHumanInputRequestsForThread,
     threadId ? { threadId } : 'skip',
@@ -33,8 +35,8 @@ export function useHumanInputRequests(threadId: string | undefined) {
     .filter((a: ApprovalItem) => a.metadata)
     .map((a: ApprovalItem) => ({
       _id: a._id,
-      status: a.status as 'pending' | 'approved' | 'rejected',
-      metadata: a.metadata as unknown as HumanInputRequestMetadata,
+      status: a.status,
+      metadata: humanInputRequestMetadataSchema.parse(a.metadata),
       _creationTime: a._creationTime,
       messageId: a.messageId,
     }));
@@ -42,18 +44,5 @@ export function useHumanInputRequests(threadId: string | undefined) {
   return {
     requests: humanInputRequests,
     isLoading: approvals === undefined && threadId !== undefined,
-  };
-}
-
-/**
- * Hook to submit a response to a human input request
- */
-function useSubmitHumanInputResponse() {
-  const submitMutation = useMutation(
-    api.agent_tools.human_input.mutations.submitHumanInputResponse,
-  );
-
-  return {
-    submit: submitMutation,
   };
 }

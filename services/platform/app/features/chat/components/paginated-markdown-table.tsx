@@ -27,44 +27,47 @@ export function PaginatedMarkdownTable({
   const { t } = useT('common');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Extract thead and tbody from children
-  let thead: ReactElement | null = null;
-  let tbodyRows: ReactElement[] = [];
+  // Extract thead and tbody from children using find() instead of forEach()
+  // to avoid TypeScript narrowing issues with let mutations inside callbacks
+  const childArray = Children.toArray(children).filter(isValidElement);
 
-  Children.forEach(children, (child) => {
-    if (!isValidElement(child)) return;
+  // React component types don't expose displayName in TS — cast required
+  const getDisplayName = (childType: ReactElement['type']) =>
+    typeof childType === 'function' || typeof childType === 'object'
+      ? ((childType as { displayName?: string }).displayName ?? null)
+      : null;
 
-    // Check for thead (rendered as TableHeader by react-markdown component mapping)
-    const childType = child.type;
-    const displayName =
-      typeof childType === 'function' || typeof childType === 'object'
-        ? (childType as { displayName?: string }).displayName
-        : null;
+  const thead =
+    childArray.find((child) => {
+      const displayName = getDisplayName(child.type);
+      return displayName === 'TableHeader' || child.type === 'thead';
+    }) ?? null;
 
-    if (displayName === 'TableHeader' || childType === 'thead') {
-      thead = child;
-    }
-    // Check for tbody (rendered as TableBody by react-markdown component mapping)
-    else if (
+  const tbodyChild = childArray.find((child) => {
+    const displayName = getDisplayName(child.type);
+    return (
       displayName === 'TableBody' ||
-      childType === 'tbody' ||
-      childType === TableBody
-    ) {
-      // Extract rows from tbody
-      const childProps = child.props as { children?: ReactNode };
-      const tbodyChildren = Children.toArray(childProps.children);
-      tbodyRows = tbodyChildren.filter(isValidElement) as ReactElement[];
-    }
+      child.type === 'tbody' ||
+      child.type === TableBody
+    );
   });
+
+  // ReactElement.props is untyped for generic elements — cast required
+  // Array.filter type guard doesn't narrow to ReactElement[] — cast required
+  const tbodyRows = tbodyChild
+    ? (Children.toArray(
+        (tbodyChild.props as { children?: ReactNode }).children,
+      ).filter(isValidElement) as ReactElement[])
+    : [];
 
   // Count columns in header to normalize rows
   let headerColumnCount = 0;
   if (thead) {
-    const theadProps = (thead as ReactElement).props as {
-      children?: ReactNode;
-    };
+    // ReactElement.props is untyped for generic elements — cast required
+    const theadProps = thead.props as { children?: ReactNode };
     Children.forEach(theadProps.children, (headerRow) => {
       if (isValidElement(headerRow)) {
+        // ReactElement.props is untyped — cast required
         const rowProps = headerRow.props as { children?: ReactNode };
         headerColumnCount = Children.count(rowProps.children);
       }
@@ -76,6 +79,7 @@ export function PaginatedMarkdownTable({
     row: ReactElement,
     expectedColumns: number,
   ): ReactElement => {
+    // ReactElement.props is untyped — cast required
     const rowProps = row.props as { children?: ReactNode };
     const cells = Children.toArray(rowProps.children);
     const currentCount = cells.length;

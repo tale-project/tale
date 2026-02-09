@@ -272,8 +272,8 @@ function splitQuotedContent(html: string): { main: string; quoted: string } {
     const match = html.match(pattern);
     if (match && match.index !== undefined) {
       return {
-        main: html.substring(0, match.index).trim(),
-        quoted: html.substring(match.index).trim(),
+        main: html.slice(0, match.index).trim(),
+        quoted: html.slice(match.index).trim(),
       };
     }
   }

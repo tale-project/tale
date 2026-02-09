@@ -26,13 +26,12 @@ export async function listWorkflowsWithBestVersion(
   ctx: QueryCtx,
   args: ListWorkflowsWithBestVersionArgs,
 ): Promise<WorkflowDefinition[]> {
-  const query = args.status
+  const status = args.status;
+  const query = status
     ? ctx.db
         .query('wfDefinitions')
         .withIndex('by_org_status', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('status', args.status!),
+          q.eq('organizationId', args.organizationId).eq('status', status),
         )
     : ctx.db
         .query('wfDefinitions')

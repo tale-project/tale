@@ -97,18 +97,22 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
 
         // Attempt to repair common corruption patterns
         // Pattern: Field names that look like descriptions instead of identifiers
-        const repairObject = (obj: any): any => {
+        // Generic preserves input type — structural shape is maintained by key repair
+        const repairObject = <T>(obj: T): T => {
           if (!obj || typeof obj !== 'object') {
             return obj;
           }
 
           // Handle arrays by recursively repairing each element
           if (Array.isArray(obj)) {
-            return obj.map((item) => repairObject(item));
+            // Array structure preserved — cast required for generic return
+            return obj.map((item) => repairObject(item)) as unknown as T;
           }
 
-          const repaired: Record<string, any> = {};
-          for (const [key, value] of Object.entries(obj)) {
+          const repaired: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(
+            obj as Record<string, unknown>,
+          )) {
             let repairedKey = key;
 
             // If key contains newlines or is too descriptive, try to extract the actual field name
@@ -129,7 +133,7 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
                 };
                 repairedKey = camelCaseMap[lowerKey] ?? lowerKey;
                 debugLog('Repaired field name', {
-                  original: key.substring(0, 50),
+                  original: key.slice(0, 50),
                   repaired: repairedKey,
                 });
               } else {
@@ -143,13 +147,14 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
                 ? repairObject(value)
                 : value;
           }
-          return repaired;
+          // Object structure preserved with repaired keys — cast required for generic return
+          return repaired as unknown as T;
         };
 
         sanitizedUpdates = repairObject(sanitizedUpdates);
 
         // Additional validation: check for extremely long field names and invalid characters
-        const validateObject = (obj: any, path = ''): void => {
+        const validateObject = (obj: unknown, path = ''): void => {
           if (!obj || typeof obj !== 'object') return;
 
           // Handle arrays by recursively validating each element
@@ -169,14 +174,14 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
               // Show escaped version to make control chars visible
               const escapedKey = JSON.stringify(key).slice(1, -1);
               throw new Error(
-                `Invalid field name contains control characters: "${escapedKey.substring(0, 50)}${escapedKey.length > 50 ? '...' : ''}". Field names cannot contain newlines, tabs, or other control characters. This indicates malformed JSON from the LLM.`,
+                `Invalid field name contains control characters: "${escapedKey.slice(0, 50)}${escapedKey.length > 50 ? '...' : ''}". Field names cannot contain newlines, tabs, or other control characters. This indicates malformed JSON from the LLM.`,
               );
             }
 
             // Field names should never exceed 100 characters in normal usage
             if (key.length > 100) {
               throw new Error(
-                `Invalid field name detected (length: ${key.length}). This usually indicates malformed JSON from the LLM. Field path: ${path}.${key.substring(0, 50)}...`,
+                `Invalid field name detected (length: ${key.length}). This usually indicates malformed JSON from the LLM. Field path: ${path}.${key.slice(0, 50)}...`,
               );
             }
 

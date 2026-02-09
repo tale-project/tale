@@ -168,7 +168,7 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
         return {
           success: true,
           requiresApproval: true,
-          approvalId: approvalId as string,
+          approvalId,
           approvalCreated: true,
           approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for workflow "${args.workflowConfig.name}". The user must approve this workflow creation in the chat UI before it will be created.`,
           message: `Workflow "${args.workflowConfig.name}" is ready for approval. An approval card has been created. The workflow will be created once the user approves it.`,

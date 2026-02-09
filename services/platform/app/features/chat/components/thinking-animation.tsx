@@ -99,6 +99,7 @@ export function ThinkingAnimation({
       if (part.type.startsWith('tool-')) {
         const toolName = part.type.slice(5);
         if (toolName && toolName !== 'invocation') {
+          // UIMessage.parts is loosely typed — cast required to access tool input field
           const toolPart = part as { input?: Record<string, unknown> };
           const detail = formatToolDetail(toolName, toolPart.input);
           toolDetails.push(detail);

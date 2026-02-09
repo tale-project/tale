@@ -200,7 +200,7 @@ export function OutlookCreateProviderDialog({
       });
 
       await createOAuth2Provider({
-        organizationId: organizationId as string,
+        organizationId,
         name: data.name,
         vendor: 'outlook',
         provider: 'microsoft',
@@ -296,7 +296,7 @@ export function OutlookCreateProviderDialog({
       });
 
       await createProvider({
-        organizationId: organizationId as string,
+        organizationId,
         name: data.name,
         vendor: 'outlook',
         authMethod: 'password',
@@ -364,6 +364,7 @@ export function OutlookCreateProviderDialog({
     >
       <Tabs
         value={authMethod}
+        // Radix Tabs onValueChange returns string — cast required
         onValueChange={(value) => setAuthMethod(value as AuthMethod)}
       >
         <TabsList className="mb-4 grid w-full grid-cols-2">

@@ -44,7 +44,7 @@ interface ExampleMessagesTableProps {
 
 const truncateMessage = (message: string, maxLength: number = 100) => {
   if (message.length <= maxLength) return message;
-  return `"${message.substring(0, maxLength)}..."`;
+  return `"${message.slice(0, maxLength)}..."`;
 };
 
 export function ExampleMessagesTable({

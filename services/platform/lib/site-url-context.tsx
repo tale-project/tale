@@ -39,14 +39,3 @@ export function useSiteUrl(): string {
   }
   return context.siteUrl;
 }
-
-export function useConvexUrl(): string {
-  const context = useContext(SiteUrlContext);
-  if (!context) {
-    throw new Error(
-      'useConvexUrl must be used within a SiteUrlProvider. ' +
-        'Ensure your component is wrapped in AppProviders.',
-    );
-  }
-  return context.convexUrl;
-}

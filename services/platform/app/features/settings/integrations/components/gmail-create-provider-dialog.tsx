@@ -141,7 +141,7 @@ export function GmailCreateProviderDialog({
       });
 
       await createOAuth2Provider({
-        organizationId: organizationId as string,
+        organizationId,
         name: data.name,
         vendor: 'gmail',
         provider: 'gmail',
@@ -232,7 +232,7 @@ export function GmailCreateProviderDialog({
       });
 
       await createProvider({
-        organizationId: organizationId as string,
+        organizationId,
         name: data.name,
         vendor: 'gmail',
         authMethod: 'password',
@@ -284,6 +284,7 @@ export function GmailCreateProviderDialog({
     >
       <Tabs
         value={authMethod}
+        // Radix Tabs onValueChange returns string — cast required
         onValueChange={(value) => setAuthMethod(value as AuthMethod)}
       >
         <TabsList className="mb-4 grid w-full grid-cols-2">

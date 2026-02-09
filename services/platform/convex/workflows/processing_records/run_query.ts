@@ -30,7 +30,7 @@ export async function runQuery<T = unknown>(
   const documents: T[] = [];
 
   for await (const doc of candidateIter) {
-    const docId = String((doc as any)._id);
+    const docId = String(doc._id);
 
     const processed = await isRecordProcessed(ctx, {
       tableName,
@@ -44,7 +44,7 @@ export async function runQuery<T = unknown>(
     }
 
     if (additionalFilter) {
-      const passesFilter = await additionalFilter(doc as any);
+      const passesFilter = await additionalFilter(doc);
       if (!passesFilter) {
         continue;
       }

@@ -99,6 +99,7 @@ async function executeMutation(
   convex: ConvexReactClient,
   mutation: QueuedMutation,
 ): Promise<unknown> {
+  // Mutation queue stores function references as strings — double cast required for Convex API
   const mutationRef = mutation.mutationFn as unknown as FunctionReference<
     'mutation',
     'public'

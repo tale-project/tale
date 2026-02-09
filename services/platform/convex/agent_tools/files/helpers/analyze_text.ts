@@ -97,7 +97,7 @@ function decodeWithEncoding(buffer: ArrayBuffer): {
 
 function isBinaryContent(text: string): boolean {
   const sampleSize = Math.min(1000, text.length);
-  const sample = text.substring(0, sampleSize);
+  const sample = text.slice(0, sampleSize);
 
   let nullCount = 0;
   let controlCount = 0;
@@ -130,7 +130,7 @@ function splitIntoChunks(text: string, chunkSize: number): string[] {
       }
     }
 
-    chunks.push(text.substring(start, end));
+    chunks.push(text.slice(start, end));
     start = end;
   }
 
@@ -160,7 +160,7 @@ function createTextAnalysisAgent(): Agent {
  * Generate unique userId for one-off analysis (messages won't be saved).
  */
 function generateEphemeralUserId(): string {
-  return `text-analyzer-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  return `text-analyzer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 async function analyzeChunk(
@@ -174,7 +174,7 @@ async function analyzeChunk(
 ): Promise<string> {
   const chunkInfo =
     totalChunks && totalChunks > 1
-      ? `\n\n[Processing chunk ${chunkIndex! + 1} of ${totalChunks}]`
+      ? `\n\n[Processing chunk ${(chunkIndex ?? 0) + 1} of ${totalChunks}]`
       : '';
 
   // Dynamic limit based on chunk count, or use full budget for single chunk
@@ -257,7 +257,7 @@ export async function analyzeTextContent(
     fileId,
     filename,
     userInput:
-      userInput.length > 50 ? userInput.substring(0, 50) + '...' : userInput,
+      userInput.length > 50 ? userInput.slice(0, 50) + '...' : userInput,
   });
 
   try {
