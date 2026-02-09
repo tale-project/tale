@@ -11,12 +11,14 @@
  * // For identifier representing "metadata.status"
  * getFullFieldPath(identifier) // Returns "metadata.status"
  */
-export function getFullFieldPath(identifier: {
+interface IdentifierLike {
   value: string;
-  from?: { value: string; from?: any };
-}): string {
+  from?: IdentifierLike;
+}
+
+export function getFullFieldPath(identifier: IdentifierLike): string {
   const parts: string[] = [];
-  let current: { value: string; from?: any } | undefined = identifier;
+  let current: IdentifierLike | undefined = identifier;
 
   while (current) {
     parts.unshift(current.value);

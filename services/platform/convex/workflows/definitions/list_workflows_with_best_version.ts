@@ -30,9 +30,7 @@ export async function listWorkflowsWithBestVersion(
     ? ctx.db
         .query('wfDefinitions')
         .withIndex('by_org_status', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('status', args.status!),
+          q.eq('organizationId', args.organizationId).eq('status', args.status),
         )
     : ctx.db
         .query('wfDefinitions')

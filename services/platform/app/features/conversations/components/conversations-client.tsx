@@ -177,6 +177,7 @@ export function ConversationsClient({
   const filteredConversations = useMemo(() => {
     if (!results) return [];
 
+    // usePaginatedQuery infers ConversationItem from the query return validator — cast required because spread loses the narrow type
     let data = [...results] as ConversationItem[];
 
     // Filter by priority
@@ -440,6 +441,7 @@ function ConversationsClientInner({
       const results = await Promise.allSettled(
         conversationIds.map((conversationId) =>
           addMessage({
+            // Convex validator uses v.string() for IDs — cast required for mutation
             conversationId: conversationId as Id<'conversations'>,
             organizationId,
             sender: 'Agent',
@@ -497,6 +499,7 @@ function ConversationsClientInner({
         : Array.from(selectionState.selectedIds);
 
       const result = await bulkResolve({
+        // Convex validator uses v.string() for IDs — cast required for mutation
         conversationIds: conversationIds as Id<'conversations'>[],
       });
 
@@ -533,6 +536,7 @@ function ConversationsClientInner({
         : Array.from(selectionState.selectedIds);
 
       const result = await bulkReopen({
+        // Convex validator uses v.string() for IDs — cast required for mutation
         conversationIds: conversationIds as Id<'conversations'>[],
       });
 

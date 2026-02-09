@@ -276,65 +276,68 @@ function buildAuditLogQuery(
   filter: ListAuditLogsArgs['filter'] & {},
 ) {
   if (filter.category && filter.startDate) {
+    const { category, startDate } = filter;
     return {
       query: ctx.db
         .query('auditLogs')
         .withIndex('by_org_category_timestamp', (q) =>
           q
             .eq('organizationId', organizationId)
-            .eq('category', filter.category!)
-            .gte('timestamp', filter.startDate!),
+            .eq('category', category)
+            .gte('timestamp', startDate),
         ),
       indexedFields: { category: true, startDate: true } as const,
     };
   }
 
   if (filter.resourceType && filter.startDate) {
+    const { resourceType, startDate } = filter;
     return {
       query: ctx.db
         .query('auditLogs')
         .withIndex('by_org_resourceType_timestamp', (q) =>
           q
             .eq('organizationId', organizationId)
-            .eq('resourceType', filter.resourceType!)
-            .gte('timestamp', filter.startDate!),
+            .eq('resourceType', resourceType)
+            .gte('timestamp', startDate),
         ),
       indexedFields: { resourceType: true, startDate: true } as const,
     };
   }
 
   if (filter.category) {
+    const { category } = filter;
     return {
       query: ctx.db
         .query('auditLogs')
         .withIndex('by_organizationId_and_category', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('category', filter.category!),
+          q.eq('organizationId', organizationId).eq('category', category),
         ),
       indexedFields: { category: true } as const,
     };
   }
 
   if (filter.actorId) {
+    const { actorId } = filter;
     return {
       query: ctx.db
         .query('auditLogs')
         .withIndex('by_organizationId_and_actorId', (q) =>
-          q.eq('organizationId', organizationId).eq('actorId', filter.actorId!),
+          q.eq('organizationId', organizationId).eq('actorId', actorId),
         ),
       indexedFields: { actorId: true } as const,
     };
   }
 
   if (filter.resourceType) {
+    const { resourceType } = filter;
     return {
       query: ctx.db
         .query('auditLogs')
         .withIndex('by_organizationId_and_resourceType', (q) =>
           q
             .eq('organizationId', organizationId)
-            .eq('resourceType', filter.resourceType!),
+            .eq('resourceType', resourceType),
         ),
       indexedFields: { resourceType: true } as const,
     };

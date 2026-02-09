@@ -13,8 +13,11 @@
 
 import { ConvexHttpClient } from 'convex/browser';
 
+import type { Id } from '../../convex/_generated/dataModel';
+
 import { api } from '../../convex/_generated/api';
 import { scenarios } from '../fixtures/stress-workflows';
+import type { ExecutionStatus } from '../metrics';
 import { MetricsCollector } from '../metrics';
 
 const config = scenarios.heavy_payload;
@@ -43,14 +46,15 @@ async function run() {
 
   const client = new ConvexHttpClient(convexUrl);
   const metrics = new MetricsCollector();
-  const payloadSizeKb = (config.inputOverrides?.payloadSizeKb as number) || 500;
+  const rawPayloadSize = config.inputOverrides?.payloadSizeKb;
+  const payloadSizeKb = typeof rawPayloadSize === 'number' ? rawPayloadSize : 500;
 
   console.log(`\n[${config.name}] ${config.description}`);
   console.log(
     `${config.total} workflows with ~${payloadSizeKb}KB payloads each\n`,
   );
 
-  const executionMap = new Map<string, string>();
+  const executionMap = new Map<string, Id<'wfExecutions'>>();
 
   const launches = Array.from({ length: config.total }, async (_, i) => {
     const id = `wf_${i}`;
@@ -61,7 +65,8 @@ async function run() {
         api.workflow_engine.mutations.startWorkflow,
         {
           organizationId,
-          wfDefinitionId: wfDefinitionId as never,
+          // Config stores string IDs — cast required for Convex API
+          wfDefinitionId: wfDefinitionId as Id<'wfDefinitions'>,
           input: {
             stressTest: true,
             largePayload: true,
@@ -112,13 +117,13 @@ async function run() {
         try {
           const execution = await client.query(
             api.wf_executions.queries.getRawExecution,
-            { executionId: executionId as never },
+            { executionId },
           );
           if (!execution) return;
-          const status = execution.status as string;
+          const status = execution.status as ExecutionStatus;
           if (status === 'completed' || status === 'failed') {
             const metadata = execution.metadata
-              ? JSON.parse(execution.metadata as string)
+              ? JSON.parse(execution.metadata)
               : {};
             metrics.update(id, status, metadata.error);
             pending.delete(id);

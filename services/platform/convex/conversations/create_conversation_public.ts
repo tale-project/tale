@@ -2,6 +2,7 @@
  * Create a new conversation (public API business logic)
  */
 
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { ConversationStatus, ConversationPriority } from './types';
@@ -30,7 +31,7 @@ export async function createConversationPublic(
     type: args.type || 'general',
     direction: args.direction,
 
-    metadata: (args.metadata || {}) as any,
+    metadata: (args.metadata || {}) as ConvexJsonRecord,
   });
 
   return conversationId;

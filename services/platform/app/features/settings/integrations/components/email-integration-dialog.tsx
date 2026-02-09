@@ -84,7 +84,7 @@ export function EmailIntegrationDialog({
 
   const providersData = useQuery(
     api.email_providers.queries.list,
-    organizationId ? { organizationId: organizationId as string } : 'skip',
+    organizationId ? { organizationId } : 'skip',
   );
   const providers: EmailProviderDoc[] = providersData ?? [];
 
@@ -105,7 +105,7 @@ export function EmailIntegrationDialog({
     setShowTypeSelector(true);
   };
 
-  const handleTestConnection = async (providerId: string) => {
+  const handleTestConnection = async (providerId: Id<'emailProviders'>) => {
     setTestingProviderId(providerId);
     try {
       toast({
@@ -114,7 +114,7 @@ export function EmailIntegrationDialog({
       });
 
       const result = await testExistingProvider({
-        providerId: providerId as Id<'emailProviders'>,
+        providerId,
       });
 
       if (result.success) {
@@ -151,10 +151,10 @@ export function EmailIntegrationDialog({
     }
   };
 
-  const handleDeleteProvider = async (providerId: string) => {
+  const handleDeleteProvider = async (providerId: Id<'emailProviders'>) => {
     try {
       await deleteProvider({
-        providerId: providerId as Id<'emailProviders'>,
+        providerId,
       });
     } catch (error) {
       console.error('Failed to delete provider:', error);
@@ -165,10 +165,10 @@ export function EmailIntegrationDialog({
     }
   };
 
-  const handleSetDefault = async (providerId: string) => {
+  const handleSetDefault = async (providerId: Id<'emailProviders'>) => {
     try {
       await setDefaultProvider({
-        providerId: providerId as Id<'emailProviders'>,
+        providerId,
       });
       toast({
         title: t('integrations.defaultProviderUpdated'),
@@ -189,7 +189,11 @@ export function EmailIntegrationDialog({
     if (provider.authMethod === 'oauth2' && provider.oauth2Auth) {
       setEditClientId(provider.oauth2Auth.clientId || '');
       setEditClientSecret('');
-      setEditTenantId((provider.metadata?.tenantId as string) || '');
+      setEditTenantId(
+        typeof provider.metadata?.tenantId === 'string'
+          ? provider.metadata.tenantId
+          : '',
+      );
     }
   };
 
@@ -212,7 +216,10 @@ export function EmailIntegrationDialog({
         editClientId !== (editingProvider.oauth2Auth?.clientId || '');
       const clientSecretChanged = editClientSecret.length > 0;
       const tenantIdChanged =
-        editTenantId !== ((editingProvider.metadata?.tenantId as string) || '');
+        editTenantId !==
+        (typeof editingProvider.metadata?.tenantId === 'string'
+          ? editingProvider.metadata.tenantId
+          : '');
       return (
         nameChanged || clientIdChanged || clientSecretChanged || tenantIdChanged
       );
@@ -301,7 +308,7 @@ export function EmailIntegrationDialog({
     }
   };
 
-  const handleAuthorize = async (providerId: string) => {
+  const handleAuthorize = async (providerId: Id<'emailProviders'>) => {
     setAuthorizingProviderId(providerId);
     try {
       toast({
@@ -310,7 +317,7 @@ export function EmailIntegrationDialog({
 
       const redirectUri = `${siteUrl}/api/auth/oauth2/callback`;
       const result = await generateAuthUrl({
-        emailProviderId: providerId as Id<'emailProviders'>,
+        emailProviderId: providerId,
         organizationId: organizationId,
         redirectUri,
       });
@@ -489,7 +496,9 @@ export function EmailIntegrationDialog({
                         <span className="font-medium">
                           {t('integrations.account')}:
                         </span>{' '}
-                        {provider.metadata.oauth2_user as string}
+                        {typeof provider.metadata.oauth2_user === 'string'
+                          ? provider.metadata.oauth2_user
+                          : ''}
                       </div>
                     )}
                   {provider.sendMethod && (

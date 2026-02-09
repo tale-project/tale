@@ -66,7 +66,7 @@ export function CustomerImportForm({
     }
   };
 
-  const fileValue = watch('file') as File | null;
+  const fileValue: File | null = watch('file');
 
   return (
     <Form>
@@ -127,7 +127,11 @@ export function CustomerImportForm({
               'customer@example.com\ncustomer2@example.com,en\ncustomer3@example.com,zh'
             }
             className="min-h-[200px] font-mono text-sm"
-            errorMessage={errors.customers?.message as string}
+            errorMessage={
+              typeof errors.customers?.message === 'string'
+                ? errors.customers.message
+                : undefined
+            }
             {...register('customers')}
           />
           <Description className="text-xs">
@@ -167,10 +171,8 @@ export function CustomerImportForm({
               <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
             </Stack>
           </Description>
-          {errors.file?.message && (
-            <p className="text-destructive text-sm">
-              {errors.file.message as string}
-            </p>
+          {typeof errors.file?.message === 'string' && (
+            <p className="text-destructive text-sm">{errors.file.message}</p>
           )}
           {fileValue && (
             <VStack

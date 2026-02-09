@@ -177,7 +177,7 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
         filename,
         user_input:
           user_input.length > 100
-            ? user_input.substring(0, 100) + '...'
+            ? user_input.slice(0, 100) + '...'
             : user_input,
       });
 

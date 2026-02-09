@@ -75,7 +75,7 @@ export async function updateCustomers(
     for await (const customer of ctx.db
       .query('customers')
       .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId!),
+        q.eq('organizationId', args.organizationId),
       )) {
       // Filter by status
       if (args.status && customer.status !== args.status) {

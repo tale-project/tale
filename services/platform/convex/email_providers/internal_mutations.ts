@@ -54,7 +54,7 @@ export const updateMetadata = internalMutation({
     };
 
     await ctx.db.patch(args.providerId, {
-      metadata: updatedMetadata as any,
+      metadata: updatedMetadata as Record<string, string | number | boolean>,
     });
 
     return null;

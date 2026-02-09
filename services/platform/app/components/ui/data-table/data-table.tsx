@@ -57,7 +57,7 @@ import { cn } from '@/lib/utils/cn';
 import type {
   DataTableSearchConfig,
   DataTableSortingConfig,
-} from './use-data-table';
+} from './data-table-types';
 
 import {
   DataTableEmptyState,
@@ -71,7 +71,7 @@ import {
 
 export interface DataTableProps<TData> {
   /** Column definitions */
-  columns: ColumnDef<TData, any>[];
+  columns: ColumnDef<TData, unknown>[];
   /** Data to display */
   data: TData[];
   /** Accessible table caption for screen readers */

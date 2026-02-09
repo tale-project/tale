@@ -32,35 +32,36 @@ function buildQuery(ctx: QueryCtx, args: QueryProductsArgs) {
   const { organizationId } = args;
 
   if (args.externalId !== undefined && !Array.isArray(args.externalId)) {
+    const { externalId } = args;
     return {
       query: ctx.db
         .query('products')
         .withIndex('by_organizationId_and_externalId', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('externalId', args.externalId as string | number),
+          q.eq('organizationId', organizationId).eq('externalId', externalId),
         ),
       indexedFields: { externalId: true } as const,
     };
   }
 
   if (args.status !== undefined) {
+    const { status } = args;
     return {
       query: ctx.db
         .query('products')
         .withIndex('by_organizationId_and_status', (q) =>
-          q.eq('organizationId', organizationId).eq('status', args.status!),
+          q.eq('organizationId', organizationId).eq('status', status),
         ),
       indexedFields: { status: true } as const,
     };
   }
 
   if (args.category !== undefined) {
+    const { category } = args;
     return {
       query: ctx.db
         .query('products')
         .withIndex('by_organizationId_and_category', (q) =>
-          q.eq('organizationId', organizationId).eq('category', args.category!),
+          q.eq('organizationId', organizationId).eq('category', category),
         ),
       indexedFields: { category: true } as const,
     };
@@ -84,7 +85,7 @@ export async function queryProducts(
 
   // Special case: externalId array - use parallel targeted queries
   if (args.externalId !== undefined && Array.isArray(args.externalId)) {
-    const externalIdArray = args.externalId as Array<string | number>;
+    const externalIdArray = args.externalId;
     const productPromises = externalIdArray.map((externalId) =>
       ctx.db
         .query('products')
@@ -114,11 +115,9 @@ export async function queryProducts(
       products = products.filter((p) => p.category === args.category);
     }
     if (args.minStock !== undefined) {
+      const { minStock } = args;
       products = products.filter(
-        (p) =>
-          p.stock !== undefined &&
-          p.stock !== null &&
-          p.stock >= args.minStock!,
+        (p) => p.stock !== undefined && p.stock !== null && p.stock >= minStock,
       );
     }
 
@@ -161,7 +160,7 @@ export async function queryProducts(
           if (
             product.stock === undefined ||
             product.stock === null ||
-            product.stock < args.minStock!
+            (args.minStock !== undefined && product.stock < args.minStock)
           ) {
             return false;
           }

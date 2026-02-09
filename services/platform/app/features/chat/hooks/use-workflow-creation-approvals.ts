@@ -39,8 +39,9 @@ export function useWorkflowCreationApprovals(threadId: string | undefined) {
     )
     .map((a: ApprovalItem) => ({
       _id: a._id,
-      status: a.status as 'pending' | 'approved' | 'rejected',
-      metadata: a.metadata as unknown as WorkflowCreationMetadata,
+      status: a.status,
+      // Convex metadata uses v.any() — cast required to narrow to specific metadata shape
+      metadata: a.metadata as WorkflowCreationMetadata,
       executedAt: a.executedAt,
       executionError: a.executionError,
       _creationTime: a._creationTime,

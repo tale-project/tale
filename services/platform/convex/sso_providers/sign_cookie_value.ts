@@ -56,7 +56,7 @@ export async function verifySignedValue(
     return null;
   }
 
-  const value = signedValue.substring(0, lastDotIndex);
+  const value = signedValue.slice(0, lastDotIndex);
   const expectedSigned = await signValue(value, secret);
 
   if (signedValue === expectedSigned) {

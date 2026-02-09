@@ -75,7 +75,7 @@ export function useSendMessage({
           });
 
           const title =
-            message.length > 50 ? message.substring(0, 50) + '...' : message;
+            message.length > 50 ? message.slice(0, 50) + '...' : message;
           const newThreadId = await createThread({
             organizationId,
             title,
@@ -106,7 +106,7 @@ export function useSendMessage({
         // Update thread title for first message
         if (isFirstMessage && currentThreadId) {
           const title =
-            message.length > 50 ? message.substring(0, 50) + '...' : message;
+            message.length > 50 ? message.slice(0, 50) + '...' : message;
           await updateThread({ threadId: currentThreadId, title });
         }
 

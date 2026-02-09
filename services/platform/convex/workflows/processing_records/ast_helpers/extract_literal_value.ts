@@ -18,7 +18,7 @@
 export function extractLiteralValue(node: {
   type: string;
   value?: unknown;
-  from?: any;
+  from?: unknown;
 }): { isLiteral: boolean; value: unknown } {
   if (node.type === 'Literal') {
     return { isLiteral: true, value: node.value };

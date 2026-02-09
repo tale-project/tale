@@ -20,7 +20,7 @@ function extractQueryParameters(query: string): string[] {
 
   while ((match = paramRegex.exec(query)) !== null) {
     // Skip system variables that start with @@
-    if (!query.substring(match.index - 1, match.index).includes('@')) {
+    if (!query.slice(match.index - 1, match.index).includes('@')) {
       params.add(match[1]);
     }
   }
@@ -51,7 +51,7 @@ function convertDatesInData(
 export async function executeMsSqlQuery(
   params: SqlExecutionParams,
 ): Promise<SqlExecutionResult> {
-  const config: any = {
+  const config: sql.config = {
     server: params.credentials.server,
     port: params.credentials.port || 1433,
     database: params.credentials.database,
@@ -69,7 +69,7 @@ export async function executeMsSqlQuery(
     },
   };
 
-  let pool: any = null;
+  let pool: sql.ConnectionPool | null = null;
 
   try {
     // Create connection pool
@@ -86,7 +86,7 @@ export async function executeMsSqlQuery(
       const value = params.params?.[paramName] ?? null;
 
       // Infer SQL type from JavaScript type
-      let sqlType: any = sql.NVarChar;
+      let sqlType: (() => sql.ISqlType) | sql.ISqlType = sql.NVarChar;
       if (value === null) {
         // For NULL values, use NVarChar as a flexible type
         sqlType = sql.NVarChar;

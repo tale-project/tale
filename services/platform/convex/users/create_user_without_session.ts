@@ -121,8 +121,13 @@ export async function createUserWithoutSession(
       },
     },
   });
+  const createdRecord = created as unknown as
+    | Record<string, unknown>
+    | undefined;
   const memberId: string =
-    (created as any)?._id ?? (created as any)?.id ?? String(created);
+    (createdRecord?._id as string) ??
+    (createdRecord?.id as string) ??
+    String(created);
 
   return {
     userId: betterAuthUserId,

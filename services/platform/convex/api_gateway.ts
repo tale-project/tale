@@ -54,10 +54,10 @@ function getConvexJwtFromCookies(cookieHeader: string | null): string | null {
     // Check both regular and __Secure- prefixed cookie names
     // Browsers add __Secure- prefix for cookies with Secure attribute on HTTPS
     if (cookie.startsWith('__Secure-better-auth.convex_jwt=')) {
-      return cookie.substring('__Secure-better-auth.convex_jwt='.length);
+      return cookie.slice('__Secure-better-auth.convex_jwt='.length);
     }
     if (cookie.startsWith('better-auth.convex_jwt=')) {
-      return cookie.substring('better-auth.convex_jwt='.length);
+      return cookie.slice('better-auth.convex_jwt='.length);
     }
   }
   return null;

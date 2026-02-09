@@ -55,7 +55,9 @@ export async function createMember(
       ],
     },
   );
-  const currentMember = currentMemberRes?.page?.[0] as any;
+  const currentMember = currentMemberRes?.page?.[0] as
+    | { role?: string }
+    | undefined;
   const callerRole = (currentMember?.role ?? '').toLowerCase();
   if (callerRole !== 'admin') {
     throw new Error('Only Admins can create members');
@@ -190,8 +192,13 @@ export async function createMember(
       },
     },
   });
+  const createdRecord = created as unknown as
+    | Record<string, unknown>
+    | undefined;
   const memberId: string =
-    (created as any)?._id ?? (created as any)?.id ?? String(created);
+    (createdRecord?._id as string) ??
+    (createdRecord?.id as string) ??
+    String(created);
 
   return {
     userId: betterAuthUserId,

@@ -80,13 +80,21 @@ EXAMPLES:
 
       const { organizationId, threadId, userId } = validation.context;
 
+      if (!userId) {
+        return {
+          success: false,
+          response: 'integration_assistant requires a userId',
+        };
+      }
+
       const roleCheck = await checkRoleAccess(
         ctx,
-        userId!,
+        userId,
         organizationId,
         'integration_assistant',
       );
-      if (!roleCheck.allowed) return roleCheck.error!;
+      if (!roleCheck.allowed)
+        return roleCheck.error ?? { success: false, response: 'Access denied' };
 
       try {
         const integrationsList = await ctx.runQuery(

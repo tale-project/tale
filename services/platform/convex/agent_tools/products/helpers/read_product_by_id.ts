@@ -12,7 +12,6 @@ async function fetchProduct(
   ctx: ToolCtx,
   productId: Id<'products'>,
 ): Promise<Doc<'products'> | null> {
-  // @ts-ignore TS2589: Convex API type instantiation is excessively deep
   return ctx.runQuery(internal.products.internal_queries.getProductById, {
     productId,
   });
@@ -55,8 +54,9 @@ export async function readProductsByIds(
     }),
   );
 
-  const presentKeys = products[0]
-    ? Object.keys(products[0]).filter((k) => products[0]![k] !== undefined)
+  const firstProduct = products[0];
+  const presentKeys = firstProduct
+    ? Object.keys(firstProduct).filter((k) => firstProduct[k] !== undefined)
     : [];
   debugLog('tool:product_read get_by_id return', {
     productIds: args.productIds,

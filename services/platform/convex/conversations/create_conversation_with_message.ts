@@ -5,6 +5,7 @@
  * Useful for email workflows and other scenarios where a conversation always starts with a message.
  */
 
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { CreateConversationArgs } from './types';
@@ -96,15 +97,18 @@ export async function createConversationWithMessage(
       ...(args.initialMessage.attachment
         ? { attachment: args.initialMessage.attachment }
         : {}),
-      ...(args.initialMessage.metadata as Record<string, unknown>),
-    } as any,
+      ...(typeof args.initialMessage.metadata === 'object' &&
+      args.initialMessage.metadata !== null &&
+      !Array.isArray(args.initialMessage.metadata)
+        ? args.initialMessage.metadata
+        : {}),
+    } as ConvexJsonRecord, // Convex insert requires ConvexJsonRecord for metadata
   });
 
   // Update conversation with initial message info
   // Set both the indexed lastMessageAt field and metadata for backwards compatibility
   const now = Date.now();
-  const existingMetadata =
-    (conversation.metadata as Record<string, unknown>) || {};
+  const existingMetadata = conversation.metadata ?? {};
   await ctx.db.patch(conversationId, {
     lastMessageAt: now,
     metadata: {

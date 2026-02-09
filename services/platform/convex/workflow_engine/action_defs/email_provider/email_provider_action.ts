@@ -54,7 +54,7 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
           );
 
           // Call internal query to get default provider (bypasses RLS)
-          const provider = (await ctx.runQuery!(
+          const provider = (await ctx.runQuery(
             internal.email_providers.internal_queries.getDefault,
             {
               organizationId,
@@ -101,7 +101,7 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
           );
 
           // Get default provider
-          const provider = (await ctx.runQuery!(
+          const provider = (await ctx.runQuery(
             internal.email_providers.internal_queries.getDefault,
             {
               organizationId,
@@ -159,16 +159,16 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
               provider._id,
               provider.oauth2Auth,
               async (jwe: string) =>
-                await ctx.runAction!(
+                await ctx.runAction(
                   internal.lib.crypto.internal_actions.decryptString,
                   {
                     jwe,
                   },
                 ),
               async (params) =>
-                await ctx.runAction!(internal.oauth2.refreshToken, params),
+                await ctx.runAction(internal.oauth2.refreshToken, params),
               async (params) =>
-                await ctx.runAction!(
+                await ctx.runAction(
                   internal.email_providers.internal_actions.storeOAuth2Tokens,
                   params as {
                     emailProviderId: Id<'emailProviders'>;
@@ -186,7 +186,7 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
             );
 
             // After potential refresh, read the latest encrypted token from DB
-            const updatedProvider = (await ctx.runQuery!(
+            const updatedProvider = (await ctx.runQuery(
               internal.email_providers.internal_queries.get,
               { providerId: provider._id },
             )) as Doc<'emailProviders'> | null;

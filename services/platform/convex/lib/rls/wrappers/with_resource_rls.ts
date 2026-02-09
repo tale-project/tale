@@ -14,7 +14,7 @@ import { validateOrganizationAccess } from '../organization/validate_organizatio
  * Higher-order function to wrap mutations with RLS
  */
 export function withResourceRLS<
-  TArgs extends { resourceId: Id<any> },
+  TArgs extends { resourceId: Id<string> },
   TResource extends { organizationId: string },
   TReturn,
 >(

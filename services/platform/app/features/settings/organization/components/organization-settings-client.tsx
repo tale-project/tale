@@ -219,11 +219,13 @@ export function OrganizationSettingsClient({
         />
       </Stack>
 
-      <AddMemberDialog
-        organizationId={organization?._id as string}
-        open={isAddMemberDialogOpen}
-        onOpenChange={setIsAddMemberDialogOpen}
-      />
+      {organization && (
+        <AddMemberDialog
+          organizationId={organization._id}
+          open={isAddMemberDialogOpen}
+          onOpenChange={setIsAddMemberDialogOpen}
+        />
+      )}
     </Stack>
   );
 }

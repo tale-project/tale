@@ -113,17 +113,33 @@ export async function buildOffsetPaginatedQuery<T extends GenericDocument>(
 
   // Build base query with selected index
   // Note: Dynamic table/index names require type assertions - validated at runtime by Convex
-  let query = (ctx.db as any).query(table);
+  type DynamicQuery = {
+    withIndex: (
+      name: string,
+      builder: (q: Record<string, (...args: unknown[]) => unknown>) => unknown,
+    ) => DynamicQuery;
+    order: (order: string) => DynamicQuery;
+    [Symbol.asyncIterator]: () => AsyncIterator<unknown>;
+  };
+  let query = (
+    ctx.db as unknown as { query: (table: string) => DynamicQuery }
+  ).query(table);
 
   // Apply index conditions
-  query = query.withIndex(indexName, (q: any) => {
-    let builder = q;
-    for (const field of indexedFields) {
-      const value = allFilters[field];
-      builder = builder.eq(field, value);
-    }
-    return builder;
-  });
+  query = query.withIndex(
+    indexName,
+    (q: Record<string, (...args: unknown[]) => unknown>) => {
+      let builder = q;
+      for (const field of indexedFields) {
+        const value = allFilters[field];
+        builder = builder.eq(field, value) as Record<
+          string,
+          (...args: unknown[]) => unknown
+        >;
+      }
+      return builder;
+    },
+  );
 
   // Apply sort order
   const sortOrder = sort?.order ?? 'desc';
@@ -256,17 +272,25 @@ export async function buildCursorPaginatedQuery<T extends GenericDocument>(
 
   // Build base query with selected index
   // Note: Dynamic table/index names require type assertions - validated at runtime by Convex
-  let query = (ctx.db as any).query(table);
+  let query = (
+    ctx.db as unknown as { query: (table: string) => DynamicQuery }
+  ).query(table);
 
   // Apply index conditions
-  query = query.withIndex(indexName, (q: any) => {
-    let builder = q;
-    for (const field of indexedFields) {
-      const value = allFilters[field];
-      builder = builder.eq(field, value);
-    }
-    return builder;
-  });
+  query = query.withIndex(
+    indexName,
+    (q: Record<string, (...args: unknown[]) => unknown>) => {
+      let builder = q;
+      for (const field of indexedFields) {
+        const value = allFilters[field];
+        builder = builder.eq(field, value) as Record<
+          string,
+          (...args: unknown[]) => unknown
+        >;
+      }
+      return builder;
+    },
+  );
 
   query = query.order('desc');
 

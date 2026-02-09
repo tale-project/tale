@@ -34,7 +34,7 @@ export async function improveMessage(
 ): Promise<{ improvedMessage: string; error?: string }> {
   try {
     const agent = createImproveMessageAgent(args.instruction);
-    const userId = `improve-msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const userId = `improve-msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     const result = await agent.generateText(
       ctx,

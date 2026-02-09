@@ -57,28 +57,13 @@ export function SSOConfigDialog({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
-  const platformRoles = useMemo(
+  const platformRoles: { value: PlatformRole; label: string }[] = useMemo(
     () => [
-      {
-        value: 'admin' as PlatformRole,
-        label: t('integrations.sso.roleAdmin'),
-      },
-      {
-        value: 'developer' as PlatformRole,
-        label: t('integrations.sso.roleDeveloper'),
-      },
-      {
-        value: 'editor' as PlatformRole,
-        label: t('integrations.sso.roleEditor'),
-      },
-      {
-        value: 'member' as PlatformRole,
-        label: t('integrations.sso.roleMember'),
-      },
-      {
-        value: 'disabled' as PlatformRole,
-        label: t('integrations.sso.roleDisabled'),
-      },
+      { value: 'admin', label: t('integrations.sso.roleAdmin') },
+      { value: 'developer', label: t('integrations.sso.roleDeveloper') },
+      { value: 'editor', label: t('integrations.sso.roleEditor') },
+      { value: 'member', label: t('integrations.sso.roleMember') },
+      { value: 'disabled', label: t('integrations.sso.roleDisabled') },
     ],
     [t],
   );
@@ -628,6 +613,7 @@ export function SSOConfigDialog({
                 >
                   <Select
                     value={rule.source}
+                    // Radix Select onValueChange returns string — cast required
                     onValueChange={(value) =>
                       updateMappingRule(index, {
                         source: value as 'jobTitle' | 'appRole',
@@ -659,6 +645,7 @@ export function SSOConfigDialog({
 
                   <Select
                     value={rule.targetRole}
+                    // Radix Select onValueChange returns string — cast required
                     onValueChange={(value) =>
                       updateMappingRule(index, {
                         targetRole: value as PlatformRole,
@@ -702,6 +689,7 @@ export function SSOConfigDialog({
           </Label>
           <Select
             value={defaultRole}
+            // Radix Select onValueChange returns string — cast required
             onValueChange={(value) => setDefaultRole(value as PlatformRole)}
             disabled={isSubmitting || isLoadingConfig}
             id="default-role-select"

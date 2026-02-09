@@ -158,7 +158,7 @@ export const backfillLastMessageAt = internalMutation({
     const conversations = args.cursor
       ? await ctx.db
           .query('conversations')
-          .filter((q) => q.gt(q.field('_id'), args.cursor!))
+          .filter((q) => q.gt(q.field('_id'), args.cursor))
           .take(batchSize)
       : await ctx.db.query('conversations').take(batchSize);
 

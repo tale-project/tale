@@ -38,7 +38,8 @@ export function PaginatedMarkdownTable({
     const childType = child.type;
     const displayName =
       typeof childType === 'function' || typeof childType === 'object'
-        ? (childType as { displayName?: string }).displayName
+        ? // React component types don't expose displayName in TS — cast required
+          (childType as { displayName?: string }).displayName
         : null;
 
     if (displayName === 'TableHeader' || childType === 'thead') {
@@ -51,8 +52,10 @@ export function PaginatedMarkdownTable({
       childType === TableBody
     ) {
       // Extract rows from tbody
+      // ReactElement.props is untyped for generic elements — cast required
       const childProps = child.props as { children?: ReactNode };
       const tbodyChildren = Children.toArray(childProps.children);
+      // Array.filter type guard doesn't narrow to ReactElement[] — cast required
       tbodyRows = tbodyChildren.filter(isValidElement) as ReactElement[];
     }
   });
@@ -60,11 +63,11 @@ export function PaginatedMarkdownTable({
   // Count columns in header to normalize rows
   let headerColumnCount = 0;
   if (thead) {
-    const theadProps = (thead as ReactElement).props as {
-      children?: ReactNode;
-    };
+    // ReactElement.props is untyped for generic elements — cast required
+    const theadProps = thead.props as { children?: ReactNode };
     Children.forEach(theadProps.children, (headerRow) => {
       if (isValidElement(headerRow)) {
+        // ReactElement.props is untyped — cast required
         const rowProps = headerRow.props as { children?: ReactNode };
         headerColumnCount = Children.count(rowProps.children);
       }
@@ -76,6 +79,7 @@ export function PaginatedMarkdownTable({
     row: ReactElement,
     expectedColumns: number,
   ): ReactElement => {
+    // ReactElement.props is untyped — cast required
     const rowProps = row.props as { children?: ReactNode };
     const cells = Children.toArray(rowProps.children);
     const currentCount = cells.length;

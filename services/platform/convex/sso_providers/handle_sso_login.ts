@@ -4,7 +4,10 @@ import type { PlatformRole, SsoUserInfo } from './types';
 
 import { internal } from '../_generated/api';
 import { DataModel } from '../_generated/dataModel';
-import { syncTeamsFromGroups } from './entra_id/team_sync';
+import {
+  syncTeamsFromGroups,
+  type SyncTeamsFromGroupsArgs,
+} from './entra_id/team_sync';
 import { getAdapter } from './registry';
 
 type HandleSsoLoginArgs = {
@@ -84,7 +87,7 @@ export async function handleSsoLogin(
     if (entraFeatures?.autoProvisionTeam && adapter.getGroups) {
       try {
         const syncResult = await syncTeamsFromGroups({
-          ctx: ctx as any,
+          ctx: ctx as unknown as SyncTeamsFromGroupsArgs['ctx'],
           userId: result.userId,
           accessToken: args.accessToken,
           excludeGroups: entraFeatures.excludeGroups || [],

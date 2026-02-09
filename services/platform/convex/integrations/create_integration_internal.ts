@@ -126,7 +126,7 @@ export async function createIntegrationInternal(
     sqlOperations,
     lastTestedAt: Date.now(),
 
-    metadata: args.metadata as any,
+    metadata: args.metadata as ConvexJsonValue,
   });
 
   return integrationId;

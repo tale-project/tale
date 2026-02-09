@@ -120,32 +120,30 @@ export async function listApprovalsForExecution(
 }
 
 function matchesSearch(approval: ApprovalItem, searchLower: string): boolean {
-  const metadata = (approval.metadata || {}) as Record<string, unknown>;
+  const metadata: Record<string, unknown> = approval.metadata ?? {};
 
   if (
     typeof metadata['customerName'] === 'string' &&
-    (metadata['customerName'] as string).toLowerCase().includes(searchLower)
+    metadata['customerName'].toLowerCase().includes(searchLower)
   ) {
     return true;
   }
 
   if (
     typeof metadata['customerEmail'] === 'string' &&
-    (metadata['customerEmail'] as string).toLowerCase().includes(searchLower)
+    metadata['customerEmail'].toLowerCase().includes(searchLower)
   ) {
     return true;
   }
 
   if (Array.isArray(metadata['recommendedProducts'])) {
-    const products = metadata['recommendedProducts'] as Array<
-      Record<string, unknown>
-    >;
+    const products: unknown[] = metadata['recommendedProducts'];
     if (
       products.some((p) => {
+        if (typeof p !== 'object' || p === null) return false;
+        const rec = p as Record<string, unknown>;
         const name =
-          typeof p['productName'] === 'string'
-            ? (p['productName'] as string)
-            : '';
+          typeof rec['productName'] === 'string' ? rec['productName'] : '';
         return name.toLowerCase().includes(searchLower);
       })
     ) {
@@ -289,7 +287,11 @@ export async function createApproval(
       createdAt: Date.now(),
       ...(args.requestedBy ? { requestedBy: args.requestedBy } : {}),
       ...(args.description ? { description: args.description } : {}),
-      ...(args.metadata as Record<string, unknown>),
+      ...(typeof args.metadata === 'object' &&
+      args.metadata !== null &&
+      !Array.isArray(args.metadata)
+        ? (args.metadata as Record<string, unknown>)
+        : {}),
     },
   });
 
@@ -313,15 +315,18 @@ export async function updateApprovalStatus(
   });
   const user = userRes?.page?.[0];
   if (user) {
-    approverName = (user.name as string) || (user.email as string);
+    approverName =
+      (typeof user.name === 'string' ? user.name : undefined) ||
+      (typeof user.email === 'string' ? user.email : undefined);
   }
 
+  const currentMetadata: Record<string, unknown> = current.metadata ?? {};
   await ctx.db.patch(args.approvalId, {
     status: args.status,
     approvedBy: args.approvedBy,
     reviewedAt: Date.now(),
     metadata: {
-      ...(current.metadata as Record<string, unknown>),
+      ...currentMetadata,
       ...(args.comments ? { comments: args.comments } : {}),
       ...(approverName ? { approverName } : {}),
     },
@@ -354,8 +359,8 @@ export async function removeRecommendedProduct(
     ) {
       return true;
     }
-    const id = (product as Record<string, unknown>)['productId'];
-    return id !== args.productId;
+    if (!('productId' in product)) return true;
+    return product.productId !== args.productId;
   });
 
   await ctx.db.patch(args.approvalId, {

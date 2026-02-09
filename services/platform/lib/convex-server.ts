@@ -30,28 +30,6 @@ interface ServerOptions {
   token?: string;
 }
 
-async function fetchQuery<Query extends FunctionReference<'query'>>(
-  query: Query,
-  args: FunctionArgs<Query>,
-  options?: ServerOptions,
-): Promise<FunctionReturnType<Query>> {
-  const client = getClient();
-  if (options?.token) {
-    client.setAuth(options.token);
-  }
-  try {
-    return await client.query(query, args);
-  } catch (error) {
-    console.error('[convex-server] fetchQuery failed', {
-      query,
-      args,
-      url: getConvexHttpUrl(),
-      error,
-    });
-    throw error;
-  }
-}
-
 export async function fetchAction<Action extends FunctionReference<'action'>>(
   action: Action,
   args: FunctionArgs<Action>,

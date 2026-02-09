@@ -49,6 +49,7 @@ export function DocumentPreviewDialog({
     api.documents.queries.getDocumentById,
     open && Boolean(documentId)
       ? {
+          // Component receives string ID — cast required for Convex API
           documentId: documentId as Id<'documents'>,
         }
       : 'skip',
@@ -56,10 +57,10 @@ export function DocumentPreviewDialog({
 
   const dataByPath = useQuery(
     api.documents.queries.getDocumentByPath,
-    open && Boolean(storagePath) && !documentId
+    open && storagePath && !documentId
       ? {
-          organizationId: organizationId as string,
-          storagePath: storagePath!,
+          organizationId,
+          storagePath,
         }
       : 'skip',
   );

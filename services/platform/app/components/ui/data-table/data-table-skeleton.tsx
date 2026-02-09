@@ -43,7 +43,7 @@ export interface DataTableSkeletonProps {
   /** Number of rows to display */
   rows?: number;
   /** Column configuration - accepts TanStack Table columns or simple column config */
-  columns: DataTableSkeletonColumn[] | ColumnDef<any, any>[];
+  columns: DataTableSkeletonColumn[] | ColumnDef<unknown, unknown>[];
   /** Whether to show the header row */
   showHeader?: boolean;
   /** Search placeholder for search input skeleton */
@@ -78,7 +78,7 @@ interface ColumnMeta {
 
 /** Extract skeleton column info from TanStack Table column definitions */
 function normalizeColumns(
-  columns: DataTableSkeletonColumn[] | ColumnDef<any, any>[],
+  columns: DataTableSkeletonColumn[] | ColumnDef<unknown, unknown>[],
   enableExpanding?: boolean,
 ): DataTableSkeletonColumn[] {
   const normalized = columns.map((col) => {

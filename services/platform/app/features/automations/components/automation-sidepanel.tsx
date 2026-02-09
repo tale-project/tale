@@ -110,7 +110,7 @@ export function AutomationSidePanel({
       setEditedConfig(JSON.stringify(step.config, null, 2));
     }
     if (step?.nextSteps) {
-      setEditedNextSteps(step.nextSteps as Record<string, string>);
+      setEditedNextSteps(step.nextSteps);
     } else {
       setEditedNextSteps({});
     }
@@ -236,6 +236,7 @@ export function AutomationSidePanel({
   return (
     <div
       ref={panelRef}
+      // CSS custom properties not in React.CSSProperties — cast required
       style={{ '--panel-width': `${width}px` } as React.CSSProperties}
       className="bg-background border-border relative flex min-h-0 w-(--panel-width) flex-[0_0_auto] flex-col overflow-hidden border-l max-md:absolute max-md:inset-0 max-md:z-10 max-md:w-full"
     >
@@ -288,9 +289,9 @@ export function AutomationSidePanel({
                     >
                       {getStepIcon(
                         step.stepType,
-                        (step.config as Record<string, unknown>)?.type as
-                          | string
-                          | undefined,
+                        'type' in step.config
+                          ? String(step.config.type)
+                          : undefined,
                       )}
                     </div>
                   </TooltipTrigger>

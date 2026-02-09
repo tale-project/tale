@@ -9,9 +9,15 @@ on:
       - 'services/crawler/**'
       - 'services/rag/**'
       - 'services/graph-db/**'
+      - 'services/operator/**'
+      - 'services/db/**'
+      - 'services/proxy/**'
+      - 'tools/cli/**'
       - '.github/workflows/test.yml'
       - 'package.json'
+      - 'package-lock.json'
       - 'turbo.json'
+      - 'tsconfig.base.json'
   push:
     branches:
       - main
@@ -20,9 +26,15 @@ on:
       - 'services/crawler/**'
       - 'services/rag/**'
       - 'services/graph-db/**'
+      - 'services/operator/**'
+      - 'services/db/**'
+      - 'services/proxy/**'
+      - 'tools/cli/**'
       - '.github/workflows/test.yml'
       - 'package.json'
+      - 'package-lock.json'
       - 'turbo.json'
+      - 'tsconfig.base.json'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}

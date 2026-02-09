@@ -52,7 +52,7 @@ export async function readAllWorkflows(
         }
 
         return {
-          workflowId: wf._id as string,
+          workflowId: wf._id,
           name: wf.name,
           description: wf.description,
           status: wf.status,

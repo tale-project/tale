@@ -221,9 +221,3 @@ export function Dialog({
     </DialogPrimitive.Root>
   );
 }
-
-// =============================================================================
-// DialogClose - re-export for custom headers
-// =============================================================================
-
-const DialogClose = DialogPrimitive.Close;

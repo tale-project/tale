@@ -80,6 +80,7 @@ function DocumentTeamTagsDialogContent({
 
     try {
       await updateDocument({
+        // Component receives string ID — cast required for Convex API
         documentId: documentId as Id<'documents'>,
         teamTags: Array.from(selectedTeams),
       });

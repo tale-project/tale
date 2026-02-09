@@ -48,6 +48,7 @@ export function ChatHistorySidebar({
   const { t } = useT('chat');
   const navigate = useNavigate();
   const params = useParams({ strict: false });
+  // TanStack Router useParams with strict: false returns unknown params — cast required
   const currentThreadId = params.threadId as string | undefined;
   const [isMac, setIsMac] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);

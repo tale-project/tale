@@ -68,6 +68,7 @@ export function ProductsImportDialog({
   const createProduct = useCreateProduct();
 
   const validateStatus = useCallback((value: unknown): ProductStatus => {
+    // validateStatus returns string — cast required to narrow to ProductStatus enum
     return productMappers.validateStatus(
       value,
       Object.values(PRODUCT_STATUS),
@@ -224,10 +225,7 @@ export function ProductsImportDialog({
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormProvider {...formMethods}>
-        <ProductImportForm
-          organizationId={organizationId as string}
-          hideTabs={true}
-        />
+        <ProductImportForm organizationId={organizationId} hideTabs={true} />
       </FormProvider>
     </FormDialog>
   );

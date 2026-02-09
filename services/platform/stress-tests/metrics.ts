@@ -4,11 +4,13 @@
  * Tracks workflow execution outcomes, latencies, and failure patterns.
  */
 
+export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stuck';
+
 interface ExecutionRecord {
   executionId: string;
   startedAt: number;
   completedAt?: number;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'stuck';
+  status: ExecutionStatus;
   error?: string;
 }
 
@@ -42,11 +44,11 @@ export class MetricsCollector {
     });
   }
 
-  update(executionId: string, status: string, error?: string) {
+  update(executionId: string, status: ExecutionStatus, error?: string) {
     const record = this.executions.get(executionId);
     if (!record) return;
 
-    record.status = status as ExecutionRecord['status'];
+    record.status = status;
     if (status === 'completed' || status === 'failed') {
       record.completedAt = Date.now();
     }
@@ -70,15 +72,18 @@ export class MetricsCollector {
     const stuck = records.filter((r) => r.status === 'stuck');
 
     const latencies = records
-      .filter((r) => r.completedAt)
-      .map((r) => r.completedAt! - r.startedAt)
+      .filter(
+        (r): r is ExecutionRecord & { completedAt: number } =>
+          r.completedAt != null,
+      )
+      .map((r) => r.completedAt - r.startedAt)
       .sort((a, b) => a - b);
 
     const failurePatterns: Record<string, number> = {};
     for (const record of failed) {
       const pattern = record.error || 'Unknown error';
       const key =
-        pattern.length > 100 ? pattern.substring(0, 100) + '...' : pattern;
+        pattern.length > 100 ? pattern.slice(0, 100) + '...' : pattern;
       failurePatterns[key] = (failurePatterns[key] || 0) + 1;
     }
 

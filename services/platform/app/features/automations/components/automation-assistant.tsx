@@ -304,6 +304,7 @@ function AutomationAssistantContent({
   );
 
   const { results: uiMessages } = useUIMessages(
+    // oxlint-disable-next-line typescript/no-explicit-any -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 100, stream: true },
@@ -327,26 +328,28 @@ function AutomationAssistantContent({
       )
       .map((m) => {
         // Extract file parts (images) from UIMessage.parts
-        const fileParts = (
-          (m.parts || []) as Array<{
-            type: string;
-            mediaType?: string;
-            filename?: string;
-            url?: string;
-          }>
-        )
-          .filter(
-            (p): p is FilePart =>
-              p.type === 'file' &&
-              typeof p.url === 'string' &&
-              typeof p.mediaType === 'string',
+        const fileParts =
+          // UIMessage.parts is loosely typed — cast required to access file-specific fields
+          (
+            (m.parts || []) as Array<{
+              type: string;
+              mediaType?: string;
+              filename?: string;
+              url?: string;
+            }>
           )
-          .map((p) => ({
-            type: 'file' as const,
-            mediaType: p.mediaType,
-            filename: p.filename,
-            url: p.url,
-          }));
+            .filter(
+              (p): p is FilePart =>
+                p.type === 'file' &&
+                typeof p.url === 'string' &&
+                typeof p.mediaType === 'string',
+            )
+            .map((p) => ({
+              type: 'file' as const,
+              mediaType: p.mediaType,
+              filename: p.filename,
+              url: p.url,
+            }));
 
         return {
           id: m.key,
@@ -519,11 +522,11 @@ function AutomationAssistantContent({
       if (!currentThreadId) {
         const title =
           messageContent.length > 50
-            ? `${messageContent.substring(0, 50)}...`
+            ? `${messageContent.slice(0, 50)}...`
             : messageContent;
 
         currentThreadId = await createChatThread({
-          organizationId: organizationId as string,
+          organizationId,
           title,
           chatType: 'workflow_assistant',
         });
@@ -549,10 +552,12 @@ function AutomationAssistantContent({
           }))
         : undefined;
 
+      if (!currentThreadId) return;
+
       // Call the workflow assistant agent with a real Agent thread id
       // Messages will be automatically synced from threadMessages query
       await chatWithWorkflowAssistant({
-        threadId: currentThreadId!,
+        threadId: currentThreadId,
         organizationId,
         workflowId: automationId,
         message: messageContent || t('assistant.analyzeAttachments'),

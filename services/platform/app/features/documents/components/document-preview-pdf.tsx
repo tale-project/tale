@@ -63,6 +63,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
         script.src =
           'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
         script.addEventListener('load', () => {
+          // CDN script injects pdfjsLib on window — no typed global available
           const lib = (window as unknown as { pdfjsLib: PdfJsLib }).pdfjsLib;
           lib.GlobalWorkerOptions.workerSrc =
             'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -109,7 +110,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
       });
 
       // Prepare offscreen buffer to render into (prevents visible flicker)
-      const bufferCanvas = bufferCanvasRef.current as HTMLCanvasElement | null;
+      const bufferCanvas = bufferCanvasRef.current;
       if (!bufferCanvas) return;
       bufferCanvas.width = Math.ceil(scaledViewport.width);
       bufferCanvas.height = Math.ceil(scaledViewport.height);
@@ -142,7 +143,8 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
       });
 
       // Blit buffer into the visible canvas in one operation
-      const canvas = canvasRef.current as HTMLCanvasElement;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
       const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) return;
 

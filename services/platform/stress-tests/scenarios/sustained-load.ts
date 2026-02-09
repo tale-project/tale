@@ -13,8 +13,11 @@
 
 import { ConvexHttpClient } from 'convex/browser';
 
+import type { Id } from '../../convex/_generated/dataModel';
+
 import { api } from '../../convex/_generated/api';
 import { scenarios } from '../fixtures/stress-workflows';
+import type { ExecutionStatus } from '../metrics';
 import { MetricsCollector } from '../metrics';
 
 const config = scenarios.sustained_load;
@@ -41,7 +44,7 @@ async function run() {
     `${config.total} workflows, ${BATCH_SIZE} every ${BATCH_INTERVAL_MS}ms\n`,
   );
 
-  const executionMap = new Map<string, string>();
+  const executionMap = new Map<string, Id<'wfExecutions'>>();
   let launched = 0;
   const batchCount = Math.ceil(config.total / BATCH_SIZE);
 
@@ -58,7 +61,8 @@ async function run() {
           api.workflow_engine.mutations.startWorkflow,
           {
             organizationId,
-            wfDefinitionId: wfDefinitionId as never,
+            // Config stores string IDs — cast required for Convex API
+            wfDefinitionId: wfDefinitionId as Id<'wfDefinitions'>,
             input: {
               stressTest: true,
               scenarioIndex: idx,
@@ -114,13 +118,13 @@ async function run() {
         try {
           const execution = await client.query(
             api.wf_executions.queries.getRawExecution,
-            { executionId: executionId as never },
+            { executionId },
           );
           if (!execution) return;
-          const status = execution.status as string;
+          const status = execution.status as ExecutionStatus;
           if (status === 'completed' || status === 'failed') {
             const metadata = execution.metadata
-              ? JSON.parse(execution.metadata as string)
+              ? JSON.parse(execution.metadata)
               : {};
             metrics.update(id, status, metadata.error);
             pending.delete(id);

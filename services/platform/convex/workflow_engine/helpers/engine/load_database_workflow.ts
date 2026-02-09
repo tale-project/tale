@@ -6,7 +6,6 @@
 
 import type { Id, Doc } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
-import type { WorkflowType } from '../../types/workflow';
 import type { WorkflowData } from './workflow_data';
 
 import { createDebugLog } from '../../../lib/debug_log';
@@ -37,29 +36,28 @@ export async function loadDatabaseWorkflow(
   //    - First, walk parentVersionId chain to find an active ancestor
   //    - If none found, look up any active version by organizationId + name
   const allowedStatuses = new Set(['active', 'draft']);
-  let effectiveDefinition: Doc<'wfDefinitions'> =
-    requestedDefinition as Doc<'wfDefinitions'>;
+  let effectiveDefinition = requestedDefinition;
 
-  if (!allowedStatuses.has(effectiveDefinition.status as unknown as string)) {
+  if (!allowedStatuses.has(effectiveDefinition.status)) {
     // Try walking up the parentVersionId chain to find an active ancestor
     const visited = new Set<string>();
     let candidate: Doc<'wfDefinitions'> | null = effectiveDefinition;
 
     while (
       candidate &&
-      (candidate.status as unknown as string) !== 'active' &&
+      candidate.status !== 'active' &&
       candidate.parentVersionId &&
-      !visited.has(candidate._id as unknown as string)
+      !visited.has(candidate._id)
     ) {
-      visited.add(candidate._id as unknown as string);
-      const parent = (await ctx.db.get(
-        candidate.parentVersionId as Id<'wfDefinitions'>,
-      )) as Doc<'wfDefinitions'> | null;
+      visited.add(candidate._id);
+      const parent: Doc<'wfDefinitions'> | null = await ctx.db.get(
+        candidate.parentVersionId,
+      );
       if (!parent) break;
       candidate = parent;
     }
 
-    if (candidate && (candidate.status as unknown as string) === 'active') {
+    if (candidate && candidate.status === 'active') {
       debugLog(
         'loadDatabaseWorkflow Falling back to active ancestor via parentVersionId',
         {
@@ -88,7 +86,7 @@ export async function loadDatabaseWorkflow(
             activeId: active._id,
           },
         );
-        effectiveDefinition = active as Doc<'wfDefinitions'>;
+        effectiveDefinition = active;
       }
     }
   }
@@ -98,7 +96,7 @@ export async function loadDatabaseWorkflow(
   for await (const step of ctx.db
     .query('wfStepDefs')
     .withIndex('by_definition', (q) =>
-      q.eq('wfDefinitionId', effectiveDefinition._id as Id<'wfDefinitions'>),
+      q.eq('wfDefinitionId', effectiveDefinition._id),
     )) {
     steps.push(step);
   }
@@ -111,18 +109,12 @@ export async function loadDatabaseWorkflow(
   const stepsConfigMap = buildStepsConfigMap(orderedSteps);
 
   // Build complete workflow config with metadata
-  const sanitizedConfig = { ...effectiveDefinition.config } as Record<
-    string,
-    unknown
-  >;
-
   const completeWorkflowConfig = {
     name: effectiveDefinition.name,
     description: effectiveDefinition.description,
     version: effectiveDefinition.version,
-    workflowType: (effectiveDefinition as { workflowType?: WorkflowType })
-      .workflowType,
-    config: sanitizedConfig,
+    workflowType: effectiveDefinition.workflowType,
+    config: effectiveDefinition.config ? { ...effectiveDefinition.config } : {},
   };
 
   const workflowConfigJson = JSON.stringify(completeWorkflowConfig);

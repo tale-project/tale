@@ -133,6 +133,7 @@ export function useDocumentUpload(options: UploadOptions) {
           throw new Error(`Upload failed: ${uploadResponse.statusText}`);
         }
 
+        // fetch response.json() returns unknown — cast required for storage upload shape
         const { storageId } = (await uploadResponse.json()) as {
           storageId: string;
         };
@@ -140,6 +141,7 @@ export function useDocumentUpload(options: UploadOptions) {
         // Step 4: Create document record in database
         const result = await createDocumentFromUpload({
           organizationId: options.organizationId,
+          // String from JSON response — cast required for Convex API
           fileId: storageId as Id<'_storage'>,
           fileName: file.name,
           contentType: file.type || 'application/octet-stream',
@@ -155,6 +157,7 @@ export function useDocumentUpload(options: UploadOptions) {
         return result;
       });
 
+      // Promise.all preserves generic type but TS widens when chained — cast required
       const results = (await Promise.all(
         uploadPromises,
       )) as CreateDocumentResult[];

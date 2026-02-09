@@ -2,6 +2,7 @@
  * Internal function to create an email provider
  */
 
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type {
@@ -94,7 +95,7 @@ export async function createProviderInternal(
     imapConfig: args.imapConfig,
     isDefault: isDefault,
     status: initialStatus,
-    metadata: args.metadata as any,
+    metadata: args.metadata as ConvexJsonRecord,
   });
 
   return providerId;

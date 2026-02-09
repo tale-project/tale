@@ -18,7 +18,7 @@ export async function getExampleMessages(
     for await (const example of ctx.db
       .query('exampleMessages')
       .withIndex('by_toneOfVoiceId', (q) =>
-        q.eq('toneOfVoiceId', args.toneOfVoiceId!),
+        q.eq('toneOfVoiceId', args.toneOfVoiceId),
       )) {
       examples.push(example);
     }

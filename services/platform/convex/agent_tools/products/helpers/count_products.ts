@@ -32,7 +32,6 @@ export async function countProducts(
   while (attempts < MAX_PAGINATION_ATTEMPTS) {
     attempts++;
 
-    // @ts-ignore TS2589: Convex API type instantiation is excessively deep (known Convex limitation with deeply nested internal query types)
     const result = (await ctx.runQuery(
       internal.products.internal_queries.queryProducts,
       {

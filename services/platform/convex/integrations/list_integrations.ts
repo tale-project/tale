@@ -19,7 +19,7 @@ export async function listIntegrations(
     const integration = await ctx.db
       .query('integrations')
       .withIndex('by_organizationId_and_name', (q) =>
-        q.eq('organizationId', args.organizationId).eq('name', args.name!),
+        q.eq('organizationId', args.organizationId).eq('name', args.name),
       )
       .first();
     return integration ? [integration] : [];

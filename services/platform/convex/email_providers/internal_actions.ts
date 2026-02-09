@@ -261,10 +261,9 @@ export const handleOAuth2Callback = internalAction({
     const provider = oauth2Auth.provider as OAuthProvider;
 
     // Get account type and tenant ID from metadata (used for Microsoft tenant-specific endpoints)
-    const accountType = emailProvider.metadata?.accountType as
-      | AccountType
-      | undefined;
-    const tenantId = emailProvider.metadata?.tenantId as string | undefined;
+    const accountType: AccountType | undefined =
+      emailProvider.metadata?.accountType;
+    const tenantId: string | undefined = emailProvider.metadata?.tenantId;
 
     console.log('[OAuth2 Callback] Provider info:', {
       provider,

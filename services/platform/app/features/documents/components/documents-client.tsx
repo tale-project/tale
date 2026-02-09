@@ -105,6 +105,7 @@ export function DocumentsClient({
   );
 
   const allDocuments = useMemo(
+    // Convex query result page type doesn't match DocumentItem — cast required
     () => (documentsResult?.page as DocumentItem[]) ?? [],
     [documentsResult],
   );

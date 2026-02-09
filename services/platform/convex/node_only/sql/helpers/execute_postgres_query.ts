@@ -40,7 +40,7 @@ export async function executePostgresQuery(
         const name = match[1] || match[2];
         if (!paramToIndex.has(name)) {
           paramToIndex.set(name, index++);
-          values.push(params.params![name]);
+          values.push(params.params?.[name]);
         }
       }
 

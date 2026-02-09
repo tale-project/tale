@@ -15,6 +15,7 @@ const searchSchema = z.object({
 export const Route = createFileRoute('/dashboard/$id/approvals/$status')({
   validateSearch: searchSchema,
   beforeLoad: ({ params }) => {
+    // Array.includes() on readonly tuple requires exact type — cast required for string param
     if (!VALID_STATUSES.includes(params.status as ApprovalStatus)) {
       throw notFound();
     }
@@ -31,6 +32,7 @@ function ApprovalsStatusPage() {
     const approvalsIndex = pathParts.indexOf('approvals');
     return {
       organizationId: pathParts[2],
+      // URL path segment is string — cast required after beforeLoad validation
       status: pathParts[approvalsIndex + 1] as ApprovalStatus,
     };
   }, [location.pathname]);
@@ -38,7 +40,7 @@ function ApprovalsStatusPage() {
   return (
     <ApprovalsClient
       key={`${organizationId}-${status}-${search}`}
-      status={status as ApprovalStatus}
+      status={status}
       organizationId={organizationId}
       search={search}
     />

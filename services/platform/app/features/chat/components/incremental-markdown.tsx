@@ -65,7 +65,7 @@ interface IncrementalMarkdownProps {
   /** Whether content is still streaming */
   isStreaming: boolean;
   /** Custom markdown components */
-  // biome-ignore lint/suspicious/noExplicitAny: Required for react-markdown component types
+  // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
   components?: Record<string, ComponentType<any>>;
   /** Additional CSS class */
   className?: string;
@@ -87,7 +87,7 @@ const StableMarkdown = memo(
     components,
   }: {
     content: string;
-    // biome-ignore lint/suspicious/noExplicitAny: Required for react-markdown component types
+    // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
     components?: Record<string, ComponentType<any>>;
   }) {
     if (!content) return null;
@@ -138,7 +138,7 @@ const StreamingMarkdown = memo(
   }: {
     content: string;
     revealedLength: number;
-    // biome-ignore lint/suspicious/noExplicitAny: Required for react-markdown component types
+    // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
     components?: Record<string, ComponentType<any>>;
     showCursor?: boolean;
   }) {
@@ -160,10 +160,10 @@ const StreamingMarkdown = memo(
       // Create wrapper components for block elements that might be last
       const createCursorWrapper = (
         Tag: 'p' | 'li' | 'td' | 'th' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
-        // biome-ignore lint/suspicious/noExplicitAny: Required for react-markdown component types
+        // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
         CustomComponent?: ComponentType<any>,
       ) => {
-        // biome-ignore lint/suspicious/noExplicitAny: Required for react-markdown component types
+        // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
         return function CursorWrapper({ node, children, ...props }: any) {
           // Check if this is the last element by looking at node position
           const isLastElement =

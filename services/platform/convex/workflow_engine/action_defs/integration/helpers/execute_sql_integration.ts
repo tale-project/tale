@@ -125,7 +125,7 @@ export async function executeSqlIntegration(
       );
 
       // Create approval and return approval result instead of executing
-      const approvalId = await ctx.runMutation!(
+      const approvalId = await ctx.runMutation(
         internal.agent_tools.integrations.internal_mutations
           .createIntegrationApproval,
         {
@@ -171,7 +171,7 @@ export async function executeSqlIntegration(
   );
 
   // Cast result from runAction - type validated by action's returns validator
-  const result = (await ctx.runAction!(
+  const result = (await ctx.runAction(
     internal.node_only.sql.internal_actions.executeQuery,
     {
       engine: sqlConnectionConfig.engine,

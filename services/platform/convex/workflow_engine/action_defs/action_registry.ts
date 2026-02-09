@@ -22,7 +22,7 @@ import { workflowProcessingRecordsAction } from './workflow_processing_records/w
 // ACTION REGISTRY
 // =============================================================================
 
-type AnyActionDefinition = ActionDefinition<any>;
+type AnyActionDefinition = ActionDefinition<unknown>;
 
 // Array-based registry for iteration (e.g., listing all actions)
 export const ACTIONS: AnyActionDefinition[] = [

@@ -6,8 +6,12 @@
  * Internal actions are in internal_actions.ts.
  */
 
+import type { WorkflowCtx } from '@convex-dev/workflow';
+
 import { WorkflowManager } from '@convex-dev/workflow';
 import { v } from 'convex/values';
+
+import type { DynamicWorkflowArgs } from './helpers/engine/dynamic_workflow_handler';
 
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { components } from '../_generated/api';
@@ -35,7 +39,10 @@ const dynamicWorkflowDef = {
     resumeVariables: v.optional(jsonValueValidator),
     threadId: v.optional(v.string()),
   },
-  handler: async (step: any, args: any): Promise<void> => {
+  handler: async (
+    step: WorkflowCtx,
+    args: DynamicWorkflowArgs,
+  ): Promise<void> => {
     await EngineHelpers.handleDynamicWorkflow(step, args);
   },
 };

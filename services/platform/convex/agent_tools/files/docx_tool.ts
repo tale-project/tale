@@ -199,13 +199,21 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
           );
 
           const templates = documents
-            .filter((doc: any) => doc.fileId)
-            .map((doc: any) => ({
-              documentId: doc._id as string,
-              storageId: doc.fileId as string,
-              title: doc.title ?? 'Untitled Document',
-              createdAt: doc._creationTime,
-            }));
+            .filter((doc: { fileId?: string }) => doc.fileId)
+            .map(
+              (doc: {
+                _id: string;
+                fileId?: string;
+                title?: string;
+                _creationTime: number;
+              }) => ({
+                documentId: doc._id,
+                // fileId is guaranteed defined by .filter() above but TS can't narrow through filter+map
+                storageId: doc.fileId as string,
+                title: doc.title ?? 'Untitled Document',
+                createdAt: doc._creationTime,
+              }),
+            );
 
           debugLog('tool:docx list_templates success', {
             totalCount: templates.length,
