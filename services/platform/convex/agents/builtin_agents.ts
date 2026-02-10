@@ -14,7 +14,10 @@ import type { AgentType } from '../lib/context_management/constants';
 import { mutation, query } from '../_generated/server';
 import { authComponent } from '../auth';
 import { startAgentChat } from '../lib/agent_chat';
-import { getDefaultAgentRuntimeConfig } from '../lib/agent_runtime_config';
+import {
+  getCodingModel,
+  getDefaultAgentRuntimeConfig,
+} from '../lib/agent_runtime_config';
 import { WORKFLOW_AGENT_CORE_INSTRUCTIONS } from '../workflow_engine/instructions/core_instructions';
 import { CHAT_AGENT_INSTRUCTIONS } from './chat/agent';
 import { createChatHookHandles } from './chat/config';
@@ -140,7 +143,7 @@ function toSerializableConfig(
   };
 
   if (def.type === 'workflow') {
-    config.model = (process.env.OPENAI_CODING_MODEL || '').trim() || undefined;
+    config.model = getCodingModel();
   }
 
   return config;
