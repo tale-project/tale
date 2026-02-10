@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { z } from 'zod';
 
 import { WebsitesEmptyState } from '@/app/features/websites/components/websites-empty-state';
@@ -19,11 +20,11 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/websites')({
 
 function WebsitesPage() {
   const { id: organizationId } = Route.useParams();
-  const hasWebsites = useQuery(api.websites.queries.hasWebsites, {
-    organizationId,
-  });
+  const { data: hasWebsites, isLoading } = useQuery(
+    convexQuery(api.websites.queries.hasWebsites, { organizationId }),
+  );
 
-  if (hasWebsites === undefined) {
+  if (isLoading) {
     return <WebsitesTableSkeleton organizationId={organizationId} />;
   }
 

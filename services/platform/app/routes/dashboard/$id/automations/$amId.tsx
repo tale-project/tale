@@ -1,10 +1,11 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   createFileRoute,
   Outlet,
   useLocation,
   Link,
 } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { ChevronDown } from 'lucide-react';
 import { lazy, Suspense, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
@@ -98,24 +99,32 @@ function AutomationDetailLayout() {
   const { register, getValues } = useForm<{ name: string }>();
   const updateWorkflow = useUpdateAutomation();
 
-  const automation = useQuery(api.wf_definitions.queries.getWorkflow, {
-    wfDefinitionId: automationId,
-  });
-  const steps = useQuery(api.wf_step_defs.queries.getWorkflowSteps, {
-    wfDefinitionId: automationId,
-  });
-  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
+  const { data: automation } = useQuery(
+    convexQuery(api.wf_definitions.queries.getWorkflow, {
+      wfDefinitionId: automationId,
+    }),
+  );
+  const { data: steps } = useQuery(
+    convexQuery(api.wf_step_defs.queries.getWorkflowSteps, {
+      wfDefinitionId: automationId,
+    }),
+  );
+  const { data: memberContext } = useQuery(
+    convexQuery(api.members.queries.getCurrentMemberContext, {
+      organizationId,
+    }),
+  );
 
-  const versions = useQuery(
-    api.wf_definitions.queries.listVersions,
-    automation?.name && organizationId
-      ? {
-          organizationId,
-          name: automation.name,
-        }
-      : 'skip',
+  const { data: versions } = useQuery(
+    convexQuery(
+      api.wf_definitions.queries.listVersions,
+      automation?.name && organizationId
+        ? {
+            organizationId,
+            name: automation.name,
+          }
+        : 'skip',
+    ),
   );
 
   const handleSubmitAutomationName = async () => {

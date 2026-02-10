@@ -2,7 +2,8 @@
  * Hook for fetching message metadata (tokens, model info)
  */
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { api } from '@/convex/_generated/api';
 
@@ -43,9 +44,11 @@ export interface MessageMetadata {
 }
 
 export function useMessageMetadata(messageId: string | null) {
-  const metadata = useQuery(
-    api.message_metadata.queries.getMessageMetadata,
-    messageId ? { messageId } : 'skip',
+  const { data: metadata, isLoading } = useQuery(
+    convexQuery(
+      api.message_metadata.queries.getMessageMetadata,
+      messageId ? { messageId } : 'skip',
+    ),
   );
 
   return {
@@ -66,6 +69,6 @@ export function useMessageMetadata(messageId: string | null) {
           contextStats: metadata.contextStats,
         }
       : undefined,
-    isLoading: metadata === undefined && messageId !== null,
+    isLoading,
   };
 }

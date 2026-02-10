@@ -1,8 +1,10 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
+import type { FunctionReturnType } from 'convex/server';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Plus, Calendar, Pencil, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -30,9 +32,7 @@ interface SchedulesSectionProps {
 
 // Infer the schedule type from the query result
 type Schedule = NonNullable<
-  ReturnType<
-    typeof useQuery<typeof api.workflows.triggers.queries.getSchedules>
-  >
+  FunctionReturnType<typeof api.workflows.triggers.queries.getSchedules>
 >[number];
 
 export function SchedulesSection({
@@ -41,9 +41,11 @@ export function SchedulesSection({
 }: SchedulesSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
-  const schedules = useQuery(api.workflows.triggers.queries.getSchedules, {
-    workflowRootId,
-  });
+  const { data: schedules } = useQuery(
+    convexQuery(api.workflows.triggers.queries.getSchedules, {
+      workflowRootId,
+    }),
+  );
 
   const toggleSchedule = useToggleSchedule();
   const deleteScheduleMutation = useDeleteSchedule();

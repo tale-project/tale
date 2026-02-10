@@ -1,9 +1,9 @@
 'use client';
 
-import { usePaginatedQuery } from 'convex/react';
 import { Globe } from 'lucide-react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -23,7 +23,7 @@ export function WebsitesTable({ organizationId }: WebsitesTableProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useWebsitesTableConfig();
 
-  const paginatedResult = usePaginatedQuery(
+  const paginatedResult = useCachedPaginatedQuery(
     api.websites.queries.listWebsites,
     { organizationId },
     { initialNumItems: pageSize },

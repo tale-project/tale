@@ -2,7 +2,8 @@
  * Hook for fetching workflow creation approvals in a chat thread
  */
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type { WorkflowCreationMetadata } from '@/convex/approvals/types';
@@ -23,9 +24,11 @@ export interface WorkflowCreationApproval {
  * Hook to fetch workflow creation approvals for a chat thread
  */
 export function useWorkflowCreationApprovals(threadId: string | undefined) {
-  const approvals = useQuery(
-    api.approvals.queries.getWorkflowCreationApprovalsForThread,
-    threadId ? { threadId } : 'skip',
+  const { data: approvals, isLoading } = useQuery(
+    convexQuery(
+      api.approvals.queries.getWorkflowCreationApprovalsForThread,
+      threadId ? { threadId } : 'skip',
+    ),
   );
 
   type ApprovalItem = NonNullable<typeof approvals>[number];
@@ -50,6 +53,6 @@ export function useWorkflowCreationApprovals(threadId: string | undefined) {
 
   return {
     approvals: workflowCreationApprovals,
-    isLoading: approvals === undefined && threadId !== undefined,
+    isLoading,
   };
 }

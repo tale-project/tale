@@ -1,6 +1,7 @@
 import type { FunctionReference, FunctionReturnType } from 'convex/server';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import {
@@ -64,42 +65,41 @@ export function createEntityDataHook<
     const {
       organizationId,
       search = '',
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- {} is not assignable to arbitrary TFilters; cast required for default empty value
-      filters = {} as TFilters,
+      filters,
       sortBy = config.defaultSort.field,
       sortOrder = config.defaultSort.order,
     } = options;
 
-    // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- Convex useQuery requires exact FunctionReference type; generic QueryFunction is not assignable
-    const allItems = useQuery(config.queryFn as any, { organizationId });
+    // @ts-expect-error convexQuery requires exact FunctionReference; generic QueryFunction is not directly assignable
+    const queryOptions = convexQuery(config.queryFn, { organizationId });
+    const { data: allItems, isLoading: isQueryLoading } =
+      useQuery(queryOptions);
 
     const processed = useMemo(() => {
       if (!allItems) return [];
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex useQuery returns unknown[]; cast required to apply generic TItem
-      let result = allItems as TItem[];
+      // @ts-expect-error QueryFunction returns unknown[]; TItem is the actual element type from config.queryFn
+      let result: TItem[] = allItems;
 
       if (search) {
         result = filterByTextSearch(result, search, config.searchFields);
       }
 
-      const activeFilters = Object.entries(filters)
-        .filter(([, values]) => Array.isArray(values) && values.length > 0)
-        .map(([field, values]) => ({
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.entries loses key type; field is keyof TItem from TFilters constraint
-          field: field as keyof TItem,
-          values: new Set(values),
-        }));
+      if (filters) {
+        const entries = Object.entries(filters)
+          .filter(([, values]) => Array.isArray(values) && values.length > 0)
+          .map(([field, values]) => ({ field, values: new Set(values) }));
 
-      if (activeFilters.length > 0) {
-        result = filterByFields(result, activeFilters);
+        if (entries.length > 0) {
+          // @ts-expect-error Object.entries returns string keys; filter keys match TItem fields by convention
+          result = filterByFields(result, entries);
+        }
       }
 
       const getSorter = () => {
-        const actualField =
-          config.sortConfig.fieldMap?.[sortBy] ??
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TSortBy maps to keyof TItem via sortConfig.fieldMap fallback
-          (sortBy as unknown as keyof TItem);
+        // @ts-expect-error TSortBy is a semantic sort key; without a fieldMap entry, sortBy is used as keyof TItem
+        const actualField: keyof TItem =
+          config.sortConfig.fieldMap?.[sortBy] ?? sortBy;
         if (config.sortConfig.number.includes(sortBy)) {
           return sortByNumber<TItem>(actualField, sortOrder);
         }
@@ -116,7 +116,7 @@ export function createEntityDataHook<
       data: processed,
       totalCount: allItems?.length ?? 0,
       filteredCount: processed.length,
-      isLoading: allItems === undefined,
+      isLoading: isQueryLoading,
     };
   };
 }

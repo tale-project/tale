@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 
 import { Form } from '@/app/components/ui/forms/form';
@@ -48,9 +49,11 @@ export function AccountFormClient({
   const updatePassword = useUpdatePassword();
   const { toast } = useToast();
 
-  const hasCredential = useQuery(api.accounts.queries.hasCredentialAccount);
+  const { data: hasCredential, isLoading: isCredentialLoading } = useQuery(
+    convexQuery(api.accounts.queries.hasCredentialAccount, {}),
+  );
 
-  if (hasCredential === undefined) {
+  if (isCredentialLoading) {
     return null;
   }
 

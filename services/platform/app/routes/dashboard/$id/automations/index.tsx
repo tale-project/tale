@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { Workflow, Sparkles } from 'lucide-react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -41,14 +42,18 @@ function AutomationsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
-  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
-  const hasAutomations = useQuery(api.wf_definitions.queries.hasAutomations, {
-    organizationId,
-  });
+  const { data: memberContext, isLoading: isMemberLoading } = useQuery(
+    convexQuery(api.members.queries.getCurrentMemberContext, {
+      organizationId,
+    }),
+  );
+  const { data: hasAutomations, isLoading: isAutomationsLoading } = useQuery(
+    convexQuery(api.wf_definitions.queries.hasAutomations, {
+      organizationId,
+    }),
+  );
 
-  if (memberContext === undefined || hasAutomations === undefined) {
+  if (isMemberLoading || isAutomationsLoading) {
     return (
       <ContentWrapper>
         <AutomationsTableSkeleton organizationId={organizationId} />

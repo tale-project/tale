@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -76,9 +77,11 @@ export function OrganizationSettingsClient({
   const { formState, handleSubmit, register, reset } = form;
   const { isDirty, isSubmitting } = formState;
 
-  const liveMembers = useQuery(
-    api.members.queries.listByOrganization,
-    organization ? { organizationId: organization._id } : 'skip',
+  const { data: liveMembers } = useQuery(
+    convexQuery(
+      api.members.queries.listByOrganization,
+      organization ? { organizationId: organization._id } : 'skip',
+    ),
   );
 
   // Use live members if available, otherwise fall back to initial members

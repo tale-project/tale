@@ -1,7 +1,8 @@
 'use client';
 
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import {
   type ComponentPropsWithoutRef,
   useEffect,
@@ -58,7 +59,9 @@ export function ChatHistorySidebar({
   const isMounted = useIsMounted();
   const { toast } = useToast();
 
-  const threadsData = useQuery(api.threads.queries.listThreads, {});
+  const { data: threadsData } = useQuery(
+    convexQuery(api.threads.queries.listThreads, {}),
+  );
 
   const updateThread = useUpdateThread();
 

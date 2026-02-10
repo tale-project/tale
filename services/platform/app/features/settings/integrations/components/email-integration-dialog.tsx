@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Plus,
   Trash2,
@@ -82,13 +83,13 @@ export function EmailIntegrationDialog({
   const [isSyncingSso, setIsSyncingSso] = useState(false);
   const [didSyncFromSso, setDidSyncFromSso] = useState(false);
 
-  const providersData = useQuery(
-    api.email_providers.queries.list,
-    organizationId ? { organizationId } : 'skip',
+  const { data: providersData, isLoading } = useQuery(
+    convexQuery(
+      api.email_providers.queries.list,
+      organizationId ? { organizationId } : 'skip',
+    ),
   );
   const providers: EmailProviderDoc[] = providersData ?? [];
-
-  const isLoading = providersData === undefined;
 
   const deleteProvider = useDeleteEmailProvider();
   const setDefaultProvider = useSetDefaultProvider();

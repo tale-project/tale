@@ -1,5 +1,7 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Outlet, createFileRoute } from '@tanstack/react-router';
-import { useQuery, useConvexAuth } from 'convex/react';
+import { useConvexAuth } from 'convex/react';
 
 import {
   AdaptiveHeaderProvider,
@@ -18,9 +20,11 @@ function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
 
-  const memberContext = useQuery(
-    api.members.queries.getCurrentMemberContext,
-    isAuthLoading || !isAuthenticated ? 'skip' : { organizationId },
+  const { data: memberContext } = useQuery(
+    convexQuery(
+      api.members.queries.getCurrentMemberContext,
+      isAuthLoading || !isAuthenticated ? 'skip' : { organizationId },
+    ),
   );
 
   return (

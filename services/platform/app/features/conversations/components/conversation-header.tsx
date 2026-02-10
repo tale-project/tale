@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { MoreVertical } from 'lucide-react';
 import {
   ArrowLeft,
@@ -61,13 +62,13 @@ export function ConversationHeader({
   const markAsSpamMutation = useMarkAsSpam();
 
   // Fetch full customer document when dialog is open
-  const customerDoc = useQuery(
-    api.customers.queries.getCustomer,
-    isCustomerInfoOpen && conversation.customerId
-      ? {
-          customerId: toId<'customers'>(conversation.customerId),
-        }
-      : 'skip',
+  const { data: customerDoc } = useQuery(
+    convexQuery(
+      api.customers.queries.getCustomer,
+      isCustomerInfoOpen && conversation.customerId
+        ? { customerId: toId<'customers'>(conversation.customerId) }
+        : 'skip',
+    ),
   );
 
   const handleResolveConversation = async () => {

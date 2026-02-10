@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Search,
   Play,
@@ -68,11 +69,13 @@ export function AutomationTester({
     }
   })();
 
-  const dryRunQuery = useQuery(
-    api.wf_definitions.queries.dryRunWorkflow,
-    isDryRunning && parsedInput
-      ? { wfDefinitionId: automationId, input: parsedInput }
-      : 'skip',
+  const { data: dryRunQuery } = useQuery(
+    convexQuery(
+      api.wf_definitions.queries.dryRunWorkflow,
+      isDryRunning && parsedInput
+        ? { wfDefinitionId: automationId, input: parsedInput }
+        : 'skip',
+    ),
   );
 
   const handleDryRun = async () => {

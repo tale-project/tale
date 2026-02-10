@@ -1,6 +1,7 @@
 import type { FunctionReference, FunctionReturnType } from 'convex/server';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useMemo, useEffect, useState } from 'react';
 
 import { createCacheKey, getQueryCache, setQueryCache } from '@/lib/offline';
@@ -71,8 +72,7 @@ export function createOfflineEntityDataHook<
     const {
       organizationId,
       search = '',
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- {} is not assignable to arbitrary TFilters; cast required for default empty value
-      filters = {} as TFilters,
+      filters,
       sortBy = config.defaultSort.field,
       sortOrder = config.defaultSort.order,
     } = options;
@@ -84,11 +84,10 @@ export function createOfflineEntityDataHook<
 
     const cacheKey = createCacheKey(config.queryName, organizationId);
 
-    const liveData = useQuery(
-      // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- Convex useQuery requires exact FunctionReference type; generic QueryFunction is not assignable
-      config.queryFn as any,
-      isOnline ? { organizationId } : 'skip',
-    );
+    const queryArgs = isOnline ? { organizationId } : 'skip';
+    // @ts-expect-error convexQuery requires exact FunctionReference; generic QueryFunction is not directly assignable
+    const queryOptions = convexQuery(config.queryFn, queryArgs);
+    const { data: liveData, isLoading: isLiveLoading } = useQuery(queryOptions);
 
     useEffect(() => {
       let mounted = true;
@@ -114,10 +113,9 @@ export function createOfflineEntityDataHook<
 
     useEffect(() => {
       if (isOnline && liveData) {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex useQuery returns unknown[]; cast to TItem[] for cache persistence
-        void setQueryCache(cacheKey, liveData as TItem[], organizationId);
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex useQuery returns unknown[]; cast to TItem[] for state update
-        setCachedData(liveData as TItem[]);
+        void setQueryCache(cacheKey, liveData, organizationId);
+        // @ts-expect-error QueryFunction returns unknown[]; liveData contains TItem elements from config.queryFn
+        setCachedData(liveData);
         setLastSyncTime(new Date());
       }
     }, [isOnline, liveData, cacheKey, organizationId]);
@@ -128,30 +126,28 @@ export function createOfflineEntityDataHook<
     const processed = useMemo(() => {
       if (!sourceData) return [];
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex useQuery returns unknown[]; cast to TItem[] for processing
-      let result = sourceData as TItem[];
+      // @ts-expect-error QueryFunction returns unknown[]; TItem is the actual element type from config.queryFn
+      let result: TItem[] = sourceData;
 
       if (search) {
         result = filterByTextSearch(result, search, config.searchFields);
       }
 
-      const activeFilters = Object.entries(filters)
-        .filter(([, values]) => Array.isArray(values) && values.length > 0)
-        .map(([field, values]) => ({
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.entries loses key type; field is keyof TItem from TFilters constraint
-          field: field as keyof TItem,
-          values: new Set(values),
-        }));
+      if (filters) {
+        const entries = Object.entries(filters)
+          .filter(([, values]) => Array.isArray(values) && values.length > 0)
+          .map(([field, values]) => ({ field, values: new Set(values) }));
 
-      if (activeFilters.length > 0) {
-        result = filterByFields(result, activeFilters);
+        if (entries.length > 0) {
+          // @ts-expect-error Object.entries returns string keys; filter keys match TItem fields by convention
+          result = filterByFields(result, entries);
+        }
       }
 
       const getSorter = () => {
-        const actualField =
-          config.sortConfig.fieldMap?.[sortBy] ??
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TSortBy maps to keyof TItem via sortConfig.fieldMap fallback
-          (sortBy as unknown as keyof TItem);
+        // @ts-expect-error TSortBy is a semantic sort key; without a fieldMap entry, sortBy is used as keyof TItem
+        const actualField: keyof TItem =
+          config.sortConfig.fieldMap?.[sortBy] ?? sortBy;
         if (config.sortConfig.number.includes(sortBy)) {
           return sortByNumber<TItem>(actualField, sortOrder);
         }
@@ -165,7 +161,7 @@ export function createOfflineEntityDataHook<
     }, [sourceData, search, filters, sortBy, sortOrder]);
 
     const isLoading =
-      (isOnline && liveData === undefined) || (!isOnline && isLoadingCache);
+      (isOnline && isLiveLoading) || (!isOnline && isLoadingCache);
 
     return {
       data: processed,

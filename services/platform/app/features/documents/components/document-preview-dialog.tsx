@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Download, X, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -44,29 +45,31 @@ export function DocumentPreviewDialog({
   const { toast } = useToast();
 
   // Use documentId if available, otherwise use storagePath
-  const dataById = useQuery(
-    api.documents.queries.getDocumentById,
-    open && documentId
-      ? {
-          documentId: toId<'documents'>(documentId),
-        }
-      : 'skip',
+  const { data: dataById, isLoading: isLoadingById } = useQuery(
+    convexQuery(
+      api.documents.queries.getDocumentById,
+      open && documentId
+        ? { documentId: toId<'documents'>(documentId) }
+        : 'skip',
+    ),
   );
 
-  const dataByPath = useQuery(
-    api.documents.queries.getDocumentByPath,
-    open && storagePath && !documentId
-      ? {
-          organizationId,
-          storagePath,
-        }
-      : 'skip',
+  const { data: dataByPath, isLoading: isLoadingByPath } = useQuery(
+    convexQuery(
+      api.documents.queries.getDocumentByPath,
+      open && storagePath && !documentId
+        ? {
+            organizationId,
+            storagePath,
+          }
+        : 'skip',
+    ),
   );
 
   // Use whichever data source is available
   const data = documentId ? dataById : dataByPath;
 
-  const isLoading = data === undefined;
+  const isLoading = documentId ? isLoadingById : isLoadingByPath;
   const isError = data?.success === false;
   const queryError =
     isError && 'error' in data

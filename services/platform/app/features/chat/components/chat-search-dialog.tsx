@@ -1,7 +1,8 @@
 'use client';
 
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -36,9 +37,11 @@ export function ChatSearchDialog({
 
   const debouncedQuery = useDebounce(query, 300);
 
-  const threadsData = useQuery(api.threads.queries.listThreads, {
-    search: debouncedQuery || undefined,
-  });
+  const { data: threadsData } = useQuery(
+    convexQuery(api.threads.queries.listThreads, {
+      search: debouncedQuery || undefined,
+    }),
+  );
 
   const chats = useMemo(
     () =>

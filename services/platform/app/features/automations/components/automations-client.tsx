@@ -2,13 +2,13 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
-import { usePaginatedQuery } from 'convex/react';
 import { Workflow } from 'lucide-react';
 import { useCallback, useEffect } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -29,7 +29,7 @@ export function AutomationsClient({ organizationId }: AutomationsClientProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useAutomationsTableConfig();
 
-  const paginatedResult = usePaginatedQuery(
+  const paginatedResult = useCachedPaginatedQuery(
     api.wf_definitions.queries.listAutomations,
     { organizationId },
     { initialNumItems: pageSize },

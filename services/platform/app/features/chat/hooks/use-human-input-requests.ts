@@ -2,7 +2,9 @@
  * Hook for fetching human input request approvals in a chat thread
  */
 
-import { useQuery, useMutation } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { useMutation } from 'convex/react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
@@ -21,9 +23,11 @@ export interface HumanInputRequest {
  * Hook to fetch human input requests for a chat thread
  */
 export function useHumanInputRequests(threadId: string | undefined) {
-  const approvals = useQuery(
-    api.approvals.queries.getHumanInputRequestsForThread,
-    threadId ? { threadId } : 'skip',
+  const { data: approvals, isLoading } = useQuery(
+    convexQuery(
+      api.approvals.queries.getHumanInputRequestsForThread,
+      threadId ? { threadId } : 'skip',
+    ),
   );
 
   type ApprovalItem = NonNullable<typeof approvals>[number];
@@ -42,7 +46,7 @@ export function useHumanInputRequests(threadId: string | undefined) {
 
   return {
     requests: humanInputRequests,
-    isLoading: approvals === undefined && threadId !== undefined,
+    isLoading,
   };
 }
 

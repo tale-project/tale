@@ -1,7 +1,8 @@
 'use client';
 
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import {
   LogOut,
   Settings,
@@ -69,9 +70,11 @@ export function UserButton({
 
   // Get member info to access display name
   // Skip query when user is not authenticated or organizationId is missing
-  const memberContext = useQuery(
-    api.members.queries.getCurrentMemberContext,
-    organizationId && user ? { organizationId } : 'skip',
+  const { data: memberContext } = useQuery(
+    convexQuery(
+      api.members.queries.getCurrentMemberContext,
+      organizationId && user ? { organizationId } : 'skip',
+    ),
   );
 
   const handleSignOut = async () => {

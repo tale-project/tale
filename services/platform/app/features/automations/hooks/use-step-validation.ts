@@ -4,7 +4,8 @@
  * Provides debounced validation with loading and error states.
  */
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -43,17 +44,19 @@ export function useStepValidation(
     };
   }, [debouncedConfig]);
 
-  const validationResult = useQuery(
-    api.wf_step_defs.queries.validateStep,
-    stableConfig
-      ? {
-          stepConfig: stableConfig,
-          wfDefinitionId,
-        }
-      : 'skip',
+  const { data: validationResult, isLoading } = useQuery(
+    convexQuery(
+      api.wf_step_defs.queries.validateStep,
+      stableConfig
+        ? {
+            stepConfig: stableConfig,
+            wfDefinitionId,
+          }
+        : 'skip',
+    ),
   );
 
-  const isValidating = stableConfig !== null && validationResult === undefined;
+  const isValidating = stableConfig !== null && isLoading;
 
   if (!stableConfig) {
     return {

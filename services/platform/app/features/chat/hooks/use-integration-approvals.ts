@@ -2,7 +2,8 @@
  * Hook for fetching integration operation approvals in a chat thread
  */
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
@@ -40,9 +41,11 @@ export interface IntegrationApproval {
  * Hook to fetch integration approvals for a chat thread
  */
 export function useIntegrationApprovals(threadId: string | undefined) {
-  const approvals = useQuery(
-    api.approvals.queries.getPendingIntegrationApprovalsForThread,
-    threadId ? { threadId } : 'skip',
+  const { data: approvals, isLoading } = useQuery(
+    convexQuery(
+      api.approvals.queries.getPendingIntegrationApprovalsForThread,
+      threadId ? { threadId } : 'skip',
+    ),
   );
 
   type ApprovalItem = NonNullable<typeof approvals>[number];
@@ -74,6 +77,6 @@ export function useIntegrationApprovals(threadId: string | undefined) {
 
   return {
     approvals: integrationApprovals,
-    isLoading: approvals === undefined && threadId !== undefined,
+    isLoading,
   };
 }

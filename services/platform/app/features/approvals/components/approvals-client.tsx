@@ -1,7 +1,8 @@
 'use client';
 
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
-import { useQuery } from 'convex/react';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
@@ -120,15 +121,14 @@ export function ApprovalsClient({
     useState(false);
   const pageSize = 10;
 
-  const approvalsResult = useQuery(
-    api.approvals.queries.listApprovalsByOrganization,
-    {
+  const { data: approvalsResult, isLoading: isApprovalsLoading } = useQuery(
+    convexQuery(api.approvals.queries.listApprovalsByOrganization, {
       organizationId,
       status: status === 'pending' ? 'pending' : undefined,
       resourceType: ['product_recommendation'],
       search: search || undefined,
       limit: 200,
-    },
+    }),
   );
 
   const allApprovals = useMemo(() => approvalsResult ?? [], [approvalsResult]);
@@ -136,15 +136,17 @@ export function ApprovalsClient({
   const list = useListPage<ApprovalItem>({
     dataSource: {
       type: 'query',
-      data: approvalsResult === undefined ? undefined : allApprovals,
+      data: isApprovalsLoading ? undefined : allApprovals,
     },
     pageSize,
     getRowId: (row) => row._id,
   });
 
-  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
+  const { data: memberContext } = useQuery(
+    convexQuery(api.members.queries.getCurrentMemberContext, {
+      organizationId,
+    }),
+  );
 
   const updateApprovalStatus = useUpdateApprovalStatus();
   const removeRecommendedProduct = useRemoveRecommendedProduct();

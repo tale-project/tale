@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -55,9 +56,11 @@ function ConfigurationPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const workflow = useQuery(api.wf_definitions.queries.getWorkflow, {
-    wfDefinitionId: automationId,
-  });
+  const { data: workflow, isLoading: isWorkflowLoading } = useQuery(
+    convexQuery(api.wf_definitions.queries.getWorkflow, {
+      wfDefinitionId: automationId,
+    }),
+  );
 
   const _updateWorkflow = useUpdateAutomationMetadata();
 
@@ -154,7 +157,7 @@ function ConfigurationPage() {
     }
   };
 
-  if (!workflow) {
+  if (isWorkflowLoading) {
     return (
       <NarrowContainer className="py-4">
         <Stack gap={4}>
@@ -194,6 +197,10 @@ function ConfigurationPage() {
         </Stack>
       </NarrowContainer>
     );
+  }
+
+  if (!workflow) {
+    return null;
   }
 
   return (

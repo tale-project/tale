@@ -1,6 +1,8 @@
 'use client';
 
-import { useMutation, useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { useMutation } from 'convex/react';
 import { Users } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -49,12 +51,13 @@ function DocumentTeamTagsDialogContent({
   const updateDocument = useMutation(api.documents.mutations.updateDocument);
 
   // Fetch only teams that the current user belongs to
-  const teamsResult = useQuery(
-    api.members.queries.getMyTeams,
-    organizationId ? { organizationId } : 'skip',
+  const { data: teamsResult, isLoading } = useQuery(
+    convexQuery(
+      api.members.queries.getMyTeams,
+      organizationId ? { organizationId } : 'skip',
+    ),
   );
   const teams = teamsResult?.teams ?? null;
-  const isLoading = teamsResult === undefined;
 
   const handleToggleTeam = useCallback((teamId: string) => {
     setSelectedTeams((prev) => {

@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Outlet } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import {
@@ -21,11 +22,13 @@ function KnowledgeLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('knowledge');
 
-  const userContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
+  const { data: userContext, isLoading } = useQuery(
+    convexQuery(api.members.queries.getCurrentMemberContext, {
+      organizationId,
+    }),
+  );
 
-  if (userContext === undefined) {
+  if (isLoading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <StickyHeader>
