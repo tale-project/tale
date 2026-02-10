@@ -7,6 +7,7 @@ import _ from 'lodash';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
+import { isRecord } from '../../lib/utils/type-guards';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { extractExtension } from './extract_extension';
 
@@ -67,19 +68,8 @@ export async function updateDocument(
 
   if (args.metadata !== undefined) {
     const existingMetadata = document.metadata;
-    if (
-      existingMetadata &&
-      typeof existingMetadata === 'object' &&
-      !Array.isArray(existingMetadata) &&
-      args.metadata &&
-      typeof args.metadata === 'object' &&
-      !Array.isArray(args.metadata)
-    ) {
-      updateData.metadata = _.merge(
-        {},
-        existingMetadata as Record<string, unknown>,
-        args.metadata as Record<string, unknown>,
-      );
+    if (isRecord(existingMetadata) && isRecord(args.metadata)) {
+      updateData.metadata = _.merge({}, existingMetadata, args.metadata);
     } else {
       updateData.metadata = args.metadata;
     }

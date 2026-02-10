@@ -1,6 +1,8 @@
 import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 import type { EmailType } from './types';
 
+import { toConvexJsonRecord } from '../../../../lib/type_cast_helpers';
+
 /**
  * Build conversation metadata object
  */
@@ -8,18 +10,18 @@ export function buildConversationMetadata(
   email: EmailType,
   additionalMetadata?: Record<string, unknown>,
 ): ConvexJsonRecord {
-  return {
-    from: email.from as ConvexJsonRecord[string],
-    to: email.to as ConvexJsonRecord[string],
-    cc: email.cc as ConvexJsonRecord[string],
-    bcc: email.bcc as ConvexJsonRecord[string],
+  return toConvexJsonRecord({
+    from: email.from,
+    to: email.to,
+    cc: email.cc,
+    bcc: email.bcc,
     receivedAt: email.date,
     sentAt: email.date,
     body: (email.html || email.text) ?? null,
-    headers: email.headers as ConvexJsonRecord[string],
+    headers: email.headers,
     uid: email.uid ?? null,
-    flags: email.flags as ConvexJsonRecord[string],
-    attachments: email.attachments as ConvexJsonRecord[string],
+    flags: email.flags,
+    attachments: email.attachments,
     ...additionalMetadata,
-  } as ConvexJsonRecord;
+  });
 }

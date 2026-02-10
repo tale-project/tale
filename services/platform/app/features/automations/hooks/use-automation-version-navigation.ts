@@ -25,17 +25,17 @@ export function useAutomationVersionNavigation(
     const isConfigurationPage = subPage.startsWith('/configuration');
 
     if (isExecutionsPage) {
-      navigate({
+      void navigate({
         to: '/dashboard/$id/automations/$amId/executions',
         params: { id: organizationId, amId: versionId },
       });
     } else if (isConfigurationPage) {
-      navigate({
+      void navigate({
         to: '/dashboard/$id/automations/$amId/configuration',
         params: { id: organizationId, amId: versionId },
       });
     } else {
-      navigate({
+      void navigate({
         to: '/dashboard/$id/automations/$amId',
         params: { id: organizationId, amId: versionId },
         search: { panel: 'ai-chat' },

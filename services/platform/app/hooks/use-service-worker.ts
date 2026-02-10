@@ -92,7 +92,7 @@ export function useServiceWorker() {
       return;
     }
 
-    registerServiceWorker({
+    void registerServiceWorker({
       onSuccess: handleSuccess,
       onUpdate: handleUpdate,
       onError: handleError,
@@ -100,7 +100,7 @@ export function useServiceWorker() {
 
     const interval = setInterval(
       () => {
-        checkForUpdate();
+        void checkForUpdate();
       },
       60 * 60 * 1000,
     );

@@ -91,6 +91,7 @@ export const refreshToken = internalAction({
       );
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const data = (await response.json()) as {
       access_token: string;
       refresh_token?: string;
@@ -132,6 +133,7 @@ export const getUserEmail = internalAction({
         throw new Error(`Failed to get Google user info: ${response.status}`);
       }
 
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const data = (await response.json()) as { email?: string };
       email = data.email;
     } else if (
@@ -152,6 +154,7 @@ export const getUserEmail = internalAction({
         );
       }
 
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const data = (await response.json()) as {
         mail?: string;
         userPrincipalName?: string;

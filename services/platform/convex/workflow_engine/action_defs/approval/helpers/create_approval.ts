@@ -29,6 +29,7 @@ export async function createApproval(
     internal.approvals.internal_mutations.createApproval,
     {
       organizationId: params.organizationId,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
       resourceType: params.resourceType as ApprovalResourceType,
       resourceId: params.resourceId,
       priority: params.priority,
@@ -52,5 +53,6 @@ export async function createApproval(
   }
 
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
   return createdApproval as ApprovalData;
 }

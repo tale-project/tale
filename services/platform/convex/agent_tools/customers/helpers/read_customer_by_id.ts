@@ -1,10 +1,9 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
-import type { Id } from '../../../_generated/dataModel';
-import type { Customer } from '../../../customers/types';
-
+import { isKeyOf } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { toId } from '../../../lib/type_cast_helpers';
 import { defaultGetFields, type CustomerReadGetByIdResult } from './types';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -20,8 +19,7 @@ export async function readCustomerById(
     customerId: args.customerId,
   });
 
-  // Cast string to Id at the boundary - validated by Convex runtime
-  const customerId = args.customerId as Id<'customers'>;
+  const customerId = toId<'customers'>(args.customerId);
 
   const customer = await ctx.runQuery(
     internal.customers.internal_queries.getCustomerById,
@@ -45,7 +43,9 @@ export async function readCustomerById(
   // Build output with selected fields - customer type is known from query
   const out: Record<string, unknown> = {};
   for (const f of fields) {
-    out[f] = customer[f as keyof Customer];
+    if (isKeyOf(f, customer)) {
+      out[f] = customer[f];
+    }
   }
   if (!('_id' in out)) {
     out._id = customer._id;

@@ -161,6 +161,7 @@ Returns operation names and types. Use 'operation' param to get parameter detail
           title: op.title,
           description: op.description,
           operationType: op.operationType,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
           parametersSchema: op.parametersSchema as
             | Record<string, unknown>
             | undefined,

@@ -78,7 +78,7 @@ export function OrganizationFormClient() {
         variant: 'success',
       });
 
-      navigate({ to: '/dashboard' });
+      void navigate({ to: '/dashboard' });
     } catch (error) {
       console.error('Error in organization creation:', error);
       toast({

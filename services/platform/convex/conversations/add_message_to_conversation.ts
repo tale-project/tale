@@ -20,6 +20,7 @@ function resolveDeliveryState(
 ): DeliveryState {
   const normalized = (status || '').toLowerCase();
   if (VALID_DELIVERY_STATES.has(normalized)) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing after Set.has check
     return normalized as DeliveryState;
   }
   return direction === 'inbound' ? 'delivered' : 'sent';

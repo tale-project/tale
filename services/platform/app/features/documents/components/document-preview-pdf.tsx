@@ -63,7 +63,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
         script.src =
           'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
         script.addEventListener('load', () => {
-          // CDN script injects pdfjsLib on window — no typed global available
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- CDN script injects pdfjsLib on window, no typed global available
           const lib = (window as unknown as { pdfjsLib: PdfJsLib }).pdfjsLib;
           lib.GlobalWorkerOptions.workerSrc =
             'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -75,7 +75,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
       }
     };
 
-    loadPdfJs();
+    void loadPdfJs();
   }, []);
 
   // Initialize offscreen buffer canvas and cleanup
@@ -160,7 +160,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
 
       // Handle pending page render
       if (pageNumPending !== null) {
-        renderPage(pageNumPending);
+        void renderPage(pageNumPending);
         setPageNumPending(null);
       }
     } catch (error) {
@@ -176,7 +176,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
       if (pageRendering) {
         setPageNumPending(num);
       } else {
-        renderPage(num);
+        void renderPage(num);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- renderPage uses refs and is not easily memoizable

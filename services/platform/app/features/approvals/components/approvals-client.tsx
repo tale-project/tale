@@ -5,8 +5,6 @@ import { useQuery } from 'convex/react';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { CellErrorBoundary } from '@/app/components/error-boundaries/boundaries/cell-error-boundary';
 import { Image } from '@/app/components/ui/data-display/image';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -18,6 +16,7 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import {
   safeGetString,
@@ -163,7 +162,7 @@ export function ApprovalsClient({
       setApproving(approvalId);
       try {
         await updateApprovalStatus({
-          approvalId: approvalId as Id<'approvals'>,
+          approvalId: toId<'approvals'>(approvalId),
           status: 'approved',
           comments: 'Approved via UI',
         });
@@ -193,7 +192,7 @@ export function ApprovalsClient({
       setRejecting(approvalId);
       try {
         await updateApprovalStatus({
-          approvalId: approvalId as Id<'approvals'>,
+          approvalId: toId<'approvals'>(approvalId),
           status: 'rejected',
           comments: 'Rejected via UI',
         });
@@ -223,7 +222,7 @@ export function ApprovalsClient({
       setRemovingProductId(productId);
       try {
         await removeRecommendedProduct({
-          approvalId: approvalId as Id<'approvals'>,
+          approvalId: toId<'approvals'>(approvalId),
           productId,
         });
       } catch (error) {
@@ -324,13 +323,13 @@ export function ApprovalsClient({
         return raw <= 1 ? Math.round(raw * 100) : Math.round(raw);
       })();
 
+      const customerId = safeGetString(metadata, 'customerId', undefined);
+
       return {
         _id: approval._id,
         organizationId: approval.organizationId,
         customer: {
-          id: safeGetString(metadata, 'customerId', undefined) as
-            | Id<'customers'>
-            | undefined,
+          id: customerId ? toId<'customers'>(customerId) : undefined,
           name:
             typeof metadata['customerName'] === 'string'
               ? metadata['customerName'].trim()
@@ -585,7 +584,7 @@ export function ApprovalsClient({
             size="icon"
             onClick={(e) => {
               e.stopPropagation();
-              handleApprove(row.original._id);
+              void handleApprove(row.original._id);
             }}
             disabled={
               approving === row.original._id || rejecting === row.original._id
@@ -603,7 +602,7 @@ export function ApprovalsClient({
             variant="outline"
             onClick={(e) => {
               e.stopPropagation();
-              handleReject(row.original._id);
+              void handleReject(row.original._id);
             }}
             disabled={
               approving === row.original._id || rejecting === row.original._id

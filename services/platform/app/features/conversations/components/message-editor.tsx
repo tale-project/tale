@@ -443,7 +443,7 @@ function MilkdownEditorInner({
                     !isImproving
                   ) {
                     e.preventDefault();
-                    handleImproveSubmit();
+                    void handleImproveSubmit();
                   }
                 }}
               />

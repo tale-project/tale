@@ -9,6 +9,7 @@ import { z } from 'zod/v4';
 import type { JsonSchemaDefinition } from '../../../types/nodes';
 import type { ValidationResult } from '../types';
 
+import { isRecord } from '../../../../../lib/utils/type-guards';
 import { TOOL_NAMES } from '../../../../agent_tools/tool_registry';
 
 /**
@@ -21,10 +22,8 @@ export function validateLlmStep(
   const warnings: string[] = [];
 
   // Support both direct config and { llmNode: config }
-  const llmConfig =
-    'llmNode' in config && typeof config.llmNode === 'object'
-      ? (config.llmNode as Record<string, unknown>)
-      : config;
+  const llmConfig: Record<string, unknown> =
+    'llmNode' in config && isRecord(config.llmNode) ? config.llmNode : config;
 
   if (!llmConfig || typeof llmConfig !== 'object') {
     errors.push('LLM step requires valid config or llmNode');
@@ -81,6 +80,7 @@ export function validateLlmStep(
   // Validate schema syntax if provided
   if (hasOutputSchema) {
     try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       z.fromJSONSchema(llmConfig.outputSchema as JsonSchemaDefinition);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

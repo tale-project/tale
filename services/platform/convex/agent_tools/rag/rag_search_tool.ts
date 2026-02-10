@@ -130,6 +130,7 @@ Returns a generated response based on the most relevant documents.`,
           throw new Error(`RAG service error: ${response.status} ${errorText}`);
         }
 
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response.json() returns unknown
         const result = (await response.json()) as RagServiceResponse;
 
         debugLog('tool:rag_search success', {

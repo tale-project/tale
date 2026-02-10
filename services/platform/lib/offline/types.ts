@@ -44,7 +44,7 @@ export interface UseOfflineEntityDataReturn<TItem> {
 }
 
 export interface MutationQueueConfig<TArgs = Record<string, unknown>> {
-  mutationFn: FunctionReference<'mutation', 'public'>;
+  mutationFn: FunctionReference<'mutation'>;
   getOptimisticData?: (args: TArgs) => unknown;
   getCacheKey: (args: TArgs) => string;
 }

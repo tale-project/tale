@@ -29,9 +29,8 @@ export class LoopNodeExecutor {
     ctx: StepExecutionContext,
     config: LoopNodeConfig,
   ): Promise<StepExecutionResult> {
-    const loop = (ctx.variables as Record<string, unknown>)['loop'] as
-      | LoopVars
-      | undefined;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+    const loop = ctx.variables['loop'] as LoopVars | undefined;
 
     // Only continue an existing loop if it belongs to this step
     if (

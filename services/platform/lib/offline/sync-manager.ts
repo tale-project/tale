@@ -99,11 +99,9 @@ async function executeMutation(
   convex: ConvexReactClient,
   mutation: QueuedMutation,
 ): Promise<unknown> {
-  // Mutation queue stores function references as strings — double cast required for Convex API
-  const mutationRef = mutation.mutationFn as unknown as FunctionReference<
-    'mutation',
-    'public'
-  >;
+  const mutationRef =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
+    mutation.mutationFn as unknown as FunctionReference<'mutation'>;
 
   return convex.mutation(mutationRef, mutation.args);
 }
@@ -123,7 +121,7 @@ function delay(ms: number): Promise<void> {
 export function initSyncManager(convex: ConvexReactClient): () => void {
   const handleOnline = () => {
     updateSyncState({ isOnline: true });
-    processMutationQueue(convex);
+    void processMutationQueue(convex);
   };
 
   const handleOffline = () => {
@@ -132,7 +130,7 @@ export function initSyncManager(convex: ConvexReactClient): () => void {
 
   const handleSyncMessage = (event: MessageEvent) => {
     if (event.data?.type === 'SYNC_MUTATIONS') {
-      processMutationQueue(convex);
+      void processMutationQueue(convex);
     }
   };
 
@@ -141,7 +139,7 @@ export function initSyncManager(convex: ConvexReactClient): () => void {
     window.addEventListener('offline', handleOffline);
     navigator.serviceWorker?.addEventListener('message', handleSyncMessage);
 
-    getQueueStats().then((stats) => {
+    void getQueueStats().then((stats) => {
       updateSyncState({
         pendingMutations: stats.pending,
         failedMutations: stats.failed,
@@ -149,7 +147,7 @@ export function initSyncManager(convex: ConvexReactClient): () => void {
     });
 
     if (navigator.onLine) {
-      processMutationQueue(convex);
+      void processMutationQueue(convex);
     }
   }
 

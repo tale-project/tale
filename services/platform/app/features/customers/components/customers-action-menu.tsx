@@ -35,7 +35,7 @@ export function CustomersActionMenu({
   }, []);
 
   const handleCirculyClick = useCallback(() => {
-    navigate({
+    void navigate({
       to: '/dashboard/$id/settings/integrations',
       params: { id: organizationId },
       search: { tab: 'circuly' },

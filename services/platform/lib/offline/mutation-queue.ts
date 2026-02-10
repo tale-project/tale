@@ -141,14 +141,14 @@ export function subscribeToQueueChanges(
   };
 
   const handleChange = () => {
-    updateStats();
+    void updateStats();
   };
 
   db.mutationQueue.hook('creating', handleChange);
   db.mutationQueue.hook('updating', handleChange);
   db.mutationQueue.hook('deleting', handleChange);
 
-  updateStats();
+  void updateStats();
 
   return () => {
     db.mutationQueue.hook('creating').unsubscribe(handleChange);

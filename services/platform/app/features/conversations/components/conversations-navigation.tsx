@@ -18,7 +18,7 @@ export function ConversationsNavigation({
   const { t } = useT('conversations');
 
   const navigationItems: TabNavigationItem[] = STATUSES.map((status) => ({
-    label: t(`status.${status}` as `status.${(typeof STATUSES)[number]}`),
+    label: t(`status.${status}`),
     href: `/dashboard/${organizationId}/conversations/${status}`,
   }));
 

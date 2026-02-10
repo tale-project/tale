@@ -46,7 +46,7 @@ export async function analyzeImageByUrl(
       components.agent.threads.createThread,
       { title: 'image-analysis-url' },
     );
-    const threadId = thread._id as string;
+    const threadId = thread._id;
 
     debugLog('analyzeImageByUrl calling vision agent', { threadId });
 

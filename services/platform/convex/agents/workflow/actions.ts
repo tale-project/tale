@@ -59,6 +59,7 @@ export const chatWithWorkflowAssistant = action({
 
       if (args.attachments && args.attachments.length > 0) {
         const fileAttachments: FileAttachment[] = args.attachments.map((a) => ({
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type
           fileId: a.fileId as FileAttachment['fileId'],
           fileName: a.fileName,
           fileType: a.fileType,

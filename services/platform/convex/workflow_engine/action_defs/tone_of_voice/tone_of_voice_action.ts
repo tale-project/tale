@@ -45,6 +45,7 @@ export const toneOfVoiceAction: ActionDefinition<ToneOfVoiceActionParams> = {
         );
 
         // Call internal query to get tone of voice (bypasses RLS)
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
         const toneOfVoice = (await ctx.runQuery(
           internal.tone_of_voice.internal_queries.getToneOfVoice,
           {
@@ -62,7 +63,7 @@ export const toneOfVoiceAction: ActionDefinition<ToneOfVoiceActionParams> = {
       }
 
       default:
-        throw new Error(`Unknown operation: ${params.operation}`);
+        throw new Error(`Unknown operation: ${String(params.operation)}`);
     }
   },
 };

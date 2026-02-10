@@ -37,7 +37,7 @@ export async function executeQuery(
       break;
 
     default:
-      throw new Error(`Unsupported SQL engine: ${params.engine}`);
+      throw new Error(`Unsupported SQL engine: ${String(params.engine)}`);
   }
 
   return {

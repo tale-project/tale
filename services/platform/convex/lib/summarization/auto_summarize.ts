@@ -189,6 +189,7 @@ export async function autoSummarizeIfNeededModel(
     .filter((m) => m.message?.content)
     .map((m) => {
       const message = m.message;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const role = message?.role as 'user' | 'assistant' | 'tool' | 'system';
       const content =
         typeof message?.content === 'string'

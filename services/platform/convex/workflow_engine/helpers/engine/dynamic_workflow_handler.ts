@@ -10,6 +10,7 @@ import { Infer } from 'convex/values';
 import type { Doc, Id } from '../../../_generated/dataModel';
 
 import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
@@ -50,8 +51,11 @@ export async function handleDynamicWorkflow(
   args: DynamicWorkflowArgs,
 ): Promise<void> {
   const workflowDefinition =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     args.workflowDefinition as unknown as Doc<'wfDefinitions'>;
-  const stepDefinitions = args.steps as unknown as Array<Doc<'wfStepDefs'>>;
+  const stepDefinitions =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+    args.steps as unknown as Array<Doc<'wfStepDefs'>>;
 
   debugLog('dynamicWorkflow Starting workflow execution', {
     executionId: args.executionId,
@@ -109,15 +113,21 @@ export async function handleDynamicWorkflow(
     // Determine retry policy: step-level override > workflow-level default
     // Access retryPolicy safely - not all step config types have it
     const workflowRetryPolicy = workflowDefinition?.config?.retryPolicy ?? null;
-    const stepConfig = stepDef.config as Record<string, unknown> | undefined;
+    const stepConfig = isRecord(stepDef.config) ? stepDef.config : undefined;
     const stepRetryPolicy =
       stepConfig &&
-      typeof stepConfig === 'object' &&
-      'retryPolicy' in stepConfig
-        ? (stepConfig.retryPolicy as {
-            maxRetries: number;
-            backoffMs: number;
-          } | null)
+      'retryPolicy' in stepConfig &&
+      isRecord(stepConfig.retryPolicy)
+        ? {
+            maxRetries:
+              typeof stepConfig.retryPolicy.maxRetries === 'number'
+                ? stepConfig.retryPolicy.maxRetries
+                : 0,
+            backoffMs:
+              typeof stepConfig.retryPolicy.backoffMs === 'number'
+                ? stepConfig.retryPolicy.backoffMs
+                : 0,
+          }
         : null;
     const effectiveRetryPolicy =
       stepRetryPolicy ?? workflowRetryPolicy ?? undefined;
@@ -132,8 +142,8 @@ export async function handleDynamicWorkflow(
         stepType: stepDef.stepType,
         stepName: stepDef.name,
         threadId: args.threadId, // Pass shared threadId for agent orchestration workflows
-        initialInput: args.input as ConvexJsonValue,
-        resumeVariables: args.resumeVariables as ConvexJsonValue,
+        initialInput: args.input,
+        resumeVariables: args.resumeVariables,
       },
       {
         name: `${stepDef.name} (${stepDef.stepType})`,

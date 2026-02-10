@@ -1,7 +1,5 @@
 import { httpRouter } from 'convex/server';
 
-import type { Id } from './_generated/dataModel';
-
 import { httpAction } from './_generated/server';
 import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
 import { authComponent, createAuth } from './auth';
@@ -10,6 +8,7 @@ import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from './lib/rate_limiter/helpers';
+import { toId } from './lib/type_cast_helpers';
 import {
   ssoDiscoverHandler,
   ssoAuthorizeHandler,
@@ -68,7 +67,7 @@ http.route({
     }
 
     try {
-      const blob = await ctx.storage.get(storageId as Id<'_storage'>);
+      const blob = await ctx.storage.get(toId<'_storage'>(storageId));
       if (!blob) {
         return new Response('File not found', { status: 404 });
       }

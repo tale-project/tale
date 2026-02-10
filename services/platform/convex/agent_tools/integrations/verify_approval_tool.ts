@@ -10,10 +10,10 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { Id } from '../../_generated/dataModel';
 import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
+import { toId } from '../../lib/type_cast_helpers';
 
 const verifyApprovalArgs = z.object({
   approvalId: z.string().describe('Approval ID returned from write operation'),
@@ -56,7 +56,7 @@ Call after write operations to confirm approval was created.`,
         const approval = await ctx.runQuery(
           internal.approvals.internal_queries.getApprovalById,
           {
-            approvalId: approvalId as Id<'approvals'>,
+            approvalId: toId<'approvals'>(approvalId),
           },
         );
 

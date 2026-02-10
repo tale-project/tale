@@ -40,7 +40,7 @@ export function useWorkflowCreationApprovals(threadId: string | undefined) {
     .map((a: ApprovalItem) => ({
       _id: a._id,
       status: a.status,
-      // Convex metadata uses v.any() — cast required to narrow to specific metadata shape
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any(); cast to specific metadata shape
       metadata: a.metadata as WorkflowCreationMetadata,
       executedAt: a.executedAt,
       executionError: a.executionError,

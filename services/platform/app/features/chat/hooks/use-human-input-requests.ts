@@ -21,7 +21,6 @@ export interface HumanInputRequest {
  * Hook to fetch human input requests for a chat thread
  */
 export function useHumanInputRequests(threadId: string | undefined) {
-  // @ts-expect-error - Deep api path may cause TS2589 depending on TypeScript state
   const approvals = useQuery(
     api.approvals.queries.getHumanInputRequestsForThread,
     threadId ? { threadId } : 'skip',
@@ -32,8 +31,10 @@ export function useHumanInputRequests(threadId: string | undefined) {
   const humanInputRequests: HumanInputRequest[] = (approvals || [])
     .filter((a: ApprovalItem) => a.metadata)
     .map((a: ApprovalItem) => ({
-      _id: a._id,
-      status: a.status as 'pending' | 'approved' | 'rejected',
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex query returns string but downstream expects Id<'approvals'>
+      _id: a._id as Id<'approvals'>,
+      status: a.status,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing from generic JSON record to specific schema type
       metadata: a.metadata as unknown as HumanInputRequestMetadata,
       _creationTime: a._creationTime,
       messageId: a.messageId,

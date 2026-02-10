@@ -105,7 +105,7 @@ export function DocumentsClient({
   );
 
   const allDocuments = useMemo(
-    // Convex query result page type doesn't match DocumentItem — cast required
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex query result page type doesn't match DocumentItem
     () => (documentsResult?.page as DocumentItem[]) ?? [],
     [documentsResult],
   );
@@ -125,7 +125,7 @@ export function DocumentsClient({
       value: query,
       onChange: (value: string) => {
         setQuery(value);
-        navigate({
+        void navigate({
           to: '/dashboard/$id/documents',
           params: { id: organizationId },
           search: {
@@ -156,7 +156,7 @@ export function DocumentsClient({
 
   const handleFolderClick = useCallback(
     (item: DocumentItem) => {
-      navigate({
+      void navigate({
         to: '/dashboard/$id/documents',
         params: { id: organizationId },
         search: {
@@ -170,7 +170,7 @@ export function DocumentsClient({
 
   const openPreview = useCallback(
     (id: string) => {
-      navigate({
+      void navigate({
         to: '/dashboard/$id/documents',
         params: { id: organizationId },
         search: {
@@ -195,7 +195,7 @@ export function DocumentsClient({
   );
 
   const closePreview = useCallback(() => {
-    navigate({
+    void navigate({
       to: '/dashboard/$id/documents',
       params: { id: organizationId },
       search: {

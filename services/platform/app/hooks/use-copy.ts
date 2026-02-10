@@ -160,7 +160,7 @@ export function useCopyButton(
   const { copied, copy } = useCopy(options);
 
   const onClick = useCallback(() => {
-    copy(value);
+    void copy(value);
   }, [copy, value]);
 
   return { copied, onClick };

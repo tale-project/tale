@@ -163,6 +163,7 @@ Example: User asks for "John's email" and you find 3 Johns:
   const effectiveMaxSteps =
     hasAnyTools && typeof opts.maxSteps !== 'number' ? 40 : opts.maxSteps;
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
   return {
     name: opts.name,
     instructions: finalInstructions,

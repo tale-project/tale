@@ -15,9 +15,7 @@ export async function duplicateWorkflow(
   args: DuplicateWorkflowArgs,
 ): Promise<Id<'wfDefinitions'>> {
   // Load source workflow
-  const source = (await ctx.db.get(
-    args.wfDefinitionId,
-  )) as Doc<'wfDefinitions'> | null;
+  const source = await ctx.db.get(args.wfDefinitionId);
 
   if (!source) {
     throw new Error('Workflow not found');

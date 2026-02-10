@@ -10,7 +10,13 @@ function matchesFilter(
   if (!eventFilter) return true;
   if (!eventData) return false;
   for (const [key, value] of Object.entries(eventFilter)) {
-    if (String(eventData[key] ?? '') !== value) return false;
+    const eventVal = eventData[key];
+    if (
+      (typeof eventVal === 'string'
+        ? eventVal
+        : JSON.stringify(eventVal ?? '')) !== value
+    )
+      return false;
   }
   return true;
 }
@@ -22,6 +28,7 @@ function isSelfTrigger(
 ): boolean {
   if (eventType !== 'workflow.completed' && eventType !== 'workflow.failed')
     return false;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const sourceRoot = eventData?.rootWfDefinitionId as string | undefined;
   return !!sourceRoot && sourceRoot === subscriptionWorkflowRootId;
 }
@@ -44,7 +51,7 @@ export async function processEventHandler(
         .eq('eventType', args.eventType),
     );
 
-  const eventData = args.eventData as Record<string, unknown> | undefined;
+  const eventData = args.eventData;
 
   for await (const sub of subscriptions) {
     if (!sub.isActive) continue;

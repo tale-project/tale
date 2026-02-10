@@ -1,6 +1,7 @@
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
+import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
 import conversationAutoArchiveWorkflow from '../predefined_workflows/conversation_auto_archive';
@@ -66,8 +67,7 @@ export async function saveDefaultWorkflows(
         config: {
           ...baseConfig,
           variables: {
-            ...(baseConfig as { variables?: Record<string, unknown> })
-              .variables,
+            ...(isRecord(baseConfig.variables) ? baseConfig.variables : {}),
             organizationId: args.organizationId,
           },
         },
@@ -77,7 +77,7 @@ export async function saveDefaultWorkflows(
           ? {
               ...step,
               config: {
-                ...(step.config as Record<string, unknown>),
+                ...(isRecord(step.config) ? step.config : {}),
                 type: 'scheduled',
                 schedule,
                 timezone,

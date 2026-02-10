@@ -37,6 +37,7 @@ export async function getUserById(
   });
 
   if (result && result.page.length > 0) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
     return result.page[0] as BetterAuthUser;
   }
 

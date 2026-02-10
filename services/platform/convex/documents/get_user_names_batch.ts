@@ -41,6 +41,7 @@ export async function getUserNamesBatch(
       where: [{ field: '_id', value: userId, operator: 'eq' }],
     });
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const user = userRes?.page?.[0] as
       | { _id?: string; name?: string; email?: string }
       | undefined;

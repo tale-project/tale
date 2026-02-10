@@ -21,6 +21,7 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../helpers/nodes/action/types';
 
 import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
+import { isRecord } from '../../../lib/utils/type-guards';
 import { createDebugLog } from '../../lib/debug_log';
 import { replaceVariables } from '../../lib/variables/replace_variables';
 
@@ -80,8 +81,9 @@ export const setVariablesAction: ActionDefinition<{
           );
         }
 
-        const secrets =
-          (workingContext.secrets as Record<string, unknown>) || {};
+        const secrets = isRecord(workingContext.secrets)
+          ? workingContext.secrets
+          : {};
         const secureWrapper = {
           __secure: true,
           jwe: processedValue,

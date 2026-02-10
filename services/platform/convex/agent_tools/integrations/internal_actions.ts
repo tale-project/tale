@@ -5,7 +5,6 @@ import type {
   SqlIntegration,
   SqlOperation,
 } from '../../integrations/types';
-import type { SqlExecutionResult } from '../../node_only/sql/types';
 
 import {
   jsonValueValidator,
@@ -17,6 +16,10 @@ import {
   getIntegrationType,
   isSqlIntegration,
 } from '../../integrations/helpers';
+import {
+  toConvexJsonRecord,
+  toConvexJsonValue,
+} from '../../lib/type_cast_helpers';
 import { decryptSqlCredentials } from '../../workflow_engine/action_defs/integration/helpers/decrypt_sql_credentials';
 import {
   requiresApproval,
@@ -30,7 +33,6 @@ import { validateRequiredParameters } from '../../workflow_engine/action_defs/in
 import { integrationAction } from '../../workflow_engine/action_defs/integration/integration_action';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
-type ConvexJsonRecord = Infer<typeof jsonRecordValidator>;
 
 // =============================================================================
 // EXECUTE INTEGRATION
@@ -140,6 +142,7 @@ export const executeApprovedOperation = internalAction({
       );
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex approval metadata
     const metadata = approval.metadata as unknown as
       | IntegrationOperationMetadataLocal
       | undefined;
@@ -157,7 +160,7 @@ export const executeApprovedOperation = internalAction({
           organizationId: approval.organizationId,
           integrationName: metadata.integrationName,
           operation: metadata.operationName,
-          params: metadata.parameters as ConvexJsonRecord | undefined,
+          params: toConvexJsonRecord(metadata.parameters),
           skipApprovalCheck: true,
         },
       );
@@ -167,12 +170,12 @@ export const executeApprovedOperation = internalAction({
           .updateApprovalWithResult,
         {
           approvalId: args.approvalId,
-          executionResult: result as ConvexJsonValue,
+          executionResult: toConvexJsonValue(result),
           executionError: null,
         },
       );
 
-      return result as ConvexJsonValue;
+      return toConvexJsonValue(result);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -370,7 +373,9 @@ async function executeSqlBatch(
             }
             const introspectionQuery = getIntrospectColumnsQuery(
               sqlConnectionConfig.engine,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
               params.schemaName as string,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
               params.tableName as string,
             );
             query = introspectionQuery.query;
@@ -410,7 +415,7 @@ async function executeSqlBatch(
                 operationName: op.operation,
                 operationTitle: operationConfig.title || op.operation,
                 operationType,
-                parameters: params as ConvexJsonRecord,
+                parameters: toConvexJsonRecord(params),
                 threadId,
                 messageId,
                 estimatedImpact: `This ${operationType} operation will modify data in ${sqlConnectionConfig.database}`,
@@ -432,7 +437,7 @@ async function executeSqlBatch(
           ? getOperationType(operationConfig) === 'write'
           : false;
 
-        const result = (await ctx.runAction(
+        const result = await ctx.runAction(
           internal.node_only.sql.internal_actions.executeQuery,
           {
             engine: sqlConnectionConfig.engine,
@@ -445,14 +450,14 @@ async function executeSqlBatch(
               options: sqlConnectionConfig.options,
             },
             query,
-            params: queryParams as ConvexJsonRecord,
+            params: toConvexJsonRecord(queryParams),
             security: {
               maxResultRows: sqlConnectionConfig.security?.maxResultRows,
               queryTimeoutMs: sqlConnectionConfig.security?.queryTimeoutMs,
             },
             allowWrite: isWriteOperation,
           },
-        )) as SqlExecutionResult;
+        );
 
         if (!result.success) {
           throw new Error(`SQL query failed: ${result.error}`);
@@ -462,14 +467,14 @@ async function executeSqlBatch(
           id: op.id,
           operation: op.operation,
           success: true,
-          data: {
+          data: toConvexJsonValue({
             name: integration.name,
             operation: op.operation,
             engine: sqlConnectionConfig.engine,
-            data: result.data as ConvexJsonValue,
+            data: result.data,
             rowCount: result.rowCount,
             duration: result.duration,
-          } as ConvexJsonValue,
+          }),
           duration: Date.now() - opStartTime,
           rowCount: result.rowCount,
         };
@@ -579,14 +584,15 @@ async function executeRestApiBatch(
 
         const rowCount =
           result && typeof result === 'object' && 'rowCount' in result
-            ? (result.rowCount as number | undefined)
+            ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by type guard above
+              (result.rowCount as number | undefined)
             : undefined;
 
         return {
           id: op.id,
           operation: op.operation,
           success: true,
-          data: result as ConvexJsonValue,
+          data: toConvexJsonValue(result),
           duration,
           rowCount,
         };

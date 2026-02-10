@@ -157,6 +157,7 @@ export function estimateMessageDocTokens(messageDoc: {
           tokens += estimateTokens(part.text);
         } else if ('type' in part && part.type === 'tool-result') {
           // Tool results can be large - properly serialize
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
           const resultPart = part as { toolName?: string; result?: unknown };
           tokens += 10;
           tokens += estimateTokens(resultPart.toolName || '');

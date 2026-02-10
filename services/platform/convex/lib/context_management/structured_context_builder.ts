@@ -12,6 +12,7 @@ import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
 import type { ActionCtx } from '../../_generated/server';
 
+import { isRecord } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { estimateTokens } from './estimate_tokens';
 import * as fmt from './message_formatter';
@@ -280,6 +281,7 @@ function formatMessagesWithApprovals(
       if (linkedApprovals) {
         for (const approval of linkedApprovals) {
           if (approval.resourceType === 'human_input_request') {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
             const metadata = approval.metadata as
               | HumanInputRequestMetadata
               | undefined;
@@ -362,10 +364,9 @@ function extractTextContent(
     for (const part of content) {
       if (typeof part === 'string') {
         textParts.push(part);
-      } else if (typeof part === 'object' && part !== null) {
-        const p = part as Record<string, unknown>;
-        if (p.type === 'text' && typeof p.text === 'string') {
-          textParts.push(p.text);
+      } else if (isRecord(part)) {
+        if (part.type === 'text' && typeof part.text === 'string') {
+          textParts.push(part.text);
         }
       }
     }
@@ -386,14 +387,13 @@ function extractToolCalls(
   const toolCalls: ExtractedToolCall[] = [];
 
   for (const part of content) {
-    if (typeof part === 'object' && part !== null) {
-      const p = part as Record<string, unknown>;
-      if (p.type === 'tool-call' && typeof p.toolName === 'string') {
+    if (isRecord(part)) {
+      if (part.type === 'tool-call' && typeof part.toolName === 'string') {
         toolCalls.push({
-          toolName: p.toolName,
+          toolName: part.toolName,
           toolCallId:
-            typeof p.toolCallId === 'string' ? p.toolCallId : undefined,
-          input: p.args ?? p.input,
+            typeof part.toolCallId === 'string' ? part.toolCallId : undefined,
+          input: part.args ?? part.input,
         });
       }
     }
@@ -423,15 +423,15 @@ function extractToolResults(
   }> = [];
 
   for (const part of content) {
-    if (typeof part === 'object' && part !== null) {
-      const p = part as Record<string, unknown>;
-      if (p.type === 'tool-result') {
+    if (isRecord(part)) {
+      if (part.type === 'tool-result') {
         results.push({
-          toolName: typeof p.toolName === 'string' ? p.toolName : undefined,
+          toolName:
+            typeof part.toolName === 'string' ? part.toolName : undefined,
           toolCallId:
-            typeof p.toolCallId === 'string' ? p.toolCallId : undefined,
-          result: p.result ?? p.output,
-          isError: p.isError === true,
+            typeof part.toolCallId === 'string' ? part.toolCallId : undefined,
+          result: part.result ?? part.output,
+          isError: part.isError === true,
         });
       }
     }

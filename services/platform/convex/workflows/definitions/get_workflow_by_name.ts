@@ -21,5 +21,5 @@ export async function getWorkflowByName(
     )
     .first();
 
-  return (workflow as WorkflowDefinition | null) ?? null;
+  return workflow ?? null;
 }

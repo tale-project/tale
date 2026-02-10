@@ -35,7 +35,9 @@ function getOpenAIProvider() {
 
 type OpenAIProvider = ReturnType<typeof createOpenAI>;
 
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
 export const openai: OpenAIProvider = new Proxy(
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
   Object.assign(function () {}, {}) as unknown as OpenAIProvider,
   {
     apply(_target, _thisArg, args) {
@@ -44,6 +46,7 @@ export const openai: OpenAIProvider = new Proxy(
     },
     get(_target, prop) {
       const provider = getOpenAIProvider();
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
       return provider[prop as keyof typeof provider];
     },
   },

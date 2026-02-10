@@ -3,8 +3,8 @@
  */
 
 import { internal } from '../../../_generated/api';
-import { Id } from '../../../_generated/dataModel';
 import { ActionCtx } from '../../../_generated/server';
+import { toId } from '../../../lib/type_cast_helpers';
 import { serializeVariables } from '../serialization/serialize_variables';
 import { StepDefinition, StepExecutionResult } from './types';
 
@@ -25,15 +25,14 @@ export async function persistExecutionResult(
     ...result.variables,
     // Extract and override loop variable to prevent large payloads and ensure correct loop restoration
     ...(essentialLoop ? { loop: essentialLoop as unknown } : {}),
-    organizationId:
-      stepDef.organizationId ?? (baseVariables['organizationId'] as unknown),
+    organizationId: stepDef.organizationId ?? baseVariables['organizationId'],
   };
 
   // Get current execution to retrieve old storage ID for cleanup
   const currentExecution = await ctx.runQuery(
     internal.wf_executions.internal_queries.getRawExecution,
     {
-      executionId: executionId as Id<'wfExecutions'>,
+      executionId: toId<'wfExecutions'>(executionId),
     },
   );
   const oldStorageId = currentExecution?.variablesStorageId;
@@ -49,7 +48,7 @@ export async function persistExecutionResult(
   await ctx.runMutation(
     internal.wf_executions.internal_mutations.updateExecutionVariables,
     {
-      executionId: executionId as Id<'wfExecutions'>,
+      executionId: toId<'wfExecutions'>(executionId),
       variablesSerialized: serialized,
       variablesStorageId: storageId,
     },

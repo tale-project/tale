@@ -71,7 +71,7 @@ export function createOfflineEntityDataHook<
     const {
       organizationId,
       search = '',
-      // {} is not assignable to arbitrary TFilters — cast required for default
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- {} is not assignable to arbitrary TFilters; cast required for default empty value
       filters = {} as TFilters,
       sortBy = config.defaultSort.field,
       sortOrder = config.defaultSort.order,
@@ -85,7 +85,7 @@ export function createOfflineEntityDataHook<
     const cacheKey = createCacheKey(config.queryName, organizationId);
 
     const liveData = useQuery(
-      // oxlint-disable-next-line typescript/no-explicit-any -- Convex useQuery requires exact FunctionReference type; generic QueryFunction is not assignable
+      // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- Convex useQuery requires exact FunctionReference type; generic QueryFunction is not assignable
       config.queryFn as any,
       isOnline ? { organizationId } : 'skip',
     );
@@ -105,7 +105,7 @@ export function createOfflineEntityDataHook<
         }
       }
 
-      loadCache();
+      void loadCache();
 
       return () => {
         mounted = false;
@@ -114,8 +114,9 @@ export function createOfflineEntityDataHook<
 
     useEffect(() => {
       if (isOnline && liveData) {
-        // Convex useQuery returns unknown[] — cast required to apply generic TItem
-        setQueryCache(cacheKey, liveData as TItem[], organizationId);
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex useQuery returns unknown[]; cast to TItem[] for cache persistence
+        void setQueryCache(cacheKey, liveData as TItem[], organizationId);
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex useQuery returns unknown[]; cast to TItem[] for state update
         setCachedData(liveData as TItem[]);
         setLastSyncTime(new Date());
       }
@@ -127,7 +128,7 @@ export function createOfflineEntityDataHook<
     const processed = useMemo(() => {
       if (!sourceData) return [];
 
-      // Convex useQuery returns unknown[] — cast required to apply generic TItem
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex useQuery returns unknown[]; cast to TItem[] for processing
       let result = sourceData as TItem[];
 
       if (search) {
@@ -137,6 +138,7 @@ export function createOfflineEntityDataHook<
       const activeFilters = Object.entries(filters)
         .filter(([, values]) => Array.isArray(values) && values.length > 0)
         .map(([field, values]) => ({
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.entries loses key type; field is keyof TItem from TFilters constraint
           field: field as keyof TItem,
           values: new Set(values),
         }));
@@ -148,6 +150,7 @@ export function createOfflineEntityDataHook<
       const getSorter = () => {
         const actualField =
           config.sortConfig.fieldMap?.[sortBy] ??
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TSortBy maps to keyof TItem via sortConfig.fieldMap fallback
           (sortBy as unknown as keyof TItem);
         if (config.sortConfig.number.includes(sortBy)) {
           return sortByNumber<TItem>(actualField, sortOrder);

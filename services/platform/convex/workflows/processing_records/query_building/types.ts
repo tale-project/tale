@@ -30,5 +30,5 @@ export interface FindUnprocessedArgs {
  * Result of finding unprocessed documents
  */
 export interface FindUnprocessedResult {
-  document: unknown | null;
+  document: unknown;
 }

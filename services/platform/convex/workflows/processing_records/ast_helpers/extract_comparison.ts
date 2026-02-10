@@ -12,12 +12,12 @@ import type {
   BinaryExpression,
   ComparisonOperator,
   FilterCondition,
-  Identifier,
   ParsedFilterExpression,
 } from './types';
 
 import { extractLiteralValue } from './extract_literal_value';
 import { getFullFieldPath } from './get_full_field_path';
+import { isIdentifier } from './types';
 
 export function extractComparison(
   node: BinaryExpression,
@@ -26,7 +26,7 @@ export function extractComparison(
   const right = node.right;
 
   // Check if left side is a field reference (Identifier)
-  if (left.type !== 'Identifier') {
+  if (!isIdentifier(left)) {
     return { conditions: [], hasComplexConditions: true };
   }
 
@@ -37,14 +37,13 @@ export function extractComparison(
   }
   const rightValue = extractResult.value;
 
-  const identifier = left as Identifier;
-
   // Extract field name (handle nested fields like metadata.status)
-  const fieldName = getFullFieldPath(identifier);
+  const fieldName = getFullFieldPath(left);
   const isSimpleField = !fieldName.includes('.');
 
   const condition: FilterCondition = {
     field: fieldName,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing after type check
     operator: node.operator as ComparisonOperator,
     value: rightValue,
     isSimpleField,

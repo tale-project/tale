@@ -39,6 +39,7 @@ export const streamChatHttp = httpAction(async (ctx, request) => {
     return new Response('Missing streamId parameter', { status: 400 });
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type
   const streamId = streamIdParam as StreamId;
 
   try {

@@ -238,6 +238,7 @@ export const checkRagJobStatus = internalAction({
         return null;
       }
 
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const job = (await response.json()) as {
         state: 'queued' | 'running' | 'completed' | 'failed';
         updated_at?: number;
@@ -368,6 +369,7 @@ export const reindexDocumentRag = internalAction({
     }
 
     // Step 2: Re-upload document with new team_ids
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const result = (await ragAction.execute(
       ctx,
       { operation: 'upload_document', recordId: args.documentId },

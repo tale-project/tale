@@ -19,7 +19,7 @@ const VALID_ROLES = [
 type ValidRole = (typeof VALID_ROLES)[number];
 
 function isValidRole(role: string): role is ValidRole {
-  return VALID_ROLES.includes(role as ValidRole);
+  return VALID_ROLES.some((r) => r === role);
 }
 
 /**

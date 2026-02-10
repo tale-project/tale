@@ -27,7 +27,7 @@ function WebsitesPage() {
     return <WebsitesTableSkeleton organizationId={organizationId} />;
   }
 
-  if (hasWebsites === false) {
+  if (!hasWebsites) {
     return <WebsitesEmptyState organizationId={organizationId} />;
   }
 

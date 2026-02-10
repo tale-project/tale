@@ -55,7 +55,9 @@ export function useCreateApiKey(organizationId: string) {
       };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys', organizationId] });
+      void queryClient.invalidateQueries({
+        queryKey: ['api-keys', organizationId],
+      });
     },
   });
 }
@@ -76,7 +78,9 @@ export function useRevokeApiKey(organizationId: string) {
       return result.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys', organizationId] });
+      void queryClient.invalidateQueries({
+        queryKey: ['api-keys', organizationId],
+      });
     },
   });
 }

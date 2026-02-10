@@ -141,6 +141,7 @@ function EntityDeleteDialogInner<TEntity>({
   );
 }
 
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- React.memo loses generic type; cast restores original generic signature
 export const EntityDeleteDialog = memo(
   EntityDeleteDialogInner,
 ) as typeof EntityDeleteDialogInner;

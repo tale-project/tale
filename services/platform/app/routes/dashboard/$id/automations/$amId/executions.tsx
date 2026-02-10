@@ -1,9 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { ExecutionsClient } from '@/app/features/automations/executions/executions-client';
+import { toId } from '@/convex/lib/type_cast_helpers';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -22,7 +21,7 @@ export const Route = createFileRoute(
 
 function ExecutionsPage() {
   const { id: organizationId, amId } = Route.useParams();
-  const automationId = amId as Id<'wfDefinitions'>;
+  const automationId = toId<'wfDefinitions'>(amId);
   const { query, status, triggeredBy, dateFrom, dateTo } = Route.useSearch();
 
   return (

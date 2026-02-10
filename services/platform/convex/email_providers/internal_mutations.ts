@@ -54,6 +54,7 @@ export const updateMetadata = internalMutation({
     };
 
     await ctx.db.patch(args.providerId, {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       metadata: updatedMetadata as Record<string, string | number | boolean>,
     });
 

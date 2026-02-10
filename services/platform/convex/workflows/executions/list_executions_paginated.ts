@@ -102,7 +102,7 @@ export async function listExecutionsPaginated(
       }
     }
 
-    allMatching.push(execution as WorkflowExecution);
+    allMatching.push(execution);
   }
 
   // If we hit the scan limit, total is approximate (at least this many)

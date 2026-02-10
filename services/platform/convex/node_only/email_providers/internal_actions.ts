@@ -90,8 +90,8 @@ export const testConnection = internalAction({
 
     const result = await EmailProviders.testNewProviderConnectionLogic(
       {
-        vendor: args.vendor as EmailProviders.EmailProviderVendor,
-        authMethod: args.authMethod as EmailProviders.EmailProviderAuthMethod,
+        vendor: args.vendor,
+        authMethod: args.authMethod,
         passwordAuth: args.passwordAuth ?? undefined,
         oauth2Auth: args.oauth2Auth ?? undefined,
         smtpConfig: args.smtpConfig,

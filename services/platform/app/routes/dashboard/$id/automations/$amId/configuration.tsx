@@ -3,8 +3,6 @@ import { useQuery } from 'convex/react';
 import { Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
@@ -19,6 +17,7 @@ import { useUpdateAutomationMetadata } from '@/app/features/automations/hooks/us
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 interface WorkflowConfig {
@@ -38,7 +37,7 @@ export const Route = createFileRoute(
 
 function ConfigurationPage() {
   const { amId } = Route.useParams();
-  const automationId = amId as Id<'wfDefinitions'>;
+  const automationId = toId<'wfDefinitions'>(amId);
   const { user } = useAuth();
 
   const { t: tAutomations } = useT('automations');
@@ -67,6 +66,7 @@ function ConfigurationPage() {
       setName(workflow.name || '');
       setDescription(workflow.description || '');
 
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex config field uses flexible schema
       const config = workflow.config as WorkflowConfig;
       if (config) {
         setTimeoutValue(config.timeout || 300000);
@@ -83,6 +83,7 @@ function ConfigurationPage() {
   useEffect(() => {
     if (!workflow) return;
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex config field uses flexible schema
     const config = workflow.config as WorkflowConfig;
     let currentVariables = {};
     try {

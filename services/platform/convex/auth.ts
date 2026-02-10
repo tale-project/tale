@@ -262,8 +262,10 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           definePayload: ({ user, session }) => ({
             email: user.email,
             name: user.name,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
             trustedRole: (session as unknown as Record<string, unknown>)
               .trustedRole,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
             trustedTeams: (session as unknown as Record<string, unknown>)
               .trustedTeams,
           }),

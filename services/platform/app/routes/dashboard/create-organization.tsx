@@ -24,7 +24,7 @@ function CreateOrganizationPage() {
     }
 
     if (organizations.length > 0) {
-      navigate({
+      void navigate({
         to: '/dashboard/$id',
         params: { id: organizations[0].organizationId },
       });

@@ -14,6 +14,7 @@ import { v } from 'convex/values';
 
 import type { DataModel } from '../_generated/dataModel';
 
+import { getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
 
@@ -60,13 +61,15 @@ export async function getUserTeamIds(
   // Check if JWT contains trusted teams (trusted headers mode)
   const identity = await ctx.auth.getUserIdentity();
   // Convex UserIdentity doesn't type custom JWT claims, so cast is needed
-  const trustedTeamsRaw = (identity as unknown as Record<string, unknown>)
-    ?.trustedTeams as string | undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
+  const identityRecord = identity as unknown as Record<string, unknown>;
+  const trustedTeamsRaw = getString(identityRecord, 'trustedTeams');
 
   if (trustedTeamsRaw) {
     // Trusted headers mode: parse team IDs from JWT claim
     // Format: [{id: "...", name: "..."}, ...]
     try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const teams = JSON.parse(trustedTeamsRaw) as Array<{
         id: string;
         name: string;

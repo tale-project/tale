@@ -97,7 +97,8 @@ function getOAuth2Credentials(
     return { clientId, clientSecret };
   }
 
-  throw new Error(`Unsupported OAuth2 provider: ${provider}`);
+  const _exhaustiveCheck: never = provider;
+  throw new Error(`Unsupported OAuth2 provider: ${String(_exhaustiveCheck)}`);
 }
 
 /**

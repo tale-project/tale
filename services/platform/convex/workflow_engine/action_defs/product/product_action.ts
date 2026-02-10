@@ -38,9 +38,10 @@ import type { QueryResult } from '../conversation/helpers/types';
 import {
   jsonRecordValidator,
   jsonValueValidator,
-  type ConvexJsonRecord,
 } from '../../../../lib/shared/schemas/utils/json-value';
+import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
+import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { productStatusValidator } from '../../../products/validators';
 
 type CreateProductResult = {
@@ -159,7 +160,10 @@ export const productAction: ActionDefinition<ProductActionParams> = {
   ),
   async execute(ctx, params, variables) {
     // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
+    const organizationId =
+      typeof variables.organizationId === 'string'
+        ? variables.organizationId
+        : undefined;
 
     switch (params.operation) {
       case 'create': {
@@ -185,8 +189,11 @@ export const productAction: ActionDefinition<ProductActionParams> = {
             externalId: Array.isArray(params.externalId)
               ? params.externalId[0]
               : params.externalId,
-            metadata: params.metadata as ConvexJsonRecord | undefined,
+            metadata: params.metadata
+              ? toConvexJsonRecord(params.metadata)
+              : undefined,
           },
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
         )) as CreateProductResult;
 
         // Fetch and return the full created entity
@@ -204,7 +211,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         const product = await ctx.runQuery(
           internal.products.internal_queries.getProductById,
           {
-            productId: params.productId as Id<'products'>, // Required by validator
+            productId: toId<'products'>(params.productId),
           },
         );
 
@@ -218,6 +225,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
           );
         }
 
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         const result = (await ctx.runQuery(
           internal.products.internal_queries.queryProducts,
           {
@@ -240,8 +248,8 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         await ctx.runMutation(
           internal.products.internal_mutations.updateProducts,
           {
-            productId: params.productId as Id<'products'>, // Required by validator
-            updates: params.updates, // Required by validator
+            productId: toId<'products'>(params.productId),
+            updates: params.updates,
           },
         );
 
@@ -249,7 +257,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const updatedProduct = await ctx.runQuery(
           internal.products.internal_queries.getProductById,
-          { productId: params.productId as Id<'products'> },
+          { productId: toId<'products'>(params.productId) },
         );
 
         return updatedProduct;
@@ -265,6 +273,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         }
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         const result = (await ctx.runQuery(
           internal.products.internal_queries.filterProducts,
           {
@@ -278,7 +287,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
 
       case 'hydrate_fields': {
         const input: Record<string, unknown>[] = Array.isArray(params.items)
-          ? (params.items as Record<string, unknown>[])
+          ? params.items.filter(isRecord)
           : [];
 
         const idField: string = params.idField ?? 'product_id';
@@ -288,7 +297,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         const hydrated: Record<string, unknown>[] = [];
         for (const item of input) {
           try {
-            const idVal = (item as Record<string, unknown>)?.[idField];
+            const idVal = item?.[idField];
             if (typeof idVal !== 'string') {
               hydrated.push(item);
               continue;
@@ -296,12 +305,13 @@ export const productAction: ActionDefinition<ProductActionParams> = {
             const doc = await ctx.runQuery(
               internal.products.internal_queries.getProductById,
               {
-                productId: idVal as Id<'products'>,
+                productId: toId<'products'>(idVal),
               },
             );
             const out: Record<string, unknown> = { ...item };
             for (const [targetKey, sourceKey] of Object.entries(mappings)) {
               const currentVal = out?.[targetKey];
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
               const sourceVal = (doc as Record<string, unknown> | null)?.[
                 sourceKey
               ];

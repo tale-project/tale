@@ -3,11 +3,9 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { WebsitePagesActionParams } from './helpers/types';
 
-import {
-  jsonRecordValidator,
-  type ConvexJsonRecord,
-} from '../../../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
+import { toConvexJsonValue } from '../../../lib/type_cast_helpers';
 
 // Page validator
 const pageValidator = v.object({
@@ -37,7 +35,10 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
 
   async execute(ctx, params, variables) {
     // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
+    const organizationId =
+      typeof variables.organizationId === 'string'
+        ? variables.organizationId
+        : undefined;
 
     if (!organizationId) {
       throw new Error(
@@ -45,16 +46,17 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
       );
     }
 
-    const normalizedPages = params.pages.map((p) => ({
-      url: p.url,
-      title: p.title ?? undefined,
-      content: p.content ?? undefined,
-      wordCount: p.wordCount ?? p.word_count ?? undefined,
-      metadata: (p.metadata ?? undefined) as ConvexJsonRecord | undefined,
-      structuredData: (p.structuredData ?? p.structured_data ?? undefined) as
-        | ConvexJsonRecord
-        | undefined,
-    }));
+    const normalizedPages = params.pages.map((p) => {
+      const sd = p.structuredData ?? p.structured_data;
+      return {
+        url: p.url,
+        title: p.title ?? undefined,
+        content: p.content ?? undefined,
+        wordCount: p.wordCount ?? p.word_count ?? undefined,
+        metadata: p.metadata ? toConvexJsonValue(p.metadata) : undefined,
+        structuredData: sd ? toConvexJsonValue(sd) : undefined,
+      };
+    });
 
     const result = await ctx.runMutation(
       internal.websites.internal_mutations.bulkUpsertPages,

@@ -1,8 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { TriggersClient } from '@/app/features/automations/triggers/triggers-client';
+import { toId } from '@/convex/lib/type_cast_helpers';
 
 export const Route = createFileRoute(
   '/dashboard/$id/automations/$amId/triggers',
@@ -12,7 +11,7 @@ export const Route = createFileRoute(
 
 function TriggersPage() {
   const { id: organizationId, amId } = Route.useParams();
-  const automationId = amId as Id<'wfDefinitions'>;
+  const automationId = toId<'wfDefinitions'>(amId);
 
   return (
     <TriggersClient

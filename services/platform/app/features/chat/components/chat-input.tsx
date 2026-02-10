@@ -113,14 +113,14 @@ export function ChatInput({
     }
 
     if (imageFiles.length > 0) {
-      uploadFiles(imageFiles);
+      void uploadFiles(imageFiles);
     }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      uploadFiles(Array.from(files));
+      void uploadFiles(Array.from(files));
     }
     e.target.value = '';
   };

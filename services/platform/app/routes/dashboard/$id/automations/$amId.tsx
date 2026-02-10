@@ -10,7 +10,7 @@ import { lazy, Suspense, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import type { Doc, Id } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
@@ -31,6 +31,7 @@ import { useAutomationVersionNavigation } from '@/app/features/automations/hooks
 import { useUpdateAutomation } from '@/app/features/automations/hooks/use-update-automation';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -82,7 +83,7 @@ function AutomationStepsSkeleton() {
 
 function AutomationDetailLayout() {
   const { id: organizationId, amId } = Route.useParams();
-  const automationId = amId as Id<'wfDefinitions'>;
+  const automationId = toId<'wfDefinitions'>(amId);
   const location = useLocation();
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
@@ -141,11 +142,9 @@ function AutomationDetailLayout() {
   };
 
   const validStatuses = ['draft', 'active', 'inactive', 'archived'] as const;
-  const status = validStatuses.includes(
-    automation?.status as (typeof validStatuses)[number],
-  )
-    ? (automation?.status as (typeof validStatuses)[number])
-    : 'draft';
+  type ValidStatus = (typeof validStatuses)[number];
+  const status: ValidStatus =
+    validStatuses.find((s) => s === automation?.status) ?? 'draft';
 
   const isExactAutomationPage =
     location.pathname === `/dashboard/${organizationId}/automations/${amId}`;
@@ -185,7 +184,7 @@ function AutomationDetailLayout() {
               onBlur={handleSubmitAutomationName}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  handleSubmitAutomationName();
+                  void handleSubmitAutomationName();
                 }
                 if (e.key === 'Escape') {
                   setEditMode(false);

@@ -38,7 +38,7 @@ export function DocumentPreviewDocx({ url }: DocumentPreviewDocxProps) {
         if (!isCancelled) setLoading(false);
       }
     };
-    load();
+    void load();
     return () => {
       isCancelled = true;
     };

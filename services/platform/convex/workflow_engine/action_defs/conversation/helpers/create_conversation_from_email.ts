@@ -47,8 +47,10 @@ export async function createConversationFromEmail(
 ) {
   // Handle both single email and array of emails
   const emailsArray: EmailType[] = Array.isArray(params.emails)
-    ? (params.emails as EmailType[])
-    : [params.emails as EmailType];
+    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+      (params.emails as EmailType[])
+    : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+      [params.emails as EmailType];
 
   // Sort emails by date (chronological order - oldest first)
   emailsArray.sort(
@@ -122,11 +124,14 @@ export async function createConversationFromEmail(
             }
 
             // Determine if this is from the customer based on the conversation's stored root sender
-            const convRootFrom = (
-              existingConvForRoot.metadata as
-                | Record<string, unknown>
-                | undefined
-            )?.from as Array<{ address?: string; name?: string }> | undefined;
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+            const convMetadata = existingConvForRoot.metadata as
+              | Record<string, unknown>
+              | undefined;
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+            const convRootFrom = convMetadata?.from as
+              | Array<{ address?: string; name?: string }>
+              | undefined;
             const convCustomerAddress = convRootFrom?.[0]?.address;
             const isCustomer = email.from[0]?.address === convCustomerAddress;
 

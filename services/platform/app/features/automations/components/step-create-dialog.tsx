@@ -197,6 +197,7 @@ export function CreateStepDialog({
   };
 
   const handleTypeChange = (value: string) => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
     setValue('stepType', value as FormData['stepType']);
   };
 

@@ -5,6 +5,7 @@
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 
+import { isRecord } from '../../../../../lib/utils/type-guards';
 import { internal } from '../../../../_generated/api';
 import { ActionNodeConfig, StepExecutionResult } from '../../../types';
 import { getAction } from './get_action';
@@ -16,10 +17,7 @@ import { getAction } from './get_action';
 // Secure wrapper type guard
 function isSecureWrapper(val: unknown): val is { __secure: true; jwe: string } {
   return (
-    !!val &&
-    typeof val === 'object' &&
-    (val as Record<string, unknown>)['__secure'] === true &&
-    typeof (val as Record<string, unknown>)['jwe'] === 'string'
+    isRecord(val) && val['__secure'] === true && typeof val['jwe'] === 'string'
   );
 }
 
@@ -29,12 +27,12 @@ async function resolveSecretsInParams(
   value: unknown,
 ): Promise<unknown> {
   if (isSecureWrapper(value)) {
-    const decrypted = (await ctx.runAction(
+    const decrypted = await ctx.runAction(
       internal.lib.crypto.internal_actions.decryptString,
       {
         jwe: value.jwe,
       },
-    )) as string;
+    );
     return decrypted;
   }
   if (Array.isArray(value)) {
@@ -42,9 +40,9 @@ async function resolveSecretsInParams(
     for (const item of value) out.push(await resolveSecretsInParams(ctx, item));
     return out;
   }
-  if (value && typeof value === 'object') {
+  if (isRecord(value)) {
     const result: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    for (const [k, v] of Object.entries(value)) {
       result[k] = await resolveSecretsInParams(ctx, v);
     }
     return result;
@@ -54,8 +52,8 @@ async function resolveSecretsInParams(
 
 // Remove variables from output payload to avoid leaking values in step output
 function sanitizeActionResultForOutput(result: unknown): unknown {
-  if (result && typeof result === 'object' && !Array.isArray(result)) {
-    const { variables: _omitted, ...rest } = result as Record<string, unknown>;
+  if (isRecord(result)) {
+    const { variables: _omitted, ...rest } = result;
     return rest;
   }
   return result;
@@ -94,8 +92,9 @@ export async function executeActionNode(
   // Decrypt secure wrappers just-in-time for all actions except set_variables
   const resolvedParameters =
     config.type === 'set_variables'
-      ? (parameters as unknown)
-      : ((await resolveSecretsInParams(ctx, parameters)) as unknown);
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+        (parameters as unknown)
+      : await resolveSecretsInParams(ctx, parameters);
 
   const result = await def.execute(ctx, resolvedParameters, variables, {
     executionId,
@@ -104,6 +103,7 @@ export async function executeActionNode(
   // Generic handling: if action returns variables, extract them
   // This allows any action to optionally update workflow variables
   // without coupling execute_action_node to specific action types
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const resultObj = result as { variables?: Record<string, unknown> };
   const resultVariables = resultObj?.variables;
 

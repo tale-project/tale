@@ -77,7 +77,7 @@ export function DocumentPreviewText({
         if (!controller.signal.aborted) setLoading(false);
       }
     };
-    load();
+    void load();
     return () => {
       controller.abort();
     };
@@ -89,7 +89,7 @@ export function DocumentPreviewText({
 
     let cancelled = false;
     const lang = resolveLanguage(ext);
-    highlightCode(content, lang, shikiTheme).then((html) => {
+    void highlightCode(content, lang, shikiTheme).then((html) => {
       if (!cancelled) setHighlightedHtml(html || null);
     });
     return () => {

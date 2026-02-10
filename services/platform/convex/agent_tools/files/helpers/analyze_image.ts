@@ -95,7 +95,7 @@ export async function analyzeImage(
       components.agent.threads.createThread,
       { title: 'image-analysis' },
     );
-    const threadId = thread._id as string;
+    const threadId = thread._id;
 
     debugLog('analyzeImage calling vision agent', { threadId });
 
@@ -125,7 +125,9 @@ export async function analyzeImage(
         },
       );
     } catch (err) {
-      debugLog('generateText error', { error: (err as Error).message });
+      debugLog('generateText error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw err;
     }
 

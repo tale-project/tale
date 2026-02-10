@@ -23,9 +23,9 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import {
   jsonRecordValidator,
   jsonValueValidator,
-  type ConvexJsonRecord,
 } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
+import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
 
 // Common field validators
 const filesValidator = v.array(
@@ -140,7 +140,10 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
   ),
   async execute(ctx, params, variables) {
     // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
+    const organizationId =
+      typeof variables.organizationId === 'string'
+        ? variables.organizationId
+        : undefined;
     switch (params.operation) {
       case 'get_user_token': {
         // Get Microsoft Graph token for the specific user
@@ -221,7 +224,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
                 ? new TextEncoder().encode(params.fileContent).buffer
                 : params.fileContent, // Required by validator
             contentType: params.contentType || 'application/octet-stream',
-            metadata: (params.metadata || {}) as ConvexJsonRecord,
+            metadata: toConvexJsonRecord(params.metadata || {}),
             createdBy: params.createdBy,
           },
         );
@@ -284,6 +287,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             },
           );
           for (const doc of res.page) {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
             const meta = (doc.metadata ?? {}) as DocumentMetadata;
             const key =
               doc.externalItemId ?? meta.oneDriveItemId ?? meta.oneDriveId;
@@ -304,7 +308,8 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             const existing = existingByItemId.get(f.id);
             const lastModified = f.lastModified;
             const existingMeta = existing
-              ? ((existing.metadata ?? {}) as DocumentMetadata)
+              ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+                ((existing.metadata ?? {}) as DocumentMetadata)
               : undefined;
             const prevModified = existingMeta?.sourceModifiedAt;
 
@@ -333,7 +338,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
 
             // Merge metadata
             const baseMeta = existingMeta ?? {};
-            const metadata = {
+            const metadata = toConvexJsonRecord({
               ...baseMeta,
               oneDriveItemId: f.id,
               itemPath: params.folderItemPath,
@@ -343,7 +348,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
               syncedAt: Date.now(),
               sourceModifiedAt: lastModified,
               size: f.size,
-            } as ConvexJsonRecord;
+            });
 
             // Upload or update
             const uploadRes = await ctx.runAction(
@@ -355,6 +360,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
                 contentType:
                   fileMimeType || f.mimeType || 'application/octet-stream',
                 metadata,
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
                 documentIdToUpdate: existing?._id as
                   | Id<'documents'>
                   | undefined,
@@ -392,7 +398,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
         await ctx.runMutation(
           internal.onedrive.internal_mutations.updateSyncConfig,
           {
-            configId: params.configId as Id<'onedriveSyncConfigs'>, // Required by validator
+            configId: params.configId, // Required by validator
             status: params.status,
             lastSyncAt: params.lastSyncAt,
             lastSyncStatus: params.lastSyncStatus,

@@ -66,6 +66,7 @@ export async function sendMessageViaAPI(
       throw new Error('Email provider not found');
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
     const typedProvider = provider as {
       _id: Id<'emailProviders'>;
       vendor: 'gmail' | 'outlook' | 'smtp' | 'resend' | 'other';

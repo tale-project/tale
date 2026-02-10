@@ -74,9 +74,11 @@ export async function testExistingProviderLogic(
     throw new Error('Provider not found');
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const providerData = provider as ProviderForTesting;
   validateProviderForTesting(providerData);
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const accountType = providerData.metadata?.accountType as
     | 'personal'
     | 'organizational'

@@ -4,8 +4,6 @@ import { useQuery } from 'convex/react';
 import { Download, X, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { HStack } from '@/app/components/ui/layout/layout';
@@ -14,6 +12,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { DocumentPreview } from './document-preview';
@@ -47,10 +46,9 @@ export function DocumentPreviewDialog({
   // Use documentId if available, otherwise use storagePath
   const dataById = useQuery(
     api.documents.queries.getDocumentById,
-    open && Boolean(documentId)
+    open && documentId
       ? {
-          // Component receives string ID — cast required for Convex API
-          documentId: documentId as Id<'documents'>,
+          documentId: toId<'documents'>(documentId),
         }
       : 'skip',
   );

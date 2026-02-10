@@ -13,6 +13,7 @@ import type {
 } from '../agent_response/types';
 import type { AgentType } from '../context_management/constants';
 
+import { isRecord, getString, getNumber } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { generateAgentResponse } from '../agent_response';
@@ -102,6 +103,7 @@ export const runAgentGeneration = internalAction({
       userTeamIds,
     } = args;
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const agentType = agentTypeStr as AgentType;
 
     // Create agent factory function from serializable config
@@ -109,10 +111,12 @@ export const runAgentGeneration = internalAction({
       const config = createAgentConfig({
         name: agentConfig.name,
         instructions: agentConfig.instructions,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         convexToolNames: agentConfig.convexToolNames as ToolName[] | undefined,
         useFastModel: agentConfig.useFastModel,
         model: agentConfig.model,
         maxSteps:
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
           (options?.maxSteps as number | undefined) ?? agentConfig.maxSteps,
         maxTokens: agentConfig.maxTokens,
         temperature: agentConfig.temperature,
@@ -170,18 +174,18 @@ export const runAgentGeneration = internalAction({
       return result;
     } catch (error) {
       // Log full error details for debugging
-      const err = error as Record<string, unknown>;
+      const err = isRecord(error) ? error : { message: String(error) };
       console.error('[runAgentGeneration] Full error details:', {
-        name: err?.name,
-        message: err?.message,
-        code: err?.code,
-        status: err?.status,
-        statusCode: err?.statusCode,
-        cause: err?.cause,
-        stack: err?.stack,
+        name: getString(err, 'name'),
+        message: getString(err, 'message'),
+        code: getString(err, 'code'),
+        status: err['status'],
+        statusCode: err['statusCode'],
+        cause: err['cause'],
+        stack: getString(err, 'stack'),
         error: JSON.stringify(
           error,
-          Object.getOwnPropertyNames(error as object),
+          isRecord(error) ? Object.getOwnPropertyNames(error) : [],
           2,
         ),
       });
@@ -190,10 +194,10 @@ export const runAgentGeneration = internalAction({
       const classification = classifyError(error);
       throw new NonRetryableError(
         `${classification.description}: ${JSON.stringify({
-          message: err?.message,
-          code: err?.code,
-          status: err?.status,
-          cause: err?.cause,
+          message: getString(err, 'message'),
+          code: getString(err, 'code'),
+          status: err['status'],
+          cause: err['cause'],
         })}`,
         error,
         classification.reason,
@@ -216,6 +220,7 @@ function buildHooksFromConfig(hooksConfig: {
 
   if (hooksConfig.beforeContext) {
     // Cast the FunctionHandle string back to a FunctionHandle type for ctx.runAction
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const handle = hooksConfig.beforeContext as FunctionHandle<'action'>;
     hooks.beforeContext = async (ctx, args) => {
       const result = await ctx.runAction(handle, {
@@ -225,11 +230,13 @@ function buildHooksFromConfig(hooksConfig: {
         organizationId: args.organizationId,
         userTeamIds: args.userTeamIds,
       });
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       return result as BeforeContextResult;
     };
   }
 
   if (hooksConfig.beforeGenerate) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const handle = hooksConfig.beforeGenerate as FunctionHandle<'action'>;
     hooks.beforeGenerate = async (ctx, args, context, _hookData) => {
       const result = await ctx.runAction(handle, {
@@ -238,11 +245,13 @@ function buildHooksFromConfig(hooksConfig: {
         attachments: args.attachments,
         contextMessagesTokens: context.stats.totalTokens,
       });
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       return result as BeforeGenerateResult;
     };
   }
 
   if (hooksConfig.afterGenerate) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const handle = hooksConfig.afterGenerate as FunctionHandle<'action'>;
     hooks.afterGenerate = async (ctx, args, result, _hookData) => {
       await ctx.runAction(handle, {
@@ -257,16 +266,17 @@ function buildHooksFromConfig(hooksConfig: {
   }
 
   if (hooksConfig.onError) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const handle = hooksConfig.onError as FunctionHandle<'action'>;
     hooks.onError = async (ctx, args, error) => {
-      const err = error as Record<string, unknown>;
+      const err = isRecord(error) ? error : { message: String(error) };
       await ctx.runAction(handle, {
         threadId: args.threadId,
-        errorName: err?.name as string | undefined,
-        errorMessage: err?.message as string | undefined,
-        errorStatus: err?.status as number | string | undefined,
-        errorType: err?.type as string | undefined,
-        errorCode: err?.code as string | undefined,
+        errorName: getString(err, 'name'),
+        errorMessage: getString(err, 'message'),
+        errorStatus: getNumber(err, 'status') ?? getString(err, 'status'),
+        errorType: getString(err, 'type'),
+        errorCode: getString(err, 'code'),
       });
     };
   }

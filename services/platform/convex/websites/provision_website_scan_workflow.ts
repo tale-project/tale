@@ -4,11 +4,12 @@
  * Model-layer helper invoked by internal.websites.internal_mutations.provisionWebsiteScanWorkflow.
  */
 
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
+import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
+import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import websiteScanWorkflow from '../predefined_workflows/website_scan';
 import { toPredefinedWorkflowPayload } from '../workflows/definitions/types';
 
@@ -58,16 +59,16 @@ export async function provisionWebsiteScanWorkflow(
 
   const { schedule, timezone } = scanIntervalToCron(args.scanInterval);
 
-  const templateVars = (websiteScanWorkflow.workflowConfig.config?.variables ||
-    {}) as Record<string, unknown>;
+  const rawVars = websiteScanWorkflow.workflowConfig.config?.variables;
+  const templateVars = isRecord(rawVars) ? rawVars : {};
 
-  const variables = {
+  const variables = toConvexJsonRecord({
     ...templateVars,
     organizationId: args.organizationId,
     websiteUrl,
     websiteDomain,
     scanInterval: args.scanInterval,
-  } as ConvexJsonRecord;
+  });
 
   const workflowName = `Website Scan - ${websiteDomain}`;
 
@@ -86,7 +87,7 @@ export async function provisionWebsiteScanWorkflow(
         ? {
             ...step,
             config: {
-              ...(step.config as Record<string, unknown>),
+              ...(isRecord(step.config) ? step.config : {}),
               type: 'scheduled',
               schedule,
               timezone,
@@ -119,9 +120,7 @@ export async function provisionWebsiteScanWorkflow(
       websiteId: args.websiteId,
     },
   );
-  const existingMeta = ((current?.metadata as
-    | Record<string, unknown>
-    | undefined) ?? {}) as Record<string, unknown>;
+  const existingMeta = isRecord(current?.metadata) ? current.metadata : {};
 
   await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
     websiteId: args.websiteId,

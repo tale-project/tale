@@ -28,7 +28,7 @@ function VendorsPage() {
     return <VendorsTableSkeleton organizationId={organizationId} />;
   }
 
-  if (hasVendors === false) {
+  if (!hasVendors) {
     return <VendorsEmptyState organizationId={organizationId} />;
   }
 

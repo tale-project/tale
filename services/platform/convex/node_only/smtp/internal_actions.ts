@@ -68,6 +68,7 @@ export const sendEmail = internalAction({
     }
 
     // Create transporter
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
     const transporter = nodemailer.createTransport({
       host: (args.smtpConfig as { host: string; port: number; secure: boolean })
         .host,

@@ -63,7 +63,7 @@ export function getIntrospectColumnsQuery(
 
     default: {
       const _exhaustiveCheck: never = engine;
-      throw new Error(`Unsupported SQL engine: ${_exhaustiveCheck}`);
+      throw new Error(`Unsupported SQL engine: ${String(_exhaustiveCheck)}`);
     }
   }
 }

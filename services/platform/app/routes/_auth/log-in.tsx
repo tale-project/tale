@@ -48,7 +48,7 @@ function LogInPage() {
 
   useEffect(() => {
     if (hasUsers === false) {
-      navigate({ to: '/sign-up' });
+      void navigate({ to: '/sign-up' });
     }
   }, [hasUsers, navigate]);
 
@@ -102,7 +102,7 @@ function LogInPage() {
       });
 
       await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
-      navigate({ to: redirectTo || '/dashboard' });
+      void navigate({ to: redirectTo || '/dashboard' });
     } catch (error) {
       console.error('Log in error:', error);
       toast({

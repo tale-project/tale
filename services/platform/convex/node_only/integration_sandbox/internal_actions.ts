@@ -23,9 +23,9 @@ import type {
 import {
   jsonRecordValidator,
   jsonValueValidator,
-  type ConvexJsonValue,
 } from '../../../lib/shared/schemas/utils/json-value';
 import { internalAction } from '../../_generated/server';
+import { toConvexJsonValue } from '../../lib/type_cast_helpers';
 import {
   executeHttpRequest,
   createHttpApi,
@@ -87,6 +87,7 @@ async function executeIntegrationImpl(
 
     // Check for connector object pattern (e.g., Shopify integration)
     // The evalResult will be the connector object if one was defined
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const connectorObj = evalResult as
       | {
           execute?: (ctx: unknown) => unknown;
@@ -149,7 +150,7 @@ async function executeIntegrationImpl(
 
       return {
         success: true,
-        result: result as ConvexJsonValue,
+        result: toConvexJsonValue(result),
         logs,
         duration: Date.now() - startTime,
       };
@@ -157,6 +158,7 @@ async function executeIntegrationImpl(
 
     // Function pattern - check if operation function exists in sandbox
     if (typeof sandbox[params.operation] === 'function') {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const operationFn = sandbox[params.operation] as (
         p: Record<string, unknown>,
       ) => unknown;
@@ -164,7 +166,7 @@ async function executeIntegrationImpl(
 
       return {
         success: true,
-        result: result as ConvexJsonValue,
+        result: toConvexJsonValue(result),
         logs,
         duration: Date.now() - startTime,
       };
@@ -216,8 +218,11 @@ export const executeIntegration = internalAction({
     return await executeIntegrationImpl({
       code: args.code,
       operation: args.operation,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       params: args.params as Record<string, unknown>,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       variables: args.variables as Record<string, unknown>,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       secrets: args.secrets as Record<string, string>,
       allowedHosts: args.allowedHosts,
       timeoutMs: args.timeoutMs,

@@ -73,6 +73,7 @@ export async function sendMessageViaSMTP(
       throw new Error('Email provider missing SMTP configuration');
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
     const typedProvider = provider as {
       _id: Id<'emailProviders'>;
       authMethod?: 'password' | 'oauth2';
@@ -168,10 +169,7 @@ export async function sendMessageViaSMTP(
       );
 
       // Determine SMTP user email for XOAUTH2
-      const metadata = (typedProvider.metadata || {}) as Record<
-        string,
-        unknown
-      >;
+      const metadata = typedProvider.metadata || {};
       let userEmail = '';
       if (typeof metadata.oauth2_user === 'string' && metadata.oauth2_user) {
         userEmail = metadata.oauth2_user;

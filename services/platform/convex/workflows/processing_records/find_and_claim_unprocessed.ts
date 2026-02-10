@@ -67,8 +67,10 @@ export async function findAndClaimUnprocessed<T = unknown>(
     return { document: null };
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const typed = foundDocument as T & { _id: unknown; _creationTime?: number };
-  if (!typed._id) {
+  const docId = typed._id;
+  if (!docId || typeof docId !== 'string') {
     console.warn('Found document missing _id, skipping claim', {
       tableName,
       wfDefinitionId,
@@ -81,7 +83,7 @@ export async function findAndClaimUnprocessed<T = unknown>(
     await recordClaimed(ctx, {
       organizationId,
       tableName,
-      recordId: String(typed._id),
+      recordId: docId,
       wfDefinitionId,
       recordCreationTime: typed._creationTime ?? Date.now(),
       metadata: undefined,
@@ -90,7 +92,7 @@ export async function findAndClaimUnprocessed<T = unknown>(
   } catch (error) {
     console.error('Failed to claim workflow processing record', {
       tableName,
-      recordId: String(typed._id),
+      recordId: docId,
       wfDefinitionId,
       error,
     });

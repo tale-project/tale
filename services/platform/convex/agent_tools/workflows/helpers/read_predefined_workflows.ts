@@ -119,6 +119,7 @@ export type WorkflowReadGetPredefinedResult = {
  * List all predefined workflows with basic info
  */
 export function listPredefinedWorkflows(): WorkflowReadListPredefinedResult {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.entries loses value type
   const workflowEntries = Object.entries(workflows) as [
     string,
     WorkflowDefinition,
@@ -170,6 +171,7 @@ export function getPredefinedWorkflow(args: {
 }): WorkflowReadGetPredefinedResult {
   const { workflowKey } = args;
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.entries loses value type
   const workflowEntries = Object.entries(workflows) as [
     string,
     WorkflowDefinition,

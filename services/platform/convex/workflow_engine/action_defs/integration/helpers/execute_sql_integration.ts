@@ -4,9 +4,7 @@
  * Handles execution of SQL-based integrations
  */
 
-import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 import type { ActionCtx } from '../../../../_generated/server';
-import type { SqlExecutionResult } from '../../../../node_only/sql/types';
 
 import { internal } from '../../../../_generated/api';
 import {
@@ -14,6 +12,7 @@ import {
   type SqlOperation,
 } from '../../../../integrations/types';
 import { createDebugLog } from '../../../../lib/debug_log';
+import { toConvexJsonRecord } from '../../../../lib/type_cast_helpers';
 import { decryptSqlCredentials } from './decrypt_sql_credentials';
 import { requiresApproval, getOperationType } from './detect_write_operation';
 import { getIntrospectColumnsQuery } from './get_introspect_columns_query';
@@ -79,15 +78,19 @@ export async function executeSqlIntegration(
       queryParams = {};
     } else if (operation === 'introspect_columns') {
       // Requires schemaName and tableName parameters
-      if (!params.schemaName || !params.tableName) {
+      const schemaName =
+        typeof params.schemaName === 'string' ? params.schemaName : undefined;
+      const tableName =
+        typeof params.tableName === 'string' ? params.tableName : undefined;
+      if (!schemaName || !tableName) {
         throw new Error(
           'introspect_columns requires schemaName and tableName parameters',
         );
       }
       const introspectionQuery = getIntrospectColumnsQuery(
         sqlConnectionConfig.engine,
-        params.schemaName as string,
-        params.tableName as string,
+        schemaName,
+        tableName,
       );
       query = introspectionQuery.query;
       queryParams = introspectionQuery.params;
@@ -136,7 +139,7 @@ export async function executeSqlIntegration(
           operationName: operation,
           operationTitle: operationConfig.title || operation,
           operationType,
-          parameters: params as ConvexJsonRecord,
+          parameters: toConvexJsonRecord(params),
           threadId,
           messageId,
           estimatedImpact: `This ${operationType} operation will modify data in ${sqlConnectionConfig.database}`,
@@ -171,7 +174,7 @@ export async function executeSqlIntegration(
   );
 
   // Cast result from runAction - type validated by action's returns validator
-  const result = (await ctx.runAction(
+  const result = await ctx.runAction(
     internal.node_only.sql.internal_actions.executeQuery,
     {
       engine: sqlConnectionConfig.engine,
@@ -184,7 +187,7 @@ export async function executeSqlIntegration(
         options: sqlConnectionConfig.options,
       },
       query,
-      params: queryParams as ConvexJsonRecord,
+      params: toConvexJsonRecord(queryParams),
       security: {
         maxResultRows: sqlConnectionConfig.security?.maxResultRows,
         queryTimeoutMs: sqlConnectionConfig.security?.queryTimeoutMs,
@@ -192,7 +195,7 @@ export async function executeSqlIntegration(
       // Allow write operations when the operation type is 'write' (approval was already checked above)
       allowWrite: isWriteOperation,
     },
-  )) as SqlExecutionResult;
+  );
 
   if (!result.success) {
     throw new Error(`SQL query failed: ${result.error}`);

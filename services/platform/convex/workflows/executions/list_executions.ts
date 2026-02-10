@@ -80,7 +80,7 @@ export async function listExecutions(
       continue;
     }
 
-    results.push(execution as WorkflowExecution);
+    results.push(execution);
 
     if (results.length >= limit) {
       break;

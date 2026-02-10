@@ -16,7 +16,7 @@ import { useOnlineStatus } from './use-online-status';
 type MutationType = 'create' | 'update' | 'delete';
 
 interface OfflineMutationConfig<TArgs, TItem> {
-  mutationFn: FunctionReference<'mutation', 'public'>;
+  mutationFn: FunctionReference<'mutation'>;
   queryName: string;
   type: MutationType;
   getItemId?: (args: TArgs) => string;
@@ -24,7 +24,7 @@ interface OfflineMutationConfig<TArgs, TItem> {
 }
 
 interface UseOfflineMutationReturn<TArgs> {
-  mutate: (args: TArgs) => Promise<string | unknown>;
+  mutate: (args: TArgs) => Promise<unknown>;
   isPending: boolean;
   isOffline: boolean;
   error: Error | null;
@@ -45,7 +45,7 @@ export function createOfflineMutation<
     const cacheKey = createCacheKey(config.queryName, organizationId);
 
     const mutate = useCallback(
-      async (args: TArgs): Promise<string | unknown> => {
+      async (args: TArgs): Promise<unknown> => {
         setIsPending(true);
         setError(null);
 
@@ -56,12 +56,13 @@ export function createOfflineMutation<
           }
 
           const queueId = await addToQueue({
-            mutationFn: config.mutationFn.toString(),
+            mutationFn: JSON.stringify(config.mutationFn),
             args,
             optimisticData: config.getOptimisticItem?.(args),
           });
 
           if (config.type === 'create' && config.getOptimisticItem) {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Partial<TItem> + required fields approximates TItem; exact type not constructable in generic context
             const optimisticItem = {
               ...config.getOptimisticItem(args),
               _id: `temp_${queueId}`,
@@ -104,7 +105,7 @@ export function createOfflineUpdateMutation<
   TArgs extends Record<string, unknown> & { id: string },
   TItem extends { _id: string },
 >(
-  mutationFn: FunctionReference<'mutation', 'public'>,
+  mutationFn: FunctionReference<'mutation'>,
   queryName: string,
   getOptimisticItem?: (args: TArgs) => Partial<TItem>,
 ) {
@@ -120,7 +121,7 @@ export function createOfflineUpdateMutation<
 export function createOfflineDeleteMutation<
   TArgs extends Record<string, unknown> & { id: string },
   TItem extends { _id: string },
->(mutationFn: FunctionReference<'mutation', 'public'>, queryName: string) {
+>(mutationFn: FunctionReference<'mutation'>, queryName: string) {
   return createOfflineMutation<TArgs, TItem>({
     mutationFn,
     queryName,
@@ -133,7 +134,7 @@ export function createOfflineCreateMutation<
   TArgs extends Record<string, unknown>,
   TItem extends { _id: string },
 >(
-  mutationFn: FunctionReference<'mutation', 'public'>,
+  mutationFn: FunctionReference<'mutation'>,
   queryName: string,
   getOptimisticItem: (args: TArgs) => Partial<TItem>,
 ) {

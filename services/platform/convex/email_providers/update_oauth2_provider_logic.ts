@@ -1,5 +1,7 @@
 import type { Doc } from '../_generated/dataModel';
 
+import { isRecord } from '../../lib/utils/type-guards';
+
 interface UpdateOAuth2ProviderArgs {
   providerId: Doc<'emailProviders'>['_id'];
   name?: string;
@@ -107,12 +109,7 @@ export async function updateOAuth2ProviderLogic(
   // Update metadata if tenantId or credentialsSource provided
   if (args.tenantId !== undefined || args.credentialsSource !== undefined) {
     const rawMetadata = provider.metadata;
-    const currentMetadata =
-      typeof rawMetadata === 'object' &&
-      rawMetadata !== null &&
-      !Array.isArray(rawMetadata)
-        ? (rawMetadata as Record<string, unknown>)
-        : {};
+    const currentMetadata = isRecord(rawMetadata) ? rawMetadata : {};
     updateParams.metadata = {
       ...currentMetadata,
       ...(args.tenantId !== undefined && {

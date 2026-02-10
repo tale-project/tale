@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-import type { Doc, Id } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 import {
   TabNavigation,
@@ -27,6 +27,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -114,8 +115,7 @@ export function AutomationNavigation({
     setIsPublishing(true);
     try {
       await publishAutomation({
-        // Component receives string ID from router params — cast required for Convex API
-        wfDefinitionId: automationId as Id<'wfDefinitions'>,
+        wfDefinitionId: toId<'wfDefinitions'>(automationId),
         publishedBy: user.email,
       });
 
@@ -149,13 +149,12 @@ export function AutomationNavigation({
     setIsCreatingDraft(true);
     try {
       const result = await createDraftFromActive({
-        // Component receives string ID from router params — cast required for Convex API
-        wfDefinitionId: automationId as Id<'wfDefinitions'>,
+        wfDefinitionId: toId<'wfDefinitions'>(automationId),
         createdBy: user.email,
       });
 
       // Navigate to the draft
-      navigate({
+      void navigate({
         to: '/dashboard/$id/automations/$amId',
         params: { id: organizationId, amId: result.draftId },
         search: { panel: 'ai-chat' },
@@ -198,8 +197,7 @@ export function AutomationNavigation({
     setIsUnpublishing(true);
     try {
       await unpublishAutomation({
-        // Component receives string ID from router params — cast required for Convex API
-        wfDefinitionId: automationId as Id<'wfDefinitions'>,
+        wfDefinitionId: toId<'wfDefinitions'>(automationId),
         updatedBy: user.userId,
       });
 

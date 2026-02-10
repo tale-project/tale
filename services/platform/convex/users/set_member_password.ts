@@ -31,6 +31,7 @@ export async function setMemberPassword(
     paginationOpts: { cursor: null, numItems: 1 },
     where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
   });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
   const member = memberRes?.page?.[0] as
     | { _id: string; organizationId: string; userId: string; role: string }
     | undefined;
@@ -51,6 +52,7 @@ export async function setMemberPassword(
       { field: 'userId', value: String(authUser._id), operator: 'eq' },
     ],
   });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
   const callerMember = callerRes?.page?.[0] as { role: string } | undefined;
   const callerRole = callerMember?.role?.toLowerCase();
   if (callerRole !== 'admin' && callerRole !== 'owner') {
@@ -69,6 +71,7 @@ export async function setMemberPassword(
       ],
     },
   );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
   const existingCredential = accountRes?.page?.[0] as
     | { _id: string }
     | undefined;

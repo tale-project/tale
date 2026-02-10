@@ -1,7 +1,8 @@
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { ProductStatus, ProductTranslation } from './types';
+
+import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 
 export interface UpdateProductArgs {
   productId: Id<'products'>;
@@ -43,7 +44,7 @@ export async function updateProduct(
   if (args.status !== undefined) updates.status = args.status;
   if (args.translations !== undefined) updates.translations = args.translations;
   if (args.metadata !== undefined)
-    updates.metadata = args.metadata as ConvexJsonRecord;
+    updates.metadata = toConvexJsonRecord(args.metadata);
 
   await ctx.db.patch(args.productId, updates);
   return args.productId;

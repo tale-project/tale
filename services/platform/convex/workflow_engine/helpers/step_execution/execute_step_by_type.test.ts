@@ -81,7 +81,7 @@ describe('executeStepByType dispatch routing', () => {
     expect(() => {
       // Simulates the exhaustive check in the switch default
       const _exhaustiveCheck: never = unknownType;
-      throw new Error(`Unknown step type: ${_exhaustiveCheck}`);
+      throw new Error(`Unknown step type: ${String(_exhaustiveCheck)}`);
     }).toThrow('Unknown step type: unknown');
   });
 });

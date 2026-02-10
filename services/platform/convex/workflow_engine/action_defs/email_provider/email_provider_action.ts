@@ -6,10 +6,10 @@
 
 import { v } from 'convex/values';
 
-import type { Doc } from '../../../_generated/dataModel';
 import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
+import { isRecord, getString } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { decryptAndRefreshOAuth2Token } from '../../../email_providers/helpers';
 import { createDebugLog } from '../../../lib/debug_log';
@@ -54,12 +54,12 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
           );
 
           // Call internal query to get default provider (bypasses RLS)
-          const provider = (await ctx.runQuery(
+          const provider = await ctx.runQuery(
             internal.email_providers.internal_queries.getDefault,
             {
               organizationId,
             },
-          )) as Doc<'emailProviders'> | null;
+          );
 
           debugLog(
             `email_provider Provider found: ${provider ? provider._id : 'null'}`,
@@ -101,12 +101,12 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
           );
 
           // Get default provider
-          const provider = (await ctx.runQuery(
+          const provider = await ctx.runQuery(
             internal.email_providers.internal_queries.getDefault,
             {
               organizationId,
             },
-          )) as Doc<'emailProviders'> | null;
+          );
 
           if (!provider) {
             throw new Error(
@@ -149,9 +149,13 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
             }
 
             // Get OAuth2 user email from metadata
+            const metadataRec = isRecord(provider.metadata)
+              ? provider.metadata
+              : undefined;
             const oauth2User =
-              (provider.metadata as Record<string, unknown>)?.oauth2_user ||
-              provider.oauth2Auth.clientId;
+              (metadataRec
+                ? getString(metadataRec, 'oauth2_user')
+                : undefined) || provider.oauth2Auth.clientId;
 
             // Decrypt and refresh OAuth2 token
             const tokenResult = await decryptAndRefreshOAuth2Token(
@@ -170,6 +174,7 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
               async (params) =>
                 await ctx.runAction(
                   internal.email_providers.internal_actions.storeOAuth2Tokens,
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
                   params as {
                     emailProviderId: Id<'emailProviders'>;
                     accessToken: string;
@@ -186,10 +191,10 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
             );
 
             // After potential refresh, read the latest encrypted token from DB
-            const updatedProvider = (await ctx.runQuery(
+            const updatedProvider = await ctx.runQuery(
               internal.email_providers.internal_queries.get,
               { providerId: provider._id },
-            )) as Doc<'emailProviders'> | null;
+            );
 
             const accessTokenEncrypted =
               updatedProvider?.oauth2Auth?.accessTokenEncrypted ||
@@ -202,14 +207,15 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
                 host: provider.imapConfig.host,
                 port: provider.imapConfig.port,
                 secure: provider.imapConfig.secure,
-                username: oauth2User as string,
+                username: oauth2User,
                 accessTokenEncrypted,
               },
               authMethod: 'oauth2',
             };
           } else {
+            const _exhaustiveCheck: never = provider.authMethod;
             throw new Error(
-              `Unsupported auth method: ${provider.authMethod} for provider ${provider._id}`,
+              `Unsupported auth method: ${String(_exhaustiveCheck)} for provider ${String(provider._id)}`,
             );
           }
         }

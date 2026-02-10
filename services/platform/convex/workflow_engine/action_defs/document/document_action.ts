@@ -14,11 +14,9 @@ import { v } from 'convex/values';
 import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
-import {
-  jsonRecordValidator,
-  type ConvexJsonRecord,
-} from '../../../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
+import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
 
 // Type for document operation params (discriminated union)
 type DocumentActionParams = {
@@ -56,7 +54,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
     switch (params.operation) {
       case 'update': {
         // Extract documentId to avoid duplicate type assertion
-        const documentId = params.documentId as Id<'documents'>;
+        const documentId = params.documentId;
 
         await ctx.runMutation(
           internal.documents.internal_mutations.updateDocument,
@@ -64,8 +62,10 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             documentId, // Required by validator
             title: params.title,
             content: params.content,
-            metadata: params.metadata as ConvexJsonRecord | undefined,
-            fileId: params.fileId as Id<'_storage'> | undefined,
+            metadata: params.metadata
+              ? toConvexJsonRecord(params.metadata)
+              : undefined,
+            fileId: params.fileId,
             mimeType: params.mimeType,
             extension: params.extension,
             sourceProvider: params.sourceProvider,

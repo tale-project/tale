@@ -31,9 +31,9 @@ function DashboardIndex() {
     }
 
     if (organizations.length === 0) {
-      navigate({ to: '/dashboard/create-organization' });
+      void navigate({ to: '/dashboard/create-organization' });
     } else {
-      navigate({
+      void navigate({
         to: '/dashboard/$id',
         params: { id: organizations[0].organizationId },
       });

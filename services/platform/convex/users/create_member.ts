@@ -4,6 +4,7 @@
 
 import type { Role } from './types';
 
+import { getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { createAuth, authComponent } from '../auth';
@@ -55,6 +56,7 @@ export async function createMember(
       ],
     },
   );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
   const currentMember = currentMemberRes?.page?.[0] as
     | { role?: string }
     | undefined;
@@ -82,6 +84,7 @@ export async function createMember(
     },
   );
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
   const existingUser = existingUserResult?.page?.[0] as
     | { _id: string }
     | undefined;
@@ -124,7 +127,9 @@ export async function createMember(
       },
     );
     const memberId: string =
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
       (created as Record<string, string>)?._id ??
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
       (created as Record<string, string>)?.id ??
       String(created);
 
@@ -194,12 +199,13 @@ export async function createMember(
       },
     },
   });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
   const createdRecord = created as unknown as
     | Record<string, unknown>
     | undefined;
   const memberId: string =
-    (createdRecord?._id as string) ??
-    (createdRecord?.id as string) ??
+    (createdRecord ? getString(createdRecord, '_id') : undefined) ??
+    (createdRecord ? getString(createdRecord, 'id') : undefined) ??
     String(created);
 
   return {

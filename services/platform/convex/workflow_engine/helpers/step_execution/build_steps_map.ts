@@ -2,9 +2,11 @@
  * Build steps map from execution and result
  */
 
+import type { Id } from '../../../_generated/dataModel';
+
 import { internal } from '../../../_generated/api';
-import { Id } from '../../../_generated/dataModel';
 import { ActionCtx } from '../../../_generated/server';
+import { toId } from '../../../lib/type_cast_helpers';
 import { deserializeVariablesInAction } from '../serialization/deserialize_variables';
 import { StepDefinition, StepExecutionResult } from './types';
 
@@ -27,7 +29,7 @@ export async function buildStepsMap(
   const rawExecution = await ctx.runQuery(
     internal.wf_executions.internal_queries.getRawExecution,
     {
-      executionId: executionId as Id<'wfExecutions'>,
+      executionId: toId<'wfExecutions'>(executionId),
     },
   );
 
@@ -42,6 +44,7 @@ export async function buildStepsMap(
       if (isRecord(parsed) && parsed['_storageRef']) {
         // Variables are stored in Convex storage, fetch full JSON
         existingVars = await deserializeVariablesInAction(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex context type
           ctx as unknown as {
             storage: { get: (id: Id<'_storage'>) => Promise<Blob | null> };
           },

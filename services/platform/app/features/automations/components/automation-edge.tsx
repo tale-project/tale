@@ -126,8 +126,8 @@ export function AutomationEdge({
           markerEnd={markerEnd}
           style={{
             ...style,
-            strokeWidth: (style.strokeWidth as number) || 2,
-            stroke: style.stroke as string,
+            strokeWidth: Number(style.strokeWidth) || 2,
+            stroke: String(style.stroke ?? ''),
           }}
         />
       </g>

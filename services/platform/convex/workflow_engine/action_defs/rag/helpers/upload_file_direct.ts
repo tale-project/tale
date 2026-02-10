@@ -127,6 +127,7 @@ export async function uploadFileDirect({
       url,
       errorText: errorText || '(empty response)',
       headers: Object.fromEntries(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         response.headers as unknown as Iterable<[string, string]>,
       ),
     });
@@ -135,6 +136,7 @@ export async function uploadFileDirect({
     );
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const result = (await response.json()) as RagApiUploadResponse;
 
   const ragDocumentId = result.document_id || result.id;

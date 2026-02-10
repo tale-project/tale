@@ -74,9 +74,9 @@ function extractErrorMessage(error: unknown, toolName: string): string {
     if (error.name && error.name !== 'Error') {
       return `${error.name} in ${toolName}`;
     }
-    const errorWithCause = error as { cause?: { message?: string } };
-    if (errorWithCause.cause?.message) {
-      return errorWithCause.cause.message;
+    const cause = error.cause;
+    if (cause instanceof Error && cause.message) {
+      return cause.message;
     }
   }
 

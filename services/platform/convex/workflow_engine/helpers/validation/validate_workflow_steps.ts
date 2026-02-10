@@ -27,7 +27,7 @@ export function validateWorkflowSteps(
       continue;
     }
 
-    const nextSteps = step.nextSteps as Record<string, string>;
+    const nextSteps = step.nextSteps;
 
     for (const [port, nextStepSlug] of Object.entries(nextSteps)) {
       // Skip special 'noop' keyword

@@ -61,12 +61,15 @@ const sampleUsers: User[] = [
   },
 ];
 
+const roles: User['role'][] = ['admin', 'member', 'viewer'];
+const statuses: User['status'][] = ['active', 'inactive', 'pending'];
+
 const manyUsers: User[] = Array.from({ length: 50 }, (_, i) => ({
   id: `${i + 1}`,
   name: `User ${i + 1}`,
   email: `user${i + 1}@example.com`,
-  role: ['admin', 'member', 'viewer'][i % 3] as User['role'],
-  status: ['active', 'inactive', 'pending'][i % 3] as User['status'],
+  role: roles[i % 3] ?? 'member',
+  status: statuses[i % 3] ?? 'active',
   createdAt: Date.now() - 86400000 * (i + 1),
 }));
 
@@ -75,14 +78,12 @@ const columnHelper = createColumnHelper<User>();
 const columns = [
   columnHelper.accessor('name', {
     header: 'Name',
-    cell: (info) => (
-      <span className="font-medium">{info.getValue() as string}</span>
-    ),
+    cell: (info) => <span className="font-medium">{info.getValue()}</span>,
   }),
   columnHelper.accessor('email', {
     header: 'Email',
     cell: (info) => (
-      <span className="text-muted-foreground">{info.getValue() as string}</span>
+      <span className="text-muted-foreground">{info.getValue()}</span>
     ),
   }),
   columnHelper.accessor('role', {
@@ -121,9 +122,7 @@ const columns = [
   }),
   columnHelper.accessor('createdAt', {
     header: 'Created',
-    cell: (info) => (
-      <TableDateCell date={info.getValue() as number} preset="relative" />
-    ),
+    cell: (info) => <TableDateCell date={info.getValue()} preset="relative" />,
   }),
 ];
 

@@ -33,6 +33,7 @@ export const retryRagIndexing = action({
       }
 
       // Execute RAG upload action directly
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const result = (await ragAction.execute(
         ctx,
         { operation: 'upload_document', recordId: args.documentId },

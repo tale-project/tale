@@ -123,6 +123,7 @@ async function discoverUrls(
 
   if (!result.success) {
     const errorMessage =
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       (result as { error?: string }).error || 'Unknown error';
     throw new Error(`URL discovery failed: ${errorMessage}`);
   }
@@ -177,6 +178,7 @@ async function fetchUrls(
 
   if (!result.success) {
     const errorMessage =
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       (result as { error?: string }).error || 'Unknown error';
     throw new Error(`URL fetch failed: ${errorMessage}`);
   }

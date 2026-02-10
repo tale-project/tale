@@ -9,6 +9,7 @@
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../../../../../lib/shared/schemas/utils/json-value';
+import { isRecord } from '../../../../../../lib/utils/type-guards';
 
 /**
  * Standard termination signal that LLM agents can return
@@ -40,18 +41,16 @@ export const workflowTerminationSignalValidator = v.object({
 export function isTerminationSignal(
   output: unknown,
 ): output is WorkflowTerminationSignal {
-  if (!output || typeof output !== 'object') {
+  if (!isRecord(output)) {
     return false;
   }
 
-  const obj = output as Record<string, unknown>;
-
   return (
-    obj.shouldTerminate === true &&
-    typeof obj.reason === 'string' &&
-    typeof obj.terminationType === 'string' &&
+    output.shouldTerminate === true &&
+    typeof output.reason === 'string' &&
+    typeof output.terminationType === 'string' &&
     ['NO_DATA_FOUND', 'CONDITION_NOT_MET', 'EARLY_EXIT'].includes(
-      obj.terminationType as string,
+      output.terminationType,
     )
   );
 }

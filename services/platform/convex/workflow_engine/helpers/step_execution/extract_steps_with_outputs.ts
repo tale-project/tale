@@ -2,17 +2,19 @@
  * Extract steps with outputs from execution variables
  */
 
+import { isRecord } from '../../../../lib/utils/type-guards';
+
 export function extractStepsWithOutputs(
   executionVars: Record<string, unknown>,
 ): Record<string, unknown> {
   const stepsWithOutputs: Record<string, unknown> = {};
 
   // Use existing steps data from execution variables
-  if (!executionVars.steps || typeof executionVars.steps !== 'object') {
+  if (!isRecord(executionVars.steps)) {
     return stepsWithOutputs;
   }
 
-  const stepsData = executionVars.steps as Record<string, unknown>;
+  const stepsData = executionVars.steps;
 
   // Copy all step data
   for (const [stepSlug, stepInfo] of Object.entries(stepsData)) {

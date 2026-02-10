@@ -19,6 +19,7 @@ export async function deleteWebsite(
     throw new Error('Website not found');
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const metadata = (website.metadata || {}) as {
     workflowId?: Id<'wfDefinitions'>;
   };

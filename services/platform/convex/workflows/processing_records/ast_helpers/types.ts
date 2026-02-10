@@ -38,6 +38,14 @@ export interface Literal extends ASTNode {
   value: unknown; // string, number, boolean, null
 }
 
+export function isBinaryExpression(node: ASTNode): node is BinaryExpression {
+  return node.type === 'BinaryExpression';
+}
+
+export function isIdentifier(node: ASTNode): node is Identifier {
+  return node.type === 'Identifier';
+}
+
 /**
  * Comparison operators supported for indexing
  */

@@ -1,25 +1,27 @@
 import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 import type { EmailType } from './types';
 
+import { toConvexJsonRecord } from '../../../../lib/type_cast_helpers';
+
 /**
  * Build rich metadata object for email message
  * Preserves both text and HTML content separately in metadata
  */
 export function buildEmailMetadata(email: EmailType): ConvexJsonRecord {
-  return {
-    from: email.from as ConvexJsonRecord[string],
-    to: email.to as ConvexJsonRecord[string],
-    cc: email.cc as ConvexJsonRecord[string],
-    bcc: email.bcc as ConvexJsonRecord[string],
+  return toConvexJsonRecord({
+    from: email.from,
+    to: email.to,
+    cc: email.cc,
+    bcc: email.bcc,
     receivedAt: email.date,
     sentAt: email.date,
-    text: email.text ?? null, // Preserve plain text content
-    html: email.html ?? null, // Preserve raw HTML content
-    body: (email.html || email.text) ?? null, // Prioritize raw HTML content, fallback to text
-    headers: email.headers as ConvexJsonRecord[string],
+    text: email.text ?? null,
+    html: email.html ?? null,
+    body: (email.html || email.text) ?? null,
+    headers: email.headers,
     uid: email.uid ?? null,
-    flags: email.flags as ConvexJsonRecord[string],
-    attachments: email.attachments as ConvexJsonRecord[string],
+    flags: email.flags,
+    attachments: email.attachments,
     subject: email.subject || '(no subject)',
-  };
+  });
 }

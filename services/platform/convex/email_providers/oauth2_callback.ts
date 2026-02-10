@@ -10,6 +10,7 @@ import type { Id } from '../_generated/dataModel';
 
 import { internal } from '../_generated/api';
 import { httpAction } from '../_generated/server';
+import { toId } from '../lib/type_cast_helpers';
 
 type OAuthProvider = 'gmail' | 'microsoft';
 
@@ -57,7 +58,7 @@ function parseState(state: string): ParsedState | null {
 
   return {
     provider: provider as OAuthProvider,
-    emailProviderId: emailProviderId as Id<'emailProviders'>,
+    emailProviderId: toId<'emailProviders'>(emailProviderId),
     organizationId,
   };
 }

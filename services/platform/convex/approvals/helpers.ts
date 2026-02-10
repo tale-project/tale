@@ -1,4 +1,4 @@
-import type { Id, Doc } from '../_generated/dataModel';
+import type { Id } from '../_generated/dataModel';
 import type { QueryCtx, MutationCtx } from '../_generated/server';
 import type {
   ApprovalItem,
@@ -13,9 +13,8 @@ import type {
   LinkApprovalsToMessageArgs,
 } from './types';
 
+import { getString, isRecord } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
-
-type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
 export async function getApproval(
   ctx: QueryCtx,
@@ -140,10 +139,8 @@ function matchesSearch(approval: ApprovalItem, searchLower: string): boolean {
     const products: unknown[] = metadata['recommendedProducts'];
     if (
       products.some((p) => {
-        if (typeof p !== 'object' || p === null) return false;
-        const rec = p as Record<string, unknown>;
-        const name =
-          typeof rec['productName'] === 'string' ? rec['productName'] : '';
+        if (!isRecord(p)) return false;
+        const name = getString(p, 'productName') ?? '';
         return name.toLowerCase().includes(searchLower);
       })
     ) {
@@ -184,6 +181,7 @@ export async function listApprovalsByOrganization(
           q
             .eq('organizationId', args.organizationId)
             .eq('status', status)
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
             .eq('resourceType', singleResourceType as ApprovalResourceType),
         )
         .order('desc');
@@ -287,11 +285,7 @@ export async function createApproval(
       createdAt: Date.now(),
       ...(args.requestedBy ? { requestedBy: args.requestedBy } : {}),
       ...(args.description ? { description: args.description } : {}),
-      ...(typeof args.metadata === 'object' &&
-      args.metadata !== null &&
-      !Array.isArray(args.metadata)
-        ? (args.metadata as Record<string, unknown>)
-        : {}),
+      ...(isRecord(args.metadata) ? args.metadata : {}),
     },
   });
 
@@ -367,7 +361,7 @@ export async function removeRecommendedProduct(
     metadata: {
       ...metadata,
       recommendedProducts: updatedProducts,
-    } as ApprovalMetadata,
+    },
   });
 }
 

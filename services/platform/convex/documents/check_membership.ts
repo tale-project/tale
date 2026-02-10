@@ -25,6 +25,7 @@ export async function checkMembership(
     return null;
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const member = result.page[0] as {
     _id: string;
     organizationId: string;

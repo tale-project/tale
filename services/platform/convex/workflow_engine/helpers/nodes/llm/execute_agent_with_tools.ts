@@ -58,7 +58,7 @@ export async function executeAgentWithTools(
   config: NormalizedConfig,
   prompts: ProcessedPrompts,
   _args: {
-    executionId: string | unknown;
+    executionId: string;
     organizationId?: string;
     threadId?: string;
   },
@@ -143,7 +143,7 @@ async function getOrCreateThread(
   const thread = await ctx.runMutation(components.agent.threads.createThread, {
     title: `workflow:${name || 'LLM'}`,
   });
-  const threadId = thread._id as string;
+  const threadId = thread._id;
   debugLog('executeAgentWithTools Created new thread', { threadId });
   return threadId;
 }
@@ -186,6 +186,7 @@ async function executeJsonOutputWithoutTools(
 
   const finalOutput = result.object;
   debugLog('executeJsonOutputWithoutTools COMPLETE', {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     outputKeys: Object.keys(finalOutput as Record<string, unknown>),
     finalOutput,
   });
@@ -248,6 +249,7 @@ This is critical because these exact values will be extracted for structured out
       model: config.model,
       outputFormat: 'text',
       instructions: enhancedSystemPrompt,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
       convexToolNames: config.tools as ToolName[],
     }),
   );
@@ -260,6 +262,7 @@ This is critical because these exact values will be extracted for structured out
   );
 
   const { agentSteps, toolDiagnostics } = processAgentResult(textResult);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const textOutput = (textResult as { text?: string }).text ?? '';
 
   debugLog('executeJsonOutputWithTools STEP 1 COMPLETE (generateText)', {
@@ -307,6 +310,7 @@ This is critical because these exact values will be extracted for structured out
 
   const finalOutput = objectResult.object;
   debugLog('executeJsonOutputWithTools STEP 2 COMPLETE', {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     outputKeys: Object.keys(finalOutput as Record<string, unknown>),
     finalOutput,
   });
@@ -345,6 +349,7 @@ async function executeTextOutput(
       model: config.model,
       outputFormat: config.outputFormat,
       instructions: prompts.systemPrompt,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
       convexToolNames: (config.tools ?? []) as ToolName[],
     }),
   );
@@ -357,6 +362,7 @@ async function executeTextOutput(
   );
 
   const { agentSteps, toolDiagnostics } = processAgentResult(result);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const outputText = (result as { text?: string }).text ?? '';
 
   if (!outputText || !outputText.trim()) {

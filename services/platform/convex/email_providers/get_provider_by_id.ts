@@ -11,5 +11,5 @@ export async function getProviderById(
   args: GetProviderByIdArgs,
 ): Promise<Doc<'emailProviders'> | null> {
   const result = await ctx.db.get(args.providerId);
-  return result as Doc<'emailProviders'> | null;
+  return result;
 }

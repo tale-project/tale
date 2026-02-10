@@ -1,6 +1,10 @@
 {
   "$schema": "../../node_modules/oxlint/configuration_schema.json",
   "extends": ["../../.oxlintrc.json"],
+  "rules": {
+    "typescript/no-unsafe-type-assertion": "error",
+    "typescript/no-unnecessary-type-assertion": "error"
+  },
   "overrides": [
     {
       "files": ["convex/**/*.ts"],
@@ -17,6 +21,18 @@
       "files": ["app/routes/**/$*.tsx"],
       "rules": {
         "unicorn/filename-case": "off"
+      }
+    },
+    {
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "test/**/*.ts",
+        "stress-tests/**/*.ts",
+        "scripts/**/*.ts"
+      ],
+      "rules": {
+        "typescript/no-unsafe-type-assertion": "off"
       }
     }
   ],

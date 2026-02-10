@@ -31,7 +31,5 @@ export type StepType = (typeof VALID_STEP_TYPES)[number];
  * Type guard to check if a value is a valid step type
  */
 export function isValidStepType(value: unknown): value is StepType {
-  return (
-    typeof value === 'string' && VALID_STEP_TYPES.includes(value as StepType)
-  );
+  return typeof value === 'string' && VALID_STEP_TYPES.some((t) => t === value);
 }

@@ -10,23 +10,21 @@
 
 import type { WorkflowManager } from '@convex-dev/workflow';
 
-import { Infer } from 'convex/values';
-
 import type { Doc } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
 import type { WorkflowType } from '../../types/workflow';
 
-import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
+import { createDebugLog } from '../../../lib/debug_log';
+import {
+  toConvexJsonValue,
+  toConvexJsonValues,
+} from '../../../lib/type_cast_helpers';
 import {
   failExecution,
   updateExecutionMetadata,
 } from '../../../workflows/helpers';
 import { loadDatabaseWorkflow } from './load_database_workflow';
-
-type ConvexJsonValue = Infer<typeof jsonValueValidator>;
-
-import { createDebugLog } from '../../../lib/debug_log';
 import { safeShardIndex } from './shard';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
@@ -91,7 +89,7 @@ export async function executeWorkflowStart(
   }
 
   // Extract common fields from definition (works for both inline and database workflows)
-  const definition = workflowData.definition as Doc<'wfDefinitions'>;
+  const definition = workflowData.definition;
 
   debugLog('executeWorkflowStart Workflow data loaded', {
     workflowName: definition.name,
@@ -127,6 +125,7 @@ export async function executeWorkflowStart(
 
   // Step 3: Determine workflow type for logging (defaults to 'predefined')
   const workflowType: WorkflowType =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
     (definition.workflowType as WorkflowType | undefined) || 'predefined';
 
   // Step 4: Start workflow via WorkflowManager
@@ -142,15 +141,16 @@ export async function executeWorkflowStart(
     {
       organizationId: args.organizationId,
       executionId: args.executionId,
-      workflowDefinition: definition as unknown as ConvexJsonValue,
-      steps: workflowData.steps as unknown as ConvexJsonValue[],
-      input: (args.input || {}) as ConvexJsonValue,
+      workflowDefinition: toConvexJsonValue(definition),
+      steps: toConvexJsonValues(workflowData.steps),
+      input: toConvexJsonValue(args.input || {}),
       triggeredBy: args.triggeredBy,
-      triggerData: (args.triggerData || {}) as ConvexJsonValue,
+      triggerData: toConvexJsonValue(args.triggerData || {}),
     },
     {
       // Type assertion: our onComplete handler accepts jsonValueValidator which is compatible
       // with the workflow component's OnCompleteArgs at runtime, but not at compile time
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex function handle
       onComplete: internal.workflow_engine.internal_mutations
         .onWorkflowComplete as unknown as NonNullable<
         Parameters<typeof args.workflowManager.start>[3]

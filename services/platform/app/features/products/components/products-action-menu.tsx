@@ -27,7 +27,7 @@ export function ProductsActionMenu({
   }, []);
 
   const handleShopifyClick = useCallback(() => {
-    navigate({
+    void navigate({
       to: '/dashboard/$id/settings/integrations',
       params: { id: organizationId },
       search: { tab: 'shopify' },
@@ -35,7 +35,7 @@ export function ProductsActionMenu({
   }, [navigate, organizationId]);
 
   const handleCirculyClick = useCallback(() => {
-    navigate({
+    void navigate({
       to: '/dashboard/$id/settings/integrations',
       params: { id: organizationId },
       search: { tab: 'circuly' },

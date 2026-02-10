@@ -13,6 +13,7 @@
  *   npx convex run migrations/trigger_steps_to_start:migrateTriggerStepsToStart
  */
 
+import { getString } from '../../lib/utils/type-guards';
 import { internalMutation } from '../_generated/server';
 
 export const migrateTriggerStepsToStart = internalMutation({
@@ -34,7 +35,8 @@ export const migrateTriggerStepsToStart = internalMutation({
 
     for (const step of triggerSteps) {
       const cfg = step.config as Record<string, unknown> | undefined;
-      const triggerType = (cfg?.type as string) ?? 'unknown';
+      const triggerType =
+        (cfg ? getString(cfg, 'type') : undefined) ?? 'unknown';
 
       const wfDefinition = await ctx.db.get(step.wfDefinitionId);
       if (!wfDefinition) {
@@ -43,8 +45,10 @@ export const migrateTriggerStepsToStart = internalMutation({
       }
 
       if (triggerType === 'scheduled') {
-        const schedule = cfg?.schedule as string | undefined;
-        const timezone = ((cfg?.timezone as string) || '').trim() || 'UTC';
+        const schedule = cfg ? getString(cfg, 'schedule') : undefined;
+        const timezone =
+          ((cfg ? getString(cfg, 'timezone') : undefined) || '').trim() ||
+          'UTC';
 
         if (schedule && schedule.trim() !== '') {
           const workflowRootId = wfDefinition.rootVersionId ?? wfDefinition._id;

@@ -15,6 +15,8 @@
  * const products = safeParseProductList(metadata.recommendedProducts);
  */
 
+import { isRecord } from './type-guards';
+
 /**
  * Safely extract a string value from an object.
  *
@@ -28,9 +30,8 @@ export function safeGetString(
   key: string,
   fallback = '',
 ): string {
-  if (typeof obj !== 'object' || obj === null) return fallback;
-  // TS narrows typeof === 'object' to object, not Record — cast required for property access
-  const value = (obj as Record<string, unknown>)[key];
+  if (!isRecord(obj)) return fallback;
+  const value = obj[key];
   return typeof value === 'string' ? value : fallback;
 }
 
@@ -47,9 +48,8 @@ export function safeGetNumber(
   key: string,
   fallback?: number,
 ): number | undefined {
-  if (typeof obj !== 'object' || obj === null) return fallback;
-  // TS narrows typeof === 'object' to object, not Record — cast required for property access
-  const value = (obj as Record<string, unknown>)[key];
+  if (!isRecord(obj)) return fallback;
+  const value = obj[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
@@ -66,9 +66,8 @@ export function safeGetArray<T>(
   key: string,
   fallback: T[] = [],
 ): T[] {
-  if (typeof obj !== 'object' || obj === null) return fallback;
-  // TS narrows typeof === 'object' to object, not Record — cast required for property access
-  const value = (obj as Record<string, unknown>)[key];
-  // Array.isArray narrows to unknown[] — cast required to apply generic T
+  if (!isRecord(obj)) return fallback;
+  const value = obj[key];
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Array.isArray narrows to unknown[]; T[] not inferrable
   return Array.isArray(value) ? (value as T[]) : fallback;
 }

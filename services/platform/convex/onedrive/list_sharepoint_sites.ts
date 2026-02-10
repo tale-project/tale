@@ -45,6 +45,7 @@ export async function listSharePointSites(
     const sitesMap = new Map<string, SharePointSite>();
 
     if (searchResult.status === 'fulfilled' && searchResult.value.ok) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const data = (await searchResult.value.json()) as {
         value: Array<{
           id: string;
@@ -67,6 +68,7 @@ export async function listSharePointSites(
     }
 
     if (followedResult.status === 'fulfilled' && followedResult.value.ok) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const data = (await followedResult.value.json()) as {
         value: Array<{
           id: string;
@@ -91,6 +93,7 @@ export async function listSharePointSites(
     }
 
     if (groupsResult.status === 'fulfilled' && groupsResult.value.ok) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       const groupsData = (await groupsResult.value.json()) as {
         value: Array<{
           id: string;
@@ -108,6 +111,7 @@ export async function listSharePointSites(
               { headers },
             );
             if (siteResponse.ok) {
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
               const site = (await siteResponse.json()) as {
                 id: string;
                 name?: string;

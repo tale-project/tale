@@ -8,6 +8,8 @@
 
 import type { ValidationResult } from '../types';
 
+import { isRecord } from '../../../../../lib/utils/type-guards';
+
 const VALID_SCHEMA_TYPES = [
   'string',
   'number',
@@ -24,29 +26,30 @@ export function validateStartStep(
   const warnings: string[] = [];
 
   if (config.inputSchema !== undefined) {
-    if (typeof config.inputSchema !== 'object' || config.inputSchema === null) {
+    if (!isRecord(config.inputSchema)) {
       errors.push('Start step "inputSchema" must be an object if provided');
       return { valid: false, errors, warnings };
     }
 
-    const schema = config.inputSchema as Record<string, unknown>;
+    const schema = config.inputSchema;
 
     if (schema.properties !== undefined) {
-      if (typeof schema.properties !== 'object' || schema.properties === null) {
+      if (!isRecord(schema.properties)) {
         errors.push(
           'Start step "inputSchema.properties" must be an object if provided',
         );
       } else {
-        const properties = schema.properties as Record<string, unknown>;
+        const properties = schema.properties;
         for (const [key, value] of Object.entries(properties)) {
-          if (typeof value !== 'object' || value === null) {
+          if (!isRecord(value)) {
             errors.push(`Start step input property "${key}" must be an object`);
             continue;
           }
-          const prop = value as Record<string, unknown>;
+          const prop = value;
           if (
             !prop.type ||
             !VALID_SCHEMA_TYPES.includes(
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- literal union check
               prop.type as (typeof VALID_SCHEMA_TYPES)[number],
             )
           ) {

@@ -109,7 +109,7 @@ export function ChatSearchDialog({
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === 'Enter' && chats[selectedIndexRef.current]) {
-        navigate({
+        void navigate({
           to: '/dashboard/$id/chat/$threadId',
           params: {
             id: organizationId,
@@ -184,7 +184,7 @@ export function ChatSearchDialog({
                             onMouseEnter={() => setSelectedIndex(idx)}
                             onMouseLeave={() => setSelectedIndex(-1)}
                             onClick={() => {
-                              navigate({
+                              void navigate({
                                 to: '/dashboard/$id/chat/$threadId',
                                 params: {
                                   id: organizationId,

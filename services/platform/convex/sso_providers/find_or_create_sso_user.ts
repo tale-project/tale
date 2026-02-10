@@ -35,6 +35,7 @@ export async function findOrCreateSsoUser(
     },
   );
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
   const existingUser = existingUserRes?.page?.[0] as
     | { _id?: string; id?: string }
     | undefined;
@@ -53,6 +54,7 @@ export async function findOrCreateSsoUser(
       },
     );
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
     const existingAccount = existingAccountRes?.page?.[0] as
       | { _id?: string }
       | undefined;
@@ -143,7 +145,9 @@ export async function findOrCreateSsoUser(
   );
 
   const userId: string | undefined =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
     (createResult as { _id?: string; id?: string })?._id ??
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
     (createResult as { _id?: string; id?: string })?.id;
   if (!userId) {
     throw new Error('Failed to extract userId from user creation result');

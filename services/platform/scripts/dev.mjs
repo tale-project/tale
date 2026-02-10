@@ -355,12 +355,12 @@ async function main() {
     // If either process exits, shut down everything
     convexProcess.on('exit', (code) => {
       console.log(`[dev] Convex exited with code ${code}`);
-      shutdown();
+      void shutdown();
     });
 
     viteProcess.on('exit', (code) => {
       console.log(`[dev] TanStack Start exited with code ${code}`);
-      shutdown();
+      void shutdown();
     });
 
     // Keep the script running

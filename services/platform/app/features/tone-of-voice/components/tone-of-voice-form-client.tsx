@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { ToneOfVoiceWithExamples } from '@/convex/tone_of_voice/types';
 import type { ExampleMessageUI } from '@/types/tone-of-voice';
 
@@ -12,6 +11,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { exampleMessageToUI } from '@/types/tone-of-voice';
 
@@ -107,7 +107,7 @@ export function ToneOfVoiceFormClient({
   const handleUpdateExample = async (exampleId: string, content: string) => {
     try {
       await updateExample({
-        messageId: exampleId as Id<'exampleMessages'>,
+        messageId: toId<'exampleMessages'>(exampleId),
         content,
       });
       toast({
@@ -127,7 +127,7 @@ export function ToneOfVoiceFormClient({
   const handleDeleteExample = async (exampleId: string) => {
     try {
       await deleteExample({
-        messageId: exampleId as Id<'exampleMessages'>,
+        messageId: toId<'exampleMessages'>(exampleId),
       });
     } catch (error) {
       console.error('Error deleting example:', error);

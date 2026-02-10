@@ -91,7 +91,7 @@ function SignUpPage() {
         variant: 'success',
       });
 
-      navigate({ to: '/dashboard' });
+      void navigate({ to: '/dashboard' });
     } catch (error) {
       console.error('Sign up error:', error);
       toast({

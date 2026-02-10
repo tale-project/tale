@@ -7,12 +7,12 @@
 
 import { Agent } from '@convex-dev/agent';
 
-import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 
 import { components } from '../../../_generated/api';
 import { createAgentConfig } from '../../../lib/create_agent_config';
 import { createDebugLog } from '../../../lib/debug_log';
+import { toId } from '../../../lib/type_cast_helpers';
 
 const debugLog = createDebugLog('DEBUG_TEXT_ANALYSIS', '[TextAnalysis]');
 
@@ -235,7 +235,7 @@ IMPORTANT: Keep your final response under ${MAX_FINAL_RESPONSE_CHARS} characters
     return result.text || '';
   } catch (error) {
     debugLog('aggregateChunkResults error', {
-      error: (error as Error).message,
+      error: error instanceof Error ? error.message : String(error),
     });
     throw error;
   }
@@ -262,8 +262,7 @@ export async function analyzeTextContent(
 
   try {
     // Get the text file blob from storage (like analyze_image.ts)
-    // Cast to Id<'_storage'> here - the public API accepts string for serialization boundaries
-    const textBlob = await ctx.storage.get(fileId as Id<'_storage'>);
+    const textBlob = await ctx.storage.get(toId<'_storage'>(fileId));
     if (!textBlob) {
       throw new Error(`Text file not found in storage: ${fileId}`);
     }

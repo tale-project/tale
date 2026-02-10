@@ -1,5 +1,12 @@
 import type { RagUploadResult } from './types';
 
+import {
+  getString,
+  getNumber,
+  getBoolean,
+  isRecord,
+} from '../../../../../lib/utils/type-guards';
+
 export interface UploadTextDocumentArgs {
   ragServiceUrl: string;
   content: string;
@@ -66,18 +73,23 @@ export async function uploadTextDocument({
     throw new Error(`RAG service error: ${response.status} ${errorText}`);
   }
 
-  const result = (await response.json()) as Record<string, unknown>;
+  const rawResult: unknown = await response.json();
+  const result = isRecord(rawResult) ? rawResult : {};
 
-  const ragDocumentId = (result.document_id as string) || (result.id as string);
-  const queued = (result.queued as boolean) ?? false;
-  const jobId = (result.job_id as string) || undefined;
+  const ragDocumentId =
+    getString(result, 'document_id') || getString(result, 'id');
+  const queued = getBoolean(result, 'queued') ?? false;
+  const jobId = getString(result, 'job_id') || undefined;
 
   return {
-    success: (result.success as boolean | undefined) ?? true,
+    success: getBoolean(result, 'success') ?? true,
     recordId:
-      recordId || (metadata?.recordId as string) || ragDocumentId || 'unknown',
+      recordId ||
+      (metadata ? getString(metadata, 'recordId') : undefined) ||
+      ragDocumentId ||
+      'unknown',
     ragDocumentId,
-    chunksCreated: (result.chunks_created as number) || 0,
+    chunksCreated: getNumber(result, 'chunks_created') || 0,
     processingTimeMs: Date.now() - startTime,
     timestamp: Date.now(),
     queued,

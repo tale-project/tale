@@ -2,8 +2,10 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import type { Doc, Id } from '../../../_generated/dataModel';
 
+import { isKeyOf } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { toId } from '../../../lib/type_cast_helpers';
 import { defaultGetFields, type ProductReadGetByIdResult } from './types';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -32,7 +34,7 @@ export async function readProductsByIds(
 
   const products = await Promise.all(
     args.productIds.map(async (id) => {
-      const productId = id as Id<'products'>;
+      const productId = toId<'products'>(id);
       const product = await fetchProduct(ctx, productId);
 
       if (!product) {
@@ -45,7 +47,9 @@ export async function readProductsByIds(
 
       const out: Record<string, unknown> = {};
       for (const f of fields) {
-        out[f] = product[f as keyof Doc<'products'>];
+        if (isKeyOf(f, product)) {
+          out[f] = product[f];
+        }
       }
       if (!('_id' in out)) {
         out._id = product._id;

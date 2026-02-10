@@ -29,10 +29,9 @@ export function Pagination({
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
-  const search = useSearch({ strict: false }) as Record<
-    string,
-    string | undefined
-  >;
+  const search: Record<string, string | undefined> = useSearch({
+    strict: false,
+  });
   const [loadingStates, setLoadingStates] = useState({
     prev: false,
     next: false,
@@ -72,7 +71,7 @@ export function Pagination({
         newSearch.page = page.toString();
       }
 
-      navigate({
+      void navigate({
         to: pathname,
         search: newSearch,
       });
@@ -104,7 +103,7 @@ export function Pagination({
         newSearch.page = page.toString();
       }
 
-      navigate({
+      void navigate({
         to: pathname,
         search: newSearch,
       });

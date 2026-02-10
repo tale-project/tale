@@ -22,7 +22,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import type { ConversationWithMessages } from '../types';
@@ -64,8 +64,9 @@ export function ConversationHeader({
   const customerDoc = useQuery(
     api.customers.queries.getCustomer,
     isCustomerInfoOpen && conversation.customerId
-      ? // Convex validator uses v.string() for IDs — cast required for query
-        { customerId: conversation.customerId as Id<'customers'> }
+      ? {
+          customerId: toId<'customers'>(conversation.customerId),
+        }
       : 'skip',
   );
 
@@ -73,8 +74,7 @@ export function ConversationHeader({
     setIsResolvingLoading(true);
     try {
       await closeConversation({
-        // Convex validator uses v.string() for IDs — cast required for mutation
-        conversationId: conversation.id as Id<'conversations'>,
+        conversationId: toId<'conversations'>(conversation.id),
       });
 
       toast({
@@ -97,8 +97,7 @@ export function ConversationHeader({
     setIsReopeningLoading(true);
     try {
       await reopenConversation({
-        // Convex validator uses v.string() for IDs — cast required for mutation
-        conversationId: conversation.id as Id<'conversations'>,
+        conversationId: toId<'conversations'>(conversation.id),
       });
 
       toast({
@@ -121,8 +120,7 @@ export function ConversationHeader({
     setIsMarkingSpamLoading(true);
     try {
       await markAsSpamMutation({
-        // Convex validator uses v.string() for IDs — cast required for mutation
-        conversationId: conversation.id as Id<'conversations'>,
+        conversationId: toId<'conversations'>(conversation.id),
       });
 
       toast({

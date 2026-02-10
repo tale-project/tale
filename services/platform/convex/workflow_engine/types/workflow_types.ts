@@ -61,7 +61,7 @@ export function isPredefinedWorkflow(workflowType: WorkflowType): boolean {
  * Check if a workflow name is a predefined workflow
  */
 export function isPredefinedWorkflowName(workflowName: string): boolean {
-  return PREDEFINED_WORKFLOWS.includes(workflowName as PredefinedWorkflow);
+  return PREDEFINED_WORKFLOWS.some((w) => w === workflowName);
 }
 
 /**
