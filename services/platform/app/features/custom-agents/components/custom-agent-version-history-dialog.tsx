@@ -3,6 +3,8 @@
 import { useQuery } from 'convex/react';
 import { useState } from 'react';
 
+import type { VersionStatus } from '@/lib/shared/schemas/custom_agents';
+
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -15,6 +17,15 @@ import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
 import { useRollbackCustomAgentVersion } from '../hooks/use-custom-agent-mutations';
+
+const STATUS_BADGE_CONFIG: Record<
+  VersionStatus,
+  { variant: 'outline' | 'green'; labelKey: string }
+> = {
+  draft: { variant: 'outline', labelKey: 'customAgents.versions.draft' },
+  active: { variant: 'green', labelKey: 'customAgents.versions.active' },
+  archived: { variant: 'outline', labelKey: 'customAgents.versions.archived' },
+};
 
 interface CustomAgentVersionHistoryDialogProps {
   open: boolean;
@@ -90,27 +101,12 @@ export function CustomAgentVersionHistoryDialog({
                       number: version.versionNumber,
                     })}
                   </span>
-                  {version.status === 'draft' && (
-                    <Badge
-                      variant="outline"
-                      className="px-1.5 py-0 text-[10px]"
-                    >
-                      {t('customAgents.versions.draft')}
-                    </Badge>
-                  )}
-                  {version.status === 'active' && (
-                    <Badge variant="green" className="px-1.5 py-0 text-[10px]">
-                      {t('customAgents.versions.active')}
-                    </Badge>
-                  )}
-                  {version.status === 'archived' && (
-                    <Badge
-                      variant="outline"
-                      className="px-1.5 py-0 text-[10px]"
-                    >
-                      {t('customAgents.versions.archived')}
-                    </Badge>
-                  )}
+                  <Badge
+                    variant={STATUS_BADGE_CONFIG[version.status].variant}
+                    className="px-1.5 py-0 text-[10px]"
+                  >
+                    {t(STATUS_BADGE_CONFIG[version.status].labelKey)}
+                  </Badge>
                 </div>
                 {version.changeLog && (
                   <p className="text-muted-foreground mt-0.5 truncate text-xs">
