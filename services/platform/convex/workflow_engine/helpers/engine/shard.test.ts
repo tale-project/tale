@@ -29,7 +29,7 @@ describe('getShardIndex', () => {
     expect(shards.size).toBeGreaterThan(1);
   });
 
-  it('produces different shards for different definition IDs', () => {
+  it('produces different shards for different IDs', () => {
     const testIds = [
       'document_rag_sync',
       'onedrive_sync',
@@ -40,6 +40,19 @@ describe('getShardIndex', () => {
     ];
     const shards = new Set(testIds.map(getShardIndex));
     expect(shards.size).toBeGreaterThan(1);
+  });
+
+  it('distributes unique execution IDs across all shards', () => {
+    const shardCounts = new Map<number, number>();
+    const total = 1000;
+    for (let i = 0; i < total; i++) {
+      const shard = getShardIndex(`jd7${i}abc${i * 31}xyz${i * 97}`);
+      shardCounts.set(shard, (shardCounts.get(shard) ?? 0) + 1);
+    }
+    expect(shardCounts.size).toBe(NUM_SHARDS);
+    for (const count of shardCounts.values()) {
+      expect(count).toBeGreaterThan(total / NUM_SHARDS / 3);
+    }
   });
 
   it('handles special characters', () => {
