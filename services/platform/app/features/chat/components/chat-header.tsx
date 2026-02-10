@@ -187,6 +187,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+
       </div>
 
       <AdaptiveHeaderRoot className="md:hidden">

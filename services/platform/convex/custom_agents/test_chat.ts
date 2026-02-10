@@ -1,0 +1,100 @@
+/**
+ * Test-chat with a draft custom agent.
+ *
+ * Loads the DRAFT version of a custom agent, converts it to
+ * SerializableAgentConfig, and delegates to the existing startAgentChat pipeline.
+ * This allows users to test their agent before publishing.
+ */
+
+import { v } from 'convex/values';
+
+import { mutation } from '../_generated/server';
+import { authComponent } from '../auth';
+import { startAgentChat } from '../lib/agent_chat';
+import { getDefaultAgentRuntimeConfig } from '../lib/agent_runtime_config';
+import { getUserTeamIds } from '../lib/get_user_teams';
+import { hasTeamAccess } from '../lib/team_access';
+import { toSerializableConfig } from './config';
+
+export const testDraftCustomAgent = mutation({
+  args: {
+    customAgentId: v.id('customAgents'),
+    threadId: v.string(),
+    organizationId: v.string(),
+    message: v.string(),
+    maxSteps: v.optional(v.number()),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
+  },
+  returns: v.object({
+    messageAlreadyExists: v.boolean(),
+    streamId: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    // Find the draft version by rootVersionId
+    const draftQuery = ctx.db
+      .query('customAgents')
+      .withIndex('by_root_status', (q) =>
+        q.eq('rootVersionId', args.customAgentId).eq('status', 'draft'),
+      );
+
+    let draft = null;
+    for await (const v of draftQuery) {
+      draft = v;
+      break;
+    }
+
+    if (
+      !draft ||
+      !draft.isActive ||
+      draft.organizationId !== args.organizationId
+    ) {
+      throw new Error('Draft agent not found');
+    }
+
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    if (!hasTeamAccess(draft, userTeamIds)) {
+      throw new Error('Agent not accessible');
+    }
+
+    const agentConfig = toSerializableConfig(draft);
+    const { model, provider } = getDefaultAgentRuntimeConfig();
+
+    const ragTeamIds: string[] = [];
+    if (draft.teamId) ragTeamIds.push(draft.teamId);
+    if (draft.includeOrgKnowledge)
+      ragTeamIds.push(`org_${args.organizationId}`);
+
+    // Custom agents use their own tools (image, pdf, etc.) to process
+    // attachments. File IDs are embedded in the message text by
+    // startAgentChat's buildMessageWithAttachments — no chat-agent hooks needed.
+    return startAgentChat({
+      ctx,
+      agentType: 'custom',
+      threadId: args.threadId,
+      organizationId: args.organizationId,
+      message: args.message,
+      maxSteps: args.maxSteps,
+      attachments: args.attachments,
+      agentConfig,
+      model: agentConfig.model ?? model,
+      provider,
+      debugTag: `[CustomAgent:${draft.name}:test]`,
+      enableStreaming: true,
+      ragTeamIds,
+    });
+  },
+});

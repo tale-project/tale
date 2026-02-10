@@ -107,6 +107,13 @@ export const AGENT_CONTEXT_CONFIGS = {
     outputReserve: 2048,
     enableSummarization: true,
   },
+  /** Custom agent - user-configurable agent with DB-stored config */
+  custom: {
+    modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
+    recentMessages: DEFAULT_RECENT_MESSAGES,
+    outputReserve: 2048,
+    enableSummarization: true,
+  },
 } as const;
 
 export type AgentType = keyof typeof AGENT_CONTEXT_CONFIGS;

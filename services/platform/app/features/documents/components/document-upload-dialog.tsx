@@ -16,6 +16,7 @@ import {
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_MAX_FILE_SIZE,
 } from '@/lib/shared/file-types';
+import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 
@@ -36,8 +37,11 @@ export function DocumentUploadDialog({
 }: DocumentUploadDialogProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
+  const { selectedTeamId } = useTeamFilter();
 
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(
+    () => selectedTeamId ? new Set([selectedTeamId]) : new Set(),
+  );
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   // Fetch user's teams via Convex query

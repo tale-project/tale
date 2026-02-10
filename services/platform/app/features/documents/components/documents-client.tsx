@@ -20,6 +20,7 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { useListTeams } from '@/app/features/settings/teams/hooks/use-list-teams';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
+import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
@@ -88,15 +89,18 @@ export function DocumentsClient({
     );
   }, [teams]);
 
+  const { selectedTeamId } = useTeamFilter();
+
   const queryArgs = useMemo(
     () => ({
       organizationId,
       query: debouncedQuery || undefined,
       folderPath: currentFolderPath || undefined,
+      filterTeamId: selectedTeamId || undefined,
       cursor: null,
       numItems: 1000,
     }),
-    [organizationId, debouncedQuery, currentFolderPath],
+    [organizationId, debouncedQuery, currentFolderPath, selectedTeamId],
   );
 
   const documentsResult = useQuery(

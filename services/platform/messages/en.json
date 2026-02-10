@@ -63,7 +63,10 @@
       "deactivating": "Deactivating...",
       "activate": "Activate",
       "activating": "Activating...",
-      "logIn": "Log in"
+      "logIn": "Log in",
+      "saved": "Saved",
+      "saveFailed": "Save failed",
+      "remove": "Remove"
     },
     "upload": {
       "clickToUpload": "Click to upload",
@@ -140,6 +143,7 @@
       "confidence": "{value} percent confidence",
       "settingsNavigation": "Settings navigation",
       "automationsNavigation": "Automations navigation",
+      "customAgentsNavigation": "Custom agents navigation",
       "knowledgeNavigation": "Knowledge navigation",
       "actionsMenu": "Actions menu",
       "conversationsNavigation": "Conversations navigation",
@@ -222,7 +226,12 @@
     "apiKeys": "API keys",
     "apiDocs": "API docs",
     "account": "Account",
-    "logs": "Logs"
+    "logs": "Logs",
+    "customAgents": "Custom agents",
+    "teamFilter": {
+      "allTeams": "All teams",
+      "label": "Team"
+    }
   },
   "knowledge": {
     "title": "Knowledge",
@@ -590,6 +599,171 @@
       "selectMember": "Select a member to add",
       "noMembersToAdd": "All organization members are already in this team",
       "noTeamMembers": "No members in this team yet"
+    },
+    "customAgents": {
+      "title": "Custom agents",
+      "description": "Create and manage custom AI agents with specialized instructions and tools",
+      "createAgent": "Create agent",
+      "createAgentDescription": "Configure a custom AI agent with specialized instructions, tools, and model settings.",
+      "searchAgent": "Search agents",
+      "noAgents": "No custom agents yet",
+      "noAgentsDescription": "Create your first custom agent to specialize AI behavior for your team.",
+      "columns": {
+        "displayName": "Name",
+        "modelPreset": "Model",
+        "tools": "Tools",
+        "version": "Version",
+        "team": "Team",
+        "orgWide": "Organization-wide"
+      },
+      "editAgent": "Edit agent",
+      "deleteAgent": "Delete agent",
+      "deleteConfirmation": "Are you sure you want to delete this agent? This action cannot be undone.",
+      "duplicateAgent": "Duplicate agent",
+      "versionHistory": "Version history",
+      "agentCreated": "Agent created",
+      "agentCreateFailed": "Failed to create agent",
+      "agentUpdated": "Agent updated",
+      "agentUpdateFailed": "Failed to update agent",
+      "agentDeleted": "Agent deleted",
+      "agentDeleteFailed": "Failed to delete agent",
+      "agentDuplicated": "Agent duplicated",
+      "agentDuplicateFailed": "Failed to duplicate agent",
+      "rolledBack": "Rolled back to version {version}",
+      "rollbackFailed": "Failed to roll back",
+      "agentNotFound": "Agent not found or you don't have access.",
+      "agentPublished": "Agent published",
+      "agentPublishFailed": "Failed to publish agent",
+      "agentDeactivated": "Agent deactivated",
+      "agentDeactivateFailed": "Failed to deactivate agent",
+      "navigation": {
+        "configuration": "Configuration",
+        "general": "General",
+        "instructionsModel": "Instructions & model",
+        "tools": "Tools",
+        "knowledge": "Knowledge",
+        "publish": "Publish",
+        "publishing": "Publishing...",
+        "webhook": "Webhook",
+        "test": "Test"
+      },
+      "testChat": {
+        "title": "Test agent",
+        "close": "Close test panel",
+        "newConversation": "New conversation",
+        "welcome": "Send a message to test your draft agent.",
+        "sendFailed": "Failed to send test message",
+        "messagePlaceholder": "Type a message to test...",
+        "uploading": "Uploading...",
+        "attachFiles": "Attach files"
+      },
+      "createDialog": {
+        "continue": "Continue",
+        "creating": "Creating..."
+      },
+      "form": {
+        "sectionGeneral": "General",
+        "sectionGeneralDescription": "Basic information about the agent",
+        "sectionInstructions": "Instructions",
+        "sectionInstructionsDescription": "Define the agent's behavior and personality",
+        "sectionModel": "Model",
+        "sectionModelDescription": "Configure the AI model and generation parameters",
+        "sectionTools": "Tools",
+        "sectionToolsDescription": "Select which tools this agent can use",
+        "managedByKnowledge": "managed by Knowledge",
+        "sectionIntegrationBindings": "Bound integrations",
+        "sectionIntegrationBindingsDescription": "Bind specific integrations as dedicated tools. The agent won't need to specify the integration name.",
+        "noIntegrationsAvailable": "No active integrations available.",
+        "sectionKnowledge": "Knowledge",
+        "sectionKnowledgeDescription": "Configure access to the knowledge base",
+        "sectionAccess": "Access",
+        "sectionAccessDescription": "Control which teams can use this agent",
+        "name": "Name",
+        "namePlaceholder": "my-agent",
+        "nameHelp": "Unique identifier (lowercase, hyphens allowed)",
+        "displayName": "Display name",
+        "displayNamePlaceholder": "My Agent",
+        "description": "Description",
+        "descriptionPlaceholder": "What does this agent do?",
+        "systemInstructions": "System instructions",
+        "systemInstructionsPlaceholder": "You are a helpful assistant that...",
+        "modelPreset": "Model preset",
+        "modelPresets": {
+          "fast": "Fast",
+          "standard": "Standard",
+          "advanced": "Advanced",
+          "vision": "Vision"
+        },
+        "tools": "Tools",
+        "toolsDescription": "Select which tools this agent can use",
+        "noToolsSelected": "No tools selected",
+        "team": "Team",
+        "teamHelp": "Assign this agent to a team. Leave empty for organization-wide access.",
+        "teamNone": "Organization-wide",
+        "sharedWithTeams": "Share with additional teams",
+        "sharedWithTeamsHelp": "Select additional teams that can access this agent"
+      },
+      "knowledge": {
+        "enableKnowledge": "Enable knowledge base",
+        "enableKnowledgeHelp": "When enabled, the agent can search your knowledge base. This automatically activates the search tool.",
+        "includeOrgKnowledge": "Include organization documents",
+        "includeOrgKnowledgeHelp": "When enabled, the agent can also search documents that are not assigned to any team.",
+        "teamDocuments": "Team documents",
+        "teamDocumentsInfo": "This agent can access all documents from {teamName}.",
+        "orgDocuments": "Organization documents",
+        "orgDocumentsEmptyState": "No organization-wide documents found.",
+        "noTeamAssigned": "No team assigned. Assign a team in the General tab to give this agent access to team documents.",
+        "emptyState": "No documents found for this team."
+      },
+      "versions": {
+        "title": "Version history",
+        "version": "Version {number}",
+        "current": "Current",
+        "draft": "Draft",
+        "active": "Active",
+        "archived": "Archived",
+        "rollback": "Rollback",
+        "rollingBack": "Rolling back...",
+        "noVersions": "No version history available"
+      },
+      "webhook": {
+        "title": "Webhook",
+        "description": "Create unique URLs to chat with this agent from external systems.",
+        "notPublished": "Publish this agent to enable webhook access.",
+        "createButton": "Create webhook",
+        "createdTitle": "Webhook created",
+        "urlWarning": "Copy this URL now. It will only be shown once.",
+        "webhookUrl": "Webhook URL",
+        "copyUrl": "Copy webhook URL",
+        "deleteWebhook": "Delete webhook",
+        "emptyTitle": "No webhooks yet",
+        "emptyDescription": "Create a webhook to allow external systems to chat with this agent.",
+        "never": "Never",
+        "columns": {
+          "url": "URL",
+          "active": "Active",
+          "lastTriggered": "Last triggered"
+        },
+        "deleteTitle": "Delete webhook",
+        "deleteDescription": "Are you sure? Any systems using this webhook URL will lose access.",
+        "toast": {
+          "created": "Webhook created",
+          "createFailed": "Failed to create webhook",
+          "enabled": "Webhook enabled",
+          "disabled": "Webhook disabled",
+          "toggleFailed": "Failed to update webhook",
+          "deleted": "Webhook deleted",
+          "deleteFailed": "Failed to delete webhook",
+          "urlCopied": "URL copied"
+        },
+        "usageExamples": "Usage examples",
+        "usageExamplesDescription": "Send a POST request to the webhook URL with a JSON body or multipart form data.",
+        "exampleNonStreaming": "Non-streaming (JSON response)",
+        "exampleStreaming": "Streaming (SSE response)",
+        "exampleMultiTurn": "Multi-turn conversation",
+        "exampleFileUpload": "File upload (multipart/form-data)",
+        "exampleFileUploadStream": "File upload with streaming (SSE response)"
+      }
     },
     "integrations": {
       "accessDenied": "You need Admin or Developer permissions to access integrations settings.",
@@ -1350,6 +1524,9 @@
       "updateFailed": "Failed to update automation",
       "deleteFailed": "Failed to delete automation"
     },
+    "validation": {
+      "duplicateName": "An automation with this name already exists"
+    },
     "templates": {
       "newAutomation": "New automation",
       "createNewTemplate": "Create a new automation template",
@@ -1677,8 +1854,43 @@
       "updateWorkflowStep": "Updating workflow step",
       "saveWorkflowDefinition": "Saving workflow",
       "validateWorkflowDefinition": "Validating workflow",
-      "generateExcel": "Generating Excel file",
-      "contextSearch": "Searching for related topics"
+      "generateExcel": "Generating Excel file"
+    },
+    "agentSelector": {
+      "label": "Select agent",
+      "defaultAgent": "Assistant",
+      "defaultAgentDescription": "General-purpose AI assistant",
+      "usingAgent": "Using {name}",
+      "searchPlaceholder": "Search agents...",
+      "noResults": "No agents found",
+      "builtinSection": "Built-in agents",
+      "customSection": "Custom agents",
+      "builtinAgents": {
+        "chat": {
+          "name": "Assistant",
+          "description": "General-purpose AI assistant"
+        },
+        "web": {
+          "name": "Search",
+          "description": "Searches the web for the latest information"
+        },
+        "crm": {
+          "name": "Sales",
+          "description": "Looks up customer and product information"
+        },
+        "document": {
+          "name": "Docs",
+          "description": "Reads and creates documents (PDF, Word, Excel, etc.)"
+        },
+        "integration": {
+          "name": "Connect",
+          "description": "Connects and operates with external systems"
+        },
+        "workflow": {
+          "name": "Automate",
+          "description": "Creates automated workflows"
+        }
+      }
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
@@ -1721,8 +1933,7 @@
       "resetZoom": "Reset zoom"
     },
     "toolStatus": {
-      "ragSearch": "Searching knowledge base",
-      "contextSearch": "Searching for related topics"
+      "ragSearch": "Searching knowledge base"
     },
     "messageInfo": {
       "title": "Message information",
@@ -2307,7 +2518,8 @@
     "apiKeys": "You need Admin or Developer permissions to manage API keys.",
     "apiDocs": "You need Admin or Developer permissions to access API documentation.",
     "organization": "You need Admin permissions to access organization settings.",
-    "teams": "You need Admin permissions to access team settings."
+    "teams": "You need Admin permissions to access team settings.",
+    "customAgents": "You need Admin or Developer permissions to manage custom agents."
   },
   "metadata": {
     "suffix": "Tale",

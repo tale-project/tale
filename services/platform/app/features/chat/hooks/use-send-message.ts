@@ -5,11 +5,13 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
 
-import type { PendingMessage } from '../context/chat-layout-context';
+import type { PendingMessage, SelectedAgent } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
 
 import { useChatWithAgent } from './use-chat-with-agent';
+import { useChatWithBuiltinAgent } from './use-chat-with-builtin-agent';
+import { useChatWithCustomAgent } from './use-chat-with-custom-agent';
 import { useCreateThread } from './use-create-thread';
 import { useUpdateThread } from './use-update-thread';
 
@@ -21,6 +23,7 @@ interface UseSendMessageParams {
   setPendingMessage: (message: PendingMessage | null) => void;
   clearChatState: () => void;
   onBeforeSend?: () => void;
+  selectedAgent?: SelectedAgent | null;
 }
 
 /**
@@ -35,6 +38,7 @@ export function useSendMessage({
   setPendingMessage,
   clearChatState,
   onBeforeSend,
+  selectedAgent,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
   const navigate = useNavigate();
@@ -42,6 +46,8 @@ export function useSendMessage({
   const createThread = useCreateThread();
   const updateThread = useUpdateThread();
   const chatWithAgent = useChatWithAgent();
+  const chatWithBuiltinAgent = useChatWithBuiltinAgent();
+  const chatWithCustomAgent = useChatWithCustomAgent();
 
   const sendMessage = useCallback(
     async (message: string, attachments?: FileAttachment[]) => {
@@ -111,12 +117,30 @@ export function useSendMessage({
         }
 
         // Send message with optimistic update
-        await chatWithAgent({
-          threadId: currentThreadId,
-          organizationId,
-          message: sanitizedContent,
-          attachments: mutationAttachments,
-        });
+        if (selectedAgent?.type === 'custom') {
+          await chatWithCustomAgent({
+            customAgentId: selectedAgent._id,
+            threadId: currentThreadId,
+            organizationId,
+            message: sanitizedContent,
+            attachments: mutationAttachments,
+          });
+        } else if (selectedAgent?.type === 'builtin') {
+          await chatWithBuiltinAgent({
+            builtinAgentType: selectedAgent._id,
+            threadId: currentThreadId,
+            organizationId,
+            message: sanitizedContent,
+            attachments: mutationAttachments,
+          });
+        } else {
+          await chatWithAgent({
+            threadId: currentThreadId,
+            organizationId,
+            message: sanitizedContent,
+            attachments: mutationAttachments,
+          });
+        }
       } catch (error) {
         console.error('Failed to send message:', error);
         clearChatState();
@@ -137,6 +161,9 @@ export function useSendMessage({
       createThread,
       updateThread,
       chatWithAgent,
+      chatWithBuiltinAgent,
+      chatWithCustomAgent,
+      selectedAgent,
       navigate,
       t,
     ],

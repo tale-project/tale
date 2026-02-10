@@ -20,6 +20,7 @@ import {
   type FileAttachment,
 } from '../hooks/use-convex-file-upload';
 import { ImagePreviewDialog } from './message-bubble';
+import { AgentSelector } from './agent-selector';
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -30,6 +31,7 @@ interface ChatInputProps extends Omit<
   placeholder?: string;
   value?: string;
   onChange?: (value: string) => void;
+  organizationId: string;
 }
 
 export function ChatInput({
@@ -38,6 +40,7 @@ export function ChatInput({
   onSendMessage,
   isLoading = false,
   placeholder,
+  organizationId,
   ...restProps
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
@@ -244,7 +247,7 @@ export function ChatInput({
               )}
             </div>
 
-            <div className="flex items-center pb-3">
+            <div className="flex items-center justify-between pb-3">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -255,6 +258,7 @@ export function ChatInput({
                 <Paperclip className="size-4" />
                 <span className="text-xs">{tDialogs('attach')}</span>
               </button>
+              <AgentSelector organizationId={organizationId} />
             </div>
           </div>
         </div>

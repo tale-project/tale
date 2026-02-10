@@ -24,6 +24,10 @@ import {
   apiTriggerOptionsHandler,
 } from './workflows/triggers/api_http';
 import {
+  agentWebhookHandler,
+  agentWebhookOptionsHandler,
+} from './custom_agents/webhooks/http_actions';
+import {
   webhookHandler,
   webhookOptionsHandler,
 } from './workflows/triggers/http_actions';
@@ -135,6 +139,19 @@ http.route({
   path: '/api/sso/set-session',
   method: 'GET',
   handler: ssoSetSessionHandler,
+});
+
+// Custom Agent Webhook Routes
+http.route({
+  pathPrefix: '/api/agents/wh/',
+  method: 'POST',
+  handler: agentWebhookHandler,
+});
+
+http.route({
+  pathPrefix: '/api/agents/wh/',
+  method: 'OPTIONS',
+  handler: agentWebhookOptionsHandler,
 });
 
 // Workflow Webhook Trigger Routes

@@ -25,6 +25,7 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import { MicrosoftReauthButton } from './microsoft-reauth-button';
@@ -449,6 +450,7 @@ export function OneDriveImportDialog({
 }: OneDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
+  const { selectedTeamId } = useTeamFilter();
 
   // OneDrive file listing via Convex action
   const listOneDriveFiles = useAction(api.onedrive.actions.listFiles);
@@ -466,7 +468,9 @@ export function OneDriveImportDialog({
 
   const [stage, setStage] = useState<Stage>('picker');
   const [importType, setImportType] = useState<ImportType>('one-time');
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(
+    () => selectedTeamId ? new Set([selectedTeamId]) : new Set(),
+  );
 
   // Source tab state
   const [sourceTab, setSourceTab] = useState<SourceTab>('onedrive');

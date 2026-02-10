@@ -139,9 +139,13 @@ export function Dialog({
         <DialogPrimitive.Trigger asChild>{trigger}</DialogPrimitive.Trigger>
       )}
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80" />
+        <DialogPrimitive.Overlay
+          className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80"
+          onClick={(e) => e.stopPropagation()}
+        />
         <DialogPrimitive.Content
           className={cn(dialogContentVariants({ size }), className)}
+          onClick={(e) => e.stopPropagation()}
           {...(customHeader || !description
             ? { 'aria-describedby': undefined }
             : {})}

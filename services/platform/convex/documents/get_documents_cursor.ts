@@ -11,6 +11,7 @@ import type { DocumentItemResponse } from './types';
 
 import { getMetadataString } from '../lib/metadata/get_metadata_string';
 import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../lib/pagination';
+import { hasTeamAccess } from '../lib/team_access';
 import { transformDocumentsBatch } from './transform_to_document_item';
 
 export interface GetDocumentsCursorArgs {
@@ -20,6 +21,7 @@ export interface GetDocumentsCursorArgs {
   query?: string;
   folderPath?: string;
   userTeamIds?: string[];
+  filterTeamId?: string;
 }
 
 export interface CursorPaginatedDocumentsResult {
@@ -46,14 +48,33 @@ export async function getDocumentsCursor(
 
   // Filter function for search, folder path, and team access
   const filter = (doc: Doc<'documents'>): boolean => {
-    // Team-based access control
+    // Team-based access control (unified fields with teamTags fallback)
     if (args.userTeamIds !== undefined) {
-      const docTeamTags = doc.teamTags;
-      if (docTeamTags && docTeamTags.length > 0) {
-        const hasAccess = docTeamTags.some((tag) =>
-          args.userTeamIds?.includes(tag),
+      if (doc.teamId !== undefined) {
+        if (!hasTeamAccess(doc, args.userTeamIds)) {
+          return false;
+        }
+      } else if (doc.teamTags && doc.teamTags.length > 0) {
+        const hasAccess = doc.teamTags.some((tag) =>
+          args.userTeamIds!.includes(tag),
         );
         if (!hasAccess) {
+          return false;
+        }
+      }
+    }
+
+    // Team filter: when a specific team is selected, show only
+    // org-wide docs + docs belonging to/shared with the selected team
+    if (args.filterTeamId) {
+      if (doc.teamId !== undefined) {
+        if (doc.teamId !== null && doc.teamId !== args.filterTeamId) {
+          if (!doc.sharedWithTeamIds?.includes(args.filterTeamId)) {
+            return false;
+          }
+        }
+      } else if (doc.teamTags && doc.teamTags.length > 0) {
+        if (!doc.teamTags.includes(args.filterTeamId)) {
           return false;
         }
       }

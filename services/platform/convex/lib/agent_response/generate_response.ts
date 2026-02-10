@@ -202,12 +202,22 @@ export async function generateAgentResponse(
     };
 
     const promptToSend = hookPromptContent ?? promptMessage;
+
+    // Combine agent instructions with thread context for the system prompt.
+    // The Agent SDK uses `system ?? this.options.instructions`, so when we pass
+    // `system` explicitly the agent's own instructions are overridden.
+    // We prepend them here so the LLM receives both the agent's identity/guidance
+    // and the structured thread context (history, RAG, integrations).
+    const systemPrompt = instructions
+      ? `${instructions}\n\n${structuredThreadContext.threadContext}`
+      : structuredThreadContext.threadContext;
+
     debugLog('PRE_LLM_CALL', {
       threadId,
       model,
       enableStreaming,
       promptMessageId,
-      system: structuredThreadContext.threadContext,
+      system: systemPrompt,
       prompt: promptToSend,
       elapsedMs: Date.now() - startTime,
       timestamp: new Date().toISOString(),
@@ -222,7 +232,7 @@ export async function generateAgentResponse(
         { threadId, userId },
         {
           promptMessageId,
-          system: structuredThreadContext.threadContext,
+          system: systemPrompt,
           prompt: promptToSend,
           onChunk: ({ chunk }: { chunk: { type: string } }) => {
             if (firstTokenTime === null && chunk.type === 'text-delta') {
@@ -286,7 +296,7 @@ export async function generateAgentResponse(
         {
           // Use system parameter for context - it's passed to LLM but NOT saved to database
           // This prevents XML system messages from being stored as thread messages
-          system: structuredThreadContext.threadContext,
+          system: systemPrompt,
           // Use prompt parameter for the task - this triggers the agent response
           // and gets saved as the user message in the thread (unless promptMessageId is provided)
           prompt: promptMessage,
@@ -343,11 +353,15 @@ export async function generateAgentResponse(
         // Create agent without tools for the retry
         const retryAgent = createAgent({ ...agentOptions, tools: undefined });
 
+        const retrySystemPrompt = instructions
+          ? `${instructions}\n\n${retryContext.threadContext}`
+          : retryContext.threadContext;
+
         const retryResult = await retryAgent.generateText(
           subAgentContext,
           { threadId, userId },
           {
-            system: retryContext.threadContext,
+            system: retrySystemPrompt,
             prompt: promptMessage
               ? `Based on the tool results, complete this task: ${promptMessage}`
               : 'Based on the conversation and tool results above, provide a summary response.',
@@ -399,11 +413,15 @@ export async function generateAgentResponse(
 
         const retryAgent = createAgent({ ...agentOptions, tools: undefined });
 
+        const emptyRetrySystemPrompt = instructions
+          ? `${instructions}\n\n${retryContext.threadContext}`
+          : retryContext.threadContext;
+
         const retryResult = await retryAgent.generateText(
           subAgentContext,
           { threadId, userId },
           {
-            system: retryContext.threadContext,
+            system: emptyRetrySystemPrompt,
             prompt: promptMessage
               ? `Please complete this task: ${promptMessage}`
               : 'Please provide a response based on the conversation above.',
