@@ -55,13 +55,13 @@ export function createBoundIntegrationTool(
     ): Promise<IntegrationExecutionResult> => {
       const { organizationId, threadId: currentThreadId, messageId } = ctx;
 
-      const threadId = await getApprovalThreadId(ctx, currentThreadId);
-
       if (!organizationId) {
         throw new Error(
           'organizationId required in context to execute integrations',
         );
       }
+
+      const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
       try {
         const result = await ctx.runAction(
