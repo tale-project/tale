@@ -2,6 +2,8 @@
 
 import { useCallback, useMemo } from 'react';
 
+import type { ToolName } from '@/convex/agent_tools/tool_names';
+
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
@@ -19,7 +21,7 @@ interface ToolSelectorProps {
   lockedTools?: Set<string>;
 }
 
-const TOOL_CATEGORIES: Record<string, string[]> = {
+const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   CRM: ['customer_read', 'product_read'],
   Web: ['web'],
   Documents: ['pdf', 'image', 'pptx', 'docx', 'txt'],
