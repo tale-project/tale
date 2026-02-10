@@ -6,6 +6,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   useMemo,
   type ReactNode,
 } from 'react';
@@ -82,6 +83,16 @@ export function TeamFilterProvider({
     },
     [storageKey],
   );
+
+  useEffect(() => {
+    if (
+      selectedTeamId &&
+      teams &&
+      !teams.some((t) => t.id === selectedTeamId)
+    ) {
+      setSelectedTeamId(null);
+    }
+  }, [selectedTeamId, teams, setSelectedTeamId]);
 
   const filterByTeam = useCallback(
     <T extends { teamId?: string | null; sharedWithTeamIds?: string[] }>(
