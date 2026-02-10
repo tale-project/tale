@@ -55,8 +55,8 @@ export const migrateTeamFields = internalMutation({
 
         if (Object.keys(patch).length > 0) {
           await ctx.db.patch(doc._id, patch);
+          migrated++;
         }
-        migrated++;
       }
 
       count++;
