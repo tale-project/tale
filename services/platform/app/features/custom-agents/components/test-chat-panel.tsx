@@ -28,8 +28,13 @@ import { useTestDraftAgent } from '../hooks/use-test-draft-agent';
 const DUPLICATE_WINDOW_MS = 5000;
 const recentSends = new Map<string, number>();
 
-function canSendMessage(content: string, threadId: string | null): boolean {
-  const key = `${threadId || 'new'}:${content.trim().toLowerCase()}`;
+function canSendMessage(
+  content: string,
+  threadId: string | null,
+  attachmentsKey: string,
+  scopeKey: string,
+): boolean {
+  const key = `${scopeKey}:${threadId || 'new'}:${attachmentsKey}:${content.trim().toLowerCase()}`;
   const lastSent = recentSends.get(key);
   const now = Date.now();
 
@@ -303,7 +308,15 @@ function TestChatPanelContent({
 
     const messageContent = inputValue.trim();
 
-    if (!canSendMessage(messageContent, threadId)) {
+    const attachmentsKey =
+      attachments.length > 0
+        ? attachments
+            .map((a) => a.fileId)
+            .sort()
+            .join(',')
+        : 'none';
+    const scopeKey = `${organizationId}:${agentId}`;
+    if (!canSendMessage(messageContent, threadId, attachmentsKey, scopeKey)) {
       return;
     }
 
