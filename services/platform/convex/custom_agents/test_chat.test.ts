@@ -30,7 +30,7 @@ function createMockDraftAgent(
   } as Doc<'customAgents'>;
 }
 
-describe('testDraftCustomAgent', () => {
+describe('testCustomAgent', () => {
   describe('toSerializableConfig for draft agents', () => {
     it('should convert draft agent to SerializableAgentConfig', () => {
       const draft = createMockDraftAgent();

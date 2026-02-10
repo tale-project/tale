@@ -1,9 +1,9 @@
 /**
- * Test-chat with a draft custom agent.
+ * Test-chat with a specific version of a custom agent.
  *
- * Loads the DRAFT version of a custom agent, converts it to
- * SerializableAgentConfig, and delegates to the existing startAgentChat pipeline.
- * This allows users to test their agent before publishing.
+ * Loads the agent version by ID, converts it to SerializableAgentConfig,
+ * and delegates to the existing startAgentChat pipeline.
+ * This allows users to test any version of their agent (draft, active, or archived).
  */
 
 import { v } from 'convex/values';
@@ -16,7 +16,7 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
 import { createCustomAgentHookHandles, toSerializableConfig } from './config';
 
-export const testDraftCustomAgent = mutation({
+export const testCustomAgent = mutation({
   args: {
     customAgentId: v.id('customAgents'),
     threadId: v.string(),
@@ -44,43 +44,32 @@ export const testDraftCustomAgent = mutation({
       throw new Error('Unauthenticated');
     }
 
-    // Find the draft version by rootVersionId
-    const draftQuery = ctx.db
-      .query('customAgents')
-      .withIndex('by_root_status', (q) =>
-        q.eq('rootVersionId', args.customAgentId).eq('status', 'draft'),
-      );
-
-    let draft = null;
-    for await (const doc of draftQuery) {
-      draft = doc;
-      break;
-    }
+    const agent = await ctx.db.get(args.customAgentId);
 
     if (
-      !draft ||
-      !draft.isActive ||
-      draft.organizationId !== args.organizationId
+      !agent ||
+      !agent.isActive ||
+      agent.organizationId !== args.organizationId
     ) {
-      throw new Error('Draft agent not found');
+      throw new Error('Agent not found');
     }
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
-    if (!hasTeamAccess(draft, userTeamIds)) {
+    if (!hasTeamAccess(agent, userTeamIds)) {
       throw new Error('Agent not accessible');
     }
 
-    const agentConfig = toSerializableConfig(draft);
+    const agentConfig = toSerializableConfig(agent);
     const { model, provider } = getDefaultAgentRuntimeConfig();
 
     const ragTeamIds: string[] = [];
-    if (draft.teamId) ragTeamIds.push(draft.teamId);
-    if (draft.includeOrgKnowledge)
+    if (agent.teamId) ragTeamIds.push(agent.teamId);
+    if (agent.includeOrgKnowledge)
       ragTeamIds.push(`org_${args.organizationId}`);
 
     const hooks = await createCustomAgentHookHandles(
       ctx,
-      draft.filePreprocessingEnabled,
+      agent.filePreprocessingEnabled,
     );
 
     return startAgentChat({
@@ -94,7 +83,7 @@ export const testDraftCustomAgent = mutation({
       agentConfig,
       model: agentConfig.model ?? model,
       provider,
-      debugTag: `[CustomAgent:${draft.name}:test]`,
+      debugTag: `[CustomAgent:${agent.name}:test]`,
       enableStreaming: true,
       ragTeamIds,
       hooks,

@@ -21,9 +21,9 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
-import { toId } from '@/lib/utils/type-guards';
 
-import { useTestDraftAgent } from '../hooks/use-test-draft-agent';
+import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
+import { useTestAgent } from '../hooks/use-test-agent';
 
 const DUPLICATE_WINDOW_MS = 5000;
 const recentSends = new Map<string, number>();
@@ -124,7 +124,8 @@ function TestChatPanelContent({
     delay: 16,
   });
 
-  const testDraftAgent = useTestDraftAgent();
+  const { agent: currentAgent } = useCustomAgentVersion();
+  const testAgent = useTestAgent();
   const createChatThread = useCreateThread();
   const deleteChatThread = useDeleteThread();
 
@@ -398,8 +399,8 @@ function TestChatPanelContent({
 
       if (!currentThreadId) return;
 
-      await testDraftAgent({
-        customAgentId: toId<'customAgents'>(agentId),
+      await testAgent({
+        customAgentId: currentAgent._id,
         threadId: currentThreadId,
         organizationId,
         message: messageContent,
