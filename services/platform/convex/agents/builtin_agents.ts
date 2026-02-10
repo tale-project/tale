@@ -26,13 +26,16 @@ import { DOCUMENT_AGENT_INSTRUCTIONS } from './document/agent';
 import { INTEGRATION_AGENT_INSTRUCTIONS } from './integration/agent';
 import { WEB_AGENT_INSTRUCTIONS } from './web/agent';
 
-export type BuiltinAgentType =
-  | 'chat'
-  | 'web'
-  | 'crm'
-  | 'document'
-  | 'integration'
-  | 'workflow';
+export const BUILTIN_AGENT_TYPES = [
+  'chat',
+  'web',
+  'crm',
+  'document',
+  'integration',
+  'workflow',
+] as const;
+
+export type BuiltinAgentType = (typeof BUILTIN_AGENT_TYPES)[number];
 
 interface BuiltinAgentDefinition {
   type: BuiltinAgentType;
@@ -148,15 +151,6 @@ function toSerializableConfig(
 
   return config;
 }
-
-const BUILTIN_AGENT_TYPES = [
-  'chat',
-  'web',
-  'crm',
-  'document',
-  'integration',
-  'workflow',
-] as const;
 
 export const listBuiltinAgents = query({
   args: {},
