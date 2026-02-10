@@ -56,15 +56,3 @@ export function pollExecutionViaConvexRun(
     return { status: 'unknown' };
   }
 }
-
-export function pollExecutionBatchViaConvexRun(
-  executionIds: string[],
-): Map<string, ExecutionStatus> {
-  const results = new Map<string, ExecutionStatus>();
-
-  for (const id of executionIds) {
-    results.set(id, pollExecutionViaConvexRun(id));
-  }
-
-  return results;
-}

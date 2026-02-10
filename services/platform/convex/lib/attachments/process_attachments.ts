@@ -292,7 +292,11 @@ export async function processAttachments(
   const failedTextFiles = textFileAttachments.filter(
     (a) => !analyzedTextFiles.some((d) => d.fileName === a.fileName),
   );
-  const unprocessedAttachments = [...failedDocuments, ...failedImages, ...failedTextFiles];
+  const unprocessedAttachments = [
+    ...failedDocuments,
+    ...failedImages,
+    ...failedTextFiles,
+  ];
 
   if (unprocessedAttachments.length > 0) {
     contentParts.push({
@@ -308,7 +312,9 @@ export async function processAttachments(
     }
   }
 
-  const promptContent: Array<{ role: 'user'; content: MessageContentPart[] }> | undefined =
+  const promptContent:
+    | Array<{ role: 'user'; content: MessageContentPart[] }>
+    | undefined =
     attachments.length > 0
       ? [{ role: 'user', content: contentParts }]
       : undefined;

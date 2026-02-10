@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
+import { ConvexError } from 'convex/values';
 import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -9,7 +10,6 @@ import { z } from 'zod';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { ConvexError } from 'convex/values';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -79,7 +79,10 @@ export function CreateAutomationDialog({
         search: { panel: 'ai-chat' },
       });
     } catch (error) {
-      if (error instanceof ConvexError && error.data?.code === 'DUPLICATE_NAME') {
+      if (
+        error instanceof ConvexError &&
+        error.data?.code === 'DUPLICATE_NAME'
+      ) {
         setError('name', { message: t('validation.duplicateName') });
         return;
       }

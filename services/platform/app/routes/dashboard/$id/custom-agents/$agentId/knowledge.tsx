@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+
 import { CustomAgentKnowledge } from '@/app/features/custom-agents/components/custom-agent-knowledge';
 
 export const Route = createFileRoute(
@@ -11,9 +12,6 @@ function KnowledgeTab() {
   const { id: organizationId, agentId } = Route.useParams();
 
   return (
-    <CustomAgentKnowledge
-      organizationId={organizationId}
-      agentId={agentId}
-    />
+    <CustomAgentKnowledge organizationId={organizationId} agentId={agentId} />
   );
 }

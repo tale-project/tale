@@ -5,7 +5,10 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
 
-import type { PendingMessage, SelectedAgent } from '../context/chat-layout-context';
+import type {
+  PendingMessage,
+  SelectedAgent,
+} from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
 

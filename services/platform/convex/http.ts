@@ -3,6 +3,10 @@ import { httpRouter } from 'convex/server';
 import { httpAction } from './_generated/server';
 import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
 import { authComponent, createAuth } from './auth';
+import {
+  agentWebhookHandler,
+  agentWebhookOptionsHandler,
+} from './custom_agents/webhooks/http_actions';
 import { oauth2CallbackHandler } from './email_providers/oauth2_callback';
 import {
   checkIpRateLimit,
@@ -23,10 +27,6 @@ import {
   apiTriggerHandler,
   apiTriggerOptionsHandler,
 } from './workflows/triggers/api_http';
-import {
-  agentWebhookHandler,
-  agentWebhookOptionsHandler,
-} from './custom_agents/webhooks/http_actions';
 import {
   webhookHandler,
   webhookOptionsHandler,

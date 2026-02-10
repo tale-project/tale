@@ -19,8 +19,8 @@ import {
   useConvexFileUpload,
   type FileAttachment,
 } from '../hooks/use-convex-file-upload';
-import { ImagePreviewDialog } from './message-bubble';
 import { AgentSelector } from './agent-selector';
+import { ImagePreviewDialog } from './message-bubble';
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,

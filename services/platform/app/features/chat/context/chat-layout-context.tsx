@@ -60,7 +60,9 @@ export function ChatLayoutProvider({ children }: ChatLayoutProviderProps) {
     null,
   );
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(
+    null,
+  );
 
   const clearChatState = useCallback(() => {
     setIsPending(false);

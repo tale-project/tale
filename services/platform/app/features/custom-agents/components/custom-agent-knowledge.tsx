@@ -113,7 +113,7 @@ export function CustomAgentKnowledge({
     setKnowledgeEnabled(agent.knowledgeEnabled ?? false);
     setIncludeOrgKnowledge(agent.includeOrgKnowledge ?? false);
     setInitialized(true);
-  }, [agentId]);
+  }, [agent, agentId]);
 
   // Fetch org-wide documents when knowledge + includeOrgKnowledge are both enabled
   const orgDocumentsResult = useQuery(

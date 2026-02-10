@@ -1,19 +1,14 @@
 import { z } from 'zod/v4';
 
-export const modelPresetLiterals = [
-  'fast',
-  'standard',
-  'advanced',
-  'vision',
-] as const;
+const modelPresetLiterals = ['fast', 'standard', 'advanced', 'vision'] as const;
 export const modelPresetSchema = z.enum(modelPresetLiterals);
 export type ModelPreset = z.infer<typeof modelPresetSchema>;
 
-export const versionStatusLiterals = ['draft', 'active', 'archived'] as const;
+const versionStatusLiterals = ['draft', 'active', 'archived'] as const;
 export const versionStatusSchema = z.enum(versionStatusLiterals);
 export type VersionStatus = z.infer<typeof versionStatusSchema>;
 
-export const customAgentSchema = z.object({
+const customAgentSchema = z.object({
   _id: z.string(),
   _creationTime: z.number(),
   organizationId: z.string(),
@@ -40,9 +35,9 @@ export const customAgentSchema = z.object({
   publishedBy: z.string().optional(),
   changeLog: z.string().optional(),
 });
-export type CustomAgent = z.infer<typeof customAgentSchema>;
+type CustomAgent = z.infer<typeof customAgentSchema>;
 
-export const createCustomAgentSchema = z.object({
+const createCustomAgentSchema = z.object({
   organizationId: z.string(),
   name: z
     .string()
@@ -62,9 +57,9 @@ export const createCustomAgentSchema = z.object({
   teamId: z.string().optional(),
   sharedWithTeamIds: z.array(z.string()).optional(),
 });
-export type CreateCustomAgent = z.infer<typeof createCustomAgentSchema>;
+type CreateCustomAgent = z.infer<typeof createCustomAgentSchema>;
 
-export const updateCustomAgentSchema = createCustomAgentSchema
+const updateCustomAgentSchema = createCustomAgentSchema
   .omit({ organizationId: true })
   .partial();
-export type UpdateCustomAgent = z.infer<typeof updateCustomAgentSchema>;
+type UpdateCustomAgent = z.infer<typeof updateCustomAgentSchema>;

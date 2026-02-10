@@ -26,7 +26,8 @@ export function hasTeamAccess(
 ): boolean {
   if (!resource.teamId) return true;
 
-  const teamSet = userTeamIds instanceof Set ? userTeamIds : new Set(userTeamIds);
+  const teamSet =
+    userTeamIds instanceof Set ? userTeamIds : new Set(userTeamIds);
 
   if (teamSet.has(resource.teamId)) return true;
 
