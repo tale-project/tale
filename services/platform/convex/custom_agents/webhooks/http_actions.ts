@@ -25,7 +25,7 @@ function jsonResponse(data: Record<string, unknown>, status: number) {
 
 export const agentWebhookHandler = httpAction(async (ctx, req) => {
   const url = new URL(req.url);
-  const pathParts = url.pathname.split('/');
+  const pathParts = url.pathname.split('/').filter(Boolean);
   const token = pathParts[pathParts.length - 1];
 
   if (!token) {
