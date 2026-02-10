@@ -9,6 +9,7 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -16,7 +17,6 @@ import {
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_MAX_FILE_SIZE,
 } from '@/lib/shared/file-types';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 
@@ -39,8 +39,8 @@ export function DocumentUploadDialog({
   const { t: tCommon } = useT('common');
   const { selectedTeamId } = useTeamFilter();
 
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(
-    () => selectedTeamId ? new Set([selectedTeamId]) : new Set(),
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(() =>
+    selectedTeamId ? new Set([selectedTeamId]) : new Set(),
   );
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
@@ -64,12 +64,14 @@ export function DocumentUploadDialog({
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
       if (!newOpen) {
-        setSelectedTeams(new Set());
+        setSelectedTeams(
+          selectedTeamId ? new Set([selectedTeamId]) : new Set(),
+        );
         setSelectedFiles([]);
       }
       onOpenChange(newOpen);
     },
-    [onOpenChange],
+    [onOpenChange, selectedTeamId],
   );
 
   const handleToggleTeam = useCallback((teamId: string) => {
