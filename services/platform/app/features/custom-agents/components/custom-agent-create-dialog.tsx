@@ -39,12 +39,18 @@ export function CreateCustomAgentDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(
-          1,
-          tCommon('validation.required', {
-            field: t('customAgents.form.name'),
-          }),
-        ),
+        name: z
+          .string()
+          .min(
+            1,
+            tCommon('validation.required', {
+              field: t('customAgents.form.name'),
+            }),
+          )
+          .regex(
+            /^[a-z0-9][a-z0-9-]*$/,
+            t('customAgents.form.namePatternError'),
+          ),
         displayName: z.string().min(
           1,
           tCommon('validation.required', {

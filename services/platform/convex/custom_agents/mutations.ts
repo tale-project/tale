@@ -141,6 +141,12 @@ export const createCustomAgent = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(args.name)) {
+      throw new Error(
+        'Agent name must start with a letter or number and contain only lowercase letters, numbers, and hyphens',
+      );
+    }
+
     validateToolNames(args.toolNames);
 
     const { organizationId, toolNames, ...agentFields } = args;
