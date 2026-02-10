@@ -31,7 +31,7 @@ export const imapAction: ActionDefinition<ImapActionParams> = {
   }),
 
   async execute(_ctx, params, variables): Promise<ImapActionResult> {
-    const processedParams = params as ImapActionParams;
+    const processedParams = params;
 
     // Get IMAP credentials
     const credentials = getImapCredentials(processedParams, variables);

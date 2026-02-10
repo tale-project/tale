@@ -131,6 +131,7 @@ async function getRecentMessagesForPrefetch(
         (m) => m.message?.role === 'user' || m.message?.role === 'assistant',
       )
       .map((m) => ({
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         role: m.message?.role as 'user' | 'assistant',
         content:
           typeof m.message?.content === 'string' ? m.message.content : '',
@@ -184,6 +185,7 @@ async function fetchRagGenerate(options: {
       throw new Error(`RAG service error: ${response.status} ${errorText}`);
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const result = (await response.json()) as RagServiceResponse;
     return result.response;
   } catch (error) {

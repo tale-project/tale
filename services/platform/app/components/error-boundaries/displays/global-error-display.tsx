@@ -104,7 +104,7 @@ export function GlobalErrorDisplay({ error, reset }: GlobalErrorDisplayProps) {
     if (reset) {
       reset();
     } else {
-      router.invalidate();
+      void router.invalidate();
     }
   };
 

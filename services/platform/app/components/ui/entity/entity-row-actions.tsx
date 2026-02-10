@@ -153,6 +153,7 @@ export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
   const [openStates, setOpenStates] = useState<Record<T, boolean>>(() =>
     keysRef.current.reduce(
       (acc, key) => ({ ...acc, [key]: false }),
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reduce initial value; progressively populated by accumulator
       {} as Record<T, boolean>,
     ),
   );
@@ -164,6 +165,7 @@ export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
           ...acc,
           [key]: () => setOpenStates((prev) => ({ ...prev, [key]: true })),
         }),
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reduce initial value; progressively populated by accumulator
         {} as Record<T, () => void>,
       ),
     [],
@@ -177,6 +179,7 @@ export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
           [key]: (isOpen: boolean) =>
             setOpenStates((prev) => ({ ...prev, [key]: isOpen })),
         }),
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reduce initial value; progressively populated by accumulator
         {} as Record<T, (isOpen: boolean) => void>,
       ),
     [],
@@ -186,6 +189,7 @@ export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
     setOpenStates(
       keysRef.current.reduce(
         (acc, key) => ({ ...acc, [key]: false }),
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reduce initial value; progressively populated by accumulator
         {} as Record<T, boolean>,
       ),
     );

@@ -31,10 +31,10 @@ export function PaginatedMarkdownTable({
   // to avoid TypeScript narrowing issues with let mutations inside callbacks
   const childArray = Children.toArray(children).filter(isValidElement);
 
-  // React component types don't expose displayName in TS — cast required
   const getDisplayName = (childType: ReactElement['type']) =>
     typeof childType === 'function' || typeof childType === 'object'
-      ? ((childType as { displayName?: string }).displayName ?? null)
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- React component types don't expose displayName in TS
+        ((childType as { displayName?: string }).displayName ?? null)
       : null;
 
   const thead =
@@ -52,22 +52,21 @@ export function PaginatedMarkdownTable({
     );
   });
 
-  // ReactElement.props is untyped for generic elements — cast required
-  // Array.filter type guard doesn't narrow to ReactElement[] — cast required
   const tbodyRows = tbodyChild
-    ? (Children.toArray(
+    ? Children.toArray(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ReactElement.props is untyped for generic elements
         (tbodyChild.props as { children?: ReactNode }).children,
-      ).filter(isValidElement) as ReactElement[])
+      ).filter(isValidElement)
     : [];
 
   // Count columns in header to normalize rows
   let headerColumnCount = 0;
   if (thead) {
-    // ReactElement.props is untyped for generic elements — cast required
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ReactElement.props is untyped for generic elements
     const theadProps = thead.props as { children?: ReactNode };
     Children.forEach(theadProps.children, (headerRow) => {
       if (isValidElement(headerRow)) {
-        // ReactElement.props is untyped — cast required
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ReactElement.props is untyped for generic elements
         const rowProps = headerRow.props as { children?: ReactNode };
         headerColumnCount = Children.count(rowProps.children);
       }
@@ -79,7 +78,7 @@ export function PaginatedMarkdownTable({
     row: ReactElement,
     expectedColumns: number,
   ): ReactElement => {
-    // ReactElement.props is untyped — cast required
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ReactElement.props is untyped for generic elements
     const rowProps = row.props as { children?: ReactNode };
     const cells = Children.toArray(rowProps.children);
     const currentCount = cells.length;

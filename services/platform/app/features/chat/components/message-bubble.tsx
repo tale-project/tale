@@ -350,7 +350,7 @@ const HighlightedCode = memo(function HighlightedCode({
 
   useEffect(() => {
     let cancelled = false;
-    highlightCode(code, lang, shikiTheme).then((result) => {
+    void highlightCode(code, lang, shikiTheme).then((result) => {
       if (!cancelled && result) setHtml(extractShikiCodeContent(result));
     });
     return () => {
@@ -634,7 +634,12 @@ const markdownComponents = {
       return (
         <HighlightedCode
           lang={match[1]}
-          code={String(children).replace(/\n$/, '')}
+          code={(Array.isArray(children)
+            ? children.join('')
+            : typeof children === 'string'
+              ? children
+              : ''
+          ).replace(/\n$/, '')}
         />
       );
     }

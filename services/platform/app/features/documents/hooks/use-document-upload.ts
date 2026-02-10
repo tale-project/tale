@@ -7,6 +7,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { DOCUMENT_MAX_FILE_SIZE } from '@/lib/shared/file-types';
 
@@ -133,7 +134,7 @@ export function useDocumentUpload(options: UploadOptions) {
           throw new Error(`Upload failed: ${uploadResponse.statusText}`);
         }
 
-        // fetch response.json() returns unknown — cast required for storage upload shape
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
         const { storageId } = (await uploadResponse.json()) as {
           storageId: string;
         };
@@ -141,8 +142,7 @@ export function useDocumentUpload(options: UploadOptions) {
         // Step 4: Create document record in database
         const result = await createDocumentFromUpload({
           organizationId: options.organizationId,
-          // String from JSON response — cast required for Convex API
-          fileId: storageId as Id<'_storage'>,
+          fileId: toId<'_storage'>(storageId),
           fileName: file.name,
           contentType: file.type || 'application/octet-stream',
           contentHash,
@@ -157,7 +157,7 @@ export function useDocumentUpload(options: UploadOptions) {
         return result;
       });
 
-      // Promise.all preserves generic type but TS widens when chained — cast required
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Promise.all widens the return type
       const results = (await Promise.all(
         uploadPromises,
       )) as CreateDocumentResult[];

@@ -32,8 +32,10 @@ export async function createConversationFromSentEmail(
 ) {
   // Handle both single email and array of emails
   const emailsArray: EmailType[] = Array.isArray(params.emails)
-    ? (params.emails as EmailType[])
-    : [params.emails as EmailType];
+    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+      (params.emails as EmailType[])
+    : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+      [params.emails as EmailType];
 
   // Sort emails by date (chronological order - oldest first)
   emailsArray.sort(

@@ -220,6 +220,7 @@ async function exchangeCodeForTokens(
     throw new Error(`Token exchange failed: ${response.status} - ${errorText}`);
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   return (await response.json()) as TokenResponse;
 }
 
@@ -262,6 +263,7 @@ export const handleOAuth2Callback = internalAction({
     }
 
     const { oauth2Auth } = emailProvider;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const provider = oauth2Auth.provider as OAuthProvider;
 
     // Get account type and tenant ID from metadata (used for Microsoft tenant-specific endpoints)

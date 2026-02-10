@@ -11,6 +11,7 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { isKeyOf } from '@/lib/utils/type-guards';
 
 import type { Conversation } from '../types';
 
@@ -268,45 +269,28 @@ const ConversationRow = memo(function ConversationRow({
           </div>
 
           <HStack gap={2}>
-            {/* TS `in` operator does not narrow the left operand — cast required */}
             {conversation.priority &&
               conversation.status === 'open' &&
               conversation.priority !== 'medium' &&
-              conversation.priority in priorityConfig && (
+              isKeyOf(conversation.priority, priorityConfig) && (
                 <Badge
                   dot
                   className="min-w-fit"
-                  variant={
-                    priorityConfig[
-                      conversation.priority as keyof typeof priorityConfig
-                    ].variant
-                  }
+                  variant={priorityConfig[conversation.priority].variant}
                 >
-                  {t(
-                    priorityConfig[
-                      conversation.priority as keyof typeof priorityConfig
-                    ].translationKey,
-                  )}
+                  {t(priorityConfig[conversation.priority].translationKey)}
                 </Badge>
               )}
 
-            {/* TS `in` operator does not narrow the left operand — cast required */}
-            {conversation.type && conversation.type in categoryConfig && (
-              <Badge
-                variant="outline"
-                icon={
-                  categoryConfig[
-                    conversation.type as keyof typeof categoryConfig
-                  ].icon
-                }
-              >
-                {t(
-                  categoryConfig[
-                    conversation.type as keyof typeof categoryConfig
-                  ].translationKey,
-                )}
-              </Badge>
-            )}
+            {conversation.type &&
+              isKeyOf(conversation.type, categoryConfig) && (
+                <Badge
+                  variant="outline"
+                  icon={categoryConfig[conversation.type].icon}
+                >
+                  {t(categoryConfig[conversation.type].translationKey)}
+                </Badge>
+              )}
           </HStack>
         </div>
       </div>

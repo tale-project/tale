@@ -55,6 +55,7 @@ export const executeQuery = internalAction({
       engine: args.engine,
       credentials: args.credentials,
       query: args.query,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       params: args.params as Record<string, unknown> | undefined,
       security: args.security,
       allowWrite: args.allowWrite,

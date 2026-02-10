@@ -13,6 +13,7 @@ import { z } from 'zod/v4';
 import type { ToolDefinition } from '../types';
 import type { IntegrationExecutionResult } from './types';
 
+import { getBoolean, isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
@@ -83,6 +84,7 @@ Write operations create approval cards. Use integration_batch for multiple paral
             organizationId,
             integrationName: args.integrationName,
             operation: args.operation,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
             params: (args.params || {}) as Record<
               string,
               string | number | boolean | null
@@ -103,10 +105,7 @@ Write operations create approval cards. Use integration_batch for multiple paral
         }
 
         const isApprovalResult = (r: unknown): r is ApprovalResult =>
-          r !== null &&
-          typeof r === 'object' &&
-          'requiresApproval' in r &&
-          (r as Record<string, unknown>).requiresApproval === true;
+          isRecord(r) && getBoolean(r, 'requiresApproval') === true;
 
         if (isApprovalResult(result)) {
           const approvalResult = result;

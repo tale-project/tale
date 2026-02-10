@@ -284,8 +284,10 @@ export function GmailCreateProviderDialog({
     >
       <Tabs
         value={authMethod}
-        // Radix Tabs onValueChange returns string — cast required
-        onValueChange={(value) => setAuthMethod(value as AuthMethod)}
+        onValueChange={(value) =>
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Tabs onValueChange returns string
+          setAuthMethod(value as AuthMethod)
+        }
       >
         <TabsList className="mb-4 grid w-full grid-cols-2">
           <TabsTrigger value="oauth2" className="gap-2">

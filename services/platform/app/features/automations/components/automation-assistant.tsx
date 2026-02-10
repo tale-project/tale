@@ -303,8 +303,9 @@ function AutomationAssistantContent({
     automationId ? { wfDefinitionId: automationId } : 'skip',
   );
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SDK type mismatch: return type narrowed to usable shape
   const { results: uiMessages } = useUIMessages(
-    // oxlint-disable-next-line typescript/no-explicit-any -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
+    // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 100, stream: true },
@@ -444,7 +445,7 @@ function AutomationAssistantContent({
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      uploadFiles(Array.from(files));
+      void uploadFiles(Array.from(files));
     }
     // Reset input to allow selecting the same file again
     e.target.value = '';
@@ -474,7 +475,7 @@ function AutomationAssistantContent({
     }
 
     if (imageFiles.length > 0) {
-      uploadFiles(imageFiles);
+      void uploadFiles(imageFiles);
     }
   };
 
@@ -581,7 +582,7 @@ function AutomationAssistantContent({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      void handleSendMessage();
     }
   };
 

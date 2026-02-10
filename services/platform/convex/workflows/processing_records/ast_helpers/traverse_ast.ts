@@ -8,20 +8,17 @@
  * @returns Extracted conditions and complexity flag
  */
 
-import type {
-  ASTNode,
-  BinaryExpression,
-  ParsedFilterExpression,
-} from './types';
+import type { ASTNode, ParsedFilterExpression } from './types';
 
 import { extractComparison } from './extract_comparison';
 import { mergeAndConditions } from './merge_and_conditions';
+import { isBinaryExpression } from './types';
 
 export function traverseAST(
   node: ASTNode,
 ): Omit<ParsedFilterExpression, 'equalityConditions'> {
-  if (node.type === 'BinaryExpression') {
-    const binaryNode = node as BinaryExpression;
+  if (isBinaryExpression(node)) {
+    const binaryNode = node;
 
     // Handle logical AND operator
     if (binaryNode.operator === '&&') {

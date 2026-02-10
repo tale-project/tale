@@ -11,6 +11,8 @@ import type {
   AuditContext,
 } from './types';
 
+import { isRecord } from '../../lib/utils/type-guards';
+
 const SENSITIVE_FIELDS = new Set([
   'password',
   'passwordHash',
@@ -68,13 +70,11 @@ export function redactSensitiveFields(
   for (const [key, value] of Object.entries(obj)) {
     if (isSensitiveKey(key)) {
       redacted[key] = REDACTED_VALUE;
-    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      redacted[key] = redactSensitiveFields(value as Record<string, unknown>);
+    } else if (isRecord(value)) {
+      redacted[key] = redactSensitiveFields(value);
     } else if (Array.isArray(value)) {
       redacted[key] = value.map((item) =>
-        typeof item === 'object' && item !== null
-          ? redactSensitiveFields(item as Record<string, unknown>)
-          : item,
+        isRecord(item) ? redactSensitiveFields(item) : item,
       );
     } else {
       redacted[key] = value;
@@ -85,16 +85,11 @@ export function redactSensitiveFields(
 }
 
 function stableStringify(value: unknown): string {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const sorted = Object.keys(value as Record<string, unknown>)
-      .sort()
-      .reduce(
-        (acc, key) => {
-          acc[key] = (value as Record<string, unknown>)[key];
-          return acc;
-        },
-        {} as Record<string, unknown>,
-      );
+  if (isRecord(value)) {
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(value).sort()) {
+      sorted[key] = value[key];
+    }
     return JSON.stringify(sorted);
   }
   return JSON.stringify(value);

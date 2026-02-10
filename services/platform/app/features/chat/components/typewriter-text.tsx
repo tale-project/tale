@@ -164,13 +164,9 @@ function TypewriterTextComponent({
     <div
       ref={containerRef}
       className={cn('typewriter-container', className)}
-      style={
-        {
-          // Initialize CSS custom property
-          '--reveal-chars': displayLength,
-          // CSS custom properties not in React.CSSProperties — cast required
-        } as React.CSSProperties
-      }
+      style={{
+        '--reveal-chars': displayLength,
+      }}
     >
       {/* Render text with incremental markdown parsing */}
       <IncrementalMarkdown

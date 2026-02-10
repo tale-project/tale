@@ -71,7 +71,7 @@ export function CreateAutomationDialog({
         title: t('toast.created'),
         variant: 'success',
       });
-      navigate({
+      void navigate({
         to: '/dashboard/$id/automations/$amId',
         params: { id: organizationId, amId: wfDefinitionId },
         search: { panel: 'ai-chat' },

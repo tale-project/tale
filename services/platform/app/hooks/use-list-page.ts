@@ -179,6 +179,7 @@ export function useListPage<TData>(
       const activeFilters = Object.entries(filterValues)
         .filter(([, values]) => values.length > 0)
         .map(([field, values]) => ({
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.entries loses key type; field is keyof TData from filter definitions
           field: field as keyof TData,
           values: new Set(values),
         }));
@@ -288,6 +289,7 @@ export function useListPage<TData>(
     filters || (search && isManagedSearch(search)) ? clearAll : undefined;
 
   // 14. Build getRowId
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex documents always have _id; TData generic doesn't enforce it
   const rowIdFn = getRowId ?? ((row: TData) => (row as { _id: string })._id);
 
   return {

@@ -15,7 +15,6 @@ import {
   EVENT_TYPES,
   EVENT_TYPE_CATEGORIES,
   getFilterFieldsForEventType,
-  type EventType,
   type EventFilterFieldDef,
 } from '@/convex/workflows/triggers/event_types';
 import { useT } from '@/lib/i18n/client';
@@ -107,7 +106,7 @@ export function EventCreateDialog({
   }, [existingEventTypes]);
 
   const selectedMeta = selectedEventType
-    ? EVENT_TYPES[selectedEventType as EventType]
+    ? EVENT_TYPES[selectedEventType]
     : null;
 
   const handleEventTypeChange = (value: string) => {

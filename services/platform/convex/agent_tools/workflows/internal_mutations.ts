@@ -21,6 +21,7 @@ export const updateWorkflowApprovalWithResult = internalMutation({
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) return;
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex approval metadata
     const metadata = (approval.metadata ||
       {}) as unknown as WorkflowCreationMetadata;
 
@@ -35,6 +36,7 @@ export const updateWorkflowApprovalWithResult = internalMutation({
           ? { createdWorkflowId: args.createdWorkflowId }
           : {}),
         ...(args.executionError ? { executionError: args.executionError } : {}),
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex approval metadata for storage
       } as unknown as ApprovalMetadata,
     });
   },
@@ -94,6 +96,7 @@ export const createWorkflowCreationApproval = internalMutation({
         description: args.workflowConfig.description,
         version: args.workflowConfig.version,
         workflowType: args.workflowConfig.workflowType,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         config: args.workflowConfig.config as
           | Record<string, unknown>
           | undefined,
@@ -103,6 +106,7 @@ export const createWorkflowCreationApproval = internalMutation({
         name: step.name,
         stepType: step.stepType,
         order: step.order,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         config: step.config as Record<string, unknown>,
         nextSteps: step.nextSteps,
       })),

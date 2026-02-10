@@ -8,11 +8,13 @@
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { Doc, Id } from '../../_generated/dataModel';
+import type { Doc } from '../../_generated/dataModel';
 import type { ToolDefinition } from '../types';
 
+import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
+import { toId } from '../../lib/type_cast_helpers';
 import {
   validateStepConfig,
   isValidStepType,
@@ -105,12 +107,13 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
 
           // Handle arrays by recursively repairing each element
           if (Array.isArray(obj)) {
-            // Array structure preserved — cast required for generic return
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic return, array structure preserved
             return obj.map((item) => repairObject(item)) as unknown as T;
           }
 
           const repaired: Record<string, unknown> = {};
           for (const [key, value] of Object.entries(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic object iteration
             obj as Record<string, unknown>,
           )) {
             let repairedKey = key;
@@ -147,7 +150,7 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
                 ? repairObject(value)
                 : value;
           }
-          // Object structure preserved with repaired keys — cast required for generic return
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic return, object structure preserved
           return repaired as unknown as T;
         };
 
@@ -238,16 +241,16 @@ Please try again with a properly structured JSON object. Ensure all field names 
         }
 
         // Additional warning for action type matching stepType
-        const config = sanitizedUpdates.config as
-          | Record<string, unknown>
-          | undefined;
+        const config = isRecord(sanitizedUpdates.config)
+          ? sanitizedUpdates.config
+          : undefined;
         if (
           sanitizedUpdates.stepType === 'action' &&
           config &&
-          typeof config === 'object' &&
-          'type' in config
+          'type' in config &&
+          typeof config.type === 'string'
         ) {
-          const actionType = config.type as string;
+          const actionType = config.type;
           if (isValidStepType(actionType)) {
             warnings.push(
               `Action type "${actionType}" matches a stepType name. Did you mean stepType: "${actionType}"?`,
@@ -267,13 +270,13 @@ Please try again with a properly structured JSON object. Ensure all field names 
       }
 
       // stepRecordId comes from LLM, cast to expected ID type
-      const updatedStep = (await ctx.runMutation(
+      const updatedStep = await ctx.runMutation(
         internal.wf_step_defs.internal_mutations.patchStep,
         {
-          stepRecordId: args.stepRecordId as Id<'wfStepDefs'>,
+          stepRecordId: toId<'wfStepDefs'>(args.stepRecordId),
           updates: sanitizedUpdates,
         },
-      )) as Doc<'wfStepDefs'> | null;
+      );
 
       debugLog('update_workflow_step tool success', {
         stepRecordId: args.stepRecordId,

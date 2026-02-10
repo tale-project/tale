@@ -57,6 +57,7 @@ export async function getOrCreateSubThread(
   let summary: ThreadSummaryWithSubThreads = {};
   if (parentThread.summary) {
     try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       summary = JSON.parse(parentThread.summary) as ThreadSummaryWithSubThreads;
     } catch {
       // Invalid JSON, start fresh

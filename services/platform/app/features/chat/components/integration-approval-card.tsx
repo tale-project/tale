@@ -118,7 +118,11 @@ function IntegrationApprovalCardComponent({
       <div key={key} className="text-muted-foreground truncate text-xs">
         <span className="font-medium">{key}:</span>{' '}
         <span>
-          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+          {typeof value === 'string'
+            ? value
+            : typeof value === 'number' || typeof value === 'boolean'
+              ? String(value)
+              : JSON.stringify(value)}
         </span>
       </div>
     ));

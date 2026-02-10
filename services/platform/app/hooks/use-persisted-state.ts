@@ -20,6 +20,7 @@ function getItem<T>(key: string): T | undefined {
     const item = window.localStorage.getItem(key);
     if (!item) return undefined;
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns any; validated by isValidType() before use
     return JSON.parse(item) as T;
   } catch (error) {
     console.warn(`Failed to parse localStorage item for key "${key}":`, error);

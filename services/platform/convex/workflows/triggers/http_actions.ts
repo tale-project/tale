@@ -6,8 +6,6 @@
  * No additional signature or API key is required.
  */
 
-import type { Doc } from '../../_generated/dataModel';
-
 import { internal } from '../../_generated/api';
 import { httpAction } from '../../_generated/server';
 import {
@@ -45,10 +43,10 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     throw error;
   }
 
-  const webhook = (await ctx.runQuery(
+  const webhook = await ctx.runQuery(
     internal.workflows.triggers.internal_queries.getWebhookByToken,
     { token },
-  )) as Doc<'wfWebhooks'> | null;
+  );
 
   if (!webhook) {
     return jsonResponse({ error: 'Invalid webhook token' }, 404);

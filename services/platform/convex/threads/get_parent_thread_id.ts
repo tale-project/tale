@@ -32,6 +32,7 @@ export async function getParentThreadId(
   }
 
   try {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const summary = JSON.parse(thread.summary) as Partial<SubThreadSummary>;
     return typeof summary.parentThreadId === 'string'
       ? summary.parentThreadId

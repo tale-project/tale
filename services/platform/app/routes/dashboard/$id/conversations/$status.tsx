@@ -6,7 +6,6 @@ import type { Doc } from '@/convex/_generated/dataModel';
 import { ConversationsClient } from '@/app/features/conversations/components/conversations-client';
 
 const VALID_STATUSES = ['open', 'closed', 'archived', 'spam'] as const;
-type ConversationStatus = (typeof VALID_STATUSES)[number];
 
 const searchSchema = z.object({
   category: z.string().optional(),
@@ -18,7 +17,7 @@ const searchSchema = z.object({
 export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
   validateSearch: searchSchema,
   beforeLoad: ({ params }) => {
-    if (!VALID_STATUSES.includes(params.status as ConversationStatus)) {
+    if (!VALID_STATUSES.some((s) => s === params.status)) {
       throw notFound();
     }
   },
@@ -32,6 +31,7 @@ function ConversationsStatusPage() {
   return (
     <ConversationsClient
       key={`${organizationId}-${status}`}
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated route param
       status={status as Doc<'conversations'>['status']}
       organizationId={organizationId}
       page={parseInt(page)}

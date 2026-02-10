@@ -108,6 +108,7 @@ export async function generateDocx(
     throw new Error(`Failed to upload DOCX: ${uploadResponse.status}`);
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const { storageId } = (await uploadResponse.json()) as {
     storageId: Id<'_storage'>;
   };

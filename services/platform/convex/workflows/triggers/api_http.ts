@@ -4,8 +4,6 @@
  * Authorization: Bearer wfk_xxx...
  */
 
-import type { Doc } from '../../_generated/dataModel';
-
 import { internal } from '../../_generated/api';
 import { httpAction } from '../../_generated/server';
 import {
@@ -53,10 +51,10 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
 
   // Look up API key by hash
   const keyHash = await hashSecret(apiKey);
-  const apiKeyRecord = (await ctx.runQuery(
+  const apiKeyRecord = await ctx.runQuery(
     internal.workflows.triggers.internal_queries.getApiKeyByHash,
     { keyHash },
-  )) as Doc<'wfApiKeys'> | null;
+  );
 
   if (!apiKeyRecord) {
     return jsonResponse({ error: 'Invalid API key' }, 401);

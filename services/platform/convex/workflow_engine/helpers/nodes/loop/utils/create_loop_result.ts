@@ -11,7 +11,7 @@ export function createLoopResult(
   port: string,
   items: unknown[],
   state: NonNullable<LoopVars['state']>,
-  currentItem: unknown | null,
+  currentItem: unknown,
   currentIndex: number,
   parentLoop: LoopVars | undefined,
   ownerStepSlug: string,

@@ -313,7 +313,7 @@ export const createEventSubscription = mutation({
     });
 
     if (!isValidEventType(args.eventType)) {
-      throw new Error(`Invalid event type: ${args.eventType}`);
+      throw new Error(`Invalid event type: ${String(args.eventType)}`);
     }
 
     const rootDef = await ctx.db.get(args.workflowRootId);

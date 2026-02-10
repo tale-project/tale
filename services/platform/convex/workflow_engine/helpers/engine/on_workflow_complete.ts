@@ -5,17 +5,13 @@
  * Mirrors final status to wfExecutions table.
  */
 
-import { Infer } from 'convex/values';
-
 import type { Id, Doc } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
 import type { ComponentRunResult } from '../../types';
 
-import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
+import { toConvexJsonValue, toId } from '../../../lib/type_cast_helpers';
 import { emitEvent } from '../../../workflows/triggers/emit_event';
-
-type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
 export async function handleWorkflowComplete(
   ctx: MutationCtx,
@@ -25,45 +21,47 @@ export async function handleWorkflowComplete(
     result: unknown;
   },
 ): Promise<void> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const ctxAny = args.context as { executionId?: Id<'wfExecutions'> } | null;
   let exec: Doc<'wfExecutions'> | null = null;
   if (ctxAny?.executionId) {
-    exec = await ctx.db.get(ctxAny.executionId as Id<'wfExecutions'>);
+    exec = await ctx.db.get(ctxAny.executionId);
   }
   if (!exec) {
     exec = await ctx.db
       .query('wfExecutions')
       .withIndex('by_component_workflow', (q) =>
-        q.eq('componentWorkflowId', args.workflowId as unknown as string),
+        q.eq('componentWorkflowId', args.workflowId),
       )
       .first();
   }
   if (!exec) return;
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const result = args.result as ComponentRunResult;
   const kind = result?.kind;
   if (kind === 'success') {
     await ctx.runMutation(
       internal.wf_executions.internal_mutations.completeExecution,
       {
-        executionId: exec._id as Id<'wfExecutions'>,
-        output: result.returnValue as unknown as ConvexJsonValue,
+        executionId: toId<'wfExecutions'>(exec._id),
+        output: toConvexJsonValue(result.returnValue),
       },
     );
     await emitEvent(ctx, {
       organizationId: exec.organizationId,
       eventType: 'workflow.completed',
       eventData: {
-        executionId: exec._id as string,
-        wfDefinitionId: exec.wfDefinitionId as string,
-        rootWfDefinitionId: exec.rootWfDefinitionId as string | undefined,
+        executionId: exec._id,
+        wfDefinitionId: exec.wfDefinitionId,
+        rootWfDefinitionId: exec.rootWfDefinitionId,
       },
     });
   } else if (kind === 'failed') {
     await ctx.runMutation(
       internal.wf_executions.internal_mutations.failExecution,
       {
-        executionId: exec._id as Id<'wfExecutions'>,
+        executionId: toId<'wfExecutions'>(exec._id),
         error: result.error || 'failed',
       },
     );
@@ -71,9 +69,9 @@ export async function handleWorkflowComplete(
       organizationId: exec.organizationId,
       eventType: 'workflow.failed',
       eventData: {
-        executionId: exec._id as string,
-        wfDefinitionId: exec.wfDefinitionId as string,
-        rootWfDefinitionId: exec.rootWfDefinitionId as string | undefined,
+        executionId: exec._id,
+        wfDefinitionId: exec.wfDefinitionId,
+        rootWfDefinitionId: exec.rootWfDefinitionId,
         error: result.error || 'failed',
       },
     });
@@ -81,7 +79,7 @@ export async function handleWorkflowComplete(
     await ctx.runMutation(
       internal.wf_executions.internal_mutations.updateExecutionStatus,
       {
-        executionId: exec._id as Id<'wfExecutions'>,
+        executionId: toId<'wfExecutions'>(exec._id),
         status: 'failed',
         error: 'canceled',
       },
@@ -90,9 +88,9 @@ export async function handleWorkflowComplete(
       organizationId: exec.organizationId,
       eventType: 'workflow.failed',
       eventData: {
-        executionId: exec._id as string,
-        wfDefinitionId: exec.wfDefinitionId as string,
-        rootWfDefinitionId: exec.rootWfDefinitionId as string | undefined,
+        executionId: exec._id,
+        wfDefinitionId: exec.wfDefinitionId,
+        rootWfDefinitionId: exec.rootWfDefinitionId,
         error: 'canceled',
       },
     });

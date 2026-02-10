@@ -17,9 +17,9 @@ export async function registerServiceWorker(
     window.location.hostname.endsWith('.local');
 
   if (isLocalDev) {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
+    void navigator.serviceWorker.getRegistrations().then((registrations) => {
       for (const registration of registrations) {
-        registration.unregister();
+        void registration.unregister();
       }
     });
     return null;
@@ -78,10 +78,8 @@ export async function checkForServiceWorkerUpdate(): Promise<boolean> {
 }
 
 export function skipWaiting(waitingWorker: ServiceWorker): void {
-  waitingWorker.postMessage(
-    { type: 'SKIP_WAITING' },
-    waitingWorker.location.origin,
-  );
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- ServiceWorker.postMessage has no targetOrigin parameter
+  waitingWorker.postMessage({ type: 'SKIP_WAITING' });
 }
 
 interface SyncRegistration extends ServiceWorkerRegistration {

@@ -89,15 +89,17 @@ function normalizeColumns<TData, TValue>(
       'align' in col ||
       'skeleton' in col
     ) {
-      return col as DataTableSkeletonColumn;
+      return col;
     }
 
-    // Convert TanStack Table column definition
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table ColumnDef union type; narrowed after type guard above
     const tanstackCol = col as ColumnDef<TData, TValue>;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table meta is Record<string, unknown>; narrowed to ColumnMeta
     const meta = tanstackCol.meta as ColumnMeta | undefined;
     return {
       header:
         typeof tanstackCol.header === 'string' ? tanstackCol.header : undefined,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table ColumnDef.size is number | undefined; narrowed by 'in' check
       size: 'size' in tanstackCol ? (tanstackCol.size as number) : undefined,
       isAction: meta?.isAction,
       hasAvatar: meta?.hasAvatar,

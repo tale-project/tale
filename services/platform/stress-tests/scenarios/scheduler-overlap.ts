@@ -60,7 +60,6 @@ async function run() {
         api.workflow_engine.mutations.startWorkflow,
         {
           organizationId,
-          // Config stores string IDs — cast required for Convex API
           wfDefinitionId: wfDefinitionId as Id<'wfDefinitions'>,
           input: {
             stressTest: true,

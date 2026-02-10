@@ -69,6 +69,7 @@ describe('sanitizeDepth', () => {
           l2: { l3: { l4: { l5: { l6: TruncationMarker } } } };
         }
       ).l2.l3.l4.l5.l6;
+
       expect(truncated._truncated).toBe(true);
       expect(truncated._originalType).toBe('object');
     });
@@ -84,6 +85,7 @@ describe('sanitizeDepth', () => {
           l2: { l3: { l4: { l5: { l6: TruncationMarker } } } };
         }
       ).l2.l3.l4.l5.l6;
+
       expect(truncated._truncated).toBe(true);
       expect(truncated._originalType).toBe('array');
       expect(truncated._itemCount).toBe(5);
@@ -112,11 +114,13 @@ describe('sanitizeDepth', () => {
       expect(result).toHaveProperty('level1.level2.level3.level4');
 
       // Level 5 should be truncated
+
       const l5 = (
         result.level1 as {
           level2: { level3: { level4: { level5: TruncationMarker } } };
         }
       ).level2.level3.level4.level5;
+
       expect(l5._truncated).toBe(true);
     });
 
@@ -180,6 +184,7 @@ describe('sanitizeDepth', () => {
           };
         }
       ).l1.l2.l3.l4.l5.l6;
+
       expect(l6._truncated).toBe(true);
     });
   });

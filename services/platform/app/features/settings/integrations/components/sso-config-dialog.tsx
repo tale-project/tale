@@ -157,7 +157,7 @@ export function SSOConfigDialog({
             );
             const rules =
               config.roleMappingRules.length > 0
-                ? (config.roleMappingRules as RoleMappingRule[]).filter(
+                ? config.roleMappingRules.filter(
                     (r) => r.source === 'jobTitle' || r.source === 'appRole',
                   )
                 : DEFAULT_MAPPING_RULES;
@@ -613,9 +613,9 @@ export function SSOConfigDialog({
                 >
                   <Select
                     value={rule.source}
-                    // Radix Select onValueChange returns string — cast required
                     onValueChange={(value) =>
                       updateMappingRule(index, {
+                        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
                         source: value as 'jobTitle' | 'appRole',
                       })
                     }
@@ -645,9 +645,9 @@ export function SSOConfigDialog({
 
                   <Select
                     value={rule.targetRole}
-                    // Radix Select onValueChange returns string — cast required
                     onValueChange={(value) =>
                       updateMappingRule(index, {
+                        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
                         targetRole: value as PlatformRole,
                       })
                     }
@@ -689,8 +689,10 @@ export function SSOConfigDialog({
           </Label>
           <Select
             value={defaultRole}
-            // Radix Select onValueChange returns string — cast required
-            onValueChange={(value) => setDefaultRole(value as PlatformRole)}
+            onValueChange={(value) =>
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
+              setDefaultRole(value as PlatformRole)
+            }
             disabled={isSubmitting || isLoadingConfig}
             id="default-role-select"
             className="w-48"

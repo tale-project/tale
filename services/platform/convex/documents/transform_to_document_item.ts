@@ -41,6 +41,7 @@ export function transformToDocumentItem(
   options?: TransformOptions,
 ): DocumentItemResponse {
   // Type the metadata field for safer access
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
   const metadata = document.metadata as DocumentMetadata | undefined;
 
   // Normalize source mode value

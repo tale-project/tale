@@ -101,7 +101,6 @@ async function startWorkflow(
     api.workflow_engine.mutations.startWorkflow,
     {
       organizationId: config.organizationId,
-      // Config stores string IDs — cast required for Convex API
       wfDefinitionId: config.wfDefinitionId as Id<'wfDefinitions'>,
       input: {
         stressTest: true,
@@ -134,7 +133,6 @@ async function pollExecution(
   const metadata = execution.metadata ? JSON.parse(execution.metadata) : {};
 
   return {
-    // Convex schema uses v.string() — cast needed to narrow to our status union
     status: execution.status as ExecutionStatus,
     error: metadata.error,
   };

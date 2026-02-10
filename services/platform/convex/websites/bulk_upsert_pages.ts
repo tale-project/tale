@@ -6,6 +6,8 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { BulkUpsertPagesArgs, BulkUpsertPagesResult } from './types';
 
+import { toId } from '../lib/type_cast_helpers';
+
 export type { BulkUpsertPagesArgs, BulkUpsertPagesResult };
 
 /**
@@ -73,7 +75,7 @@ export async function bulkUpsertPages(
     ...inserts.map((page) =>
       ctx.db.insert('websitePages', {
         organizationId: args.organizationId,
-        websiteId: args.websiteId as Id<'websites'>,
+        websiteId: toId<'websites'>(args.websiteId),
         url: page.url,
         title: page.title,
         content: page.content,

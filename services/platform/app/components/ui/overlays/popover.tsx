@@ -34,7 +34,5 @@ export const PopoverContent = React.forwardRef<
       {...props}
     />
   </PopoverPrimitive.Portal>
-)) as React.ForwardRefExoticComponent<
-  PopoverContentProps & React.RefAttributes<HTMLDivElement>
->;
+));
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;

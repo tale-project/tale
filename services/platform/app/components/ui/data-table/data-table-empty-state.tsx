@@ -58,6 +58,19 @@ export function DataTableEmptyState({
   );
 }
 
+export interface DataTableFilteredEmptyStateProps {
+  /** Title text */
+  title: string;
+  /** Description text */
+  description?: string;
+  /** Header content (search/filters) to display above the empty state */
+  headerContent?: ReactNode;
+  /** Whether to use sticky layout */
+  stickyLayout?: boolean;
+  /** Additional class name */
+  className?: string;
+}
+
 /**
  * Filtered empty state component for DataTable.
  * Shows when filters are applied but no results match.

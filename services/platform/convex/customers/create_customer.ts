@@ -3,9 +3,9 @@
  */
 
 import type { DataSource } from '../../lib/shared/schemas/common';
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { MutationCtx } from '../_generated/server';
 
+import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { emitEvent } from '../workflows/triggers/emit_event';
 
 export interface CreateCustomerArgs {
@@ -40,7 +40,7 @@ export async function createCustomer(
     address: args.address,
     externalId: args.externalId,
 
-    metadata: args.metadata as ConvexJsonRecord,
+    metadata: toConvexJsonRecord(args.metadata),
   });
 
   await emitEvent(ctx, {

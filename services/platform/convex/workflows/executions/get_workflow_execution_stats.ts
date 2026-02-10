@@ -1,4 +1,4 @@
-import type { Id, Doc } from '../../_generated/dataModel';
+import type { Id } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
 
 export type GetWorkflowExecutionStatsArgs = {
@@ -29,13 +29,13 @@ export async function getWorkflowExecutionStats(
   ctx: QueryCtx,
   args: GetWorkflowExecutionStatsArgs,
 ): Promise<WorkflowExecutionStats> {
-  const executions = (await ctx.db
+  const executions = await ctx.db
     .query('wfExecutions')
     .withIndex('by_definition', (q) =>
       q.eq('wfDefinitionId', args.wfDefinitionId),
     )
     .order('desc')
-    .take(1000)) as Doc<'wfExecutions'>[];
+    .take(1000);
 
   const total = executions.length;
 

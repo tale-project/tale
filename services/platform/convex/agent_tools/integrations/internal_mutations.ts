@@ -8,9 +8,9 @@ import {
 } from '../../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
+import { toConvexJsonRecord } from '../../lib/type_cast_helpers';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
-type ConvexJsonRecord = Infer<typeof jsonRecordValidator>;
 
 interface IntegrationOperationMetadataLocal {
   integrationId: string;
@@ -37,6 +37,7 @@ export const updateApprovalWithResult = internalMutation({
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) return;
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex approval metadata
     const metadata = (approval.metadata ||
       {}) as unknown as IntegrationOperationMetadataLocal;
     const executedAt = Date.now();
@@ -44,12 +45,12 @@ export const updateApprovalWithResult = internalMutation({
     await ctx.db.patch(args.approvalId, {
       executedAt,
       executionError: args.executionError || undefined,
-      metadata: {
+      metadata: toConvexJsonRecord({
         ...metadata,
         executedAt,
-        executionResult: args.executionResult as ConvexJsonValue,
+        executionResult: args.executionResult,
         executionError: args.executionError || undefined,
-      } as ConvexJsonRecord,
+      }),
     });
   },
 });

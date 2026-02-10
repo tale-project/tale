@@ -3,9 +3,9 @@
  */
 
 import { internal } from '../../../_generated/api';
-import { Id } from '../../../_generated/dataModel';
 import { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
+import { toId } from '../../../lib/type_cast_helpers';
 import { deserializeVariablesInAction } from '../../helpers/serialization/deserialize_variables';
 import { LoadExecutionResult } from './types';
 
@@ -20,7 +20,7 @@ export async function loadAndValidateExecution(
   const execution = await ctx.runQuery(
     internal.wf_executions.internal_queries.getExecution,
     {
-      executionId: executionId as Id<'wfExecutions'>,
+      executionId: toId<'wfExecutions'>(executionId),
     },
   );
 
@@ -39,7 +39,7 @@ export async function loadAndValidateExecution(
     // Get the raw execution to access the serialized variables string
     const rawExecution = await ctx.runQuery(
       internal.wf_executions.internal_queries.getRawExecution,
-      { executionId: executionId as Id<'wfExecutions'> },
+      { executionId: toId<'wfExecutions'>(executionId) },
     );
     if (rawExecution?.variables) {
       variables = await deserializeVariablesInAction(
@@ -65,8 +65,11 @@ export async function loadAndValidateExecution(
     execution: {
       ...execution,
       variables,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     } as LoadExecutionResult['execution'],
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     stepConfig: stepConfigRaw as { [key: string]: unknown },
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     workflowConfig: workflowConfig as {
       name?: string;
       description?: string;

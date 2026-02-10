@@ -59,10 +59,7 @@ export function ExampleMessagesTable({
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { formatDate } = useFormatDate();
-  const search = useSearch({ strict: false }) as Record<
-    string,
-    string | undefined
-  >;
+  const search = useSearch({ strict: false });
   const itemsPerPage = 5;
 
   // Get current page from URL query params, default to 1

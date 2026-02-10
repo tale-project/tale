@@ -39,7 +39,7 @@ function getCountryFlag(locale: string): string {
 
   if (countryCode.length !== 2) return locale;
 
-  const codePoints = [...countryCode.toUpperCase()].map(
+  const codePoints = Array.from(countryCode.toUpperCase()).map(
     (char) => 127397 + char.charCodeAt(0),
   );
   return String.fromCodePoint(...codePoints);
@@ -97,15 +97,17 @@ export function createActionsColumn<TData, TPropName extends string>(
       : undefined,
     size: options?.size ?? 140,
     meta: { isAction: true },
-    cell: ({ row }) => (
-      <HStack justify="end">
-        <ActionsComponent
-          {...({ [entityPropName]: row.original } as {
-            [K in TPropName]: TData;
-          })}
-        />
-      </HStack>
-    ),
+    cell: ({ row }) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- computed prop [entityPropName] loses type; cast required for generic component prop
+      const props = { [entityPropName]: row.original } as {
+        [K in TPropName]: TData;
+      };
+      return (
+        <HStack justify="end">
+          <ActionsComponent {...props} />
+        </HStack>
+      );
+    },
   };
 }
 
@@ -157,6 +159,7 @@ export function createDateColumn<TData, K extends keyof TData>(
   const alignRight = options?.alignRight ?? false;
 
   return {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table accessorKey expects string; keyof TData is always string here
     accessorKey: accessorKey as string,
     header: alignRight
       ? () => (
@@ -164,14 +167,21 @@ export function createDateColumn<TData, K extends keyof TData>(
         )
       : () => tTables(headerKey),
     size: options?.size ?? 140,
-    cell: ({ row }) => (
-      <TableDateCell
-        date={row.original[accessorKey] as unknown as number | Date | string}
-        preset={options?.preset ?? 'short'}
-        alignRight={alignRight}
-        className="text-xs"
-      />
-    ),
+    cell: ({ row }) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TData[K] is date-like but generic prevents narrowing
+      const date = row.original[accessorKey] as unknown as
+        | number
+        | Date
+        | string;
+      return (
+        <TableDateCell
+          date={date}
+          preset={options?.preset ?? 'short'}
+          alignRight={alignRight}
+          className="text-xs"
+        />
+      );
+    },
   };
 }
 
@@ -239,6 +249,7 @@ export function createTextColumn<TData, K extends keyof TData>(
   options?: TextColumnOptions,
 ): ColumnDef<TData> {
   return {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table accessorKey expects string; keyof TData is always string here
     accessorKey: accessorKey as string,
     header: () => tTables(headerKey),
     size: options?.size,

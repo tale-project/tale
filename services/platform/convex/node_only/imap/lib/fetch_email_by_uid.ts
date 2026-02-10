@@ -39,7 +39,13 @@ export default async function fetchEmailByUid(
   if (parsed.headers) {
     headers = {};
     for (const [key, value] of parsed.headers.entries()) {
-      headers[key] = Array.isArray(value) ? value.join(', ') : String(value);
+      headers[key] = Array.isArray(value)
+        ? value
+            .map((v) => (typeof v === 'string' ? v : JSON.stringify(v)))
+            .join(', ')
+        : typeof value === 'string'
+          ? value
+          : JSON.stringify(value);
     }
   }
 

@@ -35,6 +35,25 @@ function TestComponent({
   });
 }
 
+const mockDOMRect = {} as DOMRectReadOnly;
+const mockObserverInstance = {} as IntersectionObserver;
+
+function createMockEntry(
+  overrides: Partial<IntersectionObserverEntry> & {
+    target: Element;
+    isIntersecting: boolean;
+  },
+): IntersectionObserverEntry {
+  return {
+    boundingClientRect: mockDOMRect,
+    intersectionRatio: overrides.isIntersecting ? 1 : 0,
+    intersectionRect: mockDOMRect,
+    rootBounds: null,
+    time: Date.now(),
+    ...overrides,
+  };
+}
+
 describe('useInfiniteScroll', () => {
   let mockObserve: ReturnType<typeof vi.fn>;
   let mockDisconnect: ReturnType<typeof vi.fn>;
@@ -151,18 +170,10 @@ describe('useInfiniteScroll', () => {
 
       if (observerCallback) {
         const entries: IntersectionObserverEntry[] = [
-          {
-            isIntersecting: true,
-            target: sentinelElement,
-            boundingClientRect: {} as DOMRectReadOnly,
-            intersectionRatio: 1,
-            intersectionRect: {} as DOMRectReadOnly,
-            rootBounds: null,
-            time: Date.now(),
-          },
+          createMockEntry({ isIntersecting: true, target: sentinelElement }),
         ];
 
-        observerCallback(entries, {} as IntersectionObserver);
+        observerCallback(entries, mockObserverInstance);
 
         expect(onLoadMore).toHaveBeenCalledTimes(1);
       }
@@ -183,18 +194,10 @@ describe('useInfiniteScroll', () => {
 
       if (observerCallback) {
         const entries: IntersectionObserverEntry[] = [
-          {
-            isIntersecting: true,
-            target: sentinelElement,
-            boundingClientRect: {} as DOMRectReadOnly,
-            intersectionRatio: 1,
-            intersectionRect: {} as DOMRectReadOnly,
-            rootBounds: null,
-            time: Date.now(),
-          },
+          createMockEntry({ isIntersecting: true, target: sentinelElement }),
         ];
 
-        observerCallback(entries, {} as IntersectionObserver);
+        observerCallback(entries, mockObserverInstance);
 
         expect(onLoadMore).not.toHaveBeenCalled();
       }
@@ -215,18 +218,10 @@ describe('useInfiniteScroll', () => {
 
       if (observerCallback) {
         const entries: IntersectionObserverEntry[] = [
-          {
-            isIntersecting: true,
-            target: sentinelElement,
-            boundingClientRect: {} as DOMRectReadOnly,
-            intersectionRatio: 1,
-            intersectionRect: {} as DOMRectReadOnly,
-            rootBounds: null,
-            time: Date.now(),
-          },
+          createMockEntry({ isIntersecting: true, target: sentinelElement }),
         ];
 
-        observerCallback(entries, {} as IntersectionObserver);
+        observerCallback(entries, mockObserverInstance);
 
         expect(onLoadMore).not.toHaveBeenCalled();
       }
@@ -247,18 +242,10 @@ describe('useInfiniteScroll', () => {
 
       if (observerCallback) {
         const entries: IntersectionObserverEntry[] = [
-          {
-            isIntersecting: false,
-            target: sentinelElement,
-            boundingClientRect: {} as DOMRectReadOnly,
-            intersectionRatio: 0,
-            intersectionRect: {} as DOMRectReadOnly,
-            rootBounds: null,
-            time: Date.now(),
-          },
+          createMockEntry({ isIntersecting: false, target: sentinelElement }),
         ];
 
-        observerCallback(entries, {} as IntersectionObserver);
+        observerCallback(entries, mockObserverInstance);
 
         expect(onLoadMore).not.toHaveBeenCalled();
       }

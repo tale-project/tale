@@ -1,5 +1,10 @@
 import type { UploadAllWorkflowsResult } from './types';
 
+import {
+  isRecord,
+  getString,
+  getRecord,
+} from '../../../../../lib/utils/type-guards';
 import { createDebugLog } from '../../../../lib/debug_log';
 import * as workflowExports from '../../../../predefined_workflows';
 import { getRagConfig } from '../../rag/helpers/get_rag_config';
@@ -42,12 +47,20 @@ export async function uploadAllWorkflows(
     const content = JSON.stringify(workflow, null, 2);
 
     // Extract workflow metadata
-    const workflowConfig = (workflow as unknown as { workflowConfig?: unknown })
-      .workflowConfig as Record<string, unknown> | undefined;
-    const workflowName = (workflowConfig?.name as string) || 'Unknown Workflow';
-    const workflowDescription = (workflowConfig?.description as string) || '';
+    const workflowRec = isRecord(workflow) ? workflow : undefined;
+    const workflowConfig = workflowRec
+      ? getRecord(workflowRec, 'workflowConfig')
+      : undefined;
+    const workflowName =
+      (workflowConfig ? getString(workflowConfig, 'name') : undefined) ||
+      'Unknown Workflow';
+    const workflowDescription =
+      (workflowConfig ? getString(workflowConfig, 'description') : undefined) ||
+      '';
     const workflowType =
-      (workflowConfig?.workflowType as string) || 'predefined';
+      (workflowConfig
+        ? getString(workflowConfig, 'workflowType')
+        : undefined) || 'predefined';
 
     // Upload to RAG service
     const result = await uploadTextDocument({
@@ -73,7 +86,7 @@ export async function uploadAllWorkflows(
     uploaded++;
     details.push({
       workflowKey: key,
-      workflowName: workflowName as string,
+      workflowName: workflowName,
       status: 'success',
     });
   }

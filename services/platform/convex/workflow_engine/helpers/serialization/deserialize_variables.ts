@@ -8,6 +8,7 @@
 import type { Id } from '../../../_generated/dataModel';
 
 import { createDebugLog } from '../../../lib/debug_log';
+import { toId } from '../../../lib/type_cast_helpers';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -29,7 +30,7 @@ export async function deserializeVariablesInAction(
 
   // Check if this is a storage reference
   if (parsed._storageRef) {
-    const storageId = parsed._storageRef as Id<'_storage'>;
+    const storageId = toId<'_storage'>(parsed._storageRef);
     debugLog(
       'deserializeVariablesInAction Fetching variables from storage:',
       storageId,

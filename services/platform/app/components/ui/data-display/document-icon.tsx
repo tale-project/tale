@@ -47,6 +47,7 @@ export function DocumentIcon({
   }
 
   const ext = extractExtension(fileName) ?? '';
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ext may not be a valid DefaultExtensionType key, fallback handles it
   const styles = defaultStyles[ext as DefaultExtensionType] || {};
 
   return (

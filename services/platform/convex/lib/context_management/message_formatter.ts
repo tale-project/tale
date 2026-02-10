@@ -231,7 +231,7 @@ export function formatSystemMessage(
  */
 export interface CurrentTurnToolCall {
   toolName: string;
-  status: 'completed' | 'failed' | string;
+  status: string;
 }
 
 /**

@@ -37,7 +37,7 @@ export function AutomationsClient({ organizationId }: AutomationsClientProps) {
 
   const handleRowClick = useCallback(
     (row: Row<Doc<'wfDefinitions'>>) => {
-      navigate({
+      void navigate({
         to: '/dashboard/$id/automations/$amId',
         params: { id: organizationId, amId: row.original._id },
       });

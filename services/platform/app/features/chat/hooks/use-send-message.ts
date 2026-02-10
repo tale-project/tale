@@ -94,7 +94,7 @@ export function useSendMessage({
 
           // Use startTransition to prevent Suspense from triggering
           startTransition(() => {
-            navigate({
+            void navigate({
               to: '/dashboard/$id/chat/$threadId',
               params: { id: organizationId, threadId: newThreadId },
             });

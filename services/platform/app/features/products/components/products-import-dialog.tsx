@@ -68,7 +68,7 @@ export function ProductsImportDialog({
   const createProduct = useCreateProduct();
 
   const validateStatus = useCallback((value: unknown): ProductStatus => {
-    // validateStatus returns string — cast required to narrow to ProductStatus enum
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validateStatus returns string, narrow to ProductStatus enum
     return productMappers.validateStatus(
       value,
       Object.values(PRODUCT_STATUS),

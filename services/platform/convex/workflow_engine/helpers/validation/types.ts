@@ -52,7 +52,7 @@ export interface StepDefinitionInput {
   /** Human-readable step name */
   name?: string;
   /** The type of step */
-  stepType?: StepType | string;
+  stepType?: string;
   /** Step-specific configuration */
   config?: unknown;
 }
@@ -88,19 +88,4 @@ export interface WorkflowStepConfig {
  */
 export interface WorkflowConfig {
   name?: string;
-}
-
-// =============================================================================
-// TYPE GUARDS
-// =============================================================================
-
-/**
- * Type guard to check if config is a valid object
- */
-export function isConfigObject(
-  config: unknown,
-): config is Record<string, unknown> {
-  return (
-    typeof config === 'object' && config !== null && !Array.isArray(config)
-  );
 }

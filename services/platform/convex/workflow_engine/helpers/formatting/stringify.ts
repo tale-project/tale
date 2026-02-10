@@ -4,16 +4,15 @@
  */
 
 export const safeStringify = (value: unknown, maxLen = 1800): string => {
-  const seen = new WeakSet<object>();
+  const seen = new WeakSet();
   const text =
-    JSON.stringify(value, (key, val) => {
+    JSON.stringify(value, (_key, val) => {
       if (typeof val === 'bigint') return val.toString();
       if (typeof val === 'object' && val !== null) {
-        const obj = val as object;
-        if (seen.has(obj)) return '[Circular]';
-        seen.add(obj);
+        if (seen.has(val)) return '[Circular]';
+        seen.add(val);
       }
-      return val as unknown;
+      return val;
     }) ?? '<unserializable>';
   return text.length > maxLen ? text.slice(0, maxLen) : text;
 };

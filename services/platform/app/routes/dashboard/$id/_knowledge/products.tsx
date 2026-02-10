@@ -28,7 +28,7 @@ function ProductsPage() {
     return <ProductTableSkeleton organizationId={organizationId} />;
   }
 
-  if (hasProducts === false) {
+  if (!hasProducts) {
     return <ProductsEmptyState organizationId={organizationId} />;
   }
 

@@ -11,6 +11,8 @@ import type {
   ActionCtx,
 } from '../../../_generated/server';
 
+import { getString } from '../../../../lib/utils/type-guards';
+
 export interface TrustedAuthData {
   trustedRole: string;
   trustedTeamIds: string[];
@@ -35,16 +37,16 @@ export async function getTrustedAuthData(
   }
 
   // Convex UserIdentity doesn't type custom JWT claims, so casts are needed
-  const trustedRole = (identity as unknown as Record<string, unknown>)
-    .trustedRole as string | undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
+  const identityRecord = identity as unknown as Record<string, unknown>;
+  const trustedRole = getString(identityRecord, 'trustedRole');
 
   if (!trustedRole) {
     return null;
   }
 
   // Parse trustedTeamIds from JSON string with runtime validation
-  const trustedTeamIdsRaw = (identity as unknown as Record<string, unknown>)
-    .trustedTeamIds as string | undefined;
+  const trustedTeamIdsRaw = getString(identityRecord, 'trustedTeamIds');
   let trustedTeamIds: string[] = [];
 
   if (trustedTeamIdsRaw) {

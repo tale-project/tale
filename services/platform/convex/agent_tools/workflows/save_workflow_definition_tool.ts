@@ -21,6 +21,7 @@ import type { Id } from '../../_generated/dataModel';
 import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
+import { toId } from '../../lib/type_cast_helpers';
 import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
 
 const workflowConfigSchema = z.object({
@@ -180,7 +181,7 @@ Built-in validation checks stepTypes, required fields, and nextSteps references.
           config: args.workflowConfig.config,
         },
         stepsConfig: args.stepsConfig,
-        workflowId: targetWorkflowId as Id<'wfDefinitions'>,
+        workflowId: toId<'wfDefinitions'>(targetWorkflowId),
       };
 
       try {

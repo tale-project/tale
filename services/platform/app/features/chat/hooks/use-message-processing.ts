@@ -50,8 +50,9 @@ export function useMessageProcessing(
     results: uiMessages,
     loadMore,
     status: paginationStatus,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SDK type mismatch: return type narrowed to usable shape
   } = useUIMessages(
-    // oxlint-disable-next-line typescript/no-explicit-any -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
+    // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 100, stream: true },
@@ -123,7 +124,7 @@ export function useMessageProcessing(
           key: m.key,
           content: m.text,
           // UIMessage.role is string — cast required to narrow to expected union
-          role: m.role as 'user' | 'assistant' | 'system',
+          role: m.role,
           timestamp: new Date(m._creationTime),
           fileParts: fileParts.length > 0 ? fileParts : undefined,
           _creationTime: m._creationTime,

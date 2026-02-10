@@ -126,17 +126,21 @@ export async function buildOffsetPaginatedQuery<T extends GenericDocument>(
 
   // Build base query with selected index
   // Note: Dynamic table/index names require type assertions - validated at runtime by Convex
-  let query = (
-    ctx.db as unknown as { query: (table: string) => DynamicQuery }
-  ).query(table);
+  let query =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex context type
+    (ctx.db as unknown as { query: (table: string) => DynamicQuery }).query(
+      table,
+    );
 
   // Apply index conditions
   query = query.withIndex(
     indexName,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex context type
     (q: Record<string, (...args: unknown[]) => unknown>) => {
       let builder = q;
       for (const field of indexedFields) {
         const value = allFilters[field];
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex context type
         builder = builder.eq(field, value) as Record<
           string,
           (...args: unknown[]) => unknown
@@ -180,6 +184,7 @@ export async function buildOffsetPaginatedQuery<T extends GenericDocument>(
   const matchingItems: (T & DocumentWithSystemFields)[] = [];
   for await (const item of query) {
     // Safe cast: Convex guarantees _id and _creationTime exist on all documents
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
     const doc = item as T & DocumentWithSystemFields;
     if (combinedFilter(doc)) {
       matchingItems.push(doc);
@@ -277,17 +282,21 @@ export async function buildCursorPaginatedQuery<T extends GenericDocument>(
 
   // Build base query with selected index
   // Note: Dynamic table/index names require type assertions - validated at runtime by Convex
-  let query = (
-    ctx.db as unknown as { query: (table: string) => DynamicQuery }
-  ).query(table);
+  let query =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex context type
+    (ctx.db as unknown as { query: (table: string) => DynamicQuery }).query(
+      table,
+    );
 
   // Apply index conditions
   query = query.withIndex(
     indexName,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex context type
     (q: Record<string, (...args: unknown[]) => unknown>) => {
       let builder = q;
       for (const field of indexedFields) {
         const value = allFilters[field];
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex context type
         builder = builder.eq(field, value) as Record<
           string,
           (...args: unknown[]) => unknown
@@ -326,6 +335,7 @@ export async function buildCursorPaginatedQuery<T extends GenericDocument>(
   let hasMore = false;
 
   for await (const item of query) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
     const docWithId = item as T & DocumentWithSystemFields;
     // Skip until we find the cursor position
     if (!foundCursor) {

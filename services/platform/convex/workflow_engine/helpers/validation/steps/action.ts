@@ -6,6 +6,7 @@
 
 import type { ValidationResult } from '../types';
 
+import { getString } from '../../../../../lib/utils/type-guards';
 import { validateActionParameters } from '../validate_action_parameters';
 
 /**
@@ -25,7 +26,11 @@ export function validateActionStep(
     return { valid: false, errors, warnings };
   }
 
-  const actionType = config.type as string;
+  const actionType = getString(config, 'type');
+  if (!actionType) {
+    errors.push('Action step "type" field must be a string');
+    return { valid: false, errors, warnings };
+  }
 
   // Get parameters - they can be in config.parameters or directly in config
   // Normalize to a single variable with 'type' removed for cleaner validation

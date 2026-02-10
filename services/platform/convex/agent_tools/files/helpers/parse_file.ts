@@ -4,11 +4,11 @@
  * Uses ctx.storage.get() for direct Convex storage access (like image_tool and txt_tool).
  */
 
-import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 
 import { getParseEndpoint } from '../../../../lib/shared/file-types';
 import { createDebugLog } from '../../../lib/debug_log';
+import { toId } from '../../../lib/type_cast_helpers';
 import { getCrawlerServiceUrl } from '../../web/helpers/get_crawler_service_url';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -52,7 +52,7 @@ export async function parseFile(
 
   try {
     // Get the file blob from Convex storage (like image_tool and txt_tool)
-    const fileBlob = await ctx.storage.get(fileId as Id<'_storage'>);
+    const fileBlob = await ctx.storage.get(toId<'_storage'>(fileId));
     if (!fileBlob) {
       throw new Error(`File not found in storage: ${fileId}`);
     }
@@ -105,6 +105,7 @@ export async function parseFile(
       textLength: result.full_text?.length ?? 0,
     });
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response.json() returns unknown
     return result as ParseFileResult;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

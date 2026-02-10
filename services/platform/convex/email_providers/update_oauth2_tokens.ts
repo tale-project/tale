@@ -32,9 +32,7 @@ export async function updateOAuth2Tokens(
   }
 
   // Derive tenant-specific tokenUrl for Microsoft if missing
-  let tokenUrl: string | undefined = provider.oauth2Auth.tokenUrl as
-    | string
-    | undefined;
+  let tokenUrl: string | undefined = provider.oauth2Auth.tokenUrl;
   if (
     provider.oauth2Auth.provider === 'microsoft' &&
     (!tokenUrl || tokenUrl.length === 0)

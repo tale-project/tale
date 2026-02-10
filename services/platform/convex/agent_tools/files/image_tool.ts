@@ -8,11 +8,11 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { Id } from '../../_generated/dataModel';
 import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
+import { toId } from '../../lib/type_cast_helpers';
 import { analyzeImage } from './helpers/analyze_image';
 import { getVisionModel } from './helpers/vision_agent';
 
@@ -183,7 +183,7 @@ CRITICAL RULES:
 
         try {
           const result = await analyzeImage(ctx, {
-            fileId: args.fileId as Id<'_storage'>,
+            fileId: toId<'_storage'>(args.fileId),
             question,
           });
 

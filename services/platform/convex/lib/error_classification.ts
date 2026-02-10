@@ -36,7 +36,9 @@ export function classifyError(error: unknown): ErrorClassification {
     val !== null && typeof val === 'object';
 
   const err = isObject(error) ? error : {};
-  const message = String(err.message ?? '').toLowerCase();
+  const message = (
+    typeof err.message === 'string' ? err.message : ''
+  ).toLowerCase();
   const status =
     typeof err.status === 'number'
       ? err.status

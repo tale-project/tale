@@ -2,8 +2,7 @@ import type { FunctionReference, OptionalRestArgs } from 'convex/server';
 
 import { useMutation } from 'convex/react';
 
-// oxlint-disable-next-line typescript/no-explicit-any -- Convex generic mutation type requires any for flexible arg/return types
-type MutationFunction = FunctionReference<'mutation', 'public', any, any>;
+type MutationFunction = FunctionReference<'mutation'>;
 type QueryFunction = FunctionReference<
   'query',
   'public',
@@ -53,13 +52,14 @@ export function createUpdateMutation<
   return function useUpdateMutation(organizationId: string) {
     return useMutation(config.mutationFn).withOptimisticUpdate(
       (localStore, args) => {
-        // oxlint-disable-next-line typescript/no-explicit-any -- Convex localStore.getQuery requires exact FunctionReference; generic type not assignable
+        // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- Convex localStore.getQuery requires exact FunctionReference; generic type not assignable
         const current = localStore.getQuery(config.getAllQuery as any, {
           organizationId,
         });
 
         if (current !== undefined) {
           const targetId = config.getId(args);
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex localStore returns unknown; cast to TItem[] for optimistic update
           const updated = (current as TItem[]).map((item) =>
             config.getItemId(item) === targetId
               ? config.applyUpdate(item, args)
@@ -67,7 +67,7 @@ export function createUpdateMutation<
           );
 
           localStore.setQuery(
-            // oxlint-disable-next-line typescript/no-explicit-any -- Convex localStore.setQuery requires exact FunctionReference; generic type not assignable
+            // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- Convex localStore.setQuery requires exact FunctionReference; generic type not assignable
             config.getAllQuery as any,
             { organizationId },
             updated,
@@ -86,19 +86,20 @@ export function createDeleteMutation<
   return function useDeleteMutation(organizationId: string) {
     return useMutation(config.mutationFn).withOptimisticUpdate(
       (localStore, args) => {
-        // oxlint-disable-next-line typescript/no-explicit-any -- Convex localStore.getQuery requires exact FunctionReference; generic type not assignable
+        // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- Convex localStore.getQuery requires exact FunctionReference; generic type not assignable
         const current = localStore.getQuery(config.getAllQuery as any, {
           organizationId,
         });
 
         if (current !== undefined) {
           const targetId = config.getId(args);
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex localStore returns unknown; cast to TItem[] for optimistic update
           const updated = (current as TItem[]).filter(
             (item) => config.getItemId(item) !== targetId,
           );
 
           localStore.setQuery(
-            // oxlint-disable-next-line typescript/no-explicit-any -- Convex localStore.setQuery requires exact FunctionReference; generic type not assignable
+            // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- Convex localStore.setQuery requires exact FunctionReference; generic type not assignable
             config.getAllQuery as any,
             { organizationId },
             updated,
@@ -117,17 +118,18 @@ export function createCreateMutation<
   return function useCreateMutation(organizationId: string) {
     return useMutation(config.mutationFn).withOptimisticUpdate(
       (localStore, args) => {
-        // oxlint-disable-next-line typescript/no-explicit-any -- Convex localStore.getQuery requires exact FunctionReference; generic type not assignable
+        // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- Convex localStore.getQuery requires exact FunctionReference; generic type not assignable
         const current = localStore.getQuery(config.getAllQuery as any, {
           organizationId,
         });
 
         if (current !== undefined) {
           const optimisticItem = config.createOptimisticItem(args);
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex localStore returns unknown; cast to TItem[] for optimistic update
           const updated = [...(current as TItem[]), optimisticItem];
 
           localStore.setQuery(
-            // oxlint-disable-next-line typescript/no-explicit-any -- Convex localStore.setQuery requires exact FunctionReference; generic type not assignable
+            // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- Convex localStore.setQuery requires exact FunctionReference; generic type not assignable
             config.getAllQuery as any,
             { organizationId },
             updated,

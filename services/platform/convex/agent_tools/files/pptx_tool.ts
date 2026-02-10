@@ -9,11 +9,11 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { Id } from '../../_generated/dataModel';
 import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
+import { toId } from '../../lib/type_cast_helpers';
 import { parseFile, type ParseFileResult } from './helpers/parse_file';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -221,20 +221,15 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
           );
 
           const templates = documents
-            .filter((doc: { fileId?: string }) => doc.fileId)
-            .map(
-              (doc: {
-                _id: string;
-                fileId?: string;
-                title?: string;
-                _creationTime: number;
-              }) => ({
-                documentId: doc._id,
-                storageId: doc.fileId as string,
-                title: doc.title ?? 'Untitled Template',
-                createdAt: doc._creationTime,
-              }),
-            );
+            .filter(
+              (doc): doc is typeof doc & { fileId: string } => !!doc.fileId,
+            )
+            .map((doc) => ({
+              documentId: doc._id,
+              storageId: doc.fileId,
+              title: doc.title ?? 'Untitled Template',
+              createdAt: doc._creationTime,
+            }));
 
           debugLog('tool:pptx list_templates success', {
             totalCount: templates.length,
@@ -321,7 +316,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
             fileName: args.fileName,
             slidesContent: args.slidesContent,
             branding: args.branding,
-            templateStorageId: args.templateStorageId as Id<'_storage'>,
+            templateStorageId: toId<'_storage'>(args.templateStorageId),
           },
         );
 

@@ -53,6 +53,7 @@ export async function fetchUrlViaPdf(
       throw new Error(`Crawler service error: ${response.status} ${errorText}`);
     }
 
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response.json() returns unknown
     const result = (await response.json()) as WebFetchExtractApiResponse;
 
     if (!result.success) {

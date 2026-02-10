@@ -1,9 +1,9 @@
-import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { DocumentMetadata } from '../../../../documents/types';
 import type { RagActionParams } from './types';
 
 import { api, internal } from '../../../../_generated/api';
+import { toId } from '../../../../lib/type_cast_helpers';
 
 /**
  * Document information without downloading content
@@ -36,7 +36,7 @@ export async function getDocumentInfo(
   const document = await ctx.runQuery?.(
     internal.documents.internal_queries.getDocumentByIdRaw,
     {
-      documentId: params.recordId as Id<'documents'>,
+      documentId: toId<'documents'>(params.recordId),
     },
   );
 
@@ -46,6 +46,7 @@ export async function getDocumentInfo(
 
   // Type the metadata for safe access
   const baseMetadata =
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     (document.metadata as DocumentMetadata | undefined) || {};
   const organizationId = document.organizationId;
 

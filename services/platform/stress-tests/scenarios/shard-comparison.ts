@@ -58,7 +58,7 @@ async function runPhase(
 
   const shardSet = new Set(definitionIds.map(getShardIndex));
   console.log(
-    `Shards used: ${[...shardSet].sort().join(', ')} (${shardSet.size} distinct)`,
+    `Shards used: ${[...shardSet].sort((a, b) => a - b).join(', ')} (${shardSet.size} distinct)`,
   );
   console.log(`Starting ${WORKFLOWS_PER_PHASE} workflows...\n`);
 
@@ -75,7 +75,6 @@ async function runPhase(
         api.workflow_engine.mutations.startWorkflow,
         {
           organizationId,
-          // Config stores string IDs — cast required for Convex API
           wfDefinitionId: defId as Id<'wfDefinitions'>,
           input: {
             stressTest: true,
@@ -225,7 +224,7 @@ async function run() {
     b.startTimings.reduce((s, v) => s + v, 0) / b.startTimings.length;
 
   console.log(`\n${''.padEnd(28)} Single-shard    Multi-shard`);
-  console.log(`${'─'.repeat(60)}`);
+  console.log('─'.repeat(60));
   console.log(
     `Start mutations total:   ${pad(a.totalStartMs)}ms      ${pad(b.totalStartMs)}ms`,
   );

@@ -11,7 +11,7 @@ type BAOrganization = {
   slug?: string;
   logo?: string | null;
   createdAt: number;
-  metadata?: unknown | null;
+  metadata?: unknown;
 };
 
 export async function getOrganization(
@@ -37,5 +37,6 @@ export async function getOrganization(
     return null;
   }
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
   return organization as BAOrganization;
 }

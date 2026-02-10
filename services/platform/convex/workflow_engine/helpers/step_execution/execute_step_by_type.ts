@@ -39,6 +39,7 @@ export async function executeStepByType(
           stepDef: {
             stepSlug: stepDef.stepSlug,
             stepType: 'llm' as const,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
             config: stepDef.config as Infer<typeof llmStepConfigValidator>,
             organizationId: stepDef.organizationId,
           },
@@ -55,6 +56,7 @@ export async function executeStepByType(
           stepDef: {
             stepSlug: stepDef.stepSlug,
             stepType: 'condition' as const,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
             config: stepDef.config as { expression: string },
           },
           variables,
@@ -70,6 +72,7 @@ export async function executeStepByType(
             stepSlug: stepDef.stepSlug,
             stepType: 'action' as const,
             // Dynamic config shape validated at runtime by action executor
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
             config: stepDef.config as unknown as ActionNodeConfig,
           },
           variables,
@@ -85,6 +88,7 @@ export async function executeStepByType(
           stepDef: {
             stepSlug: stepDef.stepSlug,
             stepType: 'loop' as const,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
             config: stepDef.config as {
               collection: string;
               itemVariable: string;
@@ -100,8 +104,8 @@ export async function executeStepByType(
       );
 
     default: {
-      const _exhaustiveCheck: never = stepDef.stepType as never;
-      throw new Error(`Unknown step type: ${_exhaustiveCheck}`);
+      const _exhaustiveCheck: never = stepDef.stepType;
+      throw new Error(`Unknown step type: ${String(_exhaustiveCheck)}`);
     }
   }
 }

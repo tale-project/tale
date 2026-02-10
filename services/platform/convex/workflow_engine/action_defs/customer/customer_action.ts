@@ -35,16 +35,14 @@ import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { QueryResult } from '../conversation/helpers/types';
 
-import {
-  jsonRecordValidator,
-  type ConvexJsonRecord,
-} from '../../../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
 import {
   customerStatusValidator,
   customerSourceValidator,
   customerAddressValidator,
 } from '../../../customers/validators';
+import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 
 // Type definitions for customer operations
 type CreateCustomerResult = {
@@ -169,8 +167,11 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
             locale: params.locale,
             address: params.address,
             externalId: params.externalId,
-            metadata: params.metadata as ConvexJsonRecord | undefined,
+            metadata: params.metadata
+              ? toConvexJsonRecord(params.metadata)
+              : undefined,
           },
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
         )) as CreateCustomerResult;
 
         // Fetch and return the full created entity
@@ -195,6 +196,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
         // Note: organizationId is already validated at the start of execute()
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         const result = (await ctx.runQuery(
           internal.customers.internal_queries.filterCustomers,
           {
@@ -214,6 +216,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
             organizationId,
             externalId: params.externalId,
             status: params.status,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
             source: params.source as
               | 'manual_import'
               | 'file_upload'
@@ -221,6 +224,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
               | undefined,
             paginationOpts: params.paginationOpts,
           },
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         )) as QueryResult;
 
         return {
@@ -231,8 +235,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
       }
 
       case 'update': {
-        // Extract customerId to avoid duplicate type assertion
-        const customerId = params.customerId as Id<'customers'>;
+        const customerId = toId<'customers'>(params.customerId);
 
         await ctx.runMutation(
           internal.customers.internal_mutations.updateCustomers,

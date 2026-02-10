@@ -5,12 +5,12 @@
  * Useful for email workflows and other scenarios where a conversation always starts with a message.
  */
 
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { CreateConversationArgs } from './types';
 
 import * as AuditLogHelpers from '../audit_logs/helpers';
+import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { createConversation } from './create_conversation';
 
 export interface CreateConversationWithMessageArgs extends CreateConversationArgs {
@@ -68,7 +68,8 @@ export async function createConversationWithMessage(
   const deliveryState = (deliveryStateCandidates as readonly string[]).includes(
     explicit,
   )
-    ? (explicit as 'queued' | 'sent' | 'delivered' | 'failed')
+    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing after includes check
+      (explicit as 'queued' | 'sent' | 'delivered' | 'failed')
     : direction === 'inbound'
       ? 'delivered'
       : 'sent';
@@ -91,7 +92,7 @@ export async function createConversationWithMessage(
         ? args.initialMessage.sentAt
         : undefined,
 
-    metadata: {
+    metadata: toConvexJsonRecord({
       sender: args.initialMessage.sender,
       isCustomer: args.initialMessage.isCustomer,
       ...(args.initialMessage.attachment
@@ -102,7 +103,7 @@ export async function createConversationWithMessage(
       !Array.isArray(args.initialMessage.metadata)
         ? args.initialMessage.metadata
         : {}),
-    } as ConvexJsonRecord, // Convex insert requires ConvexJsonRecord for metadata
+    }),
   });
 
   // Update conversation with initial message info

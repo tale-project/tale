@@ -95,38 +95,43 @@ export async function createIntegrationLogic(
 
   // Create integration - type assertions needed due to schema mismatches between shared types and mutation
   // The generated API types need regeneration (run `npx convex dev`)
-  const integrationId: Id<'integrations'> = await (
-    ctx.runMutation as (...args: unknown[]) => Promise<Id<'integrations'>>
-  )(internal.integrations.internal_mutations.createIntegration, {
-    organizationId: args.organizationId,
-    name: args.name,
-    title: args.title,
-    description: args.description,
-    // Set to 'active' since health check passed (or SQL integration)
-    status: 'active',
-    isActive: true,
-    authMethod:
-      args.authMethod === 'bearer_token' ? 'api_key' : args.authMethod,
-    apiKeyAuth,
-    basicAuth: basicAuth
-      ? {
-          username: basicAuth.username ?? '',
-          passwordEncrypted: basicAuth.passwordEncrypted,
-        }
-      : undefined,
-    oauth2Auth,
-    connectionConfig: args.connectionConfig as
-      | Record<string, unknown>
-      | undefined,
-    capabilities: args.capabilities,
-    // SQL integration fields
-    type: args.type,
-    sqlConnectionConfig: args.sqlConnectionConfig as
-      | Record<string, unknown>
-      | undefined,
-    sqlOperations: args.sqlOperations as Record<string, unknown>[] | undefined,
-    metadata: args.metadata,
-  });
+  const integrationId: Id<'integrations'> =
+    await // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex context type
+    (ctx.runMutation as (...args: unknown[]) => Promise<Id<'integrations'>>)(
+      internal.integrations.internal_mutations.createIntegration,
+      {
+        organizationId: args.organizationId,
+        name: args.name,
+        title: args.title,
+        description: args.description,
+        // Set to 'active' since health check passed (or SQL integration)
+        status: 'active',
+        isActive: true,
+        authMethod:
+          args.authMethod === 'bearer_token' ? 'api_key' : args.authMethod,
+        apiKeyAuth,
+        basicAuth: basicAuth
+          ? {
+              username: basicAuth.username ?? '',
+              passwordEncrypted: basicAuth.passwordEncrypted,
+            }
+          : undefined,
+        oauth2Auth,
+        connectionConfig: args.connectionConfig as
+          | Record<string, unknown>
+          | undefined,
+        capabilities: args.capabilities,
+        // SQL integration fields
+        type: args.type,
+        sqlConnectionConfig: args.sqlConnectionConfig as
+          | Record<string, unknown>
+          | undefined,
+        sqlOperations: args.sqlOperations as
+          | Record<string, unknown>[]
+          | undefined,
+        metadata: args.metadata,
+      },
+    );
 
   debugLog(
     `Integration Create Successfully created ${args.name} integration with ID: ${integrationId}`,

@@ -20,14 +20,14 @@ export const executeApprovedIntegrationOperation = action({
       throw new Error('Unauthenticated');
     }
 
-    return (await ctx.runAction(
+    return await ctx.runAction(
       internal.agent_tools.integrations.internal_actions
         .executeApprovedOperation,
       {
         approvalId: args.approvalId,
         approvedBy: String(authUser._id),
       },
-    )) as JsonValue;
+    );
   },
 });
 
@@ -42,13 +42,13 @@ export const executeApprovedWorkflowCreation = action({
       throw new Error('Unauthenticated');
     }
 
-    return (await ctx.runAction(
+    return await ctx.runAction(
       internal.agent_tools.workflows.internal_actions
         .executeApprovedWorkflowCreation,
       {
         approvalId: args.approvalId,
         approvedBy: String(authUser._id),
       },
-    )) as JsonValue;
+    );
   },
 });
