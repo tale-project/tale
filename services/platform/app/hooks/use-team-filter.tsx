@@ -1,5 +1,6 @@
 'use client';
 
+import { useQuery } from 'convex/react';
 import {
   createContext,
   useContext,
@@ -8,7 +9,7 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import { useQuery } from 'convex/react';
+
 import { api } from '@/convex/_generated/api';
 
 function getStorageKey(organizationId: string) {
@@ -25,7 +26,9 @@ interface TeamFilterContextType {
   isLoadingTeams: boolean;
   selectedTeamId: string | null;
   setSelectedTeamId: (teamId: string | null) => void;
-  filterByTeam: <T extends { teamId?: string | null; sharedWithTeamIds?: string[] }>(
+  filterByTeam: <
+    T extends { teamId?: string | null; sharedWithTeamIds?: string[] },
+  >(
     items: T[],
   ) => T[];
 }
@@ -51,14 +54,14 @@ export function TeamFilterProvider({
 }: TeamFilterProviderProps) {
   const storageKey = getStorageKey(organizationId);
 
-  const [selectedTeamId, setSelectedTeamIdRaw] = useState<string | null>(
-    () => localStorage.getItem(storageKey),
-  );
+  const [selectedTeamId, setSelectedTeamIdRaw] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(storageKey);
+  });
 
-  const teamsResult = useQuery(
-    api.members.queries.getMyTeams,
-    { organizationId },
-  );
+  const teamsResult = useQuery(api.members.queries.getMyTeams, {
+    organizationId,
+  });
   const teams = teamsResult?.teams ?? null;
   const isLoadingTeams = teamsResult === undefined;
 
