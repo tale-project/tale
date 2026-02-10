@@ -8,8 +8,9 @@
  * Call repeatedly with the returned cursor until isDone is true.
  */
 
-import { internalMutation } from '../_generated/server';
 import { v } from 'convex/values';
+
+import { internalMutation } from '../_generated/server';
 import { teamTagsToUnifiedFields } from './team_fields';
 
 export const migrateTeamFields = internalMutation({
@@ -27,14 +28,12 @@ export const migrateTeamFields = internalMutation({
     let migrated = 0;
     let lastId: string | undefined;
 
-    const query = ctx.db
-      .query('documents')
-      .order('asc');
+    const query = ctx.db.query('documents').order('asc');
 
     let count = 0;
     for await (const doc of query) {
       // Skip already-processed documents (cursor-based resume)
-      if (args.cursor && doc._id <= (args.cursor as any)) {
+      if (args.cursor && String(doc._id) <= args.cursor) {
         continue;
       }
 

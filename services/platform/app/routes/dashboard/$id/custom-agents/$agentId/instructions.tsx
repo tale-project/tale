@@ -3,7 +3,6 @@ import { useQuery } from 'convex/react';
 import { useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { ModelPreset } from '@/lib/shared/schemas/custom_agents';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -15,6 +14,7 @@ import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/use-custom-agent-mutations';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute(
   '/dashboard/$id/custom-agents/$agentId/instructions',
@@ -40,7 +40,7 @@ function InstructionsTab() {
   const updateAgent = useUpdateCustomAgent();
 
   const agent = useQuery(api.custom_agents.queries.getCustomAgent, {
-    customAgentId: agentId as Id<'customAgents'>,
+    customAgentId: toId<'customAgents'>(agentId),
   });
 
   const modelPresets = useQuery(api.custom_agents.queries.getModelPresets);
@@ -58,7 +58,7 @@ function InstructionsTab() {
     values: agent
       ? {
           systemInstructions: agent.systemInstructions,
-          modelPreset: agent.modelPreset as ModelPreset,
+          modelPreset: agent.modelPreset,
         }
       : undefined,
   });
@@ -68,7 +68,7 @@ function InstructionsTab() {
   const handleSave = useCallback(
     async (data: InstructionsFormData) => {
       await updateAgent({
-        customAgentId: agentId as Id<'customAgents'>,
+        customAgentId: toId<'customAgents'>(agentId),
         systemInstructions: data.systemInstructions,
         modelPreset: data.modelPreset,
       });
@@ -142,6 +142,7 @@ function InstructionsTab() {
                 label={t('customAgents.form.modelPreset')}
                 value={form.watch('modelPreset')}
                 onValueChange={(val) =>
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select value is constrained to MODEL_PRESET_OPTIONS
                   form.setValue('modelPreset', val as ModelPreset)
                 }
                 required

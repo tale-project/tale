@@ -50,7 +50,9 @@ function syncRagSearchTool(
   knowledgeEnabled: boolean | undefined,
   draft: Doc<'customAgents'>,
 ) {
-  const toolNames = (cleanUpdate.toolNames ?? draft.toolNames) as string[];
+  const toolNames = Array.isArray(cleanUpdate.toolNames)
+    ? cleanUpdate.toolNames
+    : draft.toolNames;
   const hasRag = toolNames.includes('rag_search');
   const isEnabled = knowledgeEnabled ?? draft.knowledgeEnabled;
 

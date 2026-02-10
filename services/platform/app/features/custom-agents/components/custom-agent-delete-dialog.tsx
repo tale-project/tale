@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { toId } from '@/lib/utils/type-guards';
+
 import { useDeleteCustomAgent } from '../hooks/use-custom-agent-mutations';
 
 interface CustomAgentDeleteDialogProps {
@@ -28,7 +31,7 @@ export function CustomAgentDeleteDialog({
     if (isDeleting) return;
     setIsDeleting(true);
     try {
-      await deleteAgent({ customAgentId: agent._id as any });
+      await deleteAgent({ customAgentId: toId<'customAgents'>(agent._id) });
       toast({
         title: t('customAgents.agentDeleted'),
         variant: 'success',

@@ -1,18 +1,22 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import type { ColumnDef, Row } from '@tanstack/react-table';
+
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { Bot } from 'lucide-react';
-import type { ColumnDef, Row } from '@tanstack/react-table';
-import { api } from '@/convex/_generated/api';
+import { useMemo, useCallback } from 'react';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { HStack } from '@/app/components/ui/layout/layout';
+import { useListPage } from '@/app/hooks/use-list-page';
+import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+import { isKeyOf } from '@/lib/utils/type-guards';
+
 import { CustomAgentRowActions } from './custom-agent-row-actions';
 import { CustomAgentsActionMenu } from './custom-agents-action-menu';
-import { useT } from '@/lib/i18n/client';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
-import { useListPage } from '@/app/hooks/use-list-page';
 
 export interface CustomAgentRow {
   _id: string;
@@ -51,9 +55,12 @@ export function CustomAgentTable({
 
   const handleRowClick = useCallback(
     (row: Row<CustomAgentRow>) => {
-      navigate({
+      void navigate({
         to: '/dashboard/$id/custom-agents/$agentId',
-        params: { id: organizationId, agentId: row.original.rootVersionId ?? row.original._id },
+        params: {
+          id: organizationId,
+          agentId: row.original.rootVersionId ?? row.original._id,
+        },
       });
     },
     [navigate, organizationId],
@@ -75,7 +82,7 @@ export function CustomAgentTable({
         id: 'displayName',
         header: t('customAgents.columns.displayName'),
         cell: ({ row }) => (
-          <span className="font-medium text-foreground">
+          <span className="text-foreground font-medium">
             {row.original.displayName}
           </span>
         ),
@@ -87,9 +94,12 @@ export function CustomAgentTable({
         cell: ({ row }) => {
           const preset = row.original.modelPreset;
           const presetLabel = t(`customAgents.form.modelPresets.${preset}`);
-          const modelName = modelPresets?.[preset as keyof typeof modelPresets];
+          const modelName =
+            modelPresets && isKeyOf(preset, modelPresets)
+              ? modelPresets[preset]
+              : undefined;
           return (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            <span className="bg-muted text-muted-foreground inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium">
               {presetLabel}
               {modelName && (
                 <span className="text-muted-foreground/60">{modelName}</span>
@@ -103,7 +113,7 @@ export function CustomAgentTable({
         id: 'tools',
         header: t('customAgents.columns.tools'),
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-muted-foreground text-sm">
             {row.original.toolNames.length}
           </span>
         ),
@@ -113,7 +123,7 @@ export function CustomAgentTable({
         id: 'version',
         header: t('customAgents.columns.version'),
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-muted-foreground text-sm">
             v{row.original.versionNumber}
           </span>
         ),
@@ -126,14 +136,14 @@ export function CustomAgentTable({
           const { teamId: rowTeamId } = row.original;
           if (!rowTeamId) {
             return (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {t('customAgents.columns.orgWide')}
               </span>
             );
           }
           const teamName = teamNameMap.get(rowTeamId) ?? rowTeamId;
           return (
-            <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
               {teamName}
             </span>
           );
@@ -165,7 +175,7 @@ export function CustomAgentTable({
 
   return (
     <DataTable
-      className="py-6 px-4"
+      className="px-4 py-6"
       {...list.tableProps}
       columns={columns}
       onRowClick={handleRowClick}

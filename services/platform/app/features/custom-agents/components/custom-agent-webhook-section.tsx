@@ -18,6 +18,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
+import { toId } from '@/lib/utils/type-guards';
 
 import { SecretRevealDialog } from '../../automations/triggers/components/secret-reveal-dialog';
 import {
@@ -45,11 +46,11 @@ export function CustomAgentWebhookSection({
   const { toast } = useToast();
 
   const agent = useQuery(api.custom_agents.queries.getCustomAgent, {
-    customAgentId: agentId as Id<'customAgents'>,
+    customAgentId: toId<'customAgents'>(agentId),
   });
 
   const webhooks = useQuery(api.custom_agents.webhooks.queries.getWebhooks, {
-    customAgentId: agentId as Id<'customAgents'>,
+    customAgentId: toId<'customAgents'>(agentId),
   });
 
   const createWebhook = useCreateCustomAgentWebhook();
@@ -77,7 +78,7 @@ export function CustomAgentWebhookSection({
     try {
       const result = await createWebhook({
         organizationId,
-        customAgentId: agentId as Id<'customAgents'>,
+        customAgentId: toId<'customAgents'>(agentId),
       });
       setCreatedUrl(getWebhookUrl(result.token));
       toast({

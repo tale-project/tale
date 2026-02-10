@@ -2,8 +2,6 @@ import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { StickyHeader } from '@/app/components/layout/sticky-header';

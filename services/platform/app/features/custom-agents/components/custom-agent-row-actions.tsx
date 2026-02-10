@@ -1,16 +1,19 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
 import { Trash2, Copy, History } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
-import { CustomAgentDeleteDialog } from './custom-agent-delete-dialog';
-import { CustomAgentVersionHistoryDialog } from './custom-agent-version-history-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { toId } from '@/lib/utils/type-guards';
+
 import { useDuplicateCustomAgent } from '../hooks/use-custom-agent-mutations';
+import { CustomAgentDeleteDialog } from './custom-agent-delete-dialog';
+import { CustomAgentVersionHistoryDialog } from './custom-agent-version-history-dialog';
 
 interface CustomAgentRowActionsProps {
   agent: {
@@ -44,7 +47,7 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
     if (isDuplicating) return;
     setIsDuplicating(true);
     try {
-      await duplicateAgent({ customAgentId: agent._id as any });
+      await duplicateAgent({ customAgentId: toId<'customAgents'>(agent._id) });
       toast({
         title: t('customAgents.agentDuplicated'),
         variant: 'success',

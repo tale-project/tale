@@ -5,10 +5,8 @@ import { useMutation } from 'convex/react';
 
 import { api } from '@/convex/_generated/api';
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-explicit-any -- SDK type mismatch: mutation/query types incompatible with optimisticallySendMessage expectations
-type AnyMutation = FunctionReference<'mutation', 'public', any, any>;
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-explicit-any -- SDK type mismatch: mutation/query types incompatible with optimisticallySendMessage expectations
-type AnyQuery = FunctionReference<'query', 'public', any, any>;
+type AnyMutation = FunctionReference<'mutation'>;
+type AnyQuery = FunctionReference<'query'>;
 
 const testDraftMutation: AnyMutation =
   api.custom_agents.test_chat.testDraftCustomAgent;

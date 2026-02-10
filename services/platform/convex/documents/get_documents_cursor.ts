@@ -50,14 +50,13 @@ export async function getDocumentsCursor(
   const filter = (doc: Doc<'documents'>): boolean => {
     // Team-based access control (unified fields with teamTags fallback)
     if (args.userTeamIds !== undefined) {
+      const userTeamIds = args.userTeamIds;
       if (doc.teamId !== undefined) {
-        if (!hasTeamAccess(doc, args.userTeamIds)) {
+        if (!hasTeamAccess(doc, userTeamIds)) {
           return false;
         }
       } else if (doc.teamTags && doc.teamTags.length > 0) {
-        const hasAccess = doc.teamTags.some((tag) =>
-          args.userTeamIds!.includes(tag),
-        );
+        const hasAccess = doc.teamTags.some((tag) => userTeamIds.includes(tag));
         if (!hasAccess) {
           return false;
         }

@@ -1,16 +1,19 @@
 'use client';
 
-import { useState } from 'react';
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+import { useState } from 'react';
+
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { toast } from '@/app/hooks/use-toast';
-import { useT } from '@/lib/i18n/client';
+import { Stack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+import { toId } from '@/lib/utils/type-guards';
+
 import { useRollbackCustomAgentVersion } from '../hooks/use-custom-agent-mutations';
 
 interface CustomAgentVersionHistoryDialogProps {
@@ -27,18 +30,20 @@ export function CustomAgentVersionHistoryDialog({
   const { t } = useT('settings');
   const { formatDate } = useFormatDate();
   const rollback = useRollbackCustomAgentVersion();
-  const [rollingBackVersion, setRollingBackVersion] = useState<number | null>(null);
+  const [rollingBackVersion, setRollingBackVersion] = useState<number | null>(
+    null,
+  );
 
   const versions = useQuery(
     api.custom_agents.queries.getCustomAgentVersions,
-    open ? { customAgentId: customAgentId as any } : 'skip',
+    open ? { customAgentId: toId<'customAgents'>(customAgentId) } : 'skip',
   );
 
   const handleRollback = async (targetVersion: number) => {
     setRollingBackVersion(targetVersion);
     try {
       await rollback({
-        customAgentId: customAgentId as any,
+        customAgentId: toId<'customAgents'>(customAgentId),
         targetVersion,
       });
       toast({
@@ -69,42 +74,50 @@ export function CustomAgentVersionHistoryDialog({
             <Skeleton key={i} className="h-16 w-full" />
           ))
         ) : versions.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">
+          <p className="text-muted-foreground py-4 text-center text-sm">
             {t('customAgents.versions.noVersions')}
           </p>
         ) : (
           versions.map((version) => (
             <div
               key={version._id}
-              className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
+              className="border-border flex items-center justify-between rounded-lg border px-4 py-3"
             >
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">
-                    {t('customAgents.versions.version', { number: version.versionNumber })}
+                    {t('customAgents.versions.version', {
+                      number: version.versionNumber,
+                    })}
                   </span>
                   {version.status === 'draft' && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                    <Badge
+                      variant="outline"
+                      className="px-1.5 py-0 text-[10px]"
+                    >
                       {t('customAgents.versions.draft')}
                     </Badge>
                   )}
                   {version.status === 'active' && (
-                    <Badge variant="green" className="text-[10px] px-1.5 py-0">
+                    <Badge variant="green" className="px-1.5 py-0 text-[10px]">
                       {t('customAgents.versions.active')}
                     </Badge>
                   )}
                   {version.status === 'archived' && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                    <Badge
+                      variant="outline"
+                      className="px-1.5 py-0 text-[10px]"
+                    >
                       {t('customAgents.versions.archived')}
                     </Badge>
                   )}
                 </div>
                 {version.changeLog && (
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  <p className="text-muted-foreground mt-0.5 truncate text-xs">
                     {version.changeLog}
                   </p>
                 )}
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-muted-foreground mt-0.5 text-xs">
                   {formatDate(new Date(version._creationTime), 'medium')}
                 </p>
               </div>

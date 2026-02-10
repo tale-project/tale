@@ -1,16 +1,18 @@
 'use client';
 
-import { useMemo } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
+import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
-import { zodResolver } from '@hookform/resolvers/zod';
+
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
-import { useCreateCustomAgent } from '../hooks/use-custom-agent-mutations';
 import { useT } from '@/lib/i18n/client';
+
+import { useCreateCustomAgent } from '../hooks/use-custom-agent-mutations';
 
 type FormData = {
   name: string;
@@ -37,22 +39,18 @@ export function CreateCustomAgentDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z
-          .string()
-          .min(
-            1,
-            tCommon('validation.required', {
-              field: t('customAgents.form.name'),
-            }),
-          ),
-        displayName: z
-          .string()
-          .min(
-            1,
-            tCommon('validation.required', {
-              field: t('customAgents.form.displayName'),
-            }),
-          ),
+        name: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('customAgents.form.name'),
+          }),
+        ),
+        displayName: z.string().min(
+          1,
+          tCommon('validation.required', {
+            field: t('customAgents.form.displayName'),
+          }),
+        ),
         description: z.string().optional(),
       }),
     [t, tCommon],
@@ -65,6 +63,11 @@ export function CreateCustomAgentDialog({
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: 'onChange',
+    defaultValues: {
+      name: '',
+      displayName: '',
+      description: '',
+    },
   });
 
   const onSubmit = async (data: FormData) => {
@@ -83,7 +86,7 @@ export function CreateCustomAgentDialog({
         title: t('customAgents.agentCreated'),
         variant: 'success',
       });
-      navigate({
+      void navigate({
         to: '/dashboard/$id/custom-agents/$agentId',
         params: { id: organizationId, agentId: String(agentId) },
       });
@@ -114,7 +117,7 @@ export function CreateCustomAgentDialog({
         placeholder={t('customAgents.form.namePlaceholder')}
         errorMessage={errors.name?.message}
       />
-      <p className="text-xs text-muted-foreground -mt-2">
+      <p className="text-muted-foreground -mt-2 text-xs">
         {t('customAgents.form.nameHelp')}
       </p>
 

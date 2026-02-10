@@ -6,22 +6,30 @@
  */
 
 import { v } from 'convex/values';
+
+import type { ToolName } from '../agent_tools/tool_registry';
+import type { SerializableAgentConfig } from '../lib/agent_chat/types';
+import type { AgentType } from '../lib/context_management/constants';
+
 import { mutation, query } from '../_generated/server';
 import { authComponent } from '../auth';
 import { startAgentChat } from '../lib/agent_chat';
 import { getDefaultAgentRuntimeConfig } from '../lib/agent_runtime_config';
-import type { SerializableAgentConfig } from '../lib/agent_chat/types';
-import type { AgentType } from '../lib/context_management/constants';
-import type { ToolName } from '../agent_tools/tool_registry';
-import { createChatHookHandles } from './chat/config';
+import { WORKFLOW_AGENT_CORE_INSTRUCTIONS } from '../workflow_engine/instructions/core_instructions';
 import { CHAT_AGENT_INSTRUCTIONS } from './chat/agent';
-import { WEB_AGENT_INSTRUCTIONS } from './web/agent';
+import { createChatHookHandles } from './chat/config';
 import { CRM_AGENT_INSTRUCTIONS } from './crm/agent';
 import { DOCUMENT_AGENT_INSTRUCTIONS } from './document/agent';
 import { INTEGRATION_AGENT_INSTRUCTIONS } from './integration/agent';
-import { WORKFLOW_AGENT_CORE_INSTRUCTIONS } from '../workflow_engine/instructions/core_instructions';
+import { WEB_AGENT_INSTRUCTIONS } from './web/agent';
 
-export type BuiltinAgentType = 'chat' | 'web' | 'crm' | 'document' | 'integration' | 'workflow';
+export type BuiltinAgentType =
+  | 'chat'
+  | 'web'
+  | 'crm'
+  | 'document'
+  | 'integration'
+  | 'workflow';
 
 interface BuiltinAgentDefinition {
   type: BuiltinAgentType;
@@ -42,7 +50,8 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
       agentType: 'chat',
       name: 'routing-agent',
       displayName: 'Assistant',
-      description: 'General-purpose AI assistant that routes to specialized agents',
+      description:
+        'General-purpose AI assistant that routes to specialized agents',
       instructions: CHAT_AGENT_INSTRUCTIONS,
       toolNames: [
         'rag_search',
@@ -92,7 +101,12 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
       displayName: 'Connect',
       description: 'Connects and operates with external systems',
       instructions: INTEGRATION_AGENT_INSTRUCTIONS,
-      toolNames: ['integration', 'integration_batch', 'integration_introspect', 'verify_approval'],
+      toolNames: [
+        'integration',
+        'integration_batch',
+        'integration_introspect',
+        'verify_approval',
+      ],
       maxSteps: 20,
     },
     {
@@ -115,7 +129,9 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
   ];
 }
 
-function toSerializableConfig(def: BuiltinAgentDefinition): SerializableAgentConfig {
+function toSerializableConfig(
+  def: BuiltinAgentDefinition,
+): SerializableAgentConfig {
   const config: SerializableAgentConfig = {
     name: def.name,
     instructions: def.instructions,
@@ -130,7 +146,14 @@ function toSerializableConfig(def: BuiltinAgentDefinition): SerializableAgentCon
   return config;
 }
 
-const BUILTIN_AGENT_TYPES = ['chat', 'web', 'crm', 'document', 'integration', 'workflow'] as const;
+const BUILTIN_AGENT_TYPES = [
+  'chat',
+  'web',
+  'crm',
+  'document',
+  'integration',
+  'workflow',
+] as const;
 
 export const listBuiltinAgents = query({
   args: {},
@@ -178,7 +201,11 @@ export const chatWithBuiltinAgent = mutation({
       throw new Error('Unauthenticated');
     }
 
-    if (!BUILTIN_AGENT_TYPES.includes(args.builtinAgentType as BuiltinAgentType)) {
+    if (
+      !(BUILTIN_AGENT_TYPES as readonly string[]).includes(
+        args.builtinAgentType,
+      )
+    ) {
       throw new Error(`Invalid built-in agent type: ${args.builtinAgentType}`);
     }
 

@@ -34,6 +34,7 @@ export function toSerializableConfig(
   return {
     name: `custom:${agent.name}`,
     instructions: agent.systemInstructions,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are validated via validateToolNames() on insert; always valid ToolName values
     convexToolNames: agent.toolNames as ToolName[],
     integrationBindings: agent.integrationBindings,
     useFastModel: agent.modelPreset === 'fast',

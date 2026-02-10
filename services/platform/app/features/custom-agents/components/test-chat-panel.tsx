@@ -6,8 +6,6 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Image } from '@/app/components/ui/data-display/image';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -23,6 +21,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
+import { toId } from '@/lib/utils/type-guards';
 
 import { useTestDraftAgent } from '../hooks/use-test-draft-agent';
 
@@ -358,7 +357,7 @@ function TestChatPanelContent({
       if (!currentThreadId) return;
 
       await testDraftAgent({
-        customAgentId: agentId as Id<'customAgents'>,
+        customAgentId: toId<'customAgents'>(agentId),
         threadId: currentThreadId,
         organizationId,
         message: messageContent,

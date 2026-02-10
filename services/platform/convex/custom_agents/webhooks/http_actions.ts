@@ -42,10 +42,10 @@ export const agentWebhookHandler = httpAction(async (ctx, req) => {
     throw error;
   }
 
-  const webhook = (await ctx.runQuery(
+  const webhook = await ctx.runQuery(
     internal.custom_agents.webhooks.internal_queries.getWebhookByToken,
     { token },
-  )) as Doc<'customAgentWebhooks'> | null;
+  );
 
   if (!webhook) {
     return jsonResponse({ error: 'Invalid webhook token' }, 404);
@@ -157,6 +157,7 @@ async function pollResponse(
   ctx: ActionCtx,
   chatResult: { threadId: string; streamId: string },
 ) {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StreamId is a branded string from the persistent-streaming SDK; runMutation returns plain string
   const streamId = chatResult.streamId as StreamId;
   const maxPolls = 600;
   const pollInterval = 100;
@@ -200,6 +201,7 @@ async function streamResponse(
   req: Request,
   chatResult: { threadId: string; streamId: string },
 ) {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StreamId is a branded string from the persistent-streaming SDK; runMutation returns plain string
   const streamId = chatResult.streamId as StreamId;
 
   try {

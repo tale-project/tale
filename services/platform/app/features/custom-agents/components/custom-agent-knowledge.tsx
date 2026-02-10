@@ -4,7 +4,6 @@ import { useQuery } from 'convex/react';
 import { FileText } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { RagStatus } from '@/types/documents';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -14,6 +13,7 @@ import { RagStatusBadge } from '@/app/features/documents/components/rag-status-b
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { toId } from '@/lib/utils/type-guards';
 
 import { useAutoSave } from '../hooks/use-auto-save';
 import { useUpdateCustomAgent } from '../hooks/use-custom-agent-mutations';
@@ -69,7 +69,7 @@ export function CustomAgentKnowledge({
   const { teams } = useTeamFilter();
 
   const agent = useQuery(api.custom_agents.queries.getCustomAgent, {
-    customAgentId: agentId as Id<'customAgents'>,
+    customAgentId: toId<'customAgents'>(agentId),
   });
 
   const teamName = useMemo(() => {
@@ -144,7 +144,7 @@ export function CustomAgentKnowledge({
       includeOrgKnowledge?: boolean;
     }) => {
       await updateAgent({
-        customAgentId: agentId as Id<'customAgents'>,
+        customAgentId: toId<'customAgents'>(agentId),
         knowledgeEnabled: data.knowledgeEnabled,
         includeOrgKnowledge: data.includeOrgKnowledge,
       });

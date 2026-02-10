@@ -2,8 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { useState, useCallback, useMemo } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
@@ -12,6 +10,7 @@ import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/use-cus
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute(
   '/dashboard/$id/custom-agents/$agentId/tools',
@@ -28,7 +27,7 @@ function ToolsTab() {
   >('idle');
 
   const agent = useQuery(api.custom_agents.queries.getCustomAgent, {
-    customAgentId: agentId as Id<'customAgents'>,
+    customAgentId: toId<'customAgents'>(agentId),
   });
 
   const lockedTools = useMemo(() => {
@@ -48,7 +47,7 @@ function ToolsTab() {
       setSaveStatus('saving');
       try {
         await updateAgent({
-          customAgentId: agentId as Id<'customAgents'>,
+          customAgentId: toId<'customAgents'>(agentId),
           toolNames: finalTools,
         });
         setSaveStatus('saved');
@@ -69,7 +68,7 @@ function ToolsTab() {
       setSaveStatus('saving');
       try {
         await updateAgent({
-          customAgentId: agentId as Id<'customAgents'>,
+          customAgentId: toId<'customAgents'>(agentId),
           integrationBindings: bindings,
         });
         setSaveStatus('saved');

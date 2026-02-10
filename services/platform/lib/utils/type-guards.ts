@@ -67,3 +67,12 @@ export function getRecord(
   const val = obj[key];
   return isRecord(val) ? val : undefined;
 }
+
+/**
+ * Converts a route-param string to a typed Convex document Id.
+ * Convex validates the Id server-side via `v.id()`; this bridges the type gap.
+ */
+export function toId<T extends string>(id: string) {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Route params are string-typed Convex document Ids; validated server-side by v.id()
+  return id as import('@/convex/_generated/dataModel').Id<T>;
+}

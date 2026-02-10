@@ -4,8 +4,6 @@ import { useQuery } from 'convex/react';
 import { ChevronDown, CircleStop, FlaskConical } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { Badge } from '@/app/components/ui/feedback/badge';
 import {
   TabNavigation,
@@ -23,6 +21,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { toId } from '@/lib/utils/type-guards';
 
 import {
   useRollbackCustomAgentVersion,
@@ -56,7 +55,7 @@ export function CustomAgentNavigation({
   const [isUnpublishing, setIsUnpublishing] = useState(false);
 
   const versions = useQuery(api.custom_agents.queries.getCustomAgentVersions, {
-    customAgentId: agentId as Id<'customAgents'>,
+    customAgentId: toId<'customAgents'>(agentId),
   });
 
   const publishedVersions = useMemo(
@@ -103,7 +102,7 @@ export function CustomAgentNavigation({
     setRollingBackVersion(targetVersion);
     try {
       await rollback({
-        customAgentId: agentId as Id<'customAgents'>,
+        customAgentId: toId<'customAgents'>(agentId),
         targetVersion,
       });
       toast({
@@ -125,7 +124,7 @@ export function CustomAgentNavigation({
     setIsPublishing(true);
     try {
       await publishAgent({
-        customAgentId: agentId as Id<'customAgents'>,
+        customAgentId: toId<'customAgents'>(agentId),
       });
       toast({
         title: t('customAgents.agentPublished'),
@@ -146,7 +145,7 @@ export function CustomAgentNavigation({
     setIsUnpublishing(true);
     try {
       await unpublishAgent({
-        customAgentId: agentId as Id<'customAgents'>,
+        customAgentId: toId<'customAgents'>(agentId),
       });
       toast({
         title: t('customAgents.agentDeactivated'),
@@ -208,7 +207,7 @@ export function CustomAgentNavigation({
                       version.status === 'archived' &&
                       rollingBackVersion === null
                     ) {
-                      handleRollback(version.versionNumber);
+                      void handleRollback(version.versionNumber);
                     }
                   }}
                   disabled={
