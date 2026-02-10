@@ -1,14 +1,15 @@
 import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { api } from '@/convex/_generated/api';
+
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
+import { AccessDenied } from '@/app/components/layout/access-denied';
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
-import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents')({
@@ -29,9 +30,9 @@ function CustomAgentsLayout() {
     organizationId,
   });
 
-  if (memberContext === undefined || memberContext === null) {
+  if (memberContext === undefined) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 overflow-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <StickyHeader>
           <AdaptiveHeaderRoot standalone={false}>
             <Skeleton className="h-5 w-40" />
@@ -41,18 +42,19 @@ function CustomAgentsLayout() {
     );
   }
 
-  if (!memberContext.isAdmin && memberContext.role !== 'developer') {
+  if (
+    memberContext === null ||
+    (!memberContext.isAdmin && memberContext.role !== 'developer')
+  ) {
     return <AccessDenied message={tAccessDenied('customAgents')} />;
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       {!isDetailPage && (
         <StickyHeader>
           <AdaptiveHeaderRoot standalone={false}>
-            <AdaptiveHeaderTitle>
-              {t('customAgents.title')}
-            </AdaptiveHeaderTitle>
+            <AdaptiveHeaderTitle>{t('customAgents.title')}</AdaptiveHeaderTitle>
           </AdaptiveHeaderRoot>
         </StickyHeader>
       )}
