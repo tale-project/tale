@@ -53,7 +53,7 @@ function categorizeTools(toolNames: string[]) {
     const matched = tools.filter((t) => toolNames.includes(t));
     if (matched.length > 0) {
       categorized.set(category, matched);
-      matched.forEach((t) => assigned.add(t));
+      for (const t of matched) assigned.add(t);
     }
   }
 
