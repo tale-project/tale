@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery, usePaginatedQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2Icon } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -10,6 +11,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { toId, toIds } from '@/convex/lib/type_cast_helpers';
@@ -167,7 +169,7 @@ export function ConversationsClient({
     status: paginationStatus,
     loadMore,
     isLoading,
-  } = usePaginatedQuery(
+  } = useCachedPaginatedQuery(
     api.conversations.queries.listConversations,
     { organizationId, status },
     { initialNumItems: PAGE_SIZE },
@@ -200,9 +202,11 @@ export function ConversationsClient({
   }, [results, initialPriority, searchQuery, initialSearch]);
 
   // Fetch email providers
-  const emailProviders = useQuery(api.email_providers.queries.list, {
-    organizationId,
-  });
+  const { data: emailProviders } = useQuery(
+    convexQuery(api.email_providers.queries.list, {
+      organizationId,
+    }),
+  );
 
   // Convex mutations
   const bulkResolve = useBulkCloseConversations();

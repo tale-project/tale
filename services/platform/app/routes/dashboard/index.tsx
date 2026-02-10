@@ -1,5 +1,7 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useQuery, useConvexAuth } from 'convex/react';
+import { useConvexAuth } from 'convex/react';
 import { useEffect } from 'react';
 
 import { api } from '@/convex/_generated/api';
@@ -20,13 +22,15 @@ function DashboardIndex() {
   const navigate = useNavigate();
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
 
-  const organizations = useQuery(
-    api.members.queries.getUserOrganizationsList,
-    isAuthLoading || !isAuthenticated ? 'skip' : {},
+  const { data: organizations, isLoading: isOrgsLoading } = useQuery(
+    convexQuery(
+      api.members.queries.getUserOrganizationsList,
+      isAuthLoading || !isAuthenticated ? 'skip' : {},
+    ),
   );
 
   useEffect(() => {
-    if (isAuthLoading || !isAuthenticated || organizations === undefined) {
+    if (isAuthLoading || !isAuthenticated || isOrgsLoading || !organizations) {
       return;
     }
 
@@ -38,7 +42,7 @@ function DashboardIndex() {
         params: { id: organizations[0].organizationId },
       });
     }
-  }, [isAuthLoading, isAuthenticated, organizations, navigate]);
+  }, [isAuthLoading, isAuthenticated, isOrgsLoading, organizations, navigate]);
 
   return (
     <div className="flex h-screen items-center justify-center">

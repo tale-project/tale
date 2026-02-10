@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { z } from 'zod';
 
 import { ProductTable } from '@/app/features/products/components/product-table';
@@ -20,11 +21,11 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/products')({
 
 function ProductsPage() {
   const { id: organizationId } = Route.useParams();
-  const hasProducts = useQuery(api.products.queries.hasProducts, {
-    organizationId,
-  });
+  const { data: hasProducts, isLoading } = useQuery(
+    convexQuery(api.products.queries.hasProducts, { organizationId }),
+  );
 
-  if (hasProducts === undefined) {
+  if (isLoading) {
     return <ProductTableSkeleton organizationId={organizationId} />;
   }
 

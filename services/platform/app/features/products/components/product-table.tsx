@@ -1,9 +1,9 @@
 'use client';
 
-import { usePaginatedQuery } from 'convex/react';
 import { Package } from 'lucide-react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -23,7 +23,7 @@ export function ProductTable({ organizationId }: ProductTableProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useProductsTableConfig();
 
-  const paginatedResult = usePaginatedQuery(
+  const paginatedResult = useCachedPaginatedQuery(
     api.products.queries.listProducts,
     { organizationId },
     { initialNumItems: pageSize },

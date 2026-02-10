@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Users, Upload, X, FileText } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
@@ -45,12 +46,13 @@ export function DocumentUploadDialog({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   // Fetch user's teams via Convex query
-  const teamsResult = useQuery(
-    api.members.queries.getMyTeams,
-    open ? { organizationId } : 'skip',
+  const { data: teamsResult, isLoading: isLoadingTeams } = useQuery(
+    convexQuery(
+      api.members.queries.getMyTeams,
+      open ? { organizationId } : 'skip',
+    ),
   );
   const teams = teamsResult?.teams ?? null;
-  const isLoadingTeams = teamsResult === undefined;
 
   const { uploadFiles, isUploading } = useDocumentUpload({
     organizationId,

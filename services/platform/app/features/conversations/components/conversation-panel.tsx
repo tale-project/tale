@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery as useConvexQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
@@ -62,21 +63,19 @@ export function ConversationPanel({
   const { formatDateHeader } = useFormatDate();
 
   // Use Convex query hook
-  const conversation = useConvexQuery(
-    api.conversations.queries.getConversationWithMessages,
-    selectedConversationId
-      ? {
-          conversationId: toId<'conversations'>(selectedConversationId),
-        }
-      : 'skip',
+  const { data: conversation, isLoading } = useQuery(
+    convexQuery(
+      api.conversations.queries.getConversationWithMessages,
+      selectedConversationId
+        ? { conversationId: toId<'conversations'>(selectedConversationId) }
+        : 'skip',
+    ),
   );
 
   // Convex mutations
   const markAsRead = useMarkAsRead();
   const sendMessageViaEmail = useSendMessageViaEmail();
   const generateUploadUrl = useGenerateUploadUrl();
-
-  const isLoading = conversation === undefined;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const messageComposerRef = useRef<HTMLDivElement>(null);

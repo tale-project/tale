@@ -1,5 +1,7 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useQuery, useConvexAuth } from 'convex/react';
+import { useConvexAuth } from 'convex/react';
 import { useEffect } from 'react';
 
 import { OrganizationFormClient } from '@/app/features/organization/components/organization-form-client';
@@ -13,13 +15,15 @@ function CreateOrganizationPage() {
   const navigate = useNavigate();
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
 
-  const organizations = useQuery(
-    api.members.queries.getUserOrganizationsList,
-    isAuthLoading || !isAuthenticated ? 'skip' : {},
+  const { data: organizations, isLoading: isOrgsLoading } = useQuery(
+    convexQuery(
+      api.members.queries.getUserOrganizationsList,
+      isAuthLoading || !isAuthenticated ? 'skip' : {},
+    ),
   );
 
   useEffect(() => {
-    if (isAuthLoading || !isAuthenticated || organizations === undefined) {
+    if (isAuthLoading || !isAuthenticated || isOrgsLoading || !organizations) {
       return;
     }
 
@@ -29,9 +33,9 @@ function CreateOrganizationPage() {
         params: { id: organizations[0].organizationId },
       });
     }
-  }, [isAuthLoading, isAuthenticated, organizations, navigate]);
+  }, [isAuthLoading, isAuthenticated, isOrgsLoading, organizations, navigate]);
 
-  if (isAuthLoading || organizations === undefined) {
+  if (isAuthLoading || isOrgsLoading || !organizations) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="animate-pulse">Loading...</div>

@@ -1,8 +1,9 @@
 'use client';
 
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { useQuery } from 'convex/react';
 import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
 import { useMemo, useState, useCallback } from 'react';
 
@@ -103,9 +104,8 @@ export function DocumentsClient({
     [organizationId, debouncedQuery, currentFolderPath, selectedTeamId],
   );
 
-  const documentsResult = useQuery(
-    api.documents.queries.listDocuments,
-    queryArgs,
+  const { data: documentsResult } = useQuery(
+    convexQuery(api.documents.queries.listDocuments, queryArgs),
   );
 
   const allDocuments = useMemo(

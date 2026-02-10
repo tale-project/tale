@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { z } from 'zod';
 
 import { CustomersEmptyState } from '@/app/features/customers/components/customers-empty-state';
@@ -21,11 +22,11 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/customers')({
 
 function CustomersPage() {
   const { id: organizationId } = Route.useParams();
-  const hasCustomers = useQuery(api.customers.queries.hasCustomers, {
-    organizationId,
-  });
+  const { data: hasCustomers, isLoading } = useQuery(
+    convexQuery(api.customers.queries.hasCustomers, { organizationId }),
+  );
 
-  if (hasCustomers === undefined) {
+  if (isLoading) {
     return <CustomersTableSkeleton organizationId={organizationId} />;
   }
 

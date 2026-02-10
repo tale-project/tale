@@ -1,8 +1,10 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
+import type { FunctionReturnType } from 'convex/server';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Plus, Zap, Trash2, Pencil } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -34,8 +36,8 @@ interface EventsSectionProps {
 }
 
 type EventSubscription = NonNullable<
-  ReturnType<
-    typeof useQuery<typeof api.workflows.triggers.queries.getEventSubscriptions>
+  FunctionReturnType<
+    typeof api.workflows.triggers.queries.getEventSubscriptions
   >
 >[number];
 
@@ -45,9 +47,10 @@ export function EventsSection({
 }: EventsSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
-  const subscriptions = useQuery(
-    api.workflows.triggers.queries.getEventSubscriptions,
-    { workflowRootId },
+  const { data: subscriptions } = useQuery(
+    convexQuery(api.workflows.triggers.queries.getEventSubscriptions, {
+      workflowRootId,
+    }),
   );
 
   const hasWorkflowFilter = useMemo(
@@ -56,9 +59,11 @@ export function EventsSection({
     [subscriptions],
   );
 
-  const workflows = useQuery(
-    api.wf_definitions.queries.listAutomationRoots,
-    hasWorkflowFilter ? { organizationId } : 'skip',
+  const { data: workflows } = useQuery(
+    convexQuery(
+      api.wf_definitions.queries.listAutomationRoots,
+      hasWorkflowFilter ? { organizationId } : 'skip',
+    ),
   );
 
   const workflowNameMap = useMemo(() => {

@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -60,17 +61,18 @@ function ToneFormSkeleton() {
 function ToneOfVoicePage() {
   const { id: organizationId } = Route.useParams();
 
-  const hasExamples = useQuery(api.tone_of_voice.queries.hasExampleMessages, {
-    organizationId,
-  });
-  const toneOfVoice = useQuery(
-    api.tone_of_voice.queries.getToneOfVoiceWithExamples,
-    {
+  const { isLoading: isExamplesLoading } = useQuery(
+    convexQuery(api.tone_of_voice.queries.hasExampleMessages, {
       organizationId,
-    },
+    }),
+  );
+  const { data: toneOfVoice, isLoading: isToneLoading } = useQuery(
+    convexQuery(api.tone_of_voice.queries.getToneOfVoiceWithExamples, {
+      organizationId,
+    }),
   );
 
-  if (hasExamples === undefined || toneOfVoice === undefined) {
+  if (isExamplesLoading || isToneLoading) {
     return (
       <Stack gap={8}>
         <ExampleMessagesSkeleton />
@@ -82,7 +84,7 @@ function ToneOfVoicePage() {
   return (
     <ToneOfVoiceFormClient
       organizationId={organizationId}
-      toneOfVoice={toneOfVoice}
+      toneOfVoice={toneOfVoice ?? null}
     />
   );
 }

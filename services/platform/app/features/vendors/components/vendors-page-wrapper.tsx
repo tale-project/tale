@@ -2,7 +2,8 @@
 
 import type { ReactNode } from 'react';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { api } from '@/convex/_generated/api';
 
@@ -26,9 +27,11 @@ export function VendorsPageWrapper({
 }: VendorsPageWrapperProps) {
   // Subscribe to hasVendors for reactive updates
   // Convex useQuery automatically updates when data changes
-  const hasVendors = useQuery(api.vendors.queries.hasVendors, {
-    organizationId,
-  });
+  const { data: hasVendors } = useQuery(
+    convexQuery(api.vendors.queries.hasVendors, {
+      organizationId,
+    }),
+  );
 
   // Use initial value while loading, then use reactive value
   const showVendors = hasVendors ?? initialHasVendors;

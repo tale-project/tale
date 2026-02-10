@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -48,14 +49,16 @@ export function ApprovalDetailDialog({
   const { formatDate } = useFormatDate();
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
 
-  const customer = useQuery(
-    api.customers.queries.getCustomerByEmail,
-    approvalDetail?.customer.email
-      ? {
-          email: approvalDetail.customer.email,
-          organizationId: approvalDetail.organizationId,
-        }
-      : 'skip',
+  const { data: customer } = useQuery(
+    convexQuery(
+      api.customers.queries.getCustomerByEmail,
+      approvalDetail?.customer.email
+        ? {
+            email: approvalDetail.customer.email,
+            organizationId: approvalDetail.organizationId,
+          }
+        : 'skip',
+    ),
   );
 
   // Sort products by confidence (high to low) and get first product
