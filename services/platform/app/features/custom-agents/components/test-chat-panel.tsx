@@ -200,6 +200,35 @@ function TestChatPanelContent({
     null,
   );
 
+  // Bridge the loading gap: keep isLoading true until the agent starts
+  // streaming or the response has already completed (fast response case).
+  // Without this, isLoading resets when the mutation returns but before
+  // the beforeGenerateHook (file preprocessing) finishes.
+  useEffect(() => {
+    if (!isLoading) return;
+
+    // Normal case: agent started streaming → hand off to isAgentResponding
+    if (isAgentResponding) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Fast response case: response completed before we noticed streaming
+    if (!pendingUserMessage && transformedMessages.length > 0) {
+      const last = transformedMessages[transformedMessages.length - 1];
+      if (last.role === 'assistant') {
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // Safety timeout: if still loading after 2 minutes, reset
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 120_000);
+    return () => clearTimeout(timeout);
+  }, [isLoading, isAgentResponding, pendingUserMessage, transformedMessages]);
+
   useEffect(() => {
     if (transformedMessages.length > 0) {
       setMessages(transformedMessages);
@@ -378,6 +407,7 @@ function TestChatPanelContent({
       });
     } catch (error) {
       console.error('Error testing draft agent:', error);
+      setIsLoading(false);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -387,7 +417,6 @@ function TestChatPanelContent({
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       isSendingRef.current = false;
-      setIsLoading(false);
     }
   };
 

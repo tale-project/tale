@@ -10,6 +10,12 @@ import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
 
+const STATUS_PRIORITY: Record<string, number> = {
+  active: 0,
+  draft: 1,
+  archived: 2,
+};
+
 export const listCustomAgents = query({
   args: {
     organizationId: v.string(),
@@ -22,33 +28,65 @@ export const listCustomAgents = query({
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
 
-    const status = args.filterPublished === true ? 'active' : 'draft';
-    const agents = ctx.db
-      .query('customAgents')
-      .withIndex('by_org_active_status', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('isActive', true)
-          .eq('status', status),
-      );
+    if (args.filterPublished === true) {
+      const agents = ctx.db
+        .query('customAgents')
+        .withIndex('by_org_active_status', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('isActive', true)
+            .eq('status', 'active'),
+        );
 
-    const results = [];
-    for await (const agent of agents) {
-      if (!hasTeamAccess(agent, userTeamIds)) continue;
-
-      if (args.filterTeamId && agent.teamId) {
+      const results = [];
+      for await (const agent of agents) {
+        if (!hasTeamAccess(agent, userTeamIds)) continue;
         if (
+          args.filterTeamId &&
+          agent.teamId &&
           agent.teamId !== args.filterTeamId &&
           !agent.sharedWithTeamIds?.includes(args.filterTeamId)
         ) {
           continue;
         }
+        results.push(agent);
       }
-
-      results.push(agent);
+      return results;
     }
 
-    return results;
+    const agents = ctx.db
+      .query('customAgents')
+      .withIndex('by_org_active_status', (q) =>
+        q.eq('organizationId', args.organizationId).eq('isActive', true),
+      );
+
+    const bestByRoot = new Map<
+      string,
+      typeof agents extends AsyncIterable<infer T> ? T : never
+    >();
+    for await (const agent of agents) {
+      if (!hasTeamAccess(agent, userTeamIds)) continue;
+      if (
+        args.filterTeamId &&
+        agent.teamId &&
+        agent.teamId !== args.filterTeamId &&
+        !agent.sharedWithTeamIds?.includes(args.filterTeamId)
+      ) {
+        continue;
+      }
+
+      const rootId = agent.rootVersionId ?? agent._id;
+      const existing = bestByRoot.get(rootId);
+      if (
+        !existing ||
+        (STATUS_PRIORITY[agent.status] ?? 99) <
+          (STATUS_PRIORITY[existing.status] ?? 99)
+      ) {
+        bestByRoot.set(rootId, agent);
+      }
+    }
+
+    return [...bestByRoot.values()];
   },
 });
 
@@ -196,7 +234,6 @@ export const getModelPresets = query({
       fast: process.env.OPENAI_FAST_MODEL ?? null,
       standard: process.env.OPENAI_MODEL ?? null,
       advanced: process.env.OPENAI_CODING_MODEL ?? null,
-      vision: process.env.OPENAI_VISION_MODEL ?? null,
     };
   },
 });

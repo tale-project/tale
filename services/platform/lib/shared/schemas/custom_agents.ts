@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 
-const modelPresetLiterals = ['fast', 'standard', 'advanced', 'vision'] as const;
+const modelPresetLiterals = ['fast', 'standard', 'advanced'] as const;
 export const modelPresetSchema = z.enum(modelPresetLiterals);
 export type ModelPreset = z.infer<typeof modelPresetSchema>;
 
@@ -23,6 +23,7 @@ const customAgentSchema = z.object({
   includeOrgKnowledge: z.boolean().optional(),
   knowledgeTopK: z.number().optional(),
   toneOfVoiceId: z.string().optional(),
+  filePreprocessingEnabled: z.boolean().optional(),
   teamId: z.string().optional(),
   sharedWithTeamIds: z.array(z.string()).optional(),
   createdBy: z.string(),
@@ -54,6 +55,7 @@ const createCustomAgentSchema = z.object({
   includeOrgKnowledge: z.boolean().optional(),
   knowledgeTopK: z.number().int().min(1).max(50).optional(),
   toneOfVoiceId: z.string().optional(),
+  filePreprocessingEnabled: z.boolean().optional(),
   teamId: z.string().optional(),
   sharedWithTeamIds: z.array(z.string()).optional(),
 });

@@ -1,13 +1,7 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import {
-  ChevronDown,
-  CircleStop,
-  FlaskConical,
-  Pencil,
-  Play,
-} from 'lucide-react';
+import { ChevronDown, CircleStop, FlaskConical, Pencil } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -50,7 +44,7 @@ export function CustomAgentNavigation({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
-  const { agent, versions, hasDraft, hasActiveVersion, draftVersionNumber } =
+  const { agent, versions, hasDraft, draftVersionNumber } =
     useCustomAgentVersion();
 
   const publishAgent = usePublishCustomAgent();
@@ -322,16 +316,10 @@ export function CustomAgentNavigation({
 
         {isArchived && (
           <>
-            <Button
-              onClick={handleActivate}
-              disabled={isActivating || hasActiveVersion}
-              size="sm"
-              variant="outline"
-            >
-              <Play className="mr-1.5 size-3.5" aria-hidden="true" />
+            <Button onClick={handleActivate} disabled={isActivating} size="sm">
               {isActivating
                 ? t('customAgents.navigation.publishing')
-                : tCommon('actions.activate')}
+                : t('customAgents.navigation.publish')}
             </Button>
             <Button
               onClick={handleCreateDraft}

@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import type { ModelPreset } from '@/lib/shared/schemas/custom_agents';
 
 import { Select } from '@/app/components/ui/forms/select';
+import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
@@ -14,6 +15,7 @@ import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/use-cus
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { FILE_PREPROCESSING_INSTRUCTIONS } from '@/lib/shared/constants/custom-agents';
 import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute(
@@ -25,14 +27,10 @@ export const Route = createFileRoute(
 interface InstructionsFormData {
   systemInstructions: string;
   modelPreset: ModelPreset;
+  filePreprocessingEnabled: boolean;
 }
 
-const MODEL_PRESET_OPTIONS = [
-  'fast',
-  'standard',
-  'advanced',
-  'vision',
-] as const;
+const MODEL_PRESET_OPTIONS = ['fast', 'standard', 'advanced'] as const;
 
 function InstructionsTab() {
   const { agentId } = Route.useParams();
@@ -56,6 +54,7 @@ function InstructionsTab() {
       ? {
           systemInstructions: agent.systemInstructions,
           modelPreset: agent.modelPreset,
+          filePreprocessingEnabled: agent.filePreprocessingEnabled ?? false,
         }
       : undefined,
   });
@@ -68,6 +67,7 @@ function InstructionsTab() {
         customAgentId: toId<'customAgents'>(agentId),
         systemInstructions: data.systemInstructions,
         modelPreset: data.modelPreset,
+        filePreprocessingEnabled: data.filePreprocessingEnabled,
       });
     },
     [agentId, updateAgent],
@@ -132,6 +132,42 @@ function InstructionsTab() {
                 disabled={isReadOnly}
               />
             </Stack>
+          </Stack>
+        </section>
+
+        <section>
+          <Stack gap={4}>
+            <Stack gap={1}>
+              <h2 className="text-foreground text-base font-semibold">
+                {t('customAgents.form.sectionFilePreprocessing')}
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                {t('customAgents.form.sectionFilePreprocessingDescription')}
+              </p>
+            </Stack>
+            <div>
+              <Switch
+                checked={form.watch('filePreprocessingEnabled')}
+                onCheckedChange={(checked) =>
+                  form.setValue('filePreprocessingEnabled', checked)
+                }
+                label={t('customAgents.form.filePreprocessingEnabled')}
+                disabled={isReadOnly}
+              />
+              <p className="text-muted-foreground mt-1.5 ml-10 text-xs">
+                {t('customAgents.form.filePreprocessingEnabledHelp')}
+              </p>
+            </div>
+            {form.watch('filePreprocessingEnabled') && (
+              <div>
+                <p className="text-muted-foreground mb-2 text-xs font-medium">
+                  {t('customAgents.form.filePreprocessingInjectedPrompt')}
+                </p>
+                <pre className="bg-muted text-muted-foreground rounded-md border p-3 font-mono text-xs whitespace-pre-wrap">
+                  {FILE_PREPROCESSING_INSTRUCTIONS}
+                </pre>
+              </div>
+            )}
           </Stack>
         </section>
       </Stack>

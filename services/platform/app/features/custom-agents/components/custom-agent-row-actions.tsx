@@ -1,8 +1,9 @@
 'use client';
 
-import { Trash2, Copy, History } from 'lucide-react';
+import { CircleStop, Copy, Play, Trash2, Upload } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   EntityRowActions,
   useEntityRowDialogs,
@@ -13,20 +14,35 @@ import { toId } from '@/lib/utils/type-guards';
 
 import type { CustomAgentRow } from './custom-agent-table';
 
-import { useDuplicateCustomAgent } from '../hooks/use-custom-agent-mutations';
+import {
+  useActivateCustomAgentVersion,
+  useDuplicateCustomAgent,
+  usePublishCustomAgent,
+  useUnpublishCustomAgent,
+} from '../hooks/use-custom-agent-mutations';
 import { CustomAgentDeleteDialog } from './custom-agent-delete-dialog';
-import { CustomAgentVersionHistoryDialog } from './custom-agent-version-history-dialog';
 
 interface CustomAgentRowActionsProps {
-  agent: Pick<CustomAgentRow, '_id' | 'displayName' | 'rootVersionId'>;
+  agent: Pick<
+    CustomAgentRow,
+    '_id' | 'displayName' | 'rootVersionId' | 'status' | 'versionNumber'
+  >;
 }
 
 export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t } = useT('settings');
-  const dialogs = useEntityRowDialogs(['delete', 'versions']);
+  const dialogs = useEntityRowDialogs(['delete', 'deactivate']);
   const duplicateAgent = useDuplicateCustomAgent();
+  const publishAgent = usePublishCustomAgent();
+  const unpublishAgent = useUnpublishCustomAgent();
+  const activateVersion = useActivateCustomAgentVersion();
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+
+  const rootId = agent.rootVersionId ?? agent._id;
 
   const handleDuplicate = useCallback(async () => {
     if (isDuplicating) return;
@@ -48,6 +64,73 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
     }
   }, [isDuplicating, duplicateAgent, agent._id, t]);
 
+  const handlePublish = useCallback(async () => {
+    if (isPublishing) return;
+    setIsPublishing(true);
+    try {
+      await publishAgent({
+        customAgentId: toId<'customAgents'>(rootId),
+      });
+      toast({
+        title: t('customAgents.agentPublished'),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: t('customAgents.agentPublishFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [isPublishing, publishAgent, rootId, t]);
+
+  const handleDeactivateConfirm = useCallback(async () => {
+    setIsDeactivating(true);
+    try {
+      await unpublishAgent({
+        customAgentId: toId<'customAgents'>(rootId),
+      });
+      dialogs.setOpen.deactivate(false);
+      toast({
+        title: t('customAgents.agentDeactivated'),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: t('customAgents.agentDeactivateFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeactivating(false);
+    }
+  }, [unpublishAgent, rootId, dialogs.setOpen, t]);
+
+  const handleActivate = useCallback(async () => {
+    if (isActivating) return;
+    setIsActivating(true);
+    try {
+      await activateVersion({
+        customAgentId: toId<'customAgents'>(rootId),
+        targetVersion: agent.versionNumber,
+      });
+      toast({
+        title: t('customAgents.agentPublished'),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: t('customAgents.agentPublishFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsActivating(false);
+    }
+  }, [isActivating, activateVersion, rootId, agent.versionNumber, t]);
+
   const actions = useMemo(
     () => [
       {
@@ -58,10 +141,27 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
         disabled: isDuplicating,
       },
       {
-        key: 'versions',
-        label: t('customAgents.versionHistory'),
-        icon: History,
-        onClick: dialogs.open.versions,
+        key: 'publish',
+        label: tCommon('actions.publish'),
+        icon: Upload,
+        onClick: handlePublish,
+        visible: agent.status === 'draft',
+        disabled: isPublishing,
+      },
+      {
+        key: 'activate',
+        label: tCommon('actions.activate'),
+        icon: Play,
+        onClick: handleActivate,
+        visible: agent.status === 'archived',
+        disabled: isActivating,
+      },
+      {
+        key: 'deactivate',
+        label: tCommon('actions.deactivate'),
+        icon: CircleStop,
+        onClick: dialogs.open.deactivate,
+        visible: agent.status === 'active',
       },
       {
         key: 'delete',
@@ -72,7 +172,18 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
         separator: true,
       },
     ],
-    [tCommon, t, dialogs.open, handleDuplicate, isDuplicating],
+    [
+      tCommon,
+      t,
+      dialogs.open,
+      handleDuplicate,
+      handlePublish,
+      handleActivate,
+      isDuplicating,
+      isPublishing,
+      isActivating,
+      agent.status,
+    ],
   );
 
   return (
@@ -85,10 +196,17 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
         agent={agent}
       />
 
-      <CustomAgentVersionHistoryDialog
-        open={dialogs.isOpen.versions}
-        onOpenChange={dialogs.setOpen.versions}
-        customAgentId={agent.rootVersionId ?? agent._id}
+      <ConfirmDialog
+        open={dialogs.isOpen.deactivate}
+        onOpenChange={dialogs.setOpen.deactivate}
+        title={t('customAgents.deactivateDialog.title')}
+        description={t('customAgents.deactivateDialog.description', {
+          name: agent.displayName,
+        })}
+        confirmText={tCommon('actions.deactivate')}
+        loadingText={tCommon('actions.deactivating')}
+        isLoading={isDeactivating}
+        onConfirm={handleDeactivateConfirm}
       />
     </>
   );

@@ -8,6 +8,7 @@ import { Bot } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
@@ -31,6 +32,7 @@ export interface CustomAgentRow {
   maxSteps?: number;
   includeOrgKnowledge?: boolean;
   knowledgeTopK?: number;
+  status: 'draft' | 'active' | 'archived';
   versionNumber: number;
   rootVersionId?: string;
   teamId?: string;
@@ -49,6 +51,8 @@ export function CustomAgentTable({
   isLoading,
 }: CustomAgentTableProps) {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+  const { t: tTables } = useT('tables');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
   const modelPresets = useQuery(api.custom_agents.queries.getModelPresets);
@@ -89,6 +93,23 @@ export function CustomAgentTable({
         size: 250,
       },
       {
+        id: 'status',
+        header: tTables('headers.status'),
+        cell: ({ row }) => {
+          const { status } = row.original;
+          return (
+            <Badge dot variant={status === 'active' ? 'green' : 'outline'}>
+              {status === 'active'
+                ? tCommon('status.published')
+                : status === 'archived'
+                  ? tCommon('status.archived')
+                  : tCommon('status.draft')}
+            </Badge>
+          );
+        },
+        size: 140,
+      },
+      {
         id: 'modelPreset',
         header: t('customAgents.columns.modelPreset'),
         cell: ({ row }) => {
@@ -118,16 +139,6 @@ export function CustomAgentTable({
           </span>
         ),
         size: 100,
-      },
-      {
-        id: 'version',
-        header: t('customAgents.columns.version'),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground text-sm">
-            v{row.original.versionNumber}
-          </span>
-        ),
-        size: 80,
       },
       {
         id: 'team',
@@ -161,7 +172,7 @@ export function CustomAgentTable({
         size: 80,
       },
     ],
-    [t, teamNameMap, modelPresets],
+    [t, tCommon, tTables, teamNameMap, modelPresets],
   );
 
   const list = useListPage({

@@ -5,7 +5,6 @@ export const modelPresetValidator = v.union(
   v.literal('fast'),
   v.literal('standard'),
   v.literal('advanced'),
-  v.literal('vision'),
 );
 
 export const versionStatusValidator = v.union(
@@ -32,6 +31,7 @@ export const customAgentsTable = defineTable({
   includeOrgKnowledge: v.optional(v.boolean()),
   knowledgeTopK: v.optional(v.number()),
   toneOfVoiceId: v.optional(v.id('toneOfVoice')),
+  filePreprocessingEnabled: v.optional(v.boolean()),
 
   teamId: v.optional(v.string()),
   sharedWithTeamIds: v.optional(v.array(v.string())),

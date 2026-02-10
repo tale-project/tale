@@ -36,6 +36,7 @@ const agentFieldsValidator = {
   includeOrgKnowledge: v.optional(v.boolean()),
   knowledgeTopK: v.optional(v.number()),
   toneOfVoiceId: v.optional(v.id('toneOfVoice')),
+  filePreprocessingEnabled: v.optional(v.boolean()),
   teamId: v.optional(v.string()),
   sharedWithTeamIds: v.optional(v.array(v.string())),
 };
@@ -125,6 +126,7 @@ function copyVersionFields(source: Doc<'customAgents'>) {
     includeOrgKnowledge: source.includeOrgKnowledge,
     knowledgeTopK: source.knowledgeTopK,
     toneOfVoiceId: source.toneOfVoiceId,
+    filePreprocessingEnabled: source.filePreprocessingEnabled,
     teamId: source.teamId,
     sharedWithTeamIds: source.sharedWithTeamIds,
     createdBy: source.createdBy,
@@ -187,6 +189,7 @@ export const updateCustomAgent = mutation({
     includeOrgKnowledge: v.optional(v.boolean()),
     knowledgeTopK: v.optional(v.number()),
     toneOfVoiceId: v.optional(v.id('toneOfVoice')),
+    filePreprocessingEnabled: v.optional(v.boolean()),
     teamId: v.optional(v.string()),
     sharedWithTeamIds: v.optional(v.array(v.string())),
   },

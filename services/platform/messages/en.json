@@ -636,6 +636,10 @@
       "agentPublishFailed": "Failed to publish agent",
       "agentDeactivated": "Agent deactivated",
       "agentDeactivateFailed": "Failed to deactivate agent",
+      "deactivateDialog": {
+        "title": "Deactivate agent",
+        "description": "Are you sure you want to deactivate \"{name}\"? The agent will no longer be available until you activate it again."
+      },
       "navigation": {
         "configuration": "Configuration",
         "general": "General",
@@ -693,8 +697,7 @@
         "modelPresets": {
           "fast": "Fast",
           "standard": "Standard",
-          "advanced": "Advanced",
-          "vision": "Vision"
+          "advanced": "Advanced"
         },
         "tools": "Tools",
         "toolsDescription": "Select which tools this agent can use",
@@ -703,7 +706,12 @@
         "teamHelp": "Assign this agent to a team. Leave empty for organization-wide access.",
         "teamNone": "Organization-wide",
         "sharedWithTeams": "Share with additional teams",
-        "sharedWithTeamsHelp": "Select additional teams that can access this agent"
+        "sharedWithTeamsHelp": "Select additional teams that can access this agent",
+        "sectionFilePreprocessing": "File preprocessing",
+        "sectionFilePreprocessingDescription": "Configure how file attachments are processed",
+        "filePreprocessingEnabled": "Pre-analyze file attachments",
+        "filePreprocessingEnabledHelp": "When enabled, uploaded files (documents, images, text) are automatically analyzed before the AI responds. This provides faster and more accurate responses. When disabled, the AI uses tools to read files on demand.",
+        "filePreprocessingInjectedPrompt": "The following instructions will be automatically appended to the system prompt:"
       },
       "knowledge": {
         "enableKnowledge": "Enable knowledge base",

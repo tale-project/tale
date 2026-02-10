@@ -14,7 +14,7 @@ import { startAgentChat } from '../lib/agent_chat';
 import { getDefaultAgentRuntimeConfig } from '../lib/agent_runtime_config';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
-import { toSerializableConfig } from './config';
+import { createCustomAgentHookHandles, toSerializableConfig } from './config';
 
 export const chatWithCustomAgent = mutation({
   args: {
@@ -79,9 +79,11 @@ export const chatWithCustomAgent = mutation({
     if (activeVersion.includeOrgKnowledge)
       ragTeamIds.push(`org_${args.organizationId}`);
 
-    // Custom agents use their own tools (image, pdf, etc.) to process
-    // attachments. File IDs are embedded in the message text by
-    // startAgentChat's buildMessageWithAttachments — no chat-agent hooks needed.
+    const hooks = await createCustomAgentHookHandles(
+      ctx,
+      activeVersion.filePreprocessingEnabled,
+    );
+
     return startAgentChat({
       ctx,
       agentType: 'custom',
@@ -96,6 +98,7 @@ export const chatWithCustomAgent = mutation({
       debugTag: `[CustomAgent:${activeVersion.name}]`,
       enableStreaming: true,
       ragTeamIds,
+      hooks,
     });
   },
 });
