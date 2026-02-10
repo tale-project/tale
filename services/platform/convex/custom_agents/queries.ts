@@ -22,7 +22,7 @@ export const listCustomAgents = query({
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
 
-    const status = args.filterPublished ? 'active' : 'draft';
+    const status = args.filterPublished === true ? 'active' : 'draft';
     const agents = ctx.db
       .query('customAgents')
       .withIndex('by_org_active_status', (q) =>
