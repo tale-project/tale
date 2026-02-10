@@ -48,7 +48,6 @@ export const customAgentsTable = defineTable({
   changeLog: v.optional(v.string()),
 })
   .index('by_organization', ['organizationId'])
-  .index('by_organization_active', ['organizationId', 'isActive'])
   .index('by_org_active_status', ['organizationId', 'isActive', 'status'])
   .index('by_root_status', ['rootVersionId', 'status'])
   .index('by_root', ['rootVersionId'])
