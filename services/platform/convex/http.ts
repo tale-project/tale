@@ -3,6 +3,10 @@ import { httpRouter } from 'convex/server';
 import { httpAction } from './_generated/server';
 import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
 import { authComponent, createAuth } from './auth';
+import {
+  agentWebhookHandler,
+  agentWebhookOptionsHandler,
+} from './custom_agents/webhooks/http_actions';
 import { oauth2CallbackHandler } from './email_providers/oauth2_callback';
 import {
   checkIpRateLimit,
@@ -135,6 +139,19 @@ http.route({
   path: '/api/sso/set-session',
   method: 'GET',
   handler: ssoSetSessionHandler,
+});
+
+// Custom Agent Webhook Routes
+http.route({
+  pathPrefix: '/api/agents/wh/',
+  method: 'POST',
+  handler: agentWebhookHandler,
+});
+
+http.route({
+  pathPrefix: '/api/agents/wh/',
+  method: 'OPTIONS',
+  handler: agentWebhookOptionsHandler,
 });
 
 // Workflow Webhook Trigger Routes

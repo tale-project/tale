@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
+import { ConvexError } from 'convex/values';
 import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -47,7 +48,8 @@ export function CreateAutomationDialog({
   const {
     register,
     handleSubmit,
-    formState: { isSubmitting, isValid },
+    setError,
+    formState: { isSubmitting, isValid, errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: 'onChange',
@@ -76,7 +78,14 @@ export function CreateAutomationDialog({
         params: { id: organizationId, amId: wfDefinitionId },
         search: { panel: 'ai-chat' },
       });
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof ConvexError &&
+        error.data?.code === 'DUPLICATE_NAME'
+      ) {
+        setError('name', { message: t('validation.duplicateName') });
+        return;
+      }
       toast({
         title: t('toast.createFailed'),
         variant: 'destructive',
@@ -100,6 +109,7 @@ export function CreateAutomationDialog({
         label={t('configuration.name')}
         {...register('name')}
         placeholder={t('createDialog.namePlaceholder')}
+        errorMessage={errors.name?.message}
       />
 
       <Textarea

@@ -16,6 +16,8 @@ import type { AgentType } from '../context_management/constants';
 import { isRecord, getString, getNumber } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
+import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
+import { fetchOperationsSummary } from '../../agent_tools/integrations/fetch_operations_summary';
 import { generateAgentResponse } from '../agent_response';
 import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
@@ -27,11 +29,10 @@ const serializableAgentConfigValidator = v.object({
   name: v.string(),
   instructions: v.string(),
   convexToolNames: v.optional(v.array(v.string())),
+  integrationBindings: v.optional(v.array(v.string())),
   useFastModel: v.optional(v.boolean()),
   model: v.optional(v.string()),
   maxSteps: v.optional(v.number()),
-  maxTokens: v.optional(v.number()),
-  temperature: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
   enableVectorSearch: v.optional(v.boolean()),
 });
@@ -106,6 +107,20 @@ export const runAgentGeneration = internalAction({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     const agentType = agentTypeStr as AgentType;
 
+    // Build bound integration tools eagerly (before synchronous createAgent closure)
+    let integrationExtraTools: Record<string, unknown> | undefined;
+    if (agentConfig.integrationBindings?.length) {
+      integrationExtraTools = {};
+      for (const name of agentConfig.integrationBindings) {
+        const summary = await fetchOperationsSummary(ctx, organizationId, name);
+        integrationExtraTools[`integration_${name}`] =
+          createBoundIntegrationTool(name, summary);
+      }
+      debugLog('Built bound integration tools', {
+        names: Object.keys(integrationExtraTools),
+      });
+    }
+
     // Create agent factory function from serializable config
     const createAgent = (options?: Record<string, unknown>) => {
       const config = createAgentConfig({
@@ -113,13 +128,12 @@ export const runAgentGeneration = internalAction({
         instructions: agentConfig.instructions,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         convexToolNames: agentConfig.convexToolNames as ToolName[] | undefined,
+        extraTools: integrationExtraTools,
         useFastModel: agentConfig.useFastModel,
         model: agentConfig.model,
         maxSteps:
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
           (options?.maxSteps as number | undefined) ?? agentConfig.maxSteps,
-        maxTokens: agentConfig.maxTokens,
-        temperature: agentConfig.temperature,
         outputFormat: agentConfig.outputFormat,
         enableVectorSearch: agentConfig.enableVectorSearch,
       });

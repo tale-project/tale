@@ -23,6 +23,8 @@ export const documentsTable = defineTable({
   contentHash: v.optional(v.string()),
   historyFiles: v.optional(v.array(v.id('_storage'))),
   teamTags: v.optional(v.array(v.string())),
+  teamId: v.optional(v.string()),
+  sharedWithTeamIds: v.optional(v.array(v.string())),
   ragInfo: v.optional(
     v.object({
       status: v.union(

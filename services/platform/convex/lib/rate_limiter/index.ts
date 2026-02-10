@@ -149,6 +149,12 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 150,
   },
+  'agent:webhook': {
+    kind: 'token bucket',
+    rate: 30,
+    period: MINUTE,
+    capacity: 50,
+  },
   'email:send': {
     kind: 'token bucket',
     rate: 100,

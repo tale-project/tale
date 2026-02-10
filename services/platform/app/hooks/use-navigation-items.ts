@@ -6,6 +6,7 @@ import {
   Inbox,
   BrainIcon,
   Network,
+  Bot,
 } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -135,6 +136,14 @@ export function useNavigationItems(businessId: string): NavItem[] {
             href: `/dashboard/${businessId}/approvals/resolved`,
           },
         ],
+      },
+      {
+        label: tNav('customAgents'),
+        to: '/dashboard/$id/custom-agents',
+        params: { id: businessId },
+        href: `/dashboard/${businessId}/custom-agents`,
+        icon: Bot,
+        roles: ['admin', 'developer'],
       },
       {
         label: tNav('automations'),

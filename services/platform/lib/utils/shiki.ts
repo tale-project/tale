@@ -98,10 +98,9 @@ export async function highlightCode(
   if (!loadedLangs.includes(resolvedLang)) {
     try {
       await hl.loadLanguage(
-        // Dynamic import returns Promise — cast required to match loadLanguage parameter type
-        import(`shiki/langs/${resolvedLang}.mjs`) as Parameters<
-          HighlighterCore['loadLanguage']
-        >[0],
+        /* @vite-ignore */ import(
+          `shiki/langs/${resolvedLang}.mjs`
+        ) as Parameters<HighlighterCore['loadLanguage']>[0],
       );
     } catch {
       return DOMPurify.sanitize(hl.codeToHtml(code, { lang: 'text', theme }));

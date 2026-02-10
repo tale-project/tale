@@ -10,6 +10,7 @@ import type { MutationCtx } from '../_generated/server';
 import { isRecord } from '../../lib/utils/type-guards';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { extractExtension } from './extract_extension';
+import { teamTagsToUnifiedFields } from './team_fields';
 
 export async function updateDocument(
   ctx: MutationCtx,
@@ -58,7 +59,12 @@ export async function updateDocument(
     updateData.sourceProvider = args.sourceProvider;
   if (args.externalItemId !== undefined)
     updateData.externalItemId = args.externalItemId;
-  if (args.teamTags !== undefined) updateData.teamTags = args.teamTags;
+  if (args.teamTags !== undefined) {
+    updateData.teamTags = args.teamTags;
+    const unifiedTeamFields = teamTagsToUnifiedFields(args.teamTags);
+    updateData.teamId = unifiedTeamFields.teamId;
+    updateData.sharedWithTeamIds = unifiedTeamFields.sharedWithTeamIds;
+  }
 
   if (args.extension !== undefined) {
     updateData.extension = args.extension;

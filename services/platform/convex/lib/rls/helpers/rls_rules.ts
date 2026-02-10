@@ -14,6 +14,7 @@ import type {
 
 import { authorizeRls } from '../../../auth';
 import { getUserTeamIds } from '../../get_user_teams';
+import { hasTeamAccess } from '../../team_access';
 import { getAuthenticatedUser } from '../auth/get_authenticated_user';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 
@@ -48,14 +49,50 @@ export async function rlsRules(
     : new Set<string>();
 
   // Helper to check team access for documents
-  // No teamTags or empty = accessible to all org members
-  // Has teamTags = user must be in at least one of those teams
-  const hasDocumentTeamAccess = (doc: { teamTags?: string[] }): boolean => {
+  // Uses unified teamId + sharedWithTeamIds fields with teamTags fallback
+  const hasDocumentTeamAccess = (doc: {
+    teamId?: string | null;
+    sharedWithTeamIds?: string[];
+    teamTags?: string[];
+  }): boolean => {
+    if (doc.teamId !== undefined) {
+      return hasTeamAccess(doc, userTeamIds);
+    }
     if (!doc.teamTags || doc.teamTags.length === 0) return true;
     return doc.teamTags.some((tag) => userTeamIds.has(tag));
   };
 
   return {
+    // Custom Agents - organization-scoped with team-based access control
+    customAgents: {
+      read: async (_, agent) => {
+        if (!user) return false;
+        if (!userOrgIds.has(agent.organizationId)) return false;
+        if (!hasTeamAccess(agent, userTeamIds)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === agent.organizationId,
+        );
+        return authorizeRls(membership?.role, 'customAgents', 'read');
+      },
+      modify: async (_, agent) => {
+        if (!user) return false;
+        if (!userOrgIds.has(agent.organizationId)) return false;
+        if (!hasTeamAccess(agent, userTeamIds)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === agent.organizationId,
+        );
+        return authorizeRls(membership?.role, 'customAgents', 'write');
+      },
+      insert: async ({ user: ruleUser }, agent) => {
+        if (!ruleUser) return false;
+        if (!userOrgIds.has(agent.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === agent.organizationId,
+        );
+        return authorizeRls(membership?.role, 'customAgents', 'write');
+      },
+    },
+
     // Documents - organization-scoped with team-based access control
     documents: {
       read: async (_, doc) => {

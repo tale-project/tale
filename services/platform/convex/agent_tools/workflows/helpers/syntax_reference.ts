@@ -163,8 +163,7 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
 **Available Tools for LLM Steps:**
 - customer_read: Fetch customer by ID, email, or list all (operation: get_by_id, get_by_email, list)
 - product_read: Fetch product by ID or list all (operation: get_by_id, list)
-- rag_search: Search knowledge base
-- context_search: Search conversation context`,
+- rag_search: Search knowledge base`,
 
   action: `## Action Step (stepType: 'action')
 

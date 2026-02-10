@@ -25,16 +25,10 @@
 	default_sni {$HOST:tale.local}
 }
 
-# HTTP health check endpoint (for Docker healthcheck)
-# This avoids SSL issues when checking from localhost
-:80 {
-	handle /health {
-		respond "OK" 200
-	}
-	# Redirect all other HTTP traffic to HTTPS
-	handle {
-		redir https://{host}{uri} permanent
-	}
+# Health check endpoint (internal only, not exposed externally)
+# Separate port avoids interfering with Caddy's automatic ACME challenge handling on :80
+:2020 {
+	respond /health "OK" 200
 }
 
 {$SITE_URL:https://tale.local} {

@@ -7,6 +7,7 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
+import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute('/dashboard/$id')({
@@ -23,27 +24,29 @@ function DashboardLayout() {
   );
 
   return (
-    <AdaptiveHeaderProvider>
-      <div className="flex size-full flex-col overflow-hidden md:flex-row">
-        <div className="bg-background flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
-          <MobileNavigation
-            organizationId={organizationId}
-            role={memberContext?.role}
-          />
-          <AdaptiveHeaderSlot />
-        </div>
+    <TeamFilterProvider organizationId={organizationId}>
+      <AdaptiveHeaderProvider>
+        <div className="flex size-full flex-col overflow-hidden md:flex-row">
+          <div className="bg-background flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
+            <MobileNavigation
+              organizationId={organizationId}
+              role={memberContext?.role}
+            />
+            <AdaptiveHeaderSlot />
+          </div>
 
-        <div className="hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-          <Navigation
-            organizationId={organizationId}
-            role={memberContext?.role}
-          />
-        </div>
+          <div className="hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
+            <Navigation
+              organizationId={organizationId}
+              role={memberContext?.role}
+            />
+          </div>
 
-        <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
-          {isAuthLoading ? null : <Outlet />}
+          <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
+            {isAuthLoading ? null : <Outlet />}
+          </div>
         </div>
-      </div>
-    </AdaptiveHeaderProvider>
+      </AdaptiveHeaderProvider>
+    </TeamFilterProvider>
   );
 }

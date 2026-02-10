@@ -8,3 +8,11 @@ export function getDefaultAgentRuntimeConfig() {
     provider: 'openai' as const,
   };
 }
+
+/**
+ * Returns the coding/advanced model if configured, or undefined.
+ * Used by workflow agents and other agents that need a more capable model.
+ */
+export function getCodingModel(): string | undefined {
+  return (process.env.OPENAI_CODING_MODEL || '').trim() || undefined;
+}

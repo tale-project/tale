@@ -22,6 +22,12 @@ export interface PendingMessage {
   timestamp: Date;
 }
 
+export interface SelectedAgent {
+  type: 'builtin' | 'custom';
+  _id: string;
+  displayName: string;
+}
+
 interface ChatLayoutContextType {
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
@@ -30,6 +36,8 @@ interface ChatLayoutContextType {
   setPendingMessage: (message: PendingMessage | null) => void;
   isHistoryOpen: boolean;
   setIsHistoryOpen: (open: boolean) => void;
+  selectedAgent: SelectedAgent | null;
+  setSelectedAgent: (agent: SelectedAgent | null) => void;
 }
 
 const ChatLayoutContext = createContext<ChatLayoutContextType | null>(null);
@@ -52,6 +60,9 @@ export function ChatLayoutProvider({ children }: ChatLayoutProviderProps) {
     null,
   );
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(
+    null,
+  );
 
   const clearChatState = useCallback(() => {
     setIsPending(false);
@@ -68,6 +79,8 @@ export function ChatLayoutProvider({ children }: ChatLayoutProviderProps) {
         setPendingMessage,
         isHistoryOpen,
         setIsHistoryOpen,
+        selectedAgent,
+        setSelectedAgent,
       }}
     >
       {children}

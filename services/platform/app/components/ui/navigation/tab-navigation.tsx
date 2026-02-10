@@ -22,6 +22,8 @@ export interface TabNavigationItem {
   roles?: string[];
   /** Match mode for this specific item (overrides default) */
   matchMode?: 'exact' | 'startsWith';
+  /** Search params to include in the link */
+  search?: Record<string, unknown>;
 }
 
 export interface TabNavigationProps {
@@ -156,7 +158,7 @@ export function TabNavigation({
       {accessibleItems.map((item, index) => {
         const isActive = isPathActive(item);
         const [path, queryString] = item.href.split('?');
-        const search = queryString
+        const hrefSearch = queryString
           ? Object.fromEntries(new URLSearchParams(queryString))
           : undefined;
 
@@ -167,7 +169,7 @@ export function TabNavigation({
               itemRefs.current[index] = el;
             }}
             to={path}
-            search={search}
+            search={item.search ?? hrefSearch}
             preload={prefetch ? 'intent' : false}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
