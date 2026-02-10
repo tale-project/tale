@@ -17,6 +17,18 @@ import { getBoolean, isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
+interface ApprovalResult {
+  requiresApproval: true;
+  approvalId: string;
+  operationName: string;
+  operationTitle: string;
+  operationType: 'read' | 'write';
+  parameters: Record<string, unknown>;
+}
+
+const isApprovalResult = (r: unknown): r is ApprovalResult =>
+  isRecord(r) && getBoolean(r, 'requiresApproval') === true;
+
 const boundIntegrationArgs = z.object({
   operation: z
     .string()
@@ -79,18 +91,6 @@ export function createBoundIntegrationTool(
             messageId,
           },
         );
-
-        interface ApprovalResult {
-          requiresApproval: true;
-          approvalId: string;
-          operationName: string;
-          operationTitle: string;
-          operationType: 'read' | 'write';
-          parameters: Record<string, unknown>;
-        }
-
-        const isApprovalResult = (r: unknown): r is ApprovalResult =>
-          isRecord(r) && getBoolean(r, 'requiresApproval') === true;
 
         if (isApprovalResult(result)) {
           return {
