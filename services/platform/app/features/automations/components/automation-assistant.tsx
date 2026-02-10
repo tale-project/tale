@@ -1,7 +1,8 @@
 'use client';
 
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   Bot,
@@ -298,9 +299,11 @@ function AutomationAssistantContent({
   const updateWorkflowMetadata = useUpdateAutomationMetadata();
 
   // Load workflow to get threadId from metadata (use public API)
-  const workflow = useQuery(
-    api.wf_definitions.queries.getWorkflow,
-    automationId ? { wfDefinitionId: automationId } : 'skip',
+  const { data: workflow } = useQuery(
+    convexQuery(
+      api.wf_definitions.queries.getWorkflow,
+      automationId ? { wfDefinitionId: automationId } : 'skip',
+    ),
   );
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SDK type mismatch: return type narrowed to usable shape

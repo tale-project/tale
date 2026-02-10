@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
@@ -21,9 +22,11 @@ export function TriggersClient({
   automationId,
   organizationId,
 }: TriggersClientProps) {
-  const workflow = useQuery(api.wf_definitions.queries.getWorkflow, {
-    wfDefinitionId: automationId,
-  });
+  const { data: workflow } = useQuery(
+    convexQuery(api.wf_definitions.queries.getWorkflow, {
+      wfDefinitionId: automationId,
+    }),
+  );
 
   if (!workflow) {
     return (

@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { CopyIcon, CheckIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { Info } from 'lucide-react';
 import {
@@ -233,9 +234,11 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 }) {
   const { t } = useT('chat');
   // Use previewUrl for optimistic display, otherwise fetch from server
-  const serverFileUrl = useQuery(
-    api.files.queries.getFileUrl,
-    attachment.previewUrl ? 'skip' : { fileId: attachment.fileId },
+  const { data: serverFileUrl } = useQuery(
+    convexQuery(
+      api.files.queries.getFileUrl,
+      attachment.previewUrl ? 'skip' : { fileId: attachment.fileId },
+    ),
   );
   const displayUrl = attachment.previewUrl || serverFileUrl;
   const isImage = attachment.fileType.startsWith('image/');

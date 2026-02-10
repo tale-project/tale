@@ -1,4 +1,5 @@
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import type { AuditLogFilter } from '@/convex/audit_logs/types';
 
@@ -9,11 +10,13 @@ export function useAuditLogs(
   filter?: AuditLogFilter,
   limit = 50,
 ) {
-  return useQuery(api.audit_logs.queries.listAuditLogs, {
-    organizationId,
-    filter,
-    limit,
-  });
+  return useQuery(
+    convexQuery(api.audit_logs.queries.listAuditLogs, {
+      organizationId,
+      filter,
+      limit,
+    }),
+  );
 }
 
 export function useActivitySummary(
@@ -21,9 +24,11 @@ export function useActivitySummary(
   startDate?: number,
   endDate?: number,
 ) {
-  return useQuery(api.audit_logs.queries.getActivitySummary, {
-    organizationId,
-    startDate,
-    endDate,
-  });
+  return useQuery(
+    convexQuery(api.audit_logs.queries.getActivitySummary, {
+      organizationId,
+      startDate,
+      endDate,
+    }),
+  );
 }

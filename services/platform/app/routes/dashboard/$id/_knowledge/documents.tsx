@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { z } from 'zod';
 
 import { DocumentsClient } from '@/app/features/documents/components/documents-client';
@@ -20,8 +21,9 @@ function DocumentsPage() {
   const { id: organizationId } = Route.useParams();
   const { query: searchQuery, folderPath, doc } = Route.useSearch();
 
-  const hasMicrosoftAccount =
-    useQuery(api.accounts.queries.hasMicrosoftAccount) ?? false;
+  const { data: hasMicrosoftAccount = false } = useQuery(
+    convexQuery(api.accounts.queries.hasMicrosoftAccount, {}),
+  );
 
   return (
     <DocumentsClient

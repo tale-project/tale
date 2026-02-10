@@ -1,6 +1,8 @@
 'use client';
 
-import { useQuery, useMutation } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { useMutation } from 'convex/react';
 import { Plus, Trash2, Users } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -35,15 +37,19 @@ export function TeamMembersDialog({
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   // Fetch organization members from Convex (skip when dialog is closed)
-  const orgMembers = useQuery(
-    api.members.queries.listByOrganization,
-    open ? { organizationId } : 'skip',
+  const { data: orgMembers } = useQuery(
+    convexQuery(
+      api.members.queries.listByOrganization,
+      open ? { organizationId } : 'skip',
+    ),
   );
 
   // Fetch team members directly from Convex
-  const teamMembers = useQuery(
-    api.team_members.queries.listByTeam,
-    open ? { teamId: team.id } : 'skip',
+  const { data: teamMembers } = useQuery(
+    convexQuery(
+      api.team_members.queries.listByTeam,
+      open ? { teamId: team.id } : 'skip',
+    ),
   );
 
   // Convex mutations for team member management

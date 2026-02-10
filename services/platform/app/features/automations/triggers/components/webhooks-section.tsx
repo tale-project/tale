@@ -1,8 +1,10 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
+import type { FunctionReturnType } from 'convex/server';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Plus, Webhook, Copy, Check, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -31,7 +33,7 @@ interface WebhooksSectionProps {
 }
 
 type WebhookRow = NonNullable<
-  ReturnType<typeof useQuery<typeof api.workflows.triggers.queries.getWebhooks>>
+  FunctionReturnType<typeof api.workflows.triggers.queries.getWebhooks>
 >[number];
 
 export function WebhooksSection({
@@ -41,9 +43,11 @@ export function WebhooksSection({
   const { t } = useT('automations');
   const { toast } = useToast();
 
-  const webhooks = useQuery(api.workflows.triggers.queries.getWebhooks, {
-    workflowRootId,
-  });
+  const { data: webhooks } = useQuery(
+    convexQuery(api.workflows.triggers.queries.getWebhooks, {
+      workflowRootId,
+    }),
+  );
 
   const createWebhook = useCreateWebhook();
   const toggleWebhook = useToggleWebhook();

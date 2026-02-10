@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -65,34 +66,44 @@ function IntegrationsPage() {
   const { tab } = Route.useSearch();
   const { t } = useT('accessDenied');
 
-  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
-  const shopify = useQuery(api.integrations.queries.getByName, {
-    organizationId,
-    name: 'shopify',
-  });
-  const circuly = useQuery(api.integrations.queries.getByName, {
-    organizationId,
-    name: 'circuly',
-  });
-  const protel = useQuery(api.integrations.queries.getByName, {
-    organizationId,
-    name: 'protel',
-  });
-  const emailProviders = useQuery(api.email_providers.queries.list, {
-    organizationId,
-  });
-  const ssoProvider = useQuery(api.sso_providers.queries.get, {});
+  const { data: memberContext, isLoading: isMemberLoading } = useQuery(
+    convexQuery(api.members.queries.getCurrentMemberContext, {
+      organizationId,
+    }),
+  );
+  const { data: shopify, isLoading: isShopifyLoading } = useQuery(
+    convexQuery(api.integrations.queries.getByName, {
+      organizationId,
+      name: 'shopify',
+    }),
+  );
+  const { data: circuly, isLoading: isCirculyLoading } = useQuery(
+    convexQuery(api.integrations.queries.getByName, {
+      organizationId,
+      name: 'circuly',
+    }),
+  );
+  const { data: protel, isLoading: isProtelLoading } = useQuery(
+    convexQuery(api.integrations.queries.getByName, {
+      organizationId,
+      name: 'protel',
+    }),
+  );
+  const { data: emailProviders, isLoading: isEmailLoading } = useQuery(
+    convexQuery(api.email_providers.queries.list, { organizationId }),
+  );
+  const { data: ssoProvider, isLoading: isSsoLoading } = useQuery(
+    convexQuery(api.sso_providers.queries.get, {}),
+  );
 
   if (
-    memberContext === undefined ||
-    memberContext === null ||
-    shopify === undefined ||
-    circuly === undefined ||
-    protel === undefined ||
-    emailProviders === undefined ||
-    ssoProvider === undefined
+    isMemberLoading ||
+    isShopifyLoading ||
+    isCirculyLoading ||
+    isProtelLoading ||
+    isEmailLoading ||
+    isSsoLoading ||
+    !memberContext
   ) {
     return <IntegrationsSkeleton />;
   }
@@ -107,11 +118,11 @@ function IntegrationsPage() {
   return (
     <IntegrationsClient
       organizationId={organizationId}
-      shopify={shopify}
-      circuly={circuly}
-      protel={protel}
-      emailProviders={emailProviders}
-      ssoProvider={ssoProvider}
+      shopify={shopify ?? null}
+      circuly={circuly ?? null}
+      protel={protel ?? null}
+      emailProviders={emailProviders ?? []}
+      ssoProvider={ssoProvider ?? null}
       tab={tab}
     />
   );

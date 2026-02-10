@@ -2,8 +2,9 @@
 
 import type { ColumnDef } from '@tanstack/react-table';
 
+import { convexQuery } from '@convex-dev/react-query';
 import { useQuery } from '@tanstack/react-query';
-import { useAction, useQuery as useConvexQuery } from 'convex/react';
+import { useAction } from 'convex/react';
 import { Home, Loader2, Database, Users } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -501,12 +502,13 @@ export function OneDriveImportDialog({
   >([{ id: undefined, name: t('breadcrumb.oneDrive') }]);
 
   // Fetch user's teams via Convex query (only in settings stage)
-  const teamsResult = useConvexQuery(
-    api.members.queries.getMyTeams,
-    stage === 'settings' ? { organizationId } : 'skip',
+  const { data: teamsResult, isLoading: isLoadingTeams } = useQuery(
+    convexQuery(
+      api.members.queries.getMyTeams,
+      stage === 'settings' ? { organizationId } : 'skip',
+    ),
   );
   const teams = teamsResult?.teams ?? null;
-  const isLoadingTeams = teamsResult === undefined;
 
   const handleToggleTeam = useCallback((teamId: string) => {
     setSelectedTeams((prev) => {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { api } from '@/convex/_generated/api';
 
@@ -16,14 +17,16 @@ export interface Team {
  * In normal auth mode, teams come from the teamMember database table.
  */
 export function useListTeams(organizationId: string | undefined) {
-  const result = useQuery(
-    api.members.queries.getMyTeams,
-    organizationId ? { organizationId } : 'skip',
+  const { data: result, isLoading } = useQuery(
+    convexQuery(
+      api.members.queries.getMyTeams,
+      organizationId ? { organizationId } : 'skip',
+    ),
   );
 
   return {
     teams: result?.teams ?? null,
-    isLoading: result === undefined,
+    isLoading,
     /** True if teams are managed by external IdP (trusted headers mode) */
     isExternallyManaged: false,
   };

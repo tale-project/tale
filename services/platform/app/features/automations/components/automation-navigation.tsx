@@ -1,7 +1,8 @@
 'use client';
 
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import {
   ChevronDown,
   CircleStop,
@@ -67,14 +68,16 @@ export function AutomationNavigation({
   const unpublishAutomation = useUnpublishAutomation();
 
   // Fetch all versions of this automation
-  const versions = useQuery(
-    api.wf_definitions.queries.listVersions,
-    automation?.name && organizationId
-      ? {
-          organizationId: organizationId,
-          name: automation.name,
-        }
-      : 'skip',
+  const { data: versions } = useQuery(
+    convexQuery(
+      api.wf_definitions.queries.listVersions,
+      automation?.name && organizationId
+        ? {
+            organizationId: organizationId,
+            name: automation.name,
+          }
+        : 'skip',
+    ),
   );
 
   const navigationItems: TabNavigationItem[] = automationId

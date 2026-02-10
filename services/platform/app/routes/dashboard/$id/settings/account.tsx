@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
@@ -33,12 +34,18 @@ function AccountSkeleton() {
 
 function AccountPage() {
   const { id: organizationId } = Route.useParams();
-  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
+  const { data: memberContext, isLoading } = useQuery(
+    convexQuery(api.members.queries.getCurrentMemberContext, {
+      organizationId,
+    }),
+  );
 
-  if (memberContext === undefined) {
+  if (isLoading) {
     return <AccountSkeleton />;
+  }
+
+  if (!memberContext) {
+    return null;
   }
 
   return (

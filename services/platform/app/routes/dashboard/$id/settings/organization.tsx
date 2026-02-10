@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
@@ -56,21 +57,26 @@ function OrganizationSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
-  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
-  const organization = useQuery(api.organizations.queries.getOrganization, {
-    id: organizationId,
-  });
-  const members = useQuery(api.members.queries.listByOrganization, {
-    organizationId,
-  });
+  const { data: memberContext, isLoading: isMemberLoading } = useQuery(
+    convexQuery(api.members.queries.getCurrentMemberContext, {
+      organizationId,
+    }),
+  );
+  const { data: organization, isLoading: isOrgLoading } = useQuery(
+    convexQuery(api.organizations.queries.getOrganization, {
+      id: organizationId,
+    }),
+  );
+  const { data: members, isLoading: isMembersLoading } = useQuery(
+    convexQuery(api.members.queries.listByOrganization, { organizationId }),
+  );
 
   if (
-    memberContext === undefined ||
-    memberContext === null ||
-    organization === undefined ||
-    members === undefined
+    isMemberLoading ||
+    isOrgLoading ||
+    isMembersLoading ||
+    !memberContext ||
+    !members
   ) {
     return <OrganizationSettingsSkeleton />;
   }

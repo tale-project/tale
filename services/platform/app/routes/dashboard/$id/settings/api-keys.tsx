@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
@@ -47,15 +48,17 @@ function ApiKeysSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
-  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
+  const { data: memberContext, isLoading } = useQuery(
+    convexQuery(api.members.queries.getCurrentMemberContext, {
+      organizationId,
+    }),
+  );
 
-  if (memberContext === undefined) {
+  if (isLoading) {
     return <ApiKeysSettingsSkeleton />;
   }
 
-  if (memberContext === null) {
+  if (!memberContext) {
     return <AccessDenied message={t('apiKeys')} />;
   }
 

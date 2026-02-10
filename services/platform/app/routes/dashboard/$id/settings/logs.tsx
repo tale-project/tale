@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
@@ -69,20 +70,24 @@ function LogsPage() {
   const { t } = useT('settings');
   const { t: tAccess } = useT('accessDenied');
 
-  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
+  const { data: memberContext, isLoading: isMemberLoading } = useQuery(
+    convexQuery(api.members.queries.getCurrentMemberContext, {
+      organizationId,
+    }),
+  );
 
-  const auditLogs = useQuery(api.audit_logs.queries.listAuditLogs, {
-    organizationId,
-    limit: 100,
-  });
+  const { data: auditLogs, isLoading: isLogsLoading } = useQuery(
+    convexQuery(api.audit_logs.queries.listAuditLogs, {
+      organizationId,
+      limit: 100,
+    }),
+  );
 
-  if (memberContext === undefined || auditLogs === undefined) {
+  if (isMemberLoading || isLogsLoading || !auditLogs) {
     return <LogsSkeleton />;
   }
 
-  if (memberContext === null || !memberContext.isAdmin) {
+  if (!memberContext || !memberContext.isAdmin) {
     return <AccessDenied message={tAccess('organization')} />;
   }
 

@@ -1,8 +1,9 @@
 'use client';
 
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { useQuery } from 'convex/react';
 import { parseISO, formatISO } from 'date-fns';
 import { Copy, Check } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
@@ -50,9 +51,11 @@ const ExecutionDetails = memo(function ExecutionDetails({
 }: {
   execution: Execution;
 }) {
-  const journal = useQuery(
-    api.wf_executions.queries.getExecutionStepJournal,
-    execution._id ? { executionId: execution._id } : 'skip',
+  const { data: journal, error: journalError } = useQuery(
+    convexQuery(
+      api.wf_executions.queries.getExecutionStepJournal,
+      execution._id ? { executionId: execution._id } : 'skip',
+    ),
   );
 
   const {
@@ -98,9 +101,10 @@ const ExecutionDetails = memo(function ExecutionDetails({
       },
       metadata: metadata,
       variables: parsedVariables,
-      journal: journal || [],
+      journal: journal ?? [],
+      ...(journalError ? { journalError: journalError.message } : {}),
     }),
-    [execution, metadata, parsedVariables, journal],
+    [execution, metadata, parsedVariables, journal, journalError],
   );
 
   return (
@@ -145,9 +149,8 @@ export function ExecutionsClient({
     [amId, searchTerm, status, triggeredBy, dateFrom, dateTo, pageSize],
   );
 
-  const executionsResult = useQuery(
-    api.wf_executions.queries.listExecutionsCursor,
-    queryArgs,
+  const { data: executionsResult } = useQuery(
+    convexQuery(api.wf_executions.queries.listExecutionsCursor, queryArgs),
   );
 
   const allExecutions = useMemo(

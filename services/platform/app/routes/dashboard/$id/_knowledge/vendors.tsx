@@ -1,5 +1,6 @@
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { z } from 'zod';
 
 import { VendorsEmptyState } from '@/app/features/vendors/components/vendors-empty-state';
@@ -20,11 +21,11 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/vendors')({
 
 function VendorsPage() {
   const { id: organizationId } = Route.useParams();
-  const hasVendors = useQuery(api.vendors.queries.hasVendors, {
-    organizationId,
-  });
+  const { data: hasVendors, isLoading } = useQuery(
+    convexQuery(api.vendors.queries.hasVendors, { organizationId }),
+  );
 
-  if (hasVendors === undefined) {
+  if (isLoading) {
     return <VendorsTableSkeleton organizationId={organizationId} />;
   }
 

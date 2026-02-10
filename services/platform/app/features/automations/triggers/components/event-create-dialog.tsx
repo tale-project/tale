@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { convexQuery } from '@convex-dev/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useState, useMemo, useEffect } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -80,9 +81,11 @@ export function EventCreateDialog({
     (f) => f.inputType === 'workflow-select',
   );
 
-  const workflows = useQuery(
-    api.wf_definitions.queries.listAutomationRoots,
-    hasWorkflowSelect ? { organizationId } : 'skip',
+  const { data: workflows } = useQuery(
+    convexQuery(
+      api.wf_definitions.queries.listAutomationRoots,
+      hasWorkflowSelect ? { organizationId } : 'skip',
+    ),
   );
 
   const options = useMemo(() => {
