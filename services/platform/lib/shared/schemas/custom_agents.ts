@@ -24,6 +24,7 @@ export const customAgentSchema = z.object({
   systemInstructions: z.string(),
   toolNames: z.array(z.string()),
   modelPreset: modelPresetSchema,
+  knowledgeEnabled: z.boolean().optional(),
   includeOrgKnowledge: z.boolean().optional(),
   knowledgeTopK: z.number().optional(),
   toneOfVoiceId: z.string().optional(),
@@ -43,13 +44,18 @@ export type CustomAgent = z.infer<typeof customAgentSchema>;
 
 export const createCustomAgentSchema = z.object({
   organizationId: z.string(),
-  name: z.string().min(1).max(100),
+  name: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9][a-z0-9-]*$/),
   displayName: z.string().min(1).max(200),
   description: z.string().max(1000).optional(),
   avatarUrl: z.string().url().optional(),
   systemInstructions: z.string().min(1).max(50000),
   toolNames: z.array(z.string()),
   modelPreset: modelPresetSchema,
+  knowledgeEnabled: z.boolean().optional(),
   includeOrgKnowledge: z.boolean().optional(),
   knowledgeTopK: z.number().int().min(1).max(50).optional(),
   toneOfVoiceId: z.string().optional(),
