@@ -2,7 +2,7 @@
 
 import { useQuery } from 'convex/react';
 import { FileText } from 'lucide-react';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import type { RagStatus } from '@/types/documents';
 
@@ -108,11 +108,12 @@ export function CustomAgentKnowledge({
   >(undefined);
   const [initialized, setInitialized] = useState(false);
 
-  if (agent && !initialized) {
+  useEffect(() => {
+    if (!agent) return;
     setKnowledgeEnabled(agent.knowledgeEnabled ?? false);
     setIncludeOrgKnowledge(agent.includeOrgKnowledge ?? false);
     setInitialized(true);
-  }
+  }, [agentId]);
 
   // Fetch org-wide documents when knowledge + includeOrgKnowledge are both enabled
   const orgDocumentsResult = useQuery(
