@@ -45,7 +45,7 @@ export function CustomAgentWebhookSection({
   const { t } = useT('settings');
   const { toast } = useToast();
 
-  const agent = useQuery(api.custom_agents.queries.getCustomAgent, {
+  const versions = useQuery(api.custom_agents.queries.getCustomAgentVersions, {
     customAgentId: toId<'customAgents'>(agentId),
   });
 
@@ -66,7 +66,7 @@ export function CustomAgentWebhookSection({
   const [copiedExample, setCopiedExample] = useState<string | null>(null);
 
   const siteUrl = useSiteUrl();
-  const isPublished = agent && agent.versionNumber > 0;
+  const isPublished = versions?.some((v) => v.status === 'active') ?? false;
 
   const getWebhookUrl = useCallback(
     (token: string) => `${siteUrl}/api/agents/wh/${token}`,
