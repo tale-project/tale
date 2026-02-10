@@ -1,14 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { useState, useCallback, useMemo } from 'react';
 
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { ToolSelector } from '@/app/features/custom-agents/components/tool-selector';
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/use-custom-agent-mutations';
+import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
@@ -21,22 +19,19 @@ export const Route = createFileRoute(
 function ToolsTab() {
   const { id: organizationId, agentId } = Route.useParams();
   const { t } = useT('settings');
+  const { agent, isReadOnly } = useCustomAgentVersion();
   const updateAgent = useUpdateCustomAgent();
   const [saveStatus, setSaveStatus] = useState<
     'idle' | 'saving' | 'saved' | 'error'
   >('idle');
 
-  const agent = useQuery(api.custom_agents.queries.getCustomAgent, {
-    customAgentId: toId<'customAgents'>(agentId),
-  });
-
   const lockedTools = useMemo(() => {
     const locked = new Set<string>();
-    if (agent?.knowledgeEnabled) {
+    if (agent.knowledgeEnabled) {
       locked.add('rag_search');
     }
     return locked;
-  }, [agent?.knowledgeEnabled]);
+  }, [agent.knowledgeEnabled]);
 
   const saveWithStatus = useCallback(
     async <T,>(updateFn: () => Promise<T>) => {
@@ -58,8 +53,9 @@ function ToolsTab() {
 
   const handleToolChange = useCallback(
     async (tools: string[]) => {
+      if (isReadOnly) return;
       const finalTools =
-        agent?.knowledgeEnabled && !tools.includes('rag_search')
+        agent.knowledgeEnabled && !tools.includes('rag_search')
           ? [...tools, 'rag_search']
           : tools;
       await saveWithStatus(() =>
@@ -69,11 +65,12 @@ function ToolsTab() {
         }),
       );
     },
-    [agentId, updateAgent, agent?.knowledgeEnabled, saveWithStatus],
+    [agentId, updateAgent, agent.knowledgeEnabled, saveWithStatus, isReadOnly],
   );
 
   const handleIntegrationBindingsChange = useCallback(
     async (bindings: string[]) => {
+      if (isReadOnly) return;
       await saveWithStatus(() =>
         updateAgent({
           customAgentId: toId<'customAgents'>(agentId),
@@ -81,19 +78,8 @@ function ToolsTab() {
         }),
       );
     },
-    [agentId, updateAgent, saveWithStatus],
+    [agentId, updateAgent, saveWithStatus, isReadOnly],
   );
-
-  if (!agent) {
-    return (
-      <NarrowContainer className="py-4">
-        <Stack gap={4}>
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-64 w-full" />
-        </Stack>
-      </NarrowContainer>
-    );
-  }
 
   return (
     <NarrowContainer className="py-4">

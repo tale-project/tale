@@ -5,13 +5,13 @@ import { useForm } from 'react-hook-form';
 
 import type { ModelPreset } from '@/lib/shared/schemas/custom_agents';
 
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/use-custom-agent-mutations';
+import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
@@ -37,11 +37,8 @@ const MODEL_PRESET_OPTIONS = [
 function InstructionsTab() {
   const { agentId } = Route.useParams();
   const { t } = useT('settings');
+  const { agent, isReadOnly } = useCustomAgentVersion();
   const updateAgent = useUpdateCustomAgent();
-
-  const agent = useQuery(api.custom_agents.queries.getCustomAgent, {
-    customAgentId: toId<'customAgents'>(agentId),
-  });
 
   const modelPresets = useQuery(api.custom_agents.queries.getModelPresets);
 
@@ -79,23 +76,8 @@ function InstructionsTab() {
   const { status } = useAutoSave({
     data: formValues,
     onSave: handleSave,
-    enabled: !!agent,
+    enabled: !isReadOnly,
   });
-
-  if (!agent) {
-    return (
-      <NarrowContainer className="py-4">
-        <Stack gap={4}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Stack gap={2} key={i}>
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-9 w-full" />
-            </Stack>
-          ))}
-        </Stack>
-      </NarrowContainer>
-    );
-  }
 
   return (
     <NarrowContainer className="py-4">
@@ -121,6 +103,7 @@ function InstructionsTab() {
               required
               rows={8}
               className="font-mono text-sm"
+              disabled={isReadOnly}
               errorMessage={form.formState.errors.systemInstructions?.message}
             />
           </Stack>
@@ -146,6 +129,7 @@ function InstructionsTab() {
                   form.setValue('modelPreset', val as ModelPreset)
                 }
                 required
+                disabled={isReadOnly}
               />
             </Stack>
           </Stack>

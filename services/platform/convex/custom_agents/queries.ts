@@ -82,6 +82,47 @@ export const getCustomAgent = query({
   },
 });
 
+export const getCustomAgentByVersion = query({
+  args: {
+    customAgentId: v.id('customAgents'),
+    versionNumber: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const rootAgent = await ctx.db.get(args.customAgentId);
+    if (!rootAgent || !rootAgent.isActive) return null;
+
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    if (!hasTeamAccess(rootAgent, userTeamIds)) return null;
+
+    if (args.versionNumber !== undefined) {
+      const versions = ctx.db
+        .query('customAgents')
+        .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId));
+      for await (const version of versions) {
+        if (version.versionNumber === args.versionNumber) return version;
+      }
+      return null;
+    }
+
+    // No versionNumber: prefer draft → active → latest archived
+    const allVersions = ctx.db
+      .query('customAgents')
+      .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId))
+      .order('desc');
+
+    let bestFallback: typeof rootAgent | null = null;
+    for await (const version of allVersions) {
+      if (version.status === 'draft') return version;
+      if (version.status === 'active') return version;
+      if (!bestFallback) bestFallback = version;
+    }
+    return bestFallback;
+  },
+});
+
 export const getCustomAgentVersions = query({
   args: {
     customAgentId: v.id('customAgents'),
@@ -90,23 +131,11 @@ export const getCustomAgentVersions = query({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    // Verify access via the draft record
-    const draftQuery = ctx.db
-      .query('customAgents')
-      .withIndex('by_root_status', (q) =>
-        q.eq('rootVersionId', args.customAgentId).eq('status', 'draft'),
-      );
-
-    let draft = null;
-    for await (const record of draftQuery) {
-      draft = record;
-      break;
-    }
-
-    if (!draft || !draft.isActive) return [];
+    const rootAgent = await ctx.db.get(args.customAgentId);
+    if (!rootAgent || !rootAgent.isActive) return [];
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
-    if (!hasTeamAccess(draft, userTeamIds)) return [];
+    if (!hasTeamAccess(rootAgent, userTeamIds)) return [];
 
     const versions = ctx.db
       .query('customAgents')

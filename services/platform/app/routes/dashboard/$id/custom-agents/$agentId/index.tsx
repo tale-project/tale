@@ -1,9 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -12,8 +10,8 @@ import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useUpdateCustomAgentMetadata } from '@/app/features/custom-agents/hooks/use-custom-agent-mutations';
+import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
@@ -37,12 +35,9 @@ interface CombinedSaveData extends GeneralFormData {
 function GeneralTab() {
   const { agentId } = Route.useParams();
   const { t } = useT('settings');
+  const { agent, isReadOnly } = useCustomAgentVersion();
   const updateMetadata = useUpdateCustomAgentMetadata();
   const { teams } = useTeamFilter();
-
-  const agent = useQuery(api.custom_agents.queries.getCustomAgent, {
-    customAgentId: toId<'customAgents'>(agentId),
-  });
 
   const form = useForm<GeneralFormData>({
     values: agent
@@ -90,7 +85,7 @@ function GeneralTab() {
   const { status } = useAutoSave({
     data: combinedData,
     onSave: handleSave,
-    enabled: !!agent && accessInitialized,
+    enabled: !!agent && accessInitialized && !isReadOnly,
   });
 
   const teamOptions = useMemo(() => {
@@ -128,21 +123,6 @@ function GeneralTab() {
     });
   };
 
-  if (!agent) {
-    return (
-      <NarrowContainer className="py-4">
-        <Stack gap={4}>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Stack gap={2} key={i}>
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-9 w-full" />
-            </Stack>
-          ))}
-        </Stack>
-      </NarrowContainer>
-    );
-  }
-
   return (
     <NarrowContainer className="py-4">
       <Stack gap={6}>
@@ -165,6 +145,7 @@ function GeneralTab() {
             placeholder={t('customAgents.form.namePlaceholder')}
             {...form.register('name', { required: true })}
             required
+            disabled={isReadOnly}
             errorMessage={form.formState.errors.name?.message}
           />
           <p className="text-muted-foreground -mt-2 text-xs">
@@ -177,6 +158,7 @@ function GeneralTab() {
             placeholder={t('customAgents.form.displayNamePlaceholder')}
             {...form.register('displayName', { required: true })}
             required
+            disabled={isReadOnly}
             errorMessage={form.formState.errors.displayName?.message}
           />
 
@@ -186,6 +168,7 @@ function GeneralTab() {
             placeholder={t('customAgents.form.descriptionPlaceholder')}
             {...form.register('description')}
             rows={2}
+            disabled={isReadOnly}
           />
         </Stack>
       </Stack>
@@ -207,6 +190,7 @@ function GeneralTab() {
               label={t('customAgents.form.team')}
               value={teamId || NO_TEAM_VALUE}
               onValueChange={handleTeamChange}
+              disabled={isReadOnly}
             />
             <p className="text-muted-foreground -mt-2 text-xs">
               {t('customAgents.form.teamHelp')}
@@ -227,6 +211,7 @@ function GeneralTab() {
                       label={team.name}
                       checked={sharedWithTeamIds.includes(team.id)}
                       onCheckedChange={() => handleToggleSharedTeam(team.id)}
+                      disabled={isReadOnly}
                     />
                   ))}
                 </div>

@@ -644,6 +644,7 @@
         "knowledge": "Knowledge",
         "publish": "Publish",
         "publishing": "Publishing...",
+        "goToDraft": "Go to draft",
         "webhook": "Webhook",
         "test": "Test"
       },
@@ -725,6 +726,8 @@
         "archived": "Archived",
         "rollback": "Rollback",
         "rollingBack": "Rolling back...",
+        "activate": "Activate",
+        "activating": "Activating...",
         "noVersions": "No version history available"
       },
       "webhook": {

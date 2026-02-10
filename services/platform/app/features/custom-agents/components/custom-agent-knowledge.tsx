@@ -6,7 +6,6 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import type { RagStatus } from '@/types/documents';
 
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
@@ -17,6 +16,7 @@ import { toId } from '@/lib/utils/type-guards';
 
 import { useAutoSave } from '../hooks/use-auto-save';
 import { useUpdateCustomAgent } from '../hooks/use-custom-agent-mutations';
+import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
 import { AutoSaveIndicator } from './auto-save-indicator';
 
 interface CustomAgentKnowledgeProps {
@@ -65,12 +65,9 @@ export function CustomAgentKnowledge({
   agentId,
 }: CustomAgentKnowledgeProps) {
   const { t } = useT('settings');
+  const { agent, isReadOnly } = useCustomAgentVersion();
   const updateAgent = useUpdateCustomAgent();
   const { teams } = useTeamFilter();
-
-  const agent = useQuery(api.custom_agents.queries.getCustomAgent, {
-    customAgentId: toId<'customAgents'>(agentId),
-  });
 
   const teamName = useMemo(() => {
     if (!agent?.teamId || !teams) return null;
@@ -156,19 +153,8 @@ export function CustomAgentKnowledge({
   const { status } = useAutoSave({
     data: knowledgeData,
     onSave: handleSave,
-    enabled: !!agent && initialized,
+    enabled: initialized && !isReadOnly,
   });
-
-  if (!agent) {
-    return (
-      <NarrowContainer className="py-4">
-        <Stack gap={4}>
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-64 w-full" />
-        </Stack>
-      </NarrowContainer>
-    );
-  }
 
   return (
     <NarrowContainer className="py-4">
@@ -190,6 +176,7 @@ export function CustomAgentKnowledge({
             checked={knowledgeEnabled ?? false}
             onCheckedChange={(checked) => setKnowledgeEnabled(checked)}
             label={t('customAgents.knowledge.enableKnowledge')}
+            disabled={isReadOnly}
           />
           <p className="text-muted-foreground mt-1.5 ml-10 text-xs">
             {t('customAgents.knowledge.enableKnowledgeHelp')}
@@ -215,6 +202,7 @@ export function CustomAgentKnowledge({
                 checked={includeOrgKnowledge ?? false}
                 onCheckedChange={(checked) => setIncludeOrgKnowledge(checked)}
                 label={t('customAgents.knowledge.includeOrgKnowledge')}
+                disabled={isReadOnly}
               />
               <p className="text-muted-foreground mt-1.5 ml-10 text-xs">
                 {t('customAgents.knowledge.includeOrgKnowledgeHelp')}

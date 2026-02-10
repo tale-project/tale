@@ -1,8 +1,14 @@
 'use client';
 
-import { useQuery } from 'convex/react';
-import { ChevronDown, CircleStop, FlaskConical } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import {
+  ChevronDown,
+  CircleStop,
+  FlaskConical,
+  Pencil,
+  Play,
+} from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import {
@@ -14,111 +20,104 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { toId } from '@/lib/utils/type-guards';
 
 import {
-  useRollbackCustomAgentVersion,
   usePublishCustomAgent,
   useUnpublishCustomAgent,
+  useActivateCustomAgentVersion,
+  useCreateDraftFromVersion,
 } from '../hooks/use-custom-agent-mutations';
+import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
 import { AUTO_SAVE_PORTAL_ID } from './auto-save-indicator';
 
 interface CustomAgentNavigationProps {
   organizationId: string;
   agentId: string;
-  currentVersion: number;
   onTestClick: () => void;
 }
 
 export function CustomAgentNavigation({
   organizationId,
   agentId,
-  currentVersion,
   onTestClick,
 }: CustomAgentNavigationProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const rollback = useRollbackCustomAgentVersion();
+  const navigate = useNavigate();
+  const { agent, versions, hasDraft, hasActiveVersion, draftVersionNumber } =
+    useCustomAgentVersion();
+
   const publishAgent = usePublishCustomAgent();
   const unpublishAgent = useUnpublishCustomAgent();
-  const [rollingBackVersion, setRollingBackVersion] = useState<number | null>(
-    null,
-  );
+  const activateVersion = useActivateCustomAgentVersion();
+  const createDraft = useCreateDraftFromVersion();
+
   const [isPublishing, setIsPublishing] = useState(false);
   const [isUnpublishing, setIsUnpublishing] = useState(false);
-
-  const versions = useQuery(api.custom_agents.queries.getCustomAgentVersions, {
-    customAgentId: toId<'customAgents'>(agentId),
-  });
-
-  const publishedVersions = useMemo(
-    () => versions?.filter((v) => v.status !== 'draft') ?? [],
-    [versions],
-  );
-
-  const hasActiveVersion = useMemo(
-    () => versions?.some((v) => v.status === 'active') ?? false,
-    [versions],
-  );
+  const [isActivating, setIsActivating] = useState(false);
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
 
   const basePath = `/dashboard/${organizationId}/custom-agents/${agentId}`;
+  const versionSearch =
+    agent.status !== 'draft' ? { v: agent.versionNumber } : undefined;
 
   const navigationItems: TabNavigationItem[] = [
     {
       label: t('customAgents.navigation.general'),
       href: basePath,
       matchMode: 'exact',
+      search: versionSearch,
     },
     {
       label: t('customAgents.navigation.instructionsModel'),
       href: `${basePath}/instructions`,
       matchMode: 'exact',
+      search: versionSearch,
     },
     {
       label: t('customAgents.navigation.tools'),
       href: `${basePath}/tools`,
       matchMode: 'exact',
+      search: versionSearch,
     },
     {
       label: t('customAgents.navigation.knowledge'),
       href: `${basePath}/knowledge`,
       matchMode: 'exact',
+      search: versionSearch,
     },
     {
       label: t('customAgents.navigation.webhook'),
       href: `${basePath}/webhook`,
       matchMode: 'exact',
+      search: versionSearch,
     },
   ];
 
-  const handleRollback = async (targetVersion: number) => {
-    setRollingBackVersion(targetVersion);
-    try {
-      await rollback({
-        customAgentId: toId<'customAgents'>(agentId),
-        targetVersion,
+  const navigateToVersion = useCallback(
+    (versionNum: number) => {
+      void navigate({
+        to: '/dashboard/$id/custom-agents/$agentId',
+        params: { id: organizationId, agentId },
+        search: { v: versionNum },
       });
-      toast({
-        title: t('customAgents.rolledBack', { version: targetVersion }),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('customAgents.rollbackFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setRollingBackVersion(null);
-    }
-  };
+    },
+    [navigate, organizationId, agentId],
+  );
+
+  const navigateToDraft = useCallback(() => {
+    void navigate({
+      to: '/dashboard/$id/custom-agents/$agentId',
+      params: { id: organizationId, agentId },
+      search: {},
+    });
+  }, [navigate, organizationId, agentId]);
 
   const handlePublish = async () => {
     setIsPublishing(true);
@@ -162,6 +161,61 @@ export function CustomAgentNavigation({
     }
   };
 
+  const handleActivate = async () => {
+    setIsActivating(true);
+    try {
+      await activateVersion({
+        customAgentId: toId<'customAgents'>(agentId),
+        targetVersion: agent.versionNumber,
+      });
+      toast({
+        title: t('customAgents.agentPublished'),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: t('customAgents.agentPublishFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  const handleCreateDraft = async () => {
+    if (hasDraft && draftVersionNumber) {
+      navigateToDraft();
+      return;
+    }
+
+    setIsCreatingDraft(true);
+    try {
+      await createDraft({
+        customAgentId: toId<'customAgents'>(agentId),
+        sourceVersionNumber: agent.versionNumber,
+      });
+      navigateToDraft();
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: t('customAgents.agentUpdateFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingDraft(false);
+    }
+  };
+
+  const sortedVersions = useMemo(
+    () => [...versions].sort((a, b) => b.versionNumber - a.versionNumber),
+    [versions],
+  );
+
+  const isDraft = agent.status === 'draft';
+  const isActive = agent.status === 'active';
+  const isArchived = agent.status === 'archived';
+
   return (
     <TabNavigation
       items={navigationItems}
@@ -170,73 +224,54 @@ export function CustomAgentNavigation({
     >
       <div className="ml-auto flex items-center gap-2">
         <div id={AUTO_SAVE_PORTAL_ID} />
-        {versions && versions.length > 0 && (
+
+        {sortedVersions.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-sm">
-                v{currentVersion}
+                v{agent.versionNumber}
                 <ChevronDown className="ml-1 size-3" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 space-y-1">
-              <DropdownMenuItem disabled className="bg-accent/50">
-                <div className="flex w-full items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span>
-                      {t('customAgents.versions.version', {
-                        number: currentVersion,
-                      })}
-                    </span>
-                    <Badge
-                      variant="outline"
-                      className="px-1.5 py-0 text-[10px]"
-                    >
-                      {t('customAgents.versions.draft')}
-                    </Badge>
-                  </div>
-                </div>
-              </DropdownMenuItem>
-
-              {publishedVersions.length > 0 && <DropdownMenuSeparator />}
-
-              {publishedVersions.map((version) => (
+              {sortedVersions.map((version) => (
                 <DropdownMenuItem
                   key={version._id}
-                  onClick={() => {
-                    if (
-                      version.status === 'archived' &&
-                      rollingBackVersion === null
-                    ) {
-                      void handleRollback(version.versionNumber);
-                    }
-                  }}
-                  disabled={
-                    version.status === 'active' || rollingBackVersion !== null
-                  }
-                  className={cn(version.status === 'active' && 'bg-accent/50')}
+                  onClick={() => navigateToVersion(version.versionNumber)}
+                  className={cn(
+                    version.versionNumber === agent.versionNumber &&
+                      'bg-accent/50',
+                  )}
                 >
-                  <div className="flex w-full items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span>
-                        {t('customAgents.versions.version', {
-                          number: version.versionNumber,
-                        })}
-                      </span>
-                      {version.status === 'active' && (
-                        <Badge
-                          variant="green"
-                          className="px-1.5 py-0 text-[10px]"
-                        >
-                          {t('customAgents.versions.active')}
-                        </Badge>
-                      )}
-                    </div>
+                  <div className="flex w-full items-center gap-2">
+                    <span>
+                      {t('customAgents.versions.version', {
+                        number: version.versionNumber,
+                      })}
+                    </span>
+                    {version.status === 'active' && (
+                      <Badge
+                        variant="green"
+                        className="px-1.5 py-0 text-[10px]"
+                      >
+                        {t('customAgents.versions.active')}
+                      </Badge>
+                    )}
+                    {version.status === 'draft' && (
+                      <Badge
+                        variant="outline"
+                        className="px-1.5 py-0 text-[10px]"
+                      >
+                        {t('customAgents.versions.draft')}
+                      </Badge>
+                    )}
                     {version.status === 'archived' && (
-                      <span className="text-muted-foreground text-xs">
-                        {rollingBackVersion === version.versionNumber
-                          ? t('customAgents.versions.rollingBack')
-                          : t('customAgents.versions.rollback')}
-                      </span>
+                      <Badge
+                        variant="outline"
+                        className="px-1.5 py-0 text-[10px]"
+                      >
+                        {t('customAgents.versions.archived')}
+                      </Badge>
                     )}
                   </div>
                 </DropdownMenuItem>
@@ -250,24 +285,66 @@ export function CustomAgentNavigation({
           {t('customAgents.navigation.test')}
         </Button>
 
-        <Button onClick={handlePublish} disabled={isPublishing} size="sm">
-          {isPublishing
-            ? t('customAgents.navigation.publishing')
-            : t('customAgents.navigation.publish')}
-        </Button>
-
-        {hasActiveVersion && (
-          <Button
-            onClick={handleUnpublish}
-            disabled={isUnpublishing}
-            size="sm"
-            variant="outline"
-          >
-            <CircleStop className="mr-1.5 size-3.5" aria-hidden="true" />
-            {isUnpublishing
-              ? tCommon('actions.deactivating')
-              : tCommon('actions.deactivate')}
+        {isDraft && (
+          <Button onClick={handlePublish} disabled={isPublishing} size="sm">
+            {isPublishing
+              ? t('customAgents.navigation.publishing')
+              : t('customAgents.navigation.publish')}
           </Button>
+        )}
+
+        {isActive && (
+          <>
+            <Button
+              onClick={handleUnpublish}
+              disabled={isUnpublishing}
+              size="sm"
+              variant="outline"
+            >
+              <CircleStop className="mr-1.5 size-3.5" aria-hidden="true" />
+              {isUnpublishing
+                ? tCommon('actions.deactivating')
+                : tCommon('actions.deactivate')}
+            </Button>
+            <Button
+              onClick={handleCreateDraft}
+              disabled={isCreatingDraft}
+              size="sm"
+              variant="outline"
+            >
+              <Pencil className="mr-1.5 size-3.5" aria-hidden="true" />
+              {hasDraft
+                ? t('customAgents.navigation.goToDraft')
+                : tCommon('actions.edit')}
+            </Button>
+          </>
+        )}
+
+        {isArchived && (
+          <>
+            <Button
+              onClick={handleActivate}
+              disabled={isActivating || hasActiveVersion}
+              size="sm"
+              variant="outline"
+            >
+              <Play className="mr-1.5 size-3.5" aria-hidden="true" />
+              {isActivating
+                ? t('customAgents.navigation.publishing')
+                : tCommon('actions.activate')}
+            </Button>
+            <Button
+              onClick={handleCreateDraft}
+              disabled={isCreatingDraft}
+              size="sm"
+              variant="outline"
+            >
+              <Pencil className="mr-1.5 size-3.5" aria-hidden="true" />
+              {hasDraft
+                ? t('customAgents.navigation.goToDraft')
+                : tCommon('actions.edit')}
+            </Button>
+          </>
         )}
       </div>
     </TabNavigation>

@@ -16,7 +16,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
-import { useRollbackCustomAgentVersion } from '../hooks/use-custom-agent-mutations';
+import { useActivateCustomAgentVersion } from '../hooks/use-custom-agent-mutations';
 
 const STATUS_BADGE_CONFIG: Record<
   VersionStatus,
@@ -40,8 +40,8 @@ export function CustomAgentVersionHistoryDialog({
 }: CustomAgentVersionHistoryDialogProps) {
   const { t } = useT('settings');
   const { formatDate } = useFormatDate();
-  const rollback = useRollbackCustomAgentVersion();
-  const [rollingBackVersion, setRollingBackVersion] = useState<number | null>(
+  const activateVersion = useActivateCustomAgentVersion();
+  const [activatingVersion, setActivatingVersion] = useState<number | null>(
     null,
   );
 
@@ -50,25 +50,28 @@ export function CustomAgentVersionHistoryDialog({
     open ? { customAgentId: toId<'customAgents'>(customAgentId) } : 'skip',
   );
 
-  const handleRollback = async (targetVersion: number) => {
-    setRollingBackVersion(targetVersion);
+  const hasActiveVersion =
+    versions?.some((v) => v.status === 'active') ?? false;
+
+  const handleActivate = async (targetVersion: number) => {
+    setActivatingVersion(targetVersion);
     try {
-      await rollback({
+      await activateVersion({
         customAgentId: toId<'customAgents'>(customAgentId),
         targetVersion,
       });
       toast({
-        title: t('customAgents.rolledBack', { version: targetVersion }),
+        title: t('customAgents.agentPublished'),
         variant: 'success',
       });
     } catch (error) {
       console.error(error);
       toast({
-        title: t('customAgents.rollbackFailed'),
+        title: t('customAgents.agentPublishFailed'),
         variant: 'destructive',
       });
     } finally {
-      setRollingBackVersion(null);
+      setActivatingVersion(null);
     }
   };
 
@@ -121,12 +124,12 @@ export function CustomAgentVersionHistoryDialog({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleRollback(version.versionNumber)}
-                  disabled={rollingBackVersion !== null}
+                  onClick={() => handleActivate(version.versionNumber)}
+                  disabled={activatingVersion !== null || hasActiveVersion}
                 >
-                  {rollingBackVersion === version.versionNumber
-                    ? t('customAgents.versions.rollingBack')
-                    : t('customAgents.versions.rollback')}
+                  {activatingVersion === version.versionNumber
+                    ? t('customAgents.versions.activating')
+                    : t('customAgents.versions.activate')}
                 </Button>
               )}
             </div>

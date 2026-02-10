@@ -351,16 +351,6 @@ export const publishCustomAgent = mutation({
       publishedAt: Date.now(),
       publishedBy: String(authUser._id),
     });
-
-    const newVersionNumber = draft.versionNumber + 1;
-    await ctx.db.insert('customAgents', {
-      ...copyVersionFields(draft),
-      isActive: true,
-      versionNumber: newVersionNumber,
-      status: 'draft',
-      rootVersionId: args.customAgentId,
-      parentVersionId: draft._id,
-    });
   },
 });
 
@@ -372,10 +362,11 @@ export const unpublishCustomAgent = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const draft = await getDraftByRoot(ctx, args.customAgentId);
+    const rootAgent = await ctx.db.get(args.customAgentId);
+    if (!rootAgent) throw new Error('Agent not found');
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
-    if (!hasTeamAccess(draft, userTeamIds)) {
+    if (!hasTeamAccess(rootAgent, userTeamIds)) {
       throw new Error('Agent not accessible');
     }
 
@@ -392,7 +383,7 @@ export const unpublishCustomAgent = mutation({
   },
 });
 
-export const rollbackCustomAgentVersion = mutation({
+export const activateCustomAgentVersion = mutation({
   args: {
     customAgentId: v.id('customAgents'),
     targetVersion: v.number(),
@@ -401,10 +392,11 @@ export const rollbackCustomAgentVersion = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const draft = await getDraftByRoot(ctx, args.customAgentId);
+    const rootAgent = await ctx.db.get(args.customAgentId);
+    if (!rootAgent) throw new Error('Agent not found');
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
-    if (!hasTeamAccess(draft, userTeamIds)) {
+    if (!hasTeamAccess(rootAgent, userTeamIds)) {
       throw new Error('Agent not accessible');
     }
 
@@ -428,7 +420,7 @@ export const rollbackCustomAgentVersion = mutation({
     }
 
     if (targetVersion.status === 'draft') {
-      throw new Error('Cannot activate a draft version');
+      throw new Error('Cannot activate a draft version directly');
     }
 
     const activeVersion = await getVersionByRootAndStatus(
@@ -441,19 +433,66 @@ export const rollbackCustomAgentVersion = mutation({
     }
 
     await ctx.db.patch(targetVersion._id, { status: 'active' });
+  },
+});
 
-    await ctx.db.delete(draft._id);
+export const createDraftFromVersion = mutation({
+  args: {
+    customAgentId: v.id('customAgents'),
+    sourceVersionNumber: v.number(),
+  },
+  returns: v.object({
+    draftId: v.id('customAgents'),
+    isExisting: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const rootAgent = await ctx.db.get(args.customAgentId);
+    if (!rootAgent) throw new Error('Agent not found');
+
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    if (!hasTeamAccess(rootAgent, userTeamIds)) {
+      throw new Error('Agent not accessible');
+    }
+
+    const existingDraft = await getVersionByRootAndStatus(
+      ctx,
+      args.customAgentId,
+      'draft',
+    );
+    if (existingDraft) {
+      return { draftId: existingDraft._id, isExisting: true };
+    }
+
+    let source: Doc<'customAgents'> | null = null;
+    const versions = ctx.db
+      .query('customAgents')
+      .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId));
+    for await (const v of versions) {
+      if (v.versionNumber === args.sourceVersionNumber) {
+        source = v;
+        break;
+      }
+    }
+
+    if (!source) {
+      throw new Error(`Version ${args.sourceVersionNumber} not found`);
+    }
 
     const maxVersion = await getMaxVersionNumber(ctx, args.customAgentId);
     const newVersionNumber = maxVersion + 1;
 
-    await ctx.db.insert('customAgents', {
-      ...copyVersionFields(targetVersion),
+    const draftId = await ctx.db.insert('customAgents', {
+      ...copyVersionFields(source),
       isActive: true,
       versionNumber: newVersionNumber,
       status: 'draft',
       rootVersionId: args.customAgentId,
-      parentVersionId: targetVersion._id,
+      parentVersionId: source._id,
     });
+
+    return { draftId, isExisting: false };
   },
 });

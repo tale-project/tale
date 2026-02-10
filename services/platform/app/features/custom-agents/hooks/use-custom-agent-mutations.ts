@@ -22,8 +22,12 @@ export function useDuplicateCustomAgent() {
   return useMutation(api.custom_agents.mutations.duplicateCustomAgent);
 }
 
-export function useRollbackCustomAgentVersion() {
-  return useMutation(api.custom_agents.mutations.rollbackCustomAgentVersion);
+export function useActivateCustomAgentVersion() {
+  return useMutation(api.custom_agents.mutations.activateCustomAgentVersion);
+}
+
+export function useCreateDraftFromVersion() {
+  return useMutation(api.custom_agents.mutations.createDraftFromVersion);
 }
 
 export function usePublishCustomAgent() {
