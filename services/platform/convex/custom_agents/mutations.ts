@@ -4,6 +4,9 @@
  * Each version (draft, active, archived) is a separate document in `customAgents`.
  * All versions of the same agent share a `rootVersionId` (the v1 record's _id).
  * The draft record is freely editable; published (active) versions are immutable.
+ *
+ * The `customAgentId` arg in each mutation is the stable agent identifier, which
+ * is the `rootVersionId` (i.e. the `_id` of the first version ever created).
  */
 
 import { v } from 'convex/values';
