@@ -5,7 +5,7 @@
  * Ensures both old and new fields are kept in sync when writing documents.
  */
 
-interface UnifiedTeamFields {
+export interface UnifiedTeamFields {
   teamId?: string;
   sharedWithTeamIds?: string[];
 }
