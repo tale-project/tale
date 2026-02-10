@@ -68,8 +68,8 @@ export const getCustomAgent = query({
       );
 
     let draft = null;
-    for await (const v of draftQuery) {
-      draft = v;
+    for await (const record of draftQuery) {
+      draft = record;
       break;
     }
 
@@ -98,8 +98,8 @@ export const getCustomAgentVersions = query({
       );
 
     let draft = null;
-    for await (const v of draftQuery) {
-      draft = v;
+    for await (const record of draftQuery) {
+      draft = record;
       break;
     }
 
