@@ -1,13 +1,15 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
 import { Bot, ChevronDown, Check, Search } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/app/components/ui/overlays/popover';
 import { useT } from '@/lib/i18n/client';
+
 import { useChatLayout } from '../context/chat-layout-context';
 import { useListChatAgents } from '../hooks/use-list-chat-agents';
 
@@ -15,7 +17,14 @@ interface AgentSelectorProps {
   organizationId: string;
 }
 
-const BUILTIN_AGENT_TYPES = ['chat', 'web', 'crm', 'document', 'integration', 'workflow'] as const;
+const BUILTIN_AGENT_TYPES = [
+  'chat',
+  'web',
+  'crm',
+  'document',
+  'integration',
+  'workflow',
+] as const;
 const DEFAULT_AGENT_VALUE = '__default__';
 
 interface AgentOption {
@@ -28,7 +37,9 @@ function filterOptions(options: AgentOption[], query: string) {
   if (!query) return options;
   const lower = query.toLowerCase();
   return options.filter(
-    (o) => o.label.toLowerCase().includes(lower) || o.description.toLowerCase().includes(lower),
+    (o) =>
+      o.label.toLowerCase().includes(lower) ||
+      o.description.toLowerCase().includes(lower),
   );
 }
 
@@ -40,12 +51,13 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const builtinOptions = useMemo<AgentOption[]>(() =>
-    BUILTIN_AGENT_TYPES.map((type) => ({
-      value: type === 'chat' ? DEFAULT_AGENT_VALUE : `builtin:${type}`,
-      label: t(`agentSelector.builtinAgents.${type}.name`),
-      description: t(`agentSelector.builtinAgents.${type}.description`),
-    })),
+  const builtinOptions = useMemo<AgentOption[]>(
+    () =>
+      BUILTIN_AGENT_TYPES.map((type) => ({
+        value: type === 'chat' ? DEFAULT_AGENT_VALUE : `builtin:${type}`,
+        label: t(`agentSelector.builtinAgents.${type}.name`),
+        description: t(`agentSelector.builtinAgents.${type}.description`),
+      })),
     [t],
   );
 
@@ -58,8 +70,14 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
     }));
   }, [customAgents]);
 
-  const filteredBuiltin = useMemo(() => filterOptions(builtinOptions, search), [builtinOptions, search]);
-  const filteredCustom = useMemo(() => filterOptions(customOptions, search), [customOptions, search]);
+  const filteredBuiltin = useMemo(
+    () => filterOptions(builtinOptions, search),
+    [builtinOptions, search],
+  );
+  const filteredCustom = useMemo(
+    () => filterOptions(customOptions, search),
+    [customOptions, search],
+  );
 
   const currentValue = useMemo(() => {
     if (!selectedAgent) return DEFAULT_AGENT_VALUE;
@@ -67,7 +85,8 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
     return `custom:${selectedAgent._id}`;
   }, [selectedAgent]);
 
-  const currentLabel = selectedAgent?.displayName ?? t('agentSelector.defaultAgent');
+  const currentLabel =
+    selectedAgent?.displayName ?? t('agentSelector.defaultAgent');
 
   const handleSelect = (value: string) => {
     if (value === DEFAULT_AGENT_VALUE) {
@@ -84,7 +103,9 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
       }
     } else if (value.startsWith('custom:')) {
       const agentId = value.replace('custom:', '');
-      const agent = customAgents?.find((a) => (a.rootVersionId ?? a._id) === agentId);
+      const agent = customAgents?.find(
+        (a) => (a.rootVersionId ?? a._id) === agentId,
+      );
       if (agent) {
         setSelectedAgent({
           type: 'custom',
@@ -104,14 +125,15 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
   }, []);
 
   const hasCustomAgents = filteredCustom.length > 0;
-  const hasNoResults = filteredBuiltin.length === 0 && filteredCustom.length === 0;
+  const hasNoResults =
+    filteredBuiltin.length === 0 && filteredCustom.length === 0;
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-xs"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs transition-colors"
           aria-label={t('agentSelector.label')}
         >
           <Bot className="size-3.5" aria-hidden="true" />
@@ -123,21 +145,24 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
         align="start"
         side="top"
         sideOffset={8}
-        className="p-0 w-[20rem]"
+        className="w-[20rem] p-0"
         onOpenAutoFocus={(e) => {
           e.preventDefault();
           searchRef.current?.focus();
         }}
       >
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-          <Search className="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+        <div className="border-border flex items-center gap-2 border-b px-3 py-2">
+          <Search
+            className="text-muted-foreground size-3.5 shrink-0"
+            aria-hidden="true"
+          />
           <input
             ref={searchRef}
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('agentSelector.searchPlaceholder')}
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
             aria-label={t('agentSelector.searchPlaceholder')}
           />
         </div>
@@ -155,12 +180,9 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
           {hasCustomAgents && (
             <>
               {filteredBuiltin.length > 0 && (
-                <div
-                  className="mx-2 my-1 border-t border-border"
-                  role="separator"
-                />
+                <hr className="border-border mx-2 my-1 border-t" />
               )}
-              <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="text-muted-foreground px-2 py-1 text-[10px] font-medium tracking-wider uppercase">
                 {t('agentSelector.customSection')}
               </div>
               {filteredCustom.map((option) => (
@@ -175,7 +197,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
           )}
 
           {hasNoResults && (
-            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            <div className="text-muted-foreground px-3 py-4 text-center text-sm">
               {t('agentSelector.noResults')}
             </div>
           )}
@@ -200,16 +222,20 @@ function OptionButton({
       role="option"
       aria-selected={isSelected}
       onClick={() => onSelect(option.value)}
-      className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent transition-colors"
+      className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors"
     >
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-foreground text-sm">{option.label}</div>
+      <div className="min-w-0 flex-1">
+        <div className="text-foreground text-sm font-medium">
+          {option.label}
+        </div>
         {option.description && (
-          <div className="text-xs text-muted-foreground">{option.description}</div>
+          <div className="text-muted-foreground text-xs">
+            {option.description}
+          </div>
         )}
       </div>
       {isSelected && (
-        <Check className="size-4 text-primary shrink-0" aria-hidden="true" />
+        <Check className="text-primary size-4 shrink-0" aria-hidden="true" />
       )}
     </button>
   );
