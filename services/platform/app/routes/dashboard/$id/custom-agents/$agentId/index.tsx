@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -60,11 +60,13 @@ function GeneralTab() {
   const [sharedWithTeamIds, setSharedWithTeamIds] = useState<string[]>([]);
   const [accessInitialized, setAccessInitialized] = useState(false);
 
-  if (agent && !accessInitialized) {
-    setTeamId(agent.teamId || undefined);
-    setSharedWithTeamIds(agent.sharedWithTeamIds ?? []);
-    setAccessInitialized(true);
-  }
+  useEffect(() => {
+    if (agent && !accessInitialized) {
+      setTeamId(agent.teamId || undefined);
+      setSharedWithTeamIds(agent.sharedWithTeamIds ?? []);
+      setAccessInitialized(true);
+    }
+  }, [agent, accessInitialized]);
 
   const combinedData = useMemo<CombinedSaveData | undefined>(
     () => (agent ? { ...formValues, teamId, sharedWithTeamIds } : undefined),
