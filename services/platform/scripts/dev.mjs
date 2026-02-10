@@ -222,26 +222,35 @@ async function main() {
     // Step 0.5: Normalize and inject derived env vars (mirror env.sh)
     envNormalizeCommon();
     ensureInstanceSecret();
-    // For local anonymous Convex dev, ensure CONVEX_DEPLOYMENT is not set.
-    // If it is set (e.g. from the shell or other tooling), clear it so Convex
-    // runs without requiring a cloud login.
-    if (process.env.CONVEX_DEPLOYMENT) {
+    // Clear non-local CONVEX_DEPLOYMENT values (e.g. cloud deployments) so
+    // Convex runs without requiring a cloud login. Preserve anonymous (local)
+    // deployments so the backend reconnects to the same instance across restarts.
+    const deployment = process.env.CONVEX_DEPLOYMENT;
+    const hasLocalDeployment = deployment?.startsWith('anonymous:');
+    if (deployment && !hasLocalDeployment) {
       console.log(
-        '[dev] ℹ️  Clearing CONVEX_DEPLOYMENT for local anonymous Convex dev',
+        '[dev] ℹ️  Clearing cloud CONVEX_DEPLOYMENT for local Convex dev',
       );
       delete process.env.CONVEX_DEPLOYMENT;
+    } else if (hasLocalDeployment) {
+      console.log(`[dev] ℹ️  Reusing local deployment: ${deployment}`);
     }
     console.log('[dev] ✅ Environment normalized (env.sh parity)');
 
     // Step 1: Start Convex in background
+    // Only use CONVEX_AGENT_MODE=anonymous when bootstrapping a new local
+    // deployment. When an existing anonymous deployment is present, Convex
+    // reuses it without requiring login. Setting agent mode on every run
+    // causes Convex to create a new deployment each time.
     console.log('[dev] ⏳ Starting Convex backend...');
+    const convexEnv = { ...process.env };
+    if (!hasLocalDeployment) {
+      convexEnv.CONVEX_AGENT_MODE = 'anonymous';
+    }
     const convexProcess = spawn('npx', ['--yes', 'convex', 'dev'], {
       stdio: 'inherit',
       cwd: platformRoot,
-      env: {
-        ...process.env,
-        CONVEX_AGENT_MODE: 'anonymous',
-      },
+      env: convexEnv,
     });
 
     // Step 2: Wait for Convex to be ready
