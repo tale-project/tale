@@ -7,6 +7,7 @@ import type { MutationCtx } from '../../../_generated/server';
 
 import { createDebugLog } from '../../../lib/debug_log';
 import { executeWorkflowStart } from './execute_workflow_start';
+import { getShardIndex } from './shard';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -21,8 +22,7 @@ export type StartWorkflowArgs = {
 export async function handleStartWorkflow(
   ctx: MutationCtx,
   args: StartWorkflowArgs,
-  workflowManager: WorkflowManager,
-  shardIndex = 0,
+  managers: WorkflowManager[],
 ): Promise<Id<'wfExecutions'>> {
   // Validate database workflow definition
   const wfDefinition = await ctx.db.get(args.wfDefinitionId);
@@ -56,7 +56,7 @@ export async function handleStartWorkflow(
     rootWfDefinitionId,
   });
 
-  // Pre-create execution record with pending status
+  // Pre-create execution record with pending status (shardIndex patched below)
   const executionId: Id<'wfExecutions'> = await ctx.db.insert('wfExecutions', {
     organizationId: args.organizationId,
     wfDefinitionId: args.wfDefinitionId,
@@ -71,13 +71,19 @@ export async function handleStartWorkflow(
     triggerData: args.triggerData,
     metadata: '{}',
     workflowSlug,
-    shardIndex,
   });
+
+  // Derive shard from the unique executionId so concurrent starts of
+  // the same workflow definition spread across all component instances.
+  const shardIndex = getShardIndex(executionId);
+  await ctx.db.patch(executionId, { shardIndex });
+  const workflowManager = managers[shardIndex];
 
   // Start workflow via shared helper to avoid extra nested mutations
   debugLog('startWorkflow Starting workflow via helper', {
     executionId,
     wfDefinitionId: args.wfDefinitionId,
+    shardIndex,
   });
 
   await executeWorkflowStart(ctx, {

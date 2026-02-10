@@ -4,7 +4,7 @@ import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
-import { workflowManager } from './engine';
+import { workflowManagers } from './engine';
 import { handleStartWorkflow } from './helpers/engine/start_workflow_handler';
 
 export const startWorkflow = mutation({
@@ -28,6 +28,6 @@ export const startWorkflow = mutation({
       name: authUser.name,
     });
 
-    return await handleStartWorkflow(ctx, args, workflowManager);
+    return await handleStartWorkflow(ctx, args, workflowManagers);
   },
 });
