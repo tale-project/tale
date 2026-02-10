@@ -92,7 +92,7 @@ function CustomAgentDetailLayout() {
             )}
           </h1>
           <Badge variant="outline" className="ml-2">
-            {tCommon('status.draft')}
+            {tCommon(`status.${agent.status}`)}
           </Badge>
         </AdaptiveHeaderRoot>
         <CustomAgentNavigation
