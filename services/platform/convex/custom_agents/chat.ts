@@ -52,8 +52,8 @@ export const chatWithCustomAgent = mutation({
       );
 
     let activeVersion = null;
-    for await (const v of activeVersionQuery) {
-      activeVersion = v;
+    for await (const doc of activeVersionQuery) {
+      activeVersion = doc;
       break;
     }
 

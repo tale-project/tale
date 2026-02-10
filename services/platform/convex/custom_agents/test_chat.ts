@@ -52,8 +52,8 @@ export const testDraftCustomAgent = mutation({
       );
 
     let draft = null;
-    for await (const v of draftQuery) {
-      draft = v;
+    for await (const doc of draftQuery) {
+      draft = doc;
       break;
     }
 
