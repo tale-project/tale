@@ -1,6 +1,10 @@
 import { z } from 'zod/v4';
 
-const chatTypeLiterals = ['general', 'workflow_assistant'] as const;
+const chatTypeLiterals = [
+  'general',
+  'workflow_assistant',
+  'agent_test',
+] as const;
 export const chatTypeSchema = z.enum(chatTypeLiterals);
 type ChatType = z.infer<typeof chatTypeSchema>;
 

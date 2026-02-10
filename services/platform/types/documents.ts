@@ -31,26 +31,3 @@ export interface DocumentItem {
   /** Display name of the user who created/uploaded this document */
   createdByName?: string;
 }
-
-export interface DocumentListResponse {
-  success: boolean;
-  items: DocumentItem[];
-  totalItems: number;
-  pagination?: {
-    hasNextPage: boolean;
-    currentPage: number;
-    pageSize: number;
-  };
-  error?: string;
-}
-
-export interface UploadResult {
-  success: boolean;
-  fileInfo?: {
-    name: string;
-    storagePath: string;
-    size: number;
-    url?: string;
-  };
-  error?: string;
-}

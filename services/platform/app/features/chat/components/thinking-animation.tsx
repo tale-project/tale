@@ -79,7 +79,6 @@ export function ThinkingAnimation({
       save_workflow_definition: t('tools.saveWorkflowDefinition'),
       validate_workflow_definition: t('tools.validateWorkflowDefinition'),
       generate_excel: t('tools.generateExcel'),
-      context_search: t('tools.contextSearch'),
     };
 
     const displayText =

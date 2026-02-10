@@ -238,26 +238,21 @@ export async function processAttachments(
   // Images and text files are handled via their respective tools, not inline
   await registerFilesWithAgent(ctx, documentAttachments);
 
-  // Build prompt content if we have any processed attachments
-  let promptContent:
-    | Array<{ role: 'user'; content: MessageContentPart[] }>
-    | undefined;
+  // Build prompt content with attachment info
+  const text = userText || 'Please analyze the attached files.';
+  const contentParts: MessageContentPart[] = [{ type: 'text', text }];
 
-  if (
+  const hasAnalyzedContent =
     parsedDocuments.length > 0 ||
     analyzedImages.length > 0 ||
-    analyzedTextFiles.length > 0
-  ) {
-    const text = userText || 'Please analyze the attached files.';
-    const contentParts: MessageContentPart[] = [{ type: 'text', text }];
+    analyzedTextFiles.length > 0;
 
-    // Add a marker indicating content has been pre-analyzed in this message
+  if (hasAnalyzedContent) {
     contentParts.push({
       type: 'text',
       text: '\n\n[PRE-ANALYZED CONTENT BELOW - This is the attachment from the CURRENT message. It takes priority over any previous context. Answer directly from this content without calling document_assistant.]',
     });
 
-    // Add parsed document content
     for (const doc of parsedDocuments) {
       const truncatedContent =
         doc.content.length > maxDocLength
@@ -271,7 +266,6 @@ export async function processAttachments(
       });
     }
 
-    // Add image analysis results
     for (const img of analyzedImages) {
       contentParts.push({
         type: 'text',
@@ -279,16 +273,51 @@ export async function processAttachments(
       });
     }
 
-    // Add text file analysis results
     for (const txt of analyzedTextFiles) {
       contentParts.push({
         type: 'text',
         text: `\n\n---\n**Text File: ${txt.fileName}** (${txt.charCount} chars, ${txt.lineCount} lines)\n\n${txt.analysis}\n---\n`,
       });
     }
-
-    promptContent = [{ role: 'user', content: contentParts }];
   }
+
+  // Collect attachments that failed pre-analysis — include their references
+  // so the agent can use its tools (docx, pdf, image, etc.) to process them
+  const failedDocuments = documentAttachments.filter(
+    (a) => !parsedDocuments.some((d) => d.fileName === a.fileName),
+  );
+  const failedImages = imageAttachments.filter(
+    (a) => !analyzedImages.some((d) => d.fileName === a.fileName),
+  );
+  const failedTextFiles = textFileAttachments.filter(
+    (a) => !analyzedTextFiles.some((d) => d.fileName === a.fileName),
+  );
+  const unprocessedAttachments = [
+    ...failedDocuments,
+    ...failedImages,
+    ...failedTextFiles,
+  ];
+
+  if (unprocessedAttachments.length > 0) {
+    contentParts.push({
+      type: 'text',
+      text: '\n\n[ATTACHED FILES - Pre-analysis was not available. Use your tools to process these files.]',
+    });
+
+    for (const attachment of unprocessedAttachments) {
+      contentParts.push({
+        type: 'text',
+        text: `\n📎 **${attachment.fileName}** (${attachment.fileType}, fileId: ${attachment.fileId})`,
+      });
+    }
+  }
+
+  const promptContent:
+    | Array<{ role: 'user'; content: MessageContentPart[] }>
+    | undefined =
+    attachments.length > 0
+      ? [{ role: 'user', content: contentParts }]
+      : undefined;
 
   return {
     parsedDocuments,

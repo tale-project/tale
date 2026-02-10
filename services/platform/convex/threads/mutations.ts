@@ -11,7 +11,11 @@ export const createChatThread = mutation({
     organizationId: v.string(),
     title: v.optional(v.string()),
     chatType: v.optional(
-      v.union(v.literal('general'), v.literal('workflow_assistant')),
+      v.union(
+        v.literal('general'),
+        v.literal('workflow_assistant'),
+        v.literal('agent_test'),
+      ),
     ),
   },
   returns: v.string(),

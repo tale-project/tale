@@ -89,6 +89,7 @@ export const documentItemSchema = z.object({
   ragStatus: ragStatusSchema.optional(),
   ragIndexedAt: z.number().optional(),
   ragError: z.string().optional(),
+  teamId: z.string().nullable().optional(),
   teamTags: z.array(z.string()).optional(),
   createdBy: z.string().optional(),
   createdByName: z.string().optional(),

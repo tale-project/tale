@@ -155,24 +155,6 @@ export interface OffsetPaginationState {
   pageSize: number;
 }
 
-/**
- * Cursor-based pagination state (for infinite scroll)
- */
-export interface CursorPaginationState {
-  cursor: string | null;
-  numItems: number;
-}
-
-/**
- * Pagination configuration
- */
-export interface PaginationConfig {
-  /** Default page size */
-  defaultPageSize?: number;
-  /** Available page size options */
-  pageSizeOptions?: number[];
-}
-
 // ============================================================================
 // HOOK RETURN TYPES
 // ============================================================================
@@ -208,47 +190,4 @@ export interface UseUrlFiltersReturn<T extends FilterDefinitions> {
   hasActiveFilters: boolean;
   /** Whether URL update is pending (from useTransition) */
   isPending: boolean;
-}
-
-/**
- * Return type for useOffsetPaginatedQuery hook
- */
-export interface UseOffsetPaginatedQueryReturn<TData> {
-  /** Query result data */
-  data: TData | undefined;
-  /** Whether query is loading */
-  isLoading: boolean;
-  /** Pagination metadata */
-  pagination: {
-    page: number;
-    pageSize: number;
-    total: number;
-    totalPages: number;
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
-  };
-}
-
-/**
- * Return type for useCursorPaginatedQuery hook
- */
-export interface UseCursorPaginatedQueryReturn<TData> {
-  /** Query result data (accumulated pages) */
-  data: TData[];
-  /** Error that occurred during query, if any */
-  error: Error | null;
-  /** Whether an error has occurred */
-  isError: boolean;
-  /** Whether initial load is in progress */
-  isLoading: boolean;
-  /** Whether more items are being loaded */
-  isLoadingMore: boolean;
-  /** Whether there are more items to load */
-  hasMore: boolean;
-  /** Load more items */
-  loadMore: () => void;
-  /** Reset to initial state */
-  reset: () => void;
-  /** Refetch data (alias for reset) */
-  refetch: () => void;
 }

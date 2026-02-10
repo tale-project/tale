@@ -71,6 +71,7 @@ export const listDocuments = query({
     cursor: v.union(v.string(), v.null()),
     query: v.optional(v.string()),
     folderPath: v.optional(v.string()),
+    filterTeamId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);

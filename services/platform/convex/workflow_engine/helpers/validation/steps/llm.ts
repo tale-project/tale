@@ -10,7 +10,7 @@ import type { JsonSchemaDefinition } from '../../../types/nodes';
 import type { ValidationResult } from '../types';
 
 import { isRecord } from '../../../../../lib/utils/type-guards';
-import { TOOL_NAMES } from '../../../../agent_tools/tool_registry';
+import { TOOL_NAMES } from '../../../../agent_tools/tool_names';
 
 /**
  * Validate an LLM step configuration

@@ -19,16 +19,14 @@ export interface SerializableAgentConfig {
   instructions: string;
   /** List of Convex tool names to enable */
   convexToolNames?: ToolName[];
+  /** Integration names bound as dedicated tools (resolved at runtime) */
+  integrationBindings?: string[];
   /** Use fast model (OPENAI_FAST_MODEL) instead of default */
   useFastModel?: boolean;
   /** Explicit model override (takes precedence over useFastModel) */
   model?: string;
   /** Maximum number of steps for tool calls */
   maxSteps?: number;
-  /** Maximum output tokens */
-  maxTokens?: number;
-  /** Temperature for generation */
-  temperature?: number;
   /** Output format (text or json) */
   outputFormat?: 'text' | 'json';
   /** Enable vector search for semantic message retrieval */

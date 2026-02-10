@@ -10,7 +10,6 @@ export const addMember = mutation({
     teamId: v.string(),
     userId: v.string(),
     organizationId: v.string(),
-    role: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -70,18 +69,15 @@ export const addMember = mutation({
       throw new Error('User is already a member of this team');
     }
 
-    const input = {
-      model: 'teamMember' as const,
-      data: {
-        teamId: args.teamId,
-        userId: args.userId,
-        createdAt: Date.now(),
-      },
-    };
-    const data = { ...input.data, role: args.role ?? 'member' };
-
     return await ctx.runMutation(components.betterAuth.adapter.create, {
-      input: { ...input, data } as typeof input,
+      input: {
+        model: 'teamMember' as const,
+        data: {
+          teamId: args.teamId,
+          userId: args.userId,
+          createdAt: Date.now(),
+        },
+      },
     });
   },
 });

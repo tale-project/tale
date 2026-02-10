@@ -36,11 +36,10 @@ EXPOSE 80 443
 # Certificates are stored in /data/caddy
 VOLUME /data
 
-# Health check via /health endpoint
-# Uses HTTP on localhost (internal) to avoid SSL issues with IPv6
-# The actual HTTPS functionality is verified by external monitoring
+# Health check via dedicated internal port (not exposed externally)
+# Uses :2020 to avoid interfering with Caddy's ACME challenge handling on :80
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:80/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:2020/health || exit 1
 
 # Use custom entrypoint that:
 # 1. Generates TLS config based on TLS_MODE

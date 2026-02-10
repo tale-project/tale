@@ -6,6 +6,8 @@ import {
   conversationsTable,
   conversationMessagesTable,
 } from './conversations/schema';
+import { customAgentsTable } from './custom_agents/schema';
+import { customAgentWebhooksTable } from './custom_agents/webhooks/schema';
 import { customersTable } from './customers/schema';
 import { documentsTable } from './documents/schema';
 import { emailProvidersTable } from './email_providers/schema';
@@ -37,6 +39,8 @@ export default defineSchema({
   auditLogs: auditLogsTable,
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
+  customAgents: customAgentsTable,
+  customAgentWebhooks: customAgentWebhooksTable,
   customers: customersTable,
   documents: documentsTable,
   emailProviders: emailProvidersTable,

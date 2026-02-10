@@ -71,6 +71,8 @@ export interface StartAgentChatArgs {
   enableStreaming: boolean;
   /** Optional hooks configuration (FunctionHandles) */
   hooks?: AgentHooksConfig;
+  /** Override team IDs for RAG search (agent-scoped knowledge) */
+  ragTeamIds?: string[];
 }
 
 export interface StartAgentChatResult {
@@ -119,15 +121,20 @@ export async function startAgentChat(
     ? await persistentStreaming.createStream(ctx)
     : '';
 
-  // Get thread to retrieve userId, then get user's team IDs for RAG search
-  // Include org-level ID to access public documents (documents without team tags)
+  // Get thread to retrieve userId, then resolve team IDs for RAG search.
+  // If ragTeamIds is provided (e.g. custom agents), use those instead of the user's teams.
   const thread = await ctx.runQuery(components.agent.threads.getThread, {
     threadId,
   });
-  const teamIds = thread?.userId
-    ? await getUserTeamIds(ctx, thread.userId)
-    : [];
-  const userTeamIds = [`org_${organizationId}`, ...teamIds];
+  let userTeamIds: string[];
+  if (args.ragTeamIds) {
+    userTeamIds = args.ragTeamIds;
+  } else {
+    const teamIds = thread?.userId
+      ? await getUserTeamIds(ctx, thread.userId)
+      : [];
+    userTeamIds = [`org_${organizationId}`, ...teamIds];
+  }
 
   // Load recent non-tool messages for deduplication
   const existingMessages: AgentListMessagesResult = await listMessages(
@@ -197,7 +204,7 @@ export async function startAgentChat(
       threadId,
       organizationId,
       userId: thread?.userId,
-      promptMessage: trimmedMessage,
+      promptMessage: messageContent,
       attachments: actionAttachments,
       streamId: streamId || undefined,
       promptMessageId,

@@ -2,6 +2,8 @@
  * Create a new workflow (starts as draft v1)
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import type { WorkflowConfig } from './types';
@@ -29,7 +31,7 @@ export async function createWorkflowDraft(
     .first();
 
   if (existing) {
-    throw new Error(`Workflow with name "${args.name}" already exists`);
+    throw new ConvexError({ code: 'DUPLICATE_NAME' });
   }
 
   // Create first draft version

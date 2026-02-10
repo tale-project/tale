@@ -105,8 +105,4 @@ const NavigationMenuIndicator = forwardRef<
 NavigationMenuIndicator.displayName =
   NavigationMenuPrimitive.Indicator.displayName;
 
-export {
-  NavigationMenu,
-  NavigationMenuList,
-  NavigationMenuItem,
-};
+export { NavigationMenu, NavigationMenuList, NavigationMenuItem };

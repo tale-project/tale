@@ -96,9 +96,4 @@ export function loadDayjsLocale(locale: string): Promise<void> {
   return promise;
 }
 
-export function isDayjsLocaleLoaded(locale: string): boolean {
-  const key = locale.toLowerCase().replace(/_/g, '-');
-  return loadedLocales.has(key);
-}
-
 export default dayjs;
