@@ -11,29 +11,14 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
+import type { CustomAgentRow } from './custom-agent-table';
+
 import { useDuplicateCustomAgent } from '../hooks/use-custom-agent-mutations';
 import { CustomAgentDeleteDialog } from './custom-agent-delete-dialog';
 import { CustomAgentVersionHistoryDialog } from './custom-agent-version-history-dialog';
 
 interface CustomAgentRowActionsProps {
-  agent: {
-    _id: string;
-    name: string;
-    displayName: string;
-    description?: string;
-    systemInstructions: string;
-    toolNames: string[];
-    modelPreset: string;
-    temperature?: number;
-    maxTokens?: number;
-    maxSteps?: number;
-    includeOrgKnowledge?: boolean;
-    knowledgeTopK?: number;
-    versionNumber: number;
-    rootVersionId?: string;
-    teamId?: string;
-    sharedWithTeamIds?: string[];
-  };
+  agent: Pick<CustomAgentRow, '_id' | 'displayName' | 'rootVersionId'>;
 }
 
 export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
