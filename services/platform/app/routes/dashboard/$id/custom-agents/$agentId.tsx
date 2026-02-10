@@ -19,6 +19,7 @@ import { TestChatPanel } from '@/app/features/custom-agents/components/test-chat
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId')({
   component: CustomAgentDetailLayout,
@@ -31,7 +32,7 @@ function CustomAgentDetailLayout() {
   const [isTestOpen, setIsTestOpen] = useState(false);
 
   const agent = useQuery(api.custom_agents.queries.getCustomAgent, {
-    customAgentId: agentId as Id<'customAgents'>,
+    customAgentId: toId<'customAgents'>(agentId),
   });
 
   if (agent === undefined) {

@@ -1,7 +1,7 @@
 import type { StreamId } from '@convex-dev/persistent-text-streaming';
 import type { GenericActionCtx, GenericDataModel } from 'convex/server';
 
-import type { Doc, Id } from '../../_generated/dataModel';
+import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 
 import { internal } from '../../_generated/api';
