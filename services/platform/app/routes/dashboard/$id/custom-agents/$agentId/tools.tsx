@@ -38,50 +38,50 @@ function ToolsTab() {
     return locked;
   }, [agent?.knowledgeEnabled]);
 
+  const saveWithStatus = useCallback(
+    async <T,>(updateFn: () => Promise<T>) => {
+      setSaveStatus('saving');
+      try {
+        await updateFn();
+        setSaveStatus('saved');
+      } catch (error) {
+        console.error(error);
+        setSaveStatus('error');
+        toast({
+          title: t('customAgents.agentUpdateFailed'),
+          variant: 'destructive',
+        });
+      }
+    },
+    [t],
+  );
+
   const handleToolChange = useCallback(
     async (tools: string[]) => {
       const finalTools =
         agent?.knowledgeEnabled && !tools.includes('rag_search')
           ? [...tools, 'rag_search']
           : tools;
-      setSaveStatus('saving');
-      try {
-        await updateAgent({
+      await saveWithStatus(() =>
+        updateAgent({
           customAgentId: toId<'customAgents'>(agentId),
           toolNames: finalTools,
-        });
-        setSaveStatus('saved');
-      } catch (error) {
-        console.error(error);
-        setSaveStatus('error');
-        toast({
-          title: t('customAgents.agentUpdateFailed'),
-          variant: 'destructive',
-        });
-      }
+        }),
+      );
     },
-    [agentId, updateAgent, t, agent?.knowledgeEnabled],
+    [agentId, updateAgent, agent?.knowledgeEnabled, saveWithStatus],
   );
 
   const handleIntegrationBindingsChange = useCallback(
     async (bindings: string[]) => {
-      setSaveStatus('saving');
-      try {
-        await updateAgent({
+      await saveWithStatus(() =>
+        updateAgent({
           customAgentId: toId<'customAgents'>(agentId),
           integrationBindings: bindings,
-        });
-        setSaveStatus('saved');
-      } catch (error) {
-        console.error(error);
-        setSaveStatus('error');
-        toast({
-          title: t('customAgents.agentUpdateFailed'),
-          variant: 'destructive',
-        });
-      }
+        }),
+      );
     },
-    [agentId, updateAgent, t],
+    [agentId, updateAgent, saveWithStatus],
   );
 
   if (!agent) {
