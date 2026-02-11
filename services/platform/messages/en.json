@@ -965,6 +965,7 @@
         "createIntegration": "Create integration",
         "createSuccess": "Integration created",
         "createFailed": "Failed to create integration",
+        "iconUploadFailed": "Failed to upload icon",
         "configureCredentialsHint": "Configure credentials in the integration settings to activate it.",
         "testConnection": "Test connection",
         "updateCredentialsHint": "Leave fields empty to keep current values.",

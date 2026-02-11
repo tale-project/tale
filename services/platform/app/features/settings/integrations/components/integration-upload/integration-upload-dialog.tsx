@@ -67,13 +67,14 @@ export function IntegrationUploadDialog({
           headers: { 'Content-Type': iconFile.type || 'image/png' },
           body: iconFile,
         });
-        if (uploadResponse.ok) {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
-          const { storageId } = (await uploadResponse.json()) as {
-            storageId: string;
-          };
-          iconStorageId = storageId;
+        if (!uploadResponse.ok) {
+          throw new Error(t('integrations.upload.iconUploadFailed'));
         }
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
+        const { storageId } = (await uploadResponse.json()) as {
+          storageId: string;
+        };
+        iconStorageId = storageId;
       }
 
       // Build connector config
