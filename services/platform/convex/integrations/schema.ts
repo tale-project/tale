@@ -95,9 +95,9 @@ export const integrationsTable = defineTable({
         v.literal('postgres'),
         v.literal('mysql'),
       ),
-      server: v.string(),
+      server: v.optional(v.string()),
       port: v.optional(v.number()),
-      database: v.string(),
+      database: v.optional(v.string()),
       readOnly: v.optional(v.boolean()),
       options: v.optional(
         v.object({
@@ -131,6 +131,7 @@ export const integrationsTable = defineTable({
       }),
     ),
   ),
+  iconStorageId: v.optional(v.id('_storage')),
   metadata: v.optional(jsonRecordValidator),
 })
   .index('by_organizationId', ['organizationId'])

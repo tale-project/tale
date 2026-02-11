@@ -8,10 +8,6 @@ export * from './validators';
 // Types
 export * from './types';
 
-// Connection testing
-export * from './test_shopify_connection';
-export * from './test_circuly_connection';
-
 // Query operations
 export * from './list_integrations';
 export * from './get_integration';

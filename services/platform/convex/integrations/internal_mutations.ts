@@ -70,6 +70,7 @@ export const createIntegration = internalMutation({
     type: v.optional(typeValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     sqlOperations: v.optional(v.array(sqlOperationValidator)),
+    iconStorageId: v.optional(v.id('_storage')),
     metadata: v.optional(jsonValueValidator),
   },
   handler: async (ctx, args) => {

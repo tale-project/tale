@@ -66,6 +66,18 @@ export async function executeSqlIntegration(
     );
   }
 
+  if (!sqlConnectionConfig.server) {
+    throw new Error(
+      `SQL integration "${integration.name}" is missing a server address. Configure it in the integration settings.`,
+    );
+  }
+
+  if (!sqlConnectionConfig.database) {
+    throw new Error(
+      `SQL integration "${integration.name}" is missing a database name. Configure it in the integration settings.`,
+    );
+  }
+
   // Handle system introspection operations
   let query: string;
   let queryParams: Record<string, unknown> = params;

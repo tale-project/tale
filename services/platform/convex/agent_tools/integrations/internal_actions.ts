@@ -329,6 +329,29 @@ async function executeSqlBatch(
 ) {
   const { sqlConnectionConfig, sqlOperations } = integration;
 
+  const sqlServer = sqlConnectionConfig?.server;
+  const sqlDatabase = sqlConnectionConfig?.database;
+
+  if (!sqlServer || !sqlDatabase) {
+    return {
+      success: false,
+      integration: integration.name,
+      results: operations.map((op) => ({
+        id: op.id,
+        operation: op.operation,
+        success: false,
+        error:
+          'SQL integration is missing server or database configuration. Configure it in the integration settings.',
+      })),
+      stats: {
+        approvalCount: 0,
+        successCount: 0,
+        totalTime: Date.now() - startTime,
+        failureCount: operations.length,
+      },
+    };
+  }
+
   let credentials: { username: string; password: string };
   try {
     credentials = await decryptSqlCredentials(ctx, integration);
@@ -418,7 +441,7 @@ async function executeSqlBatch(
                 parameters: toConvexJsonRecord(params),
                 threadId,
                 messageId,
-                estimatedImpact: `This ${operationType} operation will modify data in ${sqlConnectionConfig.database}`,
+                estimatedImpact: `This ${operationType} operation will modify data in ${sqlDatabase}`,
               },
             );
 
@@ -442,9 +465,9 @@ async function executeSqlBatch(
           {
             engine: sqlConnectionConfig.engine,
             credentials: {
-              server: sqlConnectionConfig.server,
+              server: sqlServer,
               port: sqlConnectionConfig.port,
-              database: sqlConnectionConfig.database,
+              database: sqlDatabase,
               user: credentials.username,
               password: credentials.password,
               options: sqlConnectionConfig.options,

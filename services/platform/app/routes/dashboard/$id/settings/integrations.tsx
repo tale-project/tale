@@ -53,7 +53,7 @@ function IntegrationsSkeleton() {
   return (
     <Stack>
       <Grid cols={1} md={2} lg={3}>
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <IntegrationCardSkeleton key={i} />
         ))}
       </Grid>
@@ -71,22 +71,9 @@ function IntegrationsPage() {
       organizationId,
     }),
   );
-  const { data: shopify, isLoading: isShopifyLoading } = useQuery(
-    convexQuery(api.integrations.queries.getByName, {
+  const { data: integrations, isLoading: isIntegrationsLoading } = useQuery(
+    convexQuery(api.integrations.queries.list, {
       organizationId,
-      name: 'shopify',
-    }),
-  );
-  const { data: circuly, isLoading: isCirculyLoading } = useQuery(
-    convexQuery(api.integrations.queries.getByName, {
-      organizationId,
-      name: 'circuly',
-    }),
-  );
-  const { data: protel, isLoading: isProtelLoading } = useQuery(
-    convexQuery(api.integrations.queries.getByName, {
-      organizationId,
-      name: 'protel',
     }),
   );
   const { data: emailProviders, isLoading: isEmailLoading } = useQuery(
@@ -98,9 +85,7 @@ function IntegrationsPage() {
 
   if (
     isMemberLoading ||
-    isShopifyLoading ||
-    isCirculyLoading ||
-    isProtelLoading ||
+    isIntegrationsLoading ||
     isEmailLoading ||
     isSsoLoading ||
     !memberContext
@@ -118,9 +103,7 @@ function IntegrationsPage() {
   return (
     <IntegrationsClient
       organizationId={organizationId}
-      shopify={shopify ?? null}
-      circuly={circuly ?? null}
-      protel={protel ?? null}
+      integrations={integrations ?? []}
       emailProviders={emailProviders ?? []}
       ssoProvider={ssoProvider ?? null}
       tab={tab}

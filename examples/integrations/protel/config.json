@@ -1,0 +1,496 @@
+{
+  "name": "protel",
+  "title": "Protel PMS",
+  "description": "Hotel Property Management System - Direct SQL Access for reservations, guest profiles, rooms, and postings",
+  "version": 1,
+  "type": "sql",
+  "authMethod": "basic_auth",
+  "secretBindings": ["username", "password"],
+  "sqlConnectionConfig": {
+    "engine": "mssql",
+    "readOnly": false,
+    "options": {
+      "encrypt": false,
+      "trustServerCertificate": true,
+      "connectionTimeout": 30000,
+      "requestTimeout": 30000
+    },
+    "security": {
+      "maxResultRows": 10000,
+      "queryTimeoutMs": 30000,
+      "maxConnectionPoolSize": 5
+    }
+  },
+  "operations": [
+    {
+      "name": "list_reservations",
+      "title": "List Reservations",
+      "description": "Fetch all reservations with optional filters for status and date range",
+      "query": "SELECT b.buchnr AS reservation_id, b.kundennr AS guest_id, b.zimmernr AS room_id, z.ziname AS room_number, b.katnr AS category_id, k2.kat AS category_code, k2.bez AS category_name, b.datumvon AS check_in_date, b.datumbis AS check_out_date, b.buchstatus AS booking_status, b.resstatus AS reservation_status, rs.resbez AS reservation_status_name, b.anzahl AS guests, b.anzerw AS adults, b.anzkin1 + b.anzkin2 + b.anzkin3 + b.anzkin4 AS children, b.preis AS rate, b.anzeit AS arrival_time, b.abzeit AS departure_time, k.name1 AS guest_name1, k.name2 AS guest_name2, k.vorname AS guest_firstname, k.email AS guest_email, k.telefonnr AS guest_phone, b.crsnumber AS crs_number, b.resdatum AS reservation_date, b.resuser AS created_by, b.market, b.source FROM proteluser.buch b LEFT JOIN proteluser.kunden k ON b.kundennr = k.kdnr LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr LEFT JOIN proteluser.kat k2 ON b.katnr = k2.katnr LEFT JOIN proteluser.resstat rs ON b.resstatus = rs.resnr WHERE (@buchstatus IS NULL OR b.buchstatus = @buchstatus) AND (@fromDate IS NULL OR b.datumvon >= @fromDate) AND (@toDate IS NULL OR b.datumvon <= @toDate) ORDER BY b.datumvon DESC, b.buchnr DESC",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "buchstatus": { "type": "number", "description": "Booking status filter: 0=Arrival (not checked in), 1=In-House, 2=Checked-Out", "required": false },
+          "fromDate": { "type": "string", "format": "date", "description": "Filter by check-in date from (YYYY-MM-DD)", "required": false },
+          "toDate": { "type": "string", "format": "date", "description": "Filter by check-in date to (YYYY-MM-DD)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_reservation",
+      "title": "Get Reservation by ID",
+      "description": "Fetch a single reservation with full details",
+      "query": "SELECT b.buchnr AS reservation_id, b.kundennr AS guest_id, b.zimmernr AS room_id, z.ziname AS room_number, b.katnr AS category_id, k2.kat AS category_code, k2.bez AS category_name, b.datumvon AS check_in_date, b.datumbis AS check_out_date, b.buchstatus AS booking_status, b.resstatus AS reservation_status, rs.resbez AS reservation_status_name, b.anzahl AS guests, b.anzerw AS adults, b.anzkin1 AS children_cat1, b.anzkin2 AS children_cat2, b.anzkin3 AS children_cat3, b.anzkin4 AS children_cat4, b.preis AS rate, b.grundpreis AS base_rate, b.anzeit AS arrival_time, b.abzeit AS departure_time, k.kdnr AS guest_kdnr, k.name1 AS guest_name1, k.name2 AS guest_name2, k.vorname AS guest_firstname, k.email AS guest_email, k.telefonnr AS guest_phone, k.strasse AS guest_street, k.plz AS guest_postal_code, k.ort AS guest_city, k.land AS guest_country, b.crsnumber AS crs_number, b.resdatum AS reservation_date, b.resuser AS created_by, b.market, b.source, b.not1txt AS note1, b.not2txt AS note2, b.cctyp AS credit_card_type, b.firmennr AS company_id, b.gruppennr AS group_id, b.reisenr AS travel_agent_id FROM proteluser.buch b LEFT JOIN proteluser.kunden k ON b.kundennr = k.kdnr LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr LEFT JOIN proteluser.kat k2 ON b.katnr = k2.katnr LEFT JOIN proteluser.resstat rs ON b.resstatus = rs.resnr WHERE b.buchnr = @reservationId",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "reservationId": { "type": "number", "description": "Reservation ID (buchnr)", "required": true }
+        }
+      }
+    },
+    {
+      "name": "get_arrivals_today",
+      "title": "Get Today's Arrivals",
+      "description": "Get all reservations arriving today (not yet checked in)",
+      "query": "SELECT b.buchnr AS reservation_id, b.kundennr AS guest_id, z.ziname AS room_number, k2.kat AS category_code, b.datumvon AS check_in_date, b.datumbis AS check_out_date, b.anzahl AS guests, b.anzeit AS arrival_time, k.name1 AS guest_name1, k.vorname AS guest_firstname, k.email AS guest_email, k.telefonnr AS guest_phone, rs.resbez AS reservation_status_name FROM proteluser.buch b LEFT JOIN proteluser.kunden k ON b.kundennr = k.kdnr LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr LEFT JOIN proteluser.kat k2 ON b.katnr = k2.katnr LEFT JOIN proteluser.resstat rs ON b.resstatus = rs.resnr WHERE b.buchstatus = 0 AND CAST(b.datumvon AS DATE) = CAST(GETDATE() AS DATE) ORDER BY z.ziname"
+    },
+    {
+      "name": "get_departures_today",
+      "title": "Get Today's Departures",
+      "description": "Get all reservations departing today (still in-house)",
+      "query": "SELECT b.buchnr AS reservation_id, b.kundennr AS guest_id, z.ziname AS room_number, k2.kat AS category_code, b.datumvon AS check_in_date, b.datumbis AS check_out_date, b.anzahl AS guests, b.abzeit AS departure_time, k.name1 AS guest_name1, k.vorname AS guest_firstname, k.email AS guest_email FROM proteluser.buch b LEFT JOIN proteluser.kunden k ON b.kundennr = k.kdnr LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr LEFT JOIN proteluser.kat k2 ON b.katnr = k2.katnr WHERE b.buchstatus = 1 AND CAST(b.datumbis AS DATE) = CAST(GETDATE() AS DATE) ORDER BY z.ziname"
+    },
+    {
+      "name": "get_inhouse_guests",
+      "title": "Get In-House Guests",
+      "description": "Get all currently checked-in reservations",
+      "query": "SELECT b.buchnr AS reservation_id, b.kundennr AS guest_id, z.ziname AS room_number, k2.kat AS category_code, k2.bez AS category_name, b.datumvon AS check_in_date, b.datumbis AS check_out_date, b.anzahl AS guests, k.name1 AS guest_name1, k.vorname AS guest_firstname, k.email AS guest_email, k.telefonnr AS guest_phone, b.preis AS rate FROM proteluser.buch b LEFT JOIN proteluser.kunden k ON b.kundennr = k.kdnr LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr LEFT JOIN proteluser.kat k2 ON b.katnr = k2.katnr WHERE b.buchstatus = 1 ORDER BY z.ziname"
+    },
+    {
+      "name": "list_guests",
+      "title": "List Guest Profiles",
+      "description": "Fetch guest profiles (typ=2) with optional search",
+      "query": "SELECT kdnr AS guest_id, name1 AS last_name, name2 AS name2, vorname AS first_name, email, telefonnr AS phone, funktel AS mobile, strasse AS street, plz AS postal_code, ort AS city, land AS country, landkz AS country_code, sprache AS language, vip AS vip_code, gebdat AS birth_date, anrede AS salutation, aufenth AS total_stays, naechte AS total_nights, noshows, stornos AS cancellations, letzterauf AS last_stay_date, firststay AS first_stay_date, logis AS room_revenue, fb AS fb_revenue, extras AS extras_revenue, erfasst AS created_date, changed AS modified_date FROM proteluser.kunden WHERE typ = 2 AND (@searchName IS NULL OR name1 LIKE '%' + REPLACE(REPLACE(REPLACE(@searchName, '[', '[[]'), '%', '[%]'), '_', '[_]') + '%' OR vorname LIKE '%' + REPLACE(REPLACE(REPLACE(@searchName, '[', '[[]'), '%', '[%]'), '_', '[_]') + '%') AND (@email IS NULL OR email LIKE '%' + REPLACE(REPLACE(REPLACE(@email, '[', '[[]'), '%', '[%]'), '_', '[_]') + '%') ORDER BY kdnr DESC",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "searchName": { "type": "string", "description": "Search by guest name (partial match)", "required": false },
+          "email": { "type": "string", "description": "Search by email (partial match)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_guest",
+      "title": "Get Guest Profile by ID",
+      "description": "Fetch a single guest profile with full details",
+      "query": "SELECT kdnr AS guest_id, typ AS profile_type, name1 AS last_name, name2 AS name2, vorname AS first_name, email, telefonnr AS phone, funktel AS mobile, faxnr AS fax, strasse AS street, strasse2 AS street2, strasse3 AS street3, plz AS postal_code, ort AS city, land AS country, landkz AS country_code, regionkz AS region_code, sprache AS language, vip AS vip_code, gebdat AS birth_date, gebort AS birth_place, gender, anrede AS salutation, titel AS title, beruf AS profession, firmenname AS company_name, abteil AS department, aufenth AS total_stays, naechte AS total_nights, noshows, stornos AS cancellations, letzterauf AS last_stay_date, firststay AS first_stay_date, letzterpr AS last_rate, letzteszi AS last_room, logis AS room_revenue, fb AS fb_revenue, extras AS extras_revenue, passnr AS passport_number, issuedate AS passport_issue_date, docvalid AS document_valid_until, bemerkung AS remarks, bemrest AS reservation_remarks, erfasst AS created_date, erfasstusr AS created_by, changed AS modified_date, changedby AS modified_by FROM proteluser.kunden WHERE kdnr = @guestId",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "guestId": { "type": "number", "description": "Guest ID (kdnr)", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_companies",
+      "title": "List Company Profiles",
+      "description": "Fetch company profiles (typ=1)",
+      "query": "SELECT kdnr AS company_id, name1 AS company_name, name2 AS name2, email, telefonnr AS phone, strasse AS street, plz AS postal_code, ort AS city, land AS country, vatno AS vat_number, iata AS iata_code, contract AS contract_code, comcode AS commission_code, aufenth AS total_bookings, naechte AS total_nights, logis AS room_revenue, fb AS fb_revenue, extras AS extras_revenue FROM proteluser.kunden WHERE typ = 1 ORDER BY name1"
+    },
+    {
+      "name": "list_travel_agents",
+      "title": "List Travel Agent Profiles",
+      "description": "Fetch travel agent profiles (typ=0)",
+      "query": "SELECT kdnr AS agent_id, name1 AS agent_name, name2 AS name2, email, telefonnr AS phone, strasse AS street, plz AS postal_code, ort AS city, land AS country, iata AS iata_code, contract AS contract_code, comcode AS commission_code, aufenth AS total_bookings, naechte AS total_nights, logis AS room_revenue FROM proteluser.kunden WHERE typ = 0 ORDER BY name1"
+    },
+    {
+      "name": "list_rooms",
+      "title": "List All Rooms",
+      "description": "Fetch all rooms with their categories",
+      "query": "SELECT z.zinr AS room_id, z.ziname AS room_number, z.kat AS category_id, k.kat AS category_code, k.bez AS category_name, z.beschr AS description, z.besonder AS features, z.floor, z.stdbel AS default_occupancy, z.hdabt AS housekeeping_section FROM proteluser.zimmer z LEFT JOIN proteluser.kat k ON z.kat = k.katnr ORDER BY z.ziname"
+    },
+    {
+      "name": "list_room_categories",
+      "title": "List Room Categories",
+      "description": "Fetch all room categories",
+      "query": "SELECT katnr AS category_id, kat AS category_code, bez AS category_name, zimmer AS room_count, stdpreis AS default_rate_type, stderw AS default_adults, erw AS max_adults, featdesc AS features, extdesc AS extended_description, issuite FROM proteluser.kat ORDER BY katnr"
+    },
+    {
+      "name": "get_room_availability",
+      "title": "Get Room Availability",
+      "description": "Check room availability for a date range by category",
+      "query": "SELECT k.katnr AS category_id, k.kat AS category_code, k.bez AS category_name, COUNT(z.zinr) AS total_rooms, COUNT(z.zinr) - COALESCE(occupied.cnt, 0) AS available_rooms FROM proteluser.kat k LEFT JOIN proteluser.zimmer z ON z.kat = k.katnr LEFT JOIN (SELECT b.katnr, COUNT(DISTINCT b.zimmernr) AS cnt FROM proteluser.buch b WHERE b.buchstatus IN (0, 1) AND b.datumvon <= @checkOut AND b.datumbis > @checkIn GROUP BY b.katnr) occupied ON occupied.katnr = k.katnr WHERE k.zimmer > 0 GROUP BY k.katnr, k.kat, k.bez, occupied.cnt ORDER BY k.katnr",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "checkIn": { "type": "string", "format": "date", "description": "Check-in date (YYYY-MM-DD)", "required": true },
+          "checkOut": { "type": "string", "format": "date", "description": "Check-out date (YYYY-MM-DD)", "required": true }
+        }
+      }
+    },
+    {
+      "name": "get_reservation_postings",
+      "title": "Get Reservation Postings",
+      "description": "Fetch all postings/charges for a reservation",
+      "query": "SELECT l.tan AS posting_id, l.buchnr AS reservation_id, l.kundennr AS guest_id, l.datum AS posting_date, l.uhrzeit AS posting_time, l.text AS description, l.zustext AS additional_text, l.epreis AS amount, l.anzahl AS quantity, l.epreis * l.anzahl AS total, l.ukto AS revenue_code, u.bez AS revenue_description, l.mwstsatz AS vat_rate, l.rechnung AS invoice_number, l.bediener AS posted_by, l.zimmer AS room_number FROM proteluser.leist l LEFT JOIN proteluser.ukto u ON l.ukto = u.ktonr WHERE l.buchnr = @reservationId ORDER BY l.datum DESC, l.tan DESC",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "reservationId": { "type": "number", "description": "Reservation ID (buchnr)", "required": true }
+        }
+      }
+    },
+    {
+      "name": "get_daily_postings",
+      "title": "Get Daily Postings",
+      "description": "Fetch all postings for a specific date",
+      "query": "SELECT l.tan AS posting_id, l.buchnr AS reservation_id, l.datum AS posting_date, l.text AS description, l.epreis AS amount, l.anzahl AS quantity, l.epreis * l.anzahl AS total, l.ukto AS revenue_code, u.bez AS revenue_description, l.zimmer AS room_number, l.bediener AS posted_by FROM proteluser.leist l LEFT JOIN proteluser.ukto u ON l.ukto = u.ktonr WHERE CAST(l.datum AS DATE) = @postingDate ORDER BY l.ukto, l.tan",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "postingDate": { "type": "string", "format": "date", "description": "Posting date (YYYY-MM-DD)", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_revenue_codes",
+      "title": "List Revenue Codes",
+      "description": "Fetch all revenue/posting codes",
+      "query": "SELECT ktonr AS revenue_code_id, bez AS description, kto AS revenue_code, mwstnr AS vat_code FROM proteluser.ukto ORDER BY ktonr"
+    },
+    {
+      "name": "get_daily_revenue_summary",
+      "title": "Get Daily Revenue Summary",
+      "description": "Get revenue summary by department for a date",
+      "query": "SELECT l.ukto AS revenue_code, u.bez AS revenue_description, COUNT(*) AS posting_count, SUM(l.epreis * l.anzahl) AS total_revenue FROM proteluser.leist l LEFT JOIN proteluser.ukto u ON l.ukto = u.ktonr WHERE CAST(l.datum AS DATE) = @reportDate AND l.epreis > 0 GROUP BY l.ukto, u.bez ORDER BY total_revenue DESC",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "reportDate": { "type": "string", "format": "date", "description": "Report date (YYYY-MM-DD)", "required": true }
+        }
+      }
+    },
+    {
+      "name": "get_occupancy_statistics",
+      "title": "Get Occupancy Statistics",
+      "description": "Get occupancy statistics for a date range",
+      "query": "SELECT CAST(b.datumvon AS DATE) AS date, COUNT(DISTINCT b.buchnr) AS reservations, SUM(b.anzahl) AS guests, SUM(DATEDIFF(day, CASE WHEN b.datumvon < @fromDate THEN @fromDate ELSE b.datumvon END, CASE WHEN b.datumbis > @toDate THEN @toDate ELSE b.datumbis END)) AS room_nights FROM proteluser.buch b WHERE b.buchstatus IN (1, 2) AND b.datumvon <= @toDate AND b.datumbis >= @fromDate GROUP BY CAST(b.datumvon AS DATE) ORDER BY date",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "fromDate": { "type": "string", "format": "date", "description": "Start date (YYYY-MM-DD)", "required": true },
+          "toDate": { "type": "string", "format": "date", "description": "End date (YYYY-MM-DD)", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_payment_methods",
+      "title": "List Payment Methods",
+      "description": "Fetch all payment methods",
+      "query": "SELECT zanr AS payment_id, za AS payment_code, bez AS description, typ AS type, cc AS is_credit_card, eft AS is_eft, hidden FROM proteluser.zahlart WHERE hidden = 0 ORDER BY zanr"
+    },
+    {
+      "name": "list_reservation_statuses",
+      "title": "List Reservation Statuses",
+      "description": "Fetch all reservation status codes",
+      "query": "SELECT resnr AS status_id, resbez AS status_name, reschar AS status_type FROM proteluser.resstat ORDER BY resnr"
+    },
+    {
+      "name": "list_vip_codes",
+      "title": "List VIP Codes",
+      "description": "Fetch all VIP classification codes",
+      "query": "SELECT vipnr AS vip_id, vipcode AS vip_code, bez AS description FROM proteluser.vipcode ORDER BY vipnr"
+    },
+    {
+      "name": "list_market_codes",
+      "title": "List Market Codes",
+      "description": "Fetch all market segment codes",
+      "query": "SELECT marketnr AS market_id, market AS market_code, bez AS description FROM proteluser.market ORDER BY marketnr"
+    },
+    {
+      "name": "list_source_codes",
+      "title": "List Source Codes",
+      "description": "Fetch all booking source codes",
+      "query": "SELECT sourcenr AS source_id, source AS source_code, bez AS description FROM proteluser.source ORDER BY sourcenr"
+    },
+    {
+      "name": "get_next_reservation_id",
+      "title": "Get Next Reservation ID",
+      "description": "Get the next available reservation ID (MAX(buchnr)+1). Call this before create_reservation.",
+      "query": "SELECT COALESCE(MAX(buchnr), 0) + 1 AS next_reservation_id FROM proteluser.buch"
+    },
+    {
+      "name": "create_reservation",
+      "title": "Create Reservation",
+      "description": "Create a new reservation in Protel. Use get_next_reservation_id first to obtain the reservationId.",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "INSERT INTO proteluser.buch (buchnr, kundennr, katnr, datumvon, datumbis, buchstatus, resstatus, anzahl, anzerw, anzkin1, preis, anzeit, market, source, resdatum, resuser, not1txt) VALUES (@reservationId, @guestId, @categoryId, @checkInDate, @checkOutDate, 0, COALESCE(@reservationStatus, 1), COALESCE(@totalGuests, 1), COALESCE(@adults, 1), COALESCE(@children, 0), COALESCE(@rate, 0), COALESCE(@arrivalTime, '14:00'), COALESCE(@marketCode, 0), COALESCE(@sourceCode, 0), GETDATE(), COALESCE(@createdBy, 'SYSTEM'), COALESCE(@notes, '')); SELECT @reservationId AS reservation_id;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "reservationId": { "type": "number", "description": "Reservation ID (buchnr) - obtain from get_next_reservation_id", "required": true },
+          "guestId": { "type": "number", "description": "Guest profile ID (kdnr from kunden table)", "required": true },
+          "categoryId": { "type": "number", "description": "Room category ID (katnr from kat table)", "required": true },
+          "checkInDate": { "type": "string", "format": "date", "description": "Check-in date (YYYY-MM-DD)", "required": true },
+          "checkOutDate": { "type": "string", "format": "date", "description": "Check-out date (YYYY-MM-DD)", "required": true },
+          "reservationStatus": { "type": "number", "description": "Reservation status: 1=Confirmed, 2=Provisional, 3=Optional, 4=Waiting List", "required": false, "default": 1 },
+          "totalGuests": { "type": "number", "description": "Total number of guests", "required": false, "default": 1 },
+          "adults": { "type": "number", "description": "Number of adults", "required": false, "default": 1 },
+          "children": { "type": "number", "description": "Number of children", "required": false, "default": 0 },
+          "rate": { "type": "number", "description": "Daily rate amount", "required": false },
+          "arrivalTime": { "type": "string", "description": "Expected arrival time (HH:MM)", "required": false },
+          "marketCode": { "type": "number", "description": "Market segment code", "required": false, "default": 0 },
+          "sourceCode": { "type": "number", "description": "Booking source code", "required": false, "default": 0 },
+          "createdBy": { "type": "string", "description": "User creating the reservation", "required": false },
+          "notes": { "type": "string", "description": "Reservation notes", "required": false }
+        }
+      }
+    },
+    {
+      "name": "update_reservation",
+      "title": "Update Reservation",
+      "description": "Update an existing reservation",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "UPDATE proteluser.buch SET katnr = COALESCE(@categoryId, katnr), datumvon = COALESCE(@checkInDate, datumvon), datumbis = COALESCE(@checkOutDate, datumbis), resstatus = COALESCE(@reservationStatus, resstatus), anzahl = COALESCE(@totalGuests, anzahl), anzerw = COALESCE(@adults, anzerw), anzkin1 = COALESCE(@children, anzkin1), preis = COALESCE(@rate, preis), anzeit = COALESCE(@arrivalTime, anzeit), abzeit = COALESCE(@departureTime, abzeit), market = COALESCE(@marketCode, market), source = COALESCE(@sourceCode, source), not1txt = COALESCE(@notes, not1txt) WHERE buchnr = @reservationId; SELECT @reservationId AS reservation_id, 'updated' AS status WHERE @@ROWCOUNT > 0;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "reservationId": { "type": "number", "description": "Reservation ID to update", "required": true },
+          "categoryId": { "type": "number", "description": "New room category ID", "required": false },
+          "checkInDate": { "type": "string", "format": "date", "description": "New check-in date (YYYY-MM-DD)", "required": false },
+          "checkOutDate": { "type": "string", "format": "date", "description": "New check-out date (YYYY-MM-DD)", "required": false },
+          "reservationStatus": { "type": "number", "description": "New reservation status", "required": false },
+          "totalGuests": { "type": "number", "description": "New total number of guests", "required": false },
+          "adults": { "type": "number", "description": "New number of adults", "required": false },
+          "children": { "type": "number", "description": "New number of children", "required": false },
+          "rate": { "type": "number", "description": "New daily rate", "required": false },
+          "arrivalTime": { "type": "string", "description": "New arrival time (HH:MM)", "required": false },
+          "departureTime": { "type": "string", "description": "New departure time (HH:MM)", "required": false },
+          "marketCode": { "type": "number", "description": "New market segment code", "required": false },
+          "sourceCode": { "type": "number", "description": "New booking source code", "required": false },
+          "notes": { "type": "string", "description": "New reservation notes", "required": false }
+        }
+      }
+    },
+    {
+      "name": "cancel_reservation",
+      "title": "Cancel Reservation",
+      "description": "Cancel a reservation (sets status to Cancelled)",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "UPDATE proteluser.buch SET resstatus = 5, not1txt = CONCAT(COALESCE(not1txt, ''), ' [Cancelled: ', CONVERT(VARCHAR, GETDATE(), 120), ' by ', COALESCE(@cancelledBy, 'SYSTEM'), '. Reason: ', COALESCE(@cancellationReason, 'No reason provided'), ']') WHERE buchnr = @reservationId AND buchstatus = 0; SELECT @reservationId AS reservation_id, 'cancelled' AS status WHERE @@ROWCOUNT > 0;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "reservationId": { "type": "number", "description": "Reservation ID to cancel", "required": true },
+          "cancelledBy": { "type": "string", "description": "User cancelling the reservation", "required": false },
+          "cancellationReason": { "type": "string", "description": "Reason for cancellation", "required": false }
+        }
+      }
+    },
+    {
+      "name": "check_in_guest",
+      "title": "Check In Guest",
+      "description": "Check in a guest (change reservation status to In-House)",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "UPDATE proteluser.buch SET buchstatus = 1, zimmernr = @roomId, anzeit = COALESCE(@actualArrivalTime, CONVERT(VARCHAR(5), GETDATE(), 108)) WHERE buchnr = @reservationId AND buchstatus = 0; SELECT @reservationId AS reservation_id, @roomId AS room_id, 'checked_in' AS status WHERE @@ROWCOUNT > 0;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "reservationId": { "type": "number", "description": "Reservation ID to check in", "required": true },
+          "roomId": { "type": "number", "description": "Room ID to assign (zinr from zimmer table)", "required": true },
+          "actualArrivalTime": { "type": "string", "description": "Actual arrival time (HH:MM), defaults to current time", "required": false }
+        }
+      }
+    },
+    {
+      "name": "check_out_guest",
+      "title": "Check Out Guest",
+      "description": "Check out a guest (change reservation status to Checked-Out)",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "UPDATE proteluser.buch SET buchstatus = 2, abzeit = COALESCE(@actualDepartureTime, CONVERT(VARCHAR(5), GETDATE(), 108)) WHERE buchnr = @reservationId AND buchstatus = 1; SELECT @reservationId AS reservation_id, 'checked_out' AS status WHERE @@ROWCOUNT > 0;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "reservationId": { "type": "number", "description": "Reservation ID to check out", "required": true },
+          "actualDepartureTime": { "type": "string", "description": "Actual departure time (HH:MM), defaults to current time", "required": false }
+        }
+      }
+    },
+    {
+      "name": "assign_room",
+      "title": "Assign Room to Reservation",
+      "description": "Assign or change the room for a reservation",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "UPDATE proteluser.buch SET zimmernr = @roomId WHERE buchnr = @reservationId; SELECT @reservationId AS reservation_id, @roomId AS room_id, 'room_assigned' AS status WHERE @@ROWCOUNT > 0;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "reservationId": { "type": "number", "description": "Reservation ID", "required": true },
+          "roomId": { "type": "number", "description": "Room ID to assign (zinr from zimmer table)", "required": true }
+        }
+      }
+    },
+    {
+      "name": "get_next_guest_id",
+      "title": "Get Next Guest ID",
+      "description": "Get the next available guest ID (MAX(kdnr)+1). Call this before create_guest.",
+      "query": "SELECT COALESCE(MAX(kdnr), 0) + 1 AS next_guest_id FROM proteluser.kunden"
+    },
+    {
+      "name": "create_guest",
+      "title": "Create Guest Profile",
+      "description": "Create a new guest profile. Use get_next_guest_id first to obtain the guestId.",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "INSERT INTO proteluser.kunden (kdnr, typ, name1, name2, vorname, email, telefonnr, funktel, strasse, plz, ort, land, landkz, sprache, vip, gebdat, anrede, bemerkung, erfasst, erfasstusr) VALUES (@guestId, 2, @lastName, COALESCE(@name2, ''), COALESCE(@firstName, ''), COALESCE(@email, ''), COALESCE(@phone, ''), COALESCE(@mobile, ''), COALESCE(@street, ''), COALESCE(@postalCode, ''), COALESCE(@city, ''), COALESCE(@country, ''), COALESCE(@countryCode, -1), COALESCE(@language, 4), COALESCE(@vipCode, 0), COALESCE(@birthDate, '1900-01-01'), COALESCE(@salutation, ''), COALESCE(@remarks, ''), GETDATE(), COALESCE(@createdBy, 'SYSTEM')); SELECT @guestId AS guest_id;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "guestId": { "type": "number", "description": "Guest ID (kdnr) - obtain from get_next_guest_id", "required": true },
+          "lastName": { "type": "string", "description": "Guest last name (name1)", "required": true },
+          "name2": { "type": "string", "description": "Additional name field", "required": false },
+          "firstName": { "type": "string", "description": "Guest first name", "required": false },
+          "email": { "type": "string", "description": "Email address", "required": false },
+          "phone": { "type": "string", "description": "Phone number", "required": false },
+          "mobile": { "type": "string", "description": "Mobile phone number", "required": false },
+          "street": { "type": "string", "description": "Street address", "required": false },
+          "postalCode": { "type": "string", "description": "Postal/ZIP code", "required": false },
+          "city": { "type": "string", "description": "City", "required": false },
+          "country": { "type": "string", "description": "Country name", "required": false },
+          "countryCode": { "type": "number", "description": "Country code ID (integer, use -1 for default)", "required": false, "default": -1 },
+          "language": { "type": "number", "description": "Language ID (integer, use 4 for default)", "required": false, "default": 4 },
+          "vipCode": { "type": "number", "description": "VIP classification code", "required": false },
+          "birthDate": { "type": "string", "format": "date", "description": "Date of birth (YYYY-MM-DD)", "required": false },
+          "salutation": { "type": "string", "description": "Salutation (Mr., Mrs., etc.)", "required": false },
+          "remarks": { "type": "string", "description": "General remarks", "required": false },
+          "createdBy": { "type": "string", "description": "User creating the profile", "required": false }
+        }
+      }
+    },
+    {
+      "name": "update_guest",
+      "title": "Update Guest Profile",
+      "description": "Update an existing guest profile (typ=2 only, not companies or travel agents)",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "UPDATE proteluser.kunden SET name1 = COALESCE(@lastName, name1), name2 = COALESCE(@name2, name2), vorname = COALESCE(@firstName, vorname), email = COALESCE(@email, email), telefonnr = COALESCE(@phone, telefonnr), funktel = COALESCE(@mobile, funktel), strasse = COALESCE(@street, strasse), plz = COALESCE(@postalCode, plz), ort = COALESCE(@city, ort), land = COALESCE(@country, land), landkz = COALESCE(@countryCode, landkz), sprache = COALESCE(@language, sprache), vip = COALESCE(@vipCode, vip), gebdat = COALESCE(@birthDate, gebdat), anrede = COALESCE(@salutation, anrede), bemerkung = COALESCE(@remarks, bemerkung), changed = GETDATE(), changedby = COALESCE(@updatedBy, 'SYSTEM') WHERE kdnr = @guestId AND typ = 2; SELECT @guestId AS guest_id, 'updated' AS status WHERE @@ROWCOUNT > 0;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "guestId": { "type": "number", "description": "Guest ID to update", "required": true },
+          "lastName": { "type": "string", "description": "New last name", "required": false },
+          "name2": { "type": "string", "description": "New additional name", "required": false },
+          "firstName": { "type": "string", "description": "New first name", "required": false },
+          "email": { "type": "string", "description": "New email address", "required": false },
+          "phone": { "type": "string", "description": "New phone number", "required": false },
+          "mobile": { "type": "string", "description": "New mobile number", "required": false },
+          "street": { "type": "string", "description": "New street address", "required": false },
+          "postalCode": { "type": "string", "description": "New postal code", "required": false },
+          "city": { "type": "string", "description": "New city", "required": false },
+          "country": { "type": "string", "description": "New country", "required": false },
+          "countryCode": { "type": "number", "description": "New country code ID (integer)", "required": false },
+          "language": { "type": "number", "description": "New language ID (integer)", "required": false },
+          "vipCode": { "type": "number", "description": "New VIP code", "required": false },
+          "birthDate": { "type": "string", "format": "date", "description": "New birth date", "required": false },
+          "salutation": { "type": "string", "description": "New salutation", "required": false },
+          "remarks": { "type": "string", "description": "New remarks", "required": false },
+          "updatedBy": { "type": "string", "description": "User updating the profile", "required": false }
+        }
+      }
+    },
+    {
+      "name": "create_company",
+      "title": "Create Company Profile",
+      "description": "Create a new company profile. Note: kdnr is not auto-generated, must be provided.",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "INSERT INTO proteluser.kunden (kdnr, typ, name1, name2, email, telefonnr, strasse, plz, ort, land, landkz, sprache, vip, vatno, iata, contract, bemerkung, erfasst, erfasstusr) VALUES (@companyId, 1, @companyName, COALESCE(@name2, ''), COALESCE(@email, ''), COALESCE(@phone, ''), COALESCE(@street, ''), COALESCE(@postalCode, ''), COALESCE(@city, ''), COALESCE(@country, ''), -1, 4, 0, COALESCE(@vatNumber, ''), COALESCE(@iataCode, ''), COALESCE(@contractCode, ''), COALESCE(@remarks, ''), GETDATE(), COALESCE(@createdBy, 'SYSTEM')); SELECT @companyId AS company_id;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "companyId": { "type": "number", "description": "Company ID (kdnr) - must be unique, use MAX(kdnr)+1 from kunden table", "required": true },
+          "companyName": { "type": "string", "description": "Company name", "required": true },
+          "name2": { "type": "string", "description": "Additional name/department", "required": false },
+          "email": { "type": "string", "description": "Company email", "required": false },
+          "phone": { "type": "string", "description": "Company phone", "required": false },
+          "street": { "type": "string", "description": "Street address", "required": false },
+          "postalCode": { "type": "string", "description": "Postal code", "required": false },
+          "city": { "type": "string", "description": "City", "required": false },
+          "country": { "type": "string", "description": "Country", "required": false },
+          "vatNumber": { "type": "string", "description": "VAT/Tax number", "required": false },
+          "iataCode": { "type": "string", "description": "IATA code", "required": false },
+          "contractCode": { "type": "string", "description": "Contract/Rate code", "required": false },
+          "remarks": { "type": "string", "description": "Remarks", "required": false },
+          "createdBy": { "type": "string", "description": "User creating the profile", "required": false }
+        }
+      }
+    },
+    {
+      "name": "post_charge",
+      "title": "Post Charge to Folio",
+      "description": "Post a charge/service to a reservation folio. Note: tan is not auto-generated, must be provided.",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "INSERT INTO proteluser.leist (tan, buchnr, kundennr, datum, uhrzeit, text, zustext, epreis, anzahl, ukto, bediener, zimmer) VALUES (@postingId, @reservationId, (SELECT kundennr FROM proteluser.buch WHERE buchnr = @reservationId), COALESCE(@postingDate, CAST(GETDATE() AS DATE)), COALESCE(@postingTime, CONVERT(VARCHAR(5), GETDATE(), 108)), @description, COALESCE(@additionalText, ''), @unitPrice, COALESCE(@quantity, 1), @revenueCode, COALESCE(@postedBy, 'SYSTEM'), COALESCE((SELECT z.ziname FROM proteluser.buch b LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr WHERE b.buchnr = @reservationId), '')); SELECT @postingId AS posting_id;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "postingId": { "type": "number", "description": "Posting ID (tan) - must be unique, use MAX(tan)+1 from leist table", "required": true },
+          "reservationId": { "type": "number", "description": "Reservation ID to post charge to", "required": true },
+          "description": { "type": "string", "description": "Charge description", "required": true },
+          "additionalText": { "type": "string", "description": "Additional description text (max 40 chars)", "required": false },
+          "unitPrice": { "type": "number", "description": "Unit price amount", "required": true },
+          "quantity": { "type": "number", "description": "Quantity (default 1)", "required": false, "default": 1 },
+          "revenueCode": { "type": "number", "description": "Revenue code (ktonr from ukto table)", "required": true },
+          "postingDate": { "type": "string", "format": "date", "description": "Posting date (YYYY-MM-DD), defaults to today", "required": false },
+          "postingTime": { "type": "string", "description": "Posting time (HH:MM), defaults to now", "required": false },
+          "postedBy": { "type": "string", "description": "User posting the charge", "required": false }
+        }
+      }
+    },
+    {
+      "name": "post_payment",
+      "title": "Post Payment to Folio",
+      "description": "Post a payment to a reservation folio (negative amount). Note: tan is not auto-generated, must be provided.",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "INSERT INTO proteluser.leist (tan, buchnr, kundennr, datum, uhrzeit, text, epreis, anzahl, ukto, bediener, zimmer) VALUES (@postingId, @reservationId, (SELECT kundennr FROM proteluser.buch WHERE buchnr = @reservationId), COALESCE(@paymentDate, CAST(GETDATE() AS DATE)), COALESCE(@paymentTime, CONVERT(VARCHAR(5), GETDATE(), 108)), @description, -ABS(@amount), 1, @paymentMethodCode, COALESCE(@postedBy, 'SYSTEM'), COALESCE((SELECT z.ziname FROM proteluser.buch b LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr WHERE b.buchnr = @reservationId), '')); SELECT @postingId AS posting_id;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "postingId": { "type": "number", "description": "Posting ID (tan) - must be unique, use MAX(tan)+1 from leist table", "required": true },
+          "reservationId": { "type": "number", "description": "Reservation ID to post payment to", "required": true },
+          "amount": { "type": "number", "description": "Payment amount (will be stored as negative)", "required": true },
+          "description": { "type": "string", "description": "Payment description (e.g., 'Cash Payment', 'Credit Card')", "required": true },
+          "paymentMethodCode": { "type": "number", "description": "Payment method code (from zahlart table)", "required": true },
+          "paymentDate": { "type": "string", "format": "date", "description": "Payment date (YYYY-MM-DD), defaults to today", "required": false },
+          "paymentTime": { "type": "string", "description": "Payment time (HH:MM), defaults to now", "required": false },
+          "postedBy": { "type": "string", "description": "User posting the payment", "required": false }
+        }
+      }
+    },
+    {
+      "name": "void_posting",
+      "title": "Void/Reverse Posting",
+      "description": "Void a posting by creating a reversal entry. Note: reversalId (tan) is not auto-generated, must be provided.",
+      "operationType": "write",
+      "requiresApproval": true,
+      "query": "INSERT INTO proteluser.leist (tan, buchnr, kundennr, datum, uhrzeit, text, zustext, epreis, anzahl, ukto, bediener, zimmer) SELECT @reversalId, buchnr, kundennr, CAST(GETDATE() AS DATE), CONVERT(VARCHAR(5), GETDATE(), 108), CONCAT('VOID: ', text), LEFT(CONCAT('Rev TAN ', @postingId, ': ', COALESCE(@voidReason, 'Voided')), 40), -epreis, anzahl, ukto, COALESCE(@voidedBy, 'SYSTEM'), zimmer FROM proteluser.leist WHERE tan = @postingId; SELECT @reversalId AS reversal_posting_id;",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "reversalId": { "type": "number", "description": "Reversal posting ID (tan) - must be unique, use MAX(tan)+1 from leist table", "required": true },
+          "postingId": { "type": "number", "description": "Posting ID (tan) to void", "required": true },
+          "voidReason": { "type": "string", "description": "Reason for voiding (will be truncated to fit)", "required": false },
+          "voidedBy": { "type": "string", "description": "User voiding the posting", "required": false }
+        }
+      }
+    }
+  ]
+}

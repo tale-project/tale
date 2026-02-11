@@ -7,9 +7,9 @@
  */
 
 import type { ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
+import type { MutationCtx } from '../_generated/server';
 
 import { Id } from '../_generated/dataModel';
-import { MutationCtx } from '../_generated/server';
 import { getPredefinedIntegration } from '../predefined_integrations';
 import {
   AuthMethod,
@@ -42,6 +42,7 @@ export interface CreateIntegrationInternalArgs {
   type?: 'rest_api' | 'sql';
   sqlConnectionConfig?: SqlConnectionConfig;
   sqlOperations?: SqlOperation[];
+  iconStorageId?: Id<'_storage'>;
   metadata?: ConvexJsonValue;
 }
 
@@ -67,31 +68,11 @@ export async function createIntegrationInternal(
     if (predefined.type === 'sql') {
       type = 'sql';
 
-      // Validate required SQL connection fields
-      if (sqlConnectionConfig) {
-        if (
-          !sqlConnectionConfig.server ||
-          sqlConnectionConfig.server.trim() === ''
-        ) {
-          throw new Error('SQL integration requires a server address');
-        }
-        if (
-          !sqlConnectionConfig.database ||
-          sqlConnectionConfig.database.trim() === ''
-        ) {
-          throw new Error('SQL integration requires a database name');
-        }
-      }
-
       // Merge SQL connection config: user-provided values override predefined defaults
-      // User MUST provide server and database at setup time
       if (predefined.sqlConnectionConfig && sqlConnectionConfig) {
         sqlConnectionConfig = {
           ...predefined.sqlConnectionConfig,
           ...sqlConnectionConfig,
-          // Ensure required fields from user config take precedence
-          server: sqlConnectionConfig.server,
-          database: sqlConnectionConfig.database,
         };
       }
 
@@ -125,7 +106,7 @@ export async function createIntegrationInternal(
     sqlConnectionConfig,
     sqlOperations,
     lastTestedAt: Date.now(),
-
+    iconStorageId: args.iconStorageId,
     metadata: args.metadata,
   });
 

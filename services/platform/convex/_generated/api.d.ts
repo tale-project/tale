@@ -281,6 +281,7 @@ import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
 import type * as http from "../http.js";
 import type * as integrations_actions from "../integrations/actions.js";
+import type * as integrations_build_test_secrets from "../integrations/build_test_secrets.js";
 import type * as integrations_create_integration_internal from "../integrations/create_integration_internal.js";
 import type * as integrations_create_integration_logic from "../integrations/create_integration_logic.js";
 import type * as integrations_delete_integration from "../integrations/delete_integration.js";
@@ -288,7 +289,6 @@ import type * as integrations_encrypt_credentials from "../integrations/encrypt_
 import type * as integrations_get_decrypted_credentials from "../integrations/get_decrypted_credentials.js";
 import type * as integrations_get_integration from "../integrations/get_integration.js";
 import type * as integrations_get_integration_by_name from "../integrations/get_integration_by_name.js";
-import type * as integrations_get_workflows_for_integration from "../integrations/get_workflows_for_integration.js";
 import type * as integrations_guards_is_rest_api_integration from "../integrations/guards/is_rest_api_integration.js";
 import type * as integrations_guards_is_sql_integration from "../integrations/guards/is_sql_integration.js";
 import type * as integrations_helpers from "../integrations/helpers.js";
@@ -298,10 +298,7 @@ import type * as integrations_list_integrations from "../integrations/list_integ
 import type * as integrations_mutations from "../integrations/mutations.js";
 import type * as integrations_queries from "../integrations/queries.js";
 import type * as integrations_run_health_check from "../integrations/run_health_check.js";
-import type * as integrations_save_related_workflows from "../integrations/save_related_workflows.js";
-import type * as integrations_test_circuly_connection from "../integrations/test_circuly_connection.js";
 import type * as integrations_test_connection_logic from "../integrations/test_connection_logic.js";
-import type * as integrations_test_shopify_connection from "../integrations/test_shopify_connection.js";
 import type * as integrations_types from "../integrations/types.js";
 import type * as integrations_update_integration_internal from "../integrations/update_integration_internal.js";
 import type * as integrations_update_integration_logic from "../integrations/update_integration_logic.js";
@@ -1200,6 +1197,7 @@ declare const fullApi: ApiFromModules<{
   "files/queries": typeof files_queries;
   http: typeof http;
   "integrations/actions": typeof integrations_actions;
+  "integrations/build_test_secrets": typeof integrations_build_test_secrets;
   "integrations/create_integration_internal": typeof integrations_create_integration_internal;
   "integrations/create_integration_logic": typeof integrations_create_integration_logic;
   "integrations/delete_integration": typeof integrations_delete_integration;
@@ -1207,7 +1205,6 @@ declare const fullApi: ApiFromModules<{
   "integrations/get_decrypted_credentials": typeof integrations_get_decrypted_credentials;
   "integrations/get_integration": typeof integrations_get_integration;
   "integrations/get_integration_by_name": typeof integrations_get_integration_by_name;
-  "integrations/get_workflows_for_integration": typeof integrations_get_workflows_for_integration;
   "integrations/guards/is_rest_api_integration": typeof integrations_guards_is_rest_api_integration;
   "integrations/guards/is_sql_integration": typeof integrations_guards_is_sql_integration;
   "integrations/helpers": typeof integrations_helpers;
@@ -1217,10 +1214,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/mutations": typeof integrations_mutations;
   "integrations/queries": typeof integrations_queries;
   "integrations/run_health_check": typeof integrations_run_health_check;
-  "integrations/save_related_workflows": typeof integrations_save_related_workflows;
-  "integrations/test_circuly_connection": typeof integrations_test_circuly_connection;
   "integrations/test_connection_logic": typeof integrations_test_connection_logic;
-  "integrations/test_shopify_connection": typeof integrations_test_shopify_connection;
   "integrations/types": typeof integrations_types;
   "integrations/update_integration_internal": typeof integrations_update_integration_internal;
   "integrations/update_integration_logic": typeof integrations_update_integration_logic;

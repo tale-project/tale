@@ -5,6 +5,7 @@
  * For SQL integrations, pass sqlConnectionConfig with the database connection details.
  */
 
+import type { ActionCtx } from '../_generated/server';
 import type {
   AuditLogActorType,
   AuditLogCategory,
@@ -13,11 +14,9 @@ import type {
 
 import { api, internal } from '../_generated/api';
 import { Id } from '../_generated/dataModel';
-import { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
 import { encryptCredentials } from './encrypt_credentials';
 import { runHealthCheck } from './run_health_check';
-import { saveRelatedWorkflows } from './save_related_workflows';
 import {
   AuthMethod,
   ApiKeyAuth,
@@ -25,6 +24,7 @@ import {
   OAuth2Auth,
   ConnectionConfig,
   Capabilities,
+  ConnectorConfig,
   SqlConnectionConfig,
   SqlOperation,
 } from './types';
@@ -42,10 +42,12 @@ export interface CreateIntegrationLogicArgs {
   oauth2Auth?: OAuth2Auth;
   connectionConfig?: ConnectionConfig;
   capabilities?: Capabilities;
+  connector?: ConnectorConfig;
   // SQL integration fields
   type?: 'rest_api' | 'sql';
   sqlConnectionConfig?: SqlConnectionConfig;
   sqlOperations?: SqlOperation[];
+  iconStorageId?: Id<'_storage'>;
   metadata?: unknown;
 }
 
@@ -66,18 +68,6 @@ export async function createIntegrationLogic(
     if (!args.sqlConnectionConfig) {
       throw new Error('SQL integration requires sqlConnectionConfig');
     }
-    if (
-      !args.sqlConnectionConfig.server ||
-      args.sqlConnectionConfig.server.trim() === ''
-    ) {
-      throw new Error('SQL integration requires a server address');
-    }
-    if (
-      !args.sqlConnectionConfig.database ||
-      args.sqlConnectionConfig.database.trim() === ''
-    ) {
-      throw new Error('SQL integration requires a database name');
-    }
     if (!args.sqlConnectionConfig.engine) {
       throw new Error(
         'SQL integration requires an engine type (mssql, postgres, or mysql)',
@@ -88,9 +78,12 @@ export async function createIntegrationLogic(
   // Encrypt credentials
   const { apiKeyAuth, basicAuth, oauth2Auth } = await encryptCredentials(args);
 
-  // Run health check (skip for SQL integrations - connection test happens at create time)
-  if (args.type !== 'sql') {
-    await runHealthCheck(args);
+  const hasCredentials =
+    !!args.apiKeyAuth || !!args.basicAuth || !!args.oauth2Auth;
+
+  // Run health check (skip for integrations without credentials)
+  if (hasCredentials) {
+    await runHealthCheck(ctx, args);
   }
 
   // Create integration - type assertions needed due to schema mismatches between shared types and mutation
@@ -104,9 +97,8 @@ export async function createIntegrationLogic(
         name: args.name,
         title: args.title,
         description: args.description,
-        // Set to 'active' since health check passed (or SQL integration)
-        status: 'active',
-        isActive: true,
+        status: hasCredentials ? 'active' : 'inactive',
+        isActive: hasCredentials,
         authMethod:
           args.authMethod === 'bearer_token' ? 'api_key' : args.authMethod,
         apiKeyAuth,
@@ -121,6 +113,7 @@ export async function createIntegrationLogic(
           | Record<string, unknown>
           | undefined,
         capabilities: args.capabilities,
+        connector: args.connector,
         // SQL integration fields
         type: args.type,
         sqlConnectionConfig: args.sqlConnectionConfig as
@@ -129,6 +122,7 @@ export async function createIntegrationLogic(
         sqlOperations: args.sqlOperations as
           | Record<string, unknown>[]
           | undefined,
+        iconStorageId: args.iconStorageId,
         metadata: args.metadata,
       },
     );
@@ -136,15 +130,6 @@ export async function createIntegrationLogic(
   debugLog(
     `Integration Create Successfully created ${args.name} integration with ID: ${integrationId}`,
   );
-
-  // Save related workflows for this integration
-  const workflowIds = await saveRelatedWorkflows(ctx, {
-    organizationId: args.organizationId,
-    name: args.name,
-    connectionConfig: args.connectionConfig,
-  });
-
-  debugLog(`Integration Create Saved ${workflowIds.length} related workflows`);
 
   try {
     await ctx.runMutation(

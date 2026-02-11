@@ -1,37 +1,82 @@
 /**
- * Helper to run integration-specific health checks.
- * Avoids try/catch; let errors propagate to fail creation when checks fail.
+ * Health check for integration creation and credential updates.
+ * Uses sandbox testConnection for REST, SELECT 1 for SQL.
  */
 
-import type { CreateIntegrationLogicArgs } from './create_integration_logic';
+import type { ActionCtx } from '../_generated/server';
+import type { ConnectorConfig } from './types';
 
+import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
-import { testCirculyConnection } from './test_circuly_connection';
-import { testShopifyConnection } from './test_shopify_connection';
+import { getPredefinedIntegration } from '../predefined_integrations';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
+interface HealthCheckArgs {
+  name: string;
+  type?: 'rest_api' | 'sql';
+  connector?: ConnectorConfig;
+  connectionConfig?: { domain?: string };
+  apiKeyAuth?: { key: string };
+  basicAuth?: { username: string; password: string };
+}
+
 export async function runHealthCheck(
-  args: CreateIntegrationLogicArgs,
+  ctx: ActionCtx,
+  args: HealthCheckArgs,
 ): Promise<void> {
   debugLog(`Integration Create Running health check for ${args.name}...`);
 
-  if (args.name === 'shopify') {
-    if (!args.connectionConfig?.domain || !args.apiKeyAuth?.key) {
-      throw new Error('Shopify integration requires domain and access token');
+  if (args.type === 'sql') {
+    return;
+  }
+
+  // Build secrets from plaintext credentials
+  const secrets: Record<string, string> = {};
+  if (args.connectionConfig?.domain) {
+    secrets['domain'] = args.connectionConfig.domain;
+  }
+  if (args.apiKeyAuth?.key) {
+    secrets['accessToken'] = args.apiKeyAuth.key;
+  }
+  if (args.basicAuth) {
+    if (args.basicAuth.username) secrets['username'] = args.basicAuth.username;
+    if (args.basicAuth.password) secrets['password'] = args.basicAuth.password;
+  }
+
+  // Find connector code
+  let connectorCode = args.connector?.code;
+  let allowedHosts = args.connector?.allowedHosts;
+  let timeoutMs = args.connector?.timeoutMs;
+
+  if (!connectorCode) {
+    const predefined = getPredefinedIntegration(args.name);
+    if (predefined?.connector) {
+      connectorCode = predefined.connector.code;
+      allowedHosts = predefined.connector.allowedHosts;
+      timeoutMs = predefined.connector.timeoutMs;
     }
-    await testShopifyConnection(
-      args.connectionConfig.domain,
-      args.apiKeyAuth.key,
-    );
-  } else if (args.name === 'circuly') {
-    if (!args.basicAuth?.username || !args.basicAuth?.password) {
-      throw new Error('Circuly integration requires username and password');
-    }
-    await testCirculyConnection(
-      args.basicAuth.username,
-      args.basicAuth.password,
-    );
+  }
+
+  if (!connectorCode) {
+    return;
+  }
+
+  const result = await ctx.runAction(
+    internal.node_only.integration_sandbox.internal_actions.executeIntegration,
+    {
+      code: connectorCode,
+      operation: '__test_connection__',
+      params: {},
+      variables: {},
+      secrets,
+      allowedHosts,
+      timeoutMs: timeoutMs ?? 15000,
+    },
+  );
+
+  if (!result.success) {
+    throw new Error(result.error ?? 'Health check failed');
   }
 
   debugLog(`Integration Create Health check passed for ${args.name}`);

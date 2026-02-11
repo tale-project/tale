@@ -6,6 +6,41 @@ import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { deleteIntegration as deleteIntegrationHelper } from './delete_integration';
 
+export const updateIcon = mutation({
+  args: {
+    integrationId: v.id('integrations'),
+    iconStorageId: v.optional(v.id('_storage')),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const integration = await ctx.db.get(args.integrationId);
+    if (!integration) {
+      throw new Error('Integration not found');
+    }
+
+    await getOrganizationMember(ctx, integration.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    if (integration.iconStorageId) {
+      await ctx.storage.delete(integration.iconStorageId);
+    }
+
+    await ctx.db.patch(args.integrationId, {
+      iconStorageId: args.iconStorageId,
+    });
+
+    return null;
+  },
+});
+
 export const deleteIntegration = mutation({
   args: {
     integrationId: v.id('integrations'),

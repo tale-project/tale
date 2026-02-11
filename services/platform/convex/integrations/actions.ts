@@ -18,6 +18,7 @@ import {
   oauth2AuthValidator,
   connectionConfigValidator,
   capabilitiesValidator,
+  connectorConfigValidator,
   sqlConnectionConfigValidator,
   sqlOperationValidator,
   statusValidator,
@@ -36,9 +37,11 @@ export const create = action({
     oauth2Auth: v.optional(oauth2AuthValidator),
     connectionConfig: v.optional(connectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
+    connector: v.optional(connectorConfigValidator),
     type: v.optional(v.union(v.literal('rest_api'), v.literal('sql'))),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     sqlOperations: v.optional(v.array(sqlOperationValidator)),
+    iconStorageId: v.optional(v.id('_storage')),
     metadata: v.optional(jsonValueValidator),
   },
   returns: v.id('integrations'),
@@ -81,6 +84,10 @@ export const update = action({
 export const testConnection = action({
   args: {
     integrationId: v.id('integrations'),
+    apiKeyAuth: v.optional(apiKeyAuthValidator),
+    basicAuth: v.optional(basicAuthValidator),
+    connectionConfig: v.optional(connectionConfigValidator),
+    sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
   },
   returns: testConnectionResultValidator,
   handler: async (ctx, args) => {

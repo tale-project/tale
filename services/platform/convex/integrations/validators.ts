@@ -101,9 +101,9 @@ const sqlSecurityValidator = v.object({
 
 export const sqlConnectionConfigValidator = v.object({
   engine: sqlEngineValidator,
-  server: v.string(),
+  server: v.optional(v.string()),
   port: v.optional(v.number()),
-  database: v.string(),
+  database: v.optional(v.string()),
   readOnly: v.optional(v.boolean()),
   options: v.optional(sqlConnectionOptionsValidator),
   security: v.optional(sqlSecurityValidator),
@@ -150,5 +150,7 @@ export const integrationDocValidator = v.object({
   connector: v.optional(connectorConfigValidator),
   sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
   sqlOperations: v.optional(v.array(sqlOperationValidator)),
+  iconStorageId: v.optional(v.id('_storage')),
+  iconUrl: v.optional(v.union(v.string(), v.null())),
   metadata: v.optional(jsonRecordValidator),
 });

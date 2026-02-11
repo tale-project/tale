@@ -14,9 +14,9 @@ import { v } from 'convex/values';
 import * as vm from 'vm';
 
 import type {
+  HttpResponse,
   IntegrationExecutionParams,
   IntegrationExecutionResult,
-  HttpResponse,
   PendingHttpRequest,
 } from './types';
 
@@ -42,7 +42,7 @@ import {
  * 1. Connector object pattern: `connector.execute(ctx)` - used by Shopify and similar integrations
  * 2. Function pattern: `operationName(params)` - standalone function exports
  */
-async function executeIntegrationImpl(
+export async function executeIntegrationImpl(
   params: IntegrationExecutionParams,
 ): Promise<IntegrationExecutionResult> {
   const startTime = Date.now();
@@ -91,36 +91,26 @@ async function executeIntegrationImpl(
     const connectorObj = evalResult as
       | {
           execute?: (ctx: unknown) => unknown;
+          testConnection?: (ctx: unknown) => unknown;
           operations?: string[];
         }
       | undefined;
 
-    if (connectorObj && typeof connectorObj.execute === 'function') {
-      // Connector object pattern - execute with context
-      // First pass: collect HTTP requests
-      const ctx = {
-        operation: params.operation,
-        params: params.params,
-        http: createHttpApi(httpApiState),
-        secrets: secretsApi,
-        base64Encode,
-        base64Decode,
-      };
-
-      // Run once to collect HTTP requests
+    // Helper: run a connector method with two-pass HTTP pattern
+    async function runWithHttpPasses(
+      fn: (ctx: unknown) => unknown,
+      ctx: Record<string, unknown>,
+    ): Promise<unknown> {
       let result: unknown;
       try {
-        result = connectorObj.execute(ctx);
+        result = fn(ctx);
       } catch (e) {
-        // If execution failed due to missing HTTP results, that's expected
         if (httpRequests.length === 0) {
           throw e;
         }
       }
 
-      // If we have pending HTTP requests, execute them and re-run
       if (httpRequests.length > 0) {
-        // Execute all HTTP requests
         for (let i = 0; i < httpRequests.length; i++) {
           try {
             const response = await executeHttpRequest(httpRequests[i].request);
@@ -132,21 +122,66 @@ async function executeIntegrationImpl(
           }
         }
 
-        // Re-run with HTTP results available
         httpApiState.pendingHttpCount = 0;
         httpRequests.length = 0;
 
         const ctx2 = {
-          operation: params.operation,
-          params: params.params,
+          ...ctx,
           http: createHttpApi(httpApiState),
-          secrets: secretsApi,
-          base64Encode,
-          base64Decode,
         };
-
-        result = connectorObj.execute(ctx2);
+        result = fn(ctx2);
       }
+
+      return result;
+    }
+
+    // Handle __test_connection__ sentinel operation
+    if (params.operation === '__test_connection__' && connectorObj) {
+      if (typeof connectorObj.testConnection !== 'function') {
+        return {
+          success: false,
+          error:
+            'Connector does not define a testConnection method. ' +
+            'Add testConnection(ctx) to the connector object.',
+          logs,
+          duration: Date.now() - startTime,
+        };
+      }
+
+      const ctx = {
+        http: createHttpApi(httpApiState),
+        secrets: secretsApi,
+        base64Encode,
+        base64Decode,
+      };
+
+      const result = await runWithHttpPasses(
+        connectorObj.testConnection.bind(connectorObj),
+        ctx,
+      );
+
+      return {
+        success: true,
+        result: toConvexJsonValue(result),
+        logs,
+        duration: Date.now() - startTime,
+      };
+    }
+
+    if (connectorObj && typeof connectorObj.execute === 'function') {
+      const ctx = {
+        operation: params.operation,
+        params: params.params,
+        http: createHttpApi(httpApiState),
+        secrets: secretsApi,
+        base64Encode,
+        base64Decode,
+      };
+
+      const result = await runWithHttpPasses(
+        connectorObj.execute.bind(connectorObj),
+        ctx,
+      );
 
       return {
         success: true,

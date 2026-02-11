@@ -128,9 +128,9 @@ type SqlSecurity = z.infer<typeof sqlSecuritySchema>;
 
 const sqlConnectionConfigSchema = z.object({
   engine: sqlEngineSchema,
-  server: z.string(),
+  server: z.string().optional(),
   port: z.number().optional(),
-  database: z.string(),
+  database: z.string().optional(),
   readOnly: z.boolean().optional(),
   options: sqlConnectionOptionsSchema.optional(),
   security: sqlSecuritySchema.optional(),
