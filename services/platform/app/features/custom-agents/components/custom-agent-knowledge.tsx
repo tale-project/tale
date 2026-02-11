@@ -1,6 +1,5 @@
 'use client';
 
-import { useQuery } from 'convex/react';
 import { FileText } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 
@@ -9,13 +8,17 @@ import type { RagStatus } from '@/types/documents';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
+import {
+  useDocumentCollection,
+  useDocuments,
+} from '@/app/features/documents/hooks/collections';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
+import { useCustomAgentCollection } from '../hooks/collections';
+import { useUpdateCustomAgent } from '../hooks/mutations';
 import { useAutoSave } from '../hooks/use-auto-save';
-import { useUpdateCustomAgent } from '../hooks/use-custom-agent-mutations';
 import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
 import { AutoSaveIndicator } from './auto-save-indicator';
 
@@ -66,7 +69,8 @@ export function CustomAgentKnowledge({
 }: CustomAgentKnowledgeProps) {
   const { t } = useT('settings');
   const { agent, isReadOnly } = useCustomAgentVersion();
-  const updateAgent = useUpdateCustomAgent();
+  const customAgentCollection = useCustomAgentCollection(organizationId);
+  const updateAgent = useUpdateCustomAgent(customAgentCollection);
   const { teams } = useTeamFilter();
 
   const teamName = useMemo(() => {
@@ -74,27 +78,21 @@ export function CustomAgentKnowledge({
     return teams.find((team) => team.id === agent.teamId)?.name ?? null;
   }, [agent?.teamId, teams]);
 
-  const documentsResult = useQuery(
-    api.documents.queries.listDocuments,
-    agent?.teamId
-      ? {
-          organizationId,
-          filterTeamId: agent.teamId,
-          cursor: null,
-          numItems: 100,
-        }
-      : 'skip',
-  );
+  const documentCollection = useDocumentCollection(organizationId);
+  const { documents: allDocuments, isLoading: isDocumentsLoading } =
+    useDocuments(documentCollection);
 
   const documents = useMemo(
-    () => (documentsResult?.page as DocumentEntry[] | undefined) ?? [],
-    [documentsResult],
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Collection returns DocumentItemResponse; cast to DocumentEntry for display
+    () => (allDocuments ?? []) as DocumentEntry[],
+    [allDocuments],
   );
 
-  // Separate team-specific docs from org-wide docs in the team query results
   const teamDocuments = useMemo(() => {
     if (!agent?.teamId) return [];
-    return documents.filter((doc) => doc.teamId != null);
+    return documents.filter((doc) =>
+      doc.teamTags?.includes(agent.teamId ?? ''),
+    );
   }, [documents, agent?.teamId]);
 
   const [knowledgeEnabled, setKnowledgeEnabled] = useState<boolean | undefined>(
@@ -112,24 +110,12 @@ export function CustomAgentKnowledge({
     setInitialized(true);
   }, [agent, agentId]);
 
-  // Fetch org-wide documents when knowledge + includeOrgKnowledge are both enabled
-  const orgDocumentsResult = useQuery(
-    api.documents.queries.listDocuments,
-    knowledgeEnabled && includeOrgKnowledge
-      ? {
-          organizationId,
-          cursor: null,
-          numItems: 100,
-        }
-      : 'skip',
-  );
-
   const orgDocuments = useMemo(() => {
-    if (!orgDocumentsResult?.page) return [];
-    return (orgDocumentsResult.page as DocumentEntry[]).filter(
-      (doc) => doc.teamId == null,
+    if (!knowledgeEnabled || !includeOrgKnowledge) return [];
+    return documents.filter(
+      (doc) => !doc.teamTags || doc.teamTags.length === 0,
     );
-  }, [orgDocumentsResult]);
+  }, [documents, knowledgeEnabled, includeOrgKnowledge]);
 
   const knowledgeData = useMemo(
     () => ({ knowledgeEnabled, includeOrgKnowledge }),
@@ -222,17 +208,19 @@ export function CustomAgentKnowledge({
               </section>
             )}
 
-            {agent.teamId && teamDocuments.length === 0 && documentsResult && (
-              <div className="rounded-lg border border-dashed p-8 text-center">
-                <FileText
-                  className="text-muted-foreground/50 mx-auto mb-2 size-8"
-                  aria-hidden="true"
-                />
-                <p className="text-muted-foreground text-sm">
-                  {t('customAgents.knowledge.emptyState')}
-                </p>
-              </div>
-            )}
+            {agent.teamId &&
+              teamDocuments.length === 0 &&
+              !isDocumentsLoading && (
+                <div className="rounded-lg border border-dashed p-8 text-center">
+                  <FileText
+                    className="text-muted-foreground/50 mx-auto mb-2 size-8"
+                    aria-hidden="true"
+                  />
+                  <p className="text-muted-foreground text-sm">
+                    {t('customAgents.knowledge.emptyState')}
+                  </p>
+                </div>
+              )}
 
             {includeOrgKnowledge && orgDocuments.length > 0 && (
               <section>
@@ -249,7 +237,7 @@ export function CustomAgentKnowledge({
 
             {includeOrgKnowledge &&
               orgDocuments.length === 0 &&
-              orgDocumentsResult && (
+              !isDocumentsLoading && (
                 <div className="rounded-lg border border-dashed p-8 text-center">
                   <FileText
                     className="text-muted-foreground/50 mx-auto mb-2 size-8"

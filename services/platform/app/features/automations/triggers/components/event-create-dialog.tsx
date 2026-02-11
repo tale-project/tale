@@ -1,17 +1,17 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
+import type { Collection } from '@tanstack/db';
+
 import { useState, useMemo, useEffect } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
+import type { WfEventSubscription } from '@/lib/collections/entities/wf-event-subscriptions';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import {
   EVENT_TYPES,
   EVENT_TYPE_CATEGORIES,
@@ -21,9 +21,13 @@ import {
 import { useT } from '@/lib/i18n/client';
 
 import {
+  useAutomationRootCollection,
+  useAutomationRoots,
+} from '../../hooks/collections';
+import {
   useCreateEventSubscription,
   useUpdateEventSubscription,
-} from '../hooks/use-trigger-mutations';
+} from '../hooks/mutations';
 
 interface EditingSubscription {
   _id: Id<'wfEventSubscriptions'>;
@@ -36,6 +40,7 @@ interface EventCreateDialogProps {
   onOpenChange: (open: boolean) => void;
   workflowRootId: Id<'wfDefinitions'>;
   organizationId: string;
+  collection: Collection<WfEventSubscription, string>;
   existingEventTypes: string[];
   editing?: EditingSubscription | null;
 }
@@ -45,14 +50,15 @@ export function EventCreateDialog({
   onOpenChange,
   workflowRootId,
   organizationId,
+  collection,
   existingEventTypes,
   editing,
 }: EventCreateDialogProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const createEventSubscription = useCreateEventSubscription();
-  const updateEventSubscription = useUpdateEventSubscription();
+  const createEventSubscription = useCreateEventSubscription(collection);
+  const updateEventSubscription = useUpdateEventSubscription(collection);
 
   const isEditMode = !!editing;
 
@@ -77,15 +83,9 @@ export function EventCreateDialog({
     [selectedEventType],
   );
 
-  const hasWorkflowSelect = filterFields.some(
-    (f) => f.inputType === 'workflow-select',
-  );
-
-  const { data: workflows } = useQuery(
-    convexQuery(
-      api.wf_definitions.queries.listAutomationRoots,
-      hasWorkflowSelect ? { organizationId } : 'skip',
-    ),
+  const automationRootCollection = useAutomationRootCollection(organizationId);
+  const { automationRoots: workflows } = useAutomationRoots(
+    automationRootCollection,
   );
 
   const options = useMemo(() => {

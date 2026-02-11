@@ -1,12 +1,13 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { ProductTable } from '@/app/features/products/components/product-table';
 import { ProductTableSkeleton } from '@/app/features/products/components/product-table-skeleton';
 import { ProductsEmptyState } from '@/app/features/products/components/products-empty-state';
-import { api } from '@/convex/_generated/api';
+import {
+  useProductCollection,
+  useProducts,
+} from '@/app/features/products/hooks/collections';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -21,17 +22,16 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/products')({
 
 function ProductsPage() {
   const { id: organizationId } = Route.useParams();
-  const { data: hasProducts, isLoading } = useQuery(
-    convexQuery(api.products.queries.hasProducts, { organizationId }),
-  );
+  const productCollection = useProductCollection(organizationId);
+  const { products, isLoading } = useProducts(productCollection);
 
   if (isLoading) {
     return <ProductTableSkeleton organizationId={organizationId} />;
   }
 
-  if (!hasProducts) {
+  if (!products || products.length === 0) {
     return <ProductsEmptyState organizationId={organizationId} />;
   }
 
-  return <ProductTable organizationId={organizationId} />;
+  return <ProductTable organizationId={organizationId} products={products} />;
 }

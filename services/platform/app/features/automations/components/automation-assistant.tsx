@@ -1,8 +1,5 @@
 'use client';
 
-import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   Bot,
@@ -24,20 +21,24 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Button } from '@/app/components/ui/primitives/button';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
+import { useThreadCollection } from '@/app/features/chat/hooks/collections';
+import {
+  useCreateThread,
+  useDeleteThread,
+} from '@/app/features/chat/hooks/mutations';
+import { useThreadMessages } from '@/app/features/chat/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
-import { useCreateThread } from '@/app/features/chat/hooks/use-create-thread';
-import { useDeleteThread } from '@/app/features/chat/hooks/use-delete-thread';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
-import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { stripWorkflowContext } from '@/lib/utils/message-helpers';
 import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
 
-import { useChatWithWorkflowAssistant } from '../hooks/use-chat-with-workflow-assistant';
-import { useUpdateAutomationMetadata } from '../hooks/use-update-automation-metadata';
+import { useChatWithWorkflowAssistant } from '../hooks/actions';
+import { useUpdateAutomationMetadata } from '../hooks/mutations';
+import { useWorkflow } from '../hooks/queries';
 
 // Module-level guard to prevent duplicate sends (survives component remounts)
 const recentSends = new Map<string, number>();
@@ -294,25 +295,14 @@ function AutomationAssistantContent({
 
   // Connect to workflow assistant agent
   const chatWithWorkflowAssistant = useChatWithWorkflowAssistant();
+  const threadCollection = useThreadCollection();
   const createChatThread = useCreateThread();
-  const deleteChatThread = useDeleteThread();
+  const deleteChatThread = useDeleteThread(threadCollection);
   const updateWorkflowMetadata = useUpdateAutomationMetadata();
 
-  // Load workflow to get threadId from metadata (use public API)
-  const { data: workflow } = useQuery(
-    convexQuery(
-      api.wf_definitions.queries.getWorkflow,
-      automationId ? { wfDefinitionId: automationId } : 'skip',
-    ),
-  );
+  const { data: workflow } = useWorkflow(automationId);
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SDK type mismatch: return type narrowed to usable shape
-  const { results: uiMessages } = useUIMessages(
-    // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
-    api.threads.queries.getThreadMessagesStreaming as any,
-    threadId ? { threadId } : 'skip',
-    { initialNumItems: 100, stream: true },
-  ) as unknown as { results: UIMessage[] | undefined };
+  const uiMessages = useThreadMessages(threadId);
 
   // Load threadId from workflow metadata when workflow is loaded
   useEffect(() => {

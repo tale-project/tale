@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 
-import type { HumanInputRequest } from './use-human-input-requests';
-import type { IntegrationApproval } from './use-integration-approvals';
+import type {
+  HumanInputRequest,
+  IntegrationApproval,
+  WorkflowCreationApproval,
+} from './queries';
 import type { ChatMessage } from './use-message-processing';
-import type { WorkflowCreationApproval } from './use-workflow-creation-approvals';
 
 export type ChatItem =
   | { type: 'message'; data: ChatMessage }

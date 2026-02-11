@@ -1,12 +1,13 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { WebsitesEmptyState } from '@/app/features/websites/components/websites-empty-state';
 import { WebsitesTable } from '@/app/features/websites/components/websites-table';
 import { WebsitesTableSkeleton } from '@/app/features/websites/components/websites-table-skeleton';
-import { api } from '@/convex/_generated/api';
+import {
+  useWebsiteCollection,
+  useWebsites,
+} from '@/app/features/websites/hooks/collections';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -20,17 +21,16 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/websites')({
 
 function WebsitesPage() {
   const { id: organizationId } = Route.useParams();
-  const { data: hasWebsites, isLoading } = useQuery(
-    convexQuery(api.websites.queries.hasWebsites, { organizationId }),
-  );
+  const websiteCollection = useWebsiteCollection(organizationId);
+  const { websites, isLoading } = useWebsites(websiteCollection);
 
   if (isLoading) {
     return <WebsitesTableSkeleton organizationId={organizationId} />;
   }
 
-  if (!hasWebsites) {
+  if (!websites || websites.length === 0) {
     return <WebsitesEmptyState organizationId={organizationId} />;
   }
 
-  return <WebsitesTable organizationId={organizationId} />;
+  return <WebsitesTable organizationId={organizationId} websites={websites} />;
 }

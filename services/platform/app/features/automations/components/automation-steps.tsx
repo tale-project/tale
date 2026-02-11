@@ -40,7 +40,7 @@ import { useUrlState } from '@/app/hooks/use-url-state';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateStep } from '../hooks/use-create-step';
+import { useCreateStep } from '../hooks/mutations';
 import { getLayoutedElements } from '../utils/dagre-layout';
 import { AutomationCallbacksProvider } from './automation-callbacks-context';
 import { AutomationEdge } from './automation-edge';

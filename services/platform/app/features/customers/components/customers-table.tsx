@@ -2,10 +2,10 @@
 
 import { Users } from 'lucide-react';
 
+import type { Customer } from '@/lib/collections/entities/customers';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useCustomersTableConfig } from '../hooks/use-customers-table-config';
@@ -13,9 +13,13 @@ import { CustomersActionMenu } from './customers-action-menu';
 
 export interface CustomersTableProps {
   organizationId: string;
+  customers: Customer[];
 }
 
-export function CustomersTable({ organizationId }: CustomersTableProps) {
+export function CustomersTable({
+  organizationId,
+  customers,
+}: CustomersTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tCustomers } = useT('customers');
@@ -24,14 +28,8 @@ export function CustomersTable({ organizationId }: CustomersTableProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useCustomersTableConfig();
 
-  const paginatedResult = useCachedPaginatedQuery(
-    api.customers.queries.listCustomers,
-    { organizationId },
-    { initialNumItems: pageSize },
-  );
-
   const list = useListPage({
-    dataSource: { type: 'paginated', ...paginatedResult },
+    dataSource: { type: 'query', data: customers },
     pageSize,
     search: {
       fields: ['name', 'email', 'externalId'],

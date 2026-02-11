@@ -21,15 +21,12 @@ function isGeneralThread(summary?: string): boolean {
 
 export async function listThreads(
   ctx: QueryCtx,
-  args: ListThreadsArgs,
+  args: Pick<ListThreadsArgs, 'userId'>,
 ): Promise<Thread[]> {
-  const { userId, search } = args;
-  const searchLower = search?.trim().toLowerCase();
-
   const result = await ctx.runQuery(
     components.agent.threads.listThreadsByUserId,
     {
-      userId,
+      userId: args.userId,
       order: 'desc',
       paginationOpts: { cursor: null, numItems: 100 },
     },
@@ -37,14 +34,8 @@ export async function listThreads(
 
   const threads: Thread[] = [];
   for (const thread of result.page) {
-    // Cheapest check first: skip non-active threads before JSON parsing
     if (thread.status !== 'active') continue;
     if (!isGeneralThread(thread.summary)) continue;
-
-    if (searchLower) {
-      const title = thread.title?.toLowerCase() ?? '';
-      if (!title.includes(searchLower)) continue;
-    }
 
     threads.push({
       _id: thread._id,

@@ -24,8 +24,8 @@ import { Doc, Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useStepValidation } from '../hooks/use-step-validation';
-import { useUpdateStep } from '../hooks/use-update-step';
+import { useUpdateStep } from '../hooks/mutations';
+import { useStepValidation } from '../hooks/queries';
 import { getStepIcon } from '../utils/step-icons';
 import { AutomationAssistant } from './automation-assistant';
 import { AutomationTester } from './automation-tester';

@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { parseISO, formatISO } from 'date-fns';
@@ -17,10 +15,10 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useLocale } from '@/app/hooks/use-locale';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatDuration } from '@/lib/utils/format/number';
 
+import { useExecutionJournal, useListExecutions } from '../hooks/queries';
 import { ExecutionsTableSkeleton } from './executions-table-skeleton';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 
@@ -51,11 +49,8 @@ const ExecutionDetails = memo(function ExecutionDetails({
 }: {
   execution: Execution;
 }) {
-  const { data: journal, error: journalError } = useQuery(
-    convexQuery(
-      api.wf_executions.queries.getExecutionStepJournal,
-      execution._id ? { executionId: execution._id } : 'skip',
-    ),
+  const { data: journal, error: journalError } = useExecutionJournal(
+    execution._id,
   );
 
   const {
@@ -149,9 +144,7 @@ export function ExecutionsClient({
     [amId, searchTerm, status, triggeredBy, dateFrom, dateTo, pageSize],
   );
 
-  const { data: executionsResult } = useQuery(
-    convexQuery(api.wf_executions.queries.listExecutionsCursor, queryArgs),
-  );
+  const { data: executionsResult } = useListExecutions(queryArgs);
 
   const allExecutions = useMemo(
     () => executionsResult?.page ?? [],

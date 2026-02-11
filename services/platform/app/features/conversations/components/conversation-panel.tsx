@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
@@ -9,13 +7,13 @@ import { CardContent } from '@/app/components/ui/layout/card';
 import { Stack, VStack, Center } from '@/app/components/ui/layout/layout';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
-import { useGenerateUploadUrl } from '../hooks/use-generate-upload-url';
-import { useMarkAsRead } from '../hooks/use-mark-as-read';
+import { useConversationCollection } from '../hooks/collections';
+import { useGenerateUploadUrl, useMarkAsRead } from '../hooks/mutations';
+import { useConversationWithMessages } from '../hooks/queries';
 import { useSendMessageViaIntegration } from '../hooks/use-send-message-via-integration';
 import { ConversationHeader } from './conversation-header';
 import { Message } from './message';
@@ -43,29 +41,25 @@ interface AttachedFile {
 
 interface ConversationPanelProps {
   selectedConversationId: string | null;
+  organizationId: string;
   onSelectedConversationChange: (conversationId: string | null) => void;
 }
 
 export function ConversationPanel({
   selectedConversationId,
+  organizationId,
   onSelectedConversationChange,
 }: ConversationPanelProps) {
   // Translations
   const { t: tConversations } = useT('conversations');
   const { formatDateHeader } = useFormatDate();
 
-  // Use Convex query hook
-  const { data: conversation, isLoading } = useQuery(
-    convexQuery(
-      api.conversations.queries.getConversationWithMessages,
-      selectedConversationId
-        ? { conversationId: toId<'conversations'>(selectedConversationId) }
-        : 'skip',
-    ),
+  const { data: conversation, isLoading } = useConversationWithMessages(
+    selectedConversationId,
   );
 
-  // Convex mutations
-  const markAsRead = useMarkAsRead();
+  const conversationCollection = useConversationCollection(organizationId);
+  const markAsRead = useMarkAsRead(conversationCollection);
   const sendMessageViaIntegration = useSendMessageViaIntegration();
   const generateUploadUrl = useGenerateUploadUrl();
 
@@ -111,7 +105,7 @@ export function ConversationPanel({
 
       if (hasUnreadMessages) {
         markAsRead({
-          conversationId: toId<'conversations'>(selectedConversationId),
+          conversationId: selectedConversationId,
         }).catch((error: Error) => {
           console.error('Failed to mark conversation as read:', error);
         });
@@ -313,6 +307,7 @@ export function ConversationPanel({
       <div className="bg-background/50 border-border sticky top-0 z-50 flex h-16 flex-[0_0_auto] border-b px-4 py-3 backdrop-blur-sm">
         <ConversationHeader
           conversation={conversation}
+          organizationId={conversation.organizationId}
           onResolve={() => {
             onSelectedConversationChange(null);
           }}

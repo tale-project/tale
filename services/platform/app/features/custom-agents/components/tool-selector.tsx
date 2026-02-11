@@ -9,8 +9,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useT } from '@/lib/i18n/client';
 
-import { useAvailableIntegrations } from '../hooks/use-available-integrations';
-import { useAvailableTools } from '../hooks/use-available-tools';
+import { useAvailableIntegrations, useAvailableTools } from '../hooks/queries';
 
 interface ToolSelectorProps {
   value: string[];

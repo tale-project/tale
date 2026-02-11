@@ -15,11 +15,13 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { exampleMessageToUI } from '@/types/tone-of-voice';
 
-import { useAddExample } from '../hooks/use-add-example';
-import { useDeleteExample } from '../hooks/use-delete-example';
-import { useGenerateTone } from '../hooks/use-generate-tone';
-import { useUpdateExample } from '../hooks/use-update-example';
-import { useUpsertTone } from '../hooks/use-upsert-tone';
+import { useGenerateTone } from '../hooks/actions';
+import {
+  useAddExample,
+  useDeleteExample,
+  useUpdateExample,
+  useUpsertTone,
+} from '../hooks/mutations';
 import { AddExampleDialog } from './example-add-dialog';
 import { ExampleMessagesTable } from './example-messages-table';
 import { ViewEditExampleDialog } from './example-view-edit-dialog';

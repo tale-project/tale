@@ -1,11 +1,8 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useConvexAuth } from 'convex/react';
 import { useEffect } from 'react';
 
 import { OrganizationFormClient } from '@/app/features/organization/components/organization-form-client';
-import { api } from '@/convex/_generated/api';
+import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
 
 export const Route = createFileRoute('/dashboard/create-organization')({
   component: CreateOrganizationPage,
@@ -13,14 +10,12 @@ export const Route = createFileRoute('/dashboard/create-organization')({
 
 function CreateOrganizationPage() {
   const navigate = useNavigate();
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-
-  const { data: organizations, isLoading: isOrgsLoading } = useQuery(
-    convexQuery(
-      api.members.queries.getUserOrganizationsList,
-      isAuthLoading || !isAuthenticated ? 'skip' : {},
-    ),
-  );
+  const {
+    organizations,
+    isLoading: isOrgsLoading,
+    isAuthLoading,
+    isAuthenticated,
+  } = useUserOrganizations();
 
   useEffect(() => {
     if (isAuthLoading || !isAuthenticated || isOrgsLoading || !organizations) {

@@ -2,10 +2,10 @@
 
 import { Store } from 'lucide-react';
 
+import type { Vendor } from '@/lib/collections/entities/vendors';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useVendorsTableConfig } from '../hooks/use-vendors-table-config';
@@ -13,9 +13,10 @@ import { VendorsActionMenu } from './vendors-action-menu';
 
 export interface VendorsTableProps {
   organizationId: string;
+  vendors: Vendor[];
 }
 
-export function VendorsTable({ organizationId }: VendorsTableProps) {
+export function VendorsTable({ organizationId, vendors }: VendorsTableProps) {
   const { t: tVendors } = useT('vendors');
   const { t: tTables } = useT('tables');
   const { t: tGlobal } = useT('global');
@@ -23,14 +24,8 @@ export function VendorsTable({ organizationId }: VendorsTableProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useVendorsTableConfig();
 
-  const paginatedResult = useCachedPaginatedQuery(
-    api.vendors.queries.listVendors,
-    { organizationId },
-    { initialNumItems: pageSize },
-  );
-
   const list = useListPage({
-    dataSource: { type: 'paginated', ...paginatedResult },
+    dataSource: { type: 'query', data: vendors },
     pageSize,
     search: {
       fields: ['name', 'email', 'externalId'],

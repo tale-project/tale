@@ -1,6 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -12,8 +11,8 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
+import { useIsSsoConfigured } from '@/app/features/auth/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -31,7 +30,7 @@ function SignUpPage() {
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
 
-  const ssoConfig = useQuery(api.sso_providers.queries.isSsoConfigured, {});
+  const { data: ssoConfig } = useIsSsoConfigured();
 
   const signUpSchema = useMemo(
     () =>

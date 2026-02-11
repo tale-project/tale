@@ -7,9 +7,7 @@ import { listThreads as listThreadsHelper } from './list_threads';
 import { threadStatusValidator } from './validators';
 
 export const listThreads = query({
-  args: {
-    search: v.optional(v.string()),
-  },
+  args: {},
   returns: v.array(
     v.object({
       _id: v.string(),
@@ -19,7 +17,7 @@ export const listThreads = query({
       userId: v.optional(v.string()),
     }),
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];
@@ -27,7 +25,6 @@ export const listThreads = query({
 
     return await listThreadsHelper(ctx, {
       userId: authUser.userId,
-      search: args.search,
     });
   },
 });

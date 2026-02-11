@@ -14,7 +14,8 @@ import {
   PRODUCT_STATUS,
 } from '@/lib/shared/constants/convex-enums';
 
-import { useCreateProduct } from '../hooks/use-create-product';
+import { useProductCollection } from '../hooks/collections';
+import { useCreateProduct } from '../hooks/mutations';
 import { ProductImportForm } from './product-import-form';
 
 type FormValues = {
@@ -65,7 +66,8 @@ export function ProductsImportDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const createProduct = useCreateProduct();
+  const productCollection = useProductCollection(organizationId);
+  const createProduct = useCreateProduct(productCollection);
 
   const validateStatus = useCallback((value: unknown): ProductStatus => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validateStatus returns string, narrow to ProductStatus enum

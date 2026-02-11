@@ -203,18 +203,16 @@ export const getMyTeams = query({
   args: {
     organizationId: v.string(),
   },
-  returns: v.object({
-    teams: v.array(
-      v.object({
-        id: v.string(),
-        name: v.string(),
-      }),
-    ),
-  }),
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      name: v.string(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      return { teams: [] };
+      return [];
     }
 
     const membershipsResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
@@ -225,7 +223,7 @@ export const getMyTeams = query({
       });
 
     if (!membershipsResult || membershipsResult.page.length === 0) {
-      return { teams: [] };
+      return [];
     }
 
     const teamIds = membershipsResult.page.map((m) => m.teamId);
@@ -259,6 +257,6 @@ export const getMyTeams = query({
       }
     }
 
-    return { teams };
+    return teams;
   },
 });

@@ -2,7 +2,6 @@
 
 import type { ColumnDef } from '@tanstack/react-table';
 
-import { useQuery } from 'convex/react';
 import { Plus, Webhook, Copy, Check, Trash2, Code } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -15,28 +14,30 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 import { toId } from '@/lib/utils/type-guards';
 
 import { SecretRevealDialog } from '../../automations/triggers/components/secret-reveal-dialog';
 import {
+  useCustomAgentVersionCollection,
+  useCustomAgentVersions,
+  useCustomAgentWebhookCollection,
+  useCustomAgentWebhooks,
+  type CustomAgentWebhook,
+} from '../hooks/collections';
+import {
   useCreateCustomAgentWebhook,
-  useToggleCustomAgentWebhook,
   useDeleteCustomAgentWebhook,
-} from '../hooks/use-custom-agent-mutations';
+  useToggleCustomAgentWebhook,
+} from '../hooks/mutations';
 
 interface CustomAgentWebhookSectionProps {
   organizationId: string;
   agentId: string;
 }
 
-type WebhookRow = NonNullable<
-  ReturnType<
-    typeof useQuery<typeof api.custom_agents.webhooks.queries.getWebhooks>
-  >
->[number];
+type WebhookRow = CustomAgentWebhook;
 
 export function CustomAgentWebhookSection({
   organizationId,
@@ -45,17 +46,18 @@ export function CustomAgentWebhookSection({
   const { t } = useT('settings');
   const { toast } = useToast();
 
-  const versions = useQuery(api.custom_agents.queries.getCustomAgentVersions, {
-    customAgentId: toId<'customAgents'>(agentId),
-  });
-
-  const webhooks = useQuery(api.custom_agents.webhooks.queries.getWebhooks, {
-    customAgentId: toId<'customAgents'>(agentId),
-  });
+  const customAgentVersionCollection = useCustomAgentVersionCollection(agentId);
+  const { versions } = useCustomAgentVersions(customAgentVersionCollection);
+  const customAgentWebhookCollection = useCustomAgentWebhookCollection(agentId);
+  const { webhooks } = useCustomAgentWebhooks(customAgentWebhookCollection);
 
   const createWebhook = useCreateCustomAgentWebhook();
-  const toggleWebhook = useToggleCustomAgentWebhook();
-  const deleteWebhookMutation = useDeleteCustomAgentWebhook();
+  const toggleWebhook = useToggleCustomAgentWebhook(
+    customAgentWebhookCollection,
+  );
+  const deleteWebhookMutation = useDeleteCustomAgentWebhook(
+    customAgentWebhookCollection,
+  );
 
   const [isCreating, setIsCreating] = useState(false);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);

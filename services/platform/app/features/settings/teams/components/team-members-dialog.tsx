@@ -1,8 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
-import { useMutation } from 'convex/react';
 import { Plus, Trash2, Users } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -11,10 +8,16 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
-import type { Team } from '../hooks/use-list-teams';
+import type { Team } from '../hooks/collections';
+
+import {
+  useMemberCollection,
+  useMembers,
+} from '../../organization/hooks/collections';
+import { useTeamMemberCollection, useTeamMembers } from '../hooks/collections';
+import { useAddTeamMember, useRemoveTeamMember } from '../hooks/mutations';
 
 interface TeamMembersDialogProps {
   open: boolean;
@@ -36,35 +39,29 @@ export function TeamMembersDialog({
   const [isAdding, setIsAdding] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
-  // Fetch organization members from Convex (skip when dialog is closed)
-  const { data: orgMembers } = useQuery(
-    convexQuery(
-      api.members.queries.listByOrganization,
-      open ? { organizationId } : 'skip',
-    ),
+  const memberCollection = useMemberCollection(organizationId);
+  const { members: orgMembers } = useMembers(memberCollection);
+
+  const teamMemberCollection = useTeamMemberCollection(
+    open ? team.id : undefined,
   );
+  const { teamMembers, isLoading: isLoadingTeamMembers } =
+    useTeamMembers(teamMemberCollection);
 
-  // Fetch team members directly from Convex
-  const { data: teamMembers } = useQuery(
-    convexQuery(
-      api.team_members.queries.listByTeam,
-      open ? { teamId: team.id } : 'skip',
-    ),
-  );
+  const addTeamMember = useAddTeamMember();
+  const removeTeamMember = useRemoveTeamMember(teamMemberCollection);
 
-  // Convex mutations for team member management
-  const addTeamMember = useMutation(api.team_members.mutations.addMember);
-  const removeTeamMember = useMutation(api.team_members.mutations.removeMember);
-
-  const isLoading = teamMembers === undefined;
+  const isLoading = isLoadingTeamMembers;
 
   type OrgMember = NonNullable<typeof orgMembers>[number];
-  type TeamMember = NonNullable<typeof teamMembers>[number];
+  type TeamMemberItem = NonNullable<typeof teamMembers>[number];
 
   // Get members that are not yet in the team
   const availableMembers = useMemo(() => {
     if (!orgMembers || !teamMembers) return [];
-    const teamMemberIds = new Set(teamMembers.map((m: TeamMember) => m.userId));
+    const teamMemberIds = new Set(
+      teamMembers.map((m: TeamMemberItem) => m.userId),
+    );
     return orgMembers.filter(
       (m: OrgMember) => !!m.userId && !teamMemberIds.has(m.userId),
     );
@@ -187,7 +184,7 @@ export function TeamMembersDialog({
               </p>
             </div>
           ) : (
-            teamMembers.map((member: TeamMember) => {
+            teamMembers.map((member: TeamMemberItem) => {
               const details = memberDetailsMap.get(member.userId);
               const hasDistinctName =
                 details?.displayName && details.displayName !== details.email;

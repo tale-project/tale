@@ -9,7 +9,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useT } from '@/lib/i18n/client';
 
-import { useListTeams } from '../hooks/use-list-teams';
+import { useTeamCollection, useTeams } from '../hooks/collections';
 import { TeamCreateDialog } from './team-create-dialog';
 import { TeamTable } from './team-table';
 
@@ -27,8 +27,8 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
 
   // Fetch teams - in trusted headers mode, teams come from JWT claims
   // In normal auth mode, teams come from the teamMember database table
-  const { teams, isLoading, isExternallyManaged } =
-    useListTeams(organizationId);
+  const teamCollection = useTeamCollection(organizationId);
+  const { teams, isLoading, isExternallyManaged } = useTeams(teamCollection);
 
   // Filter teams by search query
   const filteredTeams = teams?.filter((team: { id: string; name: string }) =>

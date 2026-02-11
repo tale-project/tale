@@ -1,6 +1,5 @@
 'use client';
 
-import { useQuery } from 'convex/react';
 import { useState } from 'react';
 
 import type { VersionStatus } from '@/lib/shared/schemas/custom_agents';
@@ -12,11 +11,14 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
-import { useActivateCustomAgentVersion } from '../hooks/use-custom-agent-mutations';
+import {
+  useCustomAgentVersionCollection,
+  useCustomAgentVersions,
+} from '../hooks/collections';
+import { useActivateCustomAgentVersion } from '../hooks/mutations';
 
 const STATUS_BADGE_CONFIG: Record<
   VersionStatus,
@@ -45,9 +47,11 @@ export function CustomAgentVersionHistoryDialog({
     null,
   );
 
-  const versions = useQuery(
-    api.custom_agents.queries.getCustomAgentVersions,
-    open ? { customAgentId: toId<'customAgents'>(customAgentId) } : 'skip',
+  const customAgentVersionCollection = useCustomAgentVersionCollection(
+    open ? customAgentId : undefined,
+  );
+  const { versions, isLoading: isLoadingVersions } = useCustomAgentVersions(
+    customAgentVersionCollection,
   );
 
   const hasActiveVersion =
@@ -83,11 +87,11 @@ export function CustomAgentVersionHistoryDialog({
       className="max-h-[80vh] overflow-y-auto"
     >
       <Stack gap={2}>
-        {versions === undefined ? (
+        {isLoadingVersions ? (
           Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full" />
           ))
-        ) : versions.length === 0 ? (
+        ) : !versions || versions.length === 0 ? (
           <p className="text-muted-foreground py-4 text-center text-sm">
             {t('customAgents.versions.noVersions')}
           </p>

@@ -1,8 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
-import { useMutation } from 'convex/react';
 import { Users } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -10,11 +7,16 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import {
+  useTeamCollection,
+  useTeams,
+} from '@/app/features/settings/teams/hooks/collections';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
+
+import { useDocumentCollection } from '../hooks/collections';
+import { useUpdateDocument } from '../hooks/mutations';
 
 interface DocumentTeamTagsDialogProps {
   open: boolean;
@@ -47,17 +49,11 @@ function DocumentTeamTagsDialogContent({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Update document mutation
-  const updateDocument = useMutation(api.documents.mutations.updateDocument);
+  const documentCollection = useDocumentCollection(organizationId ?? '');
+  const updateDocument = useUpdateDocument(documentCollection);
 
-  // Fetch only teams that the current user belongs to
-  const { data: teamsResult, isLoading } = useQuery(
-    convexQuery(
-      api.members.queries.getMyTeams,
-      organizationId ? { organizationId } : 'skip',
-    ),
-  );
-  const teams = teamsResult?.teams ?? null;
+  const teamCollection = useTeamCollection(organizationId ?? undefined);
+  const { teams, isLoading } = useTeams(teamCollection);
 
   const handleToggleTeam = useCallback((teamId: string) => {
     setSelectedTeams((prev) => {
@@ -82,7 +78,7 @@ function DocumentTeamTagsDialogContent({
 
     try {
       await updateDocument({
-        documentId: toId<'documents'>(documentId),
+        documentId,
         teamTags: Array.from(selectedTeams),
       });
 

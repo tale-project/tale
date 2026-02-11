@@ -3,16 +3,18 @@
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
 import { Workflow } from 'lucide-react';
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
+import {
+  useAutomations,
+  useWfAutomationCollection,
+} from '../hooks/collections';
 import { AutomationsActionMenu } from './automations-action-menu';
 import { useAutomationsTableConfig } from './use-automations-table-config';
 
@@ -29,11 +31,8 @@ export function AutomationsClient({ organizationId }: AutomationsClientProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useAutomationsTableConfig();
 
-  const paginatedResult = useCachedPaginatedQuery(
-    api.wf_definitions.queries.listAutomations,
-    { organizationId },
-    { initialNumItems: pageSize },
-  );
+  const wfAutomationCollection = useWfAutomationCollection(organizationId);
+  const { automations, isLoading } = useAutomations(wfAutomationCollection);
 
   const handleRowClick = useCallback(
     (row: Row<Doc<'wfDefinitions'>>) => {
@@ -46,7 +45,10 @@ export function AutomationsClient({ organizationId }: AutomationsClientProps) {
   );
 
   const list = useListPage({
-    dataSource: { type: 'paginated', ...paginatedResult },
+    dataSource: {
+      type: 'query',
+      data: isLoading ? undefined : (automations ?? []),
+    },
     pageSize,
     search: {
       fields: ['name', 'description'],
@@ -66,16 +68,6 @@ export function AutomationsClient({ organizationId }: AutomationsClientProps) {
       ],
     },
   });
-
-  // Auto-load remaining pages when filtering reduces visible results
-  useEffect(() => {
-    if (
-      list.filteredCount < list.totalCount &&
-      paginatedResult.status === 'CanLoadMore'
-    ) {
-      paginatedResult.loadMore(pageSize);
-    }
-  }, [list.filteredCount, list.totalCount, paginatedResult, pageSize]);
 
   return (
     <DataTable

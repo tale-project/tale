@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import {
   LogOut,
@@ -37,9 +35,9 @@ import {
 } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -68,13 +66,9 @@ export function UserButton({
   const { theme, setTheme } = useTheme();
   const { teams, selectedTeamId, setSelectedTeamId } = useTeamFilter();
 
-  // Get member info to access display name
-  // Skip query when user is not authenticated or organizationId is missing
-  const { data: memberContext } = useQuery(
-    convexQuery(
-      api.members.queries.getCurrentMemberContext,
-      organizationId && user ? { organizationId } : 'skip',
-    ),
+  const { data: memberContext } = useCurrentMemberContext(
+    organizationId,
+    !user,
   );
 
   const handleSignOut = async () => {

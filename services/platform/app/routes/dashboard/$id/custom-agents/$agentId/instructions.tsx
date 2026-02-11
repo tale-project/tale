@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -10,10 +9,11 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
+import { useCustomAgentCollection } from '@/app/features/custom-agents/hooks/collections';
+import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
+import { useModelPresets } from '@/app/features/custom-agents/hooks/queries';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
-import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/use-custom-agent-mutations';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { FILE_PREPROCESSING_INSTRUCTIONS } from '@/lib/shared/constants/custom-agents';
 import { toId } from '@/lib/utils/type-guards';
@@ -33,12 +33,13 @@ interface InstructionsFormData {
 const MODEL_PRESET_OPTIONS = ['fast', 'standard', 'advanced'] as const;
 
 function InstructionsTab() {
-  const { agentId } = Route.useParams();
+  const { id: organizationId, agentId } = Route.useParams();
   const { t } = useT('settings');
   const { agent, isReadOnly } = useCustomAgentVersion();
-  const updateAgent = useUpdateCustomAgent();
+  const customAgentCollection = useCustomAgentCollection(organizationId);
+  const updateAgent = useUpdateCustomAgent(customAgentCollection);
 
-  const modelPresets = useQuery(api.custom_agents.queries.getModelPresets);
+  const { data: modelPresets } = useModelPresets();
 
   const modelOptions = MODEL_PRESET_OPTIONS.map((preset) => {
     const presetLabel = t(`customAgents.form.modelPresets.${preset}`);

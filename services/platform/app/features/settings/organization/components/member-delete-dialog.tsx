@@ -1,12 +1,16 @@
 'use client';
 
+import type { Collection } from '@tanstack/db';
+
 import { useState } from 'react';
+
+import type { Member } from '@/lib/collections/entities/members';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useRemoveMember } from '../hooks/use-remove-member';
+import { useRemoveMember } from '../hooks/mutations';
 
 type MemberLite = {
   _id: string;
@@ -20,18 +24,20 @@ interface DeleteMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   member: MemberLite | null;
+  collection: Collection<Member, string>;
 }
 
 export function DeleteMemberDialog({
   open,
   onOpenChange,
   member,
+  collection,
 }: DeleteMemberDialogProps) {
   const { t } = useT('settings');
   const { t: tDialogs } = useT('dialogs');
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const removeMember = useRemoveMember();
+  const removeMember = useRemoveMember(collection);
 
   if (!member) return null;
 

@@ -12,11 +12,13 @@ import type {
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
 
-import { useChatWithAgent } from './use-chat-with-agent';
-import { useChatWithBuiltinAgent } from './use-chat-with-builtin-agent';
-import { useChatWithCustomAgent } from './use-chat-with-custom-agent';
-import { useCreateThread } from './use-create-thread';
-import { useUpdateThread } from './use-update-thread';
+import {
+  useChatWithAgent,
+  useChatWithBuiltinAgent,
+  useChatWithCustomAgent,
+} from './actions';
+import { useThreadCollection } from './collections';
+import { useCreateThread, useUpdateThread } from './mutations';
 
 interface UseSendMessageParams {
   organizationId: string;
@@ -46,8 +48,9 @@ export function useSendMessage({
   const { t } = useT('chat');
   const navigate = useNavigate();
 
+  const threadCollection = useThreadCollection();
   const createThread = useCreateThread();
-  const updateThread = useUpdateThread();
+  const updateThread = useUpdateThread(threadCollection);
   const chatWithAgent = useChatWithAgent();
   const chatWithBuiltinAgent = useChatWithBuiltinAgent();
   const chatWithCustomAgent = useChatWithCustomAgent();

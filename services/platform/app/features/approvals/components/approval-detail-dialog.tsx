@@ -1,7 +1,6 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
+import { useLiveQuery } from '@tanstack/react-db';
 import { Sparkles } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -11,7 +10,8 @@ import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { api } from '@/convex/_generated/api';
+import { createCustomersCollection } from '@/lib/collections/entities/customers';
+import { useCollection } from '@/lib/collections/use-collection';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -49,16 +49,24 @@ export function ApprovalDetailDialog({
   const { formatDate } = useFormatDate();
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
 
-  const { data: customer } = useQuery(
-    convexQuery(
-      api.customers.queries.getCustomerByEmail,
-      approvalDetail?.customer.email
-        ? {
-            email: approvalDetail.customer.email,
-            organizationId: approvalDetail.organizationId,
-          }
-        : 'skip',
-    ),
+  // Lookup customer by email from collection
+  const customersCollection = useCollection(
+    'customers',
+    createCustomersCollection,
+    approvalDetail?.organizationId ?? '',
+  );
+  const customerEmail = approvalDetail?.customer.email;
+  const { data: customerDocs } = useLiveQuery(
+    (q) =>
+      q
+        .from({ c: customersCollection })
+        .fn.where((row) => row.c.email === customerEmail)
+        .select(({ c }) => c),
+    [customerEmail],
+  );
+  const customerRecord = useMemo(
+    () => customerDocs?.[0] ?? null,
+    [customerDocs],
   );
 
   // Sort products by confidence (high to low) and get first product
@@ -72,8 +80,6 @@ export function ApprovalDetailDialog({
   }, [approvalDetail]);
 
   if (!approvalDetail) return null;
-
-  const customerRecord = customer || null;
 
   const handleRemoveRecommendation = (productId: string) => {
     if (!onRemoveRecommendation) return;

@@ -1,5 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Workflow, Sparkles } from 'lucide-react';
 
@@ -9,7 +7,11 @@ import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-a
 import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
 import { AutomationsClient } from '@/app/features/automations/components/automations-client';
 import { AutomationsTableSkeleton } from '@/app/features/automations/components/automations-table-skeleton';
-import { api } from '@/convex/_generated/api';
+import {
+  useAutomations,
+  useWfAutomationCollection,
+} from '@/app/features/automations/hooks/collections';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/automations/')({
@@ -42,15 +44,11 @@ function AutomationsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
-  const { data: memberContext, isLoading: isMemberLoading } = useQuery(
-    convexQuery(api.members.queries.getCurrentMemberContext, {
-      organizationId,
-    }),
-  );
-  const { data: hasAutomations, isLoading: isAutomationsLoading } = useQuery(
-    convexQuery(api.wf_definitions.queries.hasAutomations, {
-      organizationId,
-    }),
+  const { data: memberContext, isLoading: isMemberLoading } =
+    useCurrentMemberContext(organizationId);
+  const wfAutomationCollection = useWfAutomationCollection(organizationId);
+  const { automations, isLoading: isAutomationsLoading } = useAutomations(
+    wfAutomationCollection,
   );
 
   if (isMemberLoading || isAutomationsLoading) {
@@ -66,7 +64,7 @@ function AutomationsPage() {
     return <AccessDenied message={t('automations')} />;
   }
 
-  if (!hasAutomations) {
+  if (!automations || automations.length === 0) {
     return <AutomationsEmptyState organizationId={organizationId} />;
   }
 

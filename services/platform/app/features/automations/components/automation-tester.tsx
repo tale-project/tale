@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import {
   Search,
   Play,
@@ -16,12 +14,12 @@ import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Stack, VStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useStartWorkflow } from '../hooks/use-start-workflow';
+import { useStartWorkflow } from '../hooks/actions';
+import { useDryRunWorkflow } from '../hooks/queries';
 
 interface AutomationTesterProps {
   organizationId: string;
@@ -69,13 +67,10 @@ export function AutomationTester({
     }
   })();
 
-  const { data: dryRunQuery } = useQuery(
-    convexQuery(
-      api.wf_definitions.queries.dryRunWorkflow,
-      isDryRunning && parsedInput
-        ? { wfDefinitionId: automationId, input: parsedInput }
-        : 'skip',
-    ),
+  const { data: dryRunQuery } = useDryRunWorkflow(
+    automationId,
+    parsedInput,
+    isDryRunning,
   );
 
   const handleDryRun = async () => {

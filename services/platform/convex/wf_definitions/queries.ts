@@ -4,7 +4,6 @@ import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
-import { cursorPaginationOptsValidator } from '../lib/pagination';
 import { queryWithRLS } from '../lib/rls';
 import { executeDryRun } from '../workflow_engine/execution/dry_run_executor';
 import { listAutomations as listAutomationsHandler } from '../workflows/definitions/list_automations';
@@ -49,7 +48,6 @@ export const listVersions = queryWithRLS({
 export const listAutomations = queryWithRLS({
   args: {
     organizationId: v.string(),
-    paginationOpts: cursorPaginationOptsValidator,
   },
   handler: async (ctx, args) => {
     return await listAutomationsHandler(ctx, args);
@@ -67,21 +65,6 @@ export const listAutomationRoots = queryWithRLS({
         q.eq('organizationId', args.organizationId).eq('versionNumber', 1),
       )
       .take(200);
-  },
-});
-
-export const hasAutomations = queryWithRLS({
-  args: {
-    organizationId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const root = await ctx.db
-      .query('wfDefinitions')
-      .withIndex('by_org_versionNumber', (q) =>
-        q.eq('organizationId', args.organizationId).eq('versionNumber', 1),
-      )
-      .first();
-    return root !== null;
   },
 });
 

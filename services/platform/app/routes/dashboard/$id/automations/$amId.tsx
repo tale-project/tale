@@ -1,5 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import {
   createFileRoute,
   Outlet,
@@ -28,10 +26,15 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
+import { useUpdateAutomation } from '@/app/features/automations/hooks/mutations';
+import {
+  useWorkflow,
+  useWorkflowSteps,
+  useListWorkflowVersions,
+} from '@/app/features/automations/hooks/queries';
 import { useAutomationVersionNavigation } from '@/app/features/automations/hooks/use-automation-version-navigation';
-import { useUpdateAutomation } from '@/app/features/automations/hooks/use-update-automation';
 import { useAuth } from '@/app/hooks/use-convex-auth';
-import { api } from '@/convex/_generated/api';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -99,32 +102,12 @@ function AutomationDetailLayout() {
   const { register, getValues } = useForm<{ name: string }>();
   const updateWorkflow = useUpdateAutomation();
 
-  const { data: automation } = useQuery(
-    convexQuery(api.wf_definitions.queries.getWorkflow, {
-      wfDefinitionId: automationId,
-    }),
-  );
-  const { data: steps } = useQuery(
-    convexQuery(api.wf_step_defs.queries.getWorkflowSteps, {
-      wfDefinitionId: automationId,
-    }),
-  );
-  const { data: memberContext } = useQuery(
-    convexQuery(api.members.queries.getCurrentMemberContext, {
-      organizationId,
-    }),
-  );
-
-  const { data: versions } = useQuery(
-    convexQuery(
-      api.wf_definitions.queries.listVersions,
-      automation?.name && organizationId
-        ? {
-            organizationId,
-            name: automation.name,
-          }
-        : 'skip',
-    ),
+  const { data: automation } = useWorkflow(automationId);
+  const { data: steps } = useWorkflowSteps(automationId);
+  const { data: memberContext } = useCurrentMemberContext(organizationId);
+  const { data: versions } = useListWorkflowVersions(
+    organizationId,
+    automation?.name,
   );
 
   const handleSubmitAutomationName = async () => {

@@ -27,7 +27,7 @@
 - USE implicit typing whenever possible.
 - DO NOT use type casting (`as`). Use type guards, generics, or proper type narrowing instead. The only exception is framework-generated code or unavoidable third-party library limitations (document with a comment explaining why).
 - DO NOT use `any` or `unknown` unless absolutely unavoidable. Prefer proper types, generics, or `never`.
-- DO NOT use `@ts-ignore`. Use `@ts-expect-error` with a descriptive reason only when there is no alternative (e.g., known framework type bugs).
+- DO NOT use `@ts-ignore`. AVOID `@ts-expect-error`, BUT IF UNAVOIDABLE use with a descriptive reason only when there is no alternative (e.g., known framework type bugs).
 - ALWAYS put imports at the top and exports at the bottom. Keep them sorted correctly.
 - PREFER named exports. AVOID default exports (only if needed).
 - AVOID index barrel files as much as possible.

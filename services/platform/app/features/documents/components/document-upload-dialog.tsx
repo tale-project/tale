@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { Users, Upload, X, FileText } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
@@ -10,9 +8,12 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import {
+  useTeamCollection,
+  useTeams,
+} from '@/app/features/settings/teams/hooks/collections';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
@@ -21,7 +22,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 
-import { useDocumentUpload } from '../hooks/use-document-upload';
+import { useDocumentUpload } from '../hooks/mutations';
 
 interface DocumentUploadDialogProps {
   open: boolean;
@@ -45,14 +46,8 @@ export function DocumentUploadDialog({
   );
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  // Fetch user's teams via Convex query
-  const { data: teamsResult, isLoading: isLoadingTeams } = useQuery(
-    convexQuery(
-      api.members.queries.getMyTeams,
-      open ? { organizationId } : 'skip',
-    ),
-  );
-  const teams = teamsResult?.teams ?? null;
+  const teamCollection = useTeamCollection(organizationId);
+  const { teams, isLoading: isLoadingTeams } = useTeams(teamCollection);
 
   const { uploadFiles, isUploading } = useDocumentUpload({
     organizationId,

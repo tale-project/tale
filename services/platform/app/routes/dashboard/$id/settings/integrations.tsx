@@ -8,6 +8,8 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Card, CardContent, CardFooter } from '@/app/components/ui/layout/card';
 import { Stack, Grid, HStack } from '@/app/components/ui/layout/layout';
 import { IntegrationsClient } from '@/app/features/settings/integrations/components/integrations-client';
+import { useSsoProvider } from '@/app/features/settings/integrations/hooks/queries';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
@@ -65,19 +67,14 @@ function IntegrationsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
-  const { data: memberContext, isLoading: isMemberLoading } = useQuery(
-    convexQuery(api.members.queries.getCurrentMemberContext, {
-      organizationId,
-    }),
-  );
+  const { data: memberContext, isLoading: isMemberLoading } =
+    useCurrentMemberContext(organizationId);
   const { data: integrations, isLoading: isIntegrationsLoading } = useQuery(
     convexQuery(api.integrations.queries.list, {
       organizationId,
     }),
   );
-  const { data: ssoProvider, isLoading: isSsoLoading } = useQuery(
-    convexQuery(api.sso_providers.queries.get, {}),
-  );
+  const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
 
   if (
     isMemberLoading ||

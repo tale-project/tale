@@ -1,6 +1,5 @@
 'use client';
 
-import { useAction } from 'convex/react';
 import { CheckCircle, XCircle, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 
@@ -21,8 +20,11 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+
+import { useTestExistingSsoConfig, useTestSsoConfig } from '../hooks/actions';
+import { useRemoveSsoProvider, useUpsertSsoProvider } from '../hooks/mutations';
+import { useSsoFullConfig } from '../hooks/queries';
 
 interface SSOConfigDialogProps {
   open?: boolean;
@@ -98,13 +100,11 @@ export function SSOConfigDialog({
     enableOneDriveAccess: boolean;
   } | null>(null);
 
-  const upsertSSOProvider = useAction(api.sso_providers.actions.upsert);
-  const removeSSOProvider = useAction(api.sso_providers.actions.remove);
-  const getFullConfig = useAction(api.sso_providers.actions.getWithClientId);
-  const testSSOConfig = useAction(api.sso_providers.actions.testConfig);
-  const testExistingSSOConfig = useAction(
-    api.sso_providers.actions.testExistingConfig,
-  );
+  const upsertSSOProvider = useUpsertSsoProvider();
+  const removeSSOProvider = useRemoveSsoProvider();
+  const getFullConfig = useSsoFullConfig();
+  const testSSOConfig = useTestSsoConfig();
+  const testExistingSSOConfig = useTestExistingSsoConfig();
 
   const isConnected = !!existingProvider;
 

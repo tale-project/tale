@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,9 +8,11 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { filterByTextSearch } from '@/lib/utils/filtering';
+
+import { useThreadCollection, useThreads } from '../hooks/collections';
 
 interface ChatSearchDialogProps {
   isOpen: boolean;
@@ -37,11 +37,14 @@ export function ChatSearchDialog({
 
   const debouncedQuery = useDebounce(query, 300);
 
-  const { data: threadsData } = useQuery(
-    convexQuery(api.threads.queries.listThreads, {
-      search: debouncedQuery || undefined,
-    }),
-  );
+  const threadCollection = useThreadCollection();
+  const { threads: allThreads } = useThreads(threadCollection);
+
+  const threadsData = useMemo(() => {
+    if (!allThreads) return null;
+    if (!debouncedQuery) return allThreads;
+    return filterByTextSearch(allThreads, debouncedQuery, ['title']);
+  }, [allThreads, debouncedQuery]);
 
   const chats = useMemo(
     () =>
@@ -158,7 +161,7 @@ export function ChatSearchDialog({
       }
     >
       <div className="h-[13.75rem] overflow-y-auto p-3">
-        {threadsData !== undefined && chats.length === 0 ? (
+        {threadsData !== null && chats.length === 0 ? (
           <div className="text-muted-foreground flex size-full items-center justify-center px-4 py-6 text-sm">
             {t('searchChat.noResults')}
           </div>

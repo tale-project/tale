@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
@@ -13,10 +11,10 @@ import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-e
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -25,8 +23,11 @@ import {
   safeGetArray,
 } from '@/lib/utils/safe-parsers';
 
-import { useRemoveRecommendedProduct } from '../hooks/use-remove-recommended-product';
-import { useUpdateApprovalStatus } from '../hooks/use-update-approval-status';
+import { useApprovalCollection, useApprovals } from '../hooks/collections';
+import {
+  useRemoveRecommendedProduct,
+  useUpdateApprovalStatus,
+} from '../hooks/mutations';
 import { ApprovalDetail } from '../types/approval-detail';
 import { ApprovalDetailDialog } from './approval-detail-dialog';
 
@@ -121,15 +122,41 @@ export function ApprovalsClient({
     useState(false);
   const pageSize = 10;
 
-  const { data: approvalsResult, isLoading: isApprovalsLoading } = useQuery(
-    convexQuery(api.approvals.queries.listApprovalsByOrganization, {
-      organizationId,
-      status: status === 'pending' ? 'pending' : undefined,
-      resourceType: ['product_recommendation'],
-      search: search || undefined,
-      limit: 200,
-    }),
-  );
+  const approvalCollection = useApprovalCollection(organizationId);
+  const { approvals: allApprovalsRaw, isLoading: isApprovalsLoading } =
+    useApprovals(approvalCollection);
+
+  const approvalsResult = useMemo(() => {
+    if (!allApprovalsRaw) return undefined;
+    let filtered = [...allApprovalsRaw];
+    filtered = filtered.filter(
+      (a) => a.resourceType === 'product_recommendation',
+    );
+    if (status === 'pending') {
+      filtered = filtered.filter((a) => a.status === 'pending');
+    } else if (status === 'resolved') {
+      filtered = filtered.filter((a) => a.status !== 'pending');
+    }
+    if (search) {
+      const lowerSearch = search.toLowerCase();
+      filtered = filtered.filter((a) => {
+        const metadata = a.metadata ?? {};
+        const customerName =
+          typeof metadata['customerName'] === 'string'
+            ? metadata['customerName']
+            : '';
+        const customerEmail =
+          typeof metadata['customerEmail'] === 'string'
+            ? metadata['customerEmail']
+            : '';
+        return (
+          customerName.toLowerCase().includes(lowerSearch) ||
+          customerEmail.toLowerCase().includes(lowerSearch)
+        );
+      });
+    }
+    return filtered;
+  }, [allApprovalsRaw, status, search]);
 
   const allApprovals = useMemo(() => approvalsResult ?? [], [approvalsResult]);
 
@@ -142,13 +169,9 @@ export function ApprovalsClient({
     getRowId: (row) => row._id,
   });
 
-  const { data: memberContext } = useQuery(
-    convexQuery(api.members.queries.getCurrentMemberContext, {
-      organizationId,
-    }),
-  );
+  const { data: memberContext } = useCurrentMemberContext(organizationId);
 
-  const updateApprovalStatus = useUpdateApprovalStatus();
+  const updateApprovalStatus = useUpdateApprovalStatus(approvalCollection);
   const removeRecommendedProduct = useRemoveRecommendedProduct();
 
   const handleApprove = useCallback(

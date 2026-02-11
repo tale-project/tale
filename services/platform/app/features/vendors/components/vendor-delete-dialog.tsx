@@ -12,7 +12,8 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteVendor } from '../hooks/use-delete-vendor';
+import { useVendorCollection } from '../hooks/collections';
+import { useDeleteVendor } from '../hooks/mutations';
 
 interface VendorDeleteDialogProps {
   vendor: Doc<'vendors'>;
@@ -29,7 +30,8 @@ export function VendorDeleteDialog({
 }: VendorDeleteDialogProps) {
   const { t: tVendors } = useT('vendors');
   const { t: tToast } = useT('toast');
-  const deleteVendor = useDeleteVendor();
+  const vendorCollection = useVendorCollection(vendor.organizationId);
+  const deleteVendor = useDeleteVendor(vendorCollection);
 
   const dialog = useDeleteDialog({
     isOpen: controlledIsOpen,

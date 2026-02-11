@@ -13,7 +13,7 @@ import {
 import { compressImage } from '@/lib/utils/compress-image';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
 
-import { useGenerateUploadUrl } from './use-generate-upload-url';
+import { useGenerateUploadUrl } from './mutations';
 
 interface FileAttachment {
   fileId: Id<'_storage'>;

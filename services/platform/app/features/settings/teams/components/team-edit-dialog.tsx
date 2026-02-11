@@ -11,7 +11,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
-import type { Team } from '../hooks/use-list-teams';
+import type { Team } from '../hooks/collections';
 
 interface TeamEditDialogProps {
   team: Team;
