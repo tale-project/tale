@@ -43,6 +43,13 @@ export interface CreateIntegrationInternalArgs {
   type?: 'rest_api' | 'sql';
   sqlConnectionConfig?: SqlConnectionConfig;
   sqlOperations?: SqlOperation[];
+  oauth2Config?: {
+    authorizationUrl: string;
+    tokenUrl: string;
+    scopes?: string[];
+    clientId?: string;
+    clientSecretEncrypted?: string;
+  };
   iconStorageId?: Id<'_storage'>;
   metadata?: ConvexJsonValue;
 }
@@ -107,6 +114,7 @@ export async function createIntegrationInternal(
     connector,
     sqlConnectionConfig,
     sqlOperations,
+    oauth2Config: args.oauth2Config,
     lastTestedAt: Date.now(),
     iconStorageId: args.iconStorageId,
     metadata: args.metadata,

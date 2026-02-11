@@ -1,0 +1,151 @@
+{
+  "name": "outlook",
+  "title": "Microsoft Outlook",
+  "description": "Microsoft Graph API integration for Outlook mail, calendar, and contacts",
+  "version": 1,
+  "authMethod": "oauth2",
+  "supportedAuthMethods": ["oauth2", "api_key"],
+  "secretBindings": ["accessToken"],
+  "allowedHosts": ["graph.microsoft.com"],
+  "oauth2Config": {
+    "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    "scopes": [
+      "Mail.Read",
+      "Mail.ReadWrite",
+      "Mail.Send",
+      "Calendars.Read",
+      "Calendars.ReadWrite",
+      "Contacts.Read"
+    ]
+  },
+  "operations": [
+    {
+      "name": "list_messages",
+      "title": "List Messages",
+      "description": "Fetch inbox messages from Outlook",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "top": { "type": "number", "description": "Number of messages to return (max 100)", "required": false },
+          "skip": { "type": "number", "description": "Number of messages to skip for pagination", "required": false },
+          "folder": { "type": "string", "description": "Folder ID to filter messages by", "required": false },
+          "select": { "type": "string", "description": "Comma-separated list of fields to return", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_message",
+      "title": "Get Message",
+      "description": "Fetch a single email message by ID",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "messageId": { "type": "string", "description": "Message ID", "required": true }
+        }
+      }
+    },
+    {
+      "name": "search_messages",
+      "title": "Search Messages",
+      "description": "Search messages by keyword across subject, body, and sender",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "Search keyword", "required": true },
+          "top": { "type": "number", "description": "Number of results to return (max 100)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "send_message",
+      "title": "Send Message",
+      "description": "Send an email message",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "to": { "type": "string", "description": "Recipient email address (or array of addresses)", "required": true },
+          "subject": { "type": "string", "description": "Email subject", "required": true },
+          "body": { "type": "string", "description": "Email body content", "required": false },
+          "contentType": { "type": "string", "description": "Body content type: Text or HTML", "required": false },
+          "cc": { "type": "string", "description": "CC recipient email address (or array of addresses)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "list_events",
+      "title": "List Calendar Events",
+      "description": "Fetch calendar events within a date range",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "startDateTime": { "type": "string", "description": "Start of date range (ISO 8601, e.g. 2025-01-01T00:00:00)", "required": false },
+          "endDateTime": { "type": "string", "description": "End of date range (ISO 8601, e.g. 2025-12-31T23:59:59)", "required": false },
+          "top": { "type": "number", "description": "Number of events to return (max 100)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_event",
+      "title": "Get Calendar Event",
+      "description": "Fetch a single calendar event by ID",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "eventId": { "type": "string", "description": "Calendar event ID", "required": true }
+        }
+      }
+    },
+    {
+      "name": "create_event",
+      "title": "Create Calendar Event",
+      "description": "Create a new calendar event",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "subject": { "type": "string", "description": "Event subject/title", "required": true },
+          "startDateTime": { "type": "string", "description": "Start time (ISO 8601, e.g. 2025-06-15T09:00:00)", "required": true },
+          "endDateTime": { "type": "string", "description": "End time (ISO 8601, e.g. 2025-06-15T10:00:00)", "required": true },
+          "timeZone": { "type": "string", "description": "Time zone (e.g. UTC, Europe/Berlin)", "required": false },
+          "body": { "type": "string", "description": "Event body/description", "required": false },
+          "contentType": { "type": "string", "description": "Body content type: Text or HTML", "required": false },
+          "location": { "type": "string", "description": "Event location", "required": false },
+          "attendees": { "type": "string", "description": "Attendee email address (or array of addresses)", "required": false },
+          "isAllDay": { "type": "boolean", "description": "Whether this is an all-day event", "required": false }
+        }
+      }
+    },
+    {
+      "name": "list_contacts",
+      "title": "List Contacts",
+      "description": "Fetch contacts from the default contacts folder",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "top": { "type": "number", "description": "Number of contacts to return (max 100)", "required": false },
+          "skip": { "type": "number", "description": "Number of contacts to skip for pagination", "required": false },
+          "search": { "type": "string", "description": "Search by display name, first name, or last name", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_contact",
+      "title": "Get Contact",
+      "description": "Fetch a single contact by ID",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "contactId": { "type": "string", "description": "Contact ID", "required": true }
+        }
+      }
+    }
+  ],
+  "connectionConfig": {
+    "apiVersion": "v1.0",
+    "timeout": 30000
+  }
+}

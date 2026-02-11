@@ -100,6 +100,10 @@ export const integrationsTable = defineTable({
           title: v.optional(v.string()),
           description: v.optional(v.string()),
           parametersSchema: v.optional(jsonRecordValidator),
+          operationType: v.optional(
+            v.union(v.literal('read'), v.literal('write')),
+          ),
+          requiresApproval: v.optional(v.boolean()),
         }),
       ),
       secretBindings: v.array(v.string()),
