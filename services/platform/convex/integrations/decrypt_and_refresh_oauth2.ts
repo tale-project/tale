@@ -64,6 +64,8 @@ export async function decryptAndRefreshIntegrationOAuth2(
       grant_type: 'refresh_token',
     });
 
+    const refreshTime = Math.floor(Date.now() / 1000);
+
     const response = await fetch(oauth2Config.tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -91,7 +93,7 @@ export async function decryptAndRefreshIntegrationOAuth2(
       : oauth2Auth.refreshTokenEncrypted;
 
     const tokenExpiry = tokens.expires_in
-      ? Math.floor(Date.now() / 1000) + tokens.expires_in
+      ? refreshTime + tokens.expires_in
       : undefined;
 
     await ctx.runMutation(
