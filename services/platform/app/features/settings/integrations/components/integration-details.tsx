@@ -17,6 +17,7 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
+import { isRecord } from '@/lib/utils/type-guards';
 
 interface IntegrationDetailsProps {
   integration: Doc<'integrations'> & { iconUrl?: string | null };
@@ -76,10 +77,6 @@ interface ParameterInfo {
   type: string;
   description?: string;
   required?: boolean;
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 function extractParameters(
