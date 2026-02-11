@@ -79,12 +79,14 @@ const connector = {
     queryParts.push('page=' + page);
     queryParts.push('per_page=' + perPage);
 
-    if (params.sort) queryParts.push('sort=' + params.sort);
-    if (params.desc !== undefined) queryParts.push('desc=' + params.desc);
-    if (params.id) queryParts.push('id=' + params.id);
+    if (params.sort) queryParts.push('sort=' + encodeURIComponent(params.sort));
+    if (params.desc !== undefined)
+      queryParts.push('desc=' + encodeURIComponent(params.desc));
+    if (params.id) queryParts.push('id=' + encodeURIComponent(params.id));
     if (params.customer_id)
-      queryParts.push('customer_id=' + params.customer_id);
-    if (params.status) queryParts.push('status=' + params.status);
+      queryParts.push('customer_id=' + encodeURIComponent(params.customer_id));
+    if (params.status)
+      queryParts.push('status=' + encodeURIComponent(params.status));
 
     const fullUrl = baseUrl + endpoint + '?' + queryParts.join('&');
     console.log('Making Circuly request to: ' + fullUrl);
