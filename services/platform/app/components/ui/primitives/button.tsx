@@ -24,7 +24,7 @@ export const buttonVariants = cva(
         success:
           'bg-success text-success-foreground -outline-offset-1 outline-success shadow-sm hover:bg-success/90',
         outline:
-          'ring-1 ring-border shadow-sm hover:bg-accent hover:text-accent-foreground bg-transparent',
+          'ring-1 ring-border shadow-sm hover:bg-accent hover:text-accent-foreground bg-transparent ring-inset',
         secondary:
           'bg-muted text-secondary-foreground shadow-sm ring-1 ring-border hover:ring-muted-foreground',
         ghost:

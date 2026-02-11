@@ -150,9 +150,9 @@ export const InListContext: Story = {
 export const CustomSize: Story = {
   render: () => (
     <div className="flex items-end gap-4">
-      <DocumentIcon fileName="small.pdf" className="size-5" />
-      <DocumentIcon fileName="medium.pdf" className="size-7" />
-      <DocumentIcon fileName="large.pdf" className="size-10" />
+      <DocumentIcon fileName="small.pdf" className="w-5" />
+      <DocumentIcon fileName="medium.pdf" className="w-7" />
+      <DocumentIcon fileName="large.pdf" className="w-10" />
     </div>
   ),
   parameters: {

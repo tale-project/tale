@@ -53,6 +53,7 @@
     "knip": "^5.83.0",
     "oxfmt": "^0.28.0",
     "oxlint": "^1.43.0",
+    "oxlint-tsgolint": "^0.12.0",
     "patch-package": "^8.0.1",
     "postcss": "8.5.6",
     "turbo": "2.8.3",
@@ -68,6 +69,5 @@
     "workbox-build": {
       "source-map": "^0.7.0"
     }
-  },
-  "dependencies": {}
+  }
 }
