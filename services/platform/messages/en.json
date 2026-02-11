@@ -1181,6 +1181,7 @@
     "columns": {
       "automation": "Automation",
       "status": "Status",
+      "active": "Active",
       "version": "Version",
       "created": "Created"
     },
@@ -1191,6 +1192,9 @@
     "deactivateDialog": {
       "title": "Deactivate automation",
       "description": "Are you sure you want to deactivate \"{name}\"? All triggers will stop firing until you activate it again."
+    },
+    "activeToggle": {
+      "ariaLabel": "Toggle automation active state"
     },
     "createWithAI": "Create automation with AI",
     "searchPlaceholder": "Search automations...",
@@ -1221,6 +1225,8 @@
     },
     "configuration": {
       "title": "Configuration",
+      "active": "Active",
+      "activeHelp": "When active, this automation will run automatically whenever its triggers fire. Deactivating it will pause all triggers.",
       "name": "Name",
       "namePlaceholder": "Enter automation name",
       "description": "Description",

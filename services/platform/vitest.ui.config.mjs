@@ -11,6 +11,7 @@ export default defineConfig({
     setupFiles: ['./test/setup-ui.ts'],
     include: [
       'app/components/**/*.test.{ts,tsx}',
+      'app/features/**/*.test.{ts,tsx}',
       'app/hooks/**/*.test.{ts,tsx}',
     ],
     exclude: ['node_modules', '.next', 'dist', 'convex/**'],
