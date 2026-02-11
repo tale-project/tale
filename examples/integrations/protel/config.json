@@ -216,7 +216,7 @@
     {
       "name": "get_next_reservation_id",
       "title": "Get Next Reservation ID",
-      "description": "Get the next available reservation ID (MAX(buchnr)+1). Call this before create_reservation.",
+      "description": "Get the next available reservation ID (MAX(buchnr)+1). Call this before create_reservation. Note: not safe for concurrent use due to potential race conditions.",
       "query": "SELECT COALESCE(MAX(buchnr), 0) + 1 AS next_reservation_id FROM proteluser.buch"
     },
     {
@@ -339,7 +339,7 @@
     {
       "name": "get_next_guest_id",
       "title": "Get Next Guest ID",
-      "description": "Get the next available guest ID (MAX(kdnr)+1). Call this before create_guest.",
+      "description": "Get the next available guest ID (MAX(kdnr)+1). Call this before create_guest. Note: not safe for concurrent use due to potential race conditions.",
       "query": "SELECT COALESCE(MAX(kdnr), 0) + 1 AS next_guest_id FROM proteluser.kunden"
     },
     {
