@@ -4,7 +4,7 @@
  */
 
 import type { ActionCtx } from '../_generated/server';
-import type { ConnectorConfig } from './types';
+import type { ConnectorConfig, SqlConnectionConfig } from './types';
 
 import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
@@ -20,6 +20,7 @@ interface HealthCheckArgs {
   apiKeyAuth?: { key: string };
   basicAuth?: { username: string; password: string };
   oauth2Auth?: { accessToken: string };
+  sqlConnectionConfig?: SqlConnectionConfig;
 }
 
 export async function runHealthCheck(
@@ -29,9 +30,69 @@ export async function runHealthCheck(
   debugLog(`Integration Create Running health check for ${args.name}...`);
 
   if (args.type === 'sql') {
+    await runSqlHealthCheck(ctx, args);
     return;
   }
 
+  await runRestHealthCheck(ctx, args);
+}
+
+async function runSqlHealthCheck(
+  ctx: ActionCtx,
+  args: HealthCheckArgs,
+): Promise<void> {
+  let sqlConfig = args.sqlConnectionConfig;
+
+  if (!sqlConfig) {
+    const predefined = getPredefinedIntegration(args.name);
+    if (predefined?.type === 'sql' && predefined.sqlConnectionConfig) {
+      sqlConfig = predefined.sqlConnectionConfig;
+    }
+  }
+
+  if (!sqlConfig?.server || !sqlConfig.database) {
+    debugLog(
+      `Skipping SQL health check for ${args.name}: missing server or database config`,
+    );
+    return;
+  }
+
+  if (!args.basicAuth?.username || !args.basicAuth.password) {
+    debugLog(
+      `Skipping SQL health check for ${args.name}: missing database credentials`,
+    );
+    return;
+  }
+
+  const result = await ctx.runAction(
+    internal.node_only.sql.internal_actions.executeQuery,
+    {
+      engine: sqlConfig.engine,
+      credentials: {
+        server: sqlConfig.server,
+        port: sqlConfig.port,
+        database: sqlConfig.database,
+        user: args.basicAuth.username,
+        password: args.basicAuth.password,
+        options: sqlConfig.options,
+      },
+      query: 'SELECT 1',
+      params: {},
+      security: { maxResultRows: 1, queryTimeoutMs: 10000 },
+    },
+  );
+
+  if (!result.success) {
+    throw new Error(result.error ?? 'SQL health check failed');
+  }
+
+  debugLog(`Integration Create Health check passed for ${args.name}`);
+}
+
+async function runRestHealthCheck(
+  ctx: ActionCtx,
+  args: HealthCheckArgs,
+): Promise<void> {
   // Build secrets from plaintext credentials
   const secrets: Record<string, string> = {};
   if (args.connectionConfig?.domain) {

@@ -64,6 +64,8 @@ async function runHealthCheckIfNeeded(
     apiKeyAuth: args.apiKeyAuth,
     basicAuth: args.basicAuth,
     oauth2Auth: args.oauth2Auth,
+    sqlConnectionConfig:
+      args.sqlConnectionConfig ?? integration.sqlConnectionConfig ?? undefined,
   });
 }
 
