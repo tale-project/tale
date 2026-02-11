@@ -102,7 +102,9 @@ export const integrationOAuth2CallbackHandler = httpAction(async (ctx, req) => {
 
   const parsedState = parseState(state);
   if (!parsedState) {
-    console.error('[Integration OAuth2 Callback] Invalid state format:', state);
+    console.error(
+      '[Integration OAuth2 Callback] Invalid state format received',
+    );
     const redirectUrl = buildRedirectUrl(undefined, {
       integration_oauth2_error: 'invalid_state',
     });
