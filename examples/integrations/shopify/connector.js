@@ -152,8 +152,12 @@ function buildEndpoint(operation, params) {
   const parts = operation.split('_');
   const action = parts[0];
   const resource = parts.slice(1).join('_');
-  if (action === 'get' && params.resourceId)
+  if (action === 'get') {
+    if (!params.resourceId) {
+      throw new Error('resourceId is required for ' + operation);
+    }
     return resource + '/' + params.resourceId;
+  }
   if (action === 'count') return resource + '/count';
   return resource;
 }
