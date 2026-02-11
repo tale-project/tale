@@ -124,7 +124,10 @@ async function runRestHealthCheck(
   }
 
   if (!connectorCode) {
-    return;
+    throw new Error(
+      `Health check failed for "${args.name}": missing connector code. ` +
+        'REST integrations require connector code with a testConnection method.',
+    );
   }
 
   const result = await ctx.runAction(
