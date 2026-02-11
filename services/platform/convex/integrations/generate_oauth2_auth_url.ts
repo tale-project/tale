@@ -13,6 +13,30 @@ import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations OAuth2]');
 
+function isGoogleAuthUrl(authorizationUrl: string) {
+  return authorizationUrl.includes('accounts.google.com');
+}
+
+function isMicrosoftAuthUrl(authorizationUrl: string) {
+  return authorizationUrl.includes('login.microsoftonline.com');
+}
+
+function applyProviderAuthParams(
+  authorizationUrl: string,
+  params: URLSearchParams,
+  scopes: string[],
+) {
+  if (isGoogleAuthUrl(authorizationUrl)) {
+    params.set('access_type', 'offline');
+    params.set('prompt', 'consent');
+  } else if (isMicrosoftAuthUrl(authorizationUrl)) {
+    if (!scopes.includes('offline_access')) {
+      scopes.push('offline_access');
+    }
+    params.set('prompt', 'consent');
+  }
+}
+
 interface GenerateOAuth2AuthUrlArgs {
   integrationId: Doc<'integrations'>['_id'];
   organizationId: string;
@@ -56,13 +80,13 @@ export async function generateOAuth2AuthUrl(
     state,
   });
 
-  if (oauth2Config.scopes && oauth2Config.scopes.length > 0) {
-    params.set('scope', oauth2Config.scopes.join(' '));
-  }
+  const scopes = oauth2Config.scopes ? [...oauth2Config.scopes] : [];
 
-  // Request offline access to get a refresh token
-  params.set('access_type', 'offline');
-  params.set('prompt', 'consent');
+  applyProviderAuthParams(oauth2Config.authorizationUrl, params, scopes);
+
+  if (scopes.length > 0) {
+    params.set('scope', scopes.join(' '));
+  }
 
   const authUrl = `${oauth2Config.authorizationUrl}?${params.toString()}`;
 
