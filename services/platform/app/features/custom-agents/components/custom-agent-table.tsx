@@ -16,6 +16,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { isKeyOf } from '@/lib/utils/type-guards';
 
+import { CustomAgentActiveToggle } from './custom-agent-active-toggle';
 import { CustomAgentRowActions } from './custom-agent-row-actions';
 import { CustomAgentsActionMenu } from './custom-agents-action-menu';
 
@@ -108,6 +109,12 @@ export function CustomAgentTable({
           );
         },
         size: 140,
+      },
+      {
+        id: 'active',
+        header: t('customAgents.columns.active'),
+        size: 80,
+        cell: ({ row }) => <CustomAgentActiveToggle agent={row.original} />,
       },
       {
         id: 'modelPreset',

@@ -8,6 +8,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
+import { CustomAgentActiveToggle } from '@/app/features/custom-agents/components/custom-agent-active-toggle';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useUpdateCustomAgentMetadata } from '@/app/features/custom-agents/hooks/use-custom-agent-mutations';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
@@ -137,6 +138,18 @@ function GeneralTab() {
           </Stack>
           <AutoSaveIndicator status={status} />
         </div>
+
+        {agent && (
+          <Stack gap={2}>
+            <CustomAgentActiveToggle
+              agent={agent}
+              label={t('customAgents.general.active')}
+            />
+            <p className="text-muted-foreground text-xs">
+              {t('customAgents.general.activeHelp')}
+            </p>
+          </Stack>
+        )}
 
         <Stack gap={3}>
           <Input
