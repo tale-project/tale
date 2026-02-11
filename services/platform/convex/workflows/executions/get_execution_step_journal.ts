@@ -34,15 +34,22 @@ export async function getExecutionStepJournal(
   if (idsOrdered.length === 0) return [];
 
   const journals = await Promise.all(
-    idsOrdered.map((wid) =>
-      ctx.runQuery(workflow.journal.load, { workflowId: wid }),
-    ),
+    idsOrdered.map(async (wid) => {
+      try {
+        return await ctx.runQuery(workflow.journal.load, { workflowId: wid });
+      } catch {
+        return null;
+      }
+    }),
   );
 
   const combined: Array<Record<string, unknown>> = [];
   for (let i = 0; i < idsOrdered.length; i++) {
     const wid = idsOrdered[i];
-    const entries = journals[i].journalEntries || [];
+    const journal = journals[i];
+    if (!journal) continue;
+
+    const entries = journal.journalEntries || [];
     const sorted = entries
       .slice()
       .sort(

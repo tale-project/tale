@@ -304,7 +304,7 @@ export function DataTableSkeleton<TData = unknown, TValue = unknown>({
   return (
     <Stack gap={4} className={cn('w-full', className)}>
       {headerContent}
-      <div className="border-border rounded-xl border">
+      <div className="border-border overflow-hidden rounded-xl border">
         {tableContent}
         {infiniteScrollContent}
       </div>
