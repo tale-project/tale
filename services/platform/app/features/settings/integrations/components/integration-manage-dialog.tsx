@@ -880,14 +880,14 @@ export function IntegrationManageDialog({
 
             {/* Test result feedback */}
             {testResult && (
-              <div
+              <output
                 className={cn(
                   'flex items-center gap-2 rounded-lg border p-3 text-sm',
                   testResult.success
                     ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
                     : 'border-destructive/30 bg-destructive/5 text-destructive',
                 )}
-                role="status"
+                aria-live="polite"
               >
                 {testResult.success ? (
                   <CheckCircle className="size-4 shrink-0" />
@@ -903,7 +903,7 @@ export function IntegrationManageDialog({
                 >
                   <X className="size-3.5" />
                 </button>
-              </div>
+              </output>
             )}
           </Stack>
         ) : (
@@ -1189,14 +1189,14 @@ export function IntegrationManageDialog({
 
               {/* Test result feedback */}
               {testResult && (
-                <div
+                <output
                   className={cn(
                     'flex items-center gap-2 rounded-lg border p-3 text-sm',
                     testResult.success
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
                       : 'border-destructive/30 bg-destructive/5 text-destructive',
                   )}
-                  role="status"
+                  aria-live="polite"
                 >
                   {testResult.success ? (
                     <CheckCircle className="size-4 shrink-0" />
@@ -1212,7 +1212,7 @@ export function IntegrationManageDialog({
                   >
                     <X className="size-3.5" />
                   </button>
-                </div>
+                </output>
               )}
             </Stack>
           </>
