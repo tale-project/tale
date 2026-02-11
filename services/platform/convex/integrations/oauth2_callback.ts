@@ -51,18 +51,18 @@ function buildRedirectUrl(
 }
 
 function parseState(state: string): ParsedState | null {
-  const parts = state.split(':');
-  if (parts.length !== 3) return null;
+  try {
+    const parsed = JSON.parse(atob(state));
+    if (parsed.prefix !== 'integration') return null;
+    if (!parsed.integrationId || !parsed.organizationId) return null;
 
-  const [prefix, integrationId, organizationId] = parts;
-
-  if (prefix !== 'integration') return null;
-  if (!integrationId || !organizationId) return null;
-
-  return {
-    integrationId: toId<'integrations'>(integrationId),
-    organizationId,
-  };
+    return {
+      integrationId: toId<'integrations'>(parsed.integrationId),
+      organizationId: parsed.organizationId,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export const integrationOAuth2CallbackHandler = httpAction(async (ctx, req) => {

@@ -71,7 +71,13 @@ export async function generateOAuth2AuthUrl(
   const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
   const redirectUri = `${siteUrl}/api/integrations/oauth2/callback`;
 
-  const state = `integration:${args.integrationId}:${args.organizationId}`;
+  const state = btoa(
+    JSON.stringify({
+      prefix: 'integration',
+      integrationId: args.integrationId,
+      organizationId: args.organizationId,
+    }),
+  );
 
   const params = new URLSearchParams({
     client_id: oauth2Config.clientId,
