@@ -7,6 +7,7 @@ import type { Doc } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
 import { internal } from '../_generated/api';
+import { decryptAndRefreshIntegrationOAuth2 } from './decrypt_and_refresh_oauth2';
 
 export async function buildTestSecrets(
   ctx: ActionCtx,
@@ -33,6 +34,13 @@ export async function buildTestSecrets(
       { jwe: integration.basicAuth.passwordEncrypted },
     );
     secrets['password'] = decrypted;
+  }
+
+  if (integration.authMethod === 'oauth2' && integration.oauth2Auth) {
+    secrets['accessToken'] = await decryptAndRefreshIntegrationOAuth2(
+      ctx,
+      integration,
+    );
   }
 
   return secrets;

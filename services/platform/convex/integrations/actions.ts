@@ -9,6 +9,8 @@ import {
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import { createIntegration } from './create_integration';
+import { generateOAuth2AuthUrl } from './generate_oauth2_auth_url';
+import { saveOAuth2ClientCredentials as saveOAuth2ClientCredentialsHandler } from './save_oauth2_client_credentials';
 import { testConnection as testConnectionHandler } from './test_connection';
 import { updateIntegration } from './update_integration';
 import {
@@ -16,6 +18,7 @@ import {
   apiKeyAuthValidator,
   basicAuthValidator,
   oauth2AuthValidator,
+  oauth2ConfigValidator,
   connectionConfigValidator,
   capabilitiesValidator,
   connectorConfigValidator,
@@ -32,6 +35,7 @@ export const create = action({
     title: v.string(),
     description: v.optional(v.string()),
     authMethod: authMethodValidator,
+    supportedAuthMethods: v.optional(v.array(authMethodValidator)),
     apiKeyAuth: v.optional(apiKeyAuthValidator),
     basicAuth: v.optional(basicAuthValidator),
     oauth2Auth: v.optional(oauth2AuthValidator),
@@ -41,6 +45,7 @@ export const create = action({
     type: v.optional(v.union(v.literal('rest_api'), v.literal('sql'))),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     sqlOperations: v.optional(v.array(sqlOperationValidator)),
+    oauth2Config: v.optional(oauth2ConfigValidator),
     iconStorageId: v.optional(v.id('_storage')),
     metadata: v.optional(jsonValueValidator),
   },
@@ -58,6 +63,7 @@ export const create = action({
 export const update = action({
   args: {
     integrationId: v.id('integrations'),
+    authMethod: v.optional(authMethodValidator),
     status: v.optional(statusValidator),
     isActive: v.optional(v.boolean()),
     apiKeyAuth: v.optional(apiKeyAuthValidator),
@@ -86,6 +92,7 @@ export const testConnection = action({
     integrationId: v.id('integrations'),
     apiKeyAuth: v.optional(apiKeyAuthValidator),
     basicAuth: v.optional(basicAuthValidator),
+    oauth2Auth: v.optional(oauth2AuthValidator),
     connectionConfig: v.optional(connectionConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
   },
@@ -97,5 +104,42 @@ export const testConnection = action({
     }
 
     return await testConnectionHandler(ctx, args);
+  },
+});
+
+export const generateOAuth2Url = action({
+  args: {
+    integrationId: v.id('integrations'),
+    organizationId: v.string(),
+  },
+  returns: v.string(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    return await generateOAuth2AuthUrl(ctx, args);
+  },
+});
+
+export const saveOAuth2ClientCredentials = action({
+  args: {
+    integrationId: v.id('integrations'),
+    authorizationUrl: v.string(),
+    tokenUrl: v.string(),
+    scopes: v.optional(v.array(v.string())),
+    clientId: v.string(),
+    clientSecret: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    await saveOAuth2ClientCredentialsHandler(ctx, args);
+    return null;
   },
 });

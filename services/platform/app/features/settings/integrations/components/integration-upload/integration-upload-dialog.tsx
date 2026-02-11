@@ -54,6 +54,9 @@ export function IntegrationUploadDialog({
       const isSql = config.type === 'sql';
       const authMethod =
         config.authMethod === 'bearer_token' ? 'api_key' : config.authMethod;
+      const supportedAuthMethods = config.supportedAuthMethods?.map((m) =>
+        m === 'bearer_token' ? 'api_key' : m,
+      );
 
       // Upload icon to Convex storage if present
       let iconStorageId: string | undefined;
@@ -98,6 +101,7 @@ export function IntegrationUploadDialog({
         title: config.title,
         description: config.description,
         authMethod,
+        supportedAuthMethods,
         connectionConfig: config.connectionConfig ?? undefined,
         connector,
         type: isSql ? 'sql' : undefined,
@@ -105,6 +109,10 @@ export function IntegrationUploadDialog({
           ? toId<'_storage'>(iconStorageId)
           : undefined,
       };
+
+      if (config.oauth2Config) {
+        payload.oauth2Config = config.oauth2Config;
+      }
 
       if (isSql && config.sqlConnectionConfig) {
         payload.sqlConnectionConfig = config.sqlConnectionConfig;

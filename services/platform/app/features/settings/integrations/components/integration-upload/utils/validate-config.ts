@@ -45,26 +45,53 @@ const sqlConnectionConfigSchema = z
   })
   .optional();
 
-export const integrationConfigSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .max(64)
-    .regex(
-      /^[a-z][a-z0-9_-]*$/,
-      'Name must be lowercase alphanumeric with dashes/underscores',
-    ),
-  title: z.string().min(1).max(128),
-  description: z.string().max(512).optional(),
-  version: z.number().int().positive().optional(),
-  type: z.enum(['rest_api', 'sql']).optional(),
-  authMethod: z.enum(['api_key', 'bearer_token', 'basic_auth']),
-  secretBindings: z.array(z.string().min(1)).min(1),
-  allowedHosts: z.array(z.string()).optional(),
-  operations: z.array(operationSchema).min(1),
-  connectionConfig: connectionConfigSchema,
-  sqlConnectionConfig: sqlConnectionConfigSchema,
-});
+const oauth2ConfigSchema = z
+  .object({
+    authorizationUrl: z.string().url(),
+    tokenUrl: z.string().url(),
+    scopes: z.array(z.string()).optional(),
+  })
+  .optional();
+
+const authMethodEnum = z.enum([
+  'api_key',
+  'bearer_token',
+  'basic_auth',
+  'oauth2',
+]);
+
+export const integrationConfigSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(
+        /^[a-z][a-z0-9_-]*$/,
+        'Name must be lowercase alphanumeric with dashes/underscores',
+      ),
+    title: z.string().min(1).max(128),
+    description: z.string().max(512).optional(),
+    version: z.number().int().positive().optional(),
+    type: z.enum(['rest_api', 'sql']).optional(),
+    authMethod: authMethodEnum,
+    supportedAuthMethods: z.array(authMethodEnum).min(1).optional(),
+    secretBindings: z.array(z.string().min(1)).min(1),
+    allowedHosts: z.array(z.string()).optional(),
+    operations: z.array(operationSchema).min(1),
+    connectionConfig: connectionConfigSchema,
+    sqlConnectionConfig: sqlConnectionConfigSchema,
+    oauth2Config: oauth2ConfigSchema,
+  })
+  .refine(
+    (data) =>
+      !data.supportedAuthMethods ||
+      data.supportedAuthMethods.includes(data.authMethod),
+    {
+      message: 'authMethod must be included in supportedAuthMethods',
+      path: ['authMethod'],
+    },
+  );
 
 export type IntegrationConfig = z.infer<typeof integrationConfigSchema>;
 

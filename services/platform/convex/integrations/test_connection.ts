@@ -12,6 +12,7 @@ import type {
   ApiKeyAuth,
   BasicAuth,
   ConnectionConfig,
+  OAuth2Auth,
   SqlConnectionConfig,
   TestConnectionResult,
 } from './types';
@@ -30,6 +31,8 @@ export interface TestConnectionArgs {
   apiKeyAuth?: ApiKeyAuth;
   /** Inline basic auth for pre-save testing (plaintext password, not yet encrypted) */
   basicAuth?: BasicAuth;
+  /** Inline OAuth2 auth for pre-save testing (plaintext tokens, not yet encrypted) */
+  oauth2Auth?: OAuth2Auth;
   /** Inline connection config for pre-save testing (not yet persisted) */
   connectionConfig?: ConnectionConfig;
   /** Inline SQL config for pre-save testing (not yet persisted) */
@@ -53,6 +56,7 @@ function buildInlineSecrets(
   overrides: {
     apiKeyAuth?: ApiKeyAuth;
     basicAuth?: BasicAuth;
+    oauth2Auth?: OAuth2Auth;
     connectionConfig?: ConnectionConfig;
   },
 ): Record<string, string> {
@@ -72,6 +76,9 @@ function buildInlineSecrets(
       secrets['username'] = overrides.basicAuth.username;
     if (overrides.basicAuth.password)
       secrets['password'] = overrides.basicAuth.password;
+  }
+  if (overrides.oauth2Auth?.accessToken) {
+    secrets['accessToken'] = overrides.oauth2Auth.accessToken;
   }
 
   // Carry over non-auth connection config values (e.g. apiEndpoint)
@@ -97,6 +104,7 @@ async function testRestConnection(
   overrides?: {
     apiKeyAuth?: ApiKeyAuth;
     basicAuth?: BasicAuth;
+    oauth2Auth?: OAuth2Auth;
     connectionConfig?: ConnectionConfig;
   },
 ): Promise<void> {
@@ -124,6 +132,7 @@ async function testRestConnection(
   const hasInlineOverrides = !!(
     overrides?.apiKeyAuth ||
     overrides?.basicAuth ||
+    overrides?.oauth2Auth ||
     overrides?.connectionConfig
   );
 
@@ -239,6 +248,7 @@ export async function testConnection(
     args.sqlConnectionConfig ||
     args.basicAuth ||
     args.apiKeyAuth ||
+    args.oauth2Auth ||
     args.connectionConfig
   );
 
@@ -254,6 +264,7 @@ export async function testConnection(
       const hasInlineOverrides = !!(
         args.apiKeyAuth ||
         args.basicAuth ||
+        args.oauth2Auth ||
         args.connectionConfig
       );
       if (!hasInlineOverrides && !hasCredentials(integration)) {
@@ -266,6 +277,7 @@ export async function testConnection(
       await testRestConnection(ctx, integration, {
         apiKeyAuth: args.apiKeyAuth,
         basicAuth: args.basicAuth,
+        oauth2Auth: args.oauth2Auth,
         connectionConfig: args.connectionConfig,
       });
     }

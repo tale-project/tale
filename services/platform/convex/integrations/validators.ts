@@ -20,6 +20,8 @@ import {
   basicAuthEncryptedSchema,
   oauth2AuthSchema,
   oauth2AuthEncryptedSchema,
+  oauth2ConfigSchema,
+  oauth2ConfigStoredSchema,
   connectionConfigSchema,
   capabilitiesSchema,
   testConnectionResultSchema,
@@ -38,6 +40,8 @@ export {
   basicAuthEncryptedSchema,
   oauth2AuthSchema,
   oauth2AuthEncryptedSchema,
+  oauth2ConfigSchema,
+  oauth2ConfigStoredSchema,
   connectionConfigSchema,
   capabilitiesSchema,
   testConnectionResultSchema,
@@ -60,6 +64,10 @@ export const basicAuthEncryptedValidator = zodToConvex(
 export const oauth2AuthValidator = zodToConvex(oauth2AuthSchema);
 export const oauth2AuthEncryptedValidator = zodToConvex(
   oauth2AuthEncryptedSchema,
+);
+export const oauth2ConfigValidator = zodToConvex(oauth2ConfigSchema);
+export const oauth2ConfigStoredValidator = zodToConvex(
+  oauth2ConfigStoredSchema,
 );
 export const connectionConfigValidator = zodToConvex(connectionConfigSchema);
 export const capabilitiesValidator = zodToConvex(capabilitiesSchema);
@@ -136,9 +144,11 @@ export const integrationDocValidator = v.object({
   status: statusValidator,
   isActive: v.boolean(),
   authMethod: authMethodValidator,
+  supportedAuthMethods: v.optional(v.array(authMethodValidator)),
   apiKeyAuth: v.optional(apiKeyAuthEncryptedValidator),
   basicAuth: v.optional(basicAuthEncryptedValidator),
   oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
+  oauth2Config: v.optional(oauth2ConfigStoredValidator),
   connectionConfig: v.optional(connectionConfigValidator),
   lastSyncedAt: v.optional(v.number()),
   lastTestedAt: v.optional(v.number()),

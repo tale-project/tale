@@ -37,6 +37,7 @@ export interface CreateIntegrationArgs {
   title: string;
   description?: string;
   authMethod: AuthMethod;
+  supportedAuthMethods?: AuthMethod[];
   apiKeyAuth?: ApiKeyAuth;
   basicAuth?: BasicAuth;
   oauth2Auth?: OAuth2Auth;
@@ -47,6 +48,12 @@ export interface CreateIntegrationArgs {
   type?: 'rest_api' | 'sql';
   sqlConnectionConfig?: SqlConnectionConfig;
   sqlOperations?: SqlOperation[];
+  // OAuth2 provider config (from config.json)
+  oauth2Config?: {
+    authorizationUrl: string;
+    tokenUrl: string;
+    scopes?: string[];
+  };
   iconStorageId?: Id<'_storage'>;
   metadata?: unknown;
 }
@@ -101,6 +108,7 @@ export async function createIntegration(
         isActive: hasCredentials,
         authMethod:
           args.authMethod === 'bearer_token' ? 'api_key' : args.authMethod,
+        supportedAuthMethods: args.supportedAuthMethods,
         apiKeyAuth,
         basicAuth: basicAuth
           ? {
@@ -122,6 +130,7 @@ export async function createIntegration(
         sqlOperations: args.sqlOperations as
           | Record<string, unknown>[]
           | undefined,
+        oauth2Config: args.oauth2Config,
         iconStorageId: args.iconStorageId,
         metadata: args.metadata,
       },

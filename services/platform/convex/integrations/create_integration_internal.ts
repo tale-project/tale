@@ -32,6 +32,7 @@ export interface CreateIntegrationInternalArgs {
   status: Status;
   isActive: boolean;
   authMethod: AuthMethod;
+  supportedAuthMethods?: AuthMethod[];
   apiKeyAuth?: ApiKeyAuthEncrypted;
   basicAuth?: BasicAuthEncrypted;
   oauth2Auth?: OAuth2AuthEncrypted;
@@ -97,6 +98,7 @@ export async function createIntegrationInternal(
     status: args.status,
     isActive: args.isActive,
     authMethod: args.authMethod,
+    supportedAuthMethods: args.supportedAuthMethods,
     apiKeyAuth: args.apiKeyAuth,
     basicAuth: args.basicAuth,
     oauth2Auth: args.oauth2Auth,

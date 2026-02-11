@@ -10,6 +10,7 @@ import { ActionCtx } from '../_generated/server';
 import { encryptCredentials } from './encrypt_credentials';
 import { runHealthCheck } from './run_health_check';
 import {
+  AuthMethod,
   Status,
   ApiKeyAuth,
   BasicAuth,
@@ -21,6 +22,7 @@ import {
 
 export interface UpdateIntegrationArgs {
   integrationId: Id<'integrations'>;
+  authMethod?: AuthMethod;
   status?: Status;
   isActive?: boolean;
   apiKeyAuth?: ApiKeyAuth;
@@ -61,6 +63,7 @@ async function runHealthCheckIfNeeded(
     connectionConfig: domain ? { domain } : undefined,
     apiKeyAuth: args.apiKeyAuth,
     basicAuth: args.basicAuth,
+    oauth2Auth: args.oauth2Auth,
   });
 }
 
@@ -91,6 +94,7 @@ export async function updateIntegration(
     internal.integrations.internal_mutations.updateIntegration,
     {
       integrationId: args.integrationId,
+      authMethod: args.authMethod,
       status: args.status,
       isActive: args.isActive,
       apiKeyAuth,

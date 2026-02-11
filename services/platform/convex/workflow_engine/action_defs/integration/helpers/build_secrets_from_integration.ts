@@ -7,6 +7,7 @@ import type { Doc } from '../../../../_generated/dataModel';
 import type { ActionDefinition } from '../../../helpers/nodes/action/types';
 
 import { internal } from '../../../../_generated/api';
+import { decryptAndRefreshIntegrationOAuth2 } from '../../../../integrations/decrypt_and_refresh_oauth2';
 
 export async function buildSecretsFromIntegration(
   ctx: Parameters<ActionDefinition['execute']>[0],
@@ -35,6 +36,13 @@ export async function buildSecretsFromIntegration(
       { jwe: integration.basicAuth.passwordEncrypted },
     );
     secrets['password'] = decrypted;
+  }
+
+  if (integration.authMethod === 'oauth2' && integration.oauth2Auth) {
+    secrets['accessToken'] = await decryptAndRefreshIntegrationOAuth2(
+      ctx,
+      integration,
+    );
   }
 
   return secrets;

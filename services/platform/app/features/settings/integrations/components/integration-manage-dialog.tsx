@@ -3,6 +3,7 @@
 import { useMutation } from 'convex/react';
 import {
   CheckCircle,
+  ExternalLink,
   XCircle,
   Loader2,
   Puzzle,
@@ -19,6 +20,7 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
 import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
 import { Center, Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
@@ -28,6 +30,8 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useDeleteIntegration } from '../hooks/use-delete-integration';
+import { useGenerateIntegrationOAuth2Url } from '../hooks/use-generate-integration-oauth2-url';
+import { useSaveOAuth2Credentials } from '../hooks/use-save-oauth2-credentials';
 import { useTestIntegration } from '../hooks/use-test-integration';
 import { useUpdateIntegration } from '../hooks/use-update-integration';
 import { IntegrationDetails } from './integration-details';
@@ -41,6 +45,15 @@ const SENSITIVE_KEYS = new Set([
   'key',
   'refreshToken',
 ]);
+
+// Keys with dedicated input fields per auth method (excluded from generic secretBindings inputs).
+// api_key/bearer_token use dynamic matching via SENSITIVE_KEYS, so no fixed keys to exclude.
+const AUTH_HANDLED_KEYS: Record<string, string[]> = {
+  api_key: [],
+  bearer_token: [],
+  basic_auth: ['username', 'password'],
+  oauth2: ['accessToken', 'refreshToken'],
+};
 
 function maskValue(value: string, visibleChars = 6): string {
   if (value.length <= visibleChars) return '×'.repeat(8);
@@ -107,6 +120,47 @@ export function IntegrationManageDialog({
   });
   const generateUploadUrl = useMutation(api.files.mutations.generateUploadUrl);
   const updateIcon = useMutation(api.integrations.mutations.updateIcon);
+  const generateOAuth2Url = useGenerateIntegrationOAuth2Url();
+  const saveOAuth2Credentials = useSaveOAuth2Credentials();
+
+  const hasOAuth2Config = !!integration.oauth2Config;
+
+  // Auth method selection (for integrations supporting multiple methods)
+  const supportedMethods = useMemo(
+    () => integration.supportedAuthMethods ?? [integration.authMethod],
+    [integration.supportedAuthMethods, integration.authMethod],
+  );
+  const hasMultipleAuthMethods = supportedMethods.length > 1;
+  const [selectedAuthMethod, setSelectedAuthMethod] = useState(
+    integration.authMethod,
+  );
+
+  // Reset selected method when integration changes
+  useEffect(() => {
+    setSelectedAuthMethod(integration.authMethod);
+  }, [integration.authMethod]);
+
+  // OAuth2 client credential state (for authorization flow)
+  const [oauth2Fields, setOAuth2Fields] = useState({
+    authorizationUrl: '',
+    tokenUrl: '',
+    clientId: '',
+    clientSecret: '',
+  });
+  const [isSavingOAuth2, setIsSavingOAuth2] = useState(false);
+
+  // Pre-fill OAuth2 fields from integration config when dialog opens
+  useEffect(() => {
+    const config = integration.oauth2Config;
+    if (config) {
+      setOAuth2Fields((prev) => ({
+        authorizationUrl: prev.authorizationUrl || config.authorizationUrl,
+        tokenUrl: prev.tokenUrl || config.tokenUrl,
+        clientId: prev.clientId || config.clientId || '',
+        clientSecret: prev.clientSecret,
+      }));
+    }
+  }, [integration.oauth2Config]);
 
   const isSql = integration.type === 'sql';
 
@@ -117,11 +171,16 @@ export function IntegrationManageDialog({
 
   // For SQL basic_auth, skip username/password from secretBindings since they have dedicated inputs
   const displayBindings = useMemo(() => {
-    if (isSql && integration.authMethod === 'basic_auth') {
+    if (isSql && selectedAuthMethod === 'basic_auth') {
       return secretBindings.filter((b) => b !== 'username' && b !== 'password');
     }
+    if (selectedAuthMethod === 'oauth2') {
+      return secretBindings.filter(
+        (b) => b !== 'accessToken' && b !== 'refreshToken',
+      );
+    }
     return secretBindings;
-  }, [isSql, integration.authMethod, secretBindings]);
+  }, [isSql, selectedAuthMethod, secretBindings]);
 
   const hasCredentialChanges = Object.values(credentials).some(
     (v) => v.trim().length > 0,
@@ -131,7 +190,7 @@ export function IntegrationManageDialog({
   );
   const hasChanges = hasCredentialChanges || hasSqlConfigChanges;
 
-  const busy = isSubmitting || isTesting;
+  const busy = isSubmitting || isTesting || isSavingOAuth2;
 
   // Prevent closing while busy
   const busyRef = useRef(false);
@@ -211,12 +270,17 @@ export function IntegrationManageDialog({
   );
 
   const buildUpdateArgs = useCallback(() => {
-    const authMethod = integration.authMethod;
+    const authMethod = selectedAuthMethod;
     const updateArgs: Record<string, unknown> = {
       integrationId: integration._id,
       isActive: true,
       status: 'active',
     };
+
+    // Include authMethod when switching to a different method
+    if (selectedAuthMethod !== integration.authMethod) {
+      updateArgs.authMethod = selectedAuthMethod;
+    }
 
     if (authMethod === 'api_key') {
       const keyBinding = secretBindings.find((b) => SENSITIVE_KEYS.has(b));
@@ -234,12 +298,17 @@ export function IntegrationManageDialog({
           password: credentials['password']?.trim() || '',
         };
       }
+    } else if (authMethod === 'oauth2') {
+      if (credentials['accessToken']?.trim()) {
+        updateArgs.oauth2Auth = {
+          accessToken: credentials['accessToken'],
+          refreshToken: credentials['refreshToken']?.trim() || undefined,
+        };
+      }
     }
 
     const connectionUpdates: Record<string, string> = {};
-    const authHandledKeys = new Set(
-      authMethod === 'basic_auth' ? ['username', 'password'] : [],
-    );
+    const authHandledKeys = new Set(AUTH_HANDLED_KEYS[authMethod] ?? []);
     for (const binding of secretBindings) {
       if (
         !SENSITIVE_KEYS.has(binding) &&
@@ -277,6 +346,7 @@ export function IntegrationManageDialog({
     sqlConfig,
     isSql,
     hasSqlConfigChanges,
+    selectedAuthMethod,
     integration,
     secretBindings,
   ]);
@@ -350,7 +420,7 @@ export function IntegrationManageDialog({
 
         if (hasChanges) {
           // Build inline REST credentials for pre-save testing
-          const authMethod = integration.authMethod;
+          const authMethod = selectedAuthMethod;
 
           if (authMethod === 'api_key') {
             const keyBinding = secretBindings.find((b) =>
@@ -373,13 +443,18 @@ export function IntegrationManageDialog({
                 password: credentials['password']?.trim() || '',
               };
             }
+          } else if (authMethod === 'oauth2') {
+            if (credentials['accessToken']?.trim()) {
+              testArgs.oauth2Auth = {
+                accessToken: credentials['accessToken'],
+                refreshToken: credentials['refreshToken']?.trim() || undefined,
+              };
+            }
           }
 
           // Non-sensitive connection config values (e.g. apiEndpoint, domain)
           const connectionUpdates: Record<string, string> = {};
-          const authHandledKeys = new Set(
-            authMethod === 'basic_auth' ? ['username', 'password'] : [],
-          );
+          const authHandledKeys = new Set(AUTH_HANDLED_KEYS[authMethod] ?? []);
           for (const binding of secretBindings) {
             if (
               !SENSITIVE_KEYS.has(binding) &&
@@ -440,6 +515,7 @@ export function IntegrationManageDialog({
     sqlConfig,
     credentials,
     secretBindings,
+    selectedAuthMethod,
     integration,
     buildUpdateArgs,
     updateIntegration,
@@ -480,6 +556,75 @@ export function IntegrationManageDialog({
       setIsSubmitting(false);
     }
   }, [updateIntegration, integration, t]);
+
+  const handleSaveAndAuthorize = useCallback(async () => {
+    if (
+      !oauth2Fields.authorizationUrl.trim() ||
+      !oauth2Fields.tokenUrl.trim() ||
+      !oauth2Fields.clientId.trim() ||
+      !oauth2Fields.clientSecret.trim()
+    ) {
+      return;
+    }
+
+    setIsSavingOAuth2(true);
+    try {
+      await saveOAuth2Credentials({
+        integrationId: integration._id,
+        authorizationUrl: oauth2Fields.authorizationUrl.trim(),
+        tokenUrl: oauth2Fields.tokenUrl.trim(),
+        scopes: integration.oauth2Config?.scopes,
+        clientId: oauth2Fields.clientId.trim(),
+        clientSecret: oauth2Fields.clientSecret.trim(),
+      });
+
+      const authUrl = await generateOAuth2Url({
+        integrationId: integration._id,
+        organizationId: integration.organizationId,
+      });
+
+      window.location.href = authUrl;
+    } catch (error) {
+      toast({
+        title: t('integrations.manageDialog.oauth2AuthorizationFailed'),
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
+      setIsSavingOAuth2(false);
+    }
+  }, [
+    oauth2Fields,
+    integration._id,
+    integration.organizationId,
+    integration.oauth2Config?.scopes,
+    saveOAuth2Credentials,
+    generateOAuth2Url,
+    t,
+  ]);
+
+  const handleReauthorize = useCallback(async () => {
+    setIsSavingOAuth2(true);
+    try {
+      const authUrl = await generateOAuth2Url({
+        integrationId: integration._id,
+        organizationId: integration.organizationId,
+      });
+      window.location.href = authUrl;
+    } catch (error) {
+      toast({
+        title: t('integrations.manageDialog.oauth2AuthorizationFailed'),
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
+      setIsSavingOAuth2(false);
+    }
+  }, [integration._id, integration.organizationId, generateOAuth2Url, t]);
+
+  const oauth2FieldsComplete =
+    oauth2Fields.authorizationUrl.trim().length > 0 &&
+    oauth2Fields.tokenUrl.trim().length > 0 &&
+    oauth2Fields.clientId.trim().length > 0 &&
+    oauth2Fields.clientSecret.trim().length > 0;
 
   const handleDelete = useCallback(async () => {
     setIsSubmitting(true);
@@ -644,6 +789,22 @@ export function IntegrationManageDialog({
                   </HStack>
                 )}
 
+              {/* oauth2: show connected state */}
+              {integration.authMethod === 'oauth2' &&
+                integration.oauth2Auth && (
+                  <HStack
+                    gap={2}
+                    className="text-muted-foreground items-center text-sm"
+                  >
+                    <span className="w-20 shrink-0 text-xs">
+                      {hasOAuth2Config
+                        ? t('integrations.manageDialog.connectedViaOAuth2')
+                        : 'accessToken'}
+                    </span>
+                    <span className="font-mono text-xs">{'×'.repeat(8)}</span>
+                  </HStack>
+                )}
+
               {/* Connection config: domain / apiEndpoint */}
               {integration.connectionConfig?.domain && (
                 <HStack
@@ -669,21 +830,45 @@ export function IntegrationManageDialog({
               )}
             </Stack>
 
-            <Button
-              variant="outline"
-              onClick={handleDisconnect}
-              disabled={busy}
-              className="w-full"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  {t('integrations.disconnecting')}
-                </>
-              ) : (
-                t('integrations.disconnect')
-              )}
-            </Button>
+            <HStack gap={2}>
+              {hasOAuth2Config &&
+                integration.authMethod === 'oauth2' &&
+                integration.oauth2Config?.clientId && (
+                  <Button
+                    variant="outline"
+                    onClick={handleReauthorize}
+                    disabled={busy}
+                    className="flex-1"
+                  >
+                    {isSavingOAuth2 ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        {t('integrations.manageDialog.savingCredentials')}
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink className="mr-2 size-4" />
+                        {t('integrations.manageDialog.reauthorize')}
+                      </>
+                    )}
+                  </Button>
+                )}
+              <Button
+                variant="outline"
+                onClick={handleDisconnect}
+                disabled={busy}
+                className="flex-1"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    {t('integrations.disconnecting')}
+                  </>
+                ) : (
+                  t('integrations.disconnect')
+                )}
+              </Button>
+            </HStack>
 
             {/* Test result feedback */}
             {testResult && (
@@ -790,8 +975,30 @@ export function IntegrationManageDialog({
                 </p>
               </div>
 
+              {/* Auth method selector when multiple methods supported */}
+              {hasMultipleAuthMethods && (
+                <Select
+                  id="manage-auth-method"
+                  label={t('integrations.manageDialog.authenticationMethod')}
+                  options={supportedMethods.map((m) => ({
+                    value: m,
+                    label: t(`integrations.authMethods.${m}`),
+                  }))}
+                  value={selectedAuthMethod}
+                  onValueChange={(value: string) => {
+                    const method = supportedMethods.find((m) => m === value);
+                    if (method) {
+                      setSelectedAuthMethod(method);
+                      setCredentials({});
+                      setTestResult(null);
+                    }
+                  }}
+                  disabled={busy}
+                />
+              )}
+
               {/* SQL basic_auth has dedicated username/password fields */}
-              {isSql && integration.authMethod === 'basic_auth' && (
+              {isSql && selectedAuthMethod === 'basic_auth' && (
                 <>
                   <Input
                     id="manage-sql-username"
@@ -823,7 +1030,114 @@ export function IntegrationManageDialog({
                 </>
               )}
 
-              {/* Secret bindings (filtered for SQL basic_auth to avoid duplicates) */}
+              {/* OAuth2: authorization flow when oauth2Config exists */}
+              {selectedAuthMethod === 'oauth2' && hasOAuth2Config && (
+                <>
+                  <Input
+                    id="manage-oauth2-authorization-url"
+                    label={t('integrations.manageDialog.authorizationUrl')}
+                    value={oauth2Fields.authorizationUrl}
+                    onChange={(e) =>
+                      setOAuth2Fields((prev) => ({
+                        ...prev,
+                        authorizationUrl: e.target.value,
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                  <Input
+                    id="manage-oauth2-token-url"
+                    label={t('integrations.manageDialog.tokenUrl')}
+                    value={oauth2Fields.tokenUrl}
+                    onChange={(e) =>
+                      setOAuth2Fields((prev) => ({
+                        ...prev,
+                        tokenUrl: e.target.value,
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                  <Input
+                    id="manage-oauth2-client-id"
+                    label={t('integrations.manageDialog.clientId')}
+                    value={oauth2Fields.clientId}
+                    onChange={(e) =>
+                      setOAuth2Fields((prev) => ({
+                        ...prev,
+                        clientId: e.target.value,
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                  <Input
+                    id="manage-oauth2-client-secret"
+                    label={t('integrations.manageDialog.clientSecret')}
+                    type="password"
+                    placeholder="••••••••"
+                    value={oauth2Fields.clientSecret}
+                    onChange={(e) =>
+                      setOAuth2Fields((prev) => ({
+                        ...prev,
+                        clientSecret: e.target.value,
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                  <Button
+                    onClick={handleSaveAndAuthorize}
+                    disabled={busy || !oauth2FieldsComplete}
+                    className="w-full"
+                  >
+                    {isSavingOAuth2 ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        {t('integrations.manageDialog.savingCredentials')}
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink className="mr-2 size-4" />
+                        {t('integrations.manageDialog.saveAndAuthorize')}
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+
+              {/* OAuth2: manual token input as fallback when no oauth2Config */}
+              {selectedAuthMethod === 'oauth2' && !hasOAuth2Config && (
+                <>
+                  <Input
+                    id="manage-oauth2-access-token"
+                    label={t('integrations.manageDialog.accessToken')}
+                    type="password"
+                    placeholder="••••••••"
+                    value={credentials['accessToken'] ?? ''}
+                    onChange={(e) =>
+                      setCredentials((prev) => ({
+                        ...prev,
+                        accessToken: e.target.value,
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                  <Input
+                    id="manage-oauth2-refresh-token"
+                    label={t('integrations.manageDialog.refreshToken')}
+                    type="password"
+                    placeholder={t('integrations.manageDialog.optional')}
+                    value={credentials['refreshToken'] ?? ''}
+                    onChange={(e) =>
+                      setCredentials((prev) => ({
+                        ...prev,
+                        refreshToken: e.target.value,
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                </>
+              )}
+
+              {/* Secret bindings (filtered for SQL basic_auth and oauth2 to avoid duplicates) */}
               {displayBindings.map((binding) => {
                 const isSensitive = SENSITIVE_KEYS.has(binding);
                 return (
@@ -845,23 +1159,25 @@ export function IntegrationManageDialog({
                 );
               })}
 
-              {/* Save and connect / Connect */}
-              <Button
-                onClick={handleTestConnection}
-                disabled={busy}
-                className="w-full"
-              >
-                {isTesting ? (
-                  <>
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    {t('integrations.manageDialog.connecting')}
-                  </>
-                ) : hasChanges ? (
-                  t('integrations.manageDialog.testAndConnect')
-                ) : (
-                  t('integrations.manageDialog.connect')
-                )}
-              </Button>
+              {/* Save and connect / Connect (hidden for OAuth2 auth flow) */}
+              {!(selectedAuthMethod === 'oauth2' && hasOAuth2Config) && (
+                <Button
+                  onClick={handleTestConnection}
+                  disabled={busy}
+                  className="w-full"
+                >
+                  {isTesting ? (
+                    <>
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                      {t('integrations.manageDialog.connecting')}
+                    </>
+                  ) : hasChanges ? (
+                    t('integrations.manageDialog.testAndConnect')
+                  ) : (
+                    t('integrations.manageDialog.connect')
+                  )}
+                </Button>
+              )}
 
               {/* Test result feedback */}
               {testResult && (

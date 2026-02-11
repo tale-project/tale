@@ -74,6 +74,22 @@ export const oauth2AuthEncryptedSchema = z.object({
 });
 type OAuth2AuthEncrypted = z.infer<typeof oauth2AuthEncryptedSchema>;
 
+export const oauth2ConfigSchema = z.object({
+  authorizationUrl: z.string(),
+  tokenUrl: z.string(),
+  scopes: z.array(z.string()).optional(),
+});
+type OAuth2Config = z.infer<typeof oauth2ConfigSchema>;
+
+export const oauth2ConfigStoredSchema = z.object({
+  authorizationUrl: z.string(),
+  tokenUrl: z.string(),
+  scopes: z.array(z.string()).optional(),
+  clientId: z.string().optional(),
+  clientSecretEncrypted: z.string().optional(),
+});
+type OAuth2ConfigStored = z.infer<typeof oauth2ConfigStoredSchema>;
+
 export const connectionConfigSchema = z.object({
   domain: z.string().optional(),
   apiVersion: z.string().optional(),
@@ -172,9 +188,11 @@ const integrationDocSchema = z.object({
   status: integrationStatusSchema,
   isActive: z.boolean(),
   authMethod: integrationAuthMethodSchema,
+  supportedAuthMethods: z.array(integrationAuthMethodSchema).optional(),
   apiKeyAuth: apiKeyAuthEncryptedSchema.optional(),
   basicAuth: basicAuthEncryptedSchema.optional(),
   oauth2Auth: oauth2AuthEncryptedSchema.optional(),
+  oauth2Config: oauth2ConfigStoredSchema.optional(),
   connectionConfig: connectionConfigSchema.optional(),
   lastSyncedAt: z.number().optional(),
   lastTestedAt: z.number().optional(),

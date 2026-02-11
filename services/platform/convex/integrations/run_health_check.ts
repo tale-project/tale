@@ -19,6 +19,7 @@ interface HealthCheckArgs {
   connectionConfig?: { domain?: string };
   apiKeyAuth?: { key: string };
   basicAuth?: { username: string; password: string };
+  oauth2Auth?: { accessToken: string };
 }
 
 export async function runHealthCheck(
@@ -42,6 +43,9 @@ export async function runHealthCheck(
   if (args.basicAuth) {
     if (args.basicAuth.username) secrets['username'] = args.basicAuth.username;
     if (args.basicAuth.password) secrets['password'] = args.basicAuth.password;
+  }
+  if (args.oauth2Auth?.accessToken) {
+    secrets['accessToken'] = args.oauth2Auth.accessToken;
   }
 
   // Find connector code

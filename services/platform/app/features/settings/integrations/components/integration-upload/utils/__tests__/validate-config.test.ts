@@ -155,8 +155,67 @@ describe('validateConfig', () => {
     expect(result.success).toBe(false);
   });
 
+  it('should accept oauth2 authMethod', () => {
+    const result = validateConfig({
+      ...validConfig,
+      authMethod: 'oauth2',
+      secretBindings: ['accessToken'],
+    });
+    expect(result.success).toBe(true);
+    expect(result.config?.authMethod).toBe('oauth2');
+  });
+
+  it('should accept oauth2 with oauth2Config', () => {
+    const result = validateConfig({
+      ...validConfig,
+      authMethod: 'oauth2',
+      secretBindings: ['accessToken'],
+      oauth2Config: {
+        authorizationUrl: 'https://login.example.com/oauth2/authorize',
+        tokenUrl: 'https://login.example.com/oauth2/token',
+        scopes: ['read', 'write'],
+      },
+    });
+    expect(result.success).toBe(true);
+    expect(result.config?.oauth2Config?.authorizationUrl).toBe(
+      'https://login.example.com/oauth2/authorize',
+    );
+    expect(result.config?.oauth2Config?.tokenUrl).toBe(
+      'https://login.example.com/oauth2/token',
+    );
+    expect(result.config?.oauth2Config?.scopes).toEqual(['read', 'write']);
+  });
+
+  it('should accept oauth2Config without scopes', () => {
+    const result = validateConfig({
+      ...validConfig,
+      authMethod: 'oauth2',
+      secretBindings: ['accessToken'],
+      oauth2Config: {
+        authorizationUrl: 'https://login.example.com/oauth2/authorize',
+        tokenUrl: 'https://login.example.com/oauth2/token',
+      },
+    });
+    expect(result.success).toBe(true);
+    expect(result.config?.oauth2Config?.scopes).toBeUndefined();
+  });
+
+  it('should reject oauth2Config with invalid URLs', () => {
+    const result = validateConfig({
+      ...validConfig,
+      authMethod: 'oauth2',
+      secretBindings: ['accessToken'],
+      oauth2Config: {
+        authorizationUrl: 'not-a-url',
+        tokenUrl: 'also-not-a-url',
+      },
+    });
+    expect(result.success).toBe(false);
+    expect(result.errors?.some((e) => e.includes('oauth2Config'))).toBe(true);
+  });
+
   it('should reject config with invalid authMethod', () => {
-    const result = validateConfig({ ...validConfig, authMethod: 'oauth2' });
+    const result = validateConfig({ ...validConfig, authMethod: 'custom' });
     expect(result.success).toBe(false);
   });
 
@@ -198,5 +257,33 @@ describe('validateConfig', () => {
       const result = validateConfig({ ...validConfig, name });
       expect(result.success).toBe(false);
     }
+  });
+
+  it('should accept supportedAuthMethods when authMethod is included', () => {
+    const result = validateConfig({
+      ...validConfig,
+      authMethod: 'oauth2',
+      secretBindings: ['accessToken'],
+      supportedAuthMethods: ['oauth2', 'api_key'],
+    });
+    expect(result.success).toBe(true);
+    expect(result.config?.supportedAuthMethods).toEqual(['oauth2', 'api_key']);
+  });
+
+  it('should reject supportedAuthMethods when authMethod is not included', () => {
+    const result = validateConfig({
+      ...validConfig,
+      authMethod: 'basic_auth',
+      secretBindings: ['username', 'password'],
+      supportedAuthMethods: ['oauth2', 'api_key'],
+    });
+    expect(result.success).toBe(false);
+    expect(result.errors?.some((e) => e.includes('authMethod'))).toBe(true);
+  });
+
+  it('should accept config without supportedAuthMethods (backward compat)', () => {
+    const result = validateConfig(validConfig);
+    expect(result.success).toBe(true);
+    expect(result.config?.supportedAuthMethods).toBeUndefined();
   });
 });
