@@ -149,18 +149,16 @@ export function IntegrationManageDialog({
   });
   const [isSavingOAuth2, setIsSavingOAuth2] = useState(false);
 
-  // Pre-fill OAuth2 fields from integration config when dialog opens
+  // Pre-fill OAuth2 fields from integration config (reset fully on integration change)
   useEffect(() => {
     const config = integration.oauth2Config;
-    if (config) {
-      setOAuth2Fields((prev) => ({
-        authorizationUrl: prev.authorizationUrl || config.authorizationUrl,
-        tokenUrl: prev.tokenUrl || config.tokenUrl,
-        clientId: prev.clientId || config.clientId || '',
-        clientSecret: prev.clientSecret,
-      }));
-    }
-  }, [integration.oauth2Config]);
+    setOAuth2Fields({
+      authorizationUrl: config?.authorizationUrl ?? '',
+      tokenUrl: config?.tokenUrl ?? '',
+      clientId: config?.clientId ?? '',
+      clientSecret: '',
+    });
+  }, [integration._id, integration.oauth2Config]);
 
   const isSql = integration.type === 'sql';
 
