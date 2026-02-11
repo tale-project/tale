@@ -40,8 +40,8 @@ export function DocumentIcon({
 }: DocumentIconProps) {
   if (isFolder) {
     return (
-      <div className={cn(className, 'size-7 flex items-center justify-center')}>
-        <OneDriveFolderIcon className="size-6" />
+      <div className={cn(className, 'flex items-center justify-center')}>
+        <OneDriveFolderIcon className="w-6" />
       </div>
     );
   }
@@ -51,7 +51,7 @@ export function DocumentIcon({
   const styles = defaultStyles[ext as DefaultExtensionType] || {};
 
   return (
-    <div className={cn(className, 'size-7')}>
+    <div className={cn('w-6 px-0.5', className)}>
       <FileIcon extension={ext} {...styles} />
     </div>
   );
