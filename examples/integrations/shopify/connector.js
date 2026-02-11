@@ -164,17 +164,19 @@ function buildEndpoint(operation, params) {
 
 function buildQueryParams(operation, params) {
   const queryParts = [];
+  const addParam = (key, value) => {
+    if (value === undefined || value === null) return;
+    queryParts.push(key + '=' + encodeURIComponent(String(value)));
+  };
   if (operation.startsWith('list_')) {
     const limit = Math.min(params.limit || 50, 250);
-    queryParts.push('limit=' + limit);
-    if (params.page_info) queryParts.push('page_info=' + params.page_info);
-    if (params.since_id) queryParts.push('since_id=' + params.since_id);
-    if (params.created_at_min)
-      queryParts.push('created_at_min=' + params.created_at_min);
-    if (params.updated_at_min)
-      queryParts.push('updated_at_min=' + params.updated_at_min);
-    if (params.status) queryParts.push('status=' + params.status);
-    if (params.fields) queryParts.push('fields=' + params.fields);
+    addParam('limit', limit);
+    addParam('page_info', params.page_info);
+    addParam('since_id', params.since_id);
+    addParam('created_at_min', params.created_at_min);
+    addParam('updated_at_min', params.updated_at_min);
+    addParam('status', params.status);
+    addParam('fields', params.fields);
   }
   return queryParts.join('&');
 }
