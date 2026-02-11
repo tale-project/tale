@@ -105,10 +105,19 @@ export function IntegrationManageDialog({
   }, [integration.isActive]);
 
   useEffect(() => {
-    if (integration.iconUrl) {
+    if (optimisticIconUrl && integration.iconUrl) {
+      URL.revokeObjectURL(optimisticIconUrl);
       setOptimisticIconUrl(null);
     }
-  }, [integration.iconUrl]);
+  }, [integration.iconUrl, optimisticIconUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (optimisticIconUrl) {
+        URL.revokeObjectURL(optimisticIconUrl);
+      }
+    };
+  }, [optimisticIconUrl]);
 
   const isActive = optimisticActive ?? integration.isActive;
   const iconUrl = optimisticIconUrl ?? integration.iconUrl;
@@ -253,6 +262,7 @@ export function IntegrationManageDialog({
           variant: 'success',
         });
       } catch {
+        URL.revokeObjectURL(previewUrl);
         toast({
           title: t('integrations.updateFailed'),
           variant: 'destructive',
