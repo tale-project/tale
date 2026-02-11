@@ -10,8 +10,8 @@
     "engine": "mssql",
     "readOnly": false,
     "options": {
-      "encrypt": false,
-      "trustServerCertificate": true,
+      "encrypt": true,
+      "trustServerCertificate": false,
       "connectionTimeout": 30000,
       "requestTimeout": 30000
     },
