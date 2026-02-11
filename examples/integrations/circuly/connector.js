@@ -89,7 +89,6 @@ const connector = {
       queryParts.push('status=' + encodeURIComponent(params.status));
 
     const fullUrl = baseUrl + endpoint + '?' + queryParts.join('&');
-    console.log('Making Circuly request to: ' + fullUrl);
 
     // Create Basic Auth header using base64 helper from context
     const authString = ctx.base64Encode(username + ':' + password);
