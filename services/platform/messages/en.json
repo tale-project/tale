@@ -610,6 +610,7 @@
       "noAgentsDescription": "Create your first custom agent to specialize AI behavior for your team.",
       "columns": {
         "displayName": "Name",
+        "active": "Active",
         "modelPreset": "Model",
         "tools": "Tools",
         "version": "Version",
@@ -636,6 +637,9 @@
       "agentPublishFailed": "Failed to publish agent",
       "agentDeactivated": "Agent deactivated",
       "agentDeactivateFailed": "Failed to deactivate agent",
+      "activeToggle": {
+        "ariaLabel": "Toggle agent active state"
+      },
       "deactivateDialog": {
         "title": "Deactivate agent",
         "description": "Are you sure you want to deactivate \"{name}\"? The agent will no longer be available until you activate it again."
@@ -665,6 +669,10 @@
       "createDialog": {
         "continue": "Continue",
         "creating": "Creating..."
+      },
+      "general": {
+        "active": "Active",
+        "activeHelp": "When active, this agent is available for use. Deactivating it will make it unavailable until you activate it again."
       },
       "form": {
         "sectionGeneral": "General",
