@@ -14,6 +14,7 @@ import {
   NarrowContainer,
 } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { AutomationActiveToggle } from '@/app/features/automations/components/automation-active-toggle';
 import { useUpdateAutomationMetadata } from '@/app/features/automations/hooks/use-update-automation-metadata';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
@@ -162,6 +163,10 @@ function ConfigurationPage() {
       <NarrowContainer className="py-4">
         <Stack gap={4}>
           <Stack gap={2}>
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-3 w-64" />
+          </Stack>
+          <Stack gap={2}>
             <Skeleton className="h-4 w-12" />
             <Skeleton className="h-9 w-full" />
           </Stack>
@@ -206,6 +211,16 @@ function ConfigurationPage() {
   return (
     <NarrowContainer className="py-4">
       <Stack gap={4}>
+        <Stack gap={2}>
+          <AutomationActiveToggle
+            automation={workflow}
+            label={tAutomations('configuration.active')}
+          />
+          <p className="text-muted-foreground text-xs">
+            {tAutomations('configuration.activeHelp')}
+          </p>
+        </Stack>
+
         <Input
           id="name"
           label={tAutomations('configuration.name')}

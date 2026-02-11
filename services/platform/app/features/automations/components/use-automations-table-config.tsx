@@ -3,6 +3,7 @@
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
+import { AutomationActiveToggle } from './automation-active-toggle';
 import { AutomationRowActions } from './automation-row-actions';
 
 export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
@@ -11,7 +12,7 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
     additionalNamespaces: ['common'],
     defaultSort: '_creationTime',
   },
-  ({ tTables, t, builders }) => [
+  ({ tTables, tEntity, t, builders }) => [
     {
       accessorKey: 'name',
       header: () => tTables('headers.automation'),
@@ -38,6 +39,12 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
           </Badge>
         );
       },
+    },
+    {
+      id: 'active',
+      header: () => tEntity('columns.active'),
+      size: 80,
+      cell: ({ row }) => <AutomationActiveToggle automation={row.original} />,
     },
     {
       accessorKey: 'version',
