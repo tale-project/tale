@@ -189,6 +189,9 @@ async function testSqlConnection(
   let password: string;
 
   if (overrides?.basicAuth) {
+    if (!overrides.basicAuth.username || !overrides.basicAuth.password) {
+      throw new Error('Please provide both username and password.');
+    }
     user = overrides.basicAuth.username;
     password = overrides.basicAuth.password;
   } else {
