@@ -95,19 +95,15 @@ export function AutomationActiveToggle({
 
   return (
     <>
-      <div
+      <Switch
+        checked={isActive}
+        onCheckedChange={handleToggle}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
-        role="presentation"
-      >
-        <Switch
-          checked={isActive}
-          onCheckedChange={handleToggle}
-          disabled={isDraft || isToggling}
-          label={label}
-          aria-label={tAutomations('activeToggle.ariaLabel')}
-        />
-      </div>
+        disabled={isDraft || isToggling}
+        label={label}
+        aria-label={tAutomations('activeToggle.ariaLabel')}
+      />
 
       <ConfirmDialog
         open={showDeactivateDialog}
