@@ -24,10 +24,10 @@ export * from './update_sync_stats';
 export * from './create_integration_internal';
 export * from './update_integration_internal';
 
-// Business logic (action-level)
-export * from './create_integration_logic';
-export * from './update_integration_logic';
-export * from './test_connection_logic';
+// Action-level operations
+export * from './create_integration';
+export * from './update_integration';
+export * from './test_connection';
 export * from './get_decrypted_credentials';
 
 // Type guards

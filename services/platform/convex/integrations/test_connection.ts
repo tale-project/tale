@@ -1,5 +1,5 @@
 /**
- * Business logic for testing an integration connection
+ * Test an integration connection
  *
  * Unified dispatch: REST integrations use connector testConnection via sandbox,
  * SQL integrations use SELECT 1 database ping.
@@ -24,7 +24,7 @@ import { isSqlIntegration } from './guards/is_sql_integration';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
-export interface TestConnectionLogicArgs {
+export interface TestConnectionArgs {
   integrationId: Id<'integrations'>;
   /** Inline API key auth for pre-save testing (plaintext, not yet encrypted) */
   apiKeyAuth?: ApiKeyAuth;
@@ -157,8 +157,8 @@ async function testSqlConnection(
   ctx: ActionCtx,
   integration: Doc<'integrations'>,
   overrides?: {
-    sqlConnectionConfig?: TestConnectionLogicArgs['sqlConnectionConfig'];
-    basicAuth?: TestConnectionLogicArgs['basicAuth'];
+    sqlConnectionConfig?: TestConnectionArgs['sqlConnectionConfig'];
+    basicAuth?: TestConnectionArgs['basicAuth'];
   },
 ): Promise<void> {
   const sqlConfig =
@@ -217,11 +217,11 @@ async function testSqlConnection(
 }
 
 /**
- * Main logic for testing an integration connection
+ * Test an integration connection (REST via sandbox, SQL via ping)
  */
-export async function testConnectionLogic(
+export async function testConnection(
   ctx: ActionCtx,
-  args: TestConnectionLogicArgs,
+  args: TestConnectionArgs,
 ): Promise<TestConnectionResult> {
   const integration = await ctx.runQuery(api.integrations.queries.get, {
     integrationId: args.integrationId,

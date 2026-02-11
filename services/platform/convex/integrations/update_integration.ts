@@ -1,5 +1,5 @@
 /**
- * Business logic for updating an integration with encryption and health checks
+ * Update an integration with encryption and health checks
  */
 
 import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
@@ -19,7 +19,7 @@ import {
   Capabilities,
 } from './types';
 
-export interface UpdateIntegrationLogicArgs {
+export interface UpdateIntegrationArgs {
   integrationId: Id<'integrations'>;
   status?: Status;
   isActive?: boolean;
@@ -39,7 +39,7 @@ export interface UpdateIntegrationLogicArgs {
 async function runHealthCheckIfNeeded(
   ctx: ActionCtx,
   integration: Doc<'integrations'>,
-  args: UpdateIntegrationLogicArgs,
+  args: UpdateIntegrationArgs,
 ): Promise<void> {
   const credentialsChanged = !!(
     args.apiKeyAuth ||
@@ -65,11 +65,11 @@ async function runHealthCheckIfNeeded(
 }
 
 /**
- * Main logic for updating an integration
+ * Update an integration, encrypt credentials, and re-check health
  */
-export async function updateIntegrationLogic(
+export async function updateIntegration(
   ctx: ActionCtx,
-  args: UpdateIntegrationLogicArgs,
+  args: UpdateIntegrationArgs,
 ): Promise<void> {
   // Get integration (with RLS check)
   const integration = await ctx.runQuery(api.integrations.queries.get, {

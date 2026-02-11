@@ -8,9 +8,9 @@ import {
 } from '../../lib/shared/schemas/utils/json-value';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
-import { createIntegrationLogic } from './create_integration_logic';
-import { testConnectionLogic } from './test_connection_logic';
-import { updateIntegrationLogic } from './update_integration_logic';
+import { createIntegration } from './create_integration';
+import { testConnection as testConnectionHandler } from './test_connection';
+import { updateIntegration } from './update_integration';
 import {
   authMethodValidator,
   apiKeyAuthValidator,
@@ -51,7 +51,7 @@ export const create = action({
       throw new Error('Unauthenticated');
     }
 
-    return await createIntegrationLogic(ctx, args);
+    return await createIntegration(ctx, args);
   },
 });
 
@@ -76,7 +76,7 @@ export const update = action({
       throw new Error('Unauthenticated');
     }
 
-    await updateIntegrationLogic(ctx, args);
+    await updateIntegration(ctx, args);
     return null;
   },
 });
@@ -96,6 +96,6 @@ export const testConnection = action({
       throw new Error('Unauthenticated');
     }
 
-    return await testConnectionLogic(ctx, args);
+    return await testConnectionHandler(ctx, args);
   },
 });

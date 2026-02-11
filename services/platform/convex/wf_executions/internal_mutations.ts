@@ -2,10 +2,10 @@ import { v } from 'convex/values';
 
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
-import { completeExecution as completeExecutionLogic } from '../workflows/executions/complete_execution';
-import { failExecution as failExecutionLogic } from '../workflows/executions/fail_execution';
-import { updateExecutionStatus as updateExecutionStatusLogic } from '../workflows/executions/update_execution_status';
-import { updateExecutionVariables as updateExecutionVariablesLogic } from '../workflows/executions/update_execution_variables';
+import { completeExecution as completeExecutionHandler } from '../workflows/executions/complete_execution';
+import { failExecution as failExecutionHandler } from '../workflows/executions/fail_execution';
+import { updateExecutionStatus as updateExecutionStatusHandler } from '../workflows/executions/update_execution_status';
+import { updateExecutionVariables as updateExecutionVariablesHandler } from '../workflows/executions/update_execution_variables';
 
 export const failExecution = internalMutation({
   args: {
@@ -14,7 +14,7 @@ export const failExecution = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    return await failExecutionLogic(ctx, args);
+    return await failExecutionHandler(ctx, args);
   },
 });
 
@@ -28,7 +28,7 @@ export const completeExecution = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    return await completeExecutionLogic(ctx, args);
+    return await completeExecutionHandler(ctx, args);
   },
 });
 
@@ -42,7 +42,7 @@ export const updateExecutionStatus = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    return await updateExecutionStatusLogic(ctx, args);
+    return await updateExecutionStatusHandler(ctx, args);
   },
 });
 
@@ -54,6 +54,6 @@ export const updateExecutionVariables = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    return await updateExecutionVariablesLogic(ctx, args);
+    return await updateExecutionVariablesHandler(ctx, args);
   },
 });

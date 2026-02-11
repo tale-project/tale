@@ -1,5 +1,5 @@
 /**
- * Business logic for creating an integration with encryption and health checks
+ * Create an integration with encryption and health checks
  *
  * Supports both REST API and SQL integrations.
  * For SQL integrations, pass sqlConnectionConfig with the database connection details.
@@ -31,7 +31,7 @@ import {
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
-export interface CreateIntegrationLogicArgs {
+export interface CreateIntegrationArgs {
   organizationId: string;
   name: string;
   title: string;
@@ -52,11 +52,11 @@ export interface CreateIntegrationLogicArgs {
 }
 
 /**
- * Main logic for creating an integration
+ * Create an integration, encrypt credentials, and run initial health check
  */
-export async function createIntegrationLogic(
+export async function createIntegration(
   ctx: ActionCtx,
-  args: CreateIntegrationLogicArgs,
+  args: CreateIntegrationArgs,
 ): Promise<Id<'integrations'>> {
   // Verify access (RLS check)
   await ctx.runQuery(api.integrations.queries.list, {

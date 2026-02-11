@@ -16,8 +16,8 @@ import { encryptString } from '../lib/crypto/encrypt_string';
 import { saveRelatedWorkflows } from './save_related_workflows';
 import { sendMessageViaAPI as sendMessageViaAPIHandler } from './send_message_via_api';
 import { sendMessageViaSMTP as sendMessageViaSMTPHandler } from './send_message_via_smtp';
-import { storeOAuth2TokensLogic } from './store_oauth2_tokens_logic';
-import { testNewProviderConnectionLogic } from './test_new_provider_connection_logic';
+import { storeOAuth2Tokens as storeOAuth2TokensHandler } from './store_oauth2_tokens';
+import { testNewProviderConnection as testNewProviderConnectionHandler } from './test_new_provider_connection';
 import {
   emailProviderVendorValidator,
   emailProviderAuthMethodValidator,
@@ -135,7 +135,7 @@ export const testNewProviderConnection = internalAction({
   },
   returns: connectionTestResultValidator,
   handler: async (ctx, args) => {
-    return await testNewProviderConnectionLogic(args, {
+    return await testNewProviderConnectionHandler(args, {
       verifySmtpConnection,
       verifyImapConnection,
     });
@@ -371,7 +371,7 @@ export const storeOAuth2Tokens = internalAction({
     scope: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    return await storeOAuth2TokensLogic(args, {
+    return await storeOAuth2TokensHandler(args, {
       encryptString,
       updateTokens: async (params) => {
         await ctx.runMutation(

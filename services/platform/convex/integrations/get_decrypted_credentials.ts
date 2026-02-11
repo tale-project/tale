@@ -1,5 +1,5 @@
 /**
- * Business logic for getting decrypted credentials
+ * Decrypt and return integration credentials
  */
 
 import { api, internal } from '../_generated/api';
@@ -12,9 +12,9 @@ export interface GetDecryptedCredentialsArgs {
 }
 
 /**
- * Main logic for getting decrypted credentials
+ * Retrieve and decrypt an integration's stored credentials
  */
-export async function getDecryptedCredentialsLogic(
+export async function getDecryptedCredentials(
   ctx: ActionCtx,
   args: GetDecryptedCredentialsArgs,
 ): Promise<DecryptedCredentials> {

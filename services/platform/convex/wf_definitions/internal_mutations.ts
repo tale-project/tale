@@ -9,7 +9,7 @@ import {
   deleteAuditLogsBatch,
   deleteStepsAndDefinition,
 } from '../workflows/definitions/delete_workflow';
-import { publishDraft as publishDraftLogic } from '../workflows/definitions/publish_draft';
+import { publishDraft as publishDraftHandler } from '../workflows/definitions/publish_draft';
 import { saveWorkflowWithSteps as saveWorkflowWithStepsHelper } from '../workflows/definitions/save_workflow_with_steps';
 import { updateWorkflowStatus as updateWorkflowStatusHelper } from '../workflows/definitions/update_workflow_status';
 import {
@@ -55,7 +55,7 @@ export const provisionPublishDraft = internalMutation({
     changeLog: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    return await publishDraftLogic(ctx, args);
+    return await publishDraftHandler(ctx, args);
   },
 });
 

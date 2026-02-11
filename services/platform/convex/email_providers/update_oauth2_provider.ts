@@ -36,7 +36,7 @@ interface UpdateOAuth2ProviderDependencies {
   }) => Promise<null>;
 }
 
-export async function updateOAuth2ProviderLogic(
+export async function updateOAuth2Provider(
   args: UpdateOAuth2ProviderArgs,
   deps: UpdateOAuth2ProviderDependencies,
 ): Promise<null> {
