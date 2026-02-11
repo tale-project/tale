@@ -9,7 +9,7 @@ import {
   Globe,
   Zap,
 } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -170,20 +170,24 @@ export function IntegrationDetails({ integration }: IntegrationDetailsProps) {
     [connectorCode],
   );
 
-  const operationsSummary = useCallback(() => {
-    return restOperations
-      .map((op) => (op.title ? `${op.name} — ${op.title}` : op.name))
-      .join('\n');
-  }, [restOperations]);
+  const operationsSummary = useMemo(
+    () =>
+      restOperations
+        .map((op) => (op.title ? `${op.name} — ${op.title}` : op.name))
+        .join('\n'),
+    [restOperations],
+  );
 
-  const sqlOperationsSummary = useCallback(() => {
-    return sqlOperations
-      .map((op) => {
-        const header = op.title ? `${op.name} — ${op.title}` : op.name;
-        return `${header}\n${op.query}`;
-      })
-      .join('\n\n');
-  }, [sqlOperations]);
+  const sqlOperationsSummary = useMemo(
+    () =>
+      sqlOperations
+        .map((op) => {
+          const header = op.title ? `${op.name} — ${op.title}` : op.name;
+          return `${header}\n${op.query}`;
+        })
+        .join('\n\n'),
+    [sqlOperations],
+  );
 
   const hasAnyDetails =
     restOperations.length > 0 ||
@@ -210,7 +214,7 @@ export function IntegrationDetails({ integration }: IntegrationDetailsProps) {
             <Badge variant="outline" className="text-xs">
               {restOperations.length}
             </Badge>
-            <CopyButton value={operationsSummary()} />
+            <CopyButton value={operationsSummary} />
           </summary>
           <ul
             className="bg-muted mt-2 ml-6 max-h-48 space-y-1 overflow-y-auto rounded-md p-3 text-sm"
@@ -248,7 +252,7 @@ export function IntegrationDetails({ integration }: IntegrationDetailsProps) {
             <Badge variant="outline" className="text-xs">
               {sqlOperations.length}
             </Badge>
-            <CopyButton value={sqlOperationsSummary()} />
+            <CopyButton value={sqlOperationsSummary} />
           </summary>
           <ul
             className="bg-muted mt-2 ml-6 max-h-60 space-y-2 overflow-y-auto rounded-md p-3 text-sm"
