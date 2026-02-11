@@ -3,6 +3,13 @@
 
 const SHOPIFY_API_VERSION = '2024-01';
 
+function normalizeShopDomain(domain) {
+  return domain
+    .replace(/^https?:\/\//, '')
+    .split(/[/?#]/)[0]
+    .replace(/\/+$/, '');
+}
+
 const connector = {
   operations: [
     'list_products',
@@ -27,7 +34,7 @@ const connector = {
       throw new Error('Shopify access token is required.');
     }
 
-    var cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    var cleanDomain = normalizeShopDomain(domain);
     var shopDomain = cleanDomain.includes('.myshopify.com')
       ? cleanDomain
       : cleanDomain + '.myshopify.com';
@@ -91,7 +98,7 @@ const connector = {
     }
 
     // Clean and normalize domain
-    let cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const cleanDomain = normalizeShopDomain(domain);
     const shopDomain = cleanDomain.includes('.myshopify.com')
       ? cleanDomain
       : cleanDomain + '.myshopify.com';
