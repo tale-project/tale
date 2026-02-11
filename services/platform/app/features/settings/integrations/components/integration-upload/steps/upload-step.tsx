@@ -53,7 +53,7 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
       <FileUpload.Root>
         <FileUpload.DropZone
           onFilesSelected={handleFilesSelected}
-          accept=".zip,.json,.js,.ts"
+          accept=".zip,.json,.js"
           multiple
           disabled={isParsing}
           inputId="integration-package-upload"

@@ -121,9 +121,7 @@ async function extractIconFromZip(zip: JSZip): Promise<File | undefined> {
 
 async function parseIndividualFiles(files: File[]): Promise<ParseResult> {
   const configFile = files.find((f) => f.name === 'config.json');
-  const connectorFile = files.find(
-    (f) => f.name === 'connector.js' || f.name === 'connector.ts',
-  );
+  const connectorFile = files.find((f) => f.name === 'connector.js');
 
   if (!configFile) {
     return {

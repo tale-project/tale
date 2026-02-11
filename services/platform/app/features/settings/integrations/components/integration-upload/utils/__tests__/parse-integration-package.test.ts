@@ -62,15 +62,6 @@ describe('parseIntegrationFiles', () => {
       expect(result.data?.connectorCode).toBe(validConnector);
     });
 
-    it('should accept connector.ts as alternative', async () => {
-      const files = [
-        makeFile('config.json', JSON.stringify(validConfig)),
-        makeFile('connector.ts', validConnector),
-      ];
-      const result = await parseIntegrationFiles(files);
-      expect(result.success).toBe(true);
-    });
-
     it('should fail when config.json is missing', async () => {
       const files = [makeFile('connector.js', validConnector)];
       const result = await parseIntegrationFiles(files);
