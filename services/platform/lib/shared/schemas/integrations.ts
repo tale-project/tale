@@ -75,15 +75,15 @@ export const oauth2AuthEncryptedSchema = z.object({
 type OAuth2AuthEncrypted = z.infer<typeof oauth2AuthEncryptedSchema>;
 
 export const oauth2ConfigSchema = z.object({
-  authorizationUrl: z.string(),
-  tokenUrl: z.string(),
+  authorizationUrl: z.string().url(),
+  tokenUrl: z.string().url(),
   scopes: z.array(z.string()).optional(),
 });
 type OAuth2Config = z.infer<typeof oauth2ConfigSchema>;
 
 export const oauth2ConfigStoredSchema = z.object({
-  authorizationUrl: z.string(),
-  tokenUrl: z.string(),
+  authorizationUrl: z.string().url(),
+  tokenUrl: z.string().url(),
   scopes: z.array(z.string()).optional(),
   clientId: z.string().optional(),
   clientSecretEncrypted: z.string().optional(),
