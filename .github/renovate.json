@@ -8,6 +8,13 @@
   "rangeStrategy": "pin",
   "packageRules": [
     {
+      "description": "Group all GitHub Actions updates into a single PR to prevent duplicate upgrades across workflow files",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github-actions"
+    },
+    {
       "description": "Pin Python Docker image to 3.11 for RAG service (cognee dependencies don't support 3.14+)",
       "matchDatasources": [
         "docker"
