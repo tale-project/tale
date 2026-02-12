@@ -71,7 +71,6 @@ type ConversationActionParams =
       type?: string;
       channel?: string;
       direction?: 'inbound' | 'outbound';
-      providerId?: Id<'emailProviders'>;
       metadata?: Record<string, unknown>;
     }
   | {
@@ -90,7 +89,6 @@ type ConversationActionParams =
       channel: string;
       direction: 'inbound' | 'outbound';
       deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
-      providerId?: Id<'emailProviders'>;
     }
   | {
       operation: 'update';
@@ -100,9 +98,9 @@ type ConversationActionParams =
   | {
       operation: 'create_from_email';
       emails: unknown;
+      accountEmail?: string;
       status?: ConversationStatus;
       priority?: ConversationPriority;
-      providerId?: Id<'emailProviders'>;
       type?: string;
     }
   | {
@@ -111,7 +109,6 @@ type ConversationActionParams =
       accountEmail?: string;
       status?: ConversationStatus;
       priority?: ConversationPriority;
-      providerId?: Id<'emailProviders'>;
       type?: string;
     };
 
@@ -142,7 +139,6 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       type: v.optional(v.string()),
       channel: v.optional(v.string()),
       direction: v.optional(directionValidator),
-      providerId: v.optional(v.id('emailProviders')),
       metadata: v.optional(jsonRecordValidator),
     }),
     // get_by_id: Get a conversation by ID
@@ -164,7 +160,6 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       channel: v.string(),
       direction: directionValidator,
       deliveryState: deliveryStateValidator,
-      providerId: v.optional(v.id('emailProviders')),
     }),
     // update: Update a conversation by ID
     v.object({
@@ -172,13 +167,13 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       conversationId: v.id('conversations'),
       updates: v.record(v.string(), jsonValueValidator),
     }),
-    // create_from_email: Create conversation from inbound email
+    // create_from_email: Create conversation from email (supports both inbound and outbound via accountEmail)
     v.object({
       operation: v.literal('create_from_email'),
       emails: jsonValueValidator,
+      accountEmail: v.optional(v.string()),
       status: v.optional(statusValidator),
       priority: v.optional(priorityValidator),
-      providerId: v.optional(v.id('emailProviders')),
       type: v.optional(v.string()),
     }),
     // create_from_sent_email: Create conversation from sent email
@@ -188,7 +183,6 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       accountEmail: v.optional(v.string()),
       status: v.optional(statusValidator),
       priority: v.optional(priorityValidator),
-      providerId: v.optional(v.id('emailProviders')),
       type: v.optional(v.string()),
     }),
   ),
@@ -213,7 +207,6 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
           type: params.type,
           channel: params.channel,
           direction: params.direction,
-          providerId: params.providerId,
           metadata: params.metadata,
         });
       }
@@ -244,7 +237,6 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
           channel: params.channel, // Required by validator
           direction: params.direction, // Required by validator
           deliveryState: params.deliveryState, // Required by validator
-          providerId: params.providerId,
         });
       }
 
@@ -257,24 +249,25 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       }
 
       case 'create_from_email': {
+        const accountEmail = params.accountEmail?.trim() || undefined;
         return await createConversationFromEmail(ctx, {
           organizationId,
           emails: params.emails, // Required by validator
           status: params.status,
           priority: params.priority,
-          providerId: params.providerId,
           type: params.type,
+          accountEmail,
         });
       }
 
       case 'create_from_sent_email': {
+        const accountEmail = params.accountEmail?.trim() || undefined;
         return await createConversationFromSentEmail(ctx, {
           organizationId,
           emails: params.emails, // Required by validator
           status: params.status,
           priority: params.priority,
-          providerId: params.providerId,
-          accountEmail: params.accountEmail,
+          accountEmail,
           type: params.type,
         });
       }

@@ -10,7 +10,6 @@ import { customAgentsTable } from './custom_agents/schema';
 import { customAgentWebhooksTable } from './custom_agents/webhooks/schema';
 import { customersTable } from './customers/schema';
 import { documentsTable } from './documents/schema';
-import { emailProvidersTable } from './email_providers/schema';
 import { integrationsTable } from './integrations/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
@@ -43,7 +42,6 @@ export default defineSchema({
   customAgentWebhooks: customAgentWebhooksTable,
   customers: customersTable,
   documents: documentsTable,
-  emailProviders: emailProvidersTable,
   exampleMessages: exampleMessagesTable,
   integrations: integrationsTable,
   messageMetadata: messageMetadataTable,

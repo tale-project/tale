@@ -43,9 +43,41 @@ const workflowConfigSchema = z.object({
     .optional()
     .describe('Workflow type; currently only "predefined" is supported.'),
   config: z
-    .record(z.string(), z.unknown())
+    .object({
+      timeout: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe(
+          'Workflow timeout in milliseconds (e.g., 120000 for 2 minutes).',
+        ),
+      retryPolicy: z
+        .object({
+          maxRetries: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Maximum retry attempts.'),
+          backoffMs: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Backoff delay between retries in ms.'),
+        })
+        .optional()
+        .describe('Default retry policy for action steps.'),
+      variables: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          'Initial workflow-level variables accessible to all steps via {{variableName}}. organizationId is auto-injected.',
+        ),
+    })
     .optional()
-    .describe('Optional workflow-level configuration object.'),
+    .describe(
+      'Workflow-level configuration: timeout, retryPolicy, and initial variables.',
+    ),
 });
 
 const stepConfigSchema = z.object({
@@ -80,11 +112,15 @@ export const saveWorkflowDefinitionTool = {
 - Use this when you need to replace ALL steps for an existing workflow
 - For single step updates, use update_workflow_step instead (more efficient)
 
-**REQUIRED WORKFLOW:**
+**⭐ IF THE USER PROVIDED A WORKFLOW JSON CONFIG:**
+Use the provided configuration DIRECTLY — do NOT recreate or rewrite it.
+Map the JSON to this tool's schema: top-level fields → workflowConfig, steps array → stepsConfig.
+Skip calling workflow_examples; only use it when building a workflow from scratch.
+
+**IF BUILDING FROM SCRATCH:**
 1. Call workflow_examples(operation='get_syntax_reference') to get syntax documentation
-2. Call workflow_examples(operation='get_predefined') to study similar workflows
-3. Build your workflow config and steps following the patterns
-4. Call this tool with complete workflow definition
+2. Build your workflow config and steps following the patterns
+3. Call this tool with complete workflow definition
 
 **STEP STRUCTURE:**
 Each step requires: stepSlug, name, stepType, order, config, nextSteps

@@ -15,7 +15,6 @@ export async function addMessageToConversation(
   email: EmailType,
   isCustomer: boolean,
   status: 'delivered' | 'sent',
-  providerId?: Id<'emailProviders'>,
 ) {
   const emailTimestamp = new Date(email.date).getTime();
 
@@ -28,7 +27,6 @@ export async function addMessageToConversation(
       content: email.html || email.text || '',
       isCustomer,
       status,
-      providerId,
       externalMessageId: email.messageId,
       metadata: buildEmailMetadata(email),
       sentAt: emailTimestamp,

@@ -79,7 +79,6 @@ export async function createConversationWithMessage(
   const messageId = await ctx.db.insert('conversationMessages', {
     organizationId: args.organizationId,
     conversationId,
-    providerId: conversation.providerId, // Inherit from parent conversation
     channel: conversation.channel || 'unknown',
     direction,
     externalMessageId: args.initialMessage.externalMessageId,

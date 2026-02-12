@@ -15,7 +15,7 @@ import {
 } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AutomationActiveToggle } from '@/app/features/automations/components/automation-active-toggle';
-import { useUpdateAutomationMetadata } from '@/app/features/automations/hooks/use-update-automation-metadata';
+import { useUpdateAutomation } from '@/app/features/automations/hooks/use-update-automation';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -63,7 +63,7 @@ function ConfigurationPage() {
     }),
   );
 
-  const _updateWorkflow = useUpdateAutomationMetadata();
+  const updateWorkflow = useUpdateAutomation();
 
   useEffect(() => {
     if (workflow) {
@@ -141,12 +141,32 @@ function ConfigurationPage() {
 
     setIsSaving(true);
     try {
-      toast({
-        title: tAutomations('configuration.notAvailable.title'),
-        description: tAutomations('configuration.notAvailable.message'),
-        variant: 'destructive',
+      let parsedVariables: Record<string, unknown> | undefined;
+      if (variables.trim()) {
+        parsedVariables = JSON.parse(variables);
+      }
+
+      await updateWorkflow({
+        wfDefinitionId: automationId,
+        updates: {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          config: {
+            timeout,
+            retryPolicy: {
+              maxRetries,
+              backoffMs,
+            },
+            variables: parsedVariables,
+          },
+        },
+        updatedBy: user.userId,
       });
-      return;
+
+      setHasChanges(false);
+      toast({
+        title: tToast('success.saved'),
+      });
     } catch (error) {
       console.error('Failed to save configuration:', error);
       toast({

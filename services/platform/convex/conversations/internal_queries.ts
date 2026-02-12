@@ -21,7 +21,6 @@ const internalConversationRecordValidator = v.object({
   type: v.optional(v.string()),
   channel: v.optional(v.string()),
   direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-  providerId: v.optional(v.id('emailProviders')),
   lastMessageAt: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
 });
@@ -31,7 +30,6 @@ const internalMessageRecordValidator = v.object({
   _creationTime: v.number(),
   organizationId: v.string(),
   conversationId: v.id('conversations'),
-  providerId: v.optional(v.id('emailProviders')),
   channel: v.string(),
   direction: v.union(v.literal('inbound'), v.literal('outbound')),
   externalMessageId: v.optional(v.string()),
@@ -139,7 +137,6 @@ export const queryLatestMessageByDeliveryState = internalQuery({
       v.literal('delivered'),
       v.literal('failed'),
     ),
-    providerId: v.optional(v.id('emailProviders')),
   },
   returns: v.object({
     message: v.union(internalMessageRecordValidator, v.null()),

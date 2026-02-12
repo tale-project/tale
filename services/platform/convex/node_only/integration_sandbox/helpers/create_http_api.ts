@@ -10,18 +10,56 @@ export interface HttpApiState {
   httpRequests: PendingHttpRequest[];
 }
 
+type BodyMethodOptions = { headers?: Record<string, string>; body?: string };
+
 export interface HttpApi {
   get: (
     url: string,
     options?: { headers?: Record<string, string> },
   ) => HttpResponse;
-  post: (
-    url: string,
-    options?: {
-      headers?: Record<string, string>;
-      body?: string;
-    },
-  ) => HttpResponse;
+  post: (url: string, options?: BodyMethodOptions) => HttpResponse;
+  patch: (url: string, options?: BodyMethodOptions) => HttpResponse;
+}
+
+const PENDING_RESPONSE: HttpResponse = {
+  status: 0,
+  statusText: 'pending',
+  headers: {},
+  body: null,
+  text: () => '',
+  json: () => null,
+};
+
+function createBodyMethod(state: HttpApiState, method: string) {
+  return (url: string, options: BodyMethodOptions = {}): HttpResponse => {
+    const requestId = state.pendingHttpCount++;
+    const request: HttpRequest = {
+      url,
+      options: {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+        body: options.body,
+      },
+    };
+
+    const cachedResult = state.httpResults.get(requestId);
+    if (cachedResult) {
+      return cachedResult;
+    }
+
+    state.httpRequests.push({
+      request,
+      callback: (response) => state.httpResults.set(requestId, response),
+      errorCallback: (error) => {
+        throw error;
+      },
+    });
+
+    return PENDING_RESPONSE;
+  };
 }
 
 export function createHttpApi(state: HttpApiState): HttpApi {
@@ -39,48 +77,6 @@ export function createHttpApi(state: HttpApiState): HttpApi {
         },
       };
 
-      // Check if we already have the result
-      const cachedResult = state.httpResults.get(requestId);
-      if (cachedResult) {
-        return cachedResult;
-      }
-
-      // Store request for later execution
-      state.httpRequests.push({
-        request,
-        callback: (response) => state.httpResults.set(requestId, response),
-        errorCallback: (error) => {
-          throw error;
-        },
-      });
-
-      // Return placeholder - will be filled on re-run
-      return {
-        status: 0,
-        statusText: 'pending',
-        headers: {},
-        body: null,
-        text: () => '',
-        json: () => null,
-      };
-    },
-    post: (
-      url: string,
-      options: { headers?: Record<string, string>; body?: string } = {},
-    ): HttpResponse => {
-      const requestId = state.pendingHttpCount++;
-      const request: HttpRequest = {
-        url,
-        options: {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-          },
-          body: options.body,
-        },
-      };
-
       const cachedResult = state.httpResults.get(requestId);
       if (cachedResult) {
         return cachedResult;
@@ -94,14 +90,9 @@ export function createHttpApi(state: HttpApiState): HttpApi {
         },
       });
 
-      return {
-        status: 0,
-        statusText: 'pending',
-        headers: {},
-        body: null,
-        text: () => '',
-        json: () => null,
-      };
+      return PENDING_RESPONSE;
     },
+    post: createBodyMethod(state, 'POST'),
+    patch: createBodyMethod(state, 'PATCH'),
   };
 }

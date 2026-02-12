@@ -20,7 +20,6 @@ export const conversationsTable = defineTable({
   type: v.optional(v.string()),
   channel: v.optional(v.string()),
   direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-  providerId: v.optional(v.id('emailProviders')),
   lastMessageAt: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
 })
@@ -35,7 +34,6 @@ export const conversationsTable = defineTable({
     'organizationId',
     'externalMessageId',
   ])
-  .index('by_organizationId_and_providerId', ['organizationId', 'providerId'])
   .index('by_org_status_lastMessageAt', [
     'organizationId',
     'status',
@@ -45,7 +43,6 @@ export const conversationsTable = defineTable({
 export const conversationMessagesTable = defineTable({
   organizationId: v.string(),
   conversationId: v.id('conversations'),
-  providerId: v.optional(v.id('emailProviders')),
   channel: v.string(),
   direction: v.union(v.literal('inbound'), v.literal('outbound')),
   externalMessageId: v.optional(v.string()),
@@ -68,7 +65,6 @@ export const conversationMessagesTable = defineTable({
     'organizationId',
     'externalMessageId',
   ])
-  .index('by_organizationId_and_providerId', ['organizationId', 'providerId'])
   .index('by_org_channel_direction_deliveredAt', [
     'organizationId',
     'channel',
@@ -85,13 +81,5 @@ export const conversationMessagesTable = defineTable({
     'channel',
     'direction',
     'deliveryState',
-    'deliveredAt',
-  ])
-  .index('by_org_channel_direction_deliveryState_providerId_deliveredAt', [
-    'organizationId',
-    'channel',
-    'direction',
-    'deliveryState',
-    'providerId',
     'deliveredAt',
   ]);

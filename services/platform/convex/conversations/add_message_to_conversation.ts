@@ -36,7 +36,6 @@ export async function addMessageToConversation(
     isCustomer: boolean;
     status?: string;
     attachment?: unknown;
-    providerId?: Id<'emailProviders'>;
     externalMessageId?: string;
     metadata?: unknown;
     sentAt?: number;
@@ -71,7 +70,6 @@ export async function addMessageToConversation(
   const messageId = await ctx.db.insert('conversationMessages', {
     organizationId: args.organizationId,
     conversationId: args.conversationId,
-    providerId: args.providerId || parentConversation.providerId,
     channel: parentConversation.channel || 'unknown',
     direction,
     externalMessageId: args.externalMessageId,
@@ -86,12 +84,6 @@ export async function addMessageToConversation(
       ...safeMetadata,
     },
   });
-
-  if (args.providerId && !parentConversation.providerId) {
-    await ctx.db.patch(args.conversationId, {
-      providerId: args.providerId,
-    });
-  }
 
   const now = Date.now();
   const existingMetadata = parentConversation.metadata ?? {};

@@ -7,7 +7,6 @@ import {
   agentWebhookHandler,
   agentWebhookOptionsHandler,
 } from './custom_agents/webhooks/http_actions';
-import { oauth2CallbackHandler } from './email_providers/oauth2_callback';
 import { integrationOAuth2CallbackHandler } from './integrations/oauth2_callback';
 import {
   checkIpRateLimit,
@@ -98,12 +97,6 @@ http.route({
 });
 
 authComponent.registerRoutes(http, createAuth);
-
-http.route({
-  path: '/api/auth/oauth2/callback',
-  method: 'GET',
-  handler: oauth2CallbackHandler,
-});
 
 // Integration OAuth2 Callback
 http.route({

@@ -16,12 +16,9 @@ export function evaluateExpression(
   expression: string,
   context: Record<string, unknown>,
 ): boolean {
-  // Use JEXL to evaluate the expression and enforce boolean result
+  // Use JEXL to evaluate the expression and coerce to boolean.
+  // JEXL's && and || operators return actual values (not booleans),
+  // e.g. `undefined && true` returns `undefined`, so we must coerce.
   const result = jexlInstance.evalSync(expression, context);
-  if (typeof result !== 'boolean') {
-    throw new Error(
-      `Expression must return boolean, got: ${typeof result}. Expression: ${expression}`,
-    );
-  }
-  return result;
+  return Boolean(result);
 }

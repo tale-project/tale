@@ -36,9 +36,33 @@ const workflowConfigSchema = z.object({
     .optional()
     .describe('Workflow type; currently only "predefined" is supported.'),
   config: z
-    .record(z.string(), z.unknown())
+    .object({
+      timeout: z
+        .number()
+        .optional()
+        .describe(
+          'Workflow timeout in milliseconds (e.g., 120000 for 2 minutes).',
+        ),
+      retryPolicy: z
+        .object({
+          maxRetries: z.number().describe('Maximum retry attempts.'),
+          backoffMs: z
+            .number()
+            .describe('Backoff delay between retries in ms.'),
+        })
+        .optional()
+        .describe('Default retry policy for action steps.'),
+      variables: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          'Initial workflow-level variables accessible to all steps via {{variableName}}. organizationId is auto-injected.',
+        ),
+    })
     .optional()
-    .describe('Optional workflow-level configuration object.'),
+    .describe(
+      'Workflow-level configuration: timeout, retryPolicy, and initial variables.',
+    ),
 });
 
 const stepConfigSchema = z.object({
@@ -69,10 +93,14 @@ export const createWorkflowTool = {
   tool: createTool({
     description: `Create a new workflow definition with all steps.
 
-**⭐ BEFORE USING THIS TOOL:**
+**⭐ IF THE USER PROVIDED A WORKFLOW JSON CONFIG:**
+Use the provided configuration DIRECTLY — do NOT recreate or rewrite it.
+Map the JSON to this tool's schema: top-level fields → workflowConfig, steps array → stepsConfig.
+Skip calling workflow_examples; only use it when building a workflow from scratch.
+
+**⭐ IF BUILDING FROM SCRATCH:**
 1. Call workflow_examples(operation='get_syntax_reference', category='quick_start')
 2. Call workflow_examples(operation='get_syntax_reference', category='common_patterns')
-3. Optionally study a similar workflow with get_predefined
 
 **CRITICAL JSON RULES:**
 • Use ONLY double quotes (") for ALL strings - NEVER single quotes (')
@@ -80,6 +108,11 @@ export const createWorkflowTool = {
 • Escape newlines: \\n
 • Do NOT include control characters or tabs in strings
 • Verify JSON structure before calling this tool
+
+**WORKFLOW CONFIG (workflowConfig.config):**
+• timeout: Workflow timeout in ms (e.g., 120000)
+• retryPolicy: { maxRetries, backoffMs } — default retry for action steps
+• variables: Initial variables available to all steps (organizationId auto-injected)
 
 **WORKFLOW CREATION:**
 • This requires user approval - an approval card will be shown
@@ -152,16 +185,12 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
               ...args.workflowConfig,
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
               config: args.workflowConfig.config as
-                | Record<string, string | number | boolean | null>
+                | Record<string, unknown>
                 | undefined,
             },
             stepsConfig: args.stepsConfig.map((step) => ({
               ...step,
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-              config: step.config as Record<
-                string,
-                string | number | boolean | null
-              >,
+              config: step.config,
             })),
             threadId,
           },

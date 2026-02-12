@@ -63,7 +63,6 @@ function IntegrationsSkeleton() {
 
 function IntegrationsPage() {
   const { id: organizationId } = Route.useParams();
-  const { tab } = Route.useSearch();
   const { t } = useT('accessDenied');
 
   const { data: memberContext, isLoading: isMemberLoading } = useQuery(
@@ -76,9 +75,6 @@ function IntegrationsPage() {
       organizationId,
     }),
   );
-  const { data: emailProviders, isLoading: isEmailLoading } = useQuery(
-    convexQuery(api.email_providers.queries.list, { organizationId }),
-  );
   const { data: ssoProvider, isLoading: isSsoLoading } = useQuery(
     convexQuery(api.sso_providers.queries.get, {}),
   );
@@ -86,7 +82,6 @@ function IntegrationsPage() {
   if (
     isMemberLoading ||
     isIntegrationsLoading ||
-    isEmailLoading ||
     isSsoLoading ||
     !memberContext
   ) {
@@ -104,9 +99,7 @@ function IntegrationsPage() {
     <IntegrationsClient
       organizationId={organizationId}
       integrations={integrations ?? []}
-      emailProviders={emailProviders ?? []}
       ssoProvider={ssoProvider ?? null}
-      tab={tab}
     />
   );
 }

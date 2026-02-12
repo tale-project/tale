@@ -9,6 +9,7 @@ var connector = {
     'get_message',
     'search_messages',
     'send_message',
+    'check_delivery',
     'list_events',
     'get_event',
     'create_event',
@@ -86,6 +87,9 @@ var connector = {
     if (operation === 'send_message') {
       return sendMessage(http, headers, params);
     }
+    if (operation === 'check_delivery') {
+      return checkDelivery(http, headers, params);
+    }
     if (operation === 'list_events') {
       return listEvents(http, headers, params);
     }
@@ -110,11 +114,78 @@ function escapeODataString(value) {
   return String(value).replace(/'/g, "''");
 }
 
+function mapGraphToEmailType(msg, accountEmail) {
+  var fromAddr = msg.from && msg.from.emailAddress ? msg.from.emailAddress : {};
+  var mapRecipients = function (list) {
+    if (!list) return [];
+    return list.map(function (r) {
+      var addr = r.emailAddress || {};
+      return { name: addr.name || '', address: addr.address || '' };
+    });
+  };
+
+  var contentType =
+    msg.body && msg.body.contentType ? msg.body.contentType.toLowerCase() : '';
+  var bodyContent = msg.body ? msg.body.content || '' : '';
+
+  var senderAddr = (fromAddr.address || '').toLowerCase();
+  var direction =
+    accountEmail && senderAddr === accountEmail.toLowerCase()
+      ? 'outbound'
+      : 'inbound';
+
+  return {
+    uid: 0,
+    messageId: msg.internetMessageId || msg.id || '',
+    from: [{ name: fromAddr.name || '', address: fromAddr.address || '' }],
+    to: mapRecipients(msg.toRecipients),
+    cc: mapRecipients(msg.ccRecipients),
+    bcc: mapRecipients(msg.bccRecipients),
+    subject: msg.subject || '',
+    date: msg.receivedDateTime || msg.sentDateTime || '',
+    text: contentType === 'text' ? bodyContent : '',
+    html: contentType === 'html' ? bodyContent : '',
+    flags: msg.isRead ? ['\\Seen'] : [],
+    headers: {},
+    attachments: [],
+    conversationId: msg.conversationId || '',
+    direction: direction,
+  };
+}
+
+function getAccountEmail(http, headers) {
+  var response = http.get(
+    GRAPH_BASE_URL + '/me?$select=mail,userPrincipalName',
+    { headers: headers },
+  );
+  if (response.status === 200) {
+    var me = response.json();
+    return me.mail || me.userPrincipalName || '';
+  }
+  return '';
+}
+
 function listMessages(http, headers, params) {
   var top = Math.min(params.top || 25, 100);
-  var queryParts = ['$top=' + top, '$orderby=receivedDateTime desc'];
+  var orderby = params.orderby || 'receivedDateTime desc';
+  var filter = params.filter || '';
 
-  if (params.folder) {
+  // Graph API does not support $orderby combined with $filter on conversationId.
+  // When this combination is detected, drop $orderby from the request and sort
+  // the results in memory afterwards.
+  var needsClientSort = false;
+  if (filter && filter.indexOf('conversationId') !== -1 && orderby) {
+    needsClientSort = true;
+  }
+
+  var queryParts = ['$top=' + top];
+  if (!needsClientSort) {
+    queryParts.push('$orderby=' + orderby);
+  }
+
+  if (filter) {
+    queryParts.push('$filter=' + filter);
+  } else if (params.folder) {
     queryParts.push(
       "$filter=parentFolderId eq '" + escapeODataString(params.folder) + "'",
     );
@@ -137,11 +208,29 @@ function listMessages(http, headers, params) {
   handleError(response, 'list messages');
 
   var data = response.json();
+  var accountEmail = getAccountEmail(http, headers);
+  var messages =
+    params.format === 'email'
+      ? data.value.map(function (msg) {
+          return mapGraphToEmailType(msg, accountEmail);
+        })
+      : data.value;
+
+  if (needsClientSort) {
+    var field = params.format === 'email' ? 'date' : 'receivedDateTime';
+    var desc = orderby.indexOf('desc') !== -1;
+    messages.sort(function (a, b) {
+      var ta = new Date(a[field] || 0).getTime();
+      var tb = new Date(b[field] || 0).getTime();
+      return desc ? tb - ta : ta - tb;
+    });
+  }
+
   return {
     success: true,
     operation: 'list_messages',
-    data: data.value,
-    count: data.value.length,
+    data: messages,
+    count: messages.length,
     pagination: {
       hasNextPage: !!data['@odata.nextLink'],
       nextLink: data['@odata.nextLink'] || null,
@@ -203,6 +292,22 @@ function searchMessages(http, headers, params) {
   };
 }
 
+// Look up a message's Graph internal ID by its internet message ID.
+// Returns the Graph ID string, or null if not found / still pending.
+function findGraphMessageByInternetId(http, headers, internetMessageId) {
+  var encoded = encodeURIComponent(
+    "internetMessageId eq '" + escapeODataString(internetMessageId) + "'",
+  );
+  var url =
+    GRAPH_BASE_URL + '/me/messages?$filter=' + encoded + '&$select=id&$top=1';
+  var response = http.get(url, { headers: headers });
+  // status 0 = sandbox placeholder (HTTP not yet executed)
+  if (response.status === 0) return 'pending';
+  if (response.status !== 200) return null;
+  var data = response.json();
+  return data.value && data.value.length > 0 ? data.value[0].id : null;
+}
+
 function sendMessage(http, headers, params) {
   if (!params.to) {
     throw new Error('to (recipient email) is required.');
@@ -212,7 +317,82 @@ function sendMessage(http, headers, params) {
   }
 
   var toRecipients = Array.isArray(params.to) ? params.to : [params.to];
-  var message = {
+
+  // When replying to a thread, find the original message and use Graph's
+  // reply endpoint so Outlook handles threading natively.
+  if (params.inReplyTo) {
+    var graphMsgId = findGraphMessageByInternetId(
+      http,
+      headers,
+      params.inReplyTo,
+    );
+
+    // Still waiting for the search HTTP call to complete — return early
+    // so the sandbox multi-pass loop can execute it before we proceed.
+    if (graphMsgId === 'pending') {
+      return {
+        success: true,
+        operation: 'send_message',
+        data: { pending: true },
+      };
+    }
+
+    if (graphMsgId) {
+      return sendReply(http, headers, params, graphMsgId, toRecipients);
+    }
+
+    console.log(
+      'Could not find message for inReplyTo, falling back to sendMail',
+    );
+  }
+
+  return sendDirectMail(http, headers, params, toRecipients);
+}
+
+// Helper: send a draft and return a result with its internetMessageId.
+// Uses POST /me/messages/{draftId}/send (returns 202, no body).
+function sendDraftAndReturn(
+  http,
+  headers,
+  draftId,
+  internetMessageId,
+  toRecipients,
+  subject,
+  isReply,
+) {
+  var sendUrl = GRAPH_BASE_URL + '/me/messages/' + draftId + '/send';
+  console.log('Sending draft via: ' + sendUrl);
+
+  var sendResponse = http.post(sendUrl, { headers: headers, body: '' });
+  // status 0 = sandbox placeholder, will be executed on next pass
+  if (sendResponse.status === 0) {
+    return {
+      success: true,
+      operation: 'send_message',
+      data: { pending: true },
+    };
+  }
+  handleError(sendResponse, 'send draft');
+
+  return {
+    success: true,
+    operation: 'send_message',
+    data: {
+      sent: true,
+      to: toRecipients,
+      subject: subject,
+      isReply: !!isReply,
+      internetMessageId: internetMessageId || null,
+    },
+    count: 1,
+    timestamp: Date.now(),
+  };
+}
+
+// Create a new draft message, then send it.
+// This lets us capture the internetMessageId (assigned at draft creation).
+function sendDirectMail(http, headers, params, toRecipients) {
+  var draft = {
     subject: params.subject,
     body: {
       contentType: params.contentType || 'Text',
@@ -225,25 +405,116 @@ function sendMessage(http, headers, params) {
 
   if (params.cc) {
     var ccRecipients = Array.isArray(params.cc) ? params.cc : [params.cc];
-    message.ccRecipients = ccRecipients.map(function (email) {
+    draft.ccRecipients = ccRecipients.map(function (email) {
       return { emailAddress: { address: email } };
     });
   }
 
-  var url = GRAPH_BASE_URL + '/me/sendMail';
-  console.log('Sending message via: ' + url);
+  var createUrl = GRAPH_BASE_URL + '/me/messages';
+  console.log('Creating draft via: ' + createUrl);
 
-  var response = http.post(url, {
+  var createResponse = http.post(createUrl, {
     headers: headers,
-    body: JSON.stringify({ message: message }),
+    body: JSON.stringify(draft),
   });
-  handleError(response, 'send message');
+  if (createResponse.status === 0) {
+    return {
+      success: true,
+      operation: 'send_message',
+      data: { pending: true },
+    };
+  }
+  handleError(createResponse, 'create draft');
+
+  var created = createResponse.json();
+  return sendDraftAndReturn(
+    http,
+    headers,
+    created.id,
+    created.internetMessageId,
+    toRecipients,
+    params.subject,
+    false,
+  );
+}
+
+// Create a reply draft via createReply, then send it.
+// Graph sets threading headers (In-Reply-To, References, conversationId) automatically.
+function sendReply(http, headers, params, graphMessageId, toRecipients) {
+  var createUrl =
+    GRAPH_BASE_URL + '/me/messages/' + graphMessageId + '/createReply';
+  console.log('Creating reply draft via: ' + createUrl);
+
+  var replyMessage = {
+    body: {
+      contentType: params.contentType || 'Text',
+      content: params.body || '',
+    },
+    toRecipients: toRecipients.map(function (email) {
+      return { emailAddress: { address: email } };
+    }),
+  };
+
+  if (params.cc) {
+    var ccRecipients = Array.isArray(params.cc) ? params.cc : [params.cc];
+    replyMessage.ccRecipients = ccRecipients.map(function (email) {
+      return { emailAddress: { address: email } };
+    });
+  }
+
+  var createResponse = http.post(createUrl, {
+    headers: headers,
+    body: JSON.stringify({ message: replyMessage }),
+  });
+  if (createResponse.status === 0) {
+    return {
+      success: true,
+      operation: 'send_message',
+      data: { pending: true },
+    };
+  }
+  handleError(createResponse, 'create reply draft');
+
+  var created = createResponse.json();
+  return sendDraftAndReturn(
+    http,
+    headers,
+    created.id,
+    created.internetMessageId,
+    toRecipients,
+    params.subject,
+    true,
+  );
+}
+
+// Verify that a sent message actually appeared in the mailbox (Sent Items).
+// Accepts { internetMessageId } and returns { delivered: true/false }.
+function checkDelivery(http, headers, params) {
+  if (!params.internetMessageId) {
+    throw new Error('internetMessageId is required for check_delivery.');
+  }
+
+  var graphId = findGraphMessageByInternetId(
+    http,
+    headers,
+    params.internetMessageId,
+  );
+
+  if (graphId === 'pending') {
+    return {
+      success: true,
+      operation: 'check_delivery',
+      data: { pending: true },
+    };
+  }
 
   return {
     success: true,
-    operation: 'send_message',
-    data: { sent: true, to: toRecipients, subject: params.subject },
-    count: 1,
+    operation: 'check_delivery',
+    data: {
+      delivered: !!graphId,
+      internetMessageId: params.internetMessageId,
+    },
     timestamp: Date.now(),
   };
 }
