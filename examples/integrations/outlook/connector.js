@@ -110,11 +110,78 @@ function escapeODataString(value) {
   return String(value).replace(/'/g, "''");
 }
 
+function mapGraphToEmailType(msg, accountEmail) {
+  var fromAddr = msg.from && msg.from.emailAddress ? msg.from.emailAddress : {};
+  var mapRecipients = function (list) {
+    if (!list) return [];
+    return list.map(function (r) {
+      var addr = r.emailAddress || {};
+      return { name: addr.name || '', address: addr.address || '' };
+    });
+  };
+
+  var contentType =
+    msg.body && msg.body.contentType ? msg.body.contentType.toLowerCase() : '';
+  var bodyContent = msg.body ? msg.body.content || '' : '';
+
+  var senderAddr = (fromAddr.address || '').toLowerCase();
+  var direction =
+    accountEmail && senderAddr === accountEmail.toLowerCase()
+      ? 'outbound'
+      : 'inbound';
+
+  return {
+    uid: 0,
+    messageId: msg.internetMessageId || msg.id || '',
+    from: [{ name: fromAddr.name || '', address: fromAddr.address || '' }],
+    to: mapRecipients(msg.toRecipients),
+    cc: mapRecipients(msg.ccRecipients),
+    bcc: mapRecipients(msg.bccRecipients),
+    subject: msg.subject || '',
+    date: msg.receivedDateTime || msg.sentDateTime || '',
+    text: contentType === 'text' ? bodyContent : '',
+    html: contentType === 'html' ? bodyContent : '',
+    flags: msg.isRead ? ['\\Seen'] : [],
+    headers: {},
+    attachments: [],
+    conversationId: msg.conversationId || '',
+    direction: direction,
+  };
+}
+
+function getAccountEmail(http, headers) {
+  var response = http.get(
+    GRAPH_BASE_URL + '/me?$select=mail,userPrincipalName',
+    { headers: headers },
+  );
+  if (response.status === 200) {
+    var me = response.json();
+    return me.mail || me.userPrincipalName || '';
+  }
+  return '';
+}
+
 function listMessages(http, headers, params) {
   var top = Math.min(params.top || 25, 100);
-  var queryParts = ['$top=' + top, '$orderby=receivedDateTime desc'];
+  var orderby = params.orderby || 'receivedDateTime desc';
+  var filter = params.filter || '';
 
-  if (params.folder) {
+  // Graph API does not support $orderby combined with $filter on conversationId.
+  // When this combination is detected, drop $orderby from the request and sort
+  // the results in memory afterwards.
+  var needsClientSort = false;
+  if (filter && filter.indexOf('conversationId') !== -1 && params.orderby) {
+    needsClientSort = true;
+  }
+
+  var queryParts = ['$top=' + top];
+  if (!needsClientSort) {
+    queryParts.push('$orderby=' + orderby);
+  }
+
+  if (filter) {
+    queryParts.push('$filter=' + filter);
+  } else if (params.folder) {
     queryParts.push(
       "$filter=parentFolderId eq '" + escapeODataString(params.folder) + "'",
     );
@@ -137,11 +204,29 @@ function listMessages(http, headers, params) {
   handleError(response, 'list messages');
 
   var data = response.json();
+  var accountEmail = getAccountEmail(http, headers);
+  var messages =
+    params.format === 'email'
+      ? data.value.map(function (msg) {
+          return mapGraphToEmailType(msg, accountEmail);
+        })
+      : data.value;
+
+  if (needsClientSort) {
+    var field = params.format === 'email' ? 'date' : 'receivedDateTime';
+    var desc = orderby.indexOf('desc') !== -1;
+    messages.sort(function (a, b) {
+      var ta = new Date(a[field] || 0).getTime();
+      var tb = new Date(b[field] || 0).getTime();
+      return desc ? tb - ta : ta - tb;
+    });
+  }
+
   return {
     success: true,
     operation: 'list_messages',
-    data: data.value,
-    count: data.value.length,
+    data: messages,
+    count: messages.length,
     pagination: {
       hasNextPage: !!data['@odata.nextLink'],
       nextLink: data['@odata.nextLink'] || null,

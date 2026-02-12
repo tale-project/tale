@@ -1,7 +1,7 @@
 'use client';
 
-import { Settings, Mail, Plus, Puzzle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Settings, Plus, Puzzle } from 'lucide-react';
+import { useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
@@ -19,84 +19,33 @@ import { Stack, HStack, Grid, Center } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
-import { EmailIntegrationDialog } from './email-integration-dialog';
 import { IntegrationManageDialog } from './integration-manage-dialog';
 import { IntegrationUploadDialog } from './integration-upload/integration-upload-dialog';
-import { OAuth2Banner } from './oauth2-banner';
 import { SSOCard } from './sso-card';
 
 type Integration = Doc<'integrations'> & { iconUrl?: string | null };
-type EmailProvider = Doc<'emailProviders'>;
 
 interface IntegrationsClientProps {
   organizationId: string;
   integrations: Integration[];
-  emailProviders: EmailProvider[];
   ssoProvider: SsoProvider | null;
-  tab?: string;
 }
 
 export function IntegrationsClient({
   organizationId,
   integrations,
-  emailProviders,
   ssoProvider,
-  tab,
 }: IntegrationsClientProps) {
   const { t } = useT('settings');
 
-  const emailProviderCount = emailProviders?.length || 0;
-
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [emailDialogOpen, setEmailDialogOpen] = useState(tab === 'email');
-  useEffect(() => {
-    setEmailDialogOpen(tab === 'email');
-  }, [tab]);
   const [managingIntegration, setManagingIntegration] =
     useState<Integration | null>(null);
 
   return (
     <Stack>
-      <OAuth2Banner />
-
       <Grid cols={1} md={2} lg={3}>
         <SSOCard organizationId={organizationId} ssoProvider={ssoProvider} />
-
-        {/* Email integration card */}
-        <Card className="flex flex-col justify-between">
-          <CardContent className="p-5">
-            <Stack gap={3}>
-              <Center className="border-border h-11 w-11 rounded-md border">
-                <Mail className="size-6" />
-              </Center>
-              <Stack gap={1}>
-                <CardTitle className="text-base">
-                  {t('integrations.email.name')}
-                </CardTitle>
-                <CardDescription>
-                  {t('integrations.email.description')}
-                </CardDescription>
-              </Stack>
-            </Stack>
-          </CardContent>
-          <CardFooter className="border-border border-t px-5 py-4">
-            <HStack justify="between" className="w-full">
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => setEmailDialogOpen(true)}
-                className="flex h-6 items-center gap-1 text-sm"
-              >
-                <Settings className="size-4" />
-                {t('integrations.manage')}
-              </Button>
-              <Switch
-                checked={emailProviderCount > 0}
-                onCheckedChange={() => setEmailDialogOpen(true)}
-              />
-            </HStack>
-          </CardFooter>
-        </Card>
 
         {/* Dynamic integration cards from DB */}
         {integrations.map((integration) => (
@@ -183,14 +132,6 @@ export function IntegrationsClient({
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         organizationId={organizationId}
-      />
-
-      {/* Email dialog */}
-      <EmailIntegrationDialog
-        open={emailDialogOpen}
-        onOpenChange={setEmailDialogOpen}
-        organizationId={organizationId}
-        ssoProvider={ssoProvider}
       />
 
       {/* Generic manage dialog for any uploaded integration */}

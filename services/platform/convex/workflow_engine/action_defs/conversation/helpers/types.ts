@@ -26,4 +26,5 @@ export type EmailType = {
     contentType: string;
     size: number;
   }>;
+  direction?: 'inbound' | 'outbound';
 };

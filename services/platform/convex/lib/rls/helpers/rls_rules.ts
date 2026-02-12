@@ -237,34 +237,6 @@ export async function rlsRules(
       },
     },
 
-    // Email Providers - organization-scoped, Developer+ role required
-    emailProviders: {
-      read: async (_, provider) => {
-        if (!user) return false;
-        if (!userOrgIds.has(provider.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === provider.organizationId,
-        );
-        return authorizeRls(membership?.role, 'emailProviders', 'read');
-      },
-      modify: async (_, provider) => {
-        if (!user) return false;
-        if (!userOrgIds.has(provider.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === provider.organizationId,
-        );
-        return authorizeRls(membership?.role, 'emailProviders', 'write');
-      },
-      insert: async ({ user: ruleUser }, provider) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(provider.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === provider.organizationId,
-        );
-        return authorizeRls(membership?.role, 'emailProviders', 'write');
-      },
-    },
-
     // OneDrive Sync Configs - organization-scoped
     onedriveSyncConfigs: {
       read: async (_, config) => {

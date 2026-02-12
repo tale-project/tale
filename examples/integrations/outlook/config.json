@@ -30,7 +30,10 @@
           "top": { "type": "number", "description": "Number of messages to return (max 100)", "required": false },
           "skip": { "type": "number", "description": "Number of messages to skip for pagination", "required": false },
           "folder": { "type": "string", "description": "Folder ID to filter messages by", "required": false },
-          "select": { "type": "string", "description": "Comma-separated list of fields to return", "required": false }
+          "filter": { "type": "string", "description": "OData $filter expression (takes precedence over folder)", "required": false },
+          "orderby": { "type": "string", "description": "OData $orderby expression (default: receivedDateTime desc)", "required": false },
+          "select": { "type": "string", "description": "Comma-separated list of fields to return", "required": false },
+          "format": { "type": "string", "description": "When set to 'email', transforms Graph API response to standard email format with messageId, from, to, cc, bcc, subject, date, text, html, flags, headers", "required": false }
         }
       }
     },

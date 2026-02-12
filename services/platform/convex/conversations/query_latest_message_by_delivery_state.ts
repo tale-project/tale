@@ -1,8 +1,6 @@
 /**
- * Query the latest message with specific channel, direction, delivery state, and optionally providerId
- * Uses optimized indexes for efficient querying ordered by deliveredAt:
- * - 6-field index when providerId is provided
- * - 5-field index when providerId is not provided
+ * Query the latest message with specific channel, direction, and delivery state.
+ * Uses the 5-field index for efficient querying ordered by deliveredAt.
  */
 
 import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
@@ -14,7 +12,6 @@ export interface QueryLatestMessageByDeliveryStateArgs {
   channel: string;
   direction: 'inbound' | 'outbound';
   deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
-  providerId?: Id<'emailProviders'>;
 }
 
 export interface QueryLatestMessageByDeliveryStateResult {
@@ -38,33 +35,17 @@ export async function queryLatestMessageByDeliveryState(
   ctx: QueryCtx,
   args: QueryLatestMessageByDeliveryStateArgs,
 ): Promise<QueryLatestMessageByDeliveryStateResult> {
-  // Use the appropriate index based on whether providerId is provided
-  const message = args.providerId
-    ? await ctx.db
-        .query('conversationMessages')
-        .withIndex(
-          'by_org_channel_direction_deliveryState_providerId_deliveredAt',
-          (q) =>
-            q
-              .eq('organizationId', args.organizationId)
-              .eq('channel', args.channel)
-              .eq('direction', args.direction)
-              .eq('deliveryState', args.deliveryState)
-              .eq('providerId', args.providerId),
-        )
-        .order('desc')
-        .first()
-    : await ctx.db
-        .query('conversationMessages')
-        .withIndex('by_org_channel_direction_deliveryState_deliveredAt', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('channel', args.channel)
-            .eq('direction', args.direction)
-            .eq('deliveryState', args.deliveryState),
-        )
-        .order('desc')
-        .first();
+  const message = await ctx.db
+    .query('conversationMessages')
+    .withIndex('by_org_channel_direction_deliveryState_deliveredAt', (q) =>
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('channel', args.channel)
+        .eq('direction', args.direction)
+        .eq('deliveryState', args.deliveryState),
+    )
+    .order('desc')
+    .first();
 
   return {
     message: message

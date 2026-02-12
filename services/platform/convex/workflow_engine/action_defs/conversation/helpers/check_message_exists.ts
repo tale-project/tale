@@ -8,7 +8,6 @@ export interface ExistingMessage {
   _creationTime: number;
   organizationId: string;
   conversationId: Id<'conversations'>;
-  providerId?: Id<'emailProviders'>;
   channel: string;
   direction: 'inbound' | 'outbound';
   externalMessageId?: string;

@@ -50,7 +50,6 @@ export interface CreateConversationArgs {
   type?: string;
   channel?: string;
   direction?: 'inbound' | 'outbound';
-  providerId?: Id<'emailProviders'>;
 
   metadata?: unknown;
 }

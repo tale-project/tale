@@ -1,10 +1,9 @@
 /**
  * Convex Tool: Workflow Examples
  *
- * Read-only access to predefined workflow examples.
+ * Read-only access to workflow syntax reference.
  * Supports:
- * - operation = 'list_predefined': list all predefined workflow names with descriptions
- * - operation = 'get_predefined': get the full definition of a specific predefined workflow
+ * - operation = 'get_syntax_reference': get syntax documentation by category
  */
 
 import { createTool } from '@convex-dev/agent';
@@ -12,27 +11,14 @@ import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
 
-import {
-  listPredefinedWorkflows,
-  getPredefinedWorkflow,
-  type WorkflowReadGetPredefinedResult,
-} from './helpers/read_predefined_workflows';
 import { getSyntaxReference } from './helpers/syntax_reference';
 
 const workflowExamplesArgs = z.object({
   operation: z
-    .enum(['list_predefined', 'get_predefined', 'get_syntax_reference'])
+    .literal('get_syntax_reference')
     .describe(
-      "Operation to perform: 'list_predefined' to list workflows, 'get_predefined' to get a workflow definition, 'get_syntax_reference' to get syntax documentation",
+      "Operation to perform: 'get_syntax_reference' to get syntax documentation",
     ),
-  // For get_predefined operation
-  workflowKey: z
-    .string()
-    .optional()
-    .describe(
-      "Required for 'get_predefined': The workflow key (e.g., 'shopifySyncProducts', 'emailSyncImap', 'generalProductRecommendation'). Use list_predefined to see available keys.",
-    ),
-  // For get_syntax_reference operation
   category: z
     .enum([
       'quick_start',
@@ -48,27 +34,21 @@ const workflowExamplesArgs = z.object({
     ])
     .optional()
     .describe(
-      "For 'get_syntax_reference': Category of syntax to retrieve. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: 'start', 'llm', 'action', 'condition', 'loop', 'email', 'entity_processing', 'variables'.",
+      "Category of syntax to retrieve. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: 'start', 'llm', 'action', 'condition', 'loop', 'email', 'entity_processing', 'variables'.",
     ),
 });
 
 export const workflowExamplesTool: ToolDefinition = {
   name: 'workflow_examples',
   tool: createTool({
-    description: `Access workflow syntax reference and predefined examples.
+    description: `Access workflow syntax reference.
 
 **⭐ RECOMMENDED WORKFLOW FOR CREATING NEW WORKFLOWS:**
 1. FIRST: get_syntax_reference(category='quick_start') - Get decision tree and avoid common mistakes
 2. THEN: get_syntax_reference(category='common_patterns') - Get skeleton configs for your pattern
-3. OPTIONALLY: get_predefined(workflowKey='...') - Study a similar complete workflow
-4. FINALLY: Create workflow using the patterns learned
+3. FINALLY: Create workflow using the patterns learned
 
-**OPERATIONS:**
-• 'get_syntax_reference': Get syntax by category (START HERE)
-• 'list_predefined': List all workflow templates with descriptions
-• 'get_predefined': Get complete workflow definition to study
-
-**SYNTAX CATEGORIES (for get_syntax_reference):**
+**SYNTAX CATEGORIES:**
 • ⭐ 'quick_start': Decision tree, common mistakes, step type reference
 • ⭐ 'common_patterns': Pattern skeletons (Entity Processing, Email, LLM Analysis, Data Sync, RAG)
 • 'start': Start step config (workflow entry point with optional inputSchema)
@@ -78,41 +58,18 @@ export const workflowExamplesTool: ToolDefinition = {
 • 'loop': Loop step for iteration (data sync, NOT entity processing)
 • 'email': Email sending pattern (conversation + approval)
 • 'entity_processing': One-at-a-time processing pattern
-• 'variables': Variable syntax and JEXL filters
-
-**PREDEFINED WORKFLOW CATEGORIES:**
-• Entity Processing: generalCustomerStatusAssessment, productRecommendationEmail, conversationAutoReply
-• Data Sync: shopifySyncProducts, shopifySyncCustomers, emailSyncImap, onedriveSync
-• RAG Sync: documentRagSync, productRagSync, customerRagSync
-• LLM Analysis: generalProductRecommendation, productRelationshipAnalysis`,
+• 'variables': Variable syntax and JEXL filters`,
     args: workflowExamplesArgs,
     handler: async (_ctx, args) => {
-      if (args.operation === 'list_predefined') {
-        return listPredefinedWorkflows();
-      }
-
-      if (args.operation === 'get_syntax_reference') {
-        if (!args.category) {
-          return {
-            operation: 'get_syntax_reference',
-            found: false,
-            syntax:
-              "Missing required 'category'. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: start, llm, action, condition, loop, email, entity_processing, variables.",
-          };
-        }
-        return getSyntaxReference({ category: args.category });
-      }
-
-      // operation === 'get_predefined'
-      if (!args.workflowKey) {
+      if (!args.category) {
         return {
-          operation: 'get_predefined',
+          operation: 'get_syntax_reference',
           found: false,
-          message:
-            "Missing required 'workflowKey' for get_predefined operation. Use list_predefined to see available keys.",
-        } as WorkflowReadGetPredefinedResult;
+          syntax:
+            "Missing required 'category'. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: start, llm, action, condition, loop, email, entity_processing, variables.",
+        };
       }
-      return getPredefinedWorkflow({ workflowKey: args.workflowKey });
+      return getSyntaxReference({ category: args.category });
     },
   }),
 } as const;

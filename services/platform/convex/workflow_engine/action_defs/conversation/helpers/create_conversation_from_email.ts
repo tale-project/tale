@@ -34,6 +34,25 @@ function extractRootMessageId(email: EmailType): string | null {
   return refIds.length > 0 ? refIds[0] : null;
 }
 
+/**
+ * Determine email direction using the best available signal:
+ * 1. email.direction (set by connector, most reliable)
+ * 2. accountEmail comparison (explicit param)
+ * 3. null (caller must fall back to legacy heuristics)
+ */
+function resolveDirection(
+  email: EmailType,
+  accountEmailLower: string | undefined,
+): 'inbound' | 'outbound' | null {
+  if (email.direction) return email.direction;
+  if (accountEmailLower) {
+    return email.from[0]?.address?.toLowerCase() === accountEmailLower
+      ? 'outbound'
+      : 'inbound';
+  }
+  return null;
+}
+
 export async function createConversationFromEmail(
   ctx: ActionCtx,
   params: {
@@ -41,8 +60,8 @@ export async function createConversationFromEmail(
     emails: unknown;
     status?: ConversationStatus;
     priority?: ConversationPriority;
-    providerId?: Id<'emailProviders'>;
     type?: string;
+    accountEmail?: string; // Fallback when emails lack direction field
   },
 ) {
   // Handle both single email and array of emails
@@ -58,6 +77,8 @@ export async function createConversationFromEmail(
   );
 
   debugLog('create_from_email Processing', emailsArray.length, 'emails');
+
+  const accountEmailLower = params.accountEmail?.toLowerCase();
 
   // Determine the root message ID for the conversation
   // Priority:
@@ -123,17 +144,26 @@ export async function createConversationFromEmail(
               continue;
             }
 
-            // Determine if this is from the customer based on the conversation's stored root sender
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-            const convMetadata = existingConvForRoot.metadata as
-              | Record<string, unknown>
-              | undefined;
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-            const convRootFrom = convMetadata?.from as
-              | Array<{ address?: string; name?: string }>
-              | undefined;
-            const convCustomerAddress = convRootFrom?.[0]?.address;
-            const isCustomer = email.from[0]?.address === convCustomerAddress;
+            const direction = resolveDirection(email, accountEmailLower);
+            let isCustomer: boolean;
+
+            if (direction) {
+              isCustomer = direction === 'inbound';
+            } else {
+              // Fallback: use the conversation's stored root sender as customer
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+              const convMetadata = existingConvForRoot.metadata as
+                | Record<string, unknown>
+                | undefined;
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+              const convRootFrom = convMetadata?.from as
+                | Array<{ address?: string; name?: string }>
+                | undefined;
+              const convCustomerAddress =
+                convRootFrom?.[0]?.address?.toLowerCase();
+              isCustomer =
+                email.from[0]?.address?.toLowerCase() === convCustomerAddress;
+            }
 
             await addMessageToConversation(
               ctx,
@@ -142,7 +172,6 @@ export async function createConversationFromEmail(
               email,
               isCustomer,
               'delivered',
-              params.providerId,
             );
           }
 
@@ -184,7 +213,11 @@ export async function createConversationFromEmail(
 
   let conversationId: Id<'conversations'>;
   let conversationCreated: boolean;
-  let senderEmail: string | undefined;
+  let customerEmail: string | undefined;
+
+  // Determine root direction
+  const rootDirection =
+    resolveDirection(rootEmail, accountEmailLower) ?? 'inbound';
 
   // If conversation exists, use it
   if (existingConversation) {
@@ -194,14 +227,20 @@ export async function createConversationFromEmail(
     );
     conversationId = existingConversation._id;
     conversationCreated = false;
-    senderEmail = rootEmail.from[0]?.address;
+
+    // Identify customer email from root direction
+    if (rootDirection === 'outbound') {
+      customerEmail = rootEmail.to?.[0]?.address?.toLowerCase();
+    } else {
+      customerEmail = rootEmail.from?.[0]?.address?.toLowerCase();
+    }
   } else {
     // Find or create customer
     const customerResult = await findOrCreateCustomerFromEmail(
       ctx,
       params.organizationId,
       rootEmail,
-      'inbound',
+      rootDirection,
     );
 
     if (!customerResult) {
@@ -213,7 +252,9 @@ export async function createConversationFromEmail(
       };
     }
 
-    senderEmail = customerResult.email;
+    customerEmail = customerResult.email?.toLowerCase();
+    const rootIsFromCustomer =
+      rootEmail.from?.[0]?.address?.toLowerCase() === customerEmail;
 
     // Create new conversation with initial message
     debugLog('create_from_email Creating conversation from root email');
@@ -228,13 +269,16 @@ export async function createConversationFromEmail(
         priority: params.priority,
         type: params.type || 'general',
         channel: 'email',
-        direction: 'inbound',
-        providerId: params.providerId,
+        direction: rootDirection,
         metadata: buildConversationMetadata(rootEmail, {
           isThreaded: emailsArray.length > 1,
           threadMessageCount: emailsArray.length,
         }),
-        initialMessage: buildInitialMessage(rootEmail, true, 'delivered'),
+        initialMessage: buildInitialMessage(
+          rootEmail,
+          rootIsFromCustomer,
+          'delivered',
+        ),
       },
     );
 
@@ -275,7 +319,10 @@ export async function createConversationFromEmail(
       }
 
       // Determine if this is from customer or agent
-      const isCustomer = email.from[0]?.address === senderEmail;
+      const direction = resolveDirection(email, accountEmailLower);
+      const isCustomer = direction
+        ? direction === 'inbound'
+        : email.from[0]?.address?.toLowerCase() === customerEmail;
 
       await addMessageToConversation(
         ctx,
@@ -284,7 +331,6 @@ export async function createConversationFromEmail(
         email,
         isCustomer,
         'delivered',
-        params.providerId,
       );
 
       debugLog('create_from_email Created message:', email.messageId);

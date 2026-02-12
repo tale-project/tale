@@ -3,15 +3,17 @@
 import { Link } from '@tanstack/react-router';
 import { useMutation, useAction } from 'convex/react';
 import {
+  Check,
   CheckCircle,
   XCircle,
   Loader2,
   Workflow,
   ChevronDown,
   ChevronRight,
+  Copy,
   ExternalLink,
 } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import {
@@ -22,6 +24,7 @@ import {
 } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useCopyButton } from '@/app/hooks/use-copy';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { WorkflowCreationMetadata } from '@/convex/approvals/types';
@@ -58,6 +61,159 @@ const getStepTypeBadgeVariant = (
   }
 };
 
+interface ConfigEntry {
+  label: string;
+  value: string;
+  mono?: boolean;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getStepConfigEntries(
+  stepType: string,
+  config: Record<string, unknown>,
+  nextSteps: Record<string, string>,
+): ConfigEntry[] {
+  const entries: ConfigEntry[] = [];
+  const str = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v));
+
+  switch (stepType) {
+    case 'start':
+    case 'trigger': {
+      const inputSchema = config.inputSchema;
+      if (isRecord(inputSchema) && 'properties' in inputSchema) {
+        const props = inputSchema.properties;
+        if (isRecord(props)) {
+          for (const [key, val] of Object.entries(props)) {
+            const prop = isRecord(val) ? val : {};
+            entries.push({
+              label: key,
+              value: [prop.type, prop.description].filter(Boolean).join(' — '),
+            });
+          }
+        }
+      }
+      break;
+    }
+
+    case 'action': {
+      const type = typeof config.type === 'string' ? config.type : undefined;
+      if (type) entries.push({ label: 'Type', value: type });
+
+      const params = isRecord(config.parameters)
+        ? config.parameters
+        : undefined;
+      if (params) {
+        if (type === 'integration') {
+          if (params.name)
+            entries.push({ label: 'Integration', value: str(params.name) });
+          if (params.operation)
+            entries.push({ label: 'Operation', value: str(params.operation) });
+          const inner = isRecord(params.params) ? params.params : undefined;
+          if (inner) {
+            for (const [key, val] of Object.entries(inner)) {
+              entries.push({
+                label: key,
+                value: str(val),
+                mono: typeof val === 'string' && val.includes('{{'),
+              });
+            }
+          }
+        } else if (type === 'set_variables') {
+          const variables = Array.isArray(params.variables)
+            ? params.variables
+            : [];
+          for (const v of variables) {
+            if (
+              typeof v === 'object' &&
+              v !== null &&
+              'name' in v &&
+              'value' in v
+            ) {
+              entries.push({
+                label: str(v.name),
+                value: str(v.value),
+                mono: true,
+              });
+            }
+          }
+        } else {
+          for (const [key, val] of Object.entries(params)) {
+            entries.push({
+              label: key,
+              value: str(val),
+              mono: typeof val === 'string' && val.includes('{{'),
+            });
+          }
+        }
+      }
+      break;
+    }
+
+    case 'condition': {
+      if (typeof config.expression === 'string') {
+        entries.push({
+          label: 'Expression',
+          value: config.expression,
+          mono: true,
+        });
+      }
+      if (typeof config.description === 'string') {
+        entries.push({ label: 'Description', value: config.description });
+      }
+      break;
+    }
+
+    case 'llm': {
+      if (typeof config.systemPrompt === 'string')
+        entries.push({ label: 'System prompt', value: config.systemPrompt });
+      if (typeof config.userPrompt === 'string')
+        entries.push({
+          label: 'User prompt',
+          value: config.userPrompt,
+          mono: true,
+        });
+      if (Array.isArray(config.tools))
+        entries.push({ label: 'Tools', value: config.tools.join(', ') });
+      if (typeof config.outputFormat === 'string')
+        entries.push({ label: 'Output', value: config.outputFormat });
+      break;
+    }
+
+    case 'loop': {
+      if (typeof config.items === 'string')
+        entries.push({ label: 'Items', value: config.items, mono: true });
+      if (typeof config.itemVariable === 'string')
+        entries.push({ label: 'Item variable', value: config.itemVariable });
+      if (typeof config.maxIterations === 'number')
+        entries.push({
+          label: 'Max iterations',
+          value: String(config.maxIterations),
+        });
+      if (typeof config.continueOnError === 'boolean')
+        entries.push({
+          label: 'Continue on error',
+          value: String(config.continueOnError),
+        });
+      break;
+    }
+  }
+
+  const nextStepEntries = Object.entries(nextSteps);
+  if (nextStepEntries.length > 0) {
+    entries.push({
+      label: 'Next',
+      value: nextStepEntries
+        .map(([port, target]) => `${port} → ${target}`)
+        .join(', '),
+    });
+  }
+
+  return entries;
+}
+
 /**
  * Card component for displaying workflow creation approvals in chat
  */
@@ -75,6 +231,23 @@ function WorkflowCreationApprovalCardComponent({
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSteps, setShowSteps] = useState(false);
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const configJson = useMemo(
+    () =>
+      JSON.stringify(
+        {
+          workflowConfig: metadata.workflowConfig,
+          stepsConfig: metadata.stepsConfig,
+        },
+        null,
+        2,
+      ),
+    [metadata.workflowConfig, metadata.stepsConfig],
+  );
+  const { copied, onClick: handleCopy } = useCopyButton(configJson);
 
   // No optimistic update: approval triggers external workflow creation action with
   // side effects that cannot be safely rolled back if the mutation fails.
@@ -174,35 +347,117 @@ function WorkflowCreationApprovalCardComponent({
 
       {/* Workflow Steps Preview */}
       <div className="mb-3 space-y-2">
-        <button
-          type="button"
-          onClick={() => setShowSteps(!showSteps)}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
-        >
-          {showSteps ? (
-            <ChevronDown className="size-3" />
-          ) : (
-            <ChevronRight className="size-3" />
-          )}
-          {metadata.stepsConfig.length} steps
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowSteps(!showSteps)}
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
+          >
+            {showSteps ? (
+              <ChevronDown className="size-3" />
+            ) : (
+              <ChevronRight className="size-3" />
+            )}
+            {metadata.stepsConfig.length} steps
+          </button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Copy workflow configuration"
+                >
+                  {copied ? (
+                    <Check className="size-3" />
+                  ) : (
+                    <Copy className="size-3" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {copied ? 'Copied!' : 'Copy configuration'}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
 
         {showSteps && (
-          <div className="bg-muted/50 space-y-1.5 rounded-md p-2">
-            {metadata.stepsConfig.map((step, index) => (
-              <div key={step.stepSlug} className="flex items-center gap-2">
-                <span className="text-muted-foreground w-4 text-xs">
-                  {index + 1}.
-                </span>
-                <Badge
-                  variant={getStepTypeBadgeVariant(step.stepType)}
-                  className="py-0 text-[10px]"
-                >
-                  {step.stepType}
-                </Badge>
-                <span className="flex-1 truncate text-xs">{step.name}</span>
-              </div>
-            ))}
+          <div className="bg-muted/50 space-y-0.5 rounded-md p-2">
+            {metadata.stepsConfig.map((step, index) => {
+              const isExpanded = expandedSteps.has(step.stepSlug);
+              const configEntries = isExpanded
+                ? getStepConfigEntries(
+                    step.stepType,
+                    step.config,
+                    step.nextSteps,
+                  )
+                : [];
+
+              return (
+                <div key={step.stepSlug}>
+                  <button
+                    type="button"
+                    className="hover:bg-muted/80 flex w-full items-center gap-2 rounded px-1 py-0.5 transition-colors"
+                    onClick={() => {
+                      setExpandedSteps((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(step.stepSlug)) {
+                          next.delete(step.stepSlug);
+                        } else {
+                          next.add(step.stepSlug);
+                        }
+                        return next;
+                      });
+                    }}
+                    aria-expanded={isExpanded}
+                  >
+                    <ChevronRight
+                      className={cn(
+                        'text-muted-foreground size-2.5 shrink-0 transition-transform duration-150',
+                        isExpanded && 'rotate-90',
+                      )}
+                    />
+                    <span className="text-muted-foreground w-4 shrink-0 text-xs">
+                      {index + 1}.
+                    </span>
+                    <Badge
+                      variant={getStepTypeBadgeVariant(step.stepType)}
+                      className="py-0 text-[10px]"
+                    >
+                      {step.stepType}
+                    </Badge>
+                    <span className="flex-1 truncate text-left text-xs">
+                      {step.name}
+                    </span>
+                  </button>
+
+                  {isExpanded && configEntries.length > 0 && (
+                    <div className="border-muted mt-0.5 mb-1 ml-7 space-y-0.5 border-l-2 pl-2">
+                      {configEntries.map((entry) => (
+                        <div
+                          key={entry.label}
+                          className="flex gap-1.5 text-[11px]"
+                        >
+                          <span className="text-muted-foreground shrink-0">
+                            {entry.label}:
+                          </span>
+                          <span
+                            className={cn(
+                              'min-w-0 break-all',
+                              entry.mono && 'font-mono text-[10px]',
+                            )}
+                          >
+                            {entry.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

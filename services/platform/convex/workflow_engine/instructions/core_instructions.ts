@@ -27,12 +27,11 @@ Before creating a workflow, ALWAYS follow these steps:
 2. □ If similar workflow exists, ask user: modify existing (click 'Edit' in UI) or create new with different name?
 3. □ workflow_examples(operation='get_syntax_reference', category='quick_start') - Decision tree + common mistakes
 4. □ workflow_examples(operation='get_syntax_reference', category='common_patterns') - Pattern skeletons
-5. □ workflow_examples(operation='get_predefined', workflowKey='...') - Study similar workflow (optional)
-6. □ Use snake_case for stepSlugs (e.g., find_customer, process_order)
-7. □ nextSteps is OUTSIDE config (same level as stepType, config)
-8. □ LLM steps require 'name' + 'systemPrompt' (NOT 'prompt')
-9. □ Action steps require 'type' in config
-10. □ Entity processing: include find_unprocessed + record_processed steps
+5. □ Use snake_case for stepSlugs (e.g., find_customer, process_order)
+6. □ nextSteps is OUTSIDE config (same level as stepType, config)
+7. □ LLM steps require 'name' + 'systemPrompt' (NOT 'prompt')
+8. □ Action steps require 'type' in config
+9. □ Entity processing: include find_unprocessed + record_processed steps
 
 **CORE PHILOSOPHY: LLM-FIRST FOR BUSINESS LOGIC**
 For workflows with business logic (NOT data sync), treat LLM as the intelligent core:
@@ -72,7 +71,6 @@ export const WORKFLOW_AGENT_DELEGATION_INSTRUCTIONS = `You are a workflow automa
    - Create a new workflow with a different name
 3. workflow_examples(operation='get_syntax_reference', category='quick_start')
 4. workflow_examples(operation='get_syntax_reference', category='common_patterns')
-5. Optionally: workflow_examples(operation='get_predefined', workflowKey='...')
 
 **KEY RULES**
 - nextSteps goes OUTSIDE config (same level)

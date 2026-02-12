@@ -83,10 +83,25 @@ describe('executeConditionNode', () => {
       expect(result.port).toBe('true');
     });
 
-    it('should throw when expression returns non-boolean', () => {
-      expect(() => executeConditionNode({ expression: '"hello"' }, {})).toThrow(
-        'Expression must return boolean',
+    it('should coerce truthy non-boolean values to true', () => {
+      const result = executeConditionNode({ expression: '"hello"' }, {});
+      expect(result.port).toBe('true');
+    });
+
+    it('should coerce undefined to false (e.g. short-circuit &&)', () => {
+      const result = executeConditionNode(
+        { expression: 'data && data.items' },
+        {},
       );
+      expect(result.port).toBe('false');
+    });
+
+    it('should coerce null to false', () => {
+      const result = executeConditionNode(
+        { expression: 'data' },
+        { data: null },
+      );
+      expect(result.port).toBe('false');
     });
   });
 });

@@ -16,7 +16,7 @@ import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import { useGenerateUploadUrl } from '../hooks/use-generate-upload-url';
 import { useMarkAsRead } from '../hooks/use-mark-as-read';
-import { useSendMessageViaEmail } from '../hooks/use-send-message-via-email';
+import { useSendMessageViaIntegration } from '../hooks/use-send-message-via-integration';
 import { ConversationHeader } from './conversation-header';
 import { Message } from './message';
 
@@ -74,7 +74,7 @@ export function ConversationPanel({
 
   // Convex mutations
   const markAsRead = useMarkAsRead();
-  const sendMessageViaEmail = useSendMessageViaEmail();
+  const sendMessageViaIntegration = useSendMessageViaIntegration();
   const generateUploadUrl = useGenerateUploadUrl();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -225,29 +225,28 @@ export function ConversationPanel({
     const replySubject = tConversations('panel.replySubjectPrefix', {
       subject,
     });
-    console.log('Sending message via sendMessageViaEmail mutation', {
+    console.log('Sending message via sendMessageViaIntegration mutation', {
       conversationId: conversation._id,
       to: [customerEmail],
       subject: replySubject,
       attachments: uploadedAttachments,
     });
 
-    // Send message with attachments (backend handles channel-specific routing)
-    // The backend will determine the sender email from the email provider
-    await sendMessageViaEmail({
+    // Send message via integration (backend loads connector + secrets automatically)
+    await sendMessageViaIntegration({
       conversationId: toId<'conversations'>(conversation._id),
       organizationId: conversation.organizationId,
+      integrationName: 'outlook',
       content: message,
       to: [customerEmail],
       subject: replySubject,
-      html: message, // Already sanitized HTML from editor
-      text: message.replace(/<[^>]*>/g, ''), // Strip HTML for plain text version
+      html: message,
+      text: message.replace(/<[^>]*>/g, ''),
       inReplyTo,
       references,
-      attachments: uploadedAttachments, // Pass attachments to backend
     });
 
-    console.log('Message sent successfully with attachments');
+    console.log('Message sent successfully via integration');
     // Convex will automatically update the conversation reactively
   };
 

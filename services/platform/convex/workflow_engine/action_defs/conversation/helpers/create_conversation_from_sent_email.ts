@@ -26,7 +26,6 @@ export async function createConversationFromSentEmail(
     status?: ConversationStatus;
     priority?: ConversationPriority;
     accountEmail?: string; // The mailbox address of the account/mailbox being synced
-    providerId?: Id<'emailProviders'>;
     type?: string;
   },
 ) {
@@ -156,7 +155,6 @@ export async function createConversationFromSentEmail(
         email,
         isCustomer,
         status,
-        params.providerId,
       );
 
       newMessagesAdded++;
@@ -268,7 +266,6 @@ export async function createConversationFromSentEmail(
       rootEmail,
       isCustomerRoot,
       statusRoot,
-      params.providerId,
     );
   } else {
     // Create new conversation with initial message
@@ -292,7 +289,6 @@ export async function createConversationFromSentEmail(
         type: params.type || 'general',
         channel: 'email',
         direction: conversationDirection,
-        providerId: params.providerId,
         metadata: buildConversationMetadata(rootEmail, {
           isThreaded: emailsArray.length > 1,
           threadMessageCount: emailsArray.length,
@@ -352,7 +348,6 @@ export async function createConversationFromSentEmail(
         email,
         isCustomer,
         status,
-        params.providerId,
       );
 
       debugLog('create_from_sent_email Created message:', email.messageId);
