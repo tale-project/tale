@@ -20,7 +20,7 @@ import type {
 import { api, internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
 import { getPredefinedIntegration } from '../predefined_integrations';
-import { buildTestSecrets } from './build_test_secrets';
+import { buildIntegrationSecrets } from './build_test_secrets';
 import { isSqlIntegration } from './guards/is_sql_integration';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
@@ -138,7 +138,7 @@ async function testRestConnection(
 
   const secrets = hasInlineOverrides
     ? buildInlineSecrets(integration, overrides)
-    : await buildTestSecrets(ctx, integration);
+    : await buildIntegrationSecrets(ctx, integration);
 
   const result = await ctx.runAction(
     internal.node_only.integration_sandbox.internal_actions.executeIntegration,

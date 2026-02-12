@@ -1,6 +1,6 @@
 /**
- * Build secrets object from stored integration credentials for test connection.
- * Maps auth method to secrets that the connector's testConnection(ctx) can access.
+ * Build secrets object from stored integration credentials.
+ * Maps auth method to decrypted credential values (accessToken, password, etc.).
  */
 
 import type { Doc } from '../_generated/dataModel';
@@ -9,7 +9,7 @@ import type { ActionCtx } from '../_generated/server';
 import { internal } from '../_generated/api';
 import { decryptAndRefreshIntegrationOAuth2 } from './decrypt_and_refresh_oauth2';
 
-export async function buildTestSecrets(
+export async function buildIntegrationSecrets(
   ctx: ActionCtx,
   integration: Doc<'integrations'>,
 ): Promise<Record<string, string>> {
