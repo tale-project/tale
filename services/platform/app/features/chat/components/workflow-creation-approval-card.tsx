@@ -29,6 +29,7 @@ import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { WorkflowCreationMetadata } from '@/convex/approvals/types';
 import { cn } from '@/lib/utils/cn';
+import { isRecord } from '@/lib/utils/type-guards';
 
 interface WorkflowCreationApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -65,10 +66,6 @@ interface ConfigEntry {
   label: string;
   value: string;
   mono?: boolean;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function getStepConfigEntries(
