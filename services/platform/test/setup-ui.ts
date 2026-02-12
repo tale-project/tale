@@ -55,8 +55,8 @@ if (typeof Blob.prototype.text !== 'function') {
   Blob.prototype.text = function () {
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
+      reader.addEventListener('load', () => resolve(reader.result as string));
+      reader.addEventListener('error', () => reject(reader.error));
       reader.readAsText(this);
     });
   };
@@ -65,8 +65,10 @@ if (typeof Blob.prototype.arrayBuffer !== 'function') {
   Blob.prototype.arrayBuffer = function () {
     return new Promise<ArrayBuffer>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as ArrayBuffer);
-      reader.onerror = () => reject(reader.error);
+      reader.addEventListener('load', () =>
+        resolve(reader.result as ArrayBuffer),
+      );
+      reader.addEventListener('error', () => reject(reader.error));
       reader.readAsArrayBuffer(this);
     });
   };
