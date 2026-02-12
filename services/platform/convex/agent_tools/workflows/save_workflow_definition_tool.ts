@@ -46,15 +46,23 @@ const workflowConfigSchema = z.object({
     .object({
       timeout: z
         .number()
+        .int()
+        .nonnegative()
         .optional()
         .describe(
           'Workflow timeout in milliseconds (e.g., 120000 for 2 minutes).',
         ),
       retryPolicy: z
         .object({
-          maxRetries: z.number().describe('Maximum retry attempts.'),
+          maxRetries: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Maximum retry attempts.'),
           backoffMs: z
             .number()
+            .int()
+            .nonnegative()
             .describe('Backoff delay between retries in ms.'),
         })
         .optional()
