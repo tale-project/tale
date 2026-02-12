@@ -1,0 +1,60 @@
+{
+  "name": "shopify",
+  "title": "Shopify",
+  "description": "Shopify Admin API integration for products, customers, and orders",
+  "version": 1,
+  "authMethod": "api_key",
+  "secretBindings": ["domain", "accessToken"],
+  "allowedHosts": ["myshopify.com"],
+  "operations": [
+    {
+      "name": "list_products",
+      "title": "List Products",
+      "description": "Fetch products from Shopify"
+    },
+    {
+      "name": "get_product",
+      "title": "Get Product",
+      "description": "Fetch a single product by ID"
+    },
+    {
+      "name": "list_customers",
+      "title": "List Customers",
+      "description": "Fetch customers from Shopify"
+    },
+    {
+      "name": "get_customer",
+      "title": "Get Customer",
+      "description": "Fetch a single customer by ID"
+    },
+    {
+      "name": "list_orders",
+      "title": "List Orders",
+      "description": "Fetch orders from Shopify"
+    },
+    {
+      "name": "get_order",
+      "title": "Get Order",
+      "description": "Fetch a single order by ID"
+    },
+    {
+      "name": "count_products",
+      "title": "Count Products",
+      "description": "Get total product count"
+    },
+    {
+      "name": "count_customers",
+      "title": "Count Customers",
+      "description": "Get total customer count"
+    },
+    {
+      "name": "count_orders",
+      "title": "Count Orders",
+      "description": "Get total order count"
+    }
+  ],
+  "connectionConfig": {
+    "apiVersion": "2026-01",
+    "timeout": 30000
+  }
+}

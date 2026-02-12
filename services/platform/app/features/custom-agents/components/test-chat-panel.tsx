@@ -6,16 +6,25 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import type { ChatMessage } from '@/app/features/chat/hooks/use-message-processing';
+
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Image } from '@/app/components/ui/data-display/image';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
+import { HumanInputRequestCard } from '@/app/features/chat/components/human-input-request-card';
+import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
+import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useCreateThread } from '@/app/features/chat/hooks/use-create-thread';
 import { useDeleteThread } from '@/app/features/chat/hooks/use-delete-thread';
+import { useHumanInputRequests } from '@/app/features/chat/hooks/use-human-input-requests';
+import { useIntegrationApprovals } from '@/app/features/chat/hooks/use-integration-approvals';
+import { useMergedChatItems } from '@/app/features/chat/hooks/use-merged-chat-items';
+import { useWorkflowCreationApprovals } from '@/app/features/chat/hooks/use-workflow-creation-approvals';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -60,10 +69,12 @@ interface FilePart {
 
 interface Message {
   id: string;
+  key: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
   fileParts?: FilePart[];
+  _creationTime?: number;
 }
 
 function ThinkingDots() {
@@ -129,6 +140,16 @@ function TestChatPanelContent({
   const createChatThread = useCreateThread();
   const deleteChatThread = useDeleteThread();
 
+  const { approvals: integrationApprovals } = useIntegrationApprovals(
+    threadId ?? undefined,
+  );
+  const { approvals: workflowCreationApprovals } = useWorkflowCreationApprovals(
+    threadId ?? undefined,
+  );
+  const { requests: humanInputRequests } = useHumanInputRequests(
+    threadId ?? undefined,
+  );
+
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SDK type mismatch: return type narrowed to usable shape
   const { results: uiMessages } = useUIMessages(
     // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
@@ -168,10 +189,12 @@ function TestChatPanelContent({
           }));
 
         return {
-          id: m.key,
+          id: m.id,
+          key: m.key,
           role: m.role,
           content: m.text,
           timestamp: new Date(m._creationTime),
+          _creationTime: m._creationTime,
           fileParts: fileParts.length > 0 ? fileParts : undefined,
         };
       });
@@ -251,37 +274,60 @@ function TestChatPanelContent({
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- Only re-run when messagesKey changes
   }, [messagesKey]);
 
-  const displayMessages = useMemo(() => {
-    const serverMessages =
-      transformedMessages.length > 0 ? transformedMessages : messages;
+  const effectiveMessages = useMemo(
+    (): ChatMessage[] =>
+      transformedMessages.length > 0 ? transformedMessages : messages,
+    [transformedMessages, messages],
+  );
 
-    if (!pendingUserMessage) return serverMessages;
-    if (serverMessages.length === 0) {
-      return [pendingUserMessage];
+  const mergedItems = useMergedChatItems({
+    messages: effectiveMessages,
+    integrationApprovals,
+    workflowCreationApprovals,
+    humanInputRequests,
+  });
+
+  const displayItems = useMemo(() => {
+    if (!pendingUserMessage) return mergedItems;
+    if (mergedItems.length === 0) {
+      return [
+        {
+          type: 'message' as const,
+          data: { ...pendingUserMessage, key: pendingUserMessage.key },
+        },
+      ];
     }
     const pendingTimestamp = pendingUserMessage.timestamp.getTime();
     const toleranceMs = 60000;
     const pendingContent = pendingUserMessage.content.trim().toLowerCase();
 
-    const hasMatchingServerMessage = serverMessages.some(
-      (m) =>
-        m.role === 'user' &&
-        (Math.abs(m.timestamp.getTime() - pendingTimestamp) < toleranceMs ||
-          m.content.trim().toLowerCase() === pendingContent),
+    const hasMatchingServerMessage = mergedItems.some(
+      (item) =>
+        item.type === 'message' &&
+        item.data.role === 'user' &&
+        (Math.abs(item.data.timestamp.getTime() - pendingTimestamp) <
+          toleranceMs ||
+          item.data.content.trim().toLowerCase() === pendingContent),
     );
     if (!hasMatchingServerMessage) {
-      return [...serverMessages, pendingUserMessage];
+      return [
+        ...mergedItems,
+        {
+          type: 'message' as const,
+          data: { ...pendingUserMessage, key: pendingUserMessage.key },
+        },
+      ];
     }
-    return serverMessages;
-  }, [transformedMessages, messages, pendingUserMessage]);
+    return mergedItems;
+  }, [mergedItems, pendingUserMessage]);
 
   useEffect(() => {
-    if (displayMessages.length === 0) return;
+    if (displayItems.length === 0) return;
     if (containerRef.current) {
       throttledScrollToBottom(containerRef.current, 'auto');
     }
   }, [
-    displayMessages.length,
+    displayItems.length,
     messagesKey,
     isAgentResponding,
     throttledScrollToBottom,
@@ -370,8 +416,10 @@ function TestChatPanelContent({
       clearAttachments();
     }
 
+    const pendingId = `pending-${Date.now()}`;
     const optimisticMessage: Message = {
-      id: `pending-${Date.now()}`,
+      id: pendingId,
+      key: pendingId,
       role: 'user',
       content: messageContent,
       timestamp: new Date(),
@@ -409,8 +457,10 @@ function TestChatPanelContent({
     } catch (error) {
       console.error('Error testing draft agent:', error);
       setIsLoading(false);
+      const errorId = (Date.now() + 1).toString();
       const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: errorId,
+        key: errorId,
         role: 'assistant',
         content: t('customAgents.testChat.sendFailed'),
         timestamp: new Date(),
@@ -454,7 +504,7 @@ function TestChatPanelContent({
           {t('customAgents.testChat.title')}
         </h2>
         <div className="flex items-center gap-1">
-          {displayMessages.length > 0 && threadId && (
+          {displayItems.length > 0 && threadId && (
             <IconButton
               icon={RotateCcw}
               aria-label={t('customAgents.testChat.newConversation')}
@@ -478,7 +528,7 @@ function TestChatPanelContent({
         className="relative flex flex-1 flex-col overflow-y-auto"
       >
         <div className="flex flex-1 flex-col space-y-2.5 p-3">
-          {displayMessages.length === 0 ? (
+          {displayItems.length === 0 ? (
             <div className="flex h-full flex-col items-start justify-start py-4">
               <div className="flex items-start gap-2">
                 <div className="bg-muted h-fit shrink-0 rounded-lg p-1.5">
@@ -493,86 +543,140 @@ function TestChatPanelContent({
             </div>
           ) : (
             <>
-              {displayMessages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    'flex gap-1',
-                    message.role === 'user' ? 'justify-end' : 'justify-start',
-                  )}
-                >
-                  <div className="flex max-w-[92.5%] flex-col gap-2">
-                    {message.fileParts && message.fileParts.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {message.fileParts.map((part, idx) =>
-                          part.mediaType.startsWith('image/') ? (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() =>
-                                setPreviewImage({
-                                  isOpen: true,
-                                  src: part.url,
-                                  alt: part.filename || 'Image',
-                                })
-                              }
-                              className="bg-muted focus:ring-ring size-11 cursor-pointer overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
-                            >
-                              <Image
-                                src={part.url}
-                                alt={part.filename || 'Image'}
-                                className="size-full object-cover"
-                                width={44}
-                                height={44}
-                              />
-                            </button>
-                          ) : (
-                            <a
-                              key={idx}
-                              href={part.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="bg-muted hover:bg-muted/80 flex max-w-[13.5rem] items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
-                            >
-                              <DocumentIcon
-                                fileName={part.filename || 'file'}
-                              />
-                              <div className="flex min-w-0 flex-1 flex-col">
-                                <div className="text-foreground truncate text-sm font-medium">
-                                  {part.filename || 'File'}
+              {displayItems.map((item) => {
+                if (item.type === 'approval') {
+                  return (
+                    <div
+                      key={`approval-${item.data._id}`}
+                      className="flex justify-start"
+                    >
+                      <IntegrationApprovalCard
+                        approvalId={item.data._id}
+                        organizationId={organizationId}
+                        status={item.data.status}
+                        metadata={item.data.metadata}
+                        executedAt={item.data.executedAt}
+                        executionError={item.data.executionError}
+                      />
+                    </div>
+                  );
+                }
+
+                if (item.type === 'workflow_approval') {
+                  return (
+                    <div
+                      key={`workflow-approval-${item.data._id}`}
+                      className="flex justify-start"
+                    >
+                      <WorkflowCreationApprovalCard
+                        approvalId={item.data._id}
+                        organizationId={organizationId}
+                        status={item.data.status}
+                        metadata={item.data.metadata}
+                        executedAt={item.data.executedAt}
+                        executionError={item.data.executionError}
+                      />
+                    </div>
+                  );
+                }
+
+                if (item.type === 'human_input_request') {
+                  return (
+                    <div
+                      key={`human-input-${item.data._id}`}
+                      className="flex justify-start"
+                    >
+                      <HumanInputRequestCard
+                        approvalId={item.data._id}
+                        status={item.data.status}
+                        metadata={item.data.metadata}
+                      />
+                    </div>
+                  );
+                }
+
+                const message = item.data;
+                return (
+                  <div
+                    key={message.key}
+                    className={cn(
+                      'flex gap-1',
+                      message.role === 'user' ? 'justify-end' : 'justify-start',
+                    )}
+                  >
+                    <div className="flex max-w-[92.5%] min-w-0 flex-col gap-2">
+                      {message.fileParts && message.fileParts.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {message.fileParts.map((part, idx) =>
+                            part.mediaType.startsWith('image/') ? (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() =>
+                                  setPreviewImage({
+                                    isOpen: true,
+                                    src: part.url,
+                                    alt: part.filename || 'Image',
+                                  })
+                                }
+                                className="bg-muted focus:ring-ring size-11 cursor-pointer overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+                              >
+                                <Image
+                                  src={part.url}
+                                  alt={part.filename || 'Image'}
+                                  className="size-full object-cover"
+                                  width={44}
+                                  height={44}
+                                />
+                              </button>
+                            ) : (
+                              <a
+                                key={idx}
+                                href={part.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="bg-muted hover:bg-muted/80 flex max-w-[13.5rem] items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
+                              >
+                                <DocumentIcon
+                                  fileName={part.filename || 'file'}
+                                />
+                                <div className="flex min-w-0 flex-1 flex-col">
+                                  <div className="text-foreground truncate text-sm font-medium">
+                                    {part.filename || 'File'}
+                                  </div>
                                 </div>
-                              </div>
-                            </a>
-                          ),
-                        )}
-                      </div>
-                    )}
-                    {message.content && (
-                      <div
-                        className={cn(
-                          'rounded-lg px-2.5 py-2',
-                          message.role === 'user'
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-foreground',
-                        )}
-                      >
-                        {message.role === 'assistant' ? (
-                          <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-pre:text-[10px] prose-headings:my-1 prose-headings:text-xs max-w-none text-xs">
-                            <Bot className="text-muted-foreground mb-1.5 size-3.5" />
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              </a>
+                            ),
+                          )}
+                        </div>
+                      )}
+                      {message.content && (
+                        <div
+                          className={cn(
+                            'overflow-hidden rounded-lg px-2.5 py-2',
+                            message.role === 'user'
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-foreground',
+                          )}
+                        >
+                          {message.role === 'assistant' ? (
+                            <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-pre:text-[10px] prose-headings:my-1 prose-headings:text-xs max-w-none text-xs break-words">
+                              <Bot className="text-muted-foreground mb-1.5 size-3.5" />
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {message.content}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-xs leading-relaxed break-words whitespace-pre-wrap">
                               {message.content}
-                            </ReactMarkdown>
-                          </div>
-                        ) : (
-                          <p className="text-xs leading-relaxed whitespace-pre-wrap">
-                            {message.content}
-                          </p>
-                        )}
-                      </div>
-                    )}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {isBusy && <ThinkingDots />}
             </>
           )}

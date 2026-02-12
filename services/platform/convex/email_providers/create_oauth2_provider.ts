@@ -102,10 +102,10 @@ function getOAuth2Credentials(
 }
 
 /**
- * Main logic for creating OAuth2 email provider with server-side credentials
+ * Create OAuth2 email provider with server-side credentials
  * Fetches OAuth2 credentials from overrides or environment variables and encrypts them
  */
-export async function createOAuth2ProviderLogic(
+export async function createOAuth2Provider(
   _ctx: ActionCtx,
   args: CreateOAuth2ProviderArgs,
   deps: CreateOAuth2ProviderDependencies,

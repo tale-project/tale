@@ -22,6 +22,16 @@ export const integrationsTable = defineTable({
     v.literal('basic_auth'),
     v.literal('oauth2'),
   ),
+  supportedAuthMethods: v.optional(
+    v.array(
+      v.union(
+        v.literal('api_key'),
+        v.literal('bearer_token'),
+        v.literal('basic_auth'),
+        v.literal('oauth2'),
+      ),
+    ),
+  ),
   apiKeyAuth: v.optional(
     v.object({
       keyEncrypted: v.string(),
@@ -40,6 +50,15 @@ export const integrationsTable = defineTable({
       refreshTokenEncrypted: v.optional(v.string()),
       tokenExpiry: v.optional(v.number()),
       scopes: v.optional(v.array(v.string())),
+    }),
+  ),
+  oauth2Config: v.optional(
+    v.object({
+      authorizationUrl: v.string(),
+      tokenUrl: v.string(),
+      scopes: v.optional(v.array(v.string())),
+      clientId: v.optional(v.string()),
+      clientSecretEncrypted: v.optional(v.string()),
     }),
   ),
   connectionConfig: v.optional(
@@ -81,6 +100,10 @@ export const integrationsTable = defineTable({
           title: v.optional(v.string()),
           description: v.optional(v.string()),
           parametersSchema: v.optional(jsonRecordValidator),
+          operationType: v.optional(
+            v.union(v.literal('read'), v.literal('write')),
+          ),
+          requiresApproval: v.optional(v.boolean()),
         }),
       ),
       secretBindings: v.array(v.string()),
@@ -95,9 +118,9 @@ export const integrationsTable = defineTable({
         v.literal('postgres'),
         v.literal('mysql'),
       ),
-      server: v.string(),
+      server: v.optional(v.string()),
       port: v.optional(v.number()),
-      database: v.string(),
+      database: v.optional(v.string()),
       readOnly: v.optional(v.boolean()),
       options: v.optional(
         v.object({
@@ -131,6 +154,7 @@ export const integrationsTable = defineTable({
       }),
     ),
   ),
+  iconStorageId: v.optional(v.id('_storage')),
   metadata: v.optional(jsonRecordValidator),
 })
   .index('by_organizationId', ['organizationId'])

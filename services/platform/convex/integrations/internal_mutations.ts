@@ -11,6 +11,7 @@ import {
   apiKeyAuthEncryptedValidator,
   basicAuthEncryptedValidator,
   oauth2AuthEncryptedValidator,
+  oauth2ConfigStoredValidator,
   connectionConfigValidator,
   capabilitiesValidator,
   connectorConfigValidator,
@@ -36,6 +37,7 @@ export const createIntegration = internalMutation({
     status: statusValidator,
     isActive: v.boolean(),
     authMethod: authMethodValidator,
+    supportedAuthMethods: v.optional(v.array(authMethodValidator)),
     apiKeyAuth: v.optional(
       v.object({
         keyEncrypted: v.string(),
@@ -57,6 +59,7 @@ export const createIntegration = internalMutation({
         scopes: v.optional(v.array(v.string())),
       }),
     ),
+    oauth2Config: v.optional(oauth2ConfigStoredValidator),
     connectionConfig: v.optional(jsonRecordValidator),
     capabilities: v.optional(
       v.object({
@@ -70,6 +73,7 @@ export const createIntegration = internalMutation({
     type: v.optional(typeValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     sqlOperations: v.optional(v.array(sqlOperationValidator)),
+    iconStorageId: v.optional(v.id('_storage')),
     metadata: v.optional(jsonValueValidator),
   },
   handler: async (ctx, args) => {
@@ -80,11 +84,13 @@ export const createIntegration = internalMutation({
 export const updateIntegration = internalMutation({
   args: {
     integrationId: v.id('integrations'),
+    authMethod: v.optional(authMethodValidator),
     status: v.optional(statusValidator),
     isActive: v.optional(v.boolean()),
     apiKeyAuth: v.optional(apiKeyAuthEncryptedValidator),
     basicAuth: v.optional(basicAuthEncryptedValidator),
     oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
+    oauth2Config: v.optional(oauth2ConfigStoredValidator),
     connectionConfig: v.optional(connectionConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),

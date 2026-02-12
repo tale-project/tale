@@ -14,6 +14,15 @@ export const listInternal = internalQuery({
   },
 });
 
+export const getInternal = internalQuery({
+  args: {
+    integrationId: v.id('integrations'),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.integrationId);
+  },
+});
+
 export const getByName = internalQuery({
   args: {
     organizationId: v.string(),

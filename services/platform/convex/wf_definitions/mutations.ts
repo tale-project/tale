@@ -7,7 +7,7 @@ import { createDraftFromActive as createDraftFromActiveHelper } from '../workflo
 import { createWorkflowWithSteps as createWorkflowWithStepsHelper } from '../workflows/definitions/create_workflow_with_steps';
 import { deleteWorkflow as deleteWorkflowHelper } from '../workflows/definitions/delete_workflow';
 import { duplicateWorkflow as duplicateWorkflowHelper } from '../workflows/definitions/duplicate_workflow';
-import { publishDraft as publishDraftLogic } from '../workflows/definitions/publish_draft';
+import { publishDraft as publishDraftHandler } from '../workflows/definitions/publish_draft';
 import { republishWorkflow as republishWorkflowHelper } from '../workflows/definitions/republish_workflow';
 import { unpublishWorkflow as unpublishWorkflowHelper } from '../workflows/definitions/unpublish_workflow';
 import { updateWorkflow as updateWorkflowHelper } from '../workflows/definitions/update_workflow';
@@ -83,7 +83,7 @@ export const publishDraft = mutationWithRLS({
     changeLog: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    return await publishDraftLogic(ctx, args);
+    return await publishDraftHandler(ctx, args);
   },
 });
 

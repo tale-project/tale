@@ -96,6 +96,10 @@ function WorkflowCreationApprovalCardComponent({
     setIsApproving(true);
     setError(null);
     try {
+      await updateApprovalStatus({
+        approvalId,
+        status: 'approved',
+      });
       await executeApprovedWorkflow({
         approvalId,
       });
@@ -132,7 +136,7 @@ function WorkflowCreationApprovalCardComponent({
   return (
     <div
       className={cn(
-        'border rounded-lg p-4 bg-card shadow-sm max-w-md',
+        'border rounded-lg p-4 bg-card shadow-sm max-w-md overflow-hidden',
         status === 'approved' && 'border-success/30 bg-success/5',
         status === 'rejected' && 'border-destructive/30 bg-destructive/5',
         status === 'pending' && 'border-primary/30 bg-primary/5',
@@ -225,17 +229,17 @@ function WorkflowCreationApprovalCardComponent({
 
       {/* Execution Error (persisted from backend) */}
       {status === 'approved' && executionError && (
-        <div className="text-destructive mb-3 flex items-center gap-1 text-xs">
-          <XCircle className="size-3" />
-          {executionError}
+        <div className="text-destructive mb-3 flex items-start gap-1 text-xs break-words">
+          <XCircle className="size-3 shrink-0" />
+          <span className="min-w-0">{executionError}</span>
         </div>
       )}
 
       {/* Error Message (temporary UI error) */}
       {error && (
-        <div className="text-destructive mb-3 flex items-center gap-1 text-xs">
-          <XCircle className="size-3" />
-          {error}
+        <div className="text-destructive mb-3 flex items-start gap-1 text-xs break-words">
+          <XCircle className="size-3 shrink-0" />
+          <span className="min-w-0">{error}</span>
         </div>
       )}
 

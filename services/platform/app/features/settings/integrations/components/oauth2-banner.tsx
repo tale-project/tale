@@ -14,13 +14,16 @@ import { useT } from '@/lib/i18n/client';
  * Shows success banner for successful auth, error banner for failures.
  *
  * Handles:
- * - ?oauth2=success - Success notification
+ * - ?oauth2=success - Success notification (email providers)
  * - ?oauth2=success&provider=<id> - Success with provider ID
- * - ?email_error=<type> - Error notifications
+ * - ?email_error=<type> - Error notifications (email providers)
  * - ?email_error=<type>&description=<desc> - Error with description
+ * - ?integration_oauth2=success - Success notification (integrations)
+ * - ?integration_oauth2_error=<type>&description=<desc> - Error (integrations)
  */
 export function OAuth2Banner() {
   const { t } = useT('auth');
+  const { t: tSettings } = useT('settings');
   // TanStack Router useSearch with strict: false returns unknown — cast required for search params
   const search: Record<string, string | undefined> = useSearch({
     strict: false,
@@ -37,7 +40,7 @@ export function OAuth2Banner() {
     const errorDescription = search.description;
     const providerId = search.provider;
 
-    // Handle OAuth2 success
+    // Handle email provider OAuth2 success
     if (oauth2Status === 'success') {
       setIsVisible(true);
       setBannerType('success');
@@ -48,7 +51,7 @@ export function OAuth2Banner() {
       );
     }
 
-    // Handle OAuth2 errors
+    // Handle email provider OAuth2 errors
     if (error) {
       const errorMessages: Record<string, string> = {
         missing_code: t('oauth2.errors.missingCode'),
@@ -70,7 +73,26 @@ export function OAuth2Banner() {
       setBannerType('error');
       setMessage(errorMessage);
     }
-  }, [search, t]);
+
+    // Handle integration OAuth2 success
+    const integrationOAuth2 = search.integration_oauth2;
+    if (integrationOAuth2 === 'success') {
+      setIsVisible(true);
+      setBannerType('success');
+      setMessage(tSettings('integrations.manageDialog.oauth2Authorized'));
+    }
+
+    // Handle integration OAuth2 errors
+    const integrationOAuth2Error = search.integration_oauth2_error;
+    if (integrationOAuth2Error) {
+      setIsVisible(true);
+      setBannerType('error');
+      setMessage(
+        errorDescription ||
+          tSettings('integrations.manageDialog.oauth2AuthorizationFailed'),
+      );
+    }
+  }, [search, t, tSettings]);
 
   const handleDismiss = () => {
     setIsVisible(false);
@@ -79,6 +101,8 @@ export function OAuth2Banner() {
     const newSearch = { ...search };
     delete newSearch.oauth2;
     delete newSearch.email_error;
+    delete newSearch.integration_oauth2;
+    delete newSearch.integration_oauth2_error;
     delete newSearch.description;
     delete newSearch.provider;
 
