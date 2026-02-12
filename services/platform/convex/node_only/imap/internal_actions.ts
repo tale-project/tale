@@ -119,6 +119,8 @@ export const retrieveImapEmails = internalAction({
       secure: credentials.secure,
       auth,
       logger: false,
+      socketTimeout: 30_000,
+      greetTimeout: 15_000,
     });
 
     await client.connect();

@@ -36,3 +36,12 @@ export const getLastExecutionTimes = internalQuery({
     return Object.fromEntries(result);
   },
 });
+
+export const getRunningExecutions = internalQuery({
+  args: { wfDefinitionIds: v.array(v.id('wfDefinitions')) },
+  returns: v.record(v.string(), v.boolean()),
+  handler: async (ctx, args) => {
+    const result = await SchedulerHelpers.hasRunningExecutions(ctx, args);
+    return Object.fromEntries(result);
+  },
+});

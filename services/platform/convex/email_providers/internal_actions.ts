@@ -62,6 +62,8 @@ async function verifyImapConnection(
     secure: params.imapConfig.secure,
     auth,
     logger: false,
+    socketTimeout: 30_000,
+    greetTimeout: 15_000,
   });
 
   await client.connect();
