@@ -7,6 +7,7 @@ import { workflowManagers } from './engine';
 import * as EngineHelpers from './helpers/engine';
 import { safeShardIndex } from './helpers/engine/shard';
 import { handleStartWorkflow } from './helpers/engine/start_workflow_handler';
+import { recoverStuckExecutions } from './helpers/recovery';
 
 export const onWorkflowComplete = internalMutation({
   args: {
@@ -45,5 +46,13 @@ export const startWorkflow = internalMutation({
   returns: v.id('wfExecutions'),
   handler: async (ctx, args) => {
     return await handleStartWorkflow(ctx, args, workflowManagers);
+  },
+});
+
+export const recoverStuck = internalMutation({
+  args: {},
+  returns: v.object({ recovered: v.number() }),
+  handler: async (ctx) => {
+    return await recoverStuckExecutions(ctx);
   },
 });
