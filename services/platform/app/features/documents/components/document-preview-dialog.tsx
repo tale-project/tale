@@ -12,7 +12,8 @@ import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useDocumentCollection, useDocuments } from '../hooks/collections';
+import { useDocumentCollection } from '../hooks/collections';
+import { useDocuments } from '../hooks/queries';
 import { DocumentPreview } from './document-preview';
 
 interface DocumentPreviewDialogProps {

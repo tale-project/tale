@@ -13,14 +13,13 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useWfAutomationCollection } from '../hooks/collections';
 import {
-  useDeleteAutomation,
   useDuplicateAutomation,
   useRepublishAutomation,
   useUnpublishAutomation,
-  useUpdateAutomation,
-} from '../hooks/mutations';
+} from '../hooks/actions';
+import { useWfAutomationCollection } from '../hooks/collections';
+import { useDeleteAutomation, useUpdateAutomation } from '../hooks/mutations';
 import { DeleteAutomationDialog } from './automation-delete-dialog';
 import { AutomationRenameDialog } from './automation-rename-dialog';
 
@@ -46,7 +45,7 @@ export function AutomationRowActions({
   const deleteAutomation = useDeleteAutomation(wfAutomationCollection);
   const republishAutomation = useRepublishAutomation();
   const unpublishAutomation = useUnpublishAutomation();
-  const updateAutomation = useUpdateAutomation();
+  const updateAutomation = useUpdateAutomation(wfAutomationCollection);
 
   const handlePublish = useCallback(async () => {
     if (!user) return;

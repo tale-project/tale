@@ -23,7 +23,7 @@ import {
   useDuplicateCustomAgent,
   usePublishCustomAgent,
   useUnpublishCustomAgent,
-} from '../hooks/mutations';
+} from '../hooks/actions';
 import { CustomAgentDeleteDialog } from './custom-agent-delete-dialog';
 
 interface CustomAgentRowActionsProps {

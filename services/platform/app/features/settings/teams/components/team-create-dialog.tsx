@@ -11,7 +11,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
-import { useAddTeamMember } from '../hooks/mutations';
+import { useAddTeamMember } from '../hooks/actions';
 
 interface TeamCreateDialogProps {
   organizationId: string;

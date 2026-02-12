@@ -3,25 +3,47 @@ import type { Collection } from '@tanstack/db';
 import { useCallback } from 'react';
 
 import type { WfAutomation } from '@/lib/collections/entities/wf-automations';
+import type { WfStep } from '@/lib/collections/entities/wf-steps';
 
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
-
-export function useUpdateStep() {
-  return useConvexMutation(api.wf_step_defs.mutations.updateStep);
+export function useUpdateStep(collection: Collection<WfStep, string>) {
+  return useCallback(
+    async (args: {
+      stepRecordId: string;
+      updates: Record<string, unknown>;
+      editMode?: string;
+    }) => {
+      const tx = collection.update(
+        args.stepRecordId,
+        { metadata: { editMode: args.editMode ?? 'visual' } },
+        (draft) => {
+          Object.assign(draft, args.updates);
+        },
+      );
+      await tx.isPersisted.promise;
+    },
+    [collection],
+  );
 }
 
-export function useCreateStep() {
-  return useConvexMutation(api.wf_step_defs.mutations.createStep);
-}
-
-export function useUpdateAutomation() {
-  return useConvexMutation(api.wf_definitions.mutations.updateWorkflow);
-}
-
-export function useCreateAutomation() {
-  return useConvexMutation(
-    api.wf_definitions.mutations.createWorkflowWithSteps,
+export function useUpdateAutomation(
+  collection: Collection<WfAutomation, string>,
+) {
+  return useCallback(
+    async (args: {
+      wfDefinitionId: string;
+      updates: Record<string, unknown>;
+      updatedBy: string;
+    }) => {
+      const tx = collection.update(
+        args.wfDefinitionId,
+        { metadata: { updatedBy: args.updatedBy } },
+        (draft) => {
+          Object.assign(draft, args.updates);
+        },
+      );
+      await tx.isPersisted.promise;
+    },
+    [collection],
   );
 }
 
@@ -37,26 +59,24 @@ export function useDeleteAutomation(
   );
 }
 
-export function useDuplicateAutomation() {
-  return useConvexMutation(api.wf_definitions.mutations.duplicateWorkflow);
-}
-
-export function usePublishAutomationDraft() {
-  return useConvexMutation(api.wf_definitions.mutations.publishDraft);
-}
-
-export function useUnpublishAutomation() {
-  return useConvexMutation(api.wf_definitions.mutations.unpublishWorkflow);
-}
-
-export function useRepublishAutomation() {
-  return useConvexMutation(api.wf_definitions.mutations.republishWorkflow);
-}
-
-export function useUpdateAutomationMetadata() {
-  return useConvexMutation(api.wf_definitions.mutations.updateWorkflowMetadata);
-}
-
-export function useCreateDraftFromActive() {
-  return useConvexMutation(api.wf_definitions.mutations.createDraftFromActive);
+export function useUpdateAutomationMetadata(
+  collection: Collection<WfAutomation, string>,
+) {
+  return useCallback(
+    async (args: {
+      wfDefinitionId: string;
+      metadata: Record<string, unknown>;
+      updatedBy: string;
+    }) => {
+      const tx = collection.update(
+        args.wfDefinitionId,
+        { metadata: { updatedBy: args.updatedBy, metadataOnly: true } },
+        (draft) => {
+          draft.metadata = args.metadata;
+        },
+      );
+      await tx.isPersisted.promise;
+    },
+    [collection],
+  );
 }

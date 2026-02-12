@@ -33,7 +33,7 @@ import {
   useCreateDraftFromActive,
   usePublishAutomationDraft,
   useUnpublishAutomation,
-} from '../hooks/mutations';
+} from '../hooks/actions';
 import { useListWorkflowVersions } from '../hooks/queries';
 import { useAutomationVersionNavigation } from '../hooks/use-automation-version-navigation';
 

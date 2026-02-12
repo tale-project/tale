@@ -10,7 +10,7 @@ import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useUpdatePassword } from '../hooks/mutations';
+import { useUpdatePassword } from '../hooks/actions';
 
 interface MemberContext {
   memberId: string;

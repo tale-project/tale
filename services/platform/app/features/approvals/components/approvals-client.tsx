@@ -23,11 +23,10 @@ import {
   safeGetArray,
 } from '@/lib/utils/safe-parsers';
 
-import { useApprovalCollection, useApprovals } from '../hooks/collections';
-import {
-  useRemoveRecommendedProduct,
-  useUpdateApprovalStatus,
-} from '../hooks/mutations';
+import { useRemoveRecommendedProduct } from '../hooks/actions';
+import { useApprovalCollection } from '../hooks/collections';
+import { useUpdateApprovalStatus } from '../hooks/mutations';
+import { useApprovals } from '../hooks/queries';
 import { ApprovalDetail } from '../types/approval-detail';
 import { ApprovalDetailDialog } from './approval-detail-dialog';
 

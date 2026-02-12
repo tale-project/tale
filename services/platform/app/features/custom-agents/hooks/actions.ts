@@ -1,23 +1,34 @@
-import type { FunctionReference } from 'convex/server';
-
-import { optimisticallySendMessage } from '@convex-dev/agent/react';
-
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
-type AnyMutation = FunctionReference<'mutation'>;
-type AnyQuery = FunctionReference<'query'>;
-
-const testMutation: AnyMutation = api.custom_agents.test_chat.testCustomAgent;
-const getThreadMessagesStreamingQuery: AnyQuery =
-  api.threads.queries.getThreadMessagesStreaming;
-
 export function useTestAgent() {
-  return useConvexMutation(testMutation).withOptimisticUpdate((store, args) => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-explicit-any -- SDK type mismatch: streaming query return type incompatible with optimisticallySendMessage expectations
-    optimisticallySendMessage(getThreadMessagesStreamingQuery as any)(store, {
-      threadId: args.threadId,
-      prompt: args.message,
-    });
-  });
+  return useConvexAction(api.custom_agents.test_chat_actions.testCustomAgent);
+}
+
+export function useCreateCustomAgent() {
+  return useConvexAction(api.custom_agents.actions.createCustomAgent);
+}
+
+export function useDuplicateCustomAgent() {
+  return useConvexAction(api.custom_agents.actions.duplicateCustomAgent);
+}
+
+export function useActivateCustomAgentVersion() {
+  return useConvexAction(api.custom_agents.actions.activateCustomAgentVersion);
+}
+
+export function useCreateDraftFromVersion() {
+  return useConvexAction(api.custom_agents.actions.createDraftFromVersion);
+}
+
+export function usePublishCustomAgent() {
+  return useConvexAction(api.custom_agents.actions.publishCustomAgent);
+}
+
+export function useUnpublishCustomAgent() {
+  return useConvexAction(api.custom_agents.actions.unpublishCustomAgent);
+}
+
+export function useCreateCustomAgentWebhook() {
+  return useConvexAction(api.custom_agents.webhooks.actions.createWebhook);
 }

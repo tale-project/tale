@@ -6,8 +6,6 @@ import type { WfEventSubscription } from '@/lib/collections/entities/wf-event-su
 import type { WfSchedule } from '@/lib/collections/entities/wf-schedules';
 import type { WfWebhook } from '@/lib/collections/entities/wf-webhooks';
 
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
 import { toId } from '@/lib/utils/type-guards';
 
 export function useCreateSchedule(collection: Collection<WfSchedule, string>) {
@@ -76,13 +74,6 @@ export function useDeleteSchedule(collection: Collection<WfSchedule, string>) {
     },
     [collection],
   );
-}
-
-/**
- * Server generates token — needs return value from Convex mutation.
- */
-export function useCreateWebhook() {
-  return useConvexMutation(api.workflows.triggers.mutations.createWebhook);
 }
 
 export function useToggleWebhook(collection: Collection<WfWebhook, string>) {

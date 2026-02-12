@@ -19,18 +19,20 @@ import { useSiteUrl } from '@/lib/site-url-context';
 import { toId } from '@/lib/utils/type-guards';
 
 import { SecretRevealDialog } from '../../automations/triggers/components/secret-reveal-dialog';
+import { useCreateCustomAgentWebhook } from '../hooks/actions';
 import {
   useCustomAgentVersionCollection,
-  useCustomAgentVersions,
   useCustomAgentWebhookCollection,
-  useCustomAgentWebhooks,
-  type CustomAgentWebhook,
 } from '../hooks/collections';
 import {
-  useCreateCustomAgentWebhook,
   useDeleteCustomAgentWebhook,
   useToggleCustomAgentWebhook,
 } from '../hooks/mutations';
+import {
+  useCustomAgentVersions,
+  useCustomAgentWebhooks,
+  type CustomAgentWebhook,
+} from '../hooks/queries';
 
 interface CustomAgentWebhookSectionProps {
   organizationId: string;

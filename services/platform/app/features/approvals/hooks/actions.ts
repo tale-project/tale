@@ -10,3 +10,7 @@ export function useExecuteApprovedIntegrationOperation() {
 export function useExecuteApprovedWorkflowCreation() {
   return useConvexAction(api.approvals.actions.executeApprovedWorkflowCreation);
 }
+
+export function useRemoveRecommendedProduct() {
+  return useConvexAction(api.approvals.actions.removeRecommendedProduct);
+}

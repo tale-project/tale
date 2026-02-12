@@ -1,5 +1,4 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   createFileRoute,
   useNavigate,
@@ -20,6 +19,7 @@ import {
   useHasAnyUsers,
   useIsSsoConfigured,
 } from '@/app/features/auth/hooks/queries';
+import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -40,7 +40,7 @@ type LogInFormData = {
 
 function LogInPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const queryClient = useReactQueryClient();
   const { redirectTo } = useSearch({ from: '/_auth/log-in' });
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');

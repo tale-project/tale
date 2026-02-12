@@ -15,7 +15,8 @@ import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
-import { useMemberCollection, useMembers } from '../hooks/collections';
+import { useMemberCollection } from '../hooks/collections';
+import { useMembers } from '../hooks/queries';
 import { AddMemberDialog } from './member-add-dialog';
 import { MemberTable } from './member-table';
 

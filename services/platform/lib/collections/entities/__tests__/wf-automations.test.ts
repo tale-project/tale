@@ -97,7 +97,7 @@ describe('createWfAutomationsCollection', () => {
 
     const config = mockQueryCollectionOptions.mock.calls[0][0];
     expect(config.onInsert).toBeUndefined();
-    expect(config.onUpdate).toBeUndefined();
+    expect(config.onUpdate).toBeDefined();
     expect(config.onDelete).toBeDefined();
   });
 

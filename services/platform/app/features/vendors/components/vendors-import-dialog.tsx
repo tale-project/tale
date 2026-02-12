@@ -11,7 +11,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useBulkCreateVendors } from '../hooks/mutations';
+import { useBulkCreateVendors } from '../hooks/actions';
 import { VendorImportForm } from './vendor-import-form';
 
 // Type for the form data

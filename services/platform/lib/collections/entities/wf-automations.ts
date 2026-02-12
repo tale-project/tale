@@ -21,6 +21,37 @@ export const createWfAutomationsCollection: CollectionFactory<
     queryClient,
     convexQueryFn,
     getKey: (item) => item._id,
+    onUpdate: async ({ transaction }) => {
+      await Promise.all(
+        transaction.mutations.map((m) => {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack DB types metadata as unknown; we control the shape via collection.update() calls
+          const meta = m.metadata as
+            | { updatedBy: string; metadataOnly?: boolean }
+            | undefined;
+          const updatedBy = meta?.updatedBy ?? '';
+          if (meta?.metadataOnly) {
+            return convexClient.mutation(
+              api.wf_definitions.mutations.updateWorkflowMetadata,
+              {
+                wfDefinitionId: toId<'wfDefinitions'>(m.key),
+                metadata: m.modified.metadata ?? {},
+                updatedBy,
+              },
+            );
+          }
+          const { changes } = m;
+          return convexClient.mutation(
+            api.wf_definitions.mutations.updateWorkflow,
+            {
+              wfDefinitionId: toId<'wfDefinitions'>(m.key),
+              // @ts-expect-error -- TanStack DB types entity fields broadly (e.g. status: string) while Convex validators use narrow unions. Runtime validation ensures correctness.
+              updates: changes,
+              updatedBy,
+            },
+          );
+        }),
+      );
+    },
     onDelete: async ({ transaction }) => {
       await Promise.all(
         transaction.mutations.map((m) =>

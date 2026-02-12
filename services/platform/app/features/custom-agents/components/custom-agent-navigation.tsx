@@ -26,7 +26,7 @@ import {
   useCreateDraftFromVersion,
   usePublishCustomAgent,
   useUnpublishCustomAgent,
-} from '../hooks/mutations';
+} from '../hooks/actions';
 import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
 import { AUTO_SAVE_PORTAL_ID } from './auto-save-indicator';
 

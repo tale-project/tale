@@ -4,9 +4,6 @@ import { useCallback } from 'react';
 
 import type { Conversation } from '@/lib/collections/entities/conversations';
 
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
-
 export function useCloseConversation(
   collection: Collection<Conversation, string>,
 ) {
@@ -58,26 +55,4 @@ export function useMarkAsSpam(collection: Collection<Conversation, string>) {
     },
     [collection],
   );
-}
-
-// Note: Message added to nested array - complex optimistic insert
-export function useAddMessage() {
-  return useConvexMutation(
-    api.conversations.mutations.addMessageToConversation,
-  );
-}
-
-// Note: Bulk operation - affects multiple items with complex selection
-export function useBulkCloseConversations() {
-  return useConvexMutation(api.conversations.mutations.bulkCloseConversations);
-}
-
-// Note: Bulk operation - affects multiple items with complex selection
-export function useBulkReopenConversations() {
-  return useConvexMutation(api.conversations.mutations.bulkReopenConversations);
-}
-
-// Note: Utility - returns URL, doesn't affect any query
-export function useGenerateUploadUrl() {
-  return useConvexMutation(api.files.mutations.generateUploadUrl);
 }

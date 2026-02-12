@@ -16,10 +16,8 @@ import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-ske
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';
-import {
-  useTeamCollection,
-  useTeams,
-} from '@/app/features/settings/teams/hooks/collections';
+import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
@@ -27,7 +25,8 @@ import { useT } from '@/lib/i18n/client';
 import { filterByTextSearch } from '@/lib/utils/filtering';
 import { formatBytes } from '@/lib/utils/format/number';
 
-import { useDocumentCollection, useDocuments } from '../hooks/collections';
+import { useDocumentCollection } from '../hooks/collections';
+import { useDocuments } from '../hooks/queries';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { DocumentPreviewDialog } from './document-preview-dialog';
 import { DocumentRowActions } from './document-row-actions';

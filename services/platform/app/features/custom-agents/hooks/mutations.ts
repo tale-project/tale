@@ -5,13 +5,6 @@ import { useCallback } from 'react';
 import type { CustomAgentWebhook } from '@/lib/collections/entities/custom-agent-webhooks';
 import type { CustomAgent } from '@/lib/collections/entities/custom-agents';
 
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
-
-export function useCreateCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.createCustomAgent);
-}
-
 export function useUpdateCustomAgent(
   collection: Collection<CustomAgent, string>,
 ) {
@@ -60,32 +53,6 @@ export function useDeleteCustomAgent(
     },
     [collection],
   );
-}
-
-export function useDuplicateCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.duplicateCustomAgent);
-}
-
-export function useActivateCustomAgentVersion() {
-  return useConvexMutation(
-    api.custom_agents.mutations.activateCustomAgentVersion,
-  );
-}
-
-export function useCreateDraftFromVersion() {
-  return useConvexMutation(api.custom_agents.mutations.createDraftFromVersion);
-}
-
-export function usePublishCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.publishCustomAgent);
-}
-
-export function useUnpublishCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.unpublishCustomAgent);
-}
-
-export function useCreateCustomAgentWebhook() {
-  return useConvexMutation(api.custom_agents.webhooks.mutations.createWebhook);
 }
 
 export function useToggleCustomAgentWebhook(

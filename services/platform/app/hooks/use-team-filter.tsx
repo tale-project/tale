@@ -10,10 +10,8 @@ import {
   type ReactNode,
 } from 'react';
 
-import {
-  useTeamCollection,
-  useTeams,
-} from '@/app/features/settings/teams/hooks/collections';
+import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 
 function getStorageKey(organizationId: string) {
   return `team-filter:${organizationId}`;

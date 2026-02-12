@@ -11,7 +11,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useBulkCreateCustomers } from '../hooks/mutations';
+import { useBulkCreateCustomers } from '../hooks/actions';
 import { CustomerImportForm } from './customer-import-form';
 
 export interface ParsedCustomer {

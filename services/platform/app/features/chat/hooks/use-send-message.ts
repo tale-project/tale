@@ -16,9 +16,10 @@ import {
   useChatWithAgent,
   useChatWithBuiltinAgent,
   useChatWithCustomAgent,
+  useCreateThread,
 } from './actions';
 import { useThreadCollection } from './collections';
-import { useCreateThread, useUpdateThread } from './mutations';
+import { useUpdateThread } from './mutations';
 
 interface UseSendMessageParams {
   organizationId: string;

@@ -20,7 +20,8 @@ import { useLiveQuery } from '@tanstack/react-db';
 
 import { useCollection } from '@/lib/collections/use-collection';
 
-import { useWebsiteCollection, useWebsites } from '../collections';
+import { useWebsiteCollection } from '../collections';
+import { useWebsites } from '../queries';
 
 const mockUseLiveQuery = vi.mocked(useLiveQuery);
 

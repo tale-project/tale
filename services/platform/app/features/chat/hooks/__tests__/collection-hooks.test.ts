@@ -10,7 +10,7 @@ vi.mock('@tanstack/react-db', () => ({
 
 import { useLiveQuery } from '@tanstack/react-db';
 
-import { useThreads } from '../collections';
+import { useThreads } from '../queries';
 
 const mockUseLiveQuery = vi.mocked(useLiveQuery);
 

@@ -18,9 +18,11 @@ import {
 function createMockCollection() {
   const persistedPromise = Promise.resolve();
   return {
-    update: vi.fn(() => ({
-      isPersisted: { promise: persistedPromise },
-    })),
+    update: vi.fn(
+      (_id: string, _cb: (draft: Record<string, unknown>) => void) => ({
+        isPersisted: { promise: persistedPromise },
+      }),
+    ),
     _persistedPromise: persistedPromise,
   };
 }

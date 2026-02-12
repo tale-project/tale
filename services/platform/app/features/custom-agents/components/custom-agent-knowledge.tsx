@@ -8,10 +8,8 @@ import type { RagStatus } from '@/types/documents';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
-import {
-  useDocumentCollection,
-  useDocuments,
-} from '@/app/features/documents/hooks/collections';
+import { useDocumentCollection } from '@/app/features/documents/hooks/collections';
+import { useDocuments } from '@/app/features/documents/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';

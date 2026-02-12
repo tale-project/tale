@@ -1,14 +1,7 @@
 'use client';
 
-import type { Collection } from '@tanstack/db';
-
-import { useLiveQuery } from '@tanstack/react-db';
-
-import type { CustomAgentVersion } from '@/lib/collections/entities/custom-agent-versions';
-import type { CustomAgentWebhook } from '@/lib/collections/entities/custom-agent-webhooks';
-import type { CustomAgent } from '@/lib/collections/entities/custom-agents';
-
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { createAvailableIntegrationsCollection } from '@/lib/collections/entities/available-integrations';
+import { createAvailableToolsCollection } from '@/lib/collections/entities/available-tools';
 import { createCustomAgentVersionsCollection } from '@/lib/collections/entities/custom-agent-versions';
 import { createCustomAgentWebhooksCollection } from '@/lib/collections/entities/custom-agent-webhooks';
 import { createCustomAgentsCollection } from '@/lib/collections/entities/custom-agents';
@@ -42,59 +35,18 @@ export function useCustomAgentWebhookCollection(
   );
 }
 
-export function useCustomAgents(collection: Collection<CustomAgent, string>) {
-  const { selectedTeamId } = useTeamFilter();
-
-  const { data, isLoading } = useLiveQuery(
-    (q) =>
-      q
-        .from({ agent: collection })
-        .fn.where((row) => {
-          if (!selectedTeamId) return true;
-          const { agent } = row;
-          return (
-            agent.teamId === selectedTeamId ||
-            (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
-          );
-        })
-        .select(({ agent }) => agent),
-    [selectedTeamId],
+export function useAvailableIntegrationCollection(organizationId: string) {
+  return useCollection(
+    'available-integrations',
+    createAvailableIntegrationsCollection,
+    organizationId,
   );
-
-  return {
-    agents: data,
-    isLoading,
-  };
 }
 
-export function useCustomAgentVersions(
-  collection: Collection<CustomAgentVersion, string>,
-) {
-  const { data, isLoading } = useLiveQuery(
-    (q) => q.from({ version: collection }).select(({ version }) => version),
-    [],
+export function useAvailableToolCollection() {
+  return useCollection(
+    'available-tools',
+    createAvailableToolsCollection,
+    'global',
   );
-
-  return {
-    versions: data,
-    isLoading,
-  };
 }
-
-export type { CustomAgentVersion };
-
-export function useCustomAgentWebhooks(
-  collection: Collection<CustomAgentWebhook, string>,
-) {
-  const { data, isLoading } = useLiveQuery(
-    (q) => q.from({ webhook: collection }).select(({ webhook }) => webhook),
-    [],
-  );
-
-  return {
-    webhooks: data,
-    isLoading,
-  };
-}
-
-export type { CustomAgentWebhook };

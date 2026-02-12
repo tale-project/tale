@@ -7,15 +7,25 @@ import { useMemo } from 'react';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { WorkflowCreationMetadata } from '@/convex/approvals/types';
 import type { CustomAgent } from '@/lib/collections/entities/custom-agents';
+import type { Thread } from '@/lib/collections/entities/threads';
 import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
 
-import {
-  useApprovalCollection,
-  useApprovals,
-} from '@/app/features/approvals/hooks/collections';
+import { useApprovalCollection } from '@/app/features/approvals/hooks/collections';
+import { useApprovals } from '@/app/features/approvals/hooks/queries';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
+
+export function useThreads(collection: Collection<Thread, string>) {
+  const { data, isLoading } = useLiveQuery((q) =>
+    q.from({ thread: collection }).select(({ thread }) => thread),
+  );
+
+  return {
+    threads: data,
+    isLoading,
+  };
+}
 
 export function useChatAgents(collection: Collection<CustomAgent, string>) {
   const { selectedTeamId } = useTeamFilter();

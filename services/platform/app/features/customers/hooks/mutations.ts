@@ -4,17 +4,6 @@ import { useCallback } from 'react';
 
 import type { Customer } from '@/lib/collections/entities/customers';
 
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
-
-/**
- * No optimistic update as bulk operations create multiple items
- * and the server handles validation/deduplication.
- */
-export function useBulkCreateCustomers() {
-  return useConvexMutation(api.customers.mutations.bulkCreateCustomers);
-}
-
 export function useDeleteCustomer(collection: Collection<Customer, string>) {
   return useCallback(
     async (args: { customerId: string }) => {

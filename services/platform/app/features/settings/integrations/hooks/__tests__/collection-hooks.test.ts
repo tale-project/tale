@@ -22,7 +22,7 @@ vi.mock('@/lib/collections/use-collection', () => ({
 
 import { useLiveQuery } from '@tanstack/react-db';
 
-import { useEmailProviders, useIntegrations } from '../collections';
+import { useEmailProviders, useIntegrations } from '../queries';
 
 const mockUseLiveQuery = vi.mocked(useLiveQuery);
 

@@ -9,7 +9,8 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useT } from '@/lib/i18n/client';
 
-import { useTeamCollection, useTeams } from '../hooks/collections';
+import { useTeamCollection } from '../hooks/collections';
+import { useTeams } from '../hooks/queries';
 import { TeamCreateDialog } from './team-create-dialog';
 import { TeamTable } from './team-table';
 

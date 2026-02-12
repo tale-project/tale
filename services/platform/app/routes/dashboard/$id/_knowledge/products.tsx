@@ -4,10 +4,8 @@ import { z } from 'zod';
 import { ProductTable } from '@/app/features/products/components/product-table';
 import { ProductTableSkeleton } from '@/app/features/products/components/product-table-skeleton';
 import { ProductsEmptyState } from '@/app/features/products/components/products-empty-state';
-import {
-  useProductCollection,
-  useProducts,
-} from '@/app/features/products/hooks/collections';
+import { useProductCollection } from '@/app/features/products/hooks/collections';
+import { useProducts } from '@/app/features/products/hooks/queries';
 
 const searchSchema = z.object({
   query: z.string().optional(),

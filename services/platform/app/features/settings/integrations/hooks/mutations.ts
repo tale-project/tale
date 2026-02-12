@@ -5,10 +5,6 @@ import { useCallback } from 'react';
 import type { EmailProvider } from '@/lib/collections/entities/email-providers';
 import type { Integration } from '@/lib/collections/entities/integrations';
 
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
-
 export function useDeleteIntegration(
   collection: Collection<Integration, string>,
 ) {
@@ -19,14 +15,6 @@ export function useDeleteIntegration(
     },
     [collection],
   );
-}
-
-export function useSetDefaultProvider() {
-  return useConvexMutation(api.email_providers.mutations.setDefault);
-}
-
-export function useCreateEmailProvider() {
-  return useConvexAction(api.email_providers.actions.create);
 }
 
 export function useUpdateEmailProvider(
@@ -53,28 +41,4 @@ export function useDeleteEmailProvider(
     },
     [collection],
   );
-}
-
-export function useCreateIntegration() {
-  return useConvexAction(api.integrations.actions.create);
-}
-
-export function useUpdateIntegration() {
-  return useConvexAction(api.integrations.actions.update);
-}
-
-export function useCreateOAuth2Provider() {
-  return useConvexAction(api.email_providers.actions.createOAuth2Provider);
-}
-
-export function useUpdateOAuth2Provider() {
-  return useConvexAction(api.email_providers.actions.updateOAuth2Provider);
-}
-
-export function useUpsertSsoProvider() {
-  return useConvexAction(api.sso_providers.actions.upsert);
-}
-
-export function useRemoveSsoProvider() {
-  return useConvexAction(api.sso_providers.actions.remove);
 }

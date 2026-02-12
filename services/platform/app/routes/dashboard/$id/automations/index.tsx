@@ -7,10 +7,8 @@ import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-a
 import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
 import { AutomationsClient } from '@/app/features/automations/components/automations-client';
 import { AutomationsTableSkeleton } from '@/app/features/automations/components/automations-table-skeleton';
-import {
-  useAutomations,
-  useWfAutomationCollection,
-} from '@/app/features/automations/hooks/collections';
+import { useWfAutomationCollection } from '@/app/features/automations/hooks/collections';
+import { useAutomations } from '@/app/features/automations/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 

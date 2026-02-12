@@ -22,9 +22,13 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useTestExistingSsoConfig, useTestSsoConfig } from '../hooks/actions';
-import { useRemoveSsoProvider, useUpsertSsoProvider } from '../hooks/mutations';
-import { useSsoFullConfig } from '../hooks/queries';
+import {
+  useRemoveSsoProvider,
+  useSsoFullConfig,
+  useTestExistingSsoConfig,
+  useTestSsoConfig,
+  useUpsertSsoProvider,
+} from '../hooks/actions';
 
 interface SSOConfigDialogProps {
   open?: boolean;

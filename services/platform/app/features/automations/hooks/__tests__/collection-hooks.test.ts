@@ -32,10 +32,12 @@ import {
   useAutomationRootCollection,
   useWfAutomationCollection,
   useWorkflowStepCollection,
+} from '../collections';
+import {
   useAutomationRoots,
   useAutomations,
   useWorkflowSteps,
-} from '../collections';
+} from '../queries';
 
 const mockUseLiveQuery = vi.mocked(useLiveQuery);
 

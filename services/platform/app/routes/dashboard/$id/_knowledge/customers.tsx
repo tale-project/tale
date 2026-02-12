@@ -4,10 +4,8 @@ import { z } from 'zod';
 import { CustomersEmptyState } from '@/app/features/customers/components/customers-empty-state';
 import { CustomersTable } from '@/app/features/customers/components/customers-table';
 import { CustomersTableSkeleton } from '@/app/features/customers/components/customers-table-skeleton';
-import {
-  useCustomerCollection,
-  useCustomers,
-} from '@/app/features/customers/hooks/collections';
+import { useCustomerCollection } from '@/app/features/customers/hooks/collections';
+import { useCustomers } from '@/app/features/customers/hooks/queries';
 
 const searchSchema = z.object({
   query: z.string().optional(),

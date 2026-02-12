@@ -19,10 +19,8 @@ import {
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
-import {
-  useTeamCollection,
-  useTeams,
-} from '@/app/features/settings/teams/hooks/collections';
+import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
@@ -30,10 +28,12 @@ import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import { useImportOneDriveFiles } from '../hooks/actions';
-import { useOneDriveFilesQuery } from '../hooks/use-onedrive-files-query';
-import { useSharePointDrivesQuery } from '../hooks/use-sharepoint-drives-query';
-import { useSharePointFilesQuery } from '../hooks/use-sharepoint-files-query';
-import { useSharePointSitesQuery } from '../hooks/use-sharepoint-sites-query';
+import {
+  useOneDriveFiles,
+  useSharePointDrives,
+  useSharePointFiles,
+  useSharePointSites,
+} from '../hooks/queries';
 import { MicrosoftReauthButton } from './microsoft-reauth-button';
 
 // Normalized OneDrive item type returned by Convex action
@@ -513,34 +513,32 @@ export function OneDriveImportDialog({
     data: itemsData,
     isLoading: loading,
     error: loadError,
-  } = useOneDriveFilesQuery(
+  } = useOneDriveFiles(
     currentFolderId,
     stage === 'picker' && sourceTab === 'onedrive',
   );
 
-  const { data: sitesData, isLoading: loadingSites } = useSharePointSitesQuery(
+  const { data: sitesData, isLoading: loadingSites } = useSharePointSites(
     stage === 'picker' && sourceTab === 'sharepoint' && !selectedSite,
   );
 
-  const { data: drivesData, isLoading: loadingDrives } =
-    useSharePointDrivesQuery(
-      selectedSite?.id,
-      stage === 'picker' &&
-        sourceTab === 'sharepoint' &&
-        !!selectedSite &&
-        !selectedDrive,
-    );
+  const { data: drivesData, isLoading: loadingDrives } = useSharePointDrives(
+    selectedSite?.id,
+    stage === 'picker' &&
+      sourceTab === 'sharepoint' &&
+      !!selectedSite &&
+      !selectedDrive,
+  );
 
-  const { data: spFilesData, isLoading: loadingSpFiles } =
-    useSharePointFilesQuery(
-      selectedSite?.id,
-      selectedDrive?.id,
-      spFolderId,
-      stage === 'picker' &&
-        sourceTab === 'sharepoint' &&
-        !!selectedSite &&
-        !!selectedDrive,
-    );
+  const { data: spFilesData, isLoading: loadingSpFiles } = useSharePointFiles(
+    selectedSite?.id,
+    selectedDrive?.id,
+    spFolderId,
+    stage === 'picker' &&
+      sourceTab === 'sharepoint' &&
+      !!selectedSite &&
+      !!selectedDrive,
+  );
 
   // Check if error is due to missing Microsoft account
   const isMicrosoftAccountError =

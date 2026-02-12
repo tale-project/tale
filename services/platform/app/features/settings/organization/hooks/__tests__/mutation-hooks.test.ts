@@ -17,12 +17,14 @@ import {
 function createMockCollection() {
   const persistedPromise = Promise.resolve();
   return {
-    delete: vi.fn(() => ({
+    delete: vi.fn((_id: string) => ({
       isPersisted: { promise: persistedPromise },
     })),
-    update: vi.fn(() => ({
-      isPersisted: { promise: persistedPromise },
-    })),
+    update: vi.fn(
+      (_id: string, _cb: (draft: Record<string, unknown>) => void) => ({
+        isPersisted: { promise: persistedPromise },
+      }),
+    ),
     _persistedPromise: persistedPromise,
   };
 }

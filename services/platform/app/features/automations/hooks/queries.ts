@@ -1,10 +1,53 @@
+import type { Collection } from '@tanstack/db';
+
+import { useLiveQuery } from '@tanstack/react-db';
 import { useMemo } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
+import type { AutomationRoot } from '@/lib/collections/entities/automation-roots';
+import type { WfAutomation } from '@/lib/collections/entities/wf-automations';
+import type { WfStep } from '@/lib/collections/entities/wf-steps';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { api } from '@/convex/_generated/api';
+
+export function useAutomationRoots(
+  collection: Collection<AutomationRoot, string>,
+) {
+  const { data, isLoading } = useLiveQuery((q) =>
+    q.from({ root: collection }).select(({ root }) => root),
+  );
+
+  return {
+    automationRoots: data,
+    isLoading,
+  };
+}
+
+export function useAutomations(collection: Collection<WfAutomation, string>) {
+  const { data, isLoading } = useLiveQuery((q) =>
+    q.from({ automation: collection }).select(({ automation }) => automation),
+  );
+
+  return {
+    automations: data,
+    isLoading,
+  };
+}
+
+export function useWorkflowSteps(collection: Collection<WfStep, string>) {
+  const { data, isLoading } = useLiveQuery((q) =>
+    q.from({ step: collection }).select(({ step }) => step),
+  );
+
+  return {
+    steps: data,
+    isLoading,
+  };
+}
+
+export type { AutomationRoot };
 
 export function useListWorkflowVersions(
   organizationId: string | undefined,
@@ -14,12 +57,6 @@ export function useListWorkflowVersions(
     api.wf_definitions.queries.listVersions,
     organizationId && name ? { organizationId, name } : 'skip',
   );
-}
-
-export function useWorkflowSteps(wfDefinitionId: Id<'wfDefinitions'>) {
-  return useConvexQuery(api.wf_step_defs.queries.getWorkflowSteps, {
-    wfDefinitionId,
-  });
 }
 
 export function useExecutionJournal(

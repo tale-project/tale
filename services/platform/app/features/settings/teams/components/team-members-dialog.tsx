@@ -12,12 +12,12 @@ import { useT } from '@/lib/i18n/client';
 
 import type { Team } from '../hooks/collections';
 
-import {
-  useMemberCollection,
-  useMembers,
-} from '../../organization/hooks/collections';
-import { useTeamMemberCollection, useTeamMembers } from '../hooks/collections';
-import { useAddTeamMember, useRemoveTeamMember } from '../hooks/mutations';
+import { useMemberCollection } from '../../organization/hooks/collections';
+import { useMembers } from '../../organization/hooks/queries';
+import { useAddTeamMember } from '../hooks/actions';
+import { useTeamMemberCollection } from '../hooks/collections';
+import { useRemoveTeamMember } from '../hooks/mutations';
+import { useTeamMembers } from '../hooks/queries';
 
 interface TeamMembersDialogProps {
   open: boolean;

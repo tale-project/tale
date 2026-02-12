@@ -11,10 +11,8 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
-import {
-  useAutomations,
-  useWfAutomationCollection,
-} from '../hooks/collections';
+import { useWfAutomationCollection } from '../hooks/collections';
+import { useAutomations } from '../hooks/queries';
 import { AutomationsActionMenu } from './automations-action-menu';
 import { useAutomationsTableConfig } from './use-automations-table-config';
 

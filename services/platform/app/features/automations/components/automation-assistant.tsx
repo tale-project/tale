@@ -37,6 +37,7 @@ import { stripWorkflowContext } from '@/lib/utils/message-helpers';
 import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
 
 import { useChatWithWorkflowAssistant } from '../hooks/actions';
+import { useWfAutomationCollection } from '../hooks/collections';
 import { useUpdateAutomationMetadata } from '../hooks/mutations';
 import { useWorkflow } from '../hooks/queries';
 
@@ -296,9 +297,12 @@ function AutomationAssistantContent({
   // Connect to workflow assistant agent
   const chatWithWorkflowAssistant = useChatWithWorkflowAssistant();
   const threadCollection = useThreadCollection();
+  const wfAutomationCollection = useWfAutomationCollection(organizationId);
   const createChatThread = useCreateThread();
   const deleteChatThread = useDeleteThread(threadCollection);
-  const updateWorkflowMetadata = useUpdateAutomationMetadata();
+  const updateWorkflowMetadata = useUpdateAutomationMetadata(
+    wfAutomationCollection,
+  );
 
   const { data: workflow } = useWorkflow(automationId);
 

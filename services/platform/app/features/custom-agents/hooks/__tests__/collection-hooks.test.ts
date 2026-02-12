@@ -22,7 +22,7 @@ import {
   useCustomAgents,
   useCustomAgentVersions,
   useCustomAgentWebhooks,
-} from '../collections';
+} from '../queries';
 
 const mockUseLiveQuery = vi.mocked(useLiveQuery);
 const mockUseTeamFilter = vi.mocked(useTeamFilter);

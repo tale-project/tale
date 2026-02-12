@@ -15,8 +15,9 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useThreadCollection, useThreads } from '../hooks/collections';
+import { useThreadCollection } from '../hooks/collections';
 import { useUpdateThread } from '../hooks/mutations';
+import { useThreads } from '../hooks/queries';
 import { ChatActions } from './chat-actions';
 
 const emptySubscribe = () => () => {};

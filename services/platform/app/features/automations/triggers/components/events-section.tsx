@@ -20,18 +20,14 @@ import {
 } from '@/convex/workflows/triggers/event_types';
 import { useT } from '@/lib/i18n/client';
 
-import {
-  useAutomationRootCollection,
-  useAutomationRoots,
-} from '../../hooks/collections';
-import {
-  useEventSubscriptionCollection,
-  useEventSubscriptions,
-} from '../hooks/collections';
+import { useAutomationRootCollection } from '../../hooks/collections';
+import { useAutomationRoots } from '../../hooks/queries';
+import { useEventSubscriptionCollection } from '../hooks/collections';
 import {
   useDeleteEventSubscription,
   useToggleEventSubscription,
 } from '../hooks/mutations';
+import { useEventSubscriptions } from '../hooks/queries';
 import { CollapsibleSection } from './collapsible-section';
 import { EventCreateDialog } from './event-create-dialog';
 

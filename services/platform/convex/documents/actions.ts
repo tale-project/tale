@@ -2,7 +2,10 @@
 
 import { v } from 'convex/values';
 
-import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
+
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
@@ -51,5 +54,38 @@ export const retryRagIndexing = action({
             : 'Failed to retry RAG indexing',
       };
     }
+  },
+});
+
+export const createDocumentFromUpload = action({
+  args: {
+    organizationId: v.string(),
+    fileId: v.id('_storage'),
+    fileName: v.string(),
+    contentType: v.optional(v.string()),
+    contentHash: v.optional(v.string()),
+    metadata: v.optional(jsonRecordValidator),
+    teamTags: v.optional(v.array(v.string())),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    documentId: v.id('documents'),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ success: boolean; documentId: Id<'documents'> }> => {
+    return await ctx.runMutation(
+      api.documents.mutations.createDocumentFromUpload,
+      args,
+    );
+  },
+});
+
+export const generateUploadUrl = action({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx, args): Promise<string> => {
+    return await ctx.runMutation(api.files.mutations.generateUploadUrl, args);
   },
 });

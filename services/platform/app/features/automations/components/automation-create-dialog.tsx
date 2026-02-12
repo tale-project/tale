@@ -13,7 +13,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateAutomation } from '../hooks/mutations';
+import { useCreateAutomation } from '../hooks/actions';
 
 type FormData = {
   name: string;

@@ -4,10 +4,8 @@ import { z } from 'zod';
 import { VendorsEmptyState } from '@/app/features/vendors/components/vendors-empty-state';
 import { VendorsTable } from '@/app/features/vendors/components/vendors-table';
 import { VendorsTableSkeleton } from '@/app/features/vendors/components/vendors-table-skeleton';
-import {
-  useVendorCollection,
-  useVendors,
-} from '@/app/features/vendors/hooks/collections';
+import { useVendorCollection } from '@/app/features/vendors/hooks/collections';
+import { useVendors } from '@/app/features/vendors/hooks/queries';
 
 const searchSchema = z.object({
   query: z.string().optional(),

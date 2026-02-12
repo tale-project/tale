@@ -4,10 +4,8 @@ import { z } from 'zod';
 import { WebsitesEmptyState } from '@/app/features/websites/components/websites-empty-state';
 import { WebsitesTable } from '@/app/features/websites/components/websites-table';
 import { WebsitesTableSkeleton } from '@/app/features/websites/components/websites-table-skeleton';
-import {
-  useWebsiteCollection,
-  useWebsites,
-} from '@/app/features/websites/hooks/collections';
+import { useWebsiteCollection } from '@/app/features/websites/hooks/collections';
+import { useWebsites } from '@/app/features/websites/hooks/queries';
 
 const searchSchema = z.object({
   query: z.string().optional(),

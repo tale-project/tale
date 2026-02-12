@@ -17,15 +17,13 @@ import { cn } from '@/lib/utils/cn';
 
 import type { Conversation } from '../types';
 
-import {
-  useConversationCollection,
-  useConversations,
-} from '../hooks/collections';
+import { useConversationCollection } from '../hooks/collections';
 import {
   useAddMessage,
   useBulkCloseConversations,
   useBulkReopenConversations,
 } from '../hooks/mutations';
+import { useConversations } from '../hooks/queries';
 import { ActivateConversationsEmptyState } from './activate-conversations-empty-state';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationsList } from './conversations-list';

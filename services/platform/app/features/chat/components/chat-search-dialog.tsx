@@ -12,7 +12,8 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { filterByTextSearch } from '@/lib/utils/filtering';
 
-import { useThreadCollection, useThreads } from '../hooks/collections';
+import { useThreadCollection } from '../hooks/collections';
+import { useThreads } from '../hooks/queries';
 
 interface ChatSearchDialogProps {
   isOpen: boolean;

@@ -32,10 +32,8 @@ import {
   useScheduleCollection,
   useWebhookCollection,
   useEventSubscriptionCollection,
-  useSchedules,
-  useWebhooks,
-  useEventSubscriptions,
 } from '../collections';
+import { useSchedules, useWebhooks, useEventSubscriptions } from '../queries';
 
 const mockUseLiveQuery = vi.mocked(useLiveQuery);
 

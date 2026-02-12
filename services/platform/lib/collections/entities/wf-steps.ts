@@ -12,7 +12,7 @@ export const createWfStepsCollection: CollectionFactory<WfStep, string> = (
   scopeId,
   queryClient,
   convexQueryFn,
-  _convexClient,
+  convexClient,
 ) =>
   convexCollectionOptions({
     id: 'wf-steps',
@@ -21,6 +21,21 @@ export const createWfStepsCollection: CollectionFactory<WfStep, string> = (
     queryClient,
     convexQueryFn,
     getKey: (item) => item._id,
+    onUpdate: async ({ transaction }) => {
+      await Promise.all(
+        transaction.mutations.map((m) => {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack DB types metadata as unknown; we control the shape via collection.update() calls
+          const meta = m.metadata as
+            | { editMode: 'visual' | 'json' | 'ai' }
+            | undefined;
+          return convexClient.mutation(api.wf_step_defs.mutations.updateStep, {
+            stepRecordId: toId<'wfStepDefs'>(m.key),
+            updates: m.changes,
+            editMode: meta?.editMode ?? 'visual',
+          });
+        }),
+      );
+    },
   });
 
 export type { WfStep };

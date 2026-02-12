@@ -1,6 +1,6 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
 export function useRescanWebsite() {
-  return useConvexMutation(api.websites.mutations.rescanWebsite);
+  return useConvexAction(api.websites.actions.rescanWebsite);
 }

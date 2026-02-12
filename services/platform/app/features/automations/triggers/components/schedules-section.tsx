@@ -15,8 +15,9 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useScheduleCollection, useSchedules } from '../hooks/collections';
+import { useScheduleCollection } from '../hooks/collections';
 import { useDeleteSchedule, useToggleSchedule } from '../hooks/mutations';
+import { useSchedules } from '../hooks/queries';
 import { CollapsibleSection } from './collapsible-section';
 import { ScheduleCreateDialog } from './schedule-create-dialog';
 

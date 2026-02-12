@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
 import { OrganizationFormClient } from '@/app/features/organization/components/organization-form-client';
+import { useUserOrganizationCollection } from '@/app/features/organization/hooks/collections';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
 
 export const Route = createFileRoute('/dashboard/create-organization')({
@@ -15,7 +16,7 @@ function CreateOrganizationPage() {
     isLoading: isOrgsLoading,
     isAuthLoading,
     isAuthenticated,
-  } = useUserOrganizations();
+  } = useUserOrganizations(useUserOrganizationCollection());
 
   useEffect(() => {
     if (isAuthLoading || !isAuthenticated || isOrgsLoading || !organizations) {

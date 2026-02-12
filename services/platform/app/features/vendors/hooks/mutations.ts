@@ -4,17 +4,6 @@ import { useCallback } from 'react';
 
 import type { Vendor } from '@/lib/collections/entities/vendors';
 
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
-
-/**
- * No optimistic update as bulk operations create multiple items
- * and the server handles validation/deduplication.
- */
-export function useBulkCreateVendors() {
-  return useConvexMutation(api.vendors.mutations.bulkCreateVendors);
-}
-
 export function useDeleteVendor(collection: Collection<Vendor, string>) {
   return useCallback(
     async (args: { vendorId: string }) => {

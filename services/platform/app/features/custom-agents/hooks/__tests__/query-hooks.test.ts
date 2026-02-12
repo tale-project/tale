@@ -1,6 +1,8 @@
+import type { Collection } from '@tanstack/db';
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockCollection = Symbol('collection');
+import type { AvailableIntegration } from '@/lib/collections/entities/available-integrations';
 
 vi.mock('@tanstack/react-db', () => ({
   useLiveQuery: vi.fn((_builder: (q: unknown) => unknown, _deps: unknown[]) => {
@@ -8,35 +10,25 @@ vi.mock('@tanstack/react-db', () => ({
   }),
 }));
 
-vi.mock('@/lib/collections/entities/available-integrations', () => ({
-  createAvailableIntegrationsCollection: vi.fn(),
-}));
-
-vi.mock('@/lib/collections/use-collection', () => ({
-  useCollection: vi.fn(() => mockCollection),
-}));
-
 import { useLiveQuery } from '@tanstack/react-db';
-
-import { useCollection } from '@/lib/collections/use-collection';
 
 import { useAvailableIntegrations } from '../queries';
 
 const mockUseLiveQuery = vi.mocked(useLiveQuery);
+const mockCollection = Symbol('collection') as unknown as Collection<
+  AvailableIntegration,
+  string
+>;
 
 describe('useAvailableIntegrations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('creates collection with correct params', () => {
-    useAvailableIntegrations('org-123');
+  it('calls useLiveQuery with the provided collection', () => {
+    useAvailableIntegrations(mockCollection);
 
-    expect(useCollection).toHaveBeenCalledWith(
-      'available-integrations',
-      expect.any(Function),
-      'org-123',
-    );
+    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function), []);
   });
 
   it('returns data when loaded', () => {
@@ -46,7 +38,7 @@ describe('useAvailableIntegrations', () => {
       isLoading: false,
     } as ReturnType<typeof useLiveQuery>);
 
-    const result = useAvailableIntegrations('org-123');
+    const result = useAvailableIntegrations(mockCollection);
     expect(result.integrations).toBe(integrations);
     expect(result.isLoading).toBe(false);
   });
@@ -58,7 +50,7 @@ describe('useAvailableIntegrations', () => {
       isLoading: true,
     } as ReturnType<typeof useLiveQuery>);
 
-    const result = useAvailableIntegrations('org-123');
+    const result = useAvailableIntegrations(mockCollection);
     expect(result.integrations).toBe(mockData);
     expect(result.isLoading).toBe(true);
   });
