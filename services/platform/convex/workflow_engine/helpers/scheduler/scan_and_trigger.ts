@@ -40,7 +40,13 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
       { wfDefinitionIds },
     );
 
+    const runningExecutionsObj = (await ctx.runQuery(
+      internal.workflow_engine.internal_queries.getRunningExecutions,
+      { wfDefinitionIds },
+    )) as Record<string, boolean>;
+
     let triggeredCount = 0;
+    let skippedRunning = 0;
 
     for (const {
       wfDefinitionId,
@@ -51,6 +57,14 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
       scheduleId,
     } of scheduled) {
       try {
+        if (runningExecutionsObj[wfDefinitionId]) {
+          debugLog(
+            `Skipping workflow (already running): ${name} (${wfDefinitionId})`,
+          );
+          skippedRunning++;
+          continue;
+        }
+
         const lastExecutionMs = lastExecutionTimesObj[wfDefinitionId];
 
         const shouldTrigger = await shouldTriggerWorkflow(
@@ -93,7 +107,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
     }
 
     debugLog(
-      `Scheduled workflow scan completed. Triggered ${triggeredCount} workflows.`,
+      `Scheduled workflow scan completed. Triggered ${triggeredCount} workflows, skipped ${skippedRunning} (already running).`,
     );
   } catch (error) {
     console.error('Scheduled workflow scan failed:', error);
