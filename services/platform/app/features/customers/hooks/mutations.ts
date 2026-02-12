@@ -21,7 +21,7 @@ export function useUpdateCustomer(collection: Collection<Customer, string>) {
       name?: string;
       email?: string;
       externalId?: string;
-      status?: 'active' | 'potential' | 'churned' | 'lost';
+      status?: 'active' | 'potential' | 'churned';
       source?: 'manual_import' | 'file_upload' | 'circuly';
       locale?: string;
       address?: {

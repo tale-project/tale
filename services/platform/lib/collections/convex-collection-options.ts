@@ -12,6 +12,7 @@ import type {
 
 import { convexQuery } from '@convex-dev/react-query';
 import { queryCollectionOptions } from '@tanstack/query-db-collection';
+import { createCollection } from '@tanstack/react-db';
 
 type ConvexQueryRef = FunctionReference<'query'>;
 
@@ -60,10 +61,12 @@ function wrapHandler<TParams>(handler: (params: TParams) => Promise<unknown>) {
 export function convexCollectionOptions<
   TQuery extends ConvexQueryRef,
   TItem extends ConvexItemOf<TQuery> = ConvexItemOf<TQuery>,
->(config: ConvexCollectionConfig<TQuery, TItem>) {
+>(
+  config: ConvexCollectionConfig<TQuery, TItem>,
+): Parameters<typeof createCollection<TItem, string>>[0] {
   const convexOpts = convexQuery(config.queryFn, config.args);
 
-  return queryCollectionOptions<TItem, string>({
+  const options = queryCollectionOptions<TItem, string>({
     id: config.id,
     queryKey: convexOpts.queryKey,
     // ConvexQueryClient's default queryFn sets up WebSocket subscriptions for
@@ -82,6 +85,11 @@ export function convexCollectionOptions<
     onUpdate: config.onUpdate ? wrapHandler(config.onUpdate) : undefined,
     onDelete: config.onDelete ? wrapHandler(config.onDelete) : undefined,
   });
+
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- @tanstack/query-db-collection resolves TKey to string|number and omits the SingleResult marker required by createCollection; both are third-party type gaps, safe since all Convex document IDs are strings
+  return options as unknown as Parameters<
+    typeof createCollection<TItem, string>
+  >[0];
 }
 
 export type { ConvexCollectionConfig, ConvexItemOf };

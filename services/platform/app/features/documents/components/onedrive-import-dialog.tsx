@@ -21,9 +21,11 @@ import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
@@ -459,6 +461,10 @@ export function OneDriveImportDialog({
   const { selectedTeamId } = useTeamFilter();
 
   const importFilesAction = useImportOneDriveFiles();
+  const listOneDriveFiles = useConvexAction(api.onedrive.actions.listFiles);
+  const listSharePointFiles = useConvexAction(
+    api.onedrive.actions.listSharePointFiles,
+  );
 
   const [stage, setStage] = useState<Stage>('picker');
   const [importType, setImportType] = useState<ImportType>('one-time');

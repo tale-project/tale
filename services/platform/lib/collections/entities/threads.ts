@@ -25,7 +25,7 @@ export const createThreadsCollection: CollectionFactory<Thread, string> = (
         transaction.mutations.map((m) =>
           convexClient.mutation(api.threads.mutations.updateChatThread, {
             threadId: m.key,
-            title: m.modified.title,
+            title: m.modified.title ?? '',
           }),
         ),
       );

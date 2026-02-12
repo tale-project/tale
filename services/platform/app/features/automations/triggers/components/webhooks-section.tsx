@@ -16,12 +16,9 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 
+import { useCreateWebhook } from '../hooks/actions';
 import { useWebhookCollection } from '../hooks/collections';
-import {
-  useCreateWebhook,
-  useDeleteWebhook,
-  useToggleWebhook,
-} from '../hooks/mutations';
+import { useDeleteWebhook, useToggleWebhook } from '../hooks/mutations';
 import { useWebhooks } from '../hooks/queries';
 import { CollapsibleSection } from './collapsible-section';
 import { SecretRevealDialog } from './secret-reveal-dialog';

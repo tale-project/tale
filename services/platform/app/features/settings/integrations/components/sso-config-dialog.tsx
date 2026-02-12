@@ -162,7 +162,8 @@ export function SSOConfigDialog({
             const rules =
               config.roleMappingRules.length > 0
                 ? config.roleMappingRules.filter(
-                    (r) => r.source === 'jobTitle' || r.source === 'appRole',
+                    (r: RoleMappingRule) =>
+                      r.source === 'jobTitle' || r.source === 'appRole',
                   )
                 : DEFAULT_MAPPING_RULES;
             setIssuer(config.issuer);

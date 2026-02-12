@@ -19,10 +19,11 @@ const mockCreateCollection = vi.mocked(createCollection);
 const mockQueryClient = {} as Parameters<typeof getOrCreateCollection>[3];
 const mockConvexQueryFn = vi.fn();
 const mockConvexClient = {} as Parameters<typeof getOrCreateCollection>[5];
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Test mock: simplified factory return type; createCollection is also mocked to accept any options
 const mockFactory = vi.fn((orgId: string) => ({
   id: `test-${orgId}`,
   _factory: true,
-}));
+})) as unknown as Parameters<typeof getOrCreateCollection>[2];
 
 describe('collection-registry', () => {
   beforeEach(() => {

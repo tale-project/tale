@@ -69,14 +69,15 @@ export function ProductsImportDialog({
   const productCollection = useProductCollection(organizationId);
   const createProduct = useCreateProduct(productCollection);
 
-  const validateStatus = useCallback((value: unknown): ProductStatus => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validateStatus returns string, narrow to ProductStatus enum
-    return productMappers.validateStatus(
-      value,
-      Object.values(PRODUCT_STATUS),
-      PRODUCT_STATUS.Draft,
-    ) as ProductStatus;
-  }, []);
+  const validateStatus = useCallback(
+    (value: unknown): ProductStatus =>
+      productMappers.validateStatus(
+        value,
+        Object.values(PRODUCT_STATUS),
+        PRODUCT_STATUS.Draft,
+      ),
+    [],
+  );
 
   const excelMapper = useCallback(
     (record: Record<string, unknown>): ParsedProduct | null => {

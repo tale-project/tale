@@ -17,11 +17,9 @@ import { HumanInputRequestCard } from '@/app/features/chat/components/human-inpu
 import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
 import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
+import { useCreateThread } from '@/app/features/chat/hooks/actions';
 import { useThreadCollection } from '@/app/features/chat/hooks/collections';
-import {
-  useCreateThread,
-  useDeleteThread,
-} from '@/app/features/chat/hooks/mutations';
+import { useDeleteThread } from '@/app/features/chat/hooks/mutations';
 import {
   useThreadMessages,
   useIntegrationApprovals,

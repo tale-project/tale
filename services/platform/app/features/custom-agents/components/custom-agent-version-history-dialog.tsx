@@ -106,12 +106,17 @@ export function CustomAgentVersionHistoryDialog({
                       number: version.versionNumber,
                     })}
                   </span>
-                  <Badge
-                    variant={STATUS_BADGE_CONFIG[version.status].variant}
-                    className="px-1.5 py-0 text-[10px]"
-                  >
-                    {t(STATUS_BADGE_CONFIG[version.status].labelKey)}
-                  </Badge>
+                  {(() => {
+                    const status: VersionStatus = version.status;
+                    return (
+                      <Badge
+                        variant={STATUS_BADGE_CONFIG[status].variant}
+                        className="px-1.5 py-0 text-[10px]"
+                      >
+                        {t(STATUS_BADGE_CONFIG[status].labelKey)}
+                      </Badge>
+                    );
+                  })()}
                 </div>
                 {version.changeLog && (
                   <p className="text-muted-foreground mt-0.5 truncate text-xs">

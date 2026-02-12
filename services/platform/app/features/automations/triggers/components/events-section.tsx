@@ -176,7 +176,7 @@ export function EventsSection({
                 <div className="flex flex-wrap gap-1">
                   {filterEntries.map(([key, value]) => (
                     <Badge key={key} variant="outline" className="text-xs">
-                      {resolveFilterLabel(eventType, key, value)}
+                      {resolveFilterLabel(eventType, key, String(value))}
                     </Badge>
                   ))}
                 </div>

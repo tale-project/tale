@@ -7,6 +7,11 @@ import { ApprovalsClient } from '@/app/features/approvals/components/approvals-c
 const VALID_STATUSES = ['pending', 'resolved'] as const;
 type ApprovalStatus = (typeof VALID_STATUSES)[number];
 
+const approvalStatusMap: Record<string, ApprovalStatus> = {
+  pending: 'pending',
+  resolved: 'resolved',
+};
+
 const searchSchema = z.object({
   search: z.string().optional(),
   page: z.string().optional(),
@@ -31,8 +36,7 @@ function ApprovalsStatusPage() {
     const approvalsIndex = pathParts.indexOf('approvals');
     return {
       organizationId: pathParts[2],
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated route param
-      status: pathParts[approvalsIndex + 1] as ApprovalStatus,
+      status: approvalStatusMap[pathParts[approvalsIndex + 1]] ?? 'pending',
     };
   }, [location.pathname]);
 

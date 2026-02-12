@@ -151,7 +151,7 @@ export const updateIcon = action({
     iconStorageId: v.optional(v.id('_storage')),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     return await ctx.runMutation(api.integrations.mutations.updateIcon, args);
   },
 });
@@ -161,7 +161,7 @@ export const deleteIntegrationAction = action({
     integrationId: v.id('integrations'),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     return await ctx.runMutation(
       api.integrations.mutations.deleteIntegration,
       args,

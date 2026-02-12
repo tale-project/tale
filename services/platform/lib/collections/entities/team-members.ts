@@ -18,7 +18,8 @@ export const createTeamMembersCollection: CollectionFactory<
     args: { teamId: scopeId },
     queryClient,
     convexQueryFn,
-    getKey: (item) => item._id,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex codegen resolves TeamMember to object; _id exists at runtime as all Convex documents have _id
+    getKey: (item) => (item as { _id: string })._id,
     onDelete: async ({ transaction }) => {
       await Promise.all(
         transaction.mutations.map((m) => {

@@ -39,13 +39,29 @@ export const createWfAutomationsCollection: CollectionFactory<
               },
             );
           }
-          const { changes } = m;
+          const {
+            name,
+            description,
+            version,
+            status,
+            workflowType,
+            config,
+            metadata,
+          } = m.changes;
           return convexClient.mutation(
             api.wf_definitions.mutations.updateWorkflow,
             {
               wfDefinitionId: toId<'wfDefinitions'>(m.key),
-              // @ts-expect-error -- TanStack DB types entity fields broadly (e.g. status: string) while Convex validators use narrow unions. Runtime validation ensures correctness.
-              updates: changes,
+              updates: {
+                name,
+                description,
+                version,
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex query types status as string; mutation validator uses narrow union; values are always valid workflow statuses
+                status: status as 'draft' | 'active' | 'archived' | undefined,
+                workflowType,
+                config,
+                metadata,
+              },
               updatedBy,
             },
           );

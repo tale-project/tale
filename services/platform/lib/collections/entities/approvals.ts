@@ -29,7 +29,8 @@ export const createApprovalsCollection: CollectionFactory<Approval, string> = (
           convexClient.mutation(api.approvals.mutations.updateApprovalStatus, {
             approvalId: toId<'approvals'>(m.key),
             status: m.modified.status,
-            comments: m.modified.comments,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- comments field present at runtime via collection.update(); not part of Approval query return type
+            comments: (m.modified as { comments?: string }).comments,
           }),
         ),
       );

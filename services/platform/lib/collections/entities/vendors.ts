@@ -28,11 +28,15 @@ export const createVendorsCollection: CollectionFactory<Vendor, string> = (
             _id,
             _creationTime,
             organizationId: _org,
+            externalId,
             ...fields
           } = m.changes;
           return convexClient.mutation(api.vendors.mutations.updateVendor, {
             vendorId: toId<'vendors'>(m.key),
             ...fields,
+            ...(externalId !== undefined && {
+              externalId: String(externalId),
+            }),
           });
         }),
       );

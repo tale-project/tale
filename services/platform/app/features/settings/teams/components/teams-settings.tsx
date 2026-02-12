@@ -29,7 +29,7 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
   // Fetch teams - in trusted headers mode, teams come from JWT claims
   // In normal auth mode, teams come from the teamMember database table
   const teamCollection = useTeamCollection(organizationId);
-  const { teams, isLoading, isExternallyManaged } = useTeams(teamCollection);
+  const { teams, isLoading } = useTeams(teamCollection);
 
   // Filter teams by search query
   const filteredTeams = teams?.filter((team: { id: string; name: string }) =>
@@ -43,9 +43,7 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
           {tSettings('teams.title')}
         </h2>
         <p className="text-muted-foreground text-sm tracking-[-0.084px]">
-          {isExternallyManaged
-            ? tSettings('teams.externallyManagedDescription')
-            : tSettings('teams.description')}
+          {tSettings('teams.description')}
         </p>
       </Stack>
 
@@ -56,32 +54,27 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
           onChange={(e) => setSearchQuery(e.target.value)}
           wrapperClassName="flex-1 max-w-sm"
         />
-        {!isExternallyManaged && (
-          <Button
-            size="sm"
-            onClick={() => setIsCreateDialogOpen(true)}
-            className="bg-foreground text-background hover:bg-foreground/90"
-          >
-            <Plus className="mr-2 size-4" />
-            {tSettings('teams.createTeam')}
-          </Button>
-        )}
+        <Button
+          size="sm"
+          onClick={() => setIsCreateDialogOpen(true)}
+          className="bg-foreground text-background hover:bg-foreground/90"
+        >
+          <Plus className="mr-2 size-4" />
+          {tSettings('teams.createTeam')}
+        </Button>
       </HStack>
 
       <TeamTable
         teams={filteredTeams || []}
         isLoading={isLoading}
         organizationId={organizationId}
-        isExternallyManaged={isExternallyManaged}
       />
 
-      {!isExternallyManaged && (
-        <TeamCreateDialog
-          organizationId={organizationId}
-          open={isCreateDialogOpen}
-          onOpenChange={setIsCreateDialogOpen}
-        />
-      )}
+      <TeamCreateDialog
+        organizationId={organizationId}
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+      />
     </Stack>
   );
 }

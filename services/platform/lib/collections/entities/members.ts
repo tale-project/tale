@@ -29,7 +29,13 @@ export const createMembersCollection: CollectionFactory<Member, string> = (
             promises.push(
               convexClient.mutation(api.members.mutations.updateMemberRole, {
                 memberId: toId<'members'>(m.key),
-                role: m.changes.role,
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex query types role as string; mutation validator uses narrow union; values are always valid member roles
+                role: m.changes.role as
+                  | 'member'
+                  | 'admin'
+                  | 'developer'
+                  | 'editor'
+                  | 'disabled',
               }),
             );
           }
