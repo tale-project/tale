@@ -11,8 +11,9 @@ import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteDocument } from '../hooks/use-delete-document';
-import { useRetryRagIndexing } from '../hooks/use-retry-rag-indexing';
+import { useRetryRagIndexing } from '../hooks/actions';
+import { useDocumentCollection } from '../hooks/collections';
+import { useDeleteDocument } from '../hooks/mutations';
 import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
 import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
@@ -20,6 +21,7 @@ import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
 type StorageSourceMode = 'auto' | 'manual';
 
 interface DocumentRowActionsProps {
+  organizationId: string;
   documentId: string;
   itemType: 'file' | 'folder';
   name?: string | null;
@@ -30,6 +32,7 @@ interface DocumentRowActionsProps {
 }
 
 export function DocumentRowActions({
+  organizationId,
   documentId,
   itemType,
   name,
@@ -44,7 +47,8 @@ export function DocumentRowActions({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReindexing, setIsReindexing] = useState(false);
   const reindexingRef = useRef(false);
-  const deleteDocument = useDeleteDocument();
+  const documentCollection = useDocumentCollection(organizationId);
+  const deleteDocument = useDeleteDocument(documentCollection);
   const retryRagIndexing = useRetryRagIndexing();
 
   // Determine if delete action should be visible

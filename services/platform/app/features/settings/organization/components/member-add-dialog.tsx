@@ -16,7 +16,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateMember } from '../hooks/use-create-member';
+import { useCreateMember } from '../hooks/actions';
 
 // Type for the form data
 type AddMemberFormData = {

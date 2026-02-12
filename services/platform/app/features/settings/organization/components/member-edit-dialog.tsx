@@ -1,9 +1,13 @@
 'use client';
 
+import type { Collection } from '@tanstack/db';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import * as z from 'zod';
+
+import type { Member } from '@/lib/collections/entities/members';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Banner } from '@/app/components/ui/feedback/banner';
@@ -14,9 +18,11 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useSetMemberPassword } from '../hooks/use-set-member-password';
-import { useUpdateMemberDisplayName } from '../hooks/use-update-member-display-name';
-import { useUpdateMemberRole } from '../hooks/use-update-member-role';
+import { useSetMemberPassword } from '../hooks/actions';
+import {
+  useUpdateMemberDisplayName,
+  useUpdateMemberRole,
+} from '../hooks/mutations';
 
 // Type for the form data
 type EditMemberFormData = {
@@ -52,6 +58,7 @@ interface EditMemberDialogProps {
   onOpenChange: (open: boolean) => void;
   member: MemberLite | null;
   currentUserMemberId?: string;
+  collection: Collection<Member, string>;
 }
 
 export function EditMemberDialog({
@@ -59,6 +66,7 @@ export function EditMemberDialog({
   onOpenChange,
   member,
   currentUserMemberId,
+  collection,
 }: EditMemberDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -89,8 +97,8 @@ export function EditMemberDialog({
     },
   });
 
-  const updateMemberRole = useUpdateMemberRole();
-  const updateMemberDisplayName = useUpdateMemberDisplayName();
+  const updateMemberRole = useUpdateMemberRole(collection);
+  const updateMemberDisplayName = useUpdateMemberDisplayName(collection);
   const setMemberPassword = useSetMemberPassword();
 
   const handleUpdateMember = async (

@@ -7,7 +7,8 @@ import { useDeleteDialogTranslations } from '@/app/components/ui/entity/use-dele
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteWebsite } from '../hooks/use-delete-website';
+import { useWebsiteCollection } from '../hooks/collections';
+import { useDeleteWebsite } from '../hooks/mutations';
 
 interface DeleteWebsiteDialogProps {
   isOpen: boolean;
@@ -22,7 +23,8 @@ export function DeleteWebsiteDialog({
 }: DeleteWebsiteDialogProps) {
   const { t: tWebsites } = useT('websites');
   const { t: tToast } = useT('toast');
-  const deleteWebsite = useDeleteWebsite();
+  const websiteCollection = useWebsiteCollection(website.organizationId);
+  const deleteWebsite = useDeleteWebsite(websiteCollection);
 
   const translations = useDeleteDialogTranslations({
     tEntity: tWebsites,

@@ -1,5 +1,7 @@
 import { v } from 'convex/values';
 
+import type { Id } from '../../_generated/dataModel';
+
 import { internalMutation } from '../../_generated/server';
 import { processEventHandler } from './process_event';
 
@@ -9,7 +11,7 @@ export const updateScheduleLastTriggered = internalMutation({
     lastTriggeredAt: v.number(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     await ctx.db.patch(args.scheduleId, {
       lastTriggeredAt: args.lastTriggeredAt,
     });
@@ -23,7 +25,7 @@ export const updateWebhookLastTriggered = internalMutation({
     lastTriggeredAt: v.number(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     await ctx.db.patch(args.webhookId, {
       lastTriggeredAt: args.lastTriggeredAt,
     });
@@ -55,7 +57,7 @@ export const createTriggerLog = internalMutation({
     errorMessage: v.optional(v.string()),
   },
   returns: v.id('wfTriggerLogs'),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Id<'wfTriggerLogs'>> => {
     return await ctx.db.insert('wfTriggerLogs', {
       ...args,
       receivedAt: Date.now(),

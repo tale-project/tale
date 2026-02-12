@@ -2,7 +2,6 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
-import { useAction } from 'convex/react';
 import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -15,9 +14,10 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { UserButton } from '@/app/components/user-button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+
+import { useInitializeDefaultWorkflows } from '../hooks/actions';
 
 type FormData = { name: string };
 
@@ -42,9 +42,7 @@ export function OrganizationFormClient() {
     },
   });
 
-  const initializeDefaultWorkflows = useAction(
-    api.organizations.actions.initializeDefaultWorkflows,
-  );
+  const initializeDefaultWorkflows = useInitializeDefaultWorkflows();
 
   const handleSubmit = form.handleSubmit(async (data) => {
     if (!user) {

@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { MoreVertical } from 'lucide-react';
 import {
   ArrowLeft,
@@ -21,20 +19,25 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
+import { useCustomerById } from '@/app/features/customers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
+import { createConversationsCollection } from '@/lib/collections/entities/conversations';
+import { createCustomersCollection } from '@/lib/collections/entities/customers';
+import { useCollection } from '@/lib/collections/use-collection';
 import { useT } from '@/lib/i18n/client';
 
 import type { ConversationWithMessages } from '../types';
 
-import { useCloseConversation } from '../hooks/use-close-conversation';
-import { useMarkAsSpam } from '../hooks/use-mark-as-spam';
-import { useReopenConversation } from '../hooks/use-reopen-conversation';
+import {
+  useCloseConversation,
+  useMarkAsSpam,
+  useReopenConversation,
+} from '../hooks/mutations';
 import { DotIcon } from './dot-icon';
 
 interface ConversationHeaderProps {
   conversation: ConversationWithMessages;
+  organizationId: string;
   onResolve?: () => void;
   onReopen?: () => void;
   onBack?: () => void;
@@ -42,6 +45,7 @@ interface ConversationHeaderProps {
 
 export function ConversationHeader({
   conversation,
+  organizationId,
   onResolve,
   onReopen,
   onBack,
@@ -56,26 +60,31 @@ export function ConversationHeader({
   const isLoading =
     isResolvingLoading || isReopeningLoading || isMarkingSpamLoading;
 
-  // Convex mutations with optimistic updates for immediate UI feedback
-  const closeConversation = useCloseConversation();
-  const reopenConversation = useReopenConversation();
-  const markAsSpamMutation = useMarkAsSpam();
+  const conversationCollection = useCollection(
+    'conversations',
+    createConversationsCollection,
+    organizationId,
+  );
+  const closeConversation = useCloseConversation(conversationCollection);
+  const reopenConversation = useReopenConversation(conversationCollection);
+  const markAsSpamMutation = useMarkAsSpam(conversationCollection);
 
-  // Fetch full customer document when dialog is open
-  const { data: customerDoc } = useQuery(
-    convexQuery(
-      api.customers.queries.getCustomer,
-      isCustomerInfoOpen && conversation.customerId
-        ? { customerId: toId<'customers'>(conversation.customerId) }
-        : 'skip',
-    ),
+  // Lookup full customer document from collection
+  const customersCollection = useCollection(
+    'customers',
+    createCustomersCollection,
+    organizationId,
+  );
+  const customerDoc = useCustomerById(
+    customersCollection,
+    conversation.customerId,
   );
 
   const handleResolveConversation = async () => {
     setIsResolvingLoading(true);
     try {
       await closeConversation({
-        conversationId: toId<'conversations'>(conversation.id),
+        conversationId: conversation.id,
       });
 
       toast({
@@ -98,7 +107,7 @@ export function ConversationHeader({
     setIsReopeningLoading(true);
     try {
       await reopenConversation({
-        conversationId: toId<'conversations'>(conversation.id),
+        conversationId: conversation.id,
       });
 
       toast({
@@ -121,7 +130,7 @@ export function ConversationHeader({
     setIsMarkingSpamLoading(true);
     try {
       await markAsSpamMutation({
-        conversationId: toId<'conversations'>(conversation.id),
+        conversationId: conversation.id,
       });
 
       toast({

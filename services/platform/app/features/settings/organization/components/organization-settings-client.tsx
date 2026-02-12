@@ -1,9 +1,7 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
@@ -14,22 +12,13 @@ import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
+import { useMemberCollection } from '../hooks/collections';
+import { useMembers } from '../hooks/queries';
 import { AddMemberDialog } from './member-add-dialog';
 import { MemberTable } from './member-table';
-
-type Member = {
-  _id: string;
-  createdAt: number;
-  organizationId: string;
-  userId: string;
-  email?: string;
-  role?: string;
-  displayName?: string;
-};
 
 type MemberContext = {
   memberId?: string;
@@ -46,7 +35,6 @@ type MemberContext = {
 interface OrganizationSettingsClientProps {
   organization: { _id: string; name: string } | null;
   memberContext: MemberContext | null;
-  members: Member[];
 }
 
 interface OrganizationFormData {
@@ -56,7 +44,6 @@ interface OrganizationFormData {
 export function OrganizationSettingsClient({
   organization,
   memberContext,
-  members: initialMembers,
 }: OrganizationSettingsClientProps) {
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -77,33 +64,28 @@ export function OrganizationSettingsClient({
   const { formState, handleSubmit, register, reset } = form;
   const { isDirty, isSubmitting } = formState;
 
-  const { data: liveMembers } = useQuery(
-    convexQuery(
-      api.members.queries.listByOrganization,
-      organization ? { organizationId: organization._id } : 'skip',
-    ),
-  );
+  const memberCollection = useMemberCollection(organization?._id ?? '');
+  const { members: allMembers } = useMembers(memberCollection);
 
-  // Use live members if available, otherwise fall back to initial members
-  const allMembers = liveMembers ?? initialMembers;
-
-  // Apply client-side filtering and sorting
-  const members = allMembers
-    .filter((member: Member) => {
-      if (!debouncedSearch) return true;
-      const search = debouncedSearch.toLowerCase();
-      return (
-        member.displayName?.toLowerCase().includes(search) ||
-        member.email?.toLowerCase().includes(search)
+  const members = useMemo(() => {
+    if (!allMembers) return null;
+    const search = debouncedSearch?.toLowerCase();
+    let filtered = allMembers;
+    if (search) {
+      filtered = filtered.filter(
+        (member) =>
+          (member.displayName?.toLowerCase().includes(search) ?? false) ||
+          (member.email?.toLowerCase().includes(search) ?? false),
       );
-    })
-    .sort((a: Member, b: Member) => {
+    }
+    return [...filtered].sort((a, b) => {
       const nameA = a.displayName || a.email || '';
       const nameB = b.displayName || b.email || '';
       return sortOrder === 'asc'
         ? nameA.localeCompare(nameB)
         : nameB.localeCompare(nameA);
     });
+  }, [allMembers, debouncedSearch, sortOrder]);
 
   const onSubmit = async (data: OrganizationFormData) => {
     if (!organization) return;
@@ -200,6 +182,7 @@ export function OrganizationSettingsClient({
         <MemberTable
           members={members || []}
           sortOrder={sortOrder}
+          collection={memberCollection}
           memberContext={
             memberContext
               ? {

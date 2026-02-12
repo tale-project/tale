@@ -12,7 +12,7 @@ export const updateIcon = mutation({
     iconStorageId: v.optional(v.id('_storage')),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
@@ -46,7 +46,7 @@ export const deleteIntegration = mutation({
     integrationId: v.id('integrations'),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');

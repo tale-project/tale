@@ -1,27 +1,23 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-import type { FunctionReturnType } from 'convex/server';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { Plus, Calendar, Pencil, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
+import type { WfSchedule } from '@/lib/collections/entities/wf-schedules';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
-import {
-  useToggleSchedule,
-  useDeleteSchedule,
-} from '../hooks/use-trigger-mutations';
+import { useScheduleCollection } from '../hooks/collections';
+import { useDeleteSchedule, useToggleSchedule } from '../hooks/mutations';
+import { useSchedules } from '../hooks/queries';
 import { CollapsibleSection } from './collapsible-section';
 import { ScheduleCreateDialog } from './schedule-create-dialog';
 
@@ -30,10 +26,7 @@ interface SchedulesSectionProps {
   organizationId: string;
 }
 
-// Infer the schedule type from the query result
-type Schedule = NonNullable<
-  FunctionReturnType<typeof api.workflows.triggers.queries.getSchedules>
->[number];
+type Schedule = WfSchedule;
 
 export function SchedulesSection({
   workflowRootId,
@@ -41,14 +34,11 @@ export function SchedulesSection({
 }: SchedulesSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
-  const { data: schedules } = useQuery(
-    convexQuery(api.workflows.triggers.queries.getSchedules, {
-      workflowRootId,
-    }),
-  );
+  const scheduleCollection = useScheduleCollection(workflowRootId);
+  const { schedules } = useSchedules(scheduleCollection);
 
-  const toggleSchedule = useToggleSchedule();
-  const deleteScheduleMutation = useDeleteSchedule();
+  const toggleSchedule = useToggleSchedule(scheduleCollection);
+  const deleteScheduleMutation = useDeleteSchedule(scheduleCollection);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
@@ -225,6 +215,7 @@ export function SchedulesSection({
         }}
         workflowRootId={workflowRootId}
         organizationId={organizationId}
+        collection={scheduleCollection}
         schedule={editSchedule}
       />
 

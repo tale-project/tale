@@ -1,5 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
+import { useReactMutation } from '@/app/hooks/use-react-mutation';
+import { useReactQuery } from '@/app/hooks/use-react-query';
+import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { authClient } from '@/lib/auth-client';
 
 import type { ApiKey } from '../types';
@@ -15,7 +16,7 @@ interface CreateApiKeyResult {
 }
 
 export function useApiKeys(organizationId: string) {
-  return useQuery({
+  return useReactQuery({
     queryKey: ['api-keys', organizationId],
     queryFn: async () => {
       const result = await authClient.apiKey.list();
@@ -29,9 +30,9 @@ export function useApiKeys(organizationId: string) {
 }
 
 export function useCreateApiKey(organizationId: string) {
-  const queryClient = useQueryClient();
+  const queryClient = useReactQueryClient();
 
-  return useMutation({
+  return useReactMutation({
     mutationFn: async ({
       name,
       expiresIn,
@@ -63,9 +64,9 @@ export function useCreateApiKey(organizationId: string) {
 }
 
 export function useRevokeApiKey(organizationId: string) {
-  const queryClient = useQueryClient();
+  const queryClient = useReactQueryClient();
 
-  return useMutation({
+  return useReactMutation({
     mutationFn: async (keyId: string) => {
       const result = await authClient.apiKey.delete({
         keyId,

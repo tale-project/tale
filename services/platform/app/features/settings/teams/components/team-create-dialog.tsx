@@ -1,7 +1,6 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from 'convex/react';
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -9,9 +8,10 @@ import * as z from 'zod';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+
+import { useAddTeamMember } from '../hooks/actions';
 
 interface TeamCreateDialogProps {
   organizationId: string;
@@ -33,7 +33,7 @@ export function TeamCreateDialog({
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const addMember = useMutation(api.team_members.mutations.addMember);
+  const addMember = useAddTeamMember();
 
   const nameRequiredError = tSettings('teams.teamNameRequired');
   const schema = useMemo(

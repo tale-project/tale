@@ -1,5 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -15,10 +13,11 @@ import {
 } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AutomationActiveToggle } from '@/app/features/automations/components/automation-active-toggle';
-import { useUpdateAutomation } from '@/app/features/automations/hooks/use-update-automation';
+import { useWfAutomationCollection } from '@/app/features/automations/hooks/collections';
+import { useUpdateAutomation } from '@/app/features/automations/hooks/mutations';
+import { useWorkflow } from '@/app/features/automations/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
@@ -38,7 +37,7 @@ export const Route = createFileRoute(
 });
 
 function ConfigurationPage() {
-  const { amId } = Route.useParams();
+  const { id: organizationId, amId } = Route.useParams();
   const automationId = toId<'wfDefinitions'>(amId);
   const { user } = useAuth();
 
@@ -57,13 +56,11 @@ function ConfigurationPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const { data: workflow, isLoading: isWorkflowLoading } = useQuery(
-    convexQuery(api.wf_definitions.queries.getWorkflow, {
-      wfDefinitionId: automationId,
-    }),
-  );
+  const { data: workflow, isLoading: isWorkflowLoading } =
+    useWorkflow(automationId);
 
-  const updateWorkflow = useUpdateAutomation();
+  const wfAutomationCollection = useWfAutomationCollection(organizationId);
+  const updateWorkflow = useUpdateAutomation(wfAutomationCollection);
 
   useEffect(() => {
     if (workflow) {

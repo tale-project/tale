@@ -1,6 +1,5 @@
 'use client';
 
-import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { Bot, Send, Paperclip, X, LoaderCircle, RotateCcw } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -18,21 +17,24 @@ import { HumanInputRequestCard } from '@/app/features/chat/components/human-inpu
 import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
 import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
+import { useCreateThread } from '@/app/features/chat/hooks/actions';
+import { useThreadCollection } from '@/app/features/chat/hooks/collections';
+import { useDeleteThread } from '@/app/features/chat/hooks/mutations';
+import {
+  useThreadMessages,
+  useIntegrationApprovals,
+  useWorkflowCreationApprovals,
+  useHumanInputRequests,
+} from '@/app/features/chat/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
-import { useCreateThread } from '@/app/features/chat/hooks/use-create-thread';
-import { useDeleteThread } from '@/app/features/chat/hooks/use-delete-thread';
-import { useHumanInputRequests } from '@/app/features/chat/hooks/use-human-input-requests';
-import { useIntegrationApprovals } from '@/app/features/chat/hooks/use-integration-approvals';
 import { useMergedChatItems } from '@/app/features/chat/hooks/use-merged-chat-items';
-import { useWorkflowCreationApprovals } from '@/app/features/chat/hooks/use-workflow-creation-approvals';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
 
+import { useTestAgent } from '../hooks/actions';
 import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
-import { useTestAgent } from '../hooks/use-test-agent';
 
 const DUPLICATE_WINDOW_MS = 5000;
 const recentSends = new Map<string, number>();
@@ -137,26 +139,24 @@ function TestChatPanelContent({
 
   const { agent: currentAgent } = useCustomAgentVersion();
   const testAgent = useTestAgent();
+  const threadCollection = useThreadCollection();
   const createChatThread = useCreateThread();
-  const deleteChatThread = useDeleteThread();
+  const deleteChatThread = useDeleteThread(threadCollection);
 
   const { approvals: integrationApprovals } = useIntegrationApprovals(
+    organizationId,
     threadId ?? undefined,
   );
   const { approvals: workflowCreationApprovals } = useWorkflowCreationApprovals(
+    organizationId,
     threadId ?? undefined,
   );
   const { requests: humanInputRequests } = useHumanInputRequests(
+    organizationId,
     threadId ?? undefined,
   );
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SDK type mismatch: return type narrowed to usable shape
-  const { results: uiMessages } = useUIMessages(
-    // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
-    api.threads.queries.getThreadMessagesStreaming as any,
-    threadId ? { threadId } : 'skip',
-    { initialNumItems: 100, stream: true },
-  ) as unknown as { results: UIMessage[] | undefined };
+  const uiMessages = useThreadMessages(threadId);
 
   const transformedMessages = useMemo(() => {
     if (!uiMessages || uiMessages.length === 0) return [];

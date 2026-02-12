@@ -1,10 +1,11 @@
-import type {
-  PaginatedQueryReference,
-  UsePaginatedQueryReturnType,
-} from 'convex/react';
-
-import { usePaginatedQuery, type PaginatedQueryArgs } from 'convex/react';
 import { getFunctionName } from 'convex/server';
+
+import {
+  useConvexPaginatedQuery,
+  type PaginatedQueryArgs,
+  type PaginatedQueryReference,
+  type UsePaginatedQueryReturnType,
+} from '@/app/hooks/use-convex-paginated-query';
 
 interface CacheEntry {
   results: unknown[];
@@ -29,7 +30,7 @@ export function useCachedPaginatedQuery<Query extends PaginatedQueryReference>(
   args: PaginatedQueryArgs<Query> | 'skip',
   options: { initialNumItems: number },
 ): UsePaginatedQueryReturnType<Query> {
-  const result = usePaginatedQuery(query, args, options);
+  const result = useConvexPaginatedQuery(query, args, options);
   const cacheKey = buildCacheKey(query, args);
 
   // Persist live results into cache (including empty results to avoid empty-list flash)

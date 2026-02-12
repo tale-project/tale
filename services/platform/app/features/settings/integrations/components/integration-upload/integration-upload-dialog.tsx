@@ -1,17 +1,18 @@
 'use client';
 
-import { useMutation } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useCreateIntegration } from '../../hooks/use-create-integration';
+import {
+  useCreateIntegration,
+  useGenerateUploadUrl,
+} from '../../hooks/actions';
 import { useUploadIntegration } from './hooks/use-upload-integration';
 import { PreviewStep } from './steps/preview-step';
 import { UploadStep } from './steps/upload-step';
@@ -30,7 +31,7 @@ export function IntegrationUploadDialog({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const createIntegration = useCreateIntegration();
-  const generateUploadUrl = useMutation(api.files.mutations.generateUploadUrl);
+  const generateUploadUrl = useGenerateUploadUrl();
 
   const state = useUploadIntegration();
 

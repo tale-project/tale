@@ -1,5 +1,6 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
+import type { Doc } from '../../../_generated/dataModel';
 import type { WorkflowReadListAllResult, WorkflowSummary } from './types';
 
 import { internal } from '../../../_generated/api';
@@ -26,7 +27,7 @@ export async function readAllWorkflows(
   }
 
   try {
-    const allWorkflows = await ctx.runQuery(
+    const allWorkflows: Doc<'wfDefinitions'>[] = await ctx.runQuery(
       internal.wf_definitions.internal_queries.listWorkflows,
       {
         organizationId,

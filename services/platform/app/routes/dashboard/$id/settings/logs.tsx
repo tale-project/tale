@@ -1,5 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -19,7 +17,8 @@ import {
   TabsTrigger,
 } from '@/app/components/ui/navigation/tabs';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
-import { api } from '@/convex/_generated/api';
+import { useListAuditLogs } from '@/app/features/settings/audit-logs/hooks/queries';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/settings/logs')({
@@ -70,17 +69,13 @@ function LogsPage() {
   const { t } = useT('settings');
   const { t: tAccess } = useT('accessDenied');
 
-  const { data: memberContext, isLoading: isMemberLoading } = useQuery(
-    convexQuery(api.members.queries.getCurrentMemberContext, {
-      organizationId,
-    }),
-  );
+  const { data: memberContext, isLoading: isMemberLoading } =
+    useCurrentMemberContext(organizationId);
 
-  const { data: auditLogs, isLoading: isLogsLoading } = useQuery(
-    convexQuery(api.audit_logs.queries.listAuditLogs, {
-      organizationId,
-      limit: 100,
-    }),
+  const { data: auditLogs, isLoading: isLogsLoading } = useListAuditLogs(
+    organizationId,
+    undefined,
+    100,
   );
 
   if (isMemberLoading || isLogsLoading || !auditLogs) {

@@ -9,9 +9,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Button } from '@/app/components/ui/primitives/button';
-import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { toId, toIds } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { filterByTextSearch } from '@/lib/utils/client-utils';
@@ -19,9 +17,13 @@ import { cn } from '@/lib/utils/cn';
 
 import type { Conversation } from '../types';
 
-import { useAddMessage } from '../hooks/use-add-message';
-import { useBulkCloseConversations } from '../hooks/use-bulk-close-conversations';
-import { useBulkReopenConversations } from '../hooks/use-bulk-reopen-conversations';
+import {
+  useAddMessage,
+  useBulkCloseConversations,
+  useBulkReopenConversations,
+} from '../hooks/actions';
+import { useConversationCollection } from '../hooks/collections';
+import { useConversations } from '../hooks/queries';
 import { ActivateConversationsEmptyState } from './activate-conversations-empty-state';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationsList } from './conversations-list';
@@ -138,8 +140,6 @@ function ConversationsClientSkeleton() {
   );
 }
 
-const PAGE_SIZE = 25;
-
 export function ConversationsClient({
   status,
   organizationId,
@@ -161,31 +161,26 @@ export function ConversationsClient({
   const { t: tConversations } = useT('conversations');
   const { t: tCommon } = useT('common');
 
-  // Fetch conversations with cursor-based pagination
-  const {
-    results,
-    status: paginationStatus,
-    loadMore,
-    isLoading,
-  } = useCachedPaginatedQuery(
-    api.conversations.queries.listConversations,
-    { organizationId, status },
-    { initialNumItems: PAGE_SIZE },
+  const conversationCollection = useConversationCollection(organizationId);
+  const { conversations: allConversations, isLoading } = useConversations(
+    conversationCollection,
   );
 
-  // Client-side filtering
+  // Client-side filtering by status, priority, and search
   const filteredConversations = useMemo(() => {
-    if (!results) return [];
+    if (!allConversations) return [];
 
-    // usePaginatedQuery infers ConversationItem from the query return validator — cast required because spread loses the narrow type
-    let data = [...results] as ConversationItem[];
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Collection returns ConversationItem from transform; cast to preserve narrow type
+    let data = [...allConversations] as ConversationItem[];
 
-    // Filter by priority
+    if (status) {
+      data = data.filter((c) => c.status === status);
+    }
+
     if (initialPriority) {
       data = data.filter((c) => c.priority === initialPriority);
     }
 
-    // Filter by search
     const searchTerm = searchQuery || initialSearch;
     if (searchTerm) {
       data = filterByTextSearch(data, searchTerm, [
@@ -197,7 +192,7 @@ export function ConversationsClient({
     }
 
     return data;
-  }, [results, initialPriority, searchQuery, initialSearch]);
+  }, [allConversations, status, initialPriority, searchQuery, initialSearch]);
 
   // Convex mutations
   const bulkResolve = useBulkCloseConversations();
@@ -214,19 +209,7 @@ export function ConversationsClient({
     isSending: false,
   });
 
-  // Load more when needed (if filtered results are less than available)
-  useMemo(() => {
-    if (
-      paginationStatus === 'CanLoadMore' &&
-      filteredConversations.length < PAGE_SIZE &&
-      !isLoading
-    ) {
-      loadMore(PAGE_SIZE);
-    }
-  }, [paginationStatus, filteredConversations.length, isLoading, loadMore]);
-
-  // Show skeleton while loading
-  if (isLoading && !results) {
+  if (isLoading) {
     return <ConversationsClientSkeleton />;
   }
 
@@ -644,6 +627,7 @@ function ConversationsClientInner({
       >
         <ConversationPanel
           selectedConversationId={selectedConversationId}
+          organizationId={organizationId}
           onSelectedConversationChange={setSelectedConversationId}
         />
       </div>

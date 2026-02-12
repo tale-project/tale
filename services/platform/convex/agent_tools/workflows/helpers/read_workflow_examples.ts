@@ -1,5 +1,6 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
+import type { Doc } from '../../../_generated/dataModel';
 import type { WorkflowReadSearchExamplesResult } from './types';
 
 import { internal } from '../../../_generated/api';
@@ -23,7 +24,7 @@ export async function readWorkflowExamples(
   }
 
   try {
-    const allWorkflows = await ctx.runQuery(
+    const allWorkflows: Doc<'wfDefinitions'>[] = await ctx.runQuery(
       internal.wf_definitions.internal_queries.listWorkflows,
       {
         organizationId,
@@ -46,7 +47,7 @@ export async function readWorkflowExamples(
 
     const examples = await Promise.all(
       matchingWorkflows.slice(0, limit).map(async (wf) => {
-        const steps = await ctx.runQuery(
+        const steps: Doc<'wfStepDefs'>[] = await ctx.runQuery(
           internal.wf_step_defs.internal_queries.listWorkflowSteps,
           {
             wfDefinitionId: wf._id,

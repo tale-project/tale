@@ -22,11 +22,11 @@ import { cn } from '@/lib/utils/cn';
 import { toId } from '@/lib/utils/type-guards';
 
 import {
-  usePublishCustomAgent,
-  useUnpublishCustomAgent,
   useActivateCustomAgentVersion,
   useCreateDraftFromVersion,
-} from '../hooks/use-custom-agent-mutations';
+  usePublishCustomAgent,
+  useUnpublishCustomAgent,
+} from '../hooks/actions';
 import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
 import { AUTO_SAVE_PORTAL_ID } from './auto-save-indicator';
 

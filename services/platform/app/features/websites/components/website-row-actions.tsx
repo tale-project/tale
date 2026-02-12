@@ -11,7 +11,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useRescanWebsite } from '../hooks/use-rescan-website';
+import { useRescanWebsite } from '../hooks/actions';
 import { DeleteWebsiteDialog } from './website-delete-dialog';
 import { EditWebsiteDialog } from './website-edit-dialog';
 import { ViewWebsiteDialog } from './website-view-dialog';

@@ -1,7 +1,4 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { Outlet, createFileRoute } from '@tanstack/react-router';
-import { useConvexAuth } from 'convex/react';
 
 import {
   AdaptiveHeaderProvider,
@@ -9,8 +6,9 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
-import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute('/dashboard/$id')({
   component: DashboardLayout,
@@ -20,11 +18,9 @@ function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
 
-  const { data: memberContext } = useQuery(
-    convexQuery(
-      api.members.queries.getCurrentMemberContext,
-      isAuthLoading || !isAuthenticated ? 'skip' : { organizationId },
-    ),
+  const { data: memberContext } = useCurrentMemberContext(
+    organizationId,
+    isAuthLoading || !isAuthenticated,
   );
 
   return (

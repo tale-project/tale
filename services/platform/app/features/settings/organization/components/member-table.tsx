@@ -1,9 +1,12 @@
 'use client';
 
+import type { Collection } from '@tanstack/db';
 import type { ColumnDef } from '@tanstack/react-table';
 
 import { ChevronDownIcon } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
+
+import type { Member as MemberEntity } from '@/lib/collections/entities/members';
 
 import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -36,6 +39,7 @@ interface MemberTableProps {
   sortOrder: 'asc' | 'desc';
   memberContext?: MemberContext | null;
   onSortChange: (sortOrder: 'asc' | 'desc') => void;
+  collection: Collection<MemberEntity, string>;
 }
 
 export function MemberTable({
@@ -43,6 +47,7 @@ export function MemberTable({
   sortOrder,
   memberContext,
   onSortChange,
+  collection,
 }: MemberTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tSettings } = useT('settings');
@@ -127,13 +132,14 @@ export function MemberTable({
             <MemberRowActions
               member={row.original}
               memberContext={memberContext}
+              collection={collection}
             />
           </HStack>
         ),
         size: 140,
       },
     ],
-    [handleSort, sortOrder, memberContext, tTables, tSettings],
+    [handleSort, sortOrder, memberContext, collection, tTables, tSettings],
   );
 
   return (

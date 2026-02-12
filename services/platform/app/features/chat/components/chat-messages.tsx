@@ -112,8 +112,7 @@ export function ChatMessages({
               key={message.key}
               message={{
                 ...message,
-                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- UIMessage.role is string, narrow to expected union
-                role: message.role as 'user' | 'assistant',
+                role: message.role === 'user' ? 'user' : 'assistant',
                 threadId: threadId,
               }}
             />

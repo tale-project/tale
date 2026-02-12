@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
@@ -18,14 +16,17 @@ import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-ske
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';
-import { useListTeams } from '@/app/features/settings/teams/hooks/use-list-teams';
+import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { filterByTextSearch } from '@/lib/utils/filtering';
 import { formatBytes } from '@/lib/utils/format/number';
 
+import { useDocumentCollection } from '../hooks/collections';
+import { useDocuments } from '../hooks/queries';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { DocumentPreviewDialog } from './document-preview-dialog';
 import { DocumentRowActions } from './document-row-actions';
@@ -81,7 +82,8 @@ export function DocumentsClient({
   const [query, setQuery] = useState(searchQuery ?? '');
   const debouncedQuery = useDebounce(query, 300);
 
-  const { teams, isLoading: isLoadingTeams } = useListTeams(organizationId);
+  const teamCollection = useTeamCollection(organizationId);
+  const { teams, isLoading: isLoadingTeams } = useTeams(teamCollection);
 
   const teamMap = useMemo(() => {
     if (!teams) return new Map<string, string>();
@@ -92,37 +94,40 @@ export function DocumentsClient({
 
   const { selectedTeamId } = useTeamFilter();
 
-  const queryArgs = useMemo(
-    () => ({
-      organizationId,
-      query: debouncedQuery || undefined,
-      folderPath: currentFolderPath || undefined,
-      filterTeamId: selectedTeamId || undefined,
-      cursor: null,
-      numItems: 1000,
-    }),
-    [organizationId, debouncedQuery, currentFolderPath, selectedTeamId],
-  );
+  const documentCollection = useDocumentCollection(organizationId);
+  const { documents: rawDocuments, isLoading: isDocumentsLoading } =
+    useDocuments(documentCollection);
 
-  const { data: documentsResult } = useQuery(
-    convexQuery(api.documents.queries.listDocuments, queryArgs),
-  );
-
-  const allDocuments = useMemo(
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex query result page type doesn't match DocumentItem
-    () => (documentsResult?.page as DocumentItem[]) ?? [],
-    [documentsResult],
-  );
+  const allDocuments = useMemo(() => {
+    if (!rawDocuments) return [];
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Collection returns DocumentItemResponse; cast to DocumentItem for table
+    let filtered = [...rawDocuments] as DocumentItem[];
+    if (selectedTeamId) {
+      filtered = filtered.filter((doc) =>
+        doc.teamTags?.includes(selectedTeamId),
+      );
+    }
+    if (currentFolderPath) {
+      filtered = filtered.filter((doc) =>
+        doc.storagePath?.startsWith(`${organizationId}${currentFolderPath}`),
+      );
+    }
+    if (debouncedQuery) {
+      filtered = filterByTextSearch(filtered, debouncedQuery, ['name']);
+    }
+    return filtered;
+  }, [
+    rawDocuments,
+    selectedTeamId,
+    currentFolderPath,
+    organizationId,
+    debouncedQuery,
+  ]);
 
   const list = useListPage({
     dataSource: {
       type: 'query',
-      data:
-        allDocuments.length > 0
-          ? allDocuments
-          : documentsResult === undefined
-            ? undefined
-            : allDocuments,
+      data: isDocumentsLoading ? undefined : allDocuments,
     },
     pageSize: PAGE_SIZE,
     search: {
@@ -402,6 +407,7 @@ export function DocumentsClient({
         cell: ({ row }) => (
           <HStack justify="end">
             <DocumentRowActions
+              organizationId={organizationId}
               documentId={row.original.id}
               itemType={row.original.type}
               name={row.original.name ?? null}
@@ -414,10 +420,17 @@ export function DocumentsClient({
         ),
       },
     ],
-    [handleDocumentClick, isLoadingTeams, tTables, tDocuments, teamMap],
+    [
+      handleDocumentClick,
+      isLoadingTeams,
+      tTables,
+      tDocuments,
+      teamMap,
+      organizationId,
+    ],
   );
 
-  if (documentsResult === undefined) {
+  if (isDocumentsLoading) {
     return <DocumentsSkeleton />;
   }
 

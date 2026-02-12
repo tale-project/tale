@@ -269,28 +269,38 @@ const ConversationRow = memo(function ConversationRow({
           </div>
 
           <HStack gap={2}>
-            {conversation.priority &&
-              conversation.status === 'open' &&
-              conversation.priority !== 'medium' &&
-              isKeyOf(conversation.priority, priorityConfig) && (
-                <Badge
-                  dot
-                  className="min-w-fit"
-                  variant={priorityConfig[conversation.priority].variant}
-                >
-                  {t(priorityConfig[conversation.priority].translationKey)}
-                </Badge>
-              )}
+            {(() => {
+              const priority: string | undefined = conversation.priority;
+              return (
+                priority &&
+                conversation.status === 'open' &&
+                priority !== 'medium' &&
+                isKeyOf(priority, priorityConfig) && (
+                  <Badge
+                    dot
+                    className="min-w-fit"
+                    variant={priorityConfig[priority].variant}
+                  >
+                    {t(priorityConfig[priority].translationKey)}
+                  </Badge>
+                )
+              );
+            })()}
 
-            {conversation.type &&
-              isKeyOf(conversation.type, categoryConfig) && (
-                <Badge
-                  variant="outline"
-                  icon={categoryConfig[conversation.type].icon}
-                >
-                  {t(categoryConfig[conversation.type].translationKey)}
-                </Badge>
-              )}
+            {(() => {
+              const conversationType: string | undefined = conversation.type;
+              return (
+                conversationType &&
+                isKeyOf(conversationType, categoryConfig) && (
+                  <Badge
+                    variant="outline"
+                    icon={categoryConfig[conversationType].icon}
+                  >
+                    {t(categoryConfig[conversationType].translationKey)}
+                  </Badge>
+                )
+              );
+            })()}
           </HStack>
         </div>
       </div>

@@ -10,14 +10,14 @@ import type { ValidationResult } from '../types';
 
 import { isRecord } from '../../../../../lib/utils/type-guards';
 
-const VALID_SCHEMA_TYPES = [
+const VALID_SCHEMA_TYPES = new Set([
   'string',
   'number',
   'integer',
   'boolean',
   'array',
   'object',
-] as const;
+]);
 
 export function validateStartStep(
   config: Record<string, unknown>,
@@ -48,13 +48,12 @@ export function validateStartStep(
           const prop = value;
           if (
             !prop.type ||
-            !VALID_SCHEMA_TYPES.includes(
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- literal union check
-              prop.type as (typeof VALID_SCHEMA_TYPES)[number],
+            !VALID_SCHEMA_TYPES.has(
+              typeof prop.type === 'string' ? prop.type : '',
             )
           ) {
             errors.push(
-              `Start step input property "${key}" has invalid type. Must be one of: ${VALID_SCHEMA_TYPES.join(', ')}`,
+              `Start step input property "${key}" has invalid type. Must be one of: ${[...VALID_SCHEMA_TYPES].join(', ')}`,
             );
           }
         }

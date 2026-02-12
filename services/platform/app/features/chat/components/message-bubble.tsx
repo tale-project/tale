@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { CopyIcon, CheckIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { Info } from 'lucide-react';
 import {
@@ -13,7 +11,7 @@ import {
   useCallback,
   memo,
 } from 'react';
-import Markdown from 'react-markdown';
+import Markdown, { type Components } from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
@@ -35,7 +33,6 @@ import {
   TooltipTrigger,
 } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
-import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -46,7 +43,7 @@ import {
   getFileExtensionLower,
 } from '@/lib/utils/text-file-types';
 
-import { useMessageMetadata } from '../hooks/use-message-metadata';
+import { useFileUrl, useMessageMetadata } from '../hooks/queries';
 import { MessageInfoDialog } from './message-info-dialog';
 import { PaginatedMarkdownTable } from './paginated-markdown-table';
 import { TypewriterText } from './typewriter-text';
@@ -233,12 +230,9 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   attachment: FileAttachment;
 }) {
   const { t } = useT('chat');
-  // Use previewUrl for optimistic display, otherwise fetch from server
-  const { data: serverFileUrl } = useQuery(
-    convexQuery(
-      api.files.queries.getFileUrl,
-      attachment.previewUrl ? 'skip' : { fileId: attachment.fileId },
-    ),
+  const { data: serverFileUrl } = useFileUrl(
+    attachment.fileId,
+    !!attachment.previewUrl,
   );
   const displayUrl = attachment.previewUrl || serverFileUrl;
   const isImage = attachment.fileType.startsWith('image/');
@@ -795,7 +789,8 @@ function MessageBubbleComponent({
                 <Markdown
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                  components={markdownComponents}
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- react-markdown Components type requires ExtraProps on forwardRef components
+                  components={markdownComponents as Components}
                 >
                   {sanitizedContent}
                 </Markdown>

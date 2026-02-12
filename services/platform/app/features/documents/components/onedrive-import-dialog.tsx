@@ -2,9 +2,6 @@
 
 import type { ColumnDef } from '@tanstack/react-table';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
-import { useAction } from 'convex/react';
 import { Home, Loader2, Database, Users } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -22,6 +19,9 @@ import {
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
@@ -29,6 +29,13 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
+import { useImportOneDriveFiles } from '../hooks/actions';
+import {
+  useOneDriveFiles,
+  useSharePointDrives,
+  useSharePointFiles,
+  useSharePointSites,
+} from '../hooks/queries';
 import { MicrosoftReauthButton } from './microsoft-reauth-button';
 
 // Normalized OneDrive item type returned by Convex action
@@ -453,17 +460,9 @@ export function OneDriveImportDialog({
   const { t: tCommon } = useT('common');
   const { selectedTeamId } = useTeamFilter();
 
-  // OneDrive file listing via Convex action
-  const listOneDriveFiles = useAction(api.onedrive.actions.listFiles);
-  const importFilesAction = useAction(api.onedrive.actions.importFiles);
-
-  const listSharePointSites = useAction(
-    api.onedrive.actions.listSharePointSites,
-  );
-  const listSharePointDrives = useAction(
-    api.onedrive.actions.listSharePointDrives,
-  );
-  const listSharePointFiles = useAction(
+  const importFilesAction = useImportOneDriveFiles();
+  const listOneDriveFiles = useConvexAction(api.onedrive.actions.listFiles);
+  const listSharePointFiles = useConvexAction(
     api.onedrive.actions.listSharePointFiles,
   );
 
@@ -501,14 +500,8 @@ export function OneDriveImportDialog({
     Array<{ id: string | undefined; name: string }>
   >([{ id: undefined, name: t('breadcrumb.oneDrive') }]);
 
-  // Fetch user's teams via Convex query (only in settings stage)
-  const { data: teamsResult, isLoading: isLoadingTeams } = useQuery(
-    convexQuery(
-      api.members.queries.getMyTeams,
-      stage === 'settings' ? { organizationId } : 'skip',
-    ),
-  );
-  const teams = teamsResult?.teams ?? null;
+  const teamCollection = useTeamCollection(organizationId);
+  const { teams, isLoading: isLoadingTeams } = useTeams(teamCollection);
 
   const handleToggleTeam = useCallback((teamId: string) => {
     setSelectedTeams((prev) => {
@@ -522,97 +515,36 @@ export function OneDriveImportDialog({
     });
   }, []);
 
-  // React Query for OneDrive files and folders
   const {
     data: itemsData,
     isLoading: loading,
     error: loadError,
-  } = useQuery({
-    queryKey: ['onedrive-items', currentFolderId],
-    queryFn: async () => {
-      try {
-        const result = await listOneDriveFiles({ folderId: currentFolderId });
-        if (!result.success || !result.items) {
-          throw new Error(result.error || t('onedrive.loadFailed'));
-        }
-        return result.items;
-      } catch (error) {
-        toast({
-          title: t('onedrive.loadFailed'),
-          variant: 'destructive',
-        });
-        throw error;
-      }
-    },
-    enabled: stage === 'picker' && sourceTab === 'onedrive',
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
-  });
+  } = useOneDriveFiles(
+    currentFolderId,
+    stage === 'picker' && sourceTab === 'onedrive',
+  );
 
-  // React Query for SharePoint sites
-  const { data: sitesData, isLoading: loadingSites } = useQuery({
-    queryKey: ['sharepoint-sites'],
-    queryFn: async () => {
-      const result = await listSharePointSites({});
-      if (!result.success || !result.sites) {
-        throw new Error(result.error || t('onedrive.loadFailed'));
-      }
-      return result.sites;
-    },
-    enabled: stage === 'picker' && sourceTab === 'sharepoint' && !selectedSite,
-    staleTime: 5 * 60 * 1000,
-    retry: 2,
-  });
+  const { data: sitesData, isLoading: loadingSites } = useSharePointSites(
+    stage === 'picker' && sourceTab === 'sharepoint' && !selectedSite,
+  );
 
-  // React Query for SharePoint drives (document libraries)
-  const { data: drivesData, isLoading: loadingDrives } = useQuery({
-    queryKey: ['sharepoint-drives', selectedSite?.id],
-    queryFn: async () => {
-      if (!selectedSite) throw new Error('No site selected');
-      const result = await listSharePointDrives({ siteId: selectedSite.id });
-      if (!result.success || !result.drives) {
-        throw new Error(result.error || t('onedrive.loadFailed'));
-      }
-      return result.drives;
-    },
-    enabled:
-      stage === 'picker' &&
+  const { data: drivesData, isLoading: loadingDrives } = useSharePointDrives(
+    selectedSite?.id,
+    stage === 'picker' &&
       sourceTab === 'sharepoint' &&
       !!selectedSite &&
       !selectedDrive,
-    staleTime: 5 * 60 * 1000,
-    retry: 2,
-  });
+  );
 
-  // React Query for SharePoint files
-  const { data: spFilesData, isLoading: loadingSpFiles } = useQuery({
-    queryKey: [
-      'sharepoint-files',
-      selectedSite?.id,
-      selectedDrive?.id,
-      spFolderId,
-    ],
-    queryFn: async () => {
-      if (!selectedSite || !selectedDrive)
-        throw new Error('No site/drive selected');
-      const result = await listSharePointFiles({
-        siteId: selectedSite.id,
-        driveId: selectedDrive.id,
-        folderId: spFolderId,
-      });
-      if (!result.success || !result.items) {
-        throw new Error(result.error || t('onedrive.loadFailed'));
-      }
-      return result.items;
-    },
-    enabled:
-      stage === 'picker' &&
+  const { data: spFilesData, isLoading: loadingSpFiles } = useSharePointFiles(
+    selectedSite?.id,
+    selectedDrive?.id,
+    spFolderId,
+    stage === 'picker' &&
       sourceTab === 'sharepoint' &&
       !!selectedSite &&
       !!selectedDrive,
-    staleTime: 5 * 60 * 1000,
-    retry: 2,
-  });
+  );
 
   // Check if error is due to missing Microsoft account
   const isMicrosoftAccountError =

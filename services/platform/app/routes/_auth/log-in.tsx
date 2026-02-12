@@ -1,11 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   createFileRoute,
   useNavigate,
   useSearch,
 } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -17,8 +15,12 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
+import {
+  useHasAnyUsers,
+  useIsSsoConfigured,
+} from '@/app/features/auth/hooks/queries';
+import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -38,13 +40,13 @@ type LogInFormData = {
 
 function LogInPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const queryClient = useReactQueryClient();
   const { redirectTo } = useSearch({ from: '/_auth/log-in' });
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
 
-  const hasUsers = useQuery(api.users.queries.hasAnyUsers, {});
-  const ssoConfig = useQuery(api.sso_providers.queries.isSsoConfigured, {});
+  const { data: hasUsers, isLoading: isLoadingUsers } = useHasAnyUsers();
+  const { data: ssoConfig } = useIsSsoConfigured();
 
   useEffect(() => {
     if (hasUsers === false) {
@@ -118,7 +120,7 @@ function LogInPage() {
     window.location.href = authorizeUrl;
   }, []);
 
-  if (hasUsers === undefined) {
+  if (isLoadingUsers) {
     return null;
   }
 

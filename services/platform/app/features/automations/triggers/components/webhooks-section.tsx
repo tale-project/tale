@@ -1,29 +1,25 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-import type { FunctionReturnType } from 'convex/server';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { Plus, Webhook, Copy, Check, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
+import type { WfWebhook } from '@/lib/collections/entities/wf-webhooks';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 
-import {
-  useCreateWebhook,
-  useToggleWebhook,
-  useDeleteWebhook,
-} from '../hooks/use-trigger-mutations';
+import { useCreateWebhook } from '../hooks/actions';
+import { useWebhookCollection } from '../hooks/collections';
+import { useDeleteWebhook, useToggleWebhook } from '../hooks/mutations';
+import { useWebhooks } from '../hooks/queries';
 import { CollapsibleSection } from './collapsible-section';
 import { SecretRevealDialog } from './secret-reveal-dialog';
 
@@ -32,9 +28,7 @@ interface WebhooksSectionProps {
   organizationId: string;
 }
 
-type WebhookRow = NonNullable<
-  FunctionReturnType<typeof api.workflows.triggers.queries.getWebhooks>
->[number];
+type WebhookRow = WfWebhook;
 
 export function WebhooksSection({
   workflowRootId,
@@ -43,15 +37,12 @@ export function WebhooksSection({
   const { t } = useT('automations');
   const { toast } = useToast();
 
-  const { data: webhooks } = useQuery(
-    convexQuery(api.workflows.triggers.queries.getWebhooks, {
-      workflowRootId,
-    }),
-  );
+  const webhookCollection = useWebhookCollection(workflowRootId);
+  const { webhooks } = useWebhooks(webhookCollection);
 
   const createWebhook = useCreateWebhook();
-  const toggleWebhook = useToggleWebhook();
-  const deleteWebhookMutation = useDeleteWebhook();
+  const toggleWebhook = useToggleWebhook(webhookCollection);
+  const deleteWebhookMutation = useDeleteWebhook(webhookCollection);
 
   const [isCreating, setIsCreating] = useState(false);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);

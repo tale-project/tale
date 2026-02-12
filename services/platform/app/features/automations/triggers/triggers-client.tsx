@@ -1,14 +1,11 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
-
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack } from '@/app/components/ui/layout/layout';
-import { api } from '@/convex/_generated/api';
 
+import { useWorkflow } from '../hooks/queries';
 import { EventsSection } from './components/events-section';
 import { SchedulesSection } from './components/schedules-section';
 import { WebhooksSection } from './components/webhooks-section';
@@ -22,11 +19,7 @@ export function TriggersClient({
   automationId,
   organizationId,
 }: TriggersClientProps) {
-  const { data: workflow } = useQuery(
-    convexQuery(api.wf_definitions.queries.getWorkflow, {
-      wfDefinitionId: automationId,
-    }),
-  );
+  const { data: workflow } = useWorkflow(automationId);
 
   if (!workflow) {
     return (

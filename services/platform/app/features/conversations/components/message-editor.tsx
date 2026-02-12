@@ -238,9 +238,10 @@ function MilkdownEditorInner({
     const raw = renderToStaticMarkup(
       <ReactMarkdown
         components={{
-          a: ({ node: _node, ...props }) => (
-            // oxlint-disable-next-line jsx-a11y/anchor-has-content -- content is passed via props spread
-            <a {...props} target="_blank" rel="noopener noreferrer" />
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
           ),
         }}
       >

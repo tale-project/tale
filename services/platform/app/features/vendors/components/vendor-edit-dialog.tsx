@@ -12,7 +12,8 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useUpdateVendor } from '../hooks/use-update-vendor';
+import { useVendorCollection } from '../hooks/collections';
+import { useUpdateVendor } from '../hooks/mutations';
 
 type VendorFormData = {
   name: string;
@@ -35,7 +36,8 @@ export function VendorEditDialog({
   const { t: tVendors } = useT('vendors');
   const { t: tCommon } = useT('common');
   const { t: tGlobal } = useT('global');
-  const updateVendor = useUpdateVendor();
+  const vendorCollection = useVendorCollection(vendor.organizationId);
+  const updateVendor = useUpdateVendor(vendorCollection);
 
   const localeOptions = useMemo(
     () => [
