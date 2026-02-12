@@ -1022,7 +1022,9 @@
         "connectedViaOAuth2": "Connected via OAuth2",
         "oauth2Authorized": "Integration authorized successfully",
         "oauth2AuthorizationFailed": "OAuth2 authorization failed",
-        "authenticationMethod": "Authentication method"
+        "authenticationMethod": "Authentication method",
+        "testConnection": "Test connection",
+        "testingConnection": "Testing..."
       },
       "authMethods": {
         "api_key": "API key",

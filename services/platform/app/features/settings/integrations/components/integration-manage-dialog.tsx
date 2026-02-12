@@ -838,6 +838,22 @@ export function IntegrationManageDialog({
               )}
             </Stack>
 
+            <Button
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={busy}
+              className="w-full"
+            >
+              {isTesting ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  {t('integrations.manageDialog.testingConnection')}
+                </>
+              ) : (
+                t('integrations.manageDialog.testConnection')
+              )}
+            </Button>
+
             <HStack gap={2}>
               {hasOAuth2Config &&
                 integration.authMethod === 'oauth2' &&
