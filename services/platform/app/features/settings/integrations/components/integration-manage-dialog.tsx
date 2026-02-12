@@ -261,11 +261,12 @@ export function IntegrationManageDialog({
           title: t('integrations.updateSuccessful'),
           variant: 'success',
         });
-      } catch {
+      } catch (error) {
         URL.revokeObjectURL(previewUrl);
         toast({
           title: t('integrations.updateFailed'),
           variant: 'destructive',
+          description: error instanceof Error ? error.message : undefined,
         });
       } finally {
         setIsUploadingIcon(false);
