@@ -37,8 +37,8 @@ const connector = {
       throw new Error('Shopify access token is required.');
     }
 
-    var cleanDomain = normalizeShopDomain(domain);
-    var shopDomain = cleanDomain.includes('.myshopify.com')
+    var cleanDomain = normalizeShopDomain(domain).toLowerCase();
+    var shopDomain = cleanDomain.endsWith('.myshopify.com')
       ? cleanDomain : cleanDomain + '.myshopify.com';
 
     var url = 'https://' + shopDomain + '/admin/api/' + SHOPIFY_API_VERSION + '/shop.json';
@@ -86,8 +86,8 @@ const connector = {
     }
 
     // Clean and normalize domain
-    const cleanDomain = normalizeShopDomain(domain);
-    const shopDomain = cleanDomain.includes('.myshopify.com')
+    const cleanDomain = normalizeShopDomain(domain).toLowerCase();
+    const shopDomain = cleanDomain.endsWith('.myshopify.com')
       ? cleanDomain : cleanDomain + '.myshopify.com';
 
     // Build the API URL
