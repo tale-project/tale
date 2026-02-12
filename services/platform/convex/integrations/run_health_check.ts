@@ -93,7 +93,8 @@ async function runRestHealthCheck(
   ctx: ActionCtx,
   args: HealthCheckArgs,
 ): Promise<void> {
-  // Build secrets from plaintext credentials
+  // Build secrets from plaintext credentials.
+  // Connectors expect the primary credential under 'accessToken' regardless of auth method.
   const secrets: Record<string, string> = {};
   if (args.connectionConfig?.domain) {
     secrets['domain'] = args.connectionConfig.domain;
