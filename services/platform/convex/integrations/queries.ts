@@ -1,11 +1,20 @@
 import { v } from 'convex/values';
 
-import { query } from '../_generated/server';
+import type { Doc } from '../_generated/dataModel';
+
+import { query, QueryCtx } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { getIntegration } from './get_integration';
 import { getIntegrationByName } from './get_integration_by_name';
 import { listIntegrations } from './list_integrations';
 import { integrationDocValidator } from './validators';
+
+async function withIconUrl(ctx: QueryCtx, integration: Doc<'integrations'>) {
+  const iconUrl = integration.iconStorageId
+    ? await ctx.storage.getUrl(integration.iconStorageId)
+    : null;
+  return { ...integration, iconUrl };
+}
 
 export const get = query({
   args: {
@@ -29,7 +38,7 @@ export const get = query({
       return null;
     }
 
-    return integration;
+    return await withIconUrl(ctx, integration);
   },
 });
 
@@ -51,7 +60,12 @@ export const getByName = query({
       return null;
     }
 
-    return await getIntegrationByName(ctx, args);
+    const integration = await getIntegrationByName(ctx, args);
+    if (!integration) {
+      return null;
+    }
+
+    return await withIconUrl(ctx, integration);
   },
 });
 
@@ -73,6 +87,9 @@ export const list = query({
       return [];
     }
 
-    return await listIntegrations(ctx, args);
+    const integrations = await listIntegrations(ctx, args);
+    return await Promise.all(
+      integrations.map((integration) => withIconUrl(ctx, integration)),
+    );
   },
 });

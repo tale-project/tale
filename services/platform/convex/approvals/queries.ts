@@ -54,12 +54,10 @@ export const getPendingIntegrationApprovalsForThread = query({
     const approvals = [];
     for await (const approval of ctx.db
       .query('approvals')
-      .withIndex('by_threadId_status_resourceType', (q) =>
-        q
-          .eq('threadId', args.threadId)
-          .eq('status', 'pending')
-          .eq('resourceType', 'integration_operation'),
-      )) {
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
+      if (approval.resourceType !== 'integration_operation') {
+        continue;
+      }
       if (args.messageId && approval.messageId !== args.messageId) {
         continue;
       }
@@ -85,12 +83,10 @@ export const getWorkflowCreationApprovalsForThread = query({
     const approvals = [];
     for await (const approval of ctx.db
       .query('approvals')
-      .withIndex('by_threadId_status_resourceType', (q) =>
-        q
-          .eq('threadId', args.threadId)
-          .eq('status', 'pending')
-          .eq('resourceType', 'workflow_creation'),
-      )) {
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
+      if (approval.resourceType !== 'workflow_creation') {
+        continue;
+      }
       if (args.messageId && approval.messageId !== args.messageId) {
         continue;
       }
@@ -116,12 +112,10 @@ export const getHumanInputRequestsForThread = query({
     const approvals = [];
     for await (const approval of ctx.db
       .query('approvals')
-      .withIndex('by_threadId_status_resourceType', (q) =>
-        q
-          .eq('threadId', args.threadId)
-          .eq('status', 'pending')
-          .eq('resourceType', 'human_input_request'),
-      )) {
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
+      if (approval.resourceType !== 'human_input_request') {
+        continue;
+      }
       if (args.messageId && approval.messageId !== args.messageId) {
         continue;
       }

@@ -13,11 +13,63 @@ const SHOPIFY_CONNECTOR_CODE = `
 
 const SHOPIFY_API_VERSION = '2024-01';
 
+function normalizeShopDomain(domain) {
+  return domain
+    .replace(/^https?:\\/\\//, '')
+    .split(/[/?#]/)[0]
+    .replace(/\\/+$/, '');
+}
+
 const connector = {
   operations: [
     'list_products', 'get_product', 'list_customers', 'get_customer',
     'list_orders', 'get_order', 'count_products', 'count_customers', 'count_orders',
   ],
+
+  testConnection: function(ctx) {
+    var domain = ctx.secrets.get('domain');
+    var accessToken = ctx.secrets.get('accessToken');
+
+    if (!domain) {
+      throw new Error('Shopify domain is required.');
+    }
+    if (!accessToken) {
+      throw new Error('Shopify access token is required.');
+    }
+
+    var cleanDomain = normalizeShopDomain(domain).toLowerCase();
+    var shopDomain = cleanDomain.endsWith('.myshopify.com')
+      ? cleanDomain : cleanDomain + '.myshopify.com';
+
+    var url = 'https://' + shopDomain + '/admin/api/' + SHOPIFY_API_VERSION + '/shop.json';
+
+    var response = ctx.http.get(url, {
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.status === 401) {
+      throw new Error('Shopify authentication failed. Please verify your access token is correct and starts with "shpat_".');
+    }
+    if (response.status === 403) {
+      throw new Error('Shopify access denied. Please verify your app has the required API scopes.');
+    }
+    if (response.status === 404) {
+      throw new Error('Shopify store not found. Please verify your domain.');
+    }
+    if (response.status !== 200) {
+      throw new Error('Shopify connection failed (' + response.status + '): ' + response.text());
+    }
+
+    var data = response.json();
+    if (!data.shop) {
+      throw new Error('Invalid response from Shopify API');
+    }
+
+    return { status: 'ok', shopName: data.shop.name };
+  },
 
   execute: function(ctx) {
     const { operation, params, http, secrets } = ctx;
@@ -34,8 +86,8 @@ const connector = {
     }
 
     // Clean and normalize domain
-    let cleanDomain = domain.replace(/^https?:\\/\\//, '').replace(/\\/+$/, '');
-    const shopDomain = cleanDomain.includes('.myshopify.com')
+    const cleanDomain = normalizeShopDomain(domain).toLowerCase();
+    const shopDomain = cleanDomain.endsWith('.myshopify.com')
       ? cleanDomain : cleanDomain + '.myshopify.com';
 
     // Build the API URL

@@ -21,7 +21,7 @@ interface StoreOAuth2TokensDependencies {
   }) => Promise<void>;
 }
 
-export async function storeOAuth2TokensLogic(
+export async function storeOAuth2Tokens(
   args: StoreOAuth2TokensArgs,
   deps: StoreOAuth2TokensDependencies,
 ): Promise<null> {

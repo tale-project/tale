@@ -18,6 +18,41 @@ const connector = {
     'list_products', 'list_customers', 'list_subscriptions',
   ],
 
+  testConnection: function(ctx) {
+    var username = ctx.secrets.get('username');
+    var password = ctx.secrets.get('password');
+
+    if (!username) {
+      throw new Error('Circuly username is required.');
+    }
+    if (!password) {
+      throw new Error('Circuly password is required.');
+    }
+
+    var authString = ctx.base64Encode(username + ':' + password);
+    var url = 'https://api.circuly.io/api/' + CIRCULY_API_VERSION + '/customers?per_page=1';
+
+    var response = ctx.http.get(url, {
+      headers: {
+        'Authorization': 'Basic ' + authString,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.status === 401) {
+      throw new Error('Circuly authentication failed. Please verify your username and password.');
+    }
+    if (response.status === 403) {
+      throw new Error('Circuly access denied. Please verify your account has API access.');
+    }
+    if (response.status !== 200) {
+      throw new Error('Circuly connection failed (' + response.status + '): ' + response.text());
+    }
+
+    return { status: 'ok' };
+  },
+
   execute: function(ctx) {
     const { operation, params, http, secrets } = ctx;
 

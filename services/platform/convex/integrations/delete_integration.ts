@@ -14,5 +14,9 @@ export async function deleteIntegration(
     throw new Error('Integration not found');
   }
 
+  if (integration.iconStorageId) {
+    await ctx.storage.delete(integration.iconStorageId);
+  }
+
   await ctx.db.delete(integrationId);
 }

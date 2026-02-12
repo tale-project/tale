@@ -7,9 +7,9 @@
  */
 
 import type { ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
+import type { MutationCtx } from '../_generated/server';
 
 import { Id } from '../_generated/dataModel';
-import { MutationCtx } from '../_generated/server';
 import { getPredefinedIntegration } from '../predefined_integrations';
 import {
   AuthMethod,
@@ -32,6 +32,7 @@ export interface CreateIntegrationInternalArgs {
   status: Status;
   isActive: boolean;
   authMethod: AuthMethod;
+  supportedAuthMethods?: AuthMethod[];
   apiKeyAuth?: ApiKeyAuthEncrypted;
   basicAuth?: BasicAuthEncrypted;
   oauth2Auth?: OAuth2AuthEncrypted;
@@ -42,6 +43,14 @@ export interface CreateIntegrationInternalArgs {
   type?: 'rest_api' | 'sql';
   sqlConnectionConfig?: SqlConnectionConfig;
   sqlOperations?: SqlOperation[];
+  oauth2Config?: {
+    authorizationUrl: string;
+    tokenUrl: string;
+    scopes?: string[];
+    clientId?: string;
+    clientSecretEncrypted?: string;
+  };
+  iconStorageId?: Id<'_storage'>;
   metadata?: ConvexJsonValue;
 }
 
@@ -67,31 +76,11 @@ export async function createIntegrationInternal(
     if (predefined.type === 'sql') {
       type = 'sql';
 
-      // Validate required SQL connection fields
-      if (sqlConnectionConfig) {
-        if (
-          !sqlConnectionConfig.server ||
-          sqlConnectionConfig.server.trim() === ''
-        ) {
-          throw new Error('SQL integration requires a server address');
-        }
-        if (
-          !sqlConnectionConfig.database ||
-          sqlConnectionConfig.database.trim() === ''
-        ) {
-          throw new Error('SQL integration requires a database name');
-        }
-      }
-
       // Merge SQL connection config: user-provided values override predefined defaults
-      // User MUST provide server and database at setup time
       if (predefined.sqlConnectionConfig && sqlConnectionConfig) {
         sqlConnectionConfig = {
           ...predefined.sqlConnectionConfig,
           ...sqlConnectionConfig,
-          // Ensure required fields from user config take precedence
-          server: sqlConnectionConfig.server,
-          database: sqlConnectionConfig.database,
         };
       }
 
@@ -116,6 +105,7 @@ export async function createIntegrationInternal(
     status: args.status,
     isActive: args.isActive,
     authMethod: args.authMethod,
+    supportedAuthMethods: args.supportedAuthMethods,
     apiKeyAuth: args.apiKeyAuth,
     basicAuth: args.basicAuth,
     oauth2Auth: args.oauth2Auth,
@@ -124,8 +114,9 @@ export async function createIntegrationInternal(
     connector,
     sqlConnectionConfig,
     sqlOperations,
+    oauth2Config: args.oauth2Config,
     lastTestedAt: Date.now(),
-
+    iconStorageId: args.iconStorageId,
     metadata: args.metadata,
   });
 

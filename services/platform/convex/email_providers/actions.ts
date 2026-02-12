@@ -12,12 +12,12 @@ import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import { decryptString } from '../lib/crypto/decrypt_string';
 import { encryptString } from '../lib/crypto/encrypt_string';
-import { createOAuth2ProviderLogic } from './create_oauth2_provider_logic';
-import { createProviderLogic } from './create_provider_logic';
-import { generateOAuth2AuthUrlLogic } from './generate_oauth2_auth_url_logic';
-import { storeOAuth2TokensLogic } from './store_oauth2_tokens_logic';
-import { testExistingProviderLogic } from './test_existing_provider_logic';
-import { updateOAuth2ProviderLogic } from './update_oauth2_provider_logic';
+import { createOAuth2Provider as createOAuth2ProviderHandler } from './create_oauth2_provider';
+import { createProvider } from './create_provider';
+import { generateOAuth2AuthUrl as generateOAuth2AuthUrlHandler } from './generate_oauth2_auth_url';
+import { storeOAuth2Tokens as storeOAuth2TokensHandler } from './store_oauth2_tokens';
+import { testExistingProvider as testExistingProviderHandler } from './test_existing_provider';
+import { updateOAuth2Provider as updateOAuth2ProviderHandler } from './update_oauth2_provider';
 import {
   emailProviderVendorValidator,
   emailProviderAuthMethodValidator,
@@ -54,7 +54,7 @@ export const create = action({
       throw new Error('Unauthenticated');
     }
 
-    return await createProviderLogic(ctx, args, {
+    return await createProvider(ctx, args, {
       encryptString,
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
@@ -102,7 +102,7 @@ export const createOAuth2Provider = action({
       throw new Error('Unauthenticated');
     }
 
-    return await createOAuth2ProviderLogic(ctx, args, {
+    return await createOAuth2ProviderHandler(ctx, args, {
       encryptString,
       createInternal: async (params): Promise<Id<'emailProviders'>> => {
         return await ctx.runMutation(
@@ -132,7 +132,7 @@ export const generateOAuth2AuthUrl = action({
       throw new Error('Unauthenticated');
     }
 
-    const authUrl = await generateOAuth2AuthUrlLogic(ctx, args, {
+    const authUrl = await generateOAuth2AuthUrlHandler(ctx, args, {
       getProvider: async (providerId) => {
         return await ctx.runQuery(
           internal.email_providers.internal_queries.get,
@@ -165,7 +165,7 @@ export const storeOAuth2Tokens = action({
       throw new Error('Unauthenticated');
     }
 
-    return await storeOAuth2TokensLogic(args, {
+    return await storeOAuth2TokensHandler(args, {
       encryptString,
       updateTokens: async (params) => {
         await ctx.runMutation(
@@ -214,7 +214,7 @@ export const testExistingProvider = action({
     providerId: v.id('emailProviders'),
   },
   handler: async (ctx, args): Promise<TestResult> => {
-    return await testExistingProviderLogic(ctx, args.providerId, {
+    return await testExistingProviderHandler(ctx, args.providerId, {
       getProvider: async (providerId) => {
         return await ctx.runQuery(
           internal.email_providers.internal_queries.get,
@@ -275,7 +275,7 @@ export const updateOAuth2Provider = action({
       throw new Error('Unauthenticated');
     }
 
-    return await updateOAuth2ProviderLogic(args, {
+    return await updateOAuth2ProviderHandler(args, {
       encryptString,
       getProvider: async (providerId) => {
         return await ctx.runQuery(

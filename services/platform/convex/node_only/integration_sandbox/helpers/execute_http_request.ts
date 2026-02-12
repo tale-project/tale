@@ -4,9 +4,29 @@
 
 import type { HttpRequest, HttpResponse } from '../types';
 
+function validateHost(url: string, allowedHosts: string[]): void {
+  const parsed = new URL(url);
+  const hostname = parsed.hostname;
+
+  const isAllowed = allowedHosts.some((allowed) => {
+    return hostname === allowed || hostname.endsWith('.' + allowed);
+  });
+
+  if (!isAllowed) {
+    throw new Error(
+      `HTTP request to "${hostname}" blocked: host not in allowedHosts [${allowedHosts.join(', ')}]`,
+    );
+  }
+}
+
 export async function executeHttpRequest(
   req: HttpRequest,
+  allowedHosts?: string[],
 ): Promise<HttpResponse> {
+  if (allowedHosts && allowedHosts.length > 0) {
+    validateHost(req.url, allowedHosts);
+  }
+
   const response = await globalThis.fetch(req.url, req.options);
   const contentType = response.headers.get('content-type') || '';
 

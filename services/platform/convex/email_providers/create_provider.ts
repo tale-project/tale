@@ -69,7 +69,7 @@ interface CreateProviderDependencies {
   }) => Promise<Doc<'emailProviders'>['_id']>;
 }
 
-export async function createProviderLogic(
+export async function createProvider(
   ctx: ActionCtx,
   args: CreateProviderArgs,
   deps: CreateProviderDependencies,

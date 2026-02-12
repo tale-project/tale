@@ -1,5 +1,6 @@
 export default {
   ignoreBinaries: ['uv', 'tsx'],
+  ignore: ['examples/**'],
   workspaces: {
     'services/platform': {
       entry: [
