@@ -432,9 +432,9 @@ function WorkflowCreationApprovalCardComponent({
 
                   {isExpanded && configEntries.length > 0 && (
                     <div className="border-muted mt-0.5 mb-1 ml-7 space-y-0.5 border-l-2 pl-2">
-                      {configEntries.map((entry) => (
+                      {configEntries.map((entry, idx) => (
                         <div
-                          key={entry.label}
+                          key={`${entry.label}-${idx}`}
                           className="flex gap-1.5 text-[11px]"
                         >
                           <span className="text-muted-foreground shrink-0">
