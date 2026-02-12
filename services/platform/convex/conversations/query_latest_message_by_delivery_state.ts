@@ -1,6 +1,9 @@
 /**
  * Query the latest message with specific channel, direction, and delivery state.
- * Uses the 5-field index for efficient querying ordered by deliveredAt.
+ * Uses the 5-field index for efficient filtering by org, channel, direction, and
+ * deliveryState. For 'delivered' messages, results are ordered by deliveredAt desc.
+ * For non-delivered states (queued/sent/failed) where deliveredAt is undefined,
+ * Convex's implicit _creationTime tiebreaker provides desc ordering by creation time.
  */
 
 import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
