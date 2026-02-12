@@ -1,7 +1,7 @@
 'use client';
 
 import { Settings, Mail, Plus, Puzzle } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
@@ -49,6 +49,9 @@ export function IntegrationsClient({
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(tab === 'email');
+  useEffect(() => {
+    setEmailDialogOpen(tab === 'email');
+  }, [tab]);
   const [managingIntegration, setManagingIntegration] =
     useState<Integration | null>(null);
 
