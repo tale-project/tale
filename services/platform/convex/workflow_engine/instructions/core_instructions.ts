@@ -29,8 +29,8 @@ Before creating a workflow, ALWAYS follow these steps:
 4. □ workflow_examples(operation='get_syntax_reference', category='common_patterns') - Pattern skeletons
 5. □ Use snake_case for stepSlugs (e.g., find_customer, process_order)
 6. □ nextSteps is OUTSIDE config (same level as stepType, config)
-7. □ LLM steps require 'name' + 'systemPrompt' (NOT 'prompt')
-8. □ Action steps require 'type' in config
+7. □ LLM steps require "name" + "systemPrompt" (NOT "prompt")
+8. □ Action steps require "type" in config
 9. □ Entity processing: include find_unprocessed + record_processed steps
 
 **CORE PHILOSOPHY: LLM-FIRST FOR BUSINESS LOGIC**
@@ -74,8 +74,8 @@ export const WORKFLOW_AGENT_DELEGATION_INSTRUCTIONS = `You are a workflow automa
 
 **KEY RULES**
 - nextSteps goes OUTSIDE config (same level)
-- LLM steps require 'name' + 'systemPrompt' (NOT 'prompt')
-- Action steps require 'type' in config
+- LLM steps require "name" + "systemPrompt" (NOT "prompt")
+- Action steps require "type" in config
 - Entity Processing: use find_unprocessed + record_processed
 - Email Sending: use conversation + approval pattern (no direct send_email)
 
