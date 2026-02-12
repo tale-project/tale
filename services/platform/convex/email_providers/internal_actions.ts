@@ -63,7 +63,7 @@ async function verifyImapConnection(
     auth,
     logger: false,
     socketTimeout: 30_000,
-    greetTimeout: 15_000,
+    greetingTimeout: 15_000,
   });
 
   await client.connect();
