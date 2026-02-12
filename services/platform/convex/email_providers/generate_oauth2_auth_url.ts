@@ -129,7 +129,7 @@ interface GenerateOAuth2AuthUrlDependencies {
  * Fetches provider and builds authorization URL
  */
 export async function generateOAuth2AuthUrl(
-  ctx: ActionCtx,
+  _ctx: ActionCtx,
   args: GenerateOAuth2AuthUrlArgs,
   deps: GenerateOAuth2AuthUrlDependencies,
 ): Promise<string> {
