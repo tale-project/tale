@@ -219,6 +219,22 @@ export const checkMessageDeliveryAction = internalAction({
         console.error(
           `[checkMessageDelivery] check_delivery failed: ${result.error}`,
         );
+
+        if (retryCount < MAX_DELIVERY_CHECK_RETRIES) {
+          const delay = DELIVERY_CHECK_DELAY_MS * Math.pow(2, retryCount);
+          await ctx.scheduler.runAfter(
+            delay,
+            internal.conversations.internal_actions.checkMessageDeliveryAction,
+            {
+              messageId: args.messageId,
+              organizationId: args.organizationId,
+              integrationName: args.integrationName,
+              internetMessageId: args.internetMessageId,
+              retryCount: retryCount + 1,
+            },
+          );
+        }
+
         return null;
       }
 
