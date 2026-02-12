@@ -975,7 +975,10 @@
         "changeIcon": "Change icon",
         "removeIcon": "Remove icon",
         "iconTooLarge": "Icon must be under 256KB",
-        "invalidIconFormat": "Icon must be PNG, SVG, JPG, or WebP"
+        "invalidIconFormat": "Icon must be PNG, SVG, JPG, or WebP",
+        "examplesHintPrefix": "Browse",
+        "examplesHintLink": "example integrations",
+        "examplesHintSuffix": "for ready-to-use packages and templates."
       },
       "manageDialog": {
         "authentication": "Authentication",
