@@ -5,8 +5,6 @@ import { conversationAction } from './conversation/conversation_action';
 import { crawlerAction } from './crawler/crawler_action';
 import { customerAction } from './customer/customer_action';
 import { documentAction } from './document/document_action';
-import { emailProviderAction } from './email_provider/email_provider_action';
-import { imapAction } from './imap/imap_action';
 import { integrationAction } from './integration/integration_action';
 import { onedriveAction } from './onedrive/onedrive_action';
 import { productAction } from './product/product_action';
@@ -46,8 +44,6 @@ export const ACTIONS: AnyActionDefinition[] = [
   integrationAction, // Unified integration action (credentials + plugin execution)
   setVariablesAction,
   ragAction,
-  imapAction,
-  emailProviderAction,
   workflowProcessingRecordsAction,
   approvalAction,
   toneOfVoiceAction,

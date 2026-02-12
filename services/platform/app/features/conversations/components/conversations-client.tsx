@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { Loader2Icon } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -201,13 +199,6 @@ export function ConversationsClient({
     return data;
   }, [results, initialPriority, searchQuery, initialSearch]);
 
-  // Fetch email providers
-  const { data: emailProviders } = useQuery(
-    convexQuery(api.email_providers.queries.list, {
-      organizationId,
-    }),
-  );
-
   // Convex mutations
   const bulkResolve = useBulkCloseConversations();
   const bulkReopen = useBulkReopenConversations();
@@ -239,22 +230,9 @@ export function ConversationsClient({
     return <ConversationsClientSkeleton />;
   }
 
-  if (emailProviders === undefined) {
-    return <ConversationsClientSkeleton />;
-  }
-
-  // Use filtered conversations
   const conversations = filteredConversations;
-  const hasEmailProviders = (emailProviders?.length ?? 0) > 0;
 
-  // Show empty state when there are no conversations and no email providers configured
-  const showActivateEmptyState =
-    conversations.length === 0 &&
-    !hasEmailProviders &&
-    !searchQuery &&
-    !initialSearch;
-
-  if (showActivateEmptyState) {
+  if (conversations.length === 0 && !searchQuery && !initialSearch) {
     return <ActivateConversationsEmptyState organizationId={organizationId} />;
   }
 

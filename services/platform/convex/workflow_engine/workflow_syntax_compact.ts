@@ -1,7 +1,7 @@
 /**
  * Compact Workflow Syntax Reference
  * This is a minified version for AI system prompts.
- * For detailed examples, use workflow_examples tool with list_predefined or get_predefined operations.
+ * For detailed examples, use workflow_examples tool with get_syntax_reference operation.
  */
 
 export const WORKFLOW_SYNTAX_COMPACT = `
@@ -80,12 +80,12 @@ Output (hydrate_fields): \`{ data: [...hydratedItems] }\` - items with fields ma
 
 ### conversation
 Ops: create, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email
-Params (create): customerId?, subject?, status? ('open'|'closed'|'archived'|'spam'), priority?, type?, channel?, direction? ('inbound'|'outbound'), providerId?, metadata?
+Params (create): customerId?, subject?, status? ('open'|'closed'|'archived'|'spam'), priority?, type?, channel?, direction? ('inbound'|'outbound'), metadata?
 Params (query_messages): conversationId?, channel?, direction?, paginationOpts (required)
-Params (query_latest_message_by_delivery_state): channel (required), direction (required), deliveryState (required: 'queued'|'sent'|'delivered'|'failed'), providerId?
+Params (query_latest_message_by_delivery_state): channel (required), direction (required), deliveryState (required: 'queued'|'sent'|'delivered'|'failed')
 Params (update): conversationId (required), updates (required)
-Params (create_from_email): emails (required), status?, priority?, providerId?, type?
-Params (create_from_sent_email): emails (required), status?, priority?, providerId?, accountEmail?, type?
+Params (create_from_email): emails (required), status?, priority?, type?
+Params (create_from_sent_email): emails (required), status?, priority?, accountEmail?, type?
 Output (query_messages): \`{ page: [...messages], isDone: boolean, continueCursor: string | null }\`
 Output (create/update): \`{ data: {...conversation} }\` - returns full conversation entity
 
@@ -110,17 +110,6 @@ Ops: upload_document, upload_text
 Params (upload_document): recordId (required - document ID from documents table)
 Params (upload_text): content (required), metadata (required), recordId?
 Output: \`{ data: { success, documentType, executionTimeMs, ... } }\`
-
-### imap
-Ops: search
-Params: host?, port?, secure?, username?, password?, accessToken?, mailbox? (default: 'INBOX'), afterUid?, includeAttachments?, parseHtml?, threadSearchFolders?
-Note: credentials can be provided via params or workflow variables
-Output: \`{ data: [...emails] }\` - array of email objects with thread messages
-
-### email_provider
-Ops: get_default, get_imap_credentials
-Output (get_default): \`{ data: { _id, name, vendor, authMethod, imapConfig, smtpConfig, passwordAuth?, isDefault, status } }\`
-Output (get_imap_credentials): \`{ data: { providerId, credentials: { host, port, secure, username, passwordEncrypted/accessTokenEncrypted }, authMethod } }\`
 
 ### approval
 Ops: create_approval
@@ -231,9 +220,9 @@ Workflows DO NOT have a direct "send_email" action. Use the conversation + appro
 - emailBcc: BCC recipients (comma-separated or array)
 
 ### Example Workflow
-See 'product_recommendation_email' predefined workflow for complete implementation:
+See the email sending pattern for complete implementation:
 \`\`\`
-workflow_examples(operation='get_predefined', workflowKey='productRecommendationEmail')
+workflow_examples(operation='get_syntax_reference', category='email')
 \`\`\`
 
 ## Variable Syntax

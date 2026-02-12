@@ -3,6 +3,9 @@ import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import type { CompleteExecutionArgs } from './types';
 
+import { internal } from '../../_generated/api';
+import { STORAGE_RETENTION_MS } from './cleanup_execution_storage';
+
 type CompleteExecutionData = {
   output: ConvexJsonValue;
   outputStorageId?: Id<'_storage'>;
@@ -17,7 +20,6 @@ export async function completeExecution(
   ctx: MutationCtx,
   args: CompleteExecutionArgs,
 ): Promise<null> {
-  // Get current execution to check for existing storage and clean up
   const execution = await ctx.db.get(args.executionId);
   const oldVariablesStorageId = execution?.variablesStorageId;
   const oldOutputStorageId = execution?.outputStorageId;
@@ -37,40 +39,56 @@ export async function completeExecution(
 
   await ctx.db.patch(args.executionId, updates);
 
-  // Clean up old variables storage (ignore errors if already deleted)
-  if (oldVariablesStorageId) {
-    const shouldDelete =
-      !updates.variablesStorageId ||
-      oldVariablesStorageId !== updates.variablesStorageId;
-    if (shouldDelete) {
-      try {
-        await ctx.storage.delete(oldVariablesStorageId);
-      } catch (error) {
-        console.warn(
-          '[completeExecution] Failed to delete old variables storage:',
-          oldVariablesStorageId,
-          error,
-        );
-      }
+  // Immediately delete old variables storage only when replaced by a different blob
+  if (
+    oldVariablesStorageId &&
+    args.variablesStorageId &&
+    oldVariablesStorageId !== args.variablesStorageId
+  ) {
+    try {
+      await ctx.storage.delete(oldVariablesStorageId);
+    } catch (error) {
+      console.warn(
+        '[completeExecution] Failed to delete old variables storage:',
+        oldVariablesStorageId,
+        error,
+      );
     }
   }
 
-  // Clean up old output storage (ignore errors if already deleted)
-  if (oldOutputStorageId) {
-    const shouldDelete =
-      !updates.outputStorageId ||
-      oldOutputStorageId !== updates.outputStorageId;
-    if (shouldDelete) {
-      try {
-        await ctx.storage.delete(oldOutputStorageId);
-      } catch (error) {
-        console.warn(
-          '[completeExecution] Failed to delete old output storage:',
-          oldOutputStorageId,
-          error,
-        );
-      }
+  // Immediately delete old output storage only when replaced by a different blob
+  if (
+    oldOutputStorageId &&
+    args.outputStorageId &&
+    oldOutputStorageId !== args.outputStorageId
+  ) {
+    try {
+      await ctx.storage.delete(oldOutputStorageId);
+    } catch (error) {
+      console.warn(
+        '[completeExecution] Failed to delete old output storage:',
+        oldOutputStorageId,
+        error,
+      );
     }
+  }
+
+  // Schedule delayed cleanup of final storage blobs after 30 days
+  const finalVariablesStorageId =
+    args.variablesStorageId ??
+    (args.variablesSerialized ? undefined : oldVariablesStorageId);
+  const finalOutputStorageId = args.outputStorageId ?? oldOutputStorageId;
+
+  if (finalVariablesStorageId || finalOutputStorageId) {
+    await ctx.scheduler.runAfter(
+      STORAGE_RETENTION_MS,
+      internal.wf_executions.internal_mutations.cleanupExecutionStorage,
+      {
+        executionId: args.executionId,
+        variablesStorageId: finalVariablesStorageId,
+        outputStorageId: finalOutputStorageId,
+      },
+    );
   }
 
   return null;

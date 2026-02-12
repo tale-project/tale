@@ -327,7 +327,6 @@ const conversationFields = createDocFields('conversations', {
     optional: true,
     description: 'inbound | outbound',
   },
-  providerId: { type: 'id', table: 'emailProviders', optional: true },
   metadata: { type: 'any', optional: true },
 });
 
@@ -425,88 +424,6 @@ const ragSchemas: Record<string, OutputSchema> = {
       documentType: { type: 'string', optional: true },
       queued: { type: 'boolean', optional: true },
       jobId: { type: 'string', optional: true },
-    },
-  },
-};
-
-// =============================================================================
-// IMAP ACTION SCHEMAS
-// =============================================================================
-
-const imapSchemas: Record<string, OutputSchema> = {
-  search: {
-    description: 'Array of email messages',
-    isArray: true,
-    items: {
-      type: 'object',
-      fields: {
-        uid: { type: 'number' },
-        messageId: { type: 'string' },
-        from: { type: 'array', description: 'Array of {name?, address}' },
-        to: { type: 'array', description: 'Array of {name?, address}' },
-        cc: { type: 'array', optional: true },
-        bcc: { type: 'array', optional: true },
-        subject: { type: 'string' },
-        date: { type: 'string' },
-        text: { type: 'string', optional: true },
-        html: { type: 'string', optional: true },
-        attachments: { type: 'array', optional: true },
-        flags: { type: 'array' },
-        headers: { type: 'object', optional: true },
-      },
-    },
-  },
-};
-
-// =============================================================================
-// EMAIL PROVIDER ACTION SCHEMAS (Constrained by Doc<'emailProviders'>)
-// =============================================================================
-
-const emailProviderSchemas: Record<string, OutputSchema> = {
-  get_default: {
-    description:
-      'Default email provider configuration (flattened, no oauth2Auth)',
-    fields: {
-      // Note: get_default returns a narrower shape than the full emailProviderFields:
-      // - Excludes oauth2Auth entirely (sensitive data)
-      // - passwordAuth narrowed to { user, passEncrypted } only
-      _id: idField('emailProviders'),
-      name: { type: 'string' },
-      vendor: {
-        type: 'string',
-        description: 'gmail | outlook | smtp | resend | other',
-      },
-      authMethod: { type: 'string', description: 'password | oauth2' },
-      imapConfig: { type: 'object', optional: true },
-      smtpConfig: { type: 'object', optional: true },
-      passwordAuth: {
-        type: 'object',
-        optional: true,
-        fields: {
-          user: { type: 'string' },
-          passEncrypted: { type: 'string' },
-        },
-      },
-      isDefault: { type: 'boolean' },
-      status: { type: 'string', description: 'active | inactive | error' },
-    },
-  },
-  get_imap_credentials: {
-    description: 'IMAP credentials for the default email provider',
-    fields: {
-      providerId: idField('emailProviders'),
-      credentials: {
-        type: 'object',
-        fields: {
-          host: { type: 'string' },
-          port: { type: 'number' },
-          secure: { type: 'boolean' },
-          username: { type: 'string' },
-          passwordEncrypted: { type: 'string', optional: true },
-          accessTokenEncrypted: { type: 'string', optional: true },
-        },
-      },
-      authMethod: { type: 'string', description: 'password | oauth2' },
     },
   },
 };
@@ -753,8 +670,6 @@ const workflowSchemas: Record<string, OutputSchema> = {
  * - document: Document management
  * - set_variables: Workflow variable operations
  * - rag: RAG document upload
- * - imap: IMAP email retrieval
- * - email_provider: Email provider configuration
  * - workflow_processing_records: Processing record tracking
  * - approval: Approval workflow operations
  * - tone_of_voice: Tone of voice configuration
@@ -775,8 +690,6 @@ export const actionOutputSchemaRegistry: ActionOutputSchemaRegistry = {
   document: documentSchemas,
   integration: integrationSchemas,
   rag: ragSchemas,
-  imap: imapSchemas,
-  email_provider: emailProviderSchemas,
   tone_of_voice: toneOfVoiceSchemas,
   onedrive: onedriveSchemas,
   crawler: crawlerSchemas,

@@ -46,8 +46,7 @@ Processing multiple entities (customers/products/conversations/approvals)?
 
 **NEXT STEPS:**
 1. Get pattern details: workflow_examples(operation='get_syntax_reference', category='common_patterns')
-2. Study similar workflow: workflow_examples(operation='get_predefined', workflowKey='...')
-3. Get step syntax: workflow_examples(operation='get_syntax_reference', category='start|llm|action|condition|loop')`,
+2. Get step syntax: workflow_examples(operation='get_syntax_reference', category='start|llm|action|condition|loop')`,
 
   common_patterns: `## COMMON WORKFLOW PATTERNS
 
@@ -342,7 +341,7 @@ Workflows DO NOT have a direct "send_email" action. Use the conversation + appro
 - emailPreview: Preview text for inbox
 - emailCc, emailBcc: CC/BCC recipients
 
-**Reference:** Use workflow_examples(operation='get_predefined', workflowKey='productRecommendationEmail') for complete example`,
+**Reference:** Use workflow_examples(operation='get_syntax_reference', category='common_patterns') for the email sending pattern`,
 
   entity_processing: `## ENTITY PROCESSING PATTERN (One-at-a-Time)
 
@@ -409,18 +408,59 @@ Step N+1: workflow_processing_records(record_processed)
 - filterExpression uses JEXL syntax for filtering
 - Use 'noop' in nextSteps to gracefully end workflow when no entity found`,
 
+  workflow_config: `## WORKFLOW CONFIG (workflowConfig.config)
+
+The optional \`config\` field on \`workflowConfig\` supports these fields:
+
+### timeout (number, optional)
+Workflow timeout in milliseconds. The workflow execution will be aborted if it exceeds this duration.
+\`\`\`json
+{ "timeout": 120000 }
+\`\`\`
+
+### retryPolicy (object, optional)
+Default retry policy applied to action steps.
+\`\`\`json
+{ "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 } }
+\`\`\`
+
+### variables (object, optional)
+Initial workflow-level variables accessible to all steps via \`{{variableName}}\`.
+\`organizationId\` is automatically injected — no need to set it.
+\`\`\`json
+{ "variables": { "backoffHours": 72, "defaultStatus": "active" } }
+\`\`\`
+
+### Full Example
+\`\`\`json
+{
+  "workflowConfig": {
+    "name": "My Workflow",
+    "description": "Example with config",
+    "config": {
+      "timeout": 120000,
+      "retryPolicy": { "maxRetries": 2, "backoffMs": 1000 },
+      "variables": {
+        "backoffHours": 72,
+        "conversationStatus": "open"
+      }
+    }
+  }
+}
+\`\`\``,
+
   variables: `## VARIABLE SYNTAX
 
 ### Simple Variables
 - {{variableName}}
 - {{customer.email}}
-- {{items[0].name}}
+- {{items|first}} (safe first element)
 
 ### Step Output Access
 Action outputs are wrapped: steps.{step_slug}.output.data
 - Single entity: {{steps.get_customer.output.data._id}}
-- Array item: {{steps.query.output.data[0]._id}}
-- Array length: {{steps.query.output.data.length}}
+- First array item: {{steps.query.output.data|first}} (use |first instead of [0] — [0] crashes if data is undefined)
+- Array length: {{steps.query.output.data|length}}
 - Paginated: {{steps.query.output.isDone}}, {{steps.query.output.continueCursor}}
 
 ### Special Variables
@@ -430,10 +470,15 @@ Action outputs are wrapped: steps.{step_slug}.output.data
 - {{secrets.secretName}} - Encrypted secrets
 
 ### JEXL Filters
-- Array: |length, |map("prop"), |filter(), |unique, |flatten
-- String: |join(", ")
+- Array: |length, |first, |last, |map("prop"), |filter(), |unique, |flatten, |slice(start, end), |sort("field", "asc"), |reverse
+- String: |join(", "), |upper, |lower, |trim
 - Boolean: |hasOverlap(otherArray)
-- Format: |formatList("template", "separator")`,
+- Type: |string, |number, |boolean, |parseJSON
+- Date: |isoDate, |parseDate, |daysAgo, |hoursAgo, |minutesAgo, |isBefore(date), |isAfter(date)
+- Format: |formatList("template", "separator")
+- Lookup: |find("field", value), |filterBy("field", value)
+
+**IMPORTANT:** Use |first instead of [0] when the array might be undefined (e.g., branching paths where only one step runs). [0] will throw an error on undefined arrays, while |first safely returns undefined.`,
 
   // NOTE: 'all' is intentionally not included to prevent prompt overflow
   // The full WORKFLOW_SYNTAX_COMPACT is too long for agent context
@@ -482,6 +527,8 @@ const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
   loop: 'Loop step for iteration',
   email: 'Email sending pattern (conversation + approval)',
   entity_processing: 'One-at-a-time entity processing pattern',
+  workflow_config:
+    'Workflow-level config: timeout, retryPolicy, and initial variables',
   variables: 'Variable syntax and JEXL filters',
 };
 

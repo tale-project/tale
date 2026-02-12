@@ -23,7 +23,6 @@ export const createConversation = internalMutation({
     type: v.optional(v.string()),
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-    providerId: v.optional(v.id('emailProviders')),
     metadata: v.optional(jsonRecordValidator),
   },
   returns: v.object({
@@ -46,7 +45,6 @@ export const createConversationWithMessage = internalMutation({
     type: v.optional(v.string()),
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-    providerId: v.optional(v.id('emailProviders')),
     metadata: v.optional(jsonRecordValidator),
 
     initialMessage: v.object({
@@ -106,7 +104,6 @@ export const addMessageToConversation = internalMutation({
     isCustomer: v.boolean(),
     status: v.optional(v.string()),
     attachment: v.optional(attachmentValidator),
-    providerId: v.optional(v.id('emailProviders')),
     externalMessageId: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
     sentAt: v.optional(v.number()),

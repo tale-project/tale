@@ -23,5 +23,5 @@ export * from './mark_conversation_as_read';
 export * from './bulk_close_conversations';
 export * from './bulk_reopen_conversations';
 export * from './transform_conversation';
-export * from './send_message_via_email';
+export * from './send_message_via_integration';
 export * from './query_conversation_messages';

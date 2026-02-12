@@ -1,7 +1,7 @@
 /**
  * Integration tests for workflow execution lifecycle mutations
  *
- * Tests the pure logic of fail/complete/updateStatus by mocking ctx.db.
+ * Tests the pure logic of fail/complete/updateStatus/cleanupStorage by mocking ctx.db.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -9,6 +9,10 @@ import { describe, it, expect, vi } from 'vitest';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 
+import {
+  cleanupExecutionStorage,
+  STORAGE_RETENTION_MS,
+} from '../../workflows/executions/cleanup_execution_storage';
 import { completeExecution } from '../../workflows/executions/complete_execution';
 import { failExecution } from '../../workflows/executions/fail_execution';
 import { updateExecutionStatus } from '../../workflows/executions/update_execution_status';
@@ -16,6 +20,7 @@ import { updateExecutionStatus } from '../../workflows/executions/update_executi
 function createMockCtx() {
   const patchedData: Record<string, unknown>[] = [];
   const deletedStorageIds: string[] = [];
+  const scheduledJobs: { delay: number; args: Record<string, unknown> }[] = [];
   const storedExecution: Record<string, unknown> = {
     _id: 'exec_1' as Id<'wfExecutions'>,
     organizationId: 'org_1',
@@ -37,8 +42,16 @@ function createMockCtx() {
         deletedStorageIds.push(id);
       }),
     },
+    scheduler: {
+      runAfter: vi.fn(
+        async (delay: number, _fn: unknown, args: Record<string, unknown>) => {
+          scheduledJobs.push({ delay, args });
+        },
+      ),
+    },
     _patchedData: patchedData,
     _deletedStorageIds: deletedStorageIds,
+    _scheduledJobs: scheduledJobs,
     _storedExecution: storedExecution,
   };
 }
@@ -74,7 +87,7 @@ describe('failExecution', () => {
     expect(patchCall.updatedAt).toBeGreaterThanOrEqual(before);
   });
 
-  it('should clean up storage if variablesStorageId exists', async () => {
+  it('should schedule storage cleanup after 30 days if variablesStorageId exists', async () => {
     const ctx = createMockCtx();
     ctx._storedExecution.variablesStorageId = 'storage_abc';
 
@@ -83,10 +96,18 @@ describe('failExecution', () => {
       error: 'error',
     });
 
-    expect(ctx.storage.delete).toHaveBeenCalledWith('storage_abc');
+    expect(ctx.storage.delete).not.toHaveBeenCalled();
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      STORAGE_RETENTION_MS,
+      expect.anything(),
+      expect.objectContaining({
+        executionId: 'exec_1',
+        variablesStorageId: 'storage_abc',
+      }),
+    );
   });
 
-  it('should not delete storage if no variablesStorageId', async () => {
+  it('should not schedule cleanup if no storage IDs', async () => {
     const ctx = createMockCtx();
 
     await failExecution(ctx as unknown as MutationCtx, {
@@ -95,6 +116,7 @@ describe('failExecution', () => {
     });
 
     expect(ctx.storage.delete).not.toHaveBeenCalled();
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
   });
 });
 
@@ -149,7 +171,7 @@ describe('completeExecution', () => {
     );
   });
 
-  it('should clean up old storage when new storage differs', async () => {
+  it('should immediately delete old storage when replaced by different storage', async () => {
     const ctx = createMockCtx();
     ctx._storedExecution.variablesStorageId = 'old_storage';
 
@@ -163,7 +185,7 @@ describe('completeExecution', () => {
     expect(ctx.storage.delete).toHaveBeenCalledWith('old_storage');
   });
 
-  it('should not clean up storage when IDs match', async () => {
+  it('should not immediately delete storage when IDs match', async () => {
     const ctx = createMockCtx();
     ctx._storedExecution.variablesStorageId = 'same_storage';
 
@@ -175,6 +197,155 @@ describe('completeExecution', () => {
     });
 
     expect(ctx._deletedStorageIds).not.toContain('same_storage');
+  });
+
+  it('should NOT immediately delete storage when no replacement is provided', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.variablesStorageId = 'existing_storage';
+
+    await completeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      output: {},
+    });
+
+    expect(ctx.storage.delete).not.toHaveBeenCalled();
+  });
+
+  it('should schedule 30-day cleanup for final storage IDs', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.variablesStorageId = 'var_storage';
+    ctx._storedExecution.outputStorageId = 'out_storage';
+
+    await completeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      output: {},
+    });
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      STORAGE_RETENTION_MS,
+      expect.anything(),
+      expect.objectContaining({
+        executionId: 'exec_1',
+        variablesStorageId: 'var_storage',
+        outputStorageId: 'out_storage',
+      }),
+    );
+  });
+
+  it('should schedule cleanup for new storage when replacing', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.variablesStorageId = 'old_storage';
+
+    await completeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      output: {},
+      variablesSerialized: '{}',
+      variablesStorageId: 'new_storage' as Id<'_storage'>,
+      outputStorageId: 'out_storage' as Id<'_storage'>,
+    });
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      STORAGE_RETENTION_MS,
+      expect.anything(),
+      expect.objectContaining({
+        executionId: 'exec_1',
+        variablesStorageId: 'new_storage',
+        outputStorageId: 'out_storage',
+      }),
+    );
+  });
+
+  it('should not schedule cleanup when no storage IDs exist', async () => {
+    const ctx = createMockCtx();
+
+    await completeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      output: {},
+    });
+
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+});
+
+describe('cleanupExecutionStorage', () => {
+  it('should delete blobs when IDs match current execution storage', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.variablesStorageId = 'var_storage';
+    ctx._storedExecution.outputStorageId = 'out_storage';
+
+    await cleanupExecutionStorage(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      variablesStorageId: 'var_storage' as Id<'_storage'>,
+      outputStorageId: 'out_storage' as Id<'_storage'>,
+    });
+
+    expect(ctx.storage.delete).toHaveBeenCalledWith('var_storage');
+    expect(ctx.storage.delete).toHaveBeenCalledWith('out_storage');
+    expect(ctx.db.patch).toHaveBeenCalledWith('exec_1', {
+      variablesStorageId: undefined,
+    });
+    expect(ctx.db.patch).toHaveBeenCalledWith('exec_1', {
+      outputStorageId: undefined,
+    });
+  });
+
+  it('should skip deletion when IDs do not match (execution was re-run)', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.variablesStorageId = 'newer_var_storage';
+    ctx._storedExecution.outputStorageId = 'newer_out_storage';
+
+    await cleanupExecutionStorage(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      variablesStorageId: 'old_var_storage' as Id<'_storage'>,
+      outputStorageId: 'old_out_storage' as Id<'_storage'>,
+    });
+
+    expect(ctx.storage.delete).not.toHaveBeenCalled();
+  });
+
+  it('should handle missing execution gracefully', async () => {
+    const ctx = createMockCtx();
+    ctx.db.get.mockResolvedValue(null);
+
+    const result = await cleanupExecutionStorage(
+      ctx as unknown as MutationCtx,
+      {
+        executionId: 'exec_1' as Id<'wfExecutions'>,
+        variablesStorageId: 'var_storage' as Id<'_storage'>,
+      },
+    );
+
+    expect(result).toBeNull();
+    expect(ctx.storage.delete).not.toHaveBeenCalled();
+  });
+
+  it('should handle already-deleted blobs gracefully', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.variablesStorageId = 'var_storage';
+    ctx.storage.delete.mockRejectedValueOnce(new Error('Not found'));
+
+    await cleanupExecutionStorage(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      variablesStorageId: 'var_storage' as Id<'_storage'>,
+    });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('exec_1', {
+      variablesStorageId: undefined,
+    });
+  });
+
+  it('should only delete variables storage when only it is provided', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.variablesStorageId = 'var_storage';
+    ctx._storedExecution.outputStorageId = 'out_storage';
+
+    await cleanupExecutionStorage(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      variablesStorageId: 'var_storage' as Id<'_storage'>,
+    });
+
+    expect(ctx.storage.delete).toHaveBeenCalledWith('var_storage');
+    expect(ctx.storage.delete).not.toHaveBeenCalledWith('out_storage');
   });
 });
 

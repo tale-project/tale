@@ -1,4 +1,3 @@
-import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 
 import { internal } from '../../../../_generated/api';
@@ -10,7 +9,6 @@ export async function queryLatestMessageByDeliveryState(
     channel: string;
     direction: 'inbound' | 'outbound';
     deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
-    providerId?: Id<'emailProviders'>;
   },
 ) {
   const result = await ctx.runQuery(
@@ -20,7 +18,6 @@ export async function queryLatestMessageByDeliveryState(
       channel: params.channel,
       direction: params.direction,
       deliveryState: params.deliveryState,
-      providerId: params.providerId,
     },
   );
 

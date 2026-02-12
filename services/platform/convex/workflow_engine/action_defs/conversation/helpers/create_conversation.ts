@@ -16,7 +16,6 @@ export async function createConversation(
     type?: string;
     channel?: string;
     direction?: 'inbound' | 'outbound';
-    providerId?: Id<'emailProviders'>;
     metadata?: Record<string, unknown>;
   },
 ) {
@@ -32,7 +31,6 @@ export async function createConversation(
         type: params.type,
         channel: params.channel,
         direction: params.direction,
-        providerId: params.providerId,
         metadata: params.metadata
           ? toConvexJsonRecord(params.metadata)
           : undefined,

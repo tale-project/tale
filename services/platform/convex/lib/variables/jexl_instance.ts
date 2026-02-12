@@ -300,6 +300,14 @@ jexlInstance.addTransform('parseDate', (dateVal: unknown) => {
   return isNaN(timestamp) ? null : timestamp;
 });
 
+// Format date as ISO 8601 string (e.g., "2024-01-15T10:30:00.000Z")
+// Useful for building OData/REST API filters that require date strings
+jexlInstance.addTransform('isoDate', (dateVal: unknown) => {
+  const timestamp = parseDateValue(dateVal);
+  if (isNaN(timestamp)) return '';
+  return new Date(timestamp).toISOString();
+});
+
 // Check if a date is before another date (or days ago)
 jexlInstance.addTransform(
   'isBefore',
