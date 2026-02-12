@@ -8,11 +8,37 @@
   "rangeStrategy": "pin",
   "packageRules": [
     {
-      "description": "Group all GitHub Actions updates into a single PR to prevent duplicate upgrades across workflow files",
+      "description": "Group all GitHub Actions updates into a single PR across all workflow files",
       "matchManagers": [
         "github-actions"
       ],
       "groupName": "github-actions"
+    },
+    {
+      "description": "Group Python production dependencies shared across services into a single PR",
+      "matchManagers": [
+        "pep621"
+      ],
+      "matchFileNames": [
+        "services/*/pyproject.toml"
+      ],
+      "matchDepTypes": [
+        "project.dependencies"
+      ],
+      "groupName": "python-dependencies"
+    },
+    {
+      "description": "Group Python dev dependencies shared across services into a single PR",
+      "matchManagers": [
+        "pep621"
+      ],
+      "matchFileNames": [
+        "services/*/pyproject.toml"
+      ],
+      "matchDepTypes": [
+        "project.optional-dependencies"
+      ],
+      "groupName": "python-dev-dependencies"
     },
     {
       "description": "Pin Python Docker image to 3.11 for RAG service (cognee dependencies don't support 3.14+)",
