@@ -91,7 +91,20 @@ export const integrationConfigSchema = z
       message: 'authMethod must be included in supportedAuthMethods',
       path: ['authMethod'],
     },
-  );
+  )
+  .superRefine((data, ctx) => {
+    if (data.type === 'sql') {
+      data.operations.forEach((op, index) => {
+        if (!op.query?.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['operations', index, 'query'],
+            message: 'SQL operations require a query',
+          });
+        }
+      });
+    }
+  });
 
 export type IntegrationConfig = z.infer<typeof integrationConfigSchema>;
 

@@ -43,7 +43,7 @@ describe('validateConfig', () => {
       type: 'sql',
       authMethod: 'basic_auth',
       secretBindings: ['username', 'password'],
-      operations: [{ name: 'list_records' }],
+      operations: [{ name: 'list_records', query: 'SELECT * FROM records' }],
       sqlConnectionConfig: {
         engine: 'mssql',
         server: 'db.example.com',
@@ -62,7 +62,7 @@ describe('validateConfig', () => {
       type: 'sql',
       authMethod: 'basic_auth',
       secretBindings: ['username', 'password'],
-      operations: [{ name: 'list_records' }],
+      operations: [{ name: 'list_records', query: 'SELECT * FROM records' }],
       sqlConnectionConfig: {
         engine: 'mssql',
       },
@@ -124,6 +124,50 @@ describe('validateConfig', () => {
       result.config?.operations[0].parametersSchema?.properties,
     ).toBeDefined();
     expect(result.config?.operations[1].operationType).toBe('write');
+  });
+
+  it('should reject SQL operations without a query', () => {
+    const result = validateConfig({
+      name: 'my-sql-db',
+      title: 'My SQL Database',
+      type: 'sql',
+      authMethod: 'basic_auth',
+      secretBindings: ['username', 'password'],
+      operations: [{ name: 'list_records' }],
+      sqlConnectionConfig: {
+        engine: 'mssql',
+      },
+    });
+    expect(result.success).toBe(false);
+    expect(result.errors?.some((e) => e.includes('query'))).toBe(true);
+  });
+
+  it('should reject SQL operations with empty query', () => {
+    const result = validateConfig({
+      name: 'my-sql-db',
+      title: 'My SQL Database',
+      type: 'sql',
+      authMethod: 'basic_auth',
+      secretBindings: ['username', 'password'],
+      operations: [{ name: 'list_records', query: '   ' }],
+      sqlConnectionConfig: {
+        engine: 'mssql',
+      },
+    });
+    expect(result.success).toBe(false);
+    expect(result.errors?.some((e) => e.includes('query'))).toBe(true);
+  });
+
+  it('should allow REST API operations without a query', () => {
+    const result = validateConfig({
+      name: 'my-api',
+      title: 'My API',
+      type: 'rest_api',
+      authMethod: 'api_key',
+      secretBindings: ['apiKey'],
+      operations: [{ name: 'list_users' }],
+    });
+    expect(result.success).toBe(true);
   });
 
   it('should reject config with missing name', () => {
