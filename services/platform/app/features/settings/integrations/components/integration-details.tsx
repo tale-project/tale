@@ -56,7 +56,11 @@ function SqlQueryCopyButton({ query }: { query: string }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+      }}
       className="hover:bg-foreground/5 ml-auto shrink-0 cursor-pointer rounded p-0.5 transition-colors"
       aria-label={tCommon('actions.copy')}
     >
