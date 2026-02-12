@@ -148,7 +148,7 @@
     "@types/mustache": "4.2.6",
     "@types/nodemailer": "7.0.9",
     "@types/pg": "8.16.0",
-    "@types/react": "19.2.13",
+    "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/react-file-icon": "1.0.4",
     "@types/swagger-ui-react": "^5.18.0",
