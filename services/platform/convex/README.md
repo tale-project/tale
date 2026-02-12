@@ -96,7 +96,11 @@ import { v } from 'convex/values';
 export const bulkCreateCustomers = action({
   args: {
     organizationId: v.string(),
-    customers: v.array(v.object({ /* fields */ })),
+    customers: v.array(
+      v.object({
+        /* fields */
+      }),
+    ),
   },
   handler: async (ctx, args) => {
     // Actions can call mutations and interact with external systems

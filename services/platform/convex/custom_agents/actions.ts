@@ -55,7 +55,7 @@ export const publishCustomAgent = action({
   args: {
     customAgentId: v.id('customAgents'),
   },
-  handler: async (ctx, args): Promise<void> => {
+  handler: async (ctx, args): Promise<null> => {
     return await ctx.runMutation(
       api.custom_agents.mutations.publishCustomAgent,
       args,
@@ -67,7 +67,7 @@ export const unpublishCustomAgent = action({
   args: {
     customAgentId: v.id('customAgents'),
   },
-  handler: async (ctx, args): Promise<void> => {
+  handler: async (ctx, args): Promise<null> => {
     return await ctx.runMutation(
       api.custom_agents.mutations.unpublishCustomAgent,
       args,
@@ -80,7 +80,7 @@ export const activateCustomAgentVersion = action({
     customAgentId: v.id('customAgents'),
     targetVersion: v.number(),
   },
-  handler: async (ctx, args): Promise<void> => {
+  handler: async (ctx, args): Promise<null> => {
     return await ctx.runMutation(
       api.custom_agents.mutations.activateCustomAgentVersion,
       args,

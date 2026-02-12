@@ -26,7 +26,7 @@ import { Send } from 'lucide-react';
 import { useState, useEffect, useRef, useTransition } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 // Markdown -> HTML conversion using existing deps
-import ReactMarkdown, { type Components } from 'react-markdown';
+import ReactMarkdown from 'react-markdown';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import {
