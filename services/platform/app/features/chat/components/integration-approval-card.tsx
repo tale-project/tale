@@ -72,7 +72,10 @@ function IntegrationApprovalCardComponent({
     setIsApproving(true);
     setError(null);
     try {
-      // Execute the approved operation (handles status update + execution)
+      await updateApprovalStatus({
+        approvalId,
+        status: 'approved',
+      });
       await executeApprovedOperation({
         approvalId,
       });
@@ -108,14 +111,17 @@ function IntegrationApprovalCardComponent({
     }
   };
 
+  const [isExpanded, setIsExpanded] = useState(false);
+
   // Format parameters for display
   const formatParameters = (params: Record<string, unknown>) => {
     const entries = Object.entries(params).filter(
       ([_, v]) => v !== undefined && v !== null,
     );
     if (entries.length === 0) return null;
-    return entries.slice(0, 3).map(([key, value]) => (
-      <div key={key} className="text-muted-foreground truncate text-xs">
+    const visible = isExpanded ? entries : entries.slice(0, 3);
+    return visible.map(([key, value]) => (
+      <div key={key} className="text-muted-foreground text-xs break-words">
         <span className="font-medium">{key}:</span>{' '}
         <span>
           {typeof value === 'string'
@@ -133,7 +139,7 @@ function IntegrationApprovalCardComponent({
   return (
     <div
       className={cn(
-        'border rounded-lg p-4 bg-card shadow-sm max-w-md',
+        'border rounded-lg p-4 bg-card shadow-sm max-w-md overflow-hidden',
         status === 'approved' && 'border-success/30 bg-success/5',
         status === 'rejected' && 'border-destructive/30 bg-destructive/5',
         status === 'pending' && 'border-warning/30 bg-warning/5',
@@ -186,18 +192,24 @@ function IntegrationApprovalCardComponent({
           <div className="bg-muted/50 space-y-0.5 rounded-md p-2">
             {formatParameters(metadata.parameters)}
             {Object.keys(metadata.parameters).length > 3 && (
-              <div className="text-muted-foreground text-xs">
-                {t('moreParameters', {
-                  count: Object.keys(metadata.parameters).length - 3,
-                })}
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsExpanded((prev) => !prev)}
+                className="text-muted-foreground hover:text-foreground cursor-pointer text-xs transition-colors"
+              >
+                {isExpanded
+                  ? t('showLess')
+                  : t('moreParameters', {
+                      count: Object.keys(metadata.parameters).length - 3,
+                    })}
+              </button>
             )}
           </div>
         )}
 
         {/* Estimated Impact */}
         {metadata.estimatedImpact && (
-          <div className="text-muted-foreground text-xs italic">
+          <div className="text-muted-foreground text-xs break-words italic">
             {metadata.estimatedImpact}
           </div>
         )}
@@ -213,17 +225,17 @@ function IntegrationApprovalCardComponent({
 
       {/* Execution Error (persisted from backend) */}
       {status === 'approved' && executionError && (
-        <div className="text-destructive mb-3 flex items-center gap-1 text-xs">
-          <XCircle className="size-3" />
-          {executionError}
+        <div className="text-destructive mb-3 flex items-start gap-1 text-xs break-words">
+          <XCircle className="size-3 shrink-0" />
+          <span className="min-w-0">{executionError}</span>
         </div>
       )}
 
       {/* Error Message (temporary UI error) */}
       {error && (
-        <div className="text-destructive mb-3 flex items-center gap-1 text-xs">
-          <XCircle className="size-3" />
-          {error}
+        <div className="text-destructive mb-3 flex items-start gap-1 text-xs break-words">
+          <XCircle className="size-3 shrink-0" />
+          <span className="min-w-0">{error}</span>
         </div>
       )}
 

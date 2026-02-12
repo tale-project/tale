@@ -17,8 +17,10 @@ export interface HttpApi {
   ) => HttpResponse;
   post: (
     url: string,
-    body: unknown,
-    options?: { headers?: Record<string, string> },
+    options?: {
+      headers?: Record<string, string>;
+      body?: string;
+    },
   ) => HttpResponse;
 }
 
@@ -64,8 +66,7 @@ export function createHttpApi(state: HttpApiState): HttpApi {
     },
     post: (
       url: string,
-      body: unknown,
-      options: { headers?: Record<string, string> } = {},
+      options: { headers?: Record<string, string>; body?: string } = {},
     ): HttpResponse => {
       const requestId = state.pendingHttpCount++;
       const request: HttpRequest = {
@@ -76,7 +77,7 @@ export function createHttpApi(state: HttpApiState): HttpApi {
             'Content-Type': 'application/json',
             ...options.headers,
           },
-          body: typeof body === 'string' ? body : JSON.stringify(body),
+          body: options.body,
         },
       };
 

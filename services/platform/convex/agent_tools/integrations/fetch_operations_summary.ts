@@ -16,6 +16,7 @@ interface OperationInfo {
   title?: string;
   operationType?: 'read' | 'write';
   requiresApproval?: boolean;
+  parametersSchema?: Record<string, unknown>;
 }
 
 /**
@@ -64,12 +65,14 @@ export async function fetchOperationsSummary(
         name: string;
         title?: string;
         operationType?: 'read' | 'write';
+        parametersSchema?: Record<string, unknown>;
       }>;
       for (const op of ops) {
         operations.push({
           name: op.name,
           title: op.title,
           operationType: op.operationType,
+          parametersSchema: op.parametersSchema,
         });
       }
     }
@@ -104,7 +107,50 @@ function formatOperationsSummary(operations: OperationInfo[]): string {
     }
 
     lines.push(`  ${parts.join(' ')}`);
+
+    if (op.parametersSchema) {
+      const paramLines = formatParametersSchema(op.parametersSchema);
+      if (paramLines) {
+        lines.push(paramLines);
+      }
+    }
   }
 
   return lines.join('\n');
+}
+
+function formatParametersSchema(
+  schema: Record<string, unknown>,
+): string | undefined {
+  const properties = schema.properties;
+  if (
+    !properties ||
+    typeof properties !== 'object' ||
+    Array.isArray(properties)
+  ) {
+    return undefined;
+  }
+
+  const entries = Object.entries(properties);
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  const paramParts: string[] = [];
+  for (const [name, rawProp] of entries) {
+    if (!rawProp || typeof rawProp !== 'object') continue;
+    const propType = 'type' in rawProp ? rawProp.type : undefined;
+    const propRequired = 'required' in rawProp ? rawProp.required : undefined;
+    const propDesc = 'description' in rawProp ? rawProp.description : undefined;
+    const type = typeof propType === 'string' ? propType : 'unknown';
+    const required = propRequired === true ? 'required' : 'optional';
+    const desc = typeof propDesc === 'string' ? ` - ${propDesc}` : '';
+    paramParts.push(`      ${name} (${type}, ${required})${desc}`);
+  }
+
+  if (paramParts.length === 0) {
+    return undefined;
+  }
+
+  return `    params:\n${paramParts.join('\n')}`;
 }

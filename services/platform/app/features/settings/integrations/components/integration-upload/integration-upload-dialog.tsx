@@ -87,6 +87,7 @@ export function IntegrationUploadDialog({
                 name: op.name,
                 title: op.title,
                 description: op.description,
+                parametersSchema: op.parametersSchema,
                 operationType: op.operationType,
                 requiresApproval: op.requiresApproval,
               })),

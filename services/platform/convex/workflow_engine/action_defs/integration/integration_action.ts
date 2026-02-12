@@ -25,6 +25,7 @@ import {
   getOperationType,
 } from './helpers/detect_write_operation';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
+import { validateRequiredParameters } from './helpers/validate_required_parameters';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -132,7 +133,10 @@ export const integrationAction: ActionDefinition<{
       );
     }
 
-    // 5. Check if this operation requires approval
+    // 5. Validate required parameters before creating approval or executing
+    validateRequiredParameters(operationConfig, opParams, operation);
+
+    // 6. Check if this operation requires approval
     if (!skipApprovalCheck && requiresApproval(operationConfig)) {
       const operationType = getOperationType(operationConfig);
       debugLog(
@@ -170,10 +174,10 @@ export const integrationAction: ActionDefinition<{
       };
     }
 
-    // 6. Build secrets from integration credentials
+    // 7. Build secrets from integration credentials
     const secrets = await buildSecretsFromIntegration(ctx, integration);
 
-    // 7. Execute the connector in sandbox (via Node.js action)
+    // 8. Execute the connector in sandbox (via Node.js action)
     debugLog(`Executing ${name}.${operation} (v${connectorConfig.version})`);
 
     const result = await ctx.runAction(

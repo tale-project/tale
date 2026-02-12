@@ -941,7 +941,7 @@
         "dropZoneLabel": "Upload integration package",
         "dropOrClick": "Drop files here or click to browse",
         "dropHere": "Drop files here",
-        "acceptedFormats": ".zip package or config.json + connector.js, max 1MB",
+        "acceptedFormats": ".zip package or config.json + connector.js + icon (optional), max 1MB",
         "parsing": "Parsing package...",
         "parseError": "Failed to parse package",
         "unexpectedError": "An unexpected error occurred",
@@ -1940,7 +1940,8 @@
     "statusApprovedFailed": "This operation was approved but failed during execution.",
     "statusApprovedSuccess": "This operation was approved and executed successfully.",
     "statusRejected": "This operation was rejected.",
-    "moreParameters": "+{count} more"
+    "moreParameters": "+{count} more",
+    "showLess": "Show less"
   },
   "chat": {
     "title": "Chat",
