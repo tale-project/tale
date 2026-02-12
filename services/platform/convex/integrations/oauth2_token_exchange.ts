@@ -76,6 +76,15 @@ export const handleOAuth2Callback = internalAction({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- OAuth2 token response
     const tokens = (await response.json()) as TokenResponse;
 
+    if (!tokens.access_token) {
+      console.error(
+        `[OAuth2 Token Exchange] Response missing access_token for integration ${args.integrationId}`,
+      );
+      throw new Error(
+        'OAuth2 token exchange returned an invalid response. Please try authorizing again.',
+      );
+    }
+
     const accessTokenEncrypted = await encryptString(tokens.access_token);
     const refreshTokenEncrypted = tokens.refresh_token
       ? await encryptString(tokens.refresh_token)
