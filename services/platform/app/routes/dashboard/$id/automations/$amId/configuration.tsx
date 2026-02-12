@@ -13,8 +13,8 @@ import {
 } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AutomationActiveToggle } from '@/app/features/automations/components/automation-active-toggle';
+import { useUpdateAutomation } from '@/app/features/automations/hooks/mutations';
 import { useWorkflow } from '@/app/features/automations/hooks/queries';
-import { useUpdateAutomation } from '@/app/features/automations/hooks/use-update-automation';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
