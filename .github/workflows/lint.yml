@@ -49,7 +49,7 @@ concurrency:
 jobs:
   lint:
     name: Lint
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
@@ -71,7 +71,7 @@ jobs:
 
   format:
     name: Format
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
@@ -93,7 +93,7 @@ jobs:
 
   typecheck:
     name: Type check
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
@@ -115,7 +115,7 @@ jobs:
 
   knip:
     name: Knip
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
 
