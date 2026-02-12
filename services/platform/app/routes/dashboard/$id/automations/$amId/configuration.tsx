@@ -36,7 +36,7 @@ export const Route = createFileRoute(
 });
 
 function ConfigurationPage() {
-  const { id: organizationId, amId } = Route.useParams();
+  const { amId } = Route.useParams();
   const automationId = toId<'wfDefinitions'>(amId);
   const { user } = useAuth();
 
@@ -58,12 +58,7 @@ function ConfigurationPage() {
   const { data: workflow, isLoading: isWorkflowLoading } =
     useWorkflow(automationId);
 
-<<<<<<< HEAD
   const updateWorkflow = useUpdateAutomation();
-=======
-  const wfAutomationCollection = useWfAutomationCollection(organizationId);
-  const _updateWorkflow = useUpdateAutomationMetadata(wfAutomationCollection);
->>>>>>> 0344f3df (refactor(platform): eliminate useConvexMutation and centralize react-query imports)
 
   useEffect(() => {
     if (workflow) {

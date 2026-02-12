@@ -1,18 +1,6 @@
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
-export function useGenerateOAuthUrl() {
-  return useConvexAction(api.email_providers.actions.generateOAuth2AuthUrl);
-}
-
-export function useTestEmailProvider() {
-  return useConvexAction(api.email_providers.actions.testExistingProvider);
-}
-
-export function useTestEmailConnection() {
-  return useConvexAction(api.email_providers.actions.testConnection);
-}
-
 export function useTestIntegration() {
   return useConvexAction(api.integrations.actions.testConnection);
 }
@@ -25,28 +13,12 @@ export function useTestExistingSsoConfig() {
   return useConvexAction(api.sso_providers.actions.testExistingConfig);
 }
 
-export function useSetDefaultProvider() {
-  return useConvexAction(api.email_providers.actions.setDefault);
-}
-
-export function useCreateEmailProvider() {
-  return useConvexAction(api.email_providers.actions.create);
-}
-
 export function useCreateIntegration() {
   return useConvexAction(api.integrations.actions.create);
 }
 
 export function useUpdateIntegration() {
   return useConvexAction(api.integrations.actions.update);
-}
-
-export function useCreateOAuth2Provider() {
-  return useConvexAction(api.email_providers.actions.createOAuth2Provider);
-}
-
-export function useUpdateOAuth2Provider() {
-  return useConvexAction(api.email_providers.actions.updateOAuth2Provider);
 }
 
 export function useUpsertSsoProvider() {

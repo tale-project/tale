@@ -8,11 +8,7 @@ vi.mock('react', async (importOriginal) => {
   };
 });
 
-import {
-  useDeleteIntegration,
-  useDeleteEmailProvider,
-  useUpdateEmailProvider,
-} from '../mutations';
+import { useDeleteIntegration } from '../mutations';
 
 function createMockCollection() {
   const persistedPromise = Promise.resolve();
@@ -60,72 +56,5 @@ describe('useDeleteIntegration', () => {
     await expect(
       deleteIntegration({ integrationId: 'int-789' }),
     ).rejects.toThrow('Delete failed');
-  });
-});
-
-describe('useDeleteEmailProvider', () => {
-  let mockCollection: ReturnType<typeof createMockCollection>;
-
-  beforeEach(() => {
-    mockCollection = createMockCollection();
-  });
-
-  it('calls collection.delete with the providerId', async () => {
-    const deleteProvider = useDeleteEmailProvider(mockCollection as never);
-    await deleteProvider({ providerId: 'ep-123' });
-
-    expect(mockCollection.delete).toHaveBeenCalledWith('ep-123');
-  });
-
-  it('propagates errors from isPersisted.promise', async () => {
-    const rejectedPromise = Promise.reject(new Error('Delete failed'));
-    mockCollection.delete.mockReturnValueOnce({
-      isPersisted: { promise: rejectedPromise },
-    });
-
-    const deleteProvider = useDeleteEmailProvider(mockCollection as never);
-    await expect(deleteProvider({ providerId: 'ep-789' })).rejects.toThrow(
-      'Delete failed',
-    );
-  });
-});
-
-describe('useUpdateEmailProvider', () => {
-  let mockCollection: ReturnType<typeof createMockCollection>;
-
-  beforeEach(() => {
-    mockCollection = createMockCollection();
-  });
-
-  it('calls collection.update with providerId and updater', async () => {
-    const updateProvider = useUpdateEmailProvider(mockCollection as never);
-    await updateProvider({ providerId: 'ep-123', name: 'New Name' });
-
-    expect(mockCollection.update).toHaveBeenCalledWith(
-      'ep-123',
-      expect.any(Function),
-    );
-  });
-
-  it('updater sets the name on draft', async () => {
-    const updateProvider = useUpdateEmailProvider(mockCollection as never);
-    await updateProvider({ providerId: 'ep-123', name: 'Updated Provider' });
-
-    const updaterFn = mockCollection.update.mock.calls[0][1];
-    const draft = { name: 'Old Name' };
-    updaterFn(draft);
-    expect(draft.name).toBe('Updated Provider');
-  });
-
-  it('propagates errors from isPersisted.promise', async () => {
-    const rejectedPromise = Promise.reject(new Error('Update failed'));
-    mockCollection.update.mockReturnValueOnce({
-      isPersisted: { promise: rejectedPromise },
-    });
-
-    const updateProvider = useUpdateEmailProvider(mockCollection as never);
-    await expect(
-      updateProvider({ providerId: 'ep-789', name: 'Fail' }),
-    ).rejects.toThrow('Update failed');
   });
 });

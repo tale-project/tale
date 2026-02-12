@@ -11,10 +11,13 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
+import {
+  useGenerateUploadUrl,
+  useSendMessageViaIntegration,
+} from '../hooks/actions';
 import { useConversationCollection } from '../hooks/collections';
-import { useGenerateUploadUrl, useMarkAsRead } from '../hooks/mutations';
+import { useMarkAsRead } from '../hooks/mutations';
 import { useConversationWithMessages } from '../hooks/queries';
-import { useSendMessageViaIntegration } from '../hooks/use-send-message-via-integration';
 import { ConversationHeader } from './conversation-header';
 import { Message } from './message';
 

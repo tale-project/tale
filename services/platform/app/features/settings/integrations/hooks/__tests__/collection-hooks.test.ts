@@ -8,10 +8,6 @@ vi.mock('@tanstack/react-db', () => ({
   }),
 }));
 
-vi.mock('@/lib/collections/entities/email-providers', () => ({
-  createEmailProvidersCollection: vi.fn(),
-}));
-
 vi.mock('@/lib/collections/entities/integrations', () => ({
   createIntegrationsCollection: vi.fn(),
 }));
@@ -22,7 +18,7 @@ vi.mock('@/lib/collections/use-collection', () => ({
 
 import { useLiveQuery } from '@tanstack/react-db';
 
-import { useEmailProviders, useIntegrations } from '../queries';
+import { useIntegrations } from '../queries';
 
 const mockUseLiveQuery = vi.mocked(useLiveQuery);
 
@@ -51,35 +47,6 @@ describe('useIntegrations', () => {
 
     const result = useIntegrations(mockCollection as never);
     expect(result.integrations).toEqual([]);
-    expect(result.isLoading).toBe(true);
-  });
-});
-
-describe('useEmailProviders', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('returns data from live query', () => {
-    const items = [{ _id: '1' }, { _id: '2' }];
-    mockUseLiveQuery.mockReturnValueOnce({
-      data: items,
-      isLoading: false,
-    } as ReturnType<typeof useLiveQuery>);
-
-    const result = useEmailProviders(mockCollection as never);
-    expect(result.providers).toBe(items);
-    expect(result.isLoading).toBe(false);
-  });
-
-  it('returns empty array when loading', () => {
-    mockUseLiveQuery.mockReturnValueOnce({
-      data: [],
-      isLoading: true,
-    } as ReturnType<typeof useLiveQuery>);
-
-    const result = useEmailProviders(mockCollection as never);
-    expect(result.providers).toEqual([]);
     expect(result.isLoading).toBe(true);
   });
 });
