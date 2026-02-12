@@ -13,7 +13,14 @@ export const bulkCreateVendors = action({
     vendors: v.array(vendorInputValidator),
   },
   returns: bulkCreateVendorsResponseValidator,
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    success: number;
+    failed: number;
+    errors: Array<{ index: number; error: string; vendor: unknown }>;
+  }> => {
     return await ctx.runMutation(api.vendors.mutations.bulkCreateVendors, args);
   },
 });

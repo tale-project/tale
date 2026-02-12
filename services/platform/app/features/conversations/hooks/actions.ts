@@ -1,5 +1,3 @@
-import { useMutation } from 'convex/react';
-
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
@@ -20,5 +18,5 @@ export function useBulkReopenConversations() {
 }
 
 export function useSendMessageViaIntegration() {
-  return useMutation(api.conversations.mutations.sendMessageViaIntegration);
+  return useConvexAction(api.conversations.actions.sendMessageViaIntegration);
 }

@@ -8,7 +8,7 @@ export const rescanWebsite = action({
     websiteId: v.id('websites'),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     return await ctx.runMutation(api.websites.mutations.rescanWebsite, args);
   },
 });

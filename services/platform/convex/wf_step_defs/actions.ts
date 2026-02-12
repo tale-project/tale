@@ -1,5 +1,7 @@
 import { v } from 'convex/values';
 
+import type { Id } from '../_generated/dataModel';
+
 import { api } from '../_generated/api';
 import { action } from '../_generated/server';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
@@ -19,7 +21,7 @@ export const createStep = action({
     nextSteps: v.record(v.string(), v.string()),
     editMode: editModeValidator,
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Id<'wfStepDefs'>> => {
     return await ctx.runMutation(api.wf_step_defs.mutations.createStep, args);
   },
 });

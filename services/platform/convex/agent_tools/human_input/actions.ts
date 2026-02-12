@@ -13,7 +13,10 @@ export const submitHumanInputResponse = action({
     threadId: v.optional(v.string()),
     streamId: v.optional(v.string()),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ success: boolean; threadId?: string; streamId?: string }> => {
     return await ctx.runMutation(
       api.agent_tools.human_input.mutations.submitHumanInputResponse,
       args,

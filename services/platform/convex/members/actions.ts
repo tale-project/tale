@@ -11,7 +11,7 @@ export const addMember = action({
     role: v.optional(memberRoleValidator),
   },
   returns: v.string(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<string> => {
     return await ctx.runMutation(api.members.mutations.addMember, args);
   },
 });

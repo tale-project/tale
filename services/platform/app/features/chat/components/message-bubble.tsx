@@ -11,7 +11,7 @@ import {
   useCallback,
   memo,
 } from 'react';
-import Markdown from 'react-markdown';
+import Markdown, { type Components } from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
@@ -789,7 +789,8 @@ function MessageBubbleComponent({
                 <Markdown
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                  components={markdownComponents}
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- react-markdown Components type requires ExtraProps on forwardRef components
+                  components={markdownComponents as Components}
                 >
                   {sanitizedContent}
                 </Markdown>

@@ -13,6 +13,7 @@ import {
 } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AutomationActiveToggle } from '@/app/features/automations/components/automation-active-toggle';
+import { useWfAutomationCollection } from '@/app/features/automations/hooks/collections';
 import { useUpdateAutomation } from '@/app/features/automations/hooks/mutations';
 import { useWorkflow } from '@/app/features/automations/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -36,7 +37,7 @@ export const Route = createFileRoute(
 });
 
 function ConfigurationPage() {
-  const { amId } = Route.useParams();
+  const { id: organizationId, amId } = Route.useParams();
   const automationId = toId<'wfDefinitions'>(amId);
   const { user } = useAuth();
 
@@ -58,7 +59,8 @@ function ConfigurationPage() {
   const { data: workflow, isLoading: isWorkflowLoading } =
     useWorkflow(automationId);
 
-  const updateWorkflow = useUpdateAutomation();
+  const wfAutomationCollection = useWfAutomationCollection(organizationId);
+  const updateWorkflow = useUpdateAutomation(wfAutomationCollection);
 
   useEffect(() => {
     if (workflow) {

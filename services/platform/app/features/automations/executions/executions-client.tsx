@@ -146,8 +146,9 @@ export function ExecutionsClient({
 
   const { data: executionsResult } = useListExecutions(queryArgs);
 
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex codegen TS2589 collapses query return type
   const allExecutions = useMemo(
-    () => executionsResult?.page ?? [],
+    () => (executionsResult?.page ?? []) as Execution[],
     [executionsResult],
   );
 
@@ -422,7 +423,7 @@ export function ExecutionsClient({
   }
 
   return (
-    <DataTable
+    <DataTable<Execution>
       className="px-4 py-6"
       columns={columns}
       enableExpanding

@@ -4,7 +4,7 @@
  * Reads workflow and step definitions from the database.
  * This wraps the existing database access logic.
  */
-import type { Id } from '../../../_generated/dataModel';
+import type { Doc, Id } from '../../../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../_generated/server';
 import type {
   WorkflowDataSource,
@@ -44,7 +44,7 @@ export class DatabaseWorkflowDataSource implements WorkflowDataSource {
   }
 
   async getStepDefinitions(): Promise<StepDefinition[]> {
-    const steps = await this.ctx.runQuery(
+    const steps: Doc<'wfStepDefs'>[] = await this.ctx.runQuery(
       internal.wf_step_defs.internal_queries.getOrderedSteps,
       { wfDefinitionId: this.wfDefinitionId },
     );

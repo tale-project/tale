@@ -25,7 +25,10 @@ export const chatWithBuiltinAgent = action({
     messageAlreadyExists: v.boolean(),
     streamId: v.string(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ messageAlreadyExists: boolean; streamId: string }> => {
     return await ctx.runMutation(
       api.agents.builtin_agents.chatWithBuiltinAgent,
       args,

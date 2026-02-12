@@ -36,7 +36,14 @@ export const bulkCreateCustomers = action({
       }),
     ),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    success: number;
+    failed: number;
+    errors: Array<{ index: number; error: string; customer: unknown }>;
+  }> => {
     return await ctx.runMutation(
       api.customers.mutations.bulkCreateCustomers,
       args,

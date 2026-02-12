@@ -1,5 +1,7 @@
 import { v } from 'convex/values';
 
+import type { Id } from '../_generated/dataModel';
+
 import { api } from '../_generated/api';
 import { action } from '../_generated/server';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
@@ -31,7 +33,13 @@ export const createWorkflowWithSteps = action({
     workflowConfig: workflowConfigArg,
     stepsConfig: stepsConfigArg,
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    workflowId: Id<'wfDefinitions'>;
+    stepIds: Id<'wfStepDefs'>[];
+  }> => {
     return await ctx.runMutation(
       api.wf_definitions.mutations.createWorkflowWithSteps,
       args,
@@ -44,7 +52,7 @@ export const duplicateWorkflow = action({
     wfDefinitionId: v.id('wfDefinitions'),
     newName: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Id<'wfDefinitions'>> => {
     return await ctx.runMutation(
       api.wf_definitions.mutations.duplicateWorkflow,
       args,
@@ -58,7 +66,10 @@ export const publishDraft = action({
     publishedBy: v.string(),
     changeLog: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ activeVersionId: Id<'wfDefinitions'> }> => {
     return await ctx.runMutation(
       api.wf_definitions.mutations.publishDraft,
       args,
@@ -71,7 +82,7 @@ export const unpublishWorkflow = action({
     wfDefinitionId: v.id('wfDefinitions'),
     updatedBy: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     return await ctx.runMutation(
       api.wf_definitions.mutations.unpublishWorkflow,
       args,
@@ -84,7 +95,13 @@ export const republishWorkflow = action({
     wfDefinitionId: v.id('wfDefinitions'),
     publishedBy: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    activeVersionId: Id<'wfDefinitions'>;
+    newDraftId: Id<'wfDefinitions'>;
+  }> => {
     return await ctx.runMutation(
       api.wf_definitions.mutations.republishWorkflow,
       args,
@@ -97,7 +114,10 @@ export const createDraftFromActive = action({
     wfDefinitionId: v.id('wfDefinitions'),
     createdBy: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ draftId: Id<'wfDefinitions'>; isNewDraft: boolean }> => {
     return await ctx.runMutation(
       api.wf_definitions.mutations.createDraftFromActive,
       args,

@@ -1,5 +1,7 @@
 import { v } from 'convex/values';
 
+import type { Id } from '../_generated/dataModel';
+
 import { api } from '../_generated/api';
 import { action } from '../_generated/server';
 import { modelPresetValidator } from './schema';
@@ -26,7 +28,7 @@ export const createCustomAgent = action({
     sharedWithTeamIds: v.optional(v.array(v.string())),
   },
   returns: v.id('customAgents'),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Id<'customAgents'>> => {
     return await ctx.runMutation(
       api.custom_agents.mutations.createCustomAgent,
       args,
@@ -41,7 +43,7 @@ export const duplicateCustomAgent = action({
     displayName: v.optional(v.string()),
   },
   returns: v.id('customAgents'),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Id<'customAgents'>> => {
     return await ctx.runMutation(
       api.custom_agents.mutations.duplicateCustomAgent,
       args,
@@ -53,7 +55,7 @@ export const publishCustomAgent = action({
   args: {
     customAgentId: v.id('customAgents'),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<void> => {
     return await ctx.runMutation(
       api.custom_agents.mutations.publishCustomAgent,
       args,
@@ -65,7 +67,7 @@ export const unpublishCustomAgent = action({
   args: {
     customAgentId: v.id('customAgents'),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<void> => {
     return await ctx.runMutation(
       api.custom_agents.mutations.unpublishCustomAgent,
       args,
@@ -78,7 +80,7 @@ export const activateCustomAgentVersion = action({
     customAgentId: v.id('customAgents'),
     targetVersion: v.number(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<void> => {
     return await ctx.runMutation(
       api.custom_agents.mutations.activateCustomAgentVersion,
       args,
@@ -95,7 +97,10 @@ export const createDraftFromVersion = action({
     draftId: v.id('customAgents'),
     isExisting: v.boolean(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ draftId: Id<'customAgents'>; isExisting: boolean }> => {
     return await ctx.runMutation(
       api.custom_agents.mutations.createDraftFromVersion,
       args,

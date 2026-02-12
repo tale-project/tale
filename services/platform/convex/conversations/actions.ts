@@ -51,6 +51,29 @@ export const addMessageToConversation = action({
   },
 });
 
+export const sendMessageViaIntegration = action({
+  args: {
+    conversationId: v.id('conversations'),
+    organizationId: v.string(),
+    integrationName: v.string(),
+    content: v.string(),
+    to: v.array(v.string()),
+    cc: v.optional(v.array(v.string())),
+    subject: v.string(),
+    html: v.optional(v.string()),
+    text: v.optional(v.string()),
+    inReplyTo: v.optional(v.string()),
+    references: v.optional(v.array(v.string())),
+  },
+  returns: v.id('conversationMessages'),
+  handler: async (ctx, args): Promise<Id<'conversationMessages'>> => {
+    return await ctx.runMutation(
+      api.conversations.mutations.sendMessageViaIntegration,
+      args,
+    );
+  },
+});
+
 export const bulkCloseConversations = action({
   args: {
     conversationIds: v.array(v.id('conversations')),

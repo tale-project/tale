@@ -26,7 +26,7 @@ import { Send } from 'lucide-react';
 import { useState, useEffect, useRef, useTransition } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 // Markdown -> HTML conversion using existing deps
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import {
@@ -238,9 +238,10 @@ function MilkdownEditorInner({
     const raw = renderToStaticMarkup(
       <ReactMarkdown
         components={{
-          a: ({ node: _node, ...props }) => (
-            // oxlint-disable-next-line jsx-a11y/anchor-has-content -- content is passed via props spread
-            <a {...props} target="_blank" rel="noopener noreferrer" />
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
           ),
         }}
       >

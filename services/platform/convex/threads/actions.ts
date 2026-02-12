@@ -16,7 +16,7 @@ export const createChatThread = action({
     ),
   },
   returns: v.string(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<string> => {
     return await ctx.runMutation(api.threads.mutations.createChatThread, args);
   },
 });
