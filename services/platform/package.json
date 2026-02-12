@@ -83,7 +83,7 @@
     "dexie": "^4.2.1",
     "dompurify": "3.3.1",
     "express": "^5.0.0",
-    "framer-motion": "12.33.0",
+    "framer-motion": "12.34.0",
     "he": "1.2.0",
     "i18next": "^25.7.4",
     "i18next-icu": "^2.4.1",
