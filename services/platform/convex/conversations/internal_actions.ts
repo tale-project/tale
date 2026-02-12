@@ -8,6 +8,9 @@ import { buildIntegrationSecrets } from '../integrations/build_test_secrets';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { getPredefinedIntegration } from '../predefined_integrations';
 
+const DELIVERY_CHECK_DELAY_MS = 60_000;
+const MAX_DELIVERY_CHECK_RETRIES = 5;
+
 export const sendMessageViaIntegrationAction = internalAction({
   args: {
     messageId: v.id('conversationMessages'),
@@ -116,7 +119,7 @@ export const sendMessageViaIntegrationAction = internalAction({
       // actually appeared in the mailbox (sent → delivered).
       if (internetMessageId) {
         await ctx.scheduler.runAfter(
-          60_000,
+          DELIVERY_CHECK_DELAY_MS,
           internal.conversations.internal_actions.checkMessageDeliveryAction,
           {
             messageId: args.messageId,
@@ -147,9 +150,6 @@ export const sendMessageViaIntegrationAction = internalAction({
     return null;
   },
 });
-
-const DELIVERY_CHECK_DELAY_MS = 60_000;
-const MAX_DELIVERY_CHECK_RETRIES = 5;
 
 export const checkMessageDeliveryAction = internalAction({
   args: {
