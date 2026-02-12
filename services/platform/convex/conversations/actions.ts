@@ -20,7 +20,10 @@ export const improveMessage = action({
     improvedMessage: v.string(),
     error: v.optional(v.string()),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ improvedMessage: string; error?: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');

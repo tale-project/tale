@@ -48,7 +48,7 @@ export const executeIntegration = internalAction({
     threadId: v.optional(v.string()),
     messageId: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<ConvexJsonValue> => {
     const {
       organizationId,
       integrationName,
@@ -83,7 +83,7 @@ export const executeIntegration = internalAction({
       },
     );
 
-    return result;
+    return toConvexJsonValue(result);
   },
 });
 

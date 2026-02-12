@@ -2,6 +2,11 @@
 
 import { v } from 'convex/values';
 
+import type { GenerateDocxResult } from './generate_docx';
+import type { GenerateDocxFromTemplateResult } from './generate_docx_from_template';
+import type { GeneratePptxResult } from './generate_pptx';
+import type { GenerateDocumentResult } from './types';
+
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
@@ -116,7 +121,7 @@ export const generateDocument = internalAction({
     extraCss: v.optional(v.string()),
     wrapInTemplate: v.optional(v.boolean()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<GenerateDocumentResult> => {
     return await DocumentsHelpers.generateDocument(ctx, args);
   },
 });
@@ -128,7 +133,7 @@ export const generatePptx = internalAction({
     branding: pptxBrandingValidator,
     templateStorageId: v.id('_storage'),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<GeneratePptxResult> => {
     return await DocumentsHelpers.generatePptx(ctx, args);
   },
 });
@@ -138,7 +143,7 @@ export const generateDocx = internalAction({
     fileName: v.string(),
     content: docxContentValidator,
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<GenerateDocxResult> => {
     return await DocumentsHelpers.generateDocx(ctx, args);
   },
 });
@@ -149,7 +154,7 @@ export const generateDocxFromTemplate = internalAction({
     content: docxContentValidator,
     templateStorageId: v.id('_storage'),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<GenerateDocxFromTemplateResult> => {
     return await DocumentsHelpers.generateDocxFromTemplate(ctx, args);
   },
 });
@@ -177,7 +182,7 @@ export const checkRagJobStatus = internalAction({
     attempt: v.number(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const maxAttempts = 50;
 
     const document = await ctx.runQuery(
@@ -308,7 +313,7 @@ export const deleteDocumentFromRag = internalAction({
     documentId: v.string(),
   },
   returns: v.null(),
-  handler: async (_ctx, args) => {
+  handler: async (_ctx, args): Promise<null> => {
     const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
 
     try {
@@ -342,7 +347,7 @@ export const reindexDocumentRag = internalAction({
     documentId: v.id('documents'),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
 
     // Step 1: Delete document from RAG

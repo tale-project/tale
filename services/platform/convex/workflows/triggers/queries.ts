@@ -27,7 +27,7 @@ export async function getActiveWorkflowVersion(
 
 export const getSchedules = query({
   args: { workflowRootId: v.id('wfDefinitions') },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Doc<'wfSchedules'>[]> => {
     const results: Doc<'wfSchedules'>[] = [];
     for await (const schedule of ctx.db
       .query('wfSchedules')
@@ -42,7 +42,22 @@ export const getSchedules = query({
 
 export const getWebhooks = query({
   args: { workflowRootId: v.id('wfDefinitions') },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    Array<{
+      _id: Id<'wfWebhooks'>;
+      _creationTime: number;
+      organizationId: string;
+      workflowRootId: Id<'wfDefinitions'>;
+      token: string;
+      isActive: boolean;
+      lastTriggeredAt?: number;
+      createdAt: number;
+      createdBy?: string;
+    }>
+  > => {
     const results: Array<{
       _id: Id<'wfWebhooks'>;
       _creationTime: number;
@@ -77,7 +92,23 @@ export const getWebhooks = query({
 
 export const getApiKeys = query({
   args: { workflowRootId: v.id('wfDefinitions') },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    Array<{
+      _id: Id<'wfApiKeys'>;
+      _creationTime: number;
+      organizationId: string;
+      workflowRootId: Id<'wfDefinitions'>;
+      name: string;
+      keyPrefix: string;
+      isActive: boolean;
+      expiresAt?: number;
+      createdAt: number;
+      createdBy?: string;
+    }>
+  > => {
     const results: Array<{
       _id: Id<'wfApiKeys'>;
       _creationTime: number;
@@ -114,7 +145,7 @@ export const getApiKeys = query({
 
 export const getEventSubscriptions = query({
   args: { workflowRootId: v.id('wfDefinitions') },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Doc<'wfEventSubscriptions'>[]> => {
     const results: Doc<'wfEventSubscriptions'>[] = [];
     for await (const sub of ctx.db
       .query('wfEventSubscriptions')
@@ -131,7 +162,7 @@ export const getTriggerLogs = query({
   args: {
     workflowRootId: v.id('wfDefinitions'),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Doc<'wfTriggerLogs'>[]> => {
     const results: Doc<'wfTriggerLogs'>[] = [];
     for await (const log of ctx.db
       .query('wfTriggerLogs')

@@ -148,7 +148,7 @@ export function ExecutionsClient({
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex codegen TS2589 collapses query return type
   const allExecutions = useMemo(
-    () => (executionsResult?.page ?? []),
+    () => executionsResult?.page ?? [],
     [executionsResult],
   );
 

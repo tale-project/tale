@@ -1,5 +1,6 @@
 import { v, type Infer } from 'convex/values';
 
+import type { Id } from '../../_generated/dataModel';
 import type { IntegrationOperationMetadata } from '../../approvals/types';
 
 import {

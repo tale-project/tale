@@ -5,6 +5,8 @@ import { useCallback } from 'react';
 import type { WfAutomation } from '@/lib/collections/entities/wf-automations';
 import type { WfStep } from '@/lib/collections/entities/wf-steps';
 
+import { toId } from '@/lib/utils/type-guards';
+
 export function useCreateStep(collection: Collection<WfStep, string>) {
   return useCallback(
     async (args: {
@@ -19,10 +21,10 @@ export function useCreateStep(collection: Collection<WfStep, string>) {
     }) => {
       const tx = collection.insert(
         {
-          _id: `temp-${crypto.randomUUID()}`,
+          _id: toId<'wfStepDefs'>(`temp-${crypto.randomUUID()}`),
           _creationTime: 0,
           organizationId: '',
-          wfDefinitionId: args.wfDefinitionId,
+          wfDefinitionId: toId<'wfDefinitions'>(args.wfDefinitionId),
           stepSlug: args.stepSlug,
           name: args.name,
           stepType: args.stepType,

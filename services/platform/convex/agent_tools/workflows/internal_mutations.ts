@@ -1,7 +1,7 @@
 import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import type { Doc } from '../../_generated/dataModel';
+import type { Doc, Id } from '../../_generated/dataModel';
 import type { WorkflowCreationMetadata } from '../../approvals/types';
 
 import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
@@ -17,7 +17,7 @@ export const updateWorkflowApprovalWithResult = internalMutation({
     createdWorkflowId: v.union(v.id('wfDefinitions'), v.null()),
     executionError: v.union(v.string(), v.null()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<void> => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) return;
 
@@ -47,7 +47,7 @@ export const saveSystemMessage = internalMutation({
     threadId: v.string(),
     content: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<void> => {
     await saveMessage(ctx, components.agent, {
       threadId: args.threadId,
       message: { role: 'system', content: args.content },
@@ -87,7 +87,7 @@ export const createWorkflowCreationApproval = internalMutation({
     threadId: v.optional(v.string()),
     messageId: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Id<'approvals'>> => {
     const metadata: WorkflowCreationMetadata = {
       workflowName: args.workflowName,
       workflowDescription: args.workflowDescription,

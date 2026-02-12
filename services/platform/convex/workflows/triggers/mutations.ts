@@ -1,5 +1,7 @@
 import { v } from 'convex/values';
 
+import type { Id } from '../../_generated/dataModel';
+
 import { mutation } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import { getOrganizationMember } from '../../lib/rls';
@@ -14,7 +16,7 @@ export const createSchedule = mutation({
     timezone: v.string(),
   },
   returns: v.id('wfSchedules'),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Id<'wfSchedules'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -49,7 +51,7 @@ export const updateSchedule = mutation({
     timezone: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -81,7 +83,7 @@ export const toggleSchedule = mutation({
     isActive: v.boolean(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -102,7 +104,7 @@ export const toggleSchedule = mutation({
 export const deleteSchedule = mutation({
   args: { scheduleId: v.id('wfSchedules') },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -129,7 +131,10 @@ export const createWebhook = mutation({
     webhookId: v.id('wfWebhooks'),
     token: v.string(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ webhookId: Id<'wfWebhooks'>; token: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -163,7 +168,7 @@ export const createWebhook = mutation({
 export const deleteWebhook = mutation({
   args: { webhookId: v.id('wfWebhooks') },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -187,7 +192,7 @@ export const toggleWebhook = mutation({
     isActive: v.boolean(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -216,7 +221,10 @@ export const createApiKey = mutation({
     keyId: v.id('wfApiKeys'),
     key: v.string(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ keyId: Id<'wfApiKeys'>; key: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -255,7 +263,7 @@ export const createApiKey = mutation({
 export const revokeApiKey = mutation({
   args: { keyId: v.id('wfApiKeys') },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -276,7 +284,7 @@ export const revokeApiKey = mutation({
 export const deleteApiKey = mutation({
   args: { keyId: v.id('wfApiKeys') },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -302,7 +310,7 @@ export const createEventSubscription = mutation({
     eventFilter: v.optional(v.record(v.string(), v.string())),
   },
   returns: v.id('wfEventSubscriptions'),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Id<'wfEventSubscriptions'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -360,7 +368,7 @@ export const updateEventSubscription = mutation({
     eventFilter: v.optional(v.record(v.string(), v.string())),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -392,7 +400,7 @@ export const toggleEventSubscription = mutation({
     isActive: v.boolean(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -413,7 +421,7 @@ export const toggleEventSubscription = mutation({
 export const deleteEventSubscription = mutation({
   args: { subscriptionId: v.id('wfEventSubscriptions') },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 

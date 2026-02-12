@@ -21,7 +21,10 @@ export const generateCronExpression = action({
     cronExpression: v.string(),
     description: v.string(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ cronExpression: string; description: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');

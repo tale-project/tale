@@ -11,7 +11,7 @@
 
 import { v } from 'convex/values';
 
-import type { Id, Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
 import { mutation } from '../_generated/server';
@@ -139,7 +139,7 @@ export const createCustomAgent = mutation({
     ...agentFieldsValidator,
   },
   returns: v.id('customAgents'),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Id<'customAgents'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -193,7 +193,7 @@ export const updateCustomAgent = mutation({
     teamId: v.optional(v.string()),
     sharedWithTeamIds: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -222,6 +222,7 @@ export const updateCustomAgent = mutation({
     syncRagSearchTool(cleanUpdate, args.knowledgeEnabled, draft);
 
     await ctx.db.patch(draft._id, cleanUpdate);
+    return null;
   },
 });
 
@@ -235,7 +236,7 @@ export const updateCustomAgentMetadata = mutation({
     teamId: v.optional(v.string()),
     sharedWithTeamIds: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -257,6 +258,7 @@ export const updateCustomAgentMetadata = mutation({
     }
 
     await ctx.db.patch(draft._id, cleanUpdate);
+    return null;
   },
 });
 
@@ -264,7 +266,7 @@ export const deleteCustomAgent = mutation({
   args: {
     customAgentId: v.id('customAgents'),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -285,6 +287,7 @@ export const deleteCustomAgent = mutation({
     }
 
     await ctx.db.patch(draft._id, { isActive: false, status: 'archived' });
+    return null;
   },
 });
 
@@ -295,7 +298,7 @@ export const duplicateCustomAgent = mutation({
     displayName: v.optional(v.string()),
   },
   returns: v.id('customAgents'),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Id<'customAgents'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -329,7 +332,7 @@ export const publishCustomAgent = mutation({
   args: {
     customAgentId: v.id('customAgents'),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -354,6 +357,7 @@ export const publishCustomAgent = mutation({
       publishedAt: Date.now(),
       publishedBy: String(authUser._id),
     });
+    return null;
   },
 });
 
@@ -361,7 +365,7 @@ export const unpublishCustomAgent = mutation({
   args: {
     customAgentId: v.id('customAgents'),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -383,6 +387,7 @@ export const unpublishCustomAgent = mutation({
     }
 
     await ctx.db.patch(activeVersion._id, { status: 'archived' });
+    return null;
   },
 });
 
@@ -391,7 +396,7 @@ export const activateCustomAgentVersion = mutation({
     customAgentId: v.id('customAgents'),
     targetVersion: v.number(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -436,6 +441,7 @@ export const activateCustomAgentVersion = mutation({
     }
 
     await ctx.db.patch(targetVersion._id, { status: 'active' });
+    return null;
   },
 });
 
@@ -448,7 +454,10 @@ export const createDraftFromVersion = mutation({
     draftId: v.id('customAgents'),
     isExisting: v.boolean(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ draftId: Id<'customAgents'>; isExisting: boolean }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 

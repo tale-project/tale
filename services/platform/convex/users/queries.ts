@@ -17,7 +17,7 @@ import { hasAnyUsers as hasAnyUsersHelper } from './helpers';
 export const hasAnyUsers = query({
   args: {},
   returns: v.boolean(),
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<boolean> => {
     return await hasAnyUsersHelper(ctx);
   },
 });
@@ -36,7 +36,13 @@ export const getCurrentUser = query({
     }),
     v.null(),
   ),
-  handler: async (ctx) => {
+  handler: async (
+    ctx,
+  ): Promise<{
+    userId: string;
+    email?: string;
+    name?: string;
+  } | null> => {
     return await getAuthUserIdentity(ctx);
   },
 });
