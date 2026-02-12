@@ -285,28 +285,19 @@ export function IntegrationManageDialog({
     [generateUploadUrl, updateIcon, integration._id, t],
   );
 
-  const buildUpdateArgs = useCallback(() => {
+  const buildCredentialPayload = useCallback(() => {
     const authMethod = selectedAuthMethod;
-    const updateArgs: Record<string, unknown> = {
-      integrationId: integration._id,
-      isActive: true,
-      status: 'active',
-    };
-
-    // Include authMethod when switching to a different method
-    if (selectedAuthMethod !== integration.authMethod) {
-      updateArgs.authMethod = selectedAuthMethod;
-    }
+    const payload: Record<string, unknown> = {};
 
     if (authMethod === 'api_key') {
       const keyBinding = secretBindings.find((b) => SENSITIVE_KEYS.has(b));
       const keyValue = credentials[keyBinding ?? secretBindings[0]];
       if (keyValue?.trim()) {
-        updateArgs.apiKeyAuth = { key: keyValue };
+        payload.apiKeyAuth = { key: keyValue };
       }
     } else if (authMethod === 'basic_auth') {
       if (credentials['username']?.trim() || credentials['password']?.trim()) {
-        updateArgs.basicAuth = {
+        payload.basicAuth = {
           username:
             credentials['username']?.trim() ||
             integration.basicAuth?.username ||
@@ -316,7 +307,7 @@ export function IntegrationManageDialog({
       }
     } else if (authMethod === 'oauth2') {
       if (credentials['accessToken']?.trim()) {
-        updateArgs.oauth2Auth = {
+        payload.oauth2Auth = {
           accessToken: credentials['accessToken'],
           refreshToken: credentials['refreshToken']?.trim() || undefined,
         };
@@ -335,34 +326,52 @@ export function IntegrationManageDialog({
       }
     }
     if (Object.keys(connectionUpdates).length > 0) {
-      updateArgs.connectionConfig = {
+      payload.connectionConfig = {
         ...integration.connectionConfig,
         ...connectionUpdates,
       };
     }
 
+    return payload;
+  }, [credentials, selectedAuthMethod, integration, secretBindings]);
+
+  const buildSqlConnectionPayload = useCallback(() => {
+    const existing = integration.sqlConnectionConfig;
+    return {
+      engine: existing?.engine ?? 'mssql',
+      server: sqlConfig['server']?.trim() || existing?.server,
+      port: parsePort(sqlConfig['port']) ?? existing?.port,
+      database: sqlConfig['database']?.trim() || existing?.database,
+      readOnly: existing?.readOnly,
+      options: existing?.options,
+      security: existing?.security,
+    };
+  }, [sqlConfig, integration.sqlConnectionConfig]);
+
+  const buildUpdateArgs = useCallback(() => {
+    const updateArgs: Record<string, unknown> = {
+      integrationId: integration._id,
+      isActive: true,
+      status: 'active',
+      ...buildCredentialPayload(),
+    };
+
+    if (selectedAuthMethod !== integration.authMethod) {
+      updateArgs.authMethod = selectedAuthMethod;
+    }
+
     if (isSql && hasSqlConfigChanges) {
-      const existing = integration.sqlConnectionConfig;
-      updateArgs.sqlConnectionConfig = {
-        engine: existing?.engine ?? 'mssql',
-        server: sqlConfig['server']?.trim() || existing?.server,
-        port: parsePort(sqlConfig['port']) ?? existing?.port,
-        database: sqlConfig['database']?.trim() || existing?.database,
-        readOnly: existing?.readOnly,
-        options: existing?.options,
-        security: existing?.security,
-      };
+      updateArgs.sqlConnectionConfig = buildSqlConnectionPayload();
     }
 
     return updateArgs;
   }, [
-    credentials,
-    sqlConfig,
     isSql,
     hasSqlConfigChanges,
     selectedAuthMethod,
     integration,
-    secretBindings,
+    buildCredentialPayload,
+    buildSqlConnectionPayload,
   ]);
 
   const handleTestConnection = useCallback(async () => {
@@ -370,145 +379,41 @@ export function IntegrationManageDialog({
     setTestResult(null);
 
     try {
-      if (isSql && hasChanges) {
-        // SQL: test first with inline credentials, save only on success
-        const updateArgs = buildUpdateArgs();
-        const testArgs: Parameters<typeof testConnection>[0] = {
-          integrationId: integration._id,
-        };
+      const testArgs: Parameters<typeof testConnection>[0] = {
+        integrationId: integration._id,
+      };
 
-        // Build inline SQL config for pre-save testing
-        if (hasSqlConfigChanges) {
-          const existing = integration.sqlConnectionConfig;
-          testArgs.sqlConnectionConfig = {
-            engine: existing?.engine ?? 'mssql',
-            server: sqlConfig['server']?.trim() || existing?.server,
-            port: parsePort(sqlConfig['port']) ?? existing?.port,
-            database: sqlConfig['database']?.trim() || existing?.database,
-            readOnly: existing?.readOnly,
-            options: existing?.options,
-            security: existing?.security,
-          };
+      if (hasChanges) {
+        Object.assign(testArgs, buildCredentialPayload());
+
+        if (isSql && hasSqlConfigChanges) {
+          testArgs.sqlConnectionConfig = buildSqlConnectionPayload();
         }
-        if (
-          credentials['username']?.trim() ||
-          credentials['password']?.trim()
-        ) {
-          testArgs.basicAuth = {
-            username:
-              credentials['username']?.trim() ||
-              integration.basicAuth?.username ||
-              '',
-            password: credentials['password']?.trim() || '',
-          };
-        }
-
-        const result = await testConnection(testArgs);
-
-        if (result.success) {
-          // Test passed — now persist to DB
-          await updateIntegration(
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic payload
-            updateArgs as Parameters<typeof updateIntegration>[0],
-          );
-          setOptimisticActive(true);
-          setCredentials({});
-          setSqlConfig({});
-        }
-
-        setTestResult({
-          success: result.success,
-          message:
-            result.message ??
-            (result.success
-              ? t('integrations.connectionSuccessful')
-              : t('integrations.connectionTestFailed')),
-        });
-      } else {
-        // REST: test first with inline credentials, save only on success
-        const testArgs: Parameters<typeof testConnection>[0] = {
-          integrationId: integration._id,
-        };
-
-        if (hasChanges) {
-          // Build inline REST credentials for pre-save testing
-          const authMethod = selectedAuthMethod;
-
-          if (authMethod === 'api_key') {
-            const keyBinding = secretBindings.find((b) =>
-              SENSITIVE_KEYS.has(b),
-            );
-            const keyValue = credentials[keyBinding ?? secretBindings[0]];
-            if (keyValue?.trim()) {
-              testArgs.apiKeyAuth = { key: keyValue };
-            }
-          } else if (authMethod === 'basic_auth') {
-            if (
-              credentials['username']?.trim() ||
-              credentials['password']?.trim()
-            ) {
-              testArgs.basicAuth = {
-                username:
-                  credentials['username']?.trim() ||
-                  integration.basicAuth?.username ||
-                  '',
-                password: credentials['password']?.trim() || '',
-              };
-            }
-          } else if (authMethod === 'oauth2') {
-            if (credentials['accessToken']?.trim()) {
-              testArgs.oauth2Auth = {
-                accessToken: credentials['accessToken'],
-                refreshToken: credentials['refreshToken']?.trim() || undefined,
-              };
-            }
-          }
-
-          // Non-sensitive connection config values (e.g. apiEndpoint, domain)
-          const connectionUpdates: Record<string, string> = {};
-          const authHandledKeys = new Set(AUTH_HANDLED_KEYS[authMethod] ?? []);
-          for (const binding of secretBindings) {
-            if (
-              !SENSITIVE_KEYS.has(binding) &&
-              !authHandledKeys.has(binding) &&
-              credentials[binding]?.trim()
-            ) {
-              connectionUpdates[binding] = credentials[binding];
-            }
-          }
-          if (Object.keys(connectionUpdates).length > 0) {
-            testArgs.connectionConfig = {
-              ...integration.connectionConfig,
-              ...connectionUpdates,
-            };
-          }
-        }
-
-        const result = await testConnection(testArgs);
-
-        if (result.success && hasChanges) {
-          // Test passed — now persist to DB
-          const updateArgs = buildUpdateArgs();
-          await updateIntegration(
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic payload
-            updateArgs as Parameters<typeof updateIntegration>[0],
-          );
-          setOptimisticActive(true);
-          setCredentials({});
-          setSqlConfig({});
-        } else if (result.success) {
-          setOptimisticActive(true);
-        }
-
-        setTestResult({
-          success: result.success,
-          message:
-            result.message ??
-            (result.success
-              ? t('integrations.connectionSuccessful')
-              : t('integrations.connectionTestFailed')),
-        });
       }
+
+      const result = await testConnection(testArgs);
+
+      if (result.success && hasChanges) {
+        const updateArgs = buildUpdateArgs();
+        await updateIntegration(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic payload
+          updateArgs as Parameters<typeof updateIntegration>[0],
+        );
+        setOptimisticActive(true);
+        setCredentials({});
+        setSqlConfig({});
+      } else if (result.success) {
+        setOptimisticActive(true);
+      }
+
+      setTestResult({
+        success: result.success,
+        message:
+          result.message ??
+          (result.success
+            ? t('integrations.connectionSuccessful')
+            : t('integrations.connectionTestFailed')),
+      });
     } catch (error) {
       setTestResult({
         success: false,
@@ -524,11 +429,9 @@ export function IntegrationManageDialog({
     isSql,
     hasChanges,
     hasSqlConfigChanges,
-    sqlConfig,
-    credentials,
-    secretBindings,
-    selectedAuthMethod,
     integration,
+    buildCredentialPayload,
+    buildSqlConnectionPayload,
     buildUpdateArgs,
     updateIntegration,
     testConnection,
