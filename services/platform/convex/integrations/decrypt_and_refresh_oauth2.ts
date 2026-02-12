@@ -77,10 +77,10 @@ export async function decryptAndRefreshIntegrationOAuth2(
     );
   }
 
-  const expiredAgo = currentTime - (oauth2Auth.tokenExpiry ?? 0);
+  const expiresIn = (oauth2Auth.tokenExpiry ?? 0) - currentTime;
   console.log(
     `[Integration OAuth2] Refreshing token for integration ${integration._id} ` +
-      `(expired ${expiredAgo}s ago)`,
+      `(${expiresIn > 0 ? `expires in ${expiresIn}s` : `expired ${-expiresIn}s ago`})`,
   );
 
   const [refreshToken, clientSecret] = await Promise.all([
