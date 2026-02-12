@@ -113,7 +113,10 @@ export async function executeIntegrationImpl(
       if (httpRequests.length > 0) {
         for (let i = 0; i < httpRequests.length; i++) {
           try {
-            const response = await executeHttpRequest(httpRequests[i].request);
+            const response = await executeHttpRequest(
+              httpRequests[i].request,
+              params.allowedHosts,
+            );
             httpRequests[i].callback(response);
           } catch (e) {
             httpRequests[i].errorCallback(
