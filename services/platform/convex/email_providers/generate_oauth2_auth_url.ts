@@ -169,9 +169,33 @@ export async function generateOAuth2AuthUrl(
   debugLog('Received redirectUri from client:', args.redirectUri);
   debugLog('Metadata redirectUri:', metadata?.redirectUri);
 
-  const finalRedirectUri =
+  const candidateRedirectUri =
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     args.redirectUri || (metadata?.redirectUri as string | undefined);
+  debugLog('Candidate redirectUri:', candidateRedirectUri);
+
+  // Validate redirectUri origin against SITE_URL to prevent open redirect attacks
+  let finalRedirectUri: string | undefined;
+  if (candidateRedirectUri) {
+    try {
+      const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
+      const allowedOrigin = new URL(siteUrl).origin;
+      const candidateOrigin = new URL(candidateRedirectUri).origin;
+
+      if (candidateOrigin !== allowedOrigin) {
+        console.warn(
+          '[OAuth2 Server] Rejected redirectUri with disallowed origin:',
+          candidateOrigin,
+        );
+      } else {
+        finalRedirectUri = candidateRedirectUri;
+      }
+    } catch {
+      console.warn(
+        '[OAuth2 Server] Rejected redirectUri with invalid URL format',
+      );
+    }
+  }
   debugLog('Final redirectUri to use:', finalRedirectUri);
 
   // Persist the redirectUri/origin for use during the callback (when Host may be 0.0.0.0)
