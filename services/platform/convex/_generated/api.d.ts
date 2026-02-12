@@ -137,6 +137,7 @@ import type * as auth from "../auth.js";
 import type * as constants from "../constants.js";
 import type * as conversations_actions from "../conversations/actions.js";
 import type * as conversations_add_message_to_conversation from "../conversations/add_message_to_conversation.js";
+import type * as conversations_build_threading_headers from "../conversations/build_threading_headers.js";
 import type * as conversations_bulk_close_conversations from "../conversations/bulk_close_conversations.js";
 import type * as conversations_bulk_reopen_conversations from "../conversations/bulk_reopen_conversations.js";
 import type * as conversations_close_conversation from "../conversations/close_conversation.js";
@@ -999,6 +1000,7 @@ declare const fullApi: ApiFromModules<{
   constants: typeof constants;
   "conversations/actions": typeof conversations_actions;
   "conversations/add_message_to_conversation": typeof conversations_add_message_to_conversation;
+  "conversations/build_threading_headers": typeof conversations_build_threading_headers;
   "conversations/bulk_close_conversations": typeof conversations_bulk_close_conversations;
   "conversations/bulk_reopen_conversations": typeof conversations_bulk_reopen_conversations;
   "conversations/close_conversation": typeof conversations_close_conversation;

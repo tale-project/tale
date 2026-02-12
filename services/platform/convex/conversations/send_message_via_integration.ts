@@ -4,6 +4,7 @@ import type { MutationCtx } from '../_generated/server';
 import { internal } from '../_generated/api';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
+import { buildThreadingHeaders } from './build_threading_headers';
 
 export interface SendMessageViaIntegrationArgs {
   conversationId: Id<'conversations'>;
@@ -32,6 +33,24 @@ export async function sendMessageViaIntegration(
     throw new Error('Conversation does not belong to organization');
   }
 
+  // Resolve threading headers from the conversation's message history
+  const latestMessage = !args.inReplyTo
+    ? await ctx.db
+        .query('conversationMessages')
+        .withIndex('by_conversationId_and_deliveredAt', (q) =>
+          q.eq('conversationId', args.conversationId),
+        )
+        .order('desc')
+        .first()
+    : null;
+
+  const { inReplyTo, references } = buildThreadingHeaders({
+    inReplyTo: args.inReplyTo,
+    references: args.references,
+    latestMessageExternalId: latestMessage?.externalMessageId ?? undefined,
+    conversationExternalMessageId: conversation.externalMessageId,
+  });
+
   const now = Date.now();
   const messageMetadata: Record<string, unknown> = {
     sender: 'integration',
@@ -40,8 +59,8 @@ export async function sendMessageViaIntegration(
     subject: args.subject,
     integrationName: args.integrationName,
     ...(args.cc && { cc: args.cc }),
-    ...(args.inReplyTo && { inReplyTo: args.inReplyTo }),
-    ...(args.references && { references: args.references }),
+    ...(inReplyTo && { inReplyTo }),
+    ...(references && { references }),
   };
 
   const messageId = await ctx.db.insert('conversationMessages', {
@@ -67,6 +86,8 @@ export async function sendMessageViaIntegration(
       subject: args.subject,
       body: args.html || args.text || args.content,
       contentType: args.html ? 'HTML' : 'Text',
+      inReplyTo,
+      references,
     },
   );
 

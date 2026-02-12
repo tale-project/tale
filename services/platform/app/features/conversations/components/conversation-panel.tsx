@@ -41,14 +41,6 @@ interface AttachedFile {
   type: 'image' | 'video' | 'audio' | 'document';
 }
 
-interface UploadedAttachment {
-  storageId: string;
-  name: string;
-  size: number;
-  type: string;
-  contentType: string;
-}
-
 interface ConversationPanelProps {
   selectedConversationId: string | null;
   onSelectedConversationChange: (conversationId: string | null) => void;
@@ -131,56 +123,35 @@ export function ConversationPanel({
     message: string,
     attachments?: AttachedFile[],
   ) => {
-    console.log('handleSaveMessage called with message:', message);
-    console.log('Attachments:', attachments);
-
     if (!conversation) {
-      console.log('No conversation found');
       return;
     }
 
-    // Handle file uploads to Convex storage if there are attachments
-    let uploadedAttachments: UploadedAttachment[] | undefined;
-
+    // Upload attachments to Convex storage (stored for future reference)
     if (attachments && attachments.length > 0) {
       try {
-        // Validate all attachments have files first
         const validAttachments = attachments.filter((a) => a.file);
         if (validAttachments.length !== attachments.length) {
           throw new Error(tConversations('panel.invalidFileAttachment'));
         }
 
-        // Generate all upload URLs in parallel first (avoids waterfall)
         const uploadUrls = await Promise.all(
           validAttachments.map(() => generateUploadUrl()),
         );
 
-        // Then upload all files in parallel
-        uploadedAttachments = await Promise.all(
+        await Promise.all(
           validAttachments.map(async (attachment, index) => {
             const file = attachment.file;
             if (!file)
               throw new Error(tConversations('panel.invalidFileAttachment'));
 
-            const response = await fetch(uploadUrls[index], {
+            await fetch(uploadUrls[index], {
               method: 'POST',
               headers: { 'Content-Type': file.type },
               body: file,
             });
-
-            const { storageId } = await response.json();
-
-            return {
-              storageId,
-              name: file.name,
-              size: file.size,
-              type: attachment.type,
-              contentType: file.type,
-            };
           }),
         );
-
-        console.log('Files uploaded successfully:', uploadedAttachments);
       } catch (error) {
         console.error('Error uploading attachments:', error);
         toast({
@@ -191,48 +162,21 @@ export function ConversationPanel({
       }
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata field uses v.any()
-    const metadata = conversation.metadata as
-      | Record<string, unknown>
-      | undefined;
+    const customerEmail = conversation.customer.email;
 
-    // For inbound conversations, metadata.from contains the customer's email
-    // We need to reply TO the customer (metadata.from)
-    // The sender email will be determined by the email provider in the backend
-    let customerEmail = '';
-    if (metadata?.from) {
-      if (typeof metadata.from === 'string') {
-        customerEmail = metadata.from;
-      } else if (Array.isArray(metadata.from) && metadata.from.length > 0) {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any()
-        const fromObj = metadata.from[0] as { address?: string; name?: string };
-        customerEmail = fromObj.address || '';
-      }
+    if (!customerEmail || customerEmail === 'unknown@example.com') {
+      console.error('No customer email found in conversation');
+      throw new Error(tConversations('panel.customerEmailNotFound'));
     }
 
     const subject =
       conversation.subject || tConversations('panel.defaultSubject');
 
-    // For email threading, use the conversation's external message ID
-    const inReplyTo = conversation.externalMessageId;
-    const references = inReplyTo ? [inReplyTo] : undefined;
-
-    if (!customerEmail) {
-      console.error('No customer email found in conversation metadata');
-      throw new Error(tConversations('panel.customerEmailNotFound'));
-    }
-
     const replySubject = tConversations('panel.replySubjectPrefix', {
       subject,
     });
-    console.log('Sending message via sendMessageViaIntegration mutation', {
-      conversationId: conversation._id,
-      to: [customerEmail],
-      subject: replySubject,
-      attachments: uploadedAttachments,
-    });
 
-    // Send message via integration (backend loads connector + secrets automatically)
+    // Send message via integration (backend resolves threading headers + connector + secrets)
     await sendMessageViaIntegration({
       conversationId: toId<'conversations'>(conversation._id),
       organizationId: conversation.organizationId,
@@ -242,11 +186,8 @@ export function ConversationPanel({
       subject: replySubject,
       html: message,
       text: message.replace(/<[^>]*>/g, ''),
-      inReplyTo,
-      references,
     });
 
-    console.log('Message sent successfully via integration');
     // Convex will automatically update the conversation reactively
   };
 

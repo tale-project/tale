@@ -18,6 +18,8 @@ export const sendMessageViaIntegrationAction = internalAction({
     subject: v.string(),
     body: v.string(),
     contentType: v.optional(v.string()),
+    inReplyTo: v.optional(v.string()),
+    references: v.optional(v.array(v.string())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -60,6 +62,14 @@ export const sendMessageViaIntegrationAction = internalAction({
         opParams.cc = args.cc;
       }
 
+      if (args.inReplyTo) {
+        opParams.inReplyTo = args.inReplyTo;
+      }
+
+      if (args.references && args.references.length > 0) {
+        opParams.references = args.references;
+      }
+
       const result = await ctx.runAction(
         internal.node_only.integration_sandbox.internal_actions
           .executeIntegration,
@@ -78,14 +88,44 @@ export const sendMessageViaIntegrationAction = internalAction({
         throw new Error(`Integration send failed: ${result.error}`);
       }
 
+      // Extract internetMessageId returned by the connector (draft→send pattern)
+      const resultData =
+        result.result &&
+        typeof result.result === 'object' &&
+        'data' in result.result
+          ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic connector result
+            (result.result.data as Record<string, unknown>)
+          : undefined;
+
+      const internetMessageId =
+        resultData && typeof resultData.internetMessageId === 'string'
+          ? resultData.internetMessageId
+          : undefined;
+
       await ctx.runMutation(
         internal.conversations.internal_mutations.updateConversationMessage,
         {
           messageId: args.messageId,
+          externalMessageId: internetMessageId,
           deliveryState: 'sent',
           sentAt: Date.now(),
         },
       );
+
+      // Schedule a delivery check after 60 seconds to confirm the message
+      // actually appeared in the mailbox (sent → delivered).
+      if (internetMessageId) {
+        await ctx.scheduler.runAfter(
+          60_000,
+          internal.conversations.internal_actions.checkMessageDeliveryAction,
+          {
+            messageId: args.messageId,
+            organizationId: args.organizationId,
+            integrationName: args.integrationName,
+            internetMessageId,
+          },
+        );
+      }
     } catch (error) {
       console.error(
         '[sendMessageViaIntegrationAction] error:',
@@ -101,6 +141,124 @@ export const sendMessageViaIntegrationAction = internalAction({
             error: error instanceof Error ? error.message : 'Unknown error',
           },
         },
+      );
+    }
+
+    return null;
+  },
+});
+
+const DELIVERY_CHECK_DELAY_MS = 60_000;
+const MAX_DELIVERY_CHECK_RETRIES = 5;
+
+export const checkMessageDeliveryAction = internalAction({
+  args: {
+    messageId: v.id('conversationMessages'),
+    organizationId: v.string(),
+    integrationName: v.string(),
+    internetMessageId: v.string(),
+    retryCount: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const retryCount = args.retryCount ?? 0;
+
+    try {
+      const integration = await ctx.runQuery(
+        internal.integrations.internal_queries.getByName,
+        { organizationId: args.organizationId, name: args.integrationName },
+      );
+
+      if (!integration) {
+        console.error(
+          `[checkMessageDelivery] Integration "${args.integrationName}" not found, skipping check`,
+        );
+        return null;
+      }
+
+      let connectorConfig = integration.connector;
+      if (!connectorConfig) {
+        const predefined = getPredefinedIntegration(args.integrationName);
+        if (predefined) {
+          connectorConfig = predefined.connector;
+        }
+      }
+
+      if (!connectorConfig) {
+        console.error(
+          `[checkMessageDelivery] No connector config for "${args.integrationName}", skipping check`,
+        );
+        return null;
+      }
+
+      const secrets = await buildIntegrationSecrets(ctx, integration);
+
+      const result = await ctx.runAction(
+        internal.node_only.integration_sandbox.internal_actions
+          .executeIntegration,
+        {
+          code: connectorConfig.code,
+          operation: 'check_delivery',
+          params: toConvexJsonRecord({
+            internetMessageId: args.internetMessageId,
+          }),
+          variables: {},
+          secrets,
+          allowedHosts: connectorConfig.allowedHosts ?? [],
+          timeoutMs: connectorConfig.timeoutMs ?? 30000,
+        },
+      );
+
+      if (!result.success) {
+        console.error(
+          `[checkMessageDelivery] check_delivery failed: ${result.error}`,
+        );
+        return null;
+      }
+
+      const resultData =
+        result.result &&
+        typeof result.result === 'object' &&
+        'data' in result.result
+          ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic connector result
+            (result.result.data as Record<string, unknown>)
+          : undefined;
+
+      if (resultData?.delivered === true) {
+        await ctx.runMutation(
+          internal.conversations.internal_mutations.updateConversationMessage,
+          {
+            messageId: args.messageId,
+            deliveryState: 'delivered',
+            deliveredAt: Date.now(),
+          },
+        );
+        return null;
+      }
+
+      // Not yet delivered — retry with exponential backoff
+      if (retryCount < MAX_DELIVERY_CHECK_RETRIES) {
+        const delay = DELIVERY_CHECK_DELAY_MS * Math.pow(2, retryCount);
+        await ctx.scheduler.runAfter(
+          delay,
+          internal.conversations.internal_actions.checkMessageDeliveryAction,
+          {
+            messageId: args.messageId,
+            organizationId: args.organizationId,
+            integrationName: args.integrationName,
+            internetMessageId: args.internetMessageId,
+            retryCount: retryCount + 1,
+          },
+        );
+      } else {
+        console.warn(
+          `[checkMessageDelivery] Message ${args.internetMessageId} not confirmed after ${MAX_DELIVERY_CHECK_RETRIES} retries`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        '[checkMessageDelivery] error:',
+        error instanceof Error ? error.message : error,
       );
     }
 

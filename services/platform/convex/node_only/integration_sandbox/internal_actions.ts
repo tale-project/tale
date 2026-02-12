@@ -96,21 +96,35 @@ export async function executeIntegrationImpl(
         }
       | undefined;
 
-    // Helper: run a connector method with two-pass HTTP pattern
+    // Helper: run a connector method with multi-pass HTTP pattern.
+    // Each pass: run the function → collect pending HTTP calls → execute them.
+    // Repeat until no new pending calls are generated (all results cached).
+    // Supports dependent sequential calls (e.g. search → reply based on result).
+    const MAX_HTTP_PASSES = 10;
+
     async function runWithHttpPasses(
       fn: (ctx: unknown) => unknown,
       ctx: Record<string, unknown>,
     ): Promise<unknown> {
       let result: unknown;
-      try {
-        result = fn(ctx);
-      } catch (e) {
-        if (httpRequests.length === 0) {
-          throw e;
-        }
-      }
 
-      if (httpRequests.length > 0) {
+      for (let pass = 0; pass < MAX_HTTP_PASSES; pass++) {
+        httpApiState.pendingHttpCount = 0;
+        httpRequests.length = 0;
+
+        const currentCtx =
+          pass === 0 ? ctx : { ...ctx, http: createHttpApi(httpApiState) };
+
+        try {
+          result = fn(currentCtx);
+        } catch (e) {
+          if (httpRequests.length === 0) {
+            throw e;
+          }
+        }
+
+        if (httpRequests.length === 0) break;
+
         for (let i = 0; i < httpRequests.length; i++) {
           try {
             const response = await executeHttpRequest(
@@ -124,15 +138,6 @@ export async function executeIntegrationImpl(
             );
           }
         }
-
-        httpApiState.pendingHttpCount = 0;
-        httpRequests.length = 0;
-
-        const ctx2 = {
-          ...ctx,
-          http: createHttpApi(httpApiState),
-        };
-        result = fn(ctx2);
       }
 
       return result;
