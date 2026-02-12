@@ -106,12 +106,18 @@ var connector = {
   },
 };
 
+function escapeODataString(value) {
+  return String(value).replace(/'/g, "''");
+}
+
 function listMessages(http, headers, params) {
   var top = Math.min(params.top || 25, 100);
   var queryParts = ['$top=' + top, '$orderby=receivedDateTime desc'];
 
   if (params.folder) {
-    queryParts.push("$filter=parentFolderId eq '" + params.folder + "'");
+    queryParts.push(
+      "$filter=parentFolderId eq '" + escapeODataString(params.folder) + "'",
+    );
   }
   if (params.select) {
     queryParts.push('$select=' + params.select);
@@ -253,9 +259,9 @@ function listEvents(http, headers, params) {
   if (params.startDateTime && params.endDateTime) {
     queryParts.push(
       "$filter=start/dateTime ge '" +
-        params.startDateTime +
+        escapeODataString(params.startDateTime) +
         "' and end/dateTime le '" +
-        params.endDateTime +
+        escapeODataString(params.endDateTime) +
         "'",
     );
   }
@@ -381,11 +387,11 @@ function listContacts(http, headers, params) {
   if (params.search) {
     queryParts.push(
       "$filter=startsWith(displayName,'" +
-        params.search +
+        escapeODataString(params.search) +
         "') or startsWith(givenName,'" +
-        params.search +
+        escapeODataString(params.search) +
         "') or startsWith(surname,'" +
-        params.search +
+        escapeODataString(params.search) +
         "')",
     );
   }
