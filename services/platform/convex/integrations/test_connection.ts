@@ -129,16 +129,25 @@ async function testRestConnection(
     );
   }
 
-  const hasInlineOverrides = !!(
+  const hasInlineAuthOverrides = !!(
     overrides?.apiKeyAuth ||
     overrides?.basicAuth ||
-    overrides?.oauth2Auth ||
-    overrides?.connectionConfig
+    overrides?.oauth2Auth
   );
+  const hasInlineOverrides =
+    hasInlineAuthOverrides || !!overrides?.connectionConfig;
 
-  const secrets = hasInlineOverrides
-    ? buildInlineSecrets(integration, overrides)
-    : await buildIntegrationSecrets(ctx, integration);
+  let secrets: Record<string, string>;
+
+  if (hasInlineAuthOverrides) {
+    secrets = buildInlineSecrets(integration, overrides);
+  } else if (hasInlineOverrides) {
+    const storedSecrets = await buildIntegrationSecrets(ctx, integration);
+    const configSecrets = buildInlineSecrets(integration, overrides);
+    secrets = { ...storedSecrets, ...configSecrets };
+  } else {
+    secrets = await buildIntegrationSecrets(ctx, integration);
+  }
 
   const result = await ctx.runAction(
     internal.node_only.integration_sandbox.internal_actions.executeIntegration,
