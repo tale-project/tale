@@ -1,7 +1,7 @@
 'use client';
 
 import { Code, Database, Key, Globe, Pencil, Puzzle, Zap } from 'lucide-react';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -36,6 +36,14 @@ export function PreviewStep({ parsedPackage, onIconChange }: PreviewStepProps) {
     () => (iconFile ? URL.createObjectURL(iconFile) : null),
     [iconFile],
   );
+
+  useEffect(() => {
+    return () => {
+      if (iconPreviewUrl) {
+        URL.revokeObjectURL(iconPreviewUrl);
+      }
+    };
+  }, [iconPreviewUrl]);
 
   const handleIconUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
