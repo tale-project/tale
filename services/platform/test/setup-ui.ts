@@ -50,6 +50,28 @@ Element.prototype.hasPointerCapture = vi.fn(() => false);
 Element.prototype.setPointerCapture = vi.fn();
 Element.prototype.releasePointerCapture = vi.fn();
 
+// Polyfill Blob.text() and Blob.arrayBuffer() missing in jsdom
+if (typeof Blob.prototype.text !== 'function') {
+  Blob.prototype.text = function () {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(this);
+    });
+  };
+}
+if (typeof Blob.prototype.arrayBuffer !== 'function') {
+  Blob.prototype.arrayBuffer = function () {
+    return new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(this);
+    });
+  };
+}
+
 // Mock canvas for axe-core icon ligature detection
 HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
   measureText: vi.fn(() => ({ width: 0 })),
