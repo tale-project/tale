@@ -4,7 +4,7 @@
   "description": "Microsoft Graph API integration for Outlook mail, calendar, and contacts",
   "version": 1,
   "authMethod": "oauth2",
-  "supportedAuthMethods": ["oauth2", "api_key"],
+  "supportedAuthMethods": ["oauth2"],
   "secretBindings": ["accessToken"],
   "allowedHosts": ["graph.microsoft.com"],
   "oauth2Config": {
