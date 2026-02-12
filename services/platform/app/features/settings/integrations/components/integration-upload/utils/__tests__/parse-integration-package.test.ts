@@ -31,6 +31,7 @@ const sqlConfig = {
   type: 'sql',
   authMethod: 'basic_auth',
   secretBindings: ['username', 'password'],
+  operations: [{ name: 'list_items', title: 'List items', query: 'SELECT 1' }],
   sqlConnectionConfig: { engine: 'mssql', port: 1433 },
 };
 
