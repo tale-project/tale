@@ -121,6 +121,9 @@ export async function executeIntegrationImpl(
           if (httpRequests.length === 0) {
             throw e;
           }
+          logs.push(
+            `[pass ${pass}] Swallowed error pending HTTP: ${e instanceof Error ? e.message : String(e)}`,
+          );
         }
 
         if (httpRequests.length === 0) break;
