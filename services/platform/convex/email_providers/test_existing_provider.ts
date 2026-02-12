@@ -296,41 +296,46 @@ export async function testExistingProvider(
   debugLog(`Testing connection for provider ${providerId}...`);
 
   let result: TestResult;
+  try {
+    // When sendMethod is 'api', skip SMTP test since Graph API handles sending
+    if (providerData.sendMethod === 'api') {
+      const imapOnlyResult = await deps.testConnection({
+        vendor: providerData.vendor,
+        authMethod: providerData.authMethod,
+        passwordAuth,
+        oauth2Auth,
+        smtpConfig: { host: 'localhost', port: 587, secure: false },
+        imapConfig: providerData.imapConfig ?? {
+          host: '',
+          port: 993,
+          secure: true,
+        },
+      });
 
-  // When sendMethod is 'api', skip SMTP test since Graph API handles sending
-  if (providerData.sendMethod === 'api') {
-    const imapOnlyResult = await deps.testConnection({
-      vendor: providerData.vendor,
-      authMethod: providerData.authMethod,
-      passwordAuth,
-      oauth2Auth,
-      smtpConfig: { host: 'localhost', port: 587, secure: false },
-      imapConfig: providerData.imapConfig ?? {
-        host: '',
-        port: 993,
-        secure: true,
-      },
-    });
-
-    result = {
-      success: imapOnlyResult.imap.success,
-      smtp: { success: true, latencyMs: 0, error: undefined },
-      imap: imapOnlyResult.imap,
-    };
-  } else {
-    if (!providerData.smtpConfig || !providerData.imapConfig) {
-      throw new Error(
-        'SMTP and IMAP configuration are required for non-API send methods',
-      );
+      result = {
+        success: imapOnlyResult.imap.success,
+        smtp: { success: true, latencyMs: 0, error: undefined },
+        imap: imapOnlyResult.imap,
+      };
+    } else {
+      if (!providerData.smtpConfig || !providerData.imapConfig) {
+        throw new Error(
+          'SMTP and IMAP configuration are required for non-API send methods',
+        );
+      }
+      result = await deps.testConnection({
+        vendor: providerData.vendor,
+        authMethod: providerData.authMethod,
+        passwordAuth,
+        oauth2Auth,
+        smtpConfig: providerData.smtpConfig,
+        imapConfig: providerData.imapConfig,
+      });
     }
-    result = await deps.testConnection({
-      vendor: providerData.vendor,
-      authMethod: providerData.authMethod,
-      passwordAuth,
-      oauth2Auth,
-      smtpConfig: providerData.smtpConfig,
-      imapConfig: providerData.imapConfig,
-    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await deps.updateStatus(providerId, 'error', Date.now(), message);
+    throw error;
   }
 
   if (result.success) {
