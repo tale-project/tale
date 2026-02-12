@@ -7,23 +7,22 @@ import { emitEvent } from '../workflows/triggers/emit_event';
 
 type DeliveryState = 'queued' | 'sent' | 'delivered' | 'failed';
 
-const VALID_DELIVERY_STATES = new Set<string>([
-  'queued',
-  'sent',
-  'delivered',
-  'failed',
-]);
+const deliveryStateMap: Record<string, DeliveryState> = {
+  queued: 'queued',
+  sent: 'sent',
+  delivered: 'delivered',
+  failed: 'failed',
+};
 
 function resolveDeliveryState(
   status: string | undefined,
   direction: 'inbound' | 'outbound',
 ): DeliveryState {
   const normalized = (status || '').toLowerCase();
-  if (VALID_DELIVERY_STATES.has(normalized)) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing after Set.has check
-    return normalized as DeliveryState;
-  }
-  return direction === 'inbound' ? 'delivered' : 'sent';
+  return (
+    deliveryStateMap[normalized] ??
+    (direction === 'inbound' ? 'delivered' : 'sent')
+  );
 }
 
 export async function addMessageToConversation(

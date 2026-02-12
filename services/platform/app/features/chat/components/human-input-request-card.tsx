@@ -1,6 +1,5 @@
 'use client';
 
-import { useMutation } from 'convex/react';
 import { XCircle, Loader2, MessageCircleQuestion, Send } from 'lucide-react';
 import { memo, useState } from 'react';
 
@@ -17,8 +16,9 @@ import {
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { api } from '@/convex/_generated/api';
 import { cn } from '@/lib/utils/cn';
+
+import { useSubmitHumanInputResponse } from '../hooks/actions';
 
 interface HumanInputRequestCardProps {
   approvalId: Id<'approvals'>;
@@ -42,9 +42,7 @@ function HumanInputRequestCardComponent({
   const [selectedValue, setSelectedValue] = useState<string>('');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
 
-  const submitResponse = useMutation(
-    api.agent_tools.human_input.mutations.submitHumanInputResponse,
-  );
+  const submitResponse = useSubmitHumanInputResponse();
 
   const isPending = status === 'pending';
 

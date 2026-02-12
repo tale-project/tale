@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import {
   ChevronDown,
@@ -27,15 +25,17 @@ import {
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import {
+  useCreateDraftFromActive,
+  usePublishAutomationDraft,
+  useUnpublishAutomation,
+} from '../hooks/actions';
+import { useListWorkflowVersions } from '../hooks/queries';
 import { useAutomationVersionNavigation } from '../hooks/use-automation-version-navigation';
-import { useCreateDraftFromActive } from '../hooks/use-create-draft-from-active';
-import { usePublishAutomationDraft } from '../hooks/use-publish-automation-draft';
-import { useUnpublishAutomation } from '../hooks/use-unpublish-automation';
 
 interface AutomationNavigationProps {
   organizationId: string;
@@ -67,17 +67,9 @@ export function AutomationNavigation({
   const createDraftFromActive = useCreateDraftFromActive();
   const unpublishAutomation = useUnpublishAutomation();
 
-  // Fetch all versions of this automation
-  const { data: versions } = useQuery(
-    convexQuery(
-      api.wf_definitions.queries.listVersions,
-      automation?.name && organizationId
-        ? {
-            organizationId: organizationId,
-            name: automation.name,
-          }
-        : 'skip',
-    ),
+  const { data: versions } = useListWorkflowVersions(
+    organizationId,
+    automation?.name,
   );
 
   const navigationItems: TabNavigationItem[] = automationId

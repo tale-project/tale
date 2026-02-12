@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import type { ColumnDef } from '@tanstack/react-table';
 
-import { createColumnHelper } from '@tanstack/react-table';
 import { Plus, Download, Filter } from 'lucide-react';
 import { useState } from 'react';
 
@@ -73,23 +73,28 @@ const manyUsers: User[] = Array.from({ length: 50 }, (_, i) => ({
   createdAt: Date.now() - 86400000 * (i + 1),
 }));
 
-const columnHelper = createColumnHelper<User>();
-
-const columns = [
-  columnHelper.accessor('name', {
+const columns: ColumnDef<User>[] = [
+  {
+    accessorKey: 'name',
     header: 'Name',
-    cell: (info) => <span className="font-medium">{info.getValue()}</span>,
-  }),
-  columnHelper.accessor('email', {
-    header: 'Email',
-    cell: (info) => (
-      <span className="text-muted-foreground">{info.getValue()}</span>
+    cell: ({ row }) => (
+      <span className="font-medium">{row.getValue<string>('name')}</span>
     ),
-  }),
-  columnHelper.accessor('role', {
+  },
+  {
+    accessorKey: 'email',
+    header: 'Email',
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">
+        {row.getValue<string>('email')}
+      </span>
+    ),
+  },
+  {
+    accessorKey: 'role',
     header: 'Role',
-    cell: (info) => {
-      const role = info.getValue() as string;
+    cell: ({ row }) => {
+      const role = row.getValue<User['role']>('role');
       return (
         <Badge
           variant={
@@ -100,11 +105,12 @@ const columns = [
         </Badge>
       );
     },
-  }),
-  columnHelper.accessor('status', {
+  },
+  {
+    accessorKey: 'status',
     header: 'Status',
-    cell: (info) => {
-      const status = info.getValue() as string;
+    cell: ({ row }) => {
+      const status = row.getValue<User['status']>('status');
       return (
         <Badge
           variant={
@@ -119,11 +125,17 @@ const columns = [
         </Badge>
       );
     },
-  }),
-  columnHelper.accessor('createdAt', {
+  },
+  {
+    accessorKey: 'createdAt',
     header: 'Created',
-    cell: (info) => <TableDateCell date={info.getValue()} preset="relative" />,
-  }),
+    cell: ({ row }) => (
+      <TableDateCell
+        date={row.getValue<number>('createdAt')}
+        preset="relative"
+      />
+    ),
+  },
 ];
 
 const meta: Meta<typeof DataTable> = {

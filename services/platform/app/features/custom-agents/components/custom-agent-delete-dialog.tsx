@@ -1,13 +1,17 @@
 'use client';
 
+import type { Collection } from '@tanstack/db';
+
 import { useState } from 'react';
+
+import type { CustomAgent } from '@/lib/collections/entities/custom-agents';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
-import { useDeleteCustomAgent } from '../hooks/use-custom-agent-mutations';
+import { useDeleteCustomAgent } from '../hooks/mutations';
 
 interface CustomAgentDeleteDialogProps {
   open: boolean;
@@ -16,15 +20,17 @@ interface CustomAgentDeleteDialogProps {
     _id: string;
     displayName: string;
   };
+  collection: Collection<CustomAgent, string>;
 }
 
 export function CustomAgentDeleteDialog({
   open,
   onOpenChange,
   agent,
+  collection,
 }: CustomAgentDeleteDialogProps) {
   const { t } = useT('settings');
-  const deleteAgent = useDeleteCustomAgent();
+  const deleteAgent = useDeleteCustomAgent(collection);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleConfirm = async () => {

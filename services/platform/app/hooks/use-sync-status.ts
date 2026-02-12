@@ -1,6 +1,6 @@
-import { useConvex } from 'convex/react';
 import { useSyncExternalStore, useCallback } from 'react';
 
+import { useConvexClient } from '@/app/hooks/use-convex-client';
 import {
   subscribeSyncState,
   getSyncState,
@@ -24,7 +24,7 @@ function getServerSnapshot(): OfflineState {
 }
 
 export function useSyncStatus() {
-  const convex = useConvex();
+  const convex = useConvexClient();
 
   const state = useSyncExternalStore(
     subscribeSyncState,

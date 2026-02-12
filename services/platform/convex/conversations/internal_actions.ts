@@ -37,7 +37,7 @@ export const sendMessageViaIntegrationAction = internalAction({
     references: v.optional(v.array(v.string())),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     try {
       const integration = await ctx.runQuery(
         internal.integrations.internal_queries.getByName,
@@ -169,7 +169,7 @@ export const checkMessageDeliveryAction = internalAction({
     retryCount: v.optional(v.number()),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const retryCount = args.retryCount ?? 0;
 
     try {

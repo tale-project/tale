@@ -1,5 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -7,7 +5,7 @@ import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-ske
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { TeamsSettings } from '@/app/features/settings/teams/components/teams-settings';
-import { api } from '@/convex/_generated/api';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/settings/teams')({
@@ -45,11 +43,8 @@ function TeamsSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
-  const { data: memberContext, isLoading } = useQuery(
-    convexQuery(api.members.queries.getCurrentMemberContext, {
-      organizationId,
-    }),
-  );
+  const { data: memberContext, isLoading } =
+    useCurrentMemberContext(organizationId);
 
   if (isLoading) {
     return <TeamsSettingsSkeleton />;

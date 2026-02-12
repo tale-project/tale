@@ -1,65 +1,32 @@
 import { v } from 'convex/values';
 
-import type { Doc } from '../_generated/dataModel';
-
 import { query } from '../_generated/server';
-import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
-import { cursorPaginationOptsValidator } from '../lib/pagination';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 
-export const hasWebsites = query({
-  args: {
-    organizationId: v.string(),
-  },
-  returns: v.boolean(),
-  handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      return false;
-    }
-
-    try {
-      await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return false;
-    }
-
-    return await hasRecordsInOrg(ctx.db, 'websites', args.organizationId);
-  },
-});
-
-/**
- * List websites with cursor pagination.
- */
 export const listWebsites = query({
   args: {
     organizationId: v.string(),
-    paginationOpts: cursorPaginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const emptyResult = {
-      page: [] as Doc<'websites'>[],
-      isDone: true as const,
-      continueCursor: '',
-    };
-
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      return emptyResult;
+      return [];
     }
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
     } catch {
-      return emptyResult;
+      return [];
     }
 
-    return await ctx.db
+    const results = [];
+    for await (const website of ctx.db
       .query('websites')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
-      )
-      .order('desc')
-      .paginate(args.paginationOpts);
+      )) {
+      results.push(website);
+    }
+    return results;
   },
 });

@@ -13,11 +13,13 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteAutomation } from '../hooks/use-delete-automation';
-import { useDuplicateAutomation } from '../hooks/use-duplicate-automation';
-import { useRepublishAutomation } from '../hooks/use-republish-automation';
-import { useUnpublishAutomation } from '../hooks/use-unpublish-automation';
-import { useUpdateAutomation } from '../hooks/use-update-automation';
+import {
+  useDuplicateAutomation,
+  useRepublishAutomation,
+  useUnpublishAutomation,
+} from '../hooks/actions';
+import { useWfAutomationCollection } from '../hooks/collections';
+import { useDeleteAutomation, useUpdateAutomation } from '../hooks/mutations';
 import { DeleteAutomationDialog } from './automation-delete-dialog';
 import { AutomationRenameDialog } from './automation-rename-dialog';
 
@@ -36,11 +38,14 @@ export function AutomationRowActions({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUnpublishing, setIsUnpublishing] = useState(false);
 
+  const wfAutomationCollection = useWfAutomationCollection(
+    automation.organizationId,
+  );
   const duplicateAutomation = useDuplicateAutomation();
-  const deleteAutomation = useDeleteAutomation();
+  const deleteAutomation = useDeleteAutomation(wfAutomationCollection);
   const republishAutomation = useRepublishAutomation();
   const unpublishAutomation = useUnpublishAutomation();
-  const updateAutomation = useUpdateAutomation();
+  const updateAutomation = useUpdateAutomation(wfAutomationCollection);
 
   const handlePublish = useCallback(async () => {
     if (!user) return;

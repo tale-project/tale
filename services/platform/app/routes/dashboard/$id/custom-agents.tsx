@@ -1,5 +1,4 @@
 import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -9,7 +8,7 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { api } from '@/convex/_generated/api';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents')({
@@ -26,11 +25,10 @@ function CustomAgentsLayout() {
     shouldThrow: false,
   });
 
-  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
+  const { data: memberContext, isLoading } =
+    useCurrentMemberContext(organizationId);
 
-  if (memberContext === undefined) {
+  if (isLoading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <StickyHeader>
@@ -43,7 +41,7 @@ function CustomAgentsLayout() {
   }
 
   if (
-    memberContext === null ||
+    !memberContext ||
     (!memberContext.isAdmin && memberContext.role !== 'developer')
   ) {
     return <AccessDenied message={tAccessDenied('customAgents')} />;

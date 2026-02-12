@@ -9,6 +9,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import type { ListDocumentsByExtensionResult } from '../../documents/types';
 import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
@@ -211,7 +212,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         });
 
         try {
-          const documents = await ctx.runQuery(
+          const documents: ListDocumentsByExtensionResult = await ctx.runQuery(
             internal.documents.internal_queries.listDocumentsByExtension,
             {
               organizationId,

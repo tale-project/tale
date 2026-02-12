@@ -1,14 +1,12 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-import type { FunctionReturnType } from 'convex/server';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { Plus, Zap, Trash2, Pencil } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
+import type { WfEventSubscription } from '@/lib/collections/entities/wf-event-subscriptions';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -16,17 +14,20 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import {
   EVENT_TYPES,
   getFilterFieldsForEventType,
 } from '@/convex/workflows/triggers/event_types';
 import { useT } from '@/lib/i18n/client';
 
+import { useAutomationRootCollection } from '../../hooks/collections';
+import { useAutomationRoots } from '../../hooks/queries';
+import { useEventSubscriptionCollection } from '../hooks/collections';
 import {
-  useToggleEventSubscription,
   useDeleteEventSubscription,
-} from '../hooks/use-trigger-mutations';
+  useToggleEventSubscription,
+} from '../hooks/mutations';
+import { useEventSubscriptions } from '../hooks/queries';
 import { CollapsibleSection } from './collapsible-section';
 import { EventCreateDialog } from './event-create-dialog';
 
@@ -35,11 +36,7 @@ interface EventsSectionProps {
   organizationId: string;
 }
 
-type EventSubscription = NonNullable<
-  FunctionReturnType<
-    typeof api.workflows.triggers.queries.getEventSubscriptions
-  >
->[number];
+type EventSubscription = WfEventSubscription;
 
 export function EventsSection({
   workflowRootId,
@@ -47,23 +44,13 @@ export function EventsSection({
 }: EventsSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
-  const { data: subscriptions } = useQuery(
-    convexQuery(api.workflows.triggers.queries.getEventSubscriptions, {
-      workflowRootId,
-    }),
-  );
+  const eventSubscriptionCollection =
+    useEventSubscriptionCollection(workflowRootId);
+  const { subscriptions } = useEventSubscriptions(eventSubscriptionCollection);
 
-  const hasWorkflowFilter = useMemo(
-    () =>
-      subscriptions?.some((s) => s.eventFilter?.rootWfDefinitionId) ?? false,
-    [subscriptions],
-  );
-
-  const { data: workflows } = useQuery(
-    convexQuery(
-      api.wf_definitions.queries.listAutomationRoots,
-      hasWorkflowFilter ? { organizationId } : 'skip',
-    ),
+  const automationRootCollection = useAutomationRootCollection(organizationId);
+  const { automationRoots: workflows } = useAutomationRoots(
+    automationRootCollection,
   );
 
   const workflowNameMap = useMemo(() => {
@@ -76,8 +63,12 @@ export function EventsSection({
     return map;
   }, [workflows]);
 
-  const toggleSubscription = useToggleEventSubscription();
-  const deleteSubscriptionMutation = useDeleteEventSubscription();
+  const toggleSubscription = useToggleEventSubscription(
+    eventSubscriptionCollection,
+  );
+  const deleteSubscriptionMutation = useDeleteEventSubscription(
+    eventSubscriptionCollection,
+  );
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<EventSubscription | null>(null);
@@ -185,7 +176,7 @@ export function EventsSection({
                 <div className="flex flex-wrap gap-1">
                   {filterEntries.map(([key, value]) => (
                     <Badge key={key} variant="outline" className="text-xs">
-                      {resolveFilterLabel(eventType, key, value)}
+                      {resolveFilterLabel(eventType, key, String(value))}
                     </Badge>
                   ))}
                 </div>
@@ -296,6 +287,7 @@ export function EventsSection({
         }}
         workflowRootId={workflowRootId}
         organizationId={organizationId}
+        collection={eventSubscriptionCollection}
         existingEventTypes={subscriptions?.map((s) => s.eventType) ?? []}
         editing={
           editTarget

@@ -9,7 +9,12 @@ import { getIntegrationByName } from './get_integration_by_name';
 import { listIntegrations } from './list_integrations';
 import { integrationDocValidator } from './validators';
 
-async function withIconUrl(ctx: QueryCtx, integration: Doc<'integrations'>) {
+type IntegrationWithIcon = Doc<'integrations'> & { iconUrl: string | null };
+
+async function withIconUrl(
+  ctx: QueryCtx,
+  integration: Doc<'integrations'>,
+): Promise<IntegrationWithIcon> {
   const iconUrl = integration.iconStorageId
     ? await ctx.storage.getUrl(integration.iconStorageId)
     : null;
@@ -21,7 +26,7 @@ export const get = query({
     integrationId: v.id('integrations'),
   },
   returns: v.union(integrationDocValidator, v.null()),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<IntegrationWithIcon | null> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return null;
@@ -48,7 +53,7 @@ export const getByName = query({
     name: v.string(),
   },
   returns: v.union(integrationDocValidator, v.null()),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<IntegrationWithIcon | null> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return null;
@@ -75,7 +80,7 @@ export const list = query({
     name: v.optional(v.string()),
   },
   returns: v.array(integrationDocValidator),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<IntegrationWithIcon[]> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
       return [];

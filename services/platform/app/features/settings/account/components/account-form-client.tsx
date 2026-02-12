@@ -1,18 +1,16 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
-import { useUpdatePassword } from '../hooks/use-update-password';
+import { useUpdatePassword } from '../hooks/actions';
 
 interface MemberContext {
   memberId: string;
@@ -49,9 +47,8 @@ export function AccountFormClient({
   const updatePassword = useUpdatePassword();
   const { toast } = useToast();
 
-  const { data: hasCredential, isLoading: isCredentialLoading } = useQuery(
-    convexQuery(api.accounts.queries.hasCredentialAccount, {}),
-  );
+  const { data: hasCredential, isLoading: isCredentialLoading } =
+    useHasCredentialAccount();
 
   if (isCredentialLoading) {
     return null;

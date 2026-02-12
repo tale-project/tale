@@ -1,12 +1,13 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { ToneOfVoiceFormClient } from '@/app/features/tone-of-voice/components/tone-of-voice-form-client';
-import { api } from '@/convex/_generated/api';
+import {
+  useToneOfVoiceWithExamples,
+  useHasExampleMessages,
+} from '@/app/features/tone-of-voice/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')(
@@ -61,16 +62,10 @@ function ToneFormSkeleton() {
 function ToneOfVoicePage() {
   const { id: organizationId } = Route.useParams();
 
-  const { isLoading: isExamplesLoading } = useQuery(
-    convexQuery(api.tone_of_voice.queries.hasExampleMessages, {
-      organizationId,
-    }),
-  );
-  const { data: toneOfVoice, isLoading: isToneLoading } = useQuery(
-    convexQuery(api.tone_of_voice.queries.getToneOfVoiceWithExamples, {
-      organizationId,
-    }),
-  );
+  const { isLoading: isExamplesLoading } =
+    useHasExampleMessages(organizationId);
+  const { data: toneOfVoice, isLoading: isToneLoading } =
+    useToneOfVoiceWithExamples(organizationId);
 
   if (isExamplesLoading || isToneLoading) {
     return (

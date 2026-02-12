@@ -1,5 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
@@ -11,7 +9,7 @@ import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { SettingsNavigation } from '@/app/features/settings/components/settings-navigation';
-import { api } from '@/convex/_generated/api';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/settings')({
@@ -22,11 +20,8 @@ function SettingsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('settings');
 
-  const { data: userContext, isLoading } = useQuery(
-    convexQuery(api.members.queries.getCurrentMemberContext, {
-      organizationId,
-    }),
-  );
+  const { data: userContext, isLoading } =
+    useCurrentMemberContext(organizationId);
 
   if (isLoading) {
     return (

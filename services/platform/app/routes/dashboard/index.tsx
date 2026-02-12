@@ -1,10 +1,8 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useConvexAuth } from 'convex/react';
 import { useEffect } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import { useUserOrganizationCollection } from '@/app/features/organization/hooks/collections';
+import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
 import { authClient } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/dashboard/')({
@@ -20,14 +18,12 @@ export const Route = createFileRoute('/dashboard/')({
 
 function DashboardIndex() {
   const navigate = useNavigate();
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-
-  const { data: organizations, isLoading: isOrgsLoading } = useQuery(
-    convexQuery(
-      api.members.queries.getUserOrganizationsList,
-      isAuthLoading || !isAuthenticated ? 'skip' : {},
-    ),
-  );
+  const {
+    organizations,
+    isLoading: isOrgsLoading,
+    isAuthLoading,
+    isAuthenticated,
+  } = useUserOrganizations(useUserOrganizationCollection());
 
   useEffect(() => {
     if (isAuthLoading || !isAuthenticated || isOrgsLoading || !organizations) {

@@ -9,7 +9,7 @@ import {
 } from '@/app/components/ui/entity/entity-row-actions';
 import { useT } from '@/lib/i18n/client';
 
-import type { Team } from '../hooks/use-list-teams';
+import type { Team } from '../hooks/collections';
 
 import { TeamDeleteDialog } from './team-delete-dialog';
 import { TeamEditDialog } from './team-edit-dialog';

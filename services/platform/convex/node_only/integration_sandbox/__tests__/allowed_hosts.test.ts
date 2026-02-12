@@ -6,13 +6,15 @@ describe('executeHttpRequest allowedHosts enforcement', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    // @ts-expect-error vi.fn() mock does not satisfy the full fetch type signature
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        statusText: 'OK',
-        headers: { 'content-type': 'application/json' },
-      }),
+    globalThis.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+      { preconnect: vi.fn() },
     );
   });
 

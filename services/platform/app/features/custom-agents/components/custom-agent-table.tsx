@@ -1,21 +1,23 @@
 'use client';
 
+import type { Collection } from '@tanstack/db';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 
 import { useNavigate } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
 import { Bot } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
+
+import type { CustomAgent } from '@/lib/collections/entities/custom-agents';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { isKeyOf } from '@/lib/utils/type-guards';
 
+import { useModelPresets } from '../hooks/queries';
 import { CustomAgentActiveToggle } from './custom-agent-active-toggle';
 import { CustomAgentRowActions } from './custom-agent-row-actions';
 import { CustomAgentsActionMenu } from './custom-agents-action-menu';
@@ -44,19 +46,21 @@ interface CustomAgentTableProps {
   organizationId: string;
   agents: CustomAgentRow[] | null;
   isLoading: boolean;
+  collection: Collection<CustomAgent, string>;
 }
 
 export function CustomAgentTable({
   organizationId,
   agents,
   isLoading,
+  collection,
 }: CustomAgentTableProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
-  const modelPresets = useQuery(api.custom_agents.queries.getModelPresets);
+  const { data: modelPresets } = useModelPresets();
 
   const handleRowClick = useCallback(
     (row: Row<CustomAgentRow>) => {
@@ -173,13 +177,16 @@ export function CustomAgentTable({
         header: '',
         cell: ({ row }) => (
           <HStack gap={1} justify="end">
-            <CustomAgentRowActions agent={row.original} />
+            <CustomAgentRowActions
+              agent={row.original}
+              collection={collection}
+            />
           </HStack>
         ),
         size: 80,
       },
     ],
-    [t, tCommon, tTables, teamNameMap, modelPresets],
+    [t, tCommon, tTables, teamNameMap, modelPresets, collection],
   );
 
   const list = useListPage({

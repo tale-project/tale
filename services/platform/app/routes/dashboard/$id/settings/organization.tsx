@@ -1,13 +1,12 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { OrganizationSettingsClient } from '@/app/features/settings/organization/components/organization-settings-client';
-import { api } from '@/convex/_generated/api';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/settings/organization')({
@@ -57,27 +56,11 @@ function OrganizationSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
-  const { data: memberContext, isLoading: isMemberLoading } = useQuery(
-    convexQuery(api.members.queries.getCurrentMemberContext, {
-      organizationId,
-    }),
-  );
-  const { data: organization, isLoading: isOrgLoading } = useQuery(
-    convexQuery(api.organizations.queries.getOrganization, {
-      id: organizationId,
-    }),
-  );
-  const { data: members, isLoading: isMembersLoading } = useQuery(
-    convexQuery(api.members.queries.listByOrganization, { organizationId }),
-  );
-
-  if (
-    isMemberLoading ||
-    isOrgLoading ||
-    isMembersLoading ||
-    !memberContext ||
-    !members
-  ) {
+  const { data: memberContext, isLoading: isMemberLoading } =
+    useCurrentMemberContext(organizationId);
+  const { data: organization, isLoading: isOrgLoading } =
+    useOrganization(organizationId);
+  if (isMemberLoading || isOrgLoading || !memberContext) {
     return <OrganizationSettingsSkeleton />;
   }
 
@@ -93,7 +76,6 @@ function OrganizationSettingsPage() {
     <OrganizationSettingsClient
       organization={organization}
       memberContext={memberContext}
-      members={members}
     />
   );
 }

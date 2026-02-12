@@ -1,7 +1,6 @@
 'use client';
 
 import { Link } from '@tanstack/react-router';
-import { useMutation, useAction } from 'convex/react';
 import {
   Check,
   CheckCircle,
@@ -23,9 +22,11 @@ import {
   TooltipTrigger,
 } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useExecuteApprovedWorkflowCreation } from '@/app/features/approvals/hooks/actions';
+import { useApprovalCollection } from '@/app/features/approvals/hooks/collections';
+import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCopyButton } from '@/app/hooks/use-copy';
-import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { WorkflowCreationMetadata } from '@/convex/approvals/types';
 import { cn } from '@/lib/utils/cn';
@@ -248,12 +249,9 @@ function WorkflowCreationApprovalCardComponent({
 
   // No optimistic update: approval triggers external workflow creation action with
   // side effects that cannot be safely rolled back if the mutation fails.
-  const updateApprovalStatus = useMutation(
-    api.approvals.mutations.updateApprovalStatus,
-  );
-  const executeApprovedWorkflow = useAction(
-    api.approvals.actions.executeApprovedWorkflowCreation,
-  );
+  const approvalCollection = useApprovalCollection(organizationId);
+  const updateApprovalStatus = useUpdateApprovalStatus(approvalCollection);
+  const executeApprovedWorkflow = useExecuteApprovedWorkflowCreation();
 
   const isPending = status === 'pending';
   const isProcessing = isApproving || isRejecting;

@@ -13,14 +13,16 @@ import { cn } from '@/lib/utils/cn';
 import type { FileAttachment } from '../types';
 
 import { useChatLayout } from '../context/chat-layout-context';
+import {
+  useHumanInputRequests,
+  useIntegrationApprovals,
+  useWorkflowCreationApprovals,
+} from '../hooks/queries';
 import { useChatPendingState } from '../hooks/use-chat-pending-state';
-import { useHumanInputRequests } from '../hooks/use-human-input-requests';
-import { useIntegrationApprovals } from '../hooks/use-integration-approvals';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
 import { useMessageProcessing } from '../hooks/use-message-processing';
 import { usePendingMessages } from '../hooks/use-pending-messages';
 import { useSendMessage } from '../hooks/use-send-message';
-import { useWorkflowCreationApprovals } from '../hooks/use-workflow-creation-approvals';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
@@ -67,10 +69,18 @@ export function ChatInterface({
   });
 
   // Approvals
-  const { approvals: integrationApprovals } = useIntegrationApprovals(threadId);
-  const { approvals: workflowCreationApprovals } =
-    useWorkflowCreationApprovals(threadId);
-  const { requests: humanInputRequests } = useHumanInputRequests(threadId);
+  const { approvals: integrationApprovals } = useIntegrationApprovals(
+    organizationId,
+    threadId,
+  );
+  const { approvals: workflowCreationApprovals } = useWorkflowCreationApprovals(
+    organizationId,
+    threadId,
+  );
+  const { requests: humanInputRequests } = useHumanInputRequests(
+    organizationId,
+    threadId,
+  );
 
   // Merge messages with approvals and human input requests
   const mergedChatItems = useMergedChatItems({

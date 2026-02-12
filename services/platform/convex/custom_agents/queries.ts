@@ -4,6 +4,8 @@
 
 import { v } from 'convex/values';
 
+import type { Doc } from '../_generated/dataModel';
+
 import { query } from '../_generated/server';
 import { TOOL_NAMES } from '../agent_tools/tool_names';
 import { authComponent } from '../auth';
@@ -22,7 +24,7 @@ export const listCustomAgents = query({
     filterTeamId: v.optional(v.string()),
     filterPublished: v.optional(v.boolean()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Doc<'customAgents'>[]> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -38,7 +40,7 @@ export const listCustomAgents = query({
             .eq('status', 'active'),
         );
 
-      const results = [];
+      const results: Doc<'customAgents'>[] = [];
       for await (const agent of agents) {
         if (!hasTeamAccess(agent, userTeamIds)) continue;
         if (
@@ -60,10 +62,7 @@ export const listCustomAgents = query({
         q.eq('organizationId', args.organizationId).eq('isActive', true),
       );
 
-    const bestByRoot = new Map<
-      string,
-      typeof agents extends AsyncIterable<infer T> ? T : never
-    >();
+    const bestByRoot = new Map<string, Doc<'customAgents'>>();
     for await (const agent of agents) {
       if (!hasTeamAccess(agent, userTeamIds)) continue;
       if (
@@ -94,7 +93,7 @@ export const getCustomAgent = query({
   args: {
     customAgentId: v.id('customAgents'),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Doc<'customAgents'> | null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -125,7 +124,7 @@ export const getCustomAgentByVersion = query({
     customAgentId: v.id('customAgents'),
     versionNumber: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Doc<'customAgents'> | null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -145,7 +144,7 @@ export const getCustomAgentByVersion = query({
       return null;
     }
 
-    // No versionNumber: prefer draft → active → latest archived
+    // No versionNumber: prefer draft -> active -> latest archived
     const allVersions = ctx.db
       .query('customAgents')
       .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId))
@@ -165,7 +164,7 @@ export const getCustomAgentVersions = query({
   args: {
     customAgentId: v.id('customAgents'),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Doc<'customAgents'>[]> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -180,7 +179,7 @@ export const getCustomAgentVersions = query({
       .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId))
       .order('desc');
 
-    const results = [];
+    const results: Doc<'customAgents'>[] = [];
     for await (const version of versions) {
       results.push(version);
     }
@@ -191,7 +190,7 @@ export const getCustomAgentVersions = query({
 
 export const getAvailableTools = query({
   args: {},
-  handler: async () => {
+  handler: async (): Promise<Array<{ name: string; available: boolean }>> => {
     return TOOL_NAMES.map((name) => ({
       name,
       available: true,
@@ -203,7 +202,10 @@ export const getAvailableIntegrations = query({
   args: {
     organizationId: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<Array<{ name: string; title: string; type: string }>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -229,7 +231,11 @@ export const getAvailableIntegrations = query({
 
 export const getModelPresets = query({
   args: {},
-  handler: async () => {
+  handler: async (): Promise<{
+    fast: string | null;
+    standard: string | null;
+    advanced: string | null;
+  }> => {
     return {
       fast: process.env.OPENAI_FAST_MODEL ?? null,
       standard: process.env.OPENAI_MODEL ?? null,

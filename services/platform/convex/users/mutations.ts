@@ -19,7 +19,7 @@ export const updateUserPassword = mutation({
     newPassword: v.string(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
@@ -36,7 +36,7 @@ export const setMemberPassword = mutation({
     newPassword: v.string(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<null> => {
     await setMemberPasswordHelper(ctx, args);
     return null;
   },
@@ -55,7 +55,10 @@ export const createMember = mutation({
     memberId: v.string(),
     isExistingUser: v.boolean(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ userId: string; memberId: string; isExistingUser: boolean }> => {
     return await createMemberHelper(ctx, args);
   },
 });

@@ -11,7 +11,8 @@ import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateWebsite } from '../hooks/use-create-website';
+import { useWebsiteCollection } from '../hooks/collections';
+import { useCreateWebsite } from '../hooks/mutations';
 
 type FormData = {
   domain: string;
@@ -31,7 +32,8 @@ export function AddWebsiteDialog({
 }: AddWebsiteDialogProps) {
   const { t: tWebsites } = useT('websites');
   const [isLoading, setIsLoading] = useState(false);
-  const createWebsite = useCreateWebsite();
+  const websiteCollection = useWebsiteCollection(organizationId);
+  const createWebsite = useCreateWebsite(websiteCollection);
 
   const formSchema = useMemo(
     () =>

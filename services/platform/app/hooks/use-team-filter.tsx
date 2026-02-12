@@ -1,6 +1,5 @@
 'use client';
 
-import { useQuery } from 'convex/react';
 import {
   createContext,
   useContext,
@@ -11,7 +10,8 @@ import {
   type ReactNode,
 } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 
 function getStorageKey(organizationId: string) {
   return `team-filter:${organizationId}`;
@@ -60,11 +60,8 @@ export function TeamFilterProvider({
     return localStorage.getItem(storageKey);
   });
 
-  const teamsResult = useQuery(api.members.queries.getMyTeams, {
-    organizationId,
-  });
-  const teams = teamsResult?.teams ?? null;
-  const isLoadingTeams = teamsResult === undefined;
+  const teamCollection = useTeamCollection(organizationId);
+  const { teams, isLoading: isLoadingTeams } = useTeams(teamCollection);
 
   // Validate: clear selection if stored team no longer exists
   const validatedTeamId =

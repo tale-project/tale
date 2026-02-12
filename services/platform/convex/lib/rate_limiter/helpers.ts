@@ -23,6 +23,29 @@ export class RateLimitExceededError extends Error {
 type MutationCtx = GenericMutationCtx<DataModel>;
 type ActionCtx = GenericActionCtx<DataModel>;
 
+type RateLimitResult = { ok: true } | { ok: false; retryAfter: number };
+
+// @convex-dev/rate-limiter uses per-name conditional types that TypeScript can't
+// evaluate when the name parameter is the full RateLimitName union. These wrappers
+// centralize the assertion. All configs return { ok, retryAfter } with throws: false.
+async function limitRate(
+  ctx: MutationCtx | ActionCtx,
+  name: RateLimitName,
+  opts: { key: string; count: number },
+): Promise<RateLimitResult> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- rate limiter conditional type can't resolve for RateLimitName union
+  return rateLimiter.limit(ctx, name as 'ai:chat', { ...opts, throws: false });
+}
+
+async function checkRate(
+  ctx: MutationCtx | ActionCtx,
+  name: RateLimitName,
+  opts: { key: string; count: number },
+): Promise<RateLimitResult> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- rate limiter conditional type can't resolve for RateLimitName union
+  return rateLimiter.check(ctx, name as 'ai:chat', opts);
+}
+
 /**
  * Check and consume a rate limit token for organization-scoped operations.
  * Throws RateLimitExceededError if limit exceeded.
@@ -33,11 +56,9 @@ export async function checkOrganizationRateLimit(
   organizationId: string,
   count: number = 1,
 ): Promise<void> {
-  // @ts-expect-error - TypeScript can't infer conditional types from generic rate limit names
-  const result = await rateLimiter.limit(ctx, name, {
+  const result = await limitRate(ctx, name, {
     key: `org:${organizationId}`,
     count,
-    throws: false,
   });
 
   if (!result.ok) {
@@ -58,11 +79,9 @@ export async function checkUserRateLimit(
   userId: string,
   count: number = 1,
 ): Promise<void> {
-  // @ts-expect-error - TypeScript can't infer conditional types from generic rate limit names
-  const result = await rateLimiter.limit(ctx, name, {
+  const result = await limitRate(ctx, name, {
     key: `user:${userId}`,
     count,
-    throws: false,
   });
 
   if (!result.ok) {
@@ -83,11 +102,9 @@ export async function checkIpRateLimit(
   ip: string,
   count: number = 1,
 ): Promise<void> {
-  // @ts-expect-error - TypeScript can't infer conditional types from generic rate limit names
-  const result = await rateLimiter.limit(ctx, name, {
+  const result = await limitRate(ctx, name, {
     key: `ip:${ip}`,
     count,
-    throws: false,
   });
 
   if (!result.ok) {
@@ -107,11 +124,7 @@ export async function canPerformAction(
   key: string,
   count: number = 1,
 ): Promise<{ allowed: boolean; retryAfter?: number }> {
-  // @ts-expect-error - TypeScript can't infer conditional types from generic rate limit names
-  const result = await rateLimiter.check(ctx, name, {
-    key,
-    count,
-  });
+  const result = await checkRate(ctx, name, { key, count });
 
   return {
     allowed: result.ok,

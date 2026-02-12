@@ -4,6 +4,7 @@ import { useCallback, startTransition } from 'react';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
+import { toId } from '@/lib/utils/type-guards';
 
 import type {
   PendingMessage,
@@ -12,11 +13,14 @@ import type {
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
 
-import { useChatWithAgent } from './use-chat-with-agent';
-import { useChatWithBuiltinAgent } from './use-chat-with-builtin-agent';
-import { useChatWithCustomAgent } from './use-chat-with-custom-agent';
-import { useCreateThread } from './use-create-thread';
-import { useUpdateThread } from './use-update-thread';
+import {
+  useChatWithAgent,
+  useChatWithBuiltinAgent,
+  useChatWithCustomAgent,
+  useCreateThread,
+} from './actions';
+import { useThreadCollection } from './collections';
+import { useUpdateThread } from './mutations';
 
 interface UseSendMessageParams {
   organizationId: string;
@@ -46,8 +50,9 @@ export function useSendMessage({
   const { t } = useT('chat');
   const navigate = useNavigate();
 
+  const threadCollection = useThreadCollection();
   const createThread = useCreateThread();
-  const updateThread = useUpdateThread();
+  const updateThread = useUpdateThread(threadCollection);
   const chatWithAgent = useChatWithAgent();
   const chatWithBuiltinAgent = useChatWithBuiltinAgent();
   const chatWithCustomAgent = useChatWithCustomAgent();
@@ -122,7 +127,7 @@ export function useSendMessage({
         // Send message with optimistic update
         if (selectedAgent?.type === 'custom') {
           await chatWithCustomAgent({
-            customAgentId: selectedAgent._id,
+            customAgentId: toId<'customAgents'>(selectedAgent._id),
             threadId: currentThreadId,
             organizationId,
             message: sanitizedContent,

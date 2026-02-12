@@ -47,8 +47,10 @@ export function createQueryBuilder(
 ) {
   return (resumeFrom: number | null) => {
     // Build the index query dynamically based on index values
-    // @ts-expect-error Convex requires static table names but we resolve them dynamically at runtime
-    const query: DynamicQuery = ctx.db.query(tableName);
+    // Convex's static type system can't represent dynamic table queries; the runtime
+    // shape matches DynamicQuery but the generic types resolve to `never`.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    const query = ctx.db.query(tableName as never) as unknown as DynamicQuery;
 
     // Build the index query by applying each field value
     // The order of fields must match the index definition

@@ -27,18 +27,14 @@ type RoleBadgeVariant = NonNullable<
   VariantProps<typeof roleBadgeVariants>['role']
 >;
 
-const validRoles = new Set<RoleBadgeVariant>([
-  'admin',
-  'developer',
-  'member',
-  'viewer',
-]);
+const roleMap: Record<string, RoleBadgeVariant> = {
+  admin: 'admin',
+  developer: 'developer',
+  member: 'member',
+  viewer: 'viewer',
+};
 
 export function getRoleBadgeClasses(role?: string | null): string {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by Set check below
-  const normalizedRole = (role || '').toLowerCase() as RoleBadgeVariant;
-  if (validRoles.has(normalizedRole)) {
-    return roleBadgeVariants({ role: normalizedRole });
-  }
-  return roleBadgeVariants({ role: 'member' });
+  const variant = roleMap[(role || '').toLowerCase()];
+  return roleBadgeVariants({ role: variant ?? 'member' });
 }

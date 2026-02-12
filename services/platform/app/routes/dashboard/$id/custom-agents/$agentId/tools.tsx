@@ -4,7 +4,8 @@ import { useState, useCallback, useMemo } from 'react';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { ToolSelector } from '@/app/features/custom-agents/components/tool-selector';
-import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/use-custom-agent-mutations';
+import { useCustomAgentCollection } from '@/app/features/custom-agents/hooks/collections';
+import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -20,7 +21,8 @@ function ToolsTab() {
   const { id: organizationId, agentId } = Route.useParams();
   const { t } = useT('settings');
   const { agent, isReadOnly } = useCustomAgentVersion();
-  const updateAgent = useUpdateCustomAgent();
+  const customAgentCollection = useCustomAgentCollection(organizationId);
+  const updateAgent = useUpdateCustomAgent(customAgentCollection);
   const [saveStatus, setSaveStatus] = useState<
     'idle' | 'saving' | 'saved' | 'error'
   >('idle');

@@ -15,11 +15,12 @@ export type ExecutionVariables = Record<string, unknown>;
 
 export interface DeserializedWorkflowExecution extends Omit<
   WorkflowExecution,
-  'workflowConfig' | 'stepsConfig' | 'variables'
+  'workflowConfig' | 'stepsConfig' | 'variables' | 'error'
 > {
   workflowConfig: unknown;
   stepsConfig: Record<string, unknown>;
   variables: ExecutionVariables;
+  error?: string;
 }
 
 export interface UpdateExecutionStatusArgs {

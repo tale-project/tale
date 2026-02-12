@@ -2,10 +2,10 @@
 
 import { Package } from 'lucide-react';
 
+import type { Product } from '@/lib/collections/entities/products';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useProductsTableConfig } from '../hooks/use-products-table-config';
@@ -13,9 +13,10 @@ import { ProductsActionMenu } from './products-action-menu';
 
 export interface ProductTableProps {
   organizationId: string;
+  products: Product[];
 }
 
-export function ProductTable({ organizationId }: ProductTableProps) {
+export function ProductTable({ organizationId, products }: ProductTableProps) {
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
@@ -23,14 +24,8 @@ export function ProductTable({ organizationId }: ProductTableProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useProductsTableConfig();
 
-  const paginatedResult = useCachedPaginatedQuery(
-    api.products.queries.listProducts,
-    { organizationId },
-    { initialNumItems: pageSize },
-  );
-
   const list = useListPage({
-    dataSource: { type: 'paginated', ...paginatedResult },
+    dataSource: { type: 'query', data: products },
     pageSize,
     search: {
       fields: ['name', 'description', 'category'],

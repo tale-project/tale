@@ -1,6 +1,5 @@
 'use client';
 
-import { useMutation, useAction } from 'convex/react';
 import {
   CheckCircle,
   XCircle,
@@ -19,8 +18,10 @@ import {
   TooltipTrigger,
 } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useExecuteApprovedIntegrationOperation } from '@/app/features/approvals/hooks/actions';
+import { useApprovalCollection } from '@/app/features/approvals/hooks/collections';
+import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
-import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { IntegrationOperationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
@@ -41,7 +42,7 @@ interface IntegrationApprovalCardProps {
  */
 function IntegrationApprovalCardComponent({
   approvalId,
-  organizationId: _organizationId,
+  organizationId,
   status,
   metadata,
   executedAt,
@@ -54,12 +55,9 @@ function IntegrationApprovalCardComponent({
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const updateApprovalStatus = useMutation(
-    api.approvals.mutations.updateApprovalStatus,
-  );
-  const executeApprovedOperation = useAction(
-    api.approvals.actions.executeApprovedIntegrationOperation,
-  );
+  const approvalCollection = useApprovalCollection(organizationId);
+  const updateApprovalStatus = useUpdateApprovalStatus(approvalCollection);
+  const executeApprovedOperation = useExecuteApprovedIntegrationOperation();
 
   const isPending = status === 'pending';
   const isProcessing = isApproving || isRejecting;

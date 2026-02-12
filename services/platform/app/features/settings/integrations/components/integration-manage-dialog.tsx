@@ -1,6 +1,5 @@
 'use client';
 
-import { useMutation } from 'convex/react';
 import {
   CheckCircle,
   ExternalLink,
@@ -24,16 +23,19 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Center, Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useDeleteIntegration } from '../hooks/use-delete-integration';
-import { useGenerateIntegrationOAuth2Url } from '../hooks/use-generate-integration-oauth2-url';
-import { useSaveOAuth2Credentials } from '../hooks/use-save-oauth2-credentials';
-import { useTestIntegration } from '../hooks/use-test-integration';
-import { useUpdateIntegration } from '../hooks/use-update-integration';
+import {
+  useDeleteIntegrationAction,
+  useGenerateIntegrationOAuth2Url,
+  useGenerateUploadUrl,
+  useSaveOAuth2Credentials,
+  useTestIntegration,
+  useUpdateIntegration,
+  useUpdateIntegrationIcon,
+} from '../hooks/actions';
 import { IntegrationDetails } from './integration-details';
 
 const SENSITIVE_KEYS = new Set([
@@ -168,11 +170,9 @@ export function IntegrationManageDialog({
 
   const updateIntegration = useUpdateIntegration();
   const testConnection = useTestIntegration();
-  const deleteIntegration = useDeleteIntegration({
-    integrationName: integration.name,
-  });
-  const generateUploadUrl = useMutation(api.files.mutations.generateUploadUrl);
-  const updateIcon = useMutation(api.integrations.mutations.updateIcon);
+  const deleteIntegration = useDeleteIntegrationAction();
+  const generateUploadUrl = useGenerateUploadUrl();
+  const updateIcon = useUpdateIntegrationIcon();
   const generateOAuth2Url = useGenerateIntegrationOAuth2Url();
   const saveOAuth2Credentials = useSaveOAuth2Credentials();
 

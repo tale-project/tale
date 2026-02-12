@@ -1,12 +1,5 @@
-import type { PaginationOptions } from 'convex/server';
-
 import type { QueryCtx } from '../../_generated/server';
 import type { WorkflowDefinition } from './types';
-
-export interface ListAutomationsArgs {
-  organizationId: string;
-  paginationOpts: PaginationOptions;
-}
 
 function resolveEffectiveStatus(
   name: string,
@@ -20,18 +13,20 @@ function resolveEffectiveStatus(
 
 export async function listAutomations(
   ctx: QueryCtx,
-  args: ListAutomationsArgs,
+  args: { organizationId: string },
 ) {
-  const { organizationId, paginationOpts } = args;
+  const { organizationId } = args;
 
-  const rootPage = await ctx.db
+  const roots: WorkflowDefinition[] = [];
+  for await (const root of ctx.db
     .query('wfDefinitions')
     .withIndex('by_org_versionNumber', (q) =>
       q.eq('organizationId', organizationId).eq('versionNumber', 1),
-    )
-    .paginate(paginationOpts);
+    )) {
+    roots.push(root);
+  }
 
-  const names = [...new Set(rootPage.page.map((r) => r.name))];
+  const names = [...new Set(roots.map((r) => r.name))];
 
   const [activeVersions, archivedVersions] = await Promise.all([
     Promise.all(
@@ -70,7 +65,7 @@ export async function listAutomations(
     if (archivedVersions[i]) archivedNames.add(names[i]);
   }
 
-  const enriched = rootPage.page.map((item) => {
+  return roots.map((item) => {
     const activeVersion = activeByName.get(item.name);
     const status = resolveEffectiveStatus(
       item.name,
@@ -85,10 +80,4 @@ export async function listAutomations(
       versionNumber: activeVersion?.versionNumber ?? item.versionNumber,
     };
   });
-
-  return {
-    page: enriched,
-    isDone: rootPage.isDone,
-    continueCursor: rootPage.continueCursor,
-  };
 }

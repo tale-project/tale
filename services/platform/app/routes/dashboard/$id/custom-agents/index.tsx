@@ -2,7 +2,8 @@ import { createFileRoute } from '@tanstack/react-router';
 
 import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { CustomAgentTable } from '@/app/features/custom-agents/components/custom-agent-table';
-import { useListCustomAgents } from '@/app/features/custom-agents/hooks/use-list-custom-agents';
+import { useCustomAgentCollection } from '@/app/features/custom-agents/hooks/collections';
+import { useCustomAgents } from '@/app/features/custom-agents/hooks/queries';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/')({
   component: CustomAgentsIndexPage,
@@ -10,7 +11,8 @@ export const Route = createFileRoute('/dashboard/$id/custom-agents/')({
 
 function CustomAgentsIndexPage() {
   const { id: organizationId } = Route.useParams();
-  const { agents, isLoading } = useListCustomAgents(organizationId);
+  const customAgentCollection = useCustomAgentCollection(organizationId);
+  const { agents, isLoading } = useCustomAgents(customAgentCollection);
 
   return (
     <ContentWrapper>
@@ -18,6 +20,7 @@ function CustomAgentsIndexPage() {
         organizationId={organizationId}
         agents={agents}
         isLoading={isLoading}
+        collection={customAgentCollection}
       />
     </ContentWrapper>
   );

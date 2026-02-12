@@ -216,14 +216,14 @@ export const productMappers = {
   getString,
   getNumber,
   /** Helper to validate product status */
-  validateStatus: (
+  validateStatus: <T extends string>(
     value: unknown,
-    validStatuses: readonly string[],
-    defaultStatus: string,
-  ): string => {
+    validStatuses: readonly T[],
+    defaultStatus: T,
+  ): T => {
     if (typeof value !== 'string') return defaultStatus;
     const lowerValue = value.toLowerCase();
-    return validStatuses.includes(lowerValue) ? lowerValue : defaultStatus;
+    return validStatuses.find((s) => s === lowerValue) ?? defaultStatus;
   },
   csv: (row: string[], _index: number) => {
     const name = row[0]?.trim();

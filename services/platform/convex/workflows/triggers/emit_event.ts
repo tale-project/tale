@@ -18,8 +18,8 @@ export async function emitEvent(ctx: MutationCtx, args: EmitEventArgs) {
   await ctx.scheduler.runAfter(
     0,
     internal.workflows.triggers.internal_mutations.processEvent,
-    // @ts-expect-error - FilterApi can't resolve deeply nested internal paths
-    processEventArgs,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex FilterApi can't resolve deeply nested internal paths
+    processEventArgs as never,
   );
 }
 
@@ -32,7 +32,7 @@ export async function emitEventFromAction(ctx: ActionCtx, args: EmitEventArgs) {
   await ctx.scheduler.runAfter(
     0,
     internal.workflows.triggers.internal_mutations.processEvent,
-    // @ts-expect-error - FilterApi can't resolve deeply nested internal paths
-    processEventArgs,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex FilterApi can't resolve deeply nested internal paths
+    processEventArgs as never,
   );
 }

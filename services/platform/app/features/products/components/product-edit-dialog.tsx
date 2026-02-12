@@ -10,13 +10,15 @@ import { toast } from '@/app/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useUpdateProduct } from '../hooks/use-update-product';
+import { useProductCollection } from '../hooks/collections';
+import { useUpdateProduct } from '../hooks/mutations';
 
 interface EditProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
   product: {
     _id: Id<'products'>;
+    organizationId: string;
     name: string;
     description?: string;
     imageUrl?: string;
@@ -35,7 +37,8 @@ export function ProductEditDialog({
 }: EditProductDialogProps) {
   const { t: tProducts } = useT('products');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const updateProduct = useUpdateProduct();
+  const productCollection = useProductCollection(product.organizationId);
+  const updateProduct = useUpdateProduct(productCollection);
 
   // Form state
   const [formData, setFormData] = useState({

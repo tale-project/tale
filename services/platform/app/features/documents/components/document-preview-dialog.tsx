@@ -1,9 +1,7 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { Download, X, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -12,10 +10,10 @@ import { Separator } from '@/app/components/ui/layout/separator';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
+import { useDocumentCollection } from '../hooks/collections';
+import { useDocuments } from '../hooks/queries';
 import { DocumentPreview } from './document-preview';
 
 interface DocumentPreviewDialogProps {
@@ -44,40 +42,20 @@ export function DocumentPreviewDialog({
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
 
-  // Use documentId if available, otherwise use storagePath
-  const { data: dataById, isLoading: isLoadingById } = useQuery(
-    convexQuery(
-      api.documents.queries.getDocumentById,
-      open && documentId
-        ? { documentId: toId<'documents'>(documentId) }
-        : 'skip',
-    ),
-  );
+  const documentCollection = useDocumentCollection(organizationId);
+  const { documents, isLoading } = useDocuments(documentCollection);
 
-  const { data: dataByPath, isLoading: isLoadingByPath } = useQuery(
-    convexQuery(
-      api.documents.queries.getDocumentByPath,
-      open && storagePath && !documentId
-        ? {
-            organizationId,
-            storagePath,
-          }
-        : 'skip',
-    ),
-  );
+  const doc = useMemo(() => {
+    if (!documents || !open) return undefined;
+    if (documentId) {
+      return documents.find((d) => d.id === documentId);
+    }
+    if (storagePath) {
+      return documents.find((d) => d.storagePath === storagePath);
+    }
+    return undefined;
+  }, [documents, open, documentId, storagePath]);
 
-  // Use whichever data source is available
-  const data = documentId ? dataById : dataByPath;
-
-  const isLoading = documentId ? isLoadingById : isLoadingByPath;
-  const isError = data?.success === false;
-  const queryError =
-    isError && 'error' in data
-      ? new Error(data.error || t('preview.unknownError'))
-      : null;
-  const doc = data?.success && 'item' in data ? data.item : undefined;
-
-  // Determine display name
   const displayName =
     fileName ||
     doc?.name ||
@@ -91,13 +69,11 @@ export function DocumentPreviewDialog({
     try {
       setIsDownloading(true);
 
-      // Fetch the file as a blob to bypass CORS restrictions
       const response = await fetch(doc.url);
       if (!response.ok) throw new Error(t('preview.downloadFailed'));
 
       const blob = await response.blob();
 
-      // Create a blob URL and trigger download with proper filename
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
@@ -105,7 +81,6 @@ export function DocumentPreviewDialog({
       document.body.appendChild(link);
       link.click();
 
-      // Cleanup
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
 
@@ -174,7 +149,6 @@ export function DocumentPreviewDialog({
         </div>
       }
     >
-      {/* Body */}
       {isLoading && (
         <div className="grid flex-1 place-items-center p-6">
           <div className="text-muted-foreground text-sm">
@@ -182,14 +156,14 @@ export function DocumentPreviewDialog({
           </div>
         </div>
       )}
-      {isError && (
+      {!isLoading && !doc && open && (
         <div className="grid flex-1 place-items-center p-6">
           <div className="text-destructive text-sm">
-            {queryError?.message || t('preview.failedToLoad')}
+            {t('preview.failedToLoad')}
           </div>
         </div>
       )}
-      {!isLoading && !isError && doc && doc.url && (
+      {!isLoading && doc?.url && (
         <DocumentPreview url={doc.url} fileName={displayName} />
       )}
     </Dialog>

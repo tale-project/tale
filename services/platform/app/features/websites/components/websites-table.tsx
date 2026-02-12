@@ -2,10 +2,10 @@
 
 import { Globe } from 'lucide-react';
 
+import type { Website } from '@/lib/collections/entities/websites';
+
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
@@ -13,9 +13,13 @@ import { WebsitesActionMenu } from './websites-action-menu';
 
 export interface WebsitesTableProps {
   organizationId: string;
+  websites: Website[];
 }
 
-export function WebsitesTable({ organizationId }: WebsitesTableProps) {
+export function WebsitesTable({
+  organizationId,
+  websites,
+}: WebsitesTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tWebsites } = useT('websites');
@@ -23,14 +27,8 @@ export function WebsitesTable({ organizationId }: WebsitesTableProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useWebsitesTableConfig();
 
-  const paginatedResult = useCachedPaginatedQuery(
-    api.websites.queries.listWebsites,
-    { organizationId },
-    { initialNumItems: pageSize },
-  );
-
   const list = useListPage({
-    dataSource: { type: 'paginated', ...paginatedResult },
+    dataSource: { type: 'query', data: websites },
     pageSize,
     search: {
       fields: ['domain', 'title', 'description'],

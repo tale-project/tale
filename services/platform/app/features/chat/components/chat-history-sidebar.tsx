@@ -1,7 +1,5 @@
 'use client';
 
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import {
   type ComponentPropsWithoutRef,
@@ -14,11 +12,12 @@ import {
 
 import { Stack } from '@/app/components/ui/layout/layout';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useUpdateThread } from '../hooks/use-update-thread';
+import { useThreadCollection } from '../hooks/collections';
+import { useUpdateThread } from '../hooks/mutations';
+import { useThreads } from '../hooks/queries';
 import { ChatActions } from './chat-actions';
 
 const emptySubscribe = () => () => {};
@@ -59,11 +58,10 @@ export function ChatHistorySidebar({
   const isMounted = useIsMounted();
   const { toast } = useToast();
 
-  const { data: threadsData } = useQuery(
-    convexQuery(api.threads.queries.listThreads, {}),
-  );
+  const threadCollection = useThreadCollection();
+  const { threads: threadsData } = useThreads(threadCollection);
 
-  const updateThread = useUpdateThread();
+  const updateThread = useUpdateThread(threadCollection);
 
   const chats = useMemo(
     () =>

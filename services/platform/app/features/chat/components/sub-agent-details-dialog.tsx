@@ -7,7 +7,7 @@ import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
-import type { SubAgentUsage } from '../hooks/use-message-metadata';
+import type { SubAgentUsage } from '../hooks/queries';
 
 function formatAgentName(toolName: string): string {
   const nameMap: Record<string, string> = {

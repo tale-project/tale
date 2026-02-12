@@ -9,12 +9,12 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { CustomAgentActiveToggle } from '@/app/features/custom-agents/components/custom-agent-active-toggle';
+import { useCustomAgentCollection } from '@/app/features/custom-agents/hooks/collections';
+import { useUpdateCustomAgentMetadata } from '@/app/features/custom-agents/hooks/mutations';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
-import { useUpdateCustomAgentMetadata } from '@/app/features/custom-agents/hooks/use-custom-agent-mutations';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
-import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId/')({
   component: GeneralTab,
@@ -34,10 +34,11 @@ interface CombinedSaveData extends GeneralFormData {
 }
 
 function GeneralTab() {
-  const { agentId } = Route.useParams();
+  const { id: organizationId, agentId } = Route.useParams();
   const { t } = useT('settings');
   const { agent, isReadOnly } = useCustomAgentVersion();
-  const updateMetadata = useUpdateCustomAgentMetadata();
+  const customAgentCollection = useCustomAgentCollection(organizationId);
+  const updateMetadata = useUpdateCustomAgentMetadata(customAgentCollection);
   const { teams } = useTeamFilter();
 
   const form = useForm<GeneralFormData>({
@@ -72,7 +73,7 @@ function GeneralTab() {
   const handleSave = useCallback(
     async (data: CombinedSaveData) => {
       await updateMetadata({
-        customAgentId: toId<'customAgents'>(agentId),
+        customAgentId: agentId,
         name: data.name,
         displayName: data.displayName,
         description: data.description || undefined,

@@ -57,22 +57,20 @@ export async function createConversationWithMessage(
     ? 'inbound'
     : 'outbound';
 
-  const deliveryStateCandidates = [
-    'queued',
-    'sent',
-    'delivered',
-    'failed',
-  ] as const;
+  const deliveryStateMap: Record<
+    string,
+    'queued' | 'sent' | 'delivered' | 'failed'
+  > = {
+    queued: 'queued',
+    sent: 'sent',
+    delivered: 'delivered',
+    failed: 'failed',
+  };
 
   const explicit = (args.initialMessage.status || '').toLowerCase();
-  const deliveryState = (deliveryStateCandidates as readonly string[]).includes(
-    explicit,
-  )
-    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing after includes check
-      (explicit as 'queued' | 'sent' | 'delivered' | 'failed')
-    : direction === 'inbound'
-      ? 'delivered'
-      : 'sent';
+  const deliveryState =
+    deliveryStateMap[explicit] ??
+    (direction === 'inbound' ? 'delivered' : 'sent');
 
   // Insert the initial message
   // Only set sentAt/deliveredAt if we have an actual timestamp

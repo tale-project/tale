@@ -1,5 +1,8 @@
 import { v } from 'convex/values';
 
+import type { Doc } from '../_generated/dataModel';
+import type { CursorPaginatedResult } from '../lib/pagination';
+
 import { internalQuery } from '../_generated/server';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
 import * as ProductsHelpers from './helpers';
@@ -10,7 +13,7 @@ export const getProductById = internalQuery({
     productId: v.id('products'),
   },
   returns: v.union(productDocValidator, v.null()),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Doc<'products'> | null> => {
     return await ProductsHelpers.getProductById(ctx, args.productId);
   },
 });
@@ -31,7 +34,10 @@ export const queryProducts = internalQuery({
     isDone: v.boolean(),
     continueCursor: v.string(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<CursorPaginatedResult<Doc<'products'>>> => {
     return await ProductsHelpers.queryProducts(ctx, args);
   },
 });
@@ -46,7 +52,10 @@ export const listByOrganization = internalQuery({
     isDone: v.boolean(),
     continueCursor: v.string(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<CursorPaginatedResult<Doc<'products'>>> => {
     return await ProductsHelpers.listByOrganization(ctx, args);
   },
 });
@@ -60,7 +69,10 @@ export const filterProducts = internalQuery({
     products: v.array(productDocValidator),
     count: v.number(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ products: Doc<'products'>[]; count: number }> => {
     return await ProductsHelpers.filterProducts(ctx, args);
   },
 });

@@ -23,7 +23,10 @@ export const migrateTeamFields = internalMutation({
     isDone: v.boolean(),
     cursor: v.optional(v.string()),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ migrated: number; isDone: boolean; cursor?: string }> => {
     const batchSize = args.batchSize ?? 100;
     let migrated = 0;
     let lastId: string | undefined;

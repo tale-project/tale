@@ -40,7 +40,8 @@ import { useUrlState } from '@/app/hooks/use-url-state';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateStep } from '../hooks/use-create-step';
+import { useWorkflowStepCollection } from '../hooks/collections';
+import { useCreateStep } from '../hooks/mutations';
 import { getLayoutedElements } from '../utils/dagre-layout';
 import { AutomationCallbacksProvider } from './automation-callbacks-context';
 import { AutomationEdge } from './automation-edge';
@@ -81,7 +82,8 @@ function AutomationStepsInner({
 }: AutomationStepsProps) {
   const { t } = useT('automations');
   const { user } = useAuth();
-  const createStep = useCreateStep();
+  const wfStepCollection = useWorkflowStepCollection(automationId);
+  const createStep = useCreateStep(wfStepCollection);
   const isDraft = status === 'draft';
   const isActive = status === 'active';
   const hasSteps = steps && steps.length > 0;
@@ -211,9 +213,8 @@ function AutomationStepsInner({
     }
   }, [sidePanelMode, fitView, getViewport, nodes.length]);
 
-  // Mutations (currently disabled until public APIs are available)
-  // const createStep = useMutation(api.wf_step_defs.createStep);
-  // const updateStep = useMutation(api.wf_step_defs.updateStep);
+  // Mutations for `createStep` and `updateStep` (currently disabled until
+  // public APIs are available)
 
   // Handle node click to open side panel
   const handleNodeClick = useCallback(

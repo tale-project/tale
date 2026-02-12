@@ -7,12 +7,12 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { internal } from '../../../_generated/api';
 import { errorResponse, type ToolResponse } from './tool_response';
 
-const PRIVILEGED_ROLES = ['admin', 'developer'] as const;
-type PrivilegedRole = (typeof PRIVILEGED_ROLES)[number];
+type PrivilegedRole = 'admin' | 'developer';
+
+const privilegedRoles = new Set<string>(['admin', 'developer']);
 
 function isPrivilegedRole(role: string): role is PrivilegedRole {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- type guard boundary
-  return PRIVILEGED_ROLES.includes(role.toLowerCase() as PrivilegedRole);
+  return privilegedRoles.has(role.toLowerCase());
 }
 
 interface RoleCheckResult {

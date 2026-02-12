@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { render, screen, waitFor } from '@/test/utils/render';
 
@@ -7,11 +10,8 @@ import { AutomationActiveToggle } from './automation-active-toggle';
 const mockRepublish = vi.fn();
 const mockUnpublish = vi.fn();
 
-vi.mock('../hooks/use-republish-automation', () => ({
+vi.mock('../hooks/actions', () => ({
   useRepublishAutomation: () => mockRepublish,
-}));
-
-vi.mock('../hooks/use-unpublish-automation', () => ({
   useUnpublishAutomation: () => mockUnpublish,
 }));
 
@@ -47,6 +47,8 @@ function createAutomation(
 }
 
 describe('AutomationActiveToggle', () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockRepublish.mockResolvedValue({ activatedId: 'wf-1' });

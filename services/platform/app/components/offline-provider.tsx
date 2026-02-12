@@ -1,6 +1,6 @@
-import { useConvex } from 'convex/react';
 import { useEffect, type ReactNode } from 'react';
 
+import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { initSyncManager } from '@/lib/offline';
 
 interface OfflineProviderProps {
@@ -8,7 +8,7 @@ interface OfflineProviderProps {
 }
 
 export function OfflineProvider({ children }: OfflineProviderProps) {
-  const convex = useConvex();
+  const convex = useConvexClient();
 
   useEffect(() => {
     const cleanup = initSyncManager(convex);

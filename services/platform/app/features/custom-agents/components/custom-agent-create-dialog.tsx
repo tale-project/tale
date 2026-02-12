@@ -12,7 +12,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateCustomAgent } from '../hooks/use-custom-agent-mutations';
+import { useCreateCustomAgent } from '../hooks/actions';
 
 type FormData = {
   name: string;

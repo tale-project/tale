@@ -13,7 +13,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
-import { useRetryRagIndexing } from '../hooks/use-retry-rag-indexing';
+import { useRetryRagIndexing } from '../hooks/actions';
 
 interface RagStatusBadgeProps {
   status: RagStatus | undefined;

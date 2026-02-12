@@ -1,6 +1,5 @@
 'use client';
 
-import { useAction } from 'convex/react';
 import { CheckCircle, XCircle, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 
@@ -21,8 +20,15 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+
+import {
+  useRemoveSsoProvider,
+  useSsoFullConfig,
+  useTestExistingSsoConfig,
+  useTestSsoConfig,
+  useUpsertSsoProvider,
+} from '../hooks/actions';
 
 interface SSOConfigDialogProps {
   open?: boolean;
@@ -98,13 +104,11 @@ export function SSOConfigDialog({
     enableOneDriveAccess: boolean;
   } | null>(null);
 
-  const upsertSSOProvider = useAction(api.sso_providers.actions.upsert);
-  const removeSSOProvider = useAction(api.sso_providers.actions.remove);
-  const getFullConfig = useAction(api.sso_providers.actions.getWithClientId);
-  const testSSOConfig = useAction(api.sso_providers.actions.testConfig);
-  const testExistingSSOConfig = useAction(
-    api.sso_providers.actions.testExistingConfig,
-  );
+  const upsertSSOProvider = useUpsertSsoProvider();
+  const removeSSOProvider = useRemoveSsoProvider();
+  const getFullConfig = useSsoFullConfig();
+  const testSSOConfig = useTestSsoConfig();
+  const testExistingSSOConfig = useTestExistingSsoConfig();
 
   const isConnected = !!existingProvider;
 
@@ -158,7 +162,8 @@ export function SSOConfigDialog({
             const rules =
               config.roleMappingRules.length > 0
                 ? config.roleMappingRules.filter(
-                    (r) => r.source === 'jobTitle' || r.source === 'appRole',
+                    (r: RoleMappingRule) =>
+                      r.source === 'jobTitle' || r.source === 'appRole',
                   )
                 : DEFAULT_MAPPING_RULES;
             setIssuer(config.issuer);

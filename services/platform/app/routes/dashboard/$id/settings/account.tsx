@@ -1,11 +1,9 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { AccountFormClient } from '@/app/features/settings/account/components/account-form-client';
-import { api } from '@/convex/_generated/api';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 
 export const Route = createFileRoute('/dashboard/$id/settings/account')({
   component: AccountPage,
@@ -34,11 +32,8 @@ function AccountSkeleton() {
 
 function AccountPage() {
   const { id: organizationId } = Route.useParams();
-  const { data: memberContext, isLoading } = useQuery(
-    convexQuery(api.members.queries.getCurrentMemberContext, {
-      organizationId,
-    }),
-  );
+  const { data: memberContext, isLoading } =
+    useCurrentMemberContext(organizationId);
 
   if (isLoading) {
     return <AccountSkeleton />;
