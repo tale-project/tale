@@ -25,7 +25,7 @@ concurrency:
 jobs:
   changes:
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       pull-requests: read
@@ -59,7 +59,7 @@ jobs:
     name: Build ${{ matrix.service }}
     needs: changes
     if: needs.changes.outputs.services != '[]'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
     strategy:
@@ -86,18 +86,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
 
       - name: Build Docker image
-        uses: docker/build-push-action@v6
+        uses: useblacksmith/build-push-action@v2
         with:
           context: ${{ matrix.context }}
           file: services/${{ matrix.service }}/Dockerfile
           platforms: linux/amd64
           push: false
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
       - name: Build summary
         run: echo "## ${{ matrix.service }} Docker image built successfully" >> $GITHUB_STEP_SUMMARY

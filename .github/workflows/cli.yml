@@ -20,7 +20,7 @@ permissions:
 jobs:
   prepare:
     name: Prepare
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       version: ${{ steps.version.outputs.version }}
 
@@ -57,7 +57,7 @@ jobs:
             platform: windows
             build_script: build:windows
             binary: tale.exe
-            artifact: tale_windows.exe
+            artifact: blacksmith-4vcpu-windows-2025
 
     steps:
       - name: Checkout
@@ -118,7 +118,7 @@ jobs:
     name: Upload to Release
     needs: build
     if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
       - name: Download all artifacts
