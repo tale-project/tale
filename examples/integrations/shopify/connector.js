@@ -1,7 +1,7 @@
 // Shopify Connector - Fetch data from Shopify Admin API
 // This connector runs in a sandboxed environment with controlled HTTP access
 
-const SHOPIFY_API_VERSION = '2024-01';
+const SHOPIFY_API_VERSION = '2026-01';
 
 function normalizeShopDomain(domain) {
   return domain

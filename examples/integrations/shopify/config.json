@@ -54,7 +54,7 @@
     }
   ],
   "connectionConfig": {
-    "apiVersion": "2024-01",
+    "apiVersion": "2026-01",
     "timeout": 30000
   }
 }
