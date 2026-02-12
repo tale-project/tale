@@ -2,6 +2,8 @@
 
 import { v } from 'convex/values';
 
+import type { ConnectorConfig } from '../integrations/types';
+
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { buildIntegrationSecrets } from '../integrations/build_test_secrets';
@@ -10,6 +12,16 @@ import { getPredefinedIntegration } from '../predefined_integrations';
 
 const DELIVERY_CHECK_DELAY_MS = 60_000;
 const MAX_DELIVERY_CHECK_RETRIES = 5;
+
+function resolveConnectorConfig(
+  connector: ConnectorConfig | undefined,
+  integrationName: string,
+): ConnectorConfig | undefined {
+  if (connector) {
+    return connector;
+  }
+  return getPredefinedIntegration(integrationName)?.connector;
+}
 
 export const sendMessageViaIntegrationAction = internalAction({
   args: {
@@ -38,13 +50,10 @@ export const sendMessageViaIntegrationAction = internalAction({
         );
       }
 
-      let connectorConfig = integration.connector;
-      if (!connectorConfig) {
-        const predefined = getPredefinedIntegration(args.integrationName);
-        if (predefined) {
-          connectorConfig = predefined.connector;
-        }
-      }
+      const connectorConfig = resolveConnectorConfig(
+        integration.connector,
+        args.integrationName,
+      );
 
       if (!connectorConfig) {
         throw new Error(
@@ -176,13 +185,10 @@ export const checkMessageDeliveryAction = internalAction({
         return null;
       }
 
-      let connectorConfig = integration.connector;
-      if (!connectorConfig) {
-        const predefined = getPredefinedIntegration(args.integrationName);
-        if (predefined) {
-          connectorConfig = predefined.connector;
-        }
-      }
+      const connectorConfig = resolveConnectorConfig(
+        integration.connector,
+        args.integrationName,
+      );
 
       if (!connectorConfig) {
         console.error(
