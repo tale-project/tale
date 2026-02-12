@@ -249,23 +249,25 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       }
 
       case 'create_from_email': {
+        const accountEmail = params.accountEmail?.trim() || undefined;
         return await createConversationFromEmail(ctx, {
           organizationId,
           emails: params.emails, // Required by validator
           status: params.status,
           priority: params.priority,
           type: params.type,
-          accountEmail: params.accountEmail,
+          accountEmail,
         });
       }
 
       case 'create_from_sent_email': {
+        const accountEmail = params.accountEmail?.trim() || undefined;
         return await createConversationFromSentEmail(ctx, {
           organizationId,
           emails: params.emails, // Required by validator
           status: params.status,
           priority: params.priority,
-          accountEmail: params.accountEmail,
+          accountEmail,
           type: params.type,
         });
       }
