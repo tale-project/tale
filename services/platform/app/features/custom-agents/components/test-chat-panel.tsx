@@ -276,9 +276,7 @@ function TestChatPanelContent({
 
   const effectiveMessages = useMemo(
     (): ChatMessage[] =>
-      (transformedMessages.length > 0 ? transformedMessages : messages).map(
-        (m) => ({ ...m, key: m.key }),
-      ),
+      transformedMessages.length > 0 ? transformedMessages : messages,
     [transformedMessages, messages],
   );
 
