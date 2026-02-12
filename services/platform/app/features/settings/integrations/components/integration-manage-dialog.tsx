@@ -60,6 +60,13 @@ function maskValue(value: string, visibleChars = 6): string {
   return value.slice(0, visibleChars) + '×'.repeat(7);
 }
 
+function parsePort(value: string | undefined): number | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
+}
+
 const MAX_ICON_SIZE = 256 * 1024; // 256KB
 const ACCEPTED_ICON_TYPES = new Set([
   'image/png',
@@ -339,9 +346,7 @@ export function IntegrationManageDialog({
       updateArgs.sqlConnectionConfig = {
         engine: existing?.engine ?? 'mssql',
         server: sqlConfig['server']?.trim() || existing?.server,
-        port: sqlConfig['port']?.trim()
-          ? Number(sqlConfig['port'])
-          : existing?.port,
+        port: parsePort(sqlConfig['port']) ?? existing?.port,
         database: sqlConfig['database']?.trim() || existing?.database,
         readOnly: existing?.readOnly,
         options: existing?.options,
@@ -378,9 +383,7 @@ export function IntegrationManageDialog({
           testArgs.sqlConnectionConfig = {
             engine: existing?.engine ?? 'mssql',
             server: sqlConfig['server']?.trim() || existing?.server,
-            port: sqlConfig['port']?.trim()
-              ? Number(sqlConfig['port'])
-              : existing?.port,
+            port: parsePort(sqlConfig['port']) ?? existing?.port,
             database: sqlConfig['database']?.trim() || existing?.database,
             readOnly: existing?.readOnly,
             options: existing?.options,
