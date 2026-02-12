@@ -35,7 +35,7 @@ const connector = {
     }
 
     var cleanDomain = normalizeShopDomain(domain);
-    var shopDomain = cleanDomain.includes('.myshopify.com')
+    var shopDomain = cleanDomain.endsWith('.myshopify.com')
       ? cleanDomain
       : cleanDomain + '.myshopify.com';
 
@@ -99,7 +99,7 @@ const connector = {
 
     // Clean and normalize domain
     const cleanDomain = normalizeShopDomain(domain);
-    const shopDomain = cleanDomain.includes('.myshopify.com')
+    const shopDomain = cleanDomain.endsWith('.myshopify.com')
       ? cleanDomain
       : cleanDomain + '.myshopify.com';
 
