@@ -68,7 +68,7 @@
     "@tanstack/db": "^0.5.25",
     "@tanstack/query-db-collection": "^1.0.22",
     "@tanstack/react-db": "^0.1.69",
-    "@tanstack/react-query": "5.90.20",
+    "@tanstack/react-query": "5.90.21",
     "@tanstack/react-router": "1.159.5",
     "@tanstack/react-table": "8.21.3",
     "@xyflow/react": "12.10.0",
