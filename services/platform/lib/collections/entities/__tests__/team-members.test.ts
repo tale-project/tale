@@ -90,7 +90,7 @@ describe('createTeamMembersCollection', () => {
     );
 
     const config = mockQueryCollectionOptions.mock.calls[0][0];
-    expect(config.onInsert).toBeUndefined();
+    expect(config.onInsert).toBeDefined();
     expect(config.onUpdate).toBeUndefined();
     expect(config.onDelete).toBeDefined();
   });

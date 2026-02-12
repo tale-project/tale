@@ -4,6 +4,7 @@ import { useCallback, startTransition } from 'react';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
+import { toId } from '@/lib/utils/type-guards';
 
 import type {
   PendingMessage,
@@ -126,7 +127,7 @@ export function useSendMessage({
         // Send message with optimistic update
         if (selectedAgent?.type === 'custom') {
           await chatWithCustomAgent({
-            customAgentId: selectedAgent._id,
+            customAgentId: toId<'customAgents'>(selectedAgent._id),
             threadId: currentThreadId,
             organizationId,
             message: sanitizedContent,

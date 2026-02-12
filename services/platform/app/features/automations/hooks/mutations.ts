@@ -5,6 +5,42 @@ import { useCallback } from 'react';
 import type { WfAutomation } from '@/lib/collections/entities/wf-automations';
 import type { WfStep } from '@/lib/collections/entities/wf-steps';
 
+export function useCreateStep(collection: Collection<WfStep, string>) {
+  return useCallback(
+    async (args: {
+      wfDefinitionId: string;
+      stepSlug: string;
+      name: string;
+      stepType: WfStep['stepType'];
+      order: number;
+      config: WfStep['config'];
+      nextSteps: Record<string, string>;
+      editMode?: string;
+    }) => {
+      const tx = collection.insert(
+        {
+          _id: `temp-${crypto.randomUUID()}`,
+          _creationTime: 0,
+          organizationId: '',
+          wfDefinitionId: args.wfDefinitionId,
+          stepSlug: args.stepSlug,
+          name: args.name,
+          stepType: args.stepType,
+          order: args.order,
+          config: args.config,
+          nextSteps: args.nextSteps,
+        },
+        {
+          optimistic: false,
+          metadata: { editMode: args.editMode ?? 'visual' },
+        },
+      );
+      await tx.isPersisted.promise;
+    },
+    [collection],
+  );
+}
+
 export function useUpdateStep(collection: Collection<WfStep, string>) {
   return useCallback(
     async (args: {

@@ -83,7 +83,7 @@ describe('createWfStepsCollection', () => {
     expect(getKey({ _id: 'step-abc' })).toBe('step-abc');
   });
 
-  it('does not define mutation handlers', () => {
+  it('defines onInsert and onUpdate handlers', () => {
     createWfStepsCollection(
       'def-123',
       mockQueryClient,
@@ -92,7 +92,7 @@ describe('createWfStepsCollection', () => {
     );
 
     const config = mockQueryCollectionOptions.mock.calls[0][0];
-    expect(config.onInsert).toBeUndefined();
+    expect(config.onInsert).toBeDefined();
     expect(config.onUpdate).toBeDefined();
     expect(config.onDelete).toBeUndefined();
   });

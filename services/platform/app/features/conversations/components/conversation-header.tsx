@@ -1,6 +1,5 @@
 'use client';
 
-import { useLiveQuery } from '@tanstack/react-db';
 import { MoreVertical } from 'lucide-react';
 import {
   ArrowLeft,
@@ -9,7 +8,7 @@ import {
   ShieldX,
   UserIcon,
 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import {
@@ -20,6 +19,7 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
+import { useCustomerById } from '@/app/features/customers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { createConversationsCollection } from '@/lib/collections/entities/conversations';
 import { createCustomersCollection } from '@/lib/collections/entities/customers';
@@ -75,16 +75,10 @@ export function ConversationHeader({
     createCustomersCollection,
     organizationId,
   );
-  const customerId = conversation.customerId;
-  const { data: customerDocs } = useLiveQuery(
-    (q) =>
-      q
-        .from({ c: customersCollection })
-        .fn.where((row) => row.c._id === customerId)
-        .select(({ c }) => c),
-    [customerId],
+  const customerDoc = useCustomerById(
+    customersCollection,
+    conversation.customerId,
   );
-  const customerDoc = useMemo(() => customerDocs?.[0] ?? null, [customerDocs]);
 
   const handleResolveConversation = async () => {
     setIsResolvingLoading(true);

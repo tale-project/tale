@@ -2,7 +2,8 @@
 
 import type { ReactNode } from 'react';
 
-import { useVendorCollection, useVendors } from '../hooks/collections';
+import { useVendorCollection } from '../hooks/collections';
+import { useVendors } from '../hooks/queries';
 import { VendorsEmptyState } from './vendors-empty-state';
 
 interface VendorsPageWrapperProps {

@@ -1,6 +1,5 @@
 'use client';
 
-import { useLiveQuery } from '@tanstack/react-db';
 import { Sparkles } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -9,6 +8,7 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
+import { useCustomerByEmail } from '@/app/features/customers/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { createCustomersCollection } from '@/lib/collections/entities/customers';
 import { useCollection } from '@/lib/collections/use-collection';
@@ -55,18 +55,9 @@ export function ApprovalDetailDialog({
     createCustomersCollection,
     approvalDetail?.organizationId ?? '',
   );
-  const customerEmail = approvalDetail?.customer.email;
-  const { data: customerDocs } = useLiveQuery(
-    (q) =>
-      q
-        .from({ c: customersCollection })
-        .fn.where((row) => row.c.email === customerEmail)
-        .select(({ c }) => c),
-    [customerEmail],
-  );
-  const customerRecord = useMemo(
-    () => customerDocs?.[0] ?? null,
-    [customerDocs],
+  const customerRecord = useCustomerByEmail(
+    customersCollection,
+    approvalDetail?.customer.email,
   );
 
   // Sort products by confidence (high to low) and get first product

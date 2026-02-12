@@ -2,11 +2,18 @@ import { api } from '@/convex/_generated/api';
 import { toId } from '@/lib/utils/type-guards';
 
 import type { CollectionFactory } from '../collection-registry';
-import type { ConvexItemOf } from '../convex-collection-options';
 
 import { convexCollectionOptions } from '../convex-collection-options';
 
-type Member = ConvexItemOf<typeof api.members.queries.listByOrganization>;
+type Member = {
+  _id: string;
+  organizationId: string;
+  userId: string;
+  role: string;
+  createdAt: number;
+  displayName: string | undefined;
+  email: string | undefined;
+};
 
 export const createMembersCollection: CollectionFactory<Member, string> = (
   scopeId,

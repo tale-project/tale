@@ -9,10 +9,6 @@ export function useChatWithWorkflowAssistant() {
   return useConvexAction(api.agents.workflow.actions.chatWithWorkflowAssistant);
 }
 
-export function useCreateStep() {
-  return useConvexAction(api.wf_step_defs.actions.createStep);
-}
-
 export function useCreateAutomation() {
   return useConvexAction(api.wf_definitions.actions.createWorkflowWithSteps);
 }

@@ -14,9 +14,8 @@ import type { Team } from '../hooks/collections';
 
 import { useMemberCollection } from '../../organization/hooks/collections';
 import { useMembers } from '../../organization/hooks/queries';
-import { useAddTeamMember } from '../hooks/actions';
 import { useTeamMemberCollection } from '../hooks/collections';
-import { useRemoveTeamMember } from '../hooks/mutations';
+import { useAddTeamMember, useRemoveTeamMember } from '../hooks/mutations';
 import { useTeamMembers } from '../hooks/queries';
 
 interface TeamMembersDialogProps {
@@ -48,7 +47,7 @@ export function TeamMembersDialog({
   const { teamMembers, isLoading: isLoadingTeamMembers } =
     useTeamMembers(teamMemberCollection);
 
-  const addTeamMember = useAddTeamMember();
+  const addTeamMember = useAddTeamMember(teamMemberCollection);
   const removeTeamMember = useRemoveTeamMember(teamMemberCollection);
 
   const isLoading = isLoadingTeamMembers;

@@ -21,6 +21,26 @@ export const createWfStepsCollection: CollectionFactory<WfStep, string> = (
     queryClient,
     convexQueryFn,
     getKey: (item) => item._id,
+    onInsert: async ({ transaction }) => {
+      await Promise.all(
+        transaction.mutations.map((m) => {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata typed as unknown; consumer passes editMode
+          const meta = m.metadata as
+            | { editMode: 'visual' | 'json' | 'ai' }
+            | undefined;
+          return convexClient.mutation(api.wf_step_defs.mutations.createStep, {
+            wfDefinitionId: toId<'wfDefinitions'>(scopeId),
+            stepSlug: m.modified.stepSlug,
+            name: m.modified.name,
+            stepType: m.modified.stepType,
+            order: m.modified.order,
+            config: m.modified.config,
+            nextSteps: m.modified.nextSteps,
+            editMode: meta?.editMode ?? 'visual',
+          });
+        }),
+      );
+    },
     onUpdate: async ({ transaction }) => {
       await Promise.all(
         transaction.mutations.map((m) => {

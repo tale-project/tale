@@ -1,7 +1,7 @@
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
-// Note: useAction - calls external RAG service, can't predict result
+// Note: Calls external RAG service, can't predict result
 export function useRetryRagIndexing() {
   return useConvexAction(api.documents.actions.retryRagIndexing);
 }
