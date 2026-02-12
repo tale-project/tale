@@ -8,8 +8,6 @@
 
 import { v } from 'convex/values';
 
-import type { StartAgentChatResult } from '../lib/agent_chat/start_agent_chat';
-
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { startAgentChat } from '../lib/agent_chat';
