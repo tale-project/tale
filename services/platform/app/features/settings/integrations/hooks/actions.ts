@@ -68,3 +68,23 @@ export function useSsoFullConfig() {
 export function useSsoCredentials() {
   return useConvexAction(api.sso_providers.actions.getSsoCredentialsForEmail);
 }
+
+export function useGenerateUploadUrl() {
+  return useConvexAction(api.files.actions.generateUploadUrl);
+}
+
+export function useUpdateIntegrationIcon() {
+  return useConvexAction(api.integrations.actions.updateIcon);
+}
+
+export function useGenerateIntegrationOAuth2Url() {
+  return useConvexAction(api.integrations.actions.generateOAuth2Url);
+}
+
+export function useSaveOAuth2Credentials() {
+  return useConvexAction(api.integrations.actions.saveOAuth2ClientCredentials);
+}
+
+export function useDeleteIntegrationAction() {
+  return useConvexAction(api.integrations.actions.deleteIntegrationAction);
+}

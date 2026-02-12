@@ -13,7 +13,7 @@ import type { CustomAgentRow } from './custom-agent-table';
 import {
   useActivateCustomAgentVersion,
   useUnpublishCustomAgent,
-} from '../hooks/use-custom-agent-mutations';
+} from '../hooks/actions';
 
 interface CustomAgentActiveToggleProps {
   agent: Pick<

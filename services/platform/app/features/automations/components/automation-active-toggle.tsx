@@ -9,8 +9,10 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useRepublishAutomation } from '../hooks/use-republish-automation';
-import { useUnpublishAutomation } from '../hooks/use-unpublish-automation';
+import {
+  useRepublishAutomation,
+  useUnpublishAutomation,
+} from '../hooks/actions';
 
 interface AutomationActiveToggleProps {
   automation: Doc<'wfDefinitions'>;

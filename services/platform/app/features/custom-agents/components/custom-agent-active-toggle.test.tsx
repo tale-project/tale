@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { render, screen, waitFor } from '@/test/utils/render';
 
@@ -7,7 +10,7 @@ import { CustomAgentActiveToggle } from './custom-agent-active-toggle';
 const mockActivateVersion = vi.fn();
 const mockUnpublish = vi.fn();
 
-vi.mock('../hooks/use-custom-agent-mutations', () => ({
+vi.mock('../hooks/actions', () => ({
   useActivateCustomAgentVersion: () => mockActivateVersion,
   useUnpublishCustomAgent: () => mockUnpublish,
 }));
@@ -37,6 +40,8 @@ function createAgent(
 }
 
 describe('CustomAgentActiveToggle', () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockActivateVersion.mockResolvedValue(null);
