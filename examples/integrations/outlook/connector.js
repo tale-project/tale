@@ -174,7 +174,7 @@ function listMessages(http, headers, params) {
   // When this combination is detected, drop $orderby from the request and sort
   // the results in memory afterwards.
   var needsClientSort = false;
-  if (filter && filter.indexOf('conversationId') !== -1 && params.orderby) {
+  if (filter && filter.indexOf('conversationId') !== -1 && orderby) {
     needsClientSort = true;
   }
 
