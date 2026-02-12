@@ -152,7 +152,7 @@
     "@types/react-dom": "19.2.3",
     "@types/react-file-icon": "1.0.4",
     "@types/swagger-ui-react": "^5.18.0",
-    "@vitejs/plugin-react": "5.1.3",
+    "@vitejs/plugin-react": "5.1.4",
     "bcryptjs": "3.0.3",
     "convex-test": "0.0.40",
     "jsdom": "28.0.0",
