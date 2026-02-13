@@ -13,13 +13,14 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
+import { useWfAutomationCollection } from '../hooks/collections';
 import {
+  useDeleteAutomation,
   useDuplicateAutomation,
   useRepublishAutomation,
   useUnpublishAutomation,
-} from '../hooks/actions';
-import { useWfAutomationCollection } from '../hooks/collections';
-import { useDeleteAutomation, useUpdateAutomation } from '../hooks/mutations';
+  useUpdateAutomation,
+} from '../hooks/mutations';
 import { DeleteAutomationDialog } from './automation-delete-dialog';
 import { AutomationRenameDialog } from './automation-rename-dialog';
 
@@ -36,15 +37,15 @@ export function AutomationRowActions({
   const { user } = useAuth();
   const dialogs = useEntityRowDialogs(['delete', 'rename', 'unpublish']);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
   const wfAutomationCollection = useWfAutomationCollection(
     automation.organizationId,
   );
-  const duplicateAutomation = useDuplicateAutomation();
+  const { mutateAsync: duplicateAutomation } = useDuplicateAutomation();
   const deleteAutomation = useDeleteAutomation(wfAutomationCollection);
-  const republishAutomation = useRepublishAutomation();
-  const unpublishAutomation = useUnpublishAutomation();
+  const { mutateAsync: republishAutomation } = useRepublishAutomation();
+  const { mutateAsync: unpublishAutomation, isPending: isUnpublishing } =
+    useUnpublishAutomation();
   const updateAutomation = useUpdateAutomation(wfAutomationCollection);
 
   const handlePublish = useCallback(async () => {
@@ -112,7 +113,6 @@ export function AutomationRowActions({
 
   const handleUnpublishConfirm = useCallback(async () => {
     if (!user) return;
-    setIsUnpublishing(true);
     try {
       await unpublishAutomation({
         wfDefinitionId: automation._id,
@@ -129,8 +129,6 @@ export function AutomationRowActions({
         title: tToast('error.automationDeactivateFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsUnpublishing(false);
     }
   }, [unpublishAutomation, automation._id, user, dialogs.setOpen, tToast]);
 

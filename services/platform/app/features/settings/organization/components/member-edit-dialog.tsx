@@ -18,8 +18,8 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useSetMemberPassword } from '../hooks/actions';
 import {
+  useSetMemberPassword,
   useUpdateMemberDisplayName,
   useUpdateMemberRole,
 } from '../hooks/mutations';
@@ -99,7 +99,7 @@ export function EditMemberDialog({
 
   const updateMemberRole = useUpdateMemberRole(collection);
   const updateMemberDisplayName = useUpdateMemberDisplayName(collection);
-  const setMemberPassword = useSetMemberPassword();
+  const { mutateAsync: setMemberPassword } = useSetMemberPassword();
 
   const handleUpdateMember = async (
     memberId: string,

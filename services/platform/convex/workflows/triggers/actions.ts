@@ -5,9 +5,6 @@ import { v } from 'convex/values';
 import { CronExpressionParser } from 'cron-parser';
 import { z } from 'zod/v4';
 
-import type { Id } from '../../_generated/dataModel';
-
-import { api } from '../../_generated/api';
 import { action } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import { getEnvOrThrow } from '../../lib/get_or_throw';
@@ -74,25 +71,5 @@ Rules:
       cronExpression: result.object.cronExpression,
       description: result.object.description,
     };
-  },
-});
-
-export const createWebhook = action({
-  args: {
-    organizationId: v.string(),
-    workflowRootId: v.id('wfDefinitions'),
-  },
-  returns: v.object({
-    webhookId: v.id('wfWebhooks'),
-    token: v.string(),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ webhookId: Id<'wfWebhooks'>; token: string }> => {
-    return await ctx.runMutation(
-      api.workflows.triggers.mutations.createWebhook,
-      args,
-    );
   },
 });

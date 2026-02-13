@@ -16,7 +16,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateMember } from '../hooks/actions';
+import { useCreateMember } from '../hooks/mutations';
 
 // Type for the form data
 type AddMemberFormData = {
@@ -72,7 +72,6 @@ export function AddMemberDialog({
     [tCommon, tAuth],
   );
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCredentials, setShowCredentials] = useState(false);
   const [isExistingUser, setIsExistingUser] = useState(false);
   const [credentials, setCredentials] = useState<{
@@ -81,7 +80,8 @@ export function AddMemberDialog({
   } | null>(null);
   const { toast } = useToast();
 
-  const createMember = useCreateMember();
+  const { mutateAsync: createMember, isPending: isSubmitting } =
+    useCreateMember();
   const form = useForm<AddMemberFormData>({
     resolver: zodResolver(addMemberSchema),
     defaultValues: {
@@ -120,7 +120,6 @@ export function AddMemberDialog({
   );
 
   const onSubmit = async (data: AddMemberFormData) => {
-    setIsSubmitting(true);
     try {
       const result = await createMember({
         organizationId,
@@ -146,7 +145,6 @@ export function AddMemberDialog({
         setShowCredentials(true);
       } else {
         reset();
-        setIsSubmitting(false);
         onOpenChange(false);
       }
     } catch (error) {
@@ -155,7 +153,6 @@ export function AddMemberDialog({
         title: tToast('error.addMemberFailed'),
         variant: 'destructive',
       });
-      setIsSubmitting(false);
     }
   };
 
@@ -164,7 +161,6 @@ export function AddMemberDialog({
     setIsExistingUser(false);
     setCredentials(null);
     reset();
-    setIsSubmitting(false);
     onOpenChange(false);
   };
 

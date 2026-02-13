@@ -13,7 +13,7 @@ import type { CustomAgentRow } from './custom-agent-table';
 import {
   useActivateCustomAgentVersion,
   useUnpublishCustomAgent,
-} from '../hooks/actions';
+} from '../hooks/mutations';
 
 interface CustomAgentActiveToggleProps {
   agent: Pick<
@@ -31,17 +31,19 @@ export function CustomAgentActiveToggle({
   const { t: tCommon } = useT('common');
 
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
-  const [isToggling, setIsToggling] = useState(false);
 
-  const activateVersion = useActivateCustomAgentVersion();
-  const unpublishAgent = useUnpublishCustomAgent();
+  const { mutateAsync: activateVersion, isPending: isActivating } =
+    useActivateCustomAgentVersion();
+  const { mutateAsync: unpublishAgent, isPending: isUnpublishing } =
+    useUnpublishCustomAgent();
+
+  const isToggling = isActivating || isUnpublishing;
 
   const rootId = agent.rootVersionId ?? agent._id;
   const isActive = agent.status === 'active';
   const isDraft = agent.status === 'draft';
 
   const handleActivate = useCallback(async () => {
-    setIsToggling(true);
     try {
       await activateVersion({
         customAgentId: toId<'customAgents'>(rootId),
@@ -57,13 +59,10 @@ export function CustomAgentActiveToggle({
         title: t('customAgents.agentPublishFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsToggling(false);
     }
   }, [activateVersion, rootId, agent.versionNumber, t]);
 
   const handleDeactivateConfirm = useCallback(async () => {
-    setIsToggling(true);
     try {
       await unpublishAgent({
         customAgentId: toId<'customAgents'>(rootId),
@@ -79,8 +78,6 @@ export function CustomAgentActiveToggle({
         title: t('customAgents.agentDeactivateFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsToggling(false);
     }
   }, [unpublishAgent, rootId, t]);
 

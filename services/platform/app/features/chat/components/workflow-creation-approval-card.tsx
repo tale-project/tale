@@ -251,7 +251,8 @@ function WorkflowCreationApprovalCardComponent({
   // side effects that cannot be safely rolled back if the mutation fails.
   const approvalCollection = useApprovalCollection(organizationId);
   const updateApprovalStatus = useUpdateApprovalStatus(approvalCollection);
-  const executeApprovedWorkflow = useExecuteApprovedWorkflowCreation();
+  const { mutateAsync: executeApprovedWorkflow } =
+    useExecuteApprovedWorkflowCreation();
 
   const isPending = status === 'pending';
   const isProcessing = isApproving || isRejecting;

@@ -1,7 +1,6 @@
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexActionMutation } from '@/app/hooks/use-convex-action-mutation';
 import { api } from '@/convex/_generated/api';
 
-// Note: Returns generated URL - can't predict result
 export function useGenerateIntegrationOAuth2Url() {
-  return useConvexAction(api.integrations.actions.generateOAuth2Url);
+  return useConvexActionMutation(api.integrations.actions.generateOAuth2Url);
 }

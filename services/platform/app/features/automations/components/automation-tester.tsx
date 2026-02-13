@@ -18,7 +18,7 @@ import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useStartWorkflow } from '../hooks/actions';
+import { useStartWorkflow } from '../hooks/mutations';
 import { useDryRunWorkflow } from '../hooks/queries';
 
 interface AutomationTesterProps {
@@ -53,11 +53,11 @@ export function AutomationTester({
 }: AutomationTesterProps) {
   const { t } = useT('automations');
   const [testInput, setTestInput] = useState('{}');
-  const [isExecuting, setIsExecuting] = useState(false);
   const [isDryRunning, setIsDryRunning] = useState(false);
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
 
-  const startWorkflow = useStartWorkflow();
+  const { mutateAsync: startWorkflow, isPending: isExecuting } =
+    useStartWorkflow();
 
   const parsedInput = (() => {
     try {
@@ -93,22 +93,19 @@ export function AutomationTester({
   }
 
   const handleExecute = async () => {
+    let input = {};
     try {
-      setIsExecuting(true);
+      input = JSON.parse(testInput);
+    } catch {
+      toast({
+        title: t('tester.toast.invalidJson'),
+        description: t('tester.toast.invalidJsonDescription'),
+        variant: 'destructive',
+      });
+      return;
+    }
 
-      let input = {};
-      try {
-        input = JSON.parse(testInput);
-      } catch {
-        toast({
-          title: t('tester.toast.invalidJson'),
-          description: t('tester.toast.invalidJsonDescription'),
-          variant: 'destructive',
-        });
-        setIsExecuting(false);
-        return;
-      }
-
+    try {
       const executionId = await startWorkflow({
         organizationId,
         wfDefinitionId: automationId,
@@ -139,8 +136,6 @@ export function AutomationTester({
             : t('tester.toast.startFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsExecuting(false);
     }
   };
 

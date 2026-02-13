@@ -11,12 +11,12 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
+import { useConversationCollection } from '../hooks/collections';
 import {
   useGenerateUploadUrl,
+  useMarkAsRead,
   useSendMessageViaIntegration,
-} from '../hooks/actions';
-import { useConversationCollection } from '../hooks/collections';
-import { useMarkAsRead } from '../hooks/mutations';
+} from '../hooks/mutations';
 import { useConversationWithMessages } from '../hooks/queries';
 import { ConversationHeader } from './conversation-header';
 import { Message } from './message';
@@ -63,8 +63,9 @@ export function ConversationPanel({
 
   const conversationCollection = useConversationCollection(organizationId);
   const markAsRead = useMarkAsRead(conversationCollection);
-  const sendMessageViaIntegration = useSendMessageViaIntegration();
-  const generateUploadUrl = useGenerateUploadUrl();
+  const { mutateAsync: sendMessageViaIntegration } =
+    useSendMessageViaIntegration();
+  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const messageComposerRef = useRef<HTMLDivElement>(null);
@@ -133,7 +134,7 @@ export function ConversationPanel({
         }
 
         const uploadUrls = await Promise.all(
-          validAttachments.map(() => generateUploadUrl()),
+          validAttachments.map(() => generateUploadUrl({})),
         );
 
         await Promise.all(

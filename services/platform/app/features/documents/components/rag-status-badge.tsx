@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader2, RotateCw } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 import type { RagStatus } from '@/types/documents';
 
@@ -45,8 +45,8 @@ export function RagStatusBadge({
 }: RagStatusBadgeProps) {
   const { t } = useT('documents');
   const { formatDate } = useFormatDate();
-  const retryRagIndexing = useRetryRagIndexing();
-  const [isRetrying, setIsRetrying] = useState(false);
+  const { mutateAsync: retryRagIndexing, isPending: isRetrying } =
+    useRetryRagIndexing();
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
   const [isFailedDialogOpen, setIsFailedDialogOpen] = useState(false);
 
@@ -77,7 +77,6 @@ export function RagStatusBadge({
       return;
     }
 
-    setIsRetrying(true);
     try {
       const result = await retryRagIndexing({
         documentId: toId<'documents'>(documentId),
@@ -87,7 +86,6 @@ export function RagStatusBadge({
           title: t('rag.toast.indexingStarted'),
           description: t('rag.toast.indexingQueued'),
         });
-        // Status will update automatically via Convex real-time subscription
       } else {
         toast({
           title: t('rag.toast.retryFailed'),
@@ -100,8 +98,6 @@ export function RagStatusBadge({
         title: t('rag.toast.unexpectedError'),
         variant: 'destructive',
       });
-    } finally {
-      setIsRetrying(false);
     }
   };
 

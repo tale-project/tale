@@ -12,7 +12,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateCustomAgent } from '../hooks/actions';
+import { useCreateCustomAgent } from '../hooks/mutations';
 
 type FormData = {
   name: string;
@@ -34,7 +34,7 @@ export function CreateCustomAgentDialog({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
-  const createAgent = useCreateCustomAgent();
+  const { mutateAsync: createAgent } = useCreateCustomAgent();
 
   const formSchema = useMemo(
     () =>

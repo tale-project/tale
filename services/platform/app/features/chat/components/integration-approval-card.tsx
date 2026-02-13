@@ -57,7 +57,8 @@ function IntegrationApprovalCardComponent({
 
   const approvalCollection = useApprovalCollection(organizationId);
   const updateApprovalStatus = useUpdateApprovalStatus(approvalCollection);
-  const executeApprovedOperation = useExecuteApprovedIntegrationOperation();
+  const { mutateAsync: executeApprovedOperation } =
+    useExecuteApprovedIntegrationOperation();
 
   const isPending = status === 'pending';
   const isProcessing = isApproving || isRejecting;

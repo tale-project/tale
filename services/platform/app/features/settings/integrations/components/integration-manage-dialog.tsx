@@ -28,14 +28,17 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import {
-  useDeleteIntegrationAction,
   useGenerateIntegrationOAuth2Url,
-  useGenerateUploadUrl,
   useSaveOAuth2Credentials,
   useTestIntegration,
   useUpdateIntegration,
-  useUpdateIntegrationIcon,
 } from '../hooks/actions';
+import { useIntegrationCollection } from '../hooks/collections';
+import {
+  useDeleteIntegration,
+  useGenerateUploadUrl,
+  useUpdateIntegrationIcon,
+} from '../hooks/mutations';
 import { IntegrationDetails } from './integration-details';
 
 const SENSITIVE_KEYS = new Set([
@@ -168,13 +171,16 @@ export function IntegrationManageDialog({
   const isActive = optimisticActive ?? integration.isActive;
   const iconUrl = optimisticIconUrl ?? integration.iconUrl;
 
-  const updateIntegration = useUpdateIntegration();
-  const testConnection = useTestIntegration();
-  const deleteIntegration = useDeleteIntegrationAction();
-  const generateUploadUrl = useGenerateUploadUrl();
-  const updateIcon = useUpdateIntegrationIcon();
-  const generateOAuth2Url = useGenerateIntegrationOAuth2Url();
-  const saveOAuth2Credentials = useSaveOAuth2Credentials();
+  const integrationCollection = useIntegrationCollection(
+    integration.organizationId,
+  );
+  const { mutateAsync: updateIntegration } = useUpdateIntegration();
+  const { mutateAsync: testConnection } = useTestIntegration();
+  const deleteIntegration = useDeleteIntegration(integrationCollection);
+  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  const { mutateAsync: updateIcon } = useUpdateIntegrationIcon();
+  const { mutateAsync: generateOAuth2Url } = useGenerateIntegrationOAuth2Url();
+  const { mutateAsync: saveOAuth2Credentials } = useSaveOAuth2Credentials();
 
   const hasOAuth2Config = !!integration.oauth2Config;
 
@@ -279,7 +285,7 @@ export function IntegrationManageDialog({
       setIsUploadingIcon(true);
       const previewUrl = URL.createObjectURL(file);
       try {
-        const uploadUrl = await generateUploadUrl();
+        const uploadUrl = await generateUploadUrl({});
         const uploadResponse = await fetch(uploadUrl, {
           method: 'POST',
           headers: { 'Content-Type': file.type },
@@ -581,7 +587,7 @@ export function IntegrationManageDialog({
   const handleDelete = useCallback(async () => {
     setIsSubmitting(true);
     try {
-      await deleteIntegration({ integrationId: integration._id });
+      await deleteIntegration({ integrationId: String(integration._id) });
       toast({
         title: t('integrations.manageDialog.deleted'),
         description: t('integrations.manageDialog.deletedDescription', {

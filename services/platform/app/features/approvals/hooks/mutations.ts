@@ -4,6 +4,13 @@ import { useCallback } from 'react';
 
 import type { Approval } from '@/lib/collections/entities/approvals';
 
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { api } from '@/convex/_generated/api';
+
+export function useRemoveRecommendedProduct() {
+  return useConvexMutation(api.approvals.mutations.removeRecommendedProduct);
+}
+
 export function useUpdateApprovalStatus(
   collection: Collection<Approval, string>,
 ) {

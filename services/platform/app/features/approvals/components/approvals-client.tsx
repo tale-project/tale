@@ -23,9 +23,11 @@ import {
   safeGetArray,
 } from '@/lib/utils/safe-parsers';
 
-import { useRemoveRecommendedProduct } from '../hooks/actions';
 import { useApprovalCollection } from '../hooks/collections';
-import { useUpdateApprovalStatus } from '../hooks/mutations';
+import {
+  useRemoveRecommendedProduct,
+  useUpdateApprovalStatus,
+} from '../hooks/mutations';
 import { useApprovals } from '../hooks/queries';
 import { ApprovalDetail } from '../types/approval-detail';
 import { ApprovalDetailDialog } from './approval-detail-dialog';
@@ -171,7 +173,8 @@ export function ApprovalsClient({
   const { data: memberContext } = useCurrentMemberContext(organizationId);
 
   const updateApprovalStatus = useUpdateApprovalStatus(approvalCollection);
-  const removeRecommendedProduct = useRemoveRecommendedProduct();
+  const { mutateAsync: removeRecommendedProduct } =
+    useRemoveRecommendedProduct();
 
   const handleApprove = useCallback(
     async (approvalId: string) => {

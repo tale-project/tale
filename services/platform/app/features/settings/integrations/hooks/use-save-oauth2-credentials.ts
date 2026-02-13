@@ -1,7 +1,8 @@
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexActionMutation } from '@/app/hooks/use-convex-action-mutation';
 import { api } from '@/convex/_generated/api';
 
-// Note: Saves encrypted credentials - can't predict result
 export function useSaveOAuth2Credentials() {
-  return useConvexAction(api.integrations.actions.saveOAuth2ClientCredentials);
+  return useConvexActionMutation(
+    api.integrations.actions.saveOAuth2ClientCredentials,
+  );
 }

@@ -11,7 +11,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useBulkCreateVendors } from '../hooks/actions';
+import { useBulkCreateVendors } from '../hooks/mutations';
 import { VendorImportForm } from './vendor-import-form';
 
 // Type for the form data
@@ -101,7 +101,7 @@ export function ImportVendorsDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const bulkCreateVendors = useBulkCreateVendors();
+  const { mutateAsync: bulkCreateVendors } = useBulkCreateVendors();
 
   // Reset form when mode changes to ensure defaultValues are current
   useEffect(() => {

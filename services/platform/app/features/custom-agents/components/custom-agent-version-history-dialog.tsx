@@ -14,8 +14,8 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
-import { useActivateCustomAgentVersion } from '../hooks/actions';
 import { useCustomAgentVersionCollection } from '../hooks/collections';
+import { useActivateCustomAgentVersion } from '../hooks/mutations';
 import { useCustomAgentVersions } from '../hooks/queries';
 
 const STATUS_BADGE_CONFIG: Record<
@@ -40,7 +40,7 @@ export function CustomAgentVersionHistoryDialog({
 }: CustomAgentVersionHistoryDialogProps) {
   const { t } = useT('settings');
   const { formatDate } = useFormatDate();
-  const activateVersion = useActivateCustomAgentVersion();
+  const { mutateAsync: activateVersion } = useActivateCustomAgentVersion();
   const [activatingVersion, setActivatingVersion] = useState<number | null>(
     null,
   );

@@ -4,6 +4,13 @@ import { useCallback } from 'react';
 
 import type { Customer } from '@/lib/collections/entities/customers';
 
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { api } from '@/convex/_generated/api';
+
+export function useBulkCreateCustomers() {
+  return useConvexMutation(api.customers.mutations.bulkCreateCustomers);
+}
+
 export function useDeleteCustomer(collection: Collection<Customer, string>) {
   return useCallback(
     async (args: { customerId: string }) => {

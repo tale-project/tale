@@ -1,7 +1,7 @@
 'use client';
 
 import { RefreshCw, Trash2, Users } from 'lucide-react';
-import { useMemo, useCallback, useState, useRef } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 
 import {
   EntityRowActions,
@@ -45,11 +45,10 @@ export function DocumentRowActions({
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['delete', 'deleteFolder', 'teamTags']);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isReindexing, setIsReindexing] = useState(false);
-  const reindexingRef = useRef(false);
   const documentCollection = useDocumentCollection(organizationId);
   const deleteDocument = useDeleteDocument(documentCollection);
-  const retryRagIndexing = useRetryRagIndexing();
+  const { mutateAsync: retryRagIndexing, isPending: isReindexing } =
+    useRetryRagIndexing();
 
   // Determine if delete action should be visible
   const canDelete =
@@ -102,9 +101,7 @@ export function DocumentRowActions({
   }, [itemType, dialogs.open]);
 
   const handleReindex = useCallback(async () => {
-    if (reindexingRef.current) return;
-    reindexingRef.current = true;
-    setIsReindexing(true);
+    if (isReindexing) return;
     try {
       const result = await retryRagIndexing({
         documentId: toId<'documents'>(documentId),
@@ -127,11 +124,8 @@ export function DocumentRowActions({
         title: tDocuments('rag.toast.unexpectedError'),
         variant: 'destructive',
       });
-    } finally {
-      reindexingRef.current = false;
-      setIsReindexing(false);
     }
-  }, [documentId, retryRagIndexing, tDocuments]);
+  }, [documentId, retryRagIndexing, tDocuments, isReindexing]);
 
   const actions = useMemo(
     () => [

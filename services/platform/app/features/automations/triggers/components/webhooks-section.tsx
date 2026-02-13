@@ -16,9 +16,12 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 
-import { useCreateWebhook } from '../hooks/actions';
 import { useWebhookCollection } from '../hooks/collections';
-import { useDeleteWebhook, useToggleWebhook } from '../hooks/mutations';
+import {
+  useCreateWebhook,
+  useDeleteWebhook,
+  useToggleWebhook,
+} from '../hooks/mutations';
 import { useWebhooks } from '../hooks/queries';
 import { CollapsibleSection } from './collapsible-section';
 import { SecretRevealDialog } from './secret-reveal-dialog';
@@ -40,11 +43,10 @@ export function WebhooksSection({
   const webhookCollection = useWebhookCollection(workflowRootId);
   const { webhooks } = useWebhooks(webhookCollection);
 
-  const createWebhook = useCreateWebhook();
+  const { mutateAsync: createWebhook, isPending: isCreating } =
+    useCreateWebhook();
   const toggleWebhook = useToggleWebhook(webhookCollection);
   const deleteWebhookMutation = useDeleteWebhook(webhookCollection);
-
-  const [isCreating, setIsCreating] = useState(false);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WebhookRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -58,7 +60,6 @@ export function WebhooksSection({
   );
 
   const handleCreate = useCallback(async () => {
-    setIsCreating(true);
     try {
       const result = await createWebhook({
         organizationId,
@@ -71,8 +72,6 @@ export function WebhooksSection({
       });
     } catch {
       toast({ title: 'Failed to create webhook', variant: 'destructive' });
-    } finally {
-      setIsCreating(false);
     }
   }, [createWebhook, organizationId, workflowRootId, toast, t, getWebhookUrl]);
 

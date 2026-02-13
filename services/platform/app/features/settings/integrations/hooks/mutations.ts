@@ -4,6 +4,17 @@ import { useCallback } from 'react';
 
 import type { Integration } from '@/lib/collections/entities/integrations';
 
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { api } from '@/convex/_generated/api';
+
+export function useGenerateUploadUrl() {
+  return useConvexMutation(api.files.mutations.generateUploadUrl);
+}
+
+export function useUpdateIntegrationIcon() {
+  return useConvexMutation(api.integrations.mutations.updateIcon);
+}
+
 export function useDeleteIntegration(
   collection: Collection<Integration, string>,
 ) {

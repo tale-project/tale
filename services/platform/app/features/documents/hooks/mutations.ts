@@ -7,7 +7,7 @@ import { useState, useRef, useCallback } from 'react';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { Document } from '@/lib/collections/entities/documents';
 
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -56,11 +56,11 @@ export function useDocumentUpload(options: UploadOptions) {
   const { t } = useT('documents');
   const [isUploading, setIsUploading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const generateUploadUrl = useConvexAction(
-    api.documents.actions.generateUploadUrl,
+  const { mutateAsync: generateUploadUrl } = useConvexMutation(
+    api.files.mutations.generateUploadUrl,
   );
-  const createDocumentFromUpload = useConvexAction(
-    api.documents.actions.createDocumentFromUpload,
+  const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
+    api.documents.mutations.createDocumentFromUpload,
   );
 
   const uploadFiles = async (
@@ -123,7 +123,7 @@ export function useDocumentUpload(options: UploadOptions) {
         const contentHash = await calculateFileHash(file);
 
         // Step 2: Get upload URL from Convex
-        const uploadUrl = await generateUploadUrl();
+        const uploadUrl = await generateUploadUrl({});
 
         // Step 3: Upload file directly to Convex storage via HTTP
         const uploadResponse = await fetch(uploadUrl, {

@@ -15,13 +15,13 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { exampleMessageToUI } from '@/types/tone-of-voice';
 
+import { useGenerateTone } from '../hooks/actions';
 import {
   useAddExample,
   useDeleteExample,
-  useGenerateTone,
   useUpdateExample,
   useUpsertTone,
-} from '../hooks/actions';
+} from '../hooks/mutations';
 import { AddExampleDialog } from './example-add-dialog';
 import { ExampleMessagesTable } from './example-messages-table';
 import { ViewEditExampleDialog } from './example-view-edit-dialog';
@@ -44,18 +44,18 @@ export function ToneOfVoiceFormClient({
   const { t: tToast } = useT('toast');
   const orgId = organizationId;
 
-  const addExample = useAddExample();
-  const updateExample = useUpdateExample();
-  const deleteExample = useDeleteExample();
-  const upsertTone = useUpsertTone();
-  const generateTone = useGenerateTone();
+  const { mutateAsync: addExample } = useAddExample();
+  const { mutateAsync: updateExample } = useUpdateExample();
+  const { mutateAsync: deleteExample } = useDeleteExample();
+  const { mutateAsync: upsertTone } = useUpsertTone();
+  const { mutateAsync: generateTone, isPending: isGenerating } =
+    useGenerateTone();
 
   const form = useForm<ToneFormData>();
   const { register, setValue, watch, formState, handleSubmit } = form;
   const { isDirty, isSubmitting } = formState;
   const _toneValue = watch('tone');
 
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [viewEditDialog, setViewEditDialog] = useState<{
     isOpen: boolean;
@@ -142,18 +142,16 @@ export function ToneOfVoiceFormClient({
   };
 
   const handleGenerateTone = async () => {
+    if (examples.length === 0) {
+      toast({
+        title: tToast('error.noExampleMessages'),
+        description: tToast('error.addExampleFirst'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
-      setIsGenerating(true);
-
-      if (examples.length === 0) {
-        toast({
-          title: tToast('error.noExampleMessages'),
-          description: tToast('error.addExampleFirst'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
       const result = await generateTone({
         organizationId: orgId,
       });
@@ -176,8 +174,6 @@ export function ToneOfVoiceFormClient({
         title: tToast('error.toneGenerateFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsGenerating(false);
     }
   };
 

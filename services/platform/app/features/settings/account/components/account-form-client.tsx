@@ -10,7 +10,7 @@ import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useUpdatePassword } from '../hooks/actions';
+import { useUpdatePassword } from '../hooks/mutations';
 
 interface MemberContext {
   memberId: string;
@@ -44,7 +44,7 @@ export function AccountFormClient({
   const { t: tAuth } = useT('auth');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
-  const updatePassword = useUpdatePassword();
+  const { mutateAsync: updatePassword } = useUpdatePassword();
   const { toast } = useToast();
 
   const { data: hasCredential, isLoading: isCredentialLoading } =
@@ -101,7 +101,7 @@ function ChangePasswordForm({
   tCommon,
   tToast,
 }: {
-  updatePassword: ReturnType<typeof useUpdatePassword>;
+  updatePassword: ReturnType<typeof useUpdatePassword>['mutateAsync'];
   toast: ReturnType<typeof useToast>['toast'];
   tAuth: ReturnType<typeof useT>['t'];
   tCommon: ReturnType<typeof useT>['t'];
@@ -205,7 +205,7 @@ function SetPasswordForm({
   tCommon,
   tToast,
 }: {
-  updatePassword: ReturnType<typeof useUpdatePassword>;
+  updatePassword: ReturnType<typeof useUpdatePassword>['mutateAsync'];
   toast: ReturnType<typeof useToast>['toast'];
   tAuth: ReturnType<typeof useT>['t'];
   tCommon: ReturnType<typeof useT>['t'];

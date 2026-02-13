@@ -13,14 +13,14 @@ import type {
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
 
+import { useThreadCollection } from './collections';
 import {
   useChatWithAgent,
   useChatWithBuiltinAgent,
   useChatWithCustomAgent,
   useCreateThread,
-} from './actions';
-import { useThreadCollection } from './collections';
-import { useUpdateThread } from './mutations';
+  useUpdateThread,
+} from './mutations';
 
 interface UseSendMessageParams {
   organizationId: string;
@@ -51,11 +51,11 @@ export function useSendMessage({
   const navigate = useNavigate();
 
   const threadCollection = useThreadCollection();
-  const createThread = useCreateThread();
+  const { mutateAsync: createThread } = useCreateThread();
   const updateThread = useUpdateThread(threadCollection);
-  const chatWithAgent = useChatWithAgent();
-  const chatWithBuiltinAgent = useChatWithBuiltinAgent();
-  const chatWithCustomAgent = useChatWithCustomAgent();
+  const { mutateAsync: chatWithAgent } = useChatWithAgent();
+  const { mutateAsync: chatWithBuiltinAgent } = useChatWithBuiltinAgent();
+  const { mutateAsync: chatWithCustomAgent } = useChatWithCustomAgent();
 
   const sendMessage = useCallback(
     async (message: string, attachments?: FileAttachment[]) => {

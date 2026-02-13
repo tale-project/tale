@@ -12,7 +12,7 @@ import { useT } from '@/lib/i18n/client';
 import {
   useRepublishAutomation,
   useUnpublishAutomation,
-} from '../hooks/actions';
+} from '../hooks/mutations';
 
 interface AutomationActiveToggleProps {
   automation: Doc<'wfDefinitions'>;
@@ -29,17 +29,19 @@ export function AutomationActiveToggle({
   const { user } = useAuth();
 
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
-  const [isToggling, setIsToggling] = useState(false);
 
-  const republishAutomation = useRepublishAutomation();
-  const unpublishAutomation = useUnpublishAutomation();
+  const { mutateAsync: republishAutomation, isPending: isRepublishing } =
+    useRepublishAutomation();
+  const { mutateAsync: unpublishAutomation, isPending: isUnpublishing } =
+    useUnpublishAutomation();
+
+  const isToggling = isRepublishing || isUnpublishing;
 
   const isActive = automation.status === 'active';
   const isDraft = automation.status === 'draft';
 
   const handleActivate = useCallback(async () => {
     if (!user) return;
-    setIsToggling(true);
     try {
       await republishAutomation({
         wfDefinitionId: automation._id,
@@ -55,14 +57,11 @@ export function AutomationActiveToggle({
         title: tToast('error.automationPublishFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsToggling(false);
     }
   }, [republishAutomation, automation._id, user, tToast]);
 
   const handleDeactivateConfirm = useCallback(async () => {
     if (!user) return;
-    setIsToggling(true);
     try {
       await unpublishAutomation({
         wfDefinitionId: automation._id,
@@ -79,8 +78,6 @@ export function AutomationActiveToggle({
         title: tToast('error.automationDeactivateFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsToggling(false);
     }
   }, [unpublishAutomation, automation._id, user, tToast]);
 
