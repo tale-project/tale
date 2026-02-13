@@ -1,5 +1,7 @@
 'use client';
 
+import type { UsePaginatedQueryResult } from 'convex/react';
+
 import { type ColumnDef } from '@tanstack/react-table';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
@@ -34,18 +36,11 @@ import { ApprovalDetailDialog } from './approval-detail-dialog';
 
 type ApprovalItem = Doc<'approvals'>;
 
-interface PaginatedResult {
-  results: ApprovalItem[];
-  status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted';
-  loadMore: (numItems: number) => void;
-  isLoading: boolean;
-}
-
 interface ApprovalsClientProps {
   status?: 'pending' | 'resolved';
   organizationId: string;
   search?: string;
-  paginatedResult: PaginatedResult;
+  paginatedResult: UsePaginatedQueryResult<ApprovalItem>;
 }
 
 function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {

@@ -1,5 +1,7 @@
 'use client';
 
+import type { UsePaginatedQueryResult } from 'convex/react';
+
 import { Loader2Icon } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -26,18 +28,11 @@ import { ActivateConversationsEmptyState } from './activate-conversations-empty-
 import { ConversationPanel } from './conversation-panel';
 import { ConversationsList } from './conversations-list';
 
-interface PaginatedResult {
-  results: ConversationItem[];
-  status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted';
-  loadMore: (numItems: number) => void;
-  isLoading: boolean;
-}
-
 interface ConversationsClientProps {
   status?: Conversation['status'];
   organizationId: string;
   search?: string;
-  paginatedResult: PaginatedResult;
+  paginatedResult: UsePaginatedQueryResult<ConversationItem>;
 }
 
 type SelectionState =
@@ -245,7 +240,7 @@ interface ConversationsClientInnerProps {
   bulkResolve: ReturnType<typeof useBulkCloseConversations>['mutateAsync'];
   bulkReopen: ReturnType<typeof useBulkReopenConversations>['mutateAsync'];
   addMessage: ReturnType<typeof useAddMessage>['mutateAsync'];
-  paginatedResult: PaginatedResult;
+  paginatedResult: UsePaginatedQueryResult<ConversationItem>;
   tChat: ReturnType<typeof useT>['t'];
   tConversations: ReturnType<typeof useT>['t'];
   tCommon: ReturnType<typeof useT>['t'];

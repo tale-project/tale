@@ -1,5 +1,7 @@
 'use client';
 
+import type { UsePaginatedQueryResult } from 'convex/react';
+
 import { useNavigate } from '@tanstack/react-router';
 import { Users } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -15,16 +17,9 @@ import { CustomersActionMenu } from './customers-action-menu';
 
 type Customer = Doc<'customers'>;
 
-interface PaginatedResult {
-  results: Customer[];
-  status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted';
-  loadMore: (numItems: number) => void;
-  isLoading: boolean;
-}
-
 export interface CustomersTableProps {
   organizationId: string;
-  paginatedResult: PaginatedResult;
+  paginatedResult: UsePaginatedQueryResult<Customer>;
   status?: string;
   source?: string;
   locale?: string;

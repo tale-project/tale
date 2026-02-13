@@ -1,5 +1,7 @@
 'use client';
 
+import type { UsePaginatedQueryResult } from 'convex/react';
+
 import { useNavigate } from '@tanstack/react-router';
 import { Store } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -15,16 +17,9 @@ import { VendorsActionMenu } from './vendors-action-menu';
 
 type Vendor = Doc<'vendors'>;
 
-interface PaginatedResult {
-  results: Vendor[];
-  status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted';
-  loadMore: (numItems: number) => void;
-  isLoading: boolean;
-}
-
 export interface VendorsTableProps {
   organizationId: string;
-  paginatedResult: PaginatedResult;
+  paginatedResult: UsePaginatedQueryResult<Vendor>;
   source?: string;
   locale?: string;
 }

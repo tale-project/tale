@@ -1,6 +1,7 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
+import type { UsePaginatedQueryResult } from 'convex/react';
 
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useMemo, useState } from 'react';
@@ -17,16 +18,9 @@ import { cn } from '@/lib/utils/cn';
 
 type AuditLog = Doc<'auditLogs'>;
 
-interface PaginatedResult {
-  results: AuditLog[];
-  status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted';
-  loadMore: (numItems: number) => void;
-  isLoading: boolean;
-}
-
 interface AuditLogTableProps {
   organizationId: string;
-  paginatedResult: PaginatedResult;
+  paginatedResult: UsePaginatedQueryResult<AuditLog>;
   category?: string;
 }
 
