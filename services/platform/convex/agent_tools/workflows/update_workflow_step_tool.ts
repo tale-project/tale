@@ -218,15 +218,15 @@ Please try again with a properly structured JSON object. Ensure all field names 
         };
       }
 
-      // Validate step config if it's being updated
-      // Note: When only config is updated without stepType, validation may be incomplete
-      // since we don't fetch the existing step's stepType. The mutation itself will
-      // handle the full validation with the merged step data.
-      if (sanitizedUpdates.config || sanitizedUpdates.stepType) {
+      // Validate step config if both stepType and config are available.
+      // When only config is updated without stepType, we skip client-side validation
+      // since validateStepConfig requires stepType. The mutation itself validates
+      // the merged step data with the existing stepType from the database.
+      if (sanitizedUpdates.stepType && sanitizedUpdates.config) {
         const stepValidation = validateStepConfig({
           stepSlug: 'update', // Placeholder, actual slug comes from existing step
           name: sanitizedUpdates.name ?? 'Step',
-          stepType: sanitizedUpdates.stepType, // May be undefined if only config is being updated
+          stepType: sanitizedUpdates.stepType,
           config: sanitizedUpdates.config,
         });
 

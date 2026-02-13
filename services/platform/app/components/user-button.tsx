@@ -58,13 +58,11 @@ export function UserButton({
   onNavigate,
 }: UserButtonProps) {
   const { t } = useT('auth');
-  const { t: tNav } = useT('navigation');
   const { user, signOut, isLoading: loading } = useAuth();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const organizationId = params.id;
   const { theme, setTheme } = useTheme();
-  const { teams, selectedTeamId, setSelectedTeamId } = useTeamFilter();
 
   const { data: memberContext } = useCurrentMemberContext(
     organizationId,
@@ -176,29 +174,7 @@ export function UserButton({
               <span>{t('userButton.settings')}</span>
             </DropdownMenuItem>
 
-            {teams && teams.length > 0 && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="py-2.5">
-                  <Building2 className="mr-3 size-4" />
-                  <span>{tNav('teamFilter.label')}</span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup
-                    value={selectedTeamId ?? ''}
-                    onValueChange={(val) => setSelectedTeamId(val || null)}
-                  >
-                    <DropdownMenuRadioItem value="">
-                      {tNav('teamFilter.allTeams')}
-                    </DropdownMenuRadioItem>
-                    {teams.map((team) => (
-                      <DropdownMenuRadioItem key={team.id} value={team.id}>
-                        {team.name}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            )}
+            <TeamFilterMenu />
 
             <DropdownMenuSeparator />
           </>
@@ -256,5 +232,36 @@ export function UserButton({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function TeamFilterMenu() {
+  const { t } = useT('navigation');
+  const { teams, selectedTeamId, setSelectedTeamId } = useTeamFilter();
+
+  if (!teams || teams.length === 0) return null;
+
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="py-2.5">
+        <Building2 className="mr-3 size-4" />
+        <span>{t('teamFilter.label')}</span>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuRadioGroup
+          value={selectedTeamId ?? ''}
+          onValueChange={(val) => setSelectedTeamId(val || null)}
+        >
+          <DropdownMenuRadioItem value="">
+            {t('teamFilter.allTeams')}
+          </DropdownMenuRadioItem>
+          {teams.map((team) => (
+            <DropdownMenuRadioItem key={team.id} value={team.id}>
+              {team.name}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }
