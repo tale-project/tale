@@ -25,6 +25,8 @@ export interface GenerateResponseConfig {
   convexToolNames?: string[];
   /** Agent instructions for context window display (not sent to LLM, already in agent config) */
   instructions?: string;
+  /** Formatted tool definitions for context window display (not sent to LLM) */
+  toolsSummary?: string;
 }
 
 /**
@@ -61,16 +63,6 @@ export interface GenerateResponseHooks {
     args: GenerateResponseArgs,
     result: GenerateResponseResult,
     hookData: BeforeContextResult | undefined,
-  ) => Promise<void>;
-
-  /**
-   * Called on error.
-   * Can perform error-specific cleanup.
-   */
-  onError?: (
-    ctx: ActionCtx,
-    args: GenerateResponseArgs,
-    error: unknown,
   ) => Promise<void>;
 }
 

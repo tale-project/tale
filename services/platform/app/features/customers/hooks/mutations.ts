@@ -4,20 +4,24 @@ import { useCallback } from 'react';
 
 import type { Customer } from '@/lib/collections/entities/customers';
 
+import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/lib/utils/type-guards';
 
 export function useBulkCreateCustomers() {
   return useConvexMutation(api.customers.mutations.bulkCreateCustomers);
 }
 
-export function useDeleteCustomer(collection: Collection<Customer, string>) {
+export function useDeleteCustomer() {
+  const convexClient = useConvexClient();
   return useCallback(
     async (args: { customerId: string }) => {
-      const tx = collection.delete(args.customerId);
-      await tx.isPersisted.promise;
+      await convexClient.mutation(api.customers.mutations.deleteCustomer, {
+        customerId: toId<'customers'>(args.customerId),
+      });
     },
-    [collection],
+    [convexClient],
   );
 }
 

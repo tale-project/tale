@@ -2092,7 +2092,7 @@
       "timeToFirstToken": "Time to first token",
       "subAgentCalls": "Sub-agent calls",
       "noMetadata": "Token usage and model information are not available for this message.",
-      "contextWindow": "Context",
+      "contextWindow": "Context (est.)",
       "contextWindowDescription": "The full context sent to the AI model",
       "contextTokens": "Tokens",
       "contextMessages": "Messages",

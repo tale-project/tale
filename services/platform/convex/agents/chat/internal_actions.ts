@@ -9,14 +9,6 @@ import {
   generateAgentResponse,
 } from '../../lib/agent_response';
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
-import { processAttachments } from '../../lib/attachments/index';
-import {
-  estimateTokens,
-  DEFAULT_MODEL_CONTEXT_LIMIT,
-  CONTEXT_SAFETY_MARGIN,
-  SYSTEM_INSTRUCTIONS_TOKENS,
-  OUTPUT_RESERVE,
-} from '../../lib/context_management';
 import { createDebugLog } from '../../lib/debug_log';
 import { createChatAgent, CHAT_AGENT_INSTRUCTIONS } from './agent';
 
@@ -139,94 +131,5 @@ export const beforeContextHook = internalAction({
       integrationsInfo,
       integrationsList: integrationsList ?? undefined,
     };
-  },
-});
-
-export const beforeGenerateHook = internalAction({
-  args: {
-    threadId: v.string(),
-    promptMessage: v.string(),
-    attachments: v.optional(
-      v.array(
-        v.object({
-          fileId: v.id('_storage'),
-          fileName: v.string(),
-          fileType: v.string(),
-          fileSize: v.number(),
-        }),
-      ),
-    ),
-    contextMessagesTokens: v.number(),
-  },
-  returns: v.object({
-    promptContent: v.optional(v.any()),
-    contextExceedsBudget: v.boolean(),
-  }),
-  handler: async (ctx, args) => {
-    const { threadId, promptMessage, attachments, contextMessagesTokens } =
-      args;
-
-    // Token budget check for logging
-    const currentPromptTokens = estimateTokens(promptMessage || '');
-    const contextBudget =
-      DEFAULT_MODEL_CONTEXT_LIMIT * CONTEXT_SAFETY_MARGIN -
-      SYSTEM_INSTRUCTIONS_TOKENS -
-      currentPromptTokens -
-      OUTPUT_RESERVE;
-
-    const contextExceedsBudget = contextMessagesTokens > contextBudget;
-    if (contextExceedsBudget) {
-      debugLog('Context may exceed budget', {
-        threadId,
-        budget: contextBudget,
-        contextTokens: contextMessagesTokens,
-      });
-    }
-
-    // Process attachments
-    const { promptContent: attachmentPrompt } = await processAttachments(
-      ctx,
-      attachments ?? [],
-      promptMessage,
-      { debugLog, toolName: 'chat_agent' },
-    );
-
-    return {
-      promptContent: attachmentPrompt,
-      contextExceedsBudget,
-    };
-  },
-});
-
-export const onErrorHook = internalAction({
-  args: {
-    threadId: v.string(),
-    errorName: v.optional(v.string()),
-    errorMessage: v.optional(v.string()),
-    errorStatus: v.optional(v.union(v.number(), v.string())),
-    errorType: v.optional(v.string()),
-    errorCode: v.optional(v.string()),
-  },
-  returns: v.null(),
-  handler: async (_ctx, args) => {
-    const {
-      threadId,
-      errorName,
-      errorMessage,
-      errorStatus,
-      errorType,
-      errorCode,
-    } = args;
-
-    console.error('[RoutingAgent] generateAgentResponse error', {
-      threadId,
-      name: errorName,
-      message: errorMessage,
-      status: errorStatus,
-      type: errorType,
-      code: errorCode,
-    });
-
-    return null;
   },
 });

@@ -46,8 +46,6 @@ export interface AgentHooksConfig {
   beforeGenerate?: string;
   /** FunctionHandle for afterGenerate hook (mutation) */
   afterGenerate?: string;
-  /** FunctionHandle for onError hook (action) */
-  onError?: string;
 }
 
 /**

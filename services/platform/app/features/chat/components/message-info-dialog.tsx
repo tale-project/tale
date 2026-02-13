@@ -61,7 +61,7 @@ function ContextWindowToken({
           onClick={() => setIsDialogOpen(true)}
           className="cursor-pointer text-left font-medium hover:underline"
         >
-          {formatNumber(tokenCount, locale)}
+          ~{formatNumber(tokenCount, locale)}
         </button>
       </Stack>
 
