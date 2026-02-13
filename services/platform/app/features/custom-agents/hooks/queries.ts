@@ -28,7 +28,35 @@ export function useCustomAgents(collection: Collection<CustomAgent, string>) {
             (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
           );
         })
-        .select(({ agent }) => agent),
+        .select(({ agent }) => ({
+          _id: agent._id,
+          _creationTime: agent._creationTime,
+          organizationId: agent.organizationId,
+          name: agent.name,
+          displayName: agent.displayName,
+          description: agent.description,
+          avatarUrl: agent.avatarUrl,
+          systemInstructions: agent.systemInstructions,
+          toolNames: agent.toolNames,
+          integrationBindings: agent.integrationBindings,
+          modelPreset: agent.modelPreset,
+          knowledgeEnabled: agent.knowledgeEnabled,
+          includeOrgKnowledge: agent.includeOrgKnowledge,
+          knowledgeTopK: agent.knowledgeTopK,
+          toneOfVoiceId: agent.toneOfVoiceId,
+          filePreprocessingEnabled: agent.filePreprocessingEnabled,
+          teamId: agent.teamId,
+          sharedWithTeamIds: agent.sharedWithTeamIds,
+          createdBy: agent.createdBy,
+          isActive: agent.isActive,
+          versionNumber: agent.versionNumber,
+          status: agent.status,
+          rootVersionId: agent.rootVersionId,
+          parentVersionId: agent.parentVersionId,
+          publishedAt: agent.publishedAt,
+          publishedBy: agent.publishedBy,
+          changeLog: agent.changeLog,
+        })),
     [selectedTeamId],
   );
 
@@ -41,10 +69,7 @@ export function useCustomAgents(collection: Collection<CustomAgent, string>) {
 export function useCustomAgentVersions(
   collection: Collection<CustomAgentVersion, string>,
 ) {
-  const { data, isLoading } = useLiveQuery(
-    (q) => q.from({ version: collection }).select(({ version }) => version),
-    [],
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     versions: data,
@@ -55,10 +80,7 @@ export function useCustomAgentVersions(
 export function useCustomAgentWebhooks(
   collection: Collection<CustomAgentWebhook, string>,
 ) {
-  const { data, isLoading } = useLiveQuery(
-    (q) => q.from({ webhook: collection }).select(({ webhook }) => webhook),
-    [],
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     webhooks: data,
@@ -69,13 +91,7 @@ export function useCustomAgentWebhooks(
 export function useAvailableIntegrations(
   collection: Collection<AvailableIntegration, string>,
 ) {
-  const { data, isLoading } = useLiveQuery(
-    (q) =>
-      q
-        .from({ integration: collection })
-        .select(({ integration }) => integration),
-    [],
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     integrations: data,
@@ -86,10 +102,7 @@ export function useAvailableIntegrations(
 export function useAvailableTools(
   collection: Collection<AvailableTool, string>,
 ) {
-  const { data, isLoading } = useLiveQuery(
-    (q) => q.from({ tool: collection }).select(({ tool }) => tool),
-    [],
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     tools: data,

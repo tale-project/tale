@@ -15,9 +15,7 @@ import { api } from '@/convex/_generated/api';
 export function useAutomationRoots(
   collection: Collection<AutomationRoot, string>,
 ) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q.from({ root: collection }).select(({ root }) => root),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     automationRoots: data,
@@ -26,9 +24,7 @@ export function useAutomationRoots(
 }
 
 export function useAutomations(collection: Collection<WfAutomation, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q.from({ automation: collection }).select(({ automation }) => automation),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     automations: data,
@@ -37,9 +33,7 @@ export function useAutomations(collection: Collection<WfAutomation, string>) {
 }
 
 export function useWorkflowSteps(collection: Collection<WfStep, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q.from({ step: collection }).select(({ step }) => step),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     steps: data,

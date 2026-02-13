@@ -6,22 +6,16 @@ import type { TeamMember } from '@/lib/collections/entities/team-members';
 import type { Team } from '@/lib/collections/entities/teams';
 
 export function useTeams(collection: Collection<Team, string>) {
-  const { data, isLoading } = useLiveQuery(
-    (q) => q.from({ team: collection }).select(({ team }) => team),
-    [],
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
-    teams: data,
+    teams: data ?? null,
     isLoading,
   };
 }
 
 export function useTeamMembers(collection: Collection<TeamMember, string>) {
-  const { data, isLoading } = useLiveQuery(
-    (q) => q.from({ member: collection }).select(({ member }) => member),
-    [],
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     teamMembers: data,

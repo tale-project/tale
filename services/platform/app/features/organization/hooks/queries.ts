@@ -13,10 +13,7 @@ export function useUserOrganizations(
 ) {
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
 
-  const { data, isLoading } = useLiveQuery(
-    (q) => q.from({ org: collection }).select(({ org }) => org),
-    [],
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     organizations: data,

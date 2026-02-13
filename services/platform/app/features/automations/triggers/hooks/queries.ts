@@ -7,9 +7,7 @@ import type { WfSchedule } from '@/lib/collections/entities/wf-schedules';
 import type { WfWebhook } from '@/lib/collections/entities/wf-webhooks';
 
 export function useSchedules(collection: Collection<WfSchedule, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q.from({ schedule: collection }).select(({ schedule }) => schedule),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     schedules: data,
@@ -18,9 +16,7 @@ export function useSchedules(collection: Collection<WfSchedule, string>) {
 }
 
 export function useWebhooks(collection: Collection<WfWebhook, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q.from({ webhook: collection }).select(({ webhook }) => webhook),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     webhooks: data,
@@ -31,11 +27,7 @@ export function useWebhooks(collection: Collection<WfWebhook, string>) {
 export function useEventSubscriptions(
   collection: Collection<WfEventSubscription, string>,
 ) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q
-      .from({ subscription: collection })
-      .select(({ subscription }) => subscription),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     subscriptions: data,
