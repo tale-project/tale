@@ -16,7 +16,7 @@ dependencies = [
     "markdown==3.10.2",
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
-    "pymupdf==1.26.7",
+    "pymupdf==1.27.1",
     "openai>=1.0.0",
 ]
 
