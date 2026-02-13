@@ -1,11 +1,7 @@
 'use client';
 
-import type { Collection } from '@tanstack/db';
-
 import { Pencil, Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
-
-import type { Member } from '@/lib/collections/entities/members';
 
 import {
   EntityRowActions,
@@ -34,13 +30,11 @@ interface MemberRowActionsProps {
     isAdmin: boolean;
     canManageMembers?: boolean;
   } | null;
-  collection: Collection<Member, string>;
 }
 
 export function MemberRowActions({
   member,
   memberContext,
-  collection,
 }: MemberRowActionsProps) {
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['edit', 'delete']);
@@ -69,7 +63,6 @@ export function MemberRowActions({
     [tCommon, dialogs.open, canManageMembers, isViewingSelf],
   );
 
-  // Don't render anything if user can't manage members
   if (!canManageMembers) {
     return null;
   }
@@ -83,14 +76,12 @@ export function MemberRowActions({
         onOpenChange={dialogs.setOpen.edit}
         member={member}
         currentUserMemberId={memberContext?.member?._id}
-        collection={collection}
       />
 
       <DeleteMemberDialog
         open={dialogs.isOpen.delete}
         onOpenChange={dialogs.setOpen.delete}
         member={member}
-        collection={collection}
       />
     </>
   );
