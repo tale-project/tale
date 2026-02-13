@@ -117,10 +117,11 @@ export async function addMessageToConversation(
 
   const message = await ctx.db.get(messageId);
   if (message) {
+    const updatedConversation = await ctx.db.get(args.conversationId);
     await emitEvent(ctx, {
       organizationId: args.organizationId,
       eventType: 'conversation.message_received',
-      eventData: { conversation: parentConversation, message },
+      eventData: { conversation: updatedConversation, message },
     });
   }
 
