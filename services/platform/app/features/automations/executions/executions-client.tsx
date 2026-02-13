@@ -18,7 +18,11 @@ import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
 import { formatDuration } from '@/lib/utils/format/number';
 
-import { useExecutionJournal, useListExecutions } from '../hooks/queries';
+import {
+  useExecutionJournal,
+  useListExecutions,
+  useSearchExecution,
+} from '../hooks/queries';
 import { ExecutionsTableSkeleton } from './executions-table-skeleton';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 
@@ -130,26 +134,23 @@ export function ExecutionsClient({
   const { searchPlaceholder, stickyLayout, pageSize } =
     useExecutionsTableConfig();
 
-  const queryArgs = useMemo(
-    () => ({
-      wfDefinitionId: amId,
-      searchTerm: searchTerm || undefined,
-      status: status && status.length > 0 ? status : undefined,
-      triggeredBy: triggeredBy || undefined,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      cursor: undefined,
-      numItems: pageSize,
-    }),
-    [amId, searchTerm, status, triggeredBy, dateFrom, dateTo, pageSize],
-  );
+  const isSearching = !!searchTerm;
 
-  const { data: executionsResult } = useListExecutions(queryArgs);
+  // Paginated query for the main list (skipped when searching by ID)
+  const paginatedResult = useListExecutions({
+    wfDefinitionId: amId,
+    status: status && status.length > 0 ? status : undefined,
+    triggeredBy: triggeredBy || undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    initialNumItems: pageSize,
+  });
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex codegen TS2589 collapses query return type
-  const allExecutions = useMemo(
-    () => executionsResult?.page ?? [],
-    [executionsResult],
+  // Exact ID lookup query (skipped when not searching)
+  const { data: searchResult } = useSearchExecution(
+    isSearching
+      ? { wfDefinitionId: amId, searchTerm: searchTerm, numItems: 1 }
+      : undefined,
   );
 
   const copyToClipboard = useCallback((text: string) => {
@@ -397,10 +398,19 @@ export function ExecutionsClient({
   );
 
   const list = useListPage({
-    dataSource: {
-      type: 'query',
-      data: executionsResult === undefined ? undefined : allExecutions,
-    },
+    dataSource: isSearching
+      ? {
+          type: 'query' as const,
+          data:
+            searchResult === undefined ? undefined : (searchResult.page ?? []),
+        }
+      : {
+          type: 'paginated' as const,
+          results: paginatedResult.results,
+          status: paginatedResult.status,
+          loadMore: paginatedResult.loadMore,
+          isLoading: paginatedResult.isLoading,
+        },
     pageSize,
     search: {
       value: searchTerm ?? '',
@@ -418,7 +428,11 @@ export function ExecutionsClient({
     [],
   );
 
-  if (executionsResult === undefined) {
+  const isInitialLoading = isSearching
+    ? searchResult === undefined
+    : paginatedResult.status === 'LoadingFirstPage';
+
+  if (isInitialLoading) {
     return <ExecutionsTableSkeleton />;
   }
 

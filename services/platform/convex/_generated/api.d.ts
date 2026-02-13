@@ -195,6 +195,7 @@ import type * as customers_get_customers from "../customers/get_customers.js";
 import type * as customers_helpers from "../customers/helpers.js";
 import type * as customers_internal_mutations from "../customers/internal_mutations.js";
 import type * as customers_internal_queries from "../customers/internal_queries.js";
+import type * as customers_list_customers_paginated from "../customers/list_customers_paginated.js";
 import type * as customers_mutations from "../customers/mutations.js";
 import type * as customers_queries from "../customers/queries.js";
 import type * as customers_query_customers from "../customers/query_customers.js";
@@ -801,6 +802,7 @@ import type * as workflows_executions_helpers from "../workflows/executions/help
 import type * as workflows_executions_list_executions from "../workflows/executions/list_executions.js";
 import type * as workflows_executions_list_executions_cursor from "../workflows/executions/list_executions_cursor.js";
 import type * as workflows_executions_list_executions_paginated from "../workflows/executions/list_executions_paginated.js";
+import type * as workflows_executions_list_executions_paginated_native from "../workflows/executions/list_executions_paginated_native.js";
 import type * as workflows_executions_patch_execution from "../workflows/executions/patch_execution.js";
 import type * as workflows_executions_resume_execution from "../workflows/executions/resume_execution.js";
 import type * as workflows_executions_set_component_workflow from "../workflows/executions/set_component_workflow.js";
@@ -1059,6 +1061,7 @@ declare const fullApi: ApiFromModules<{
   "customers/helpers": typeof customers_helpers;
   "customers/internal_mutations": typeof customers_internal_mutations;
   "customers/internal_queries": typeof customers_internal_queries;
+  "customers/list_customers_paginated": typeof customers_list_customers_paginated;
   "customers/mutations": typeof customers_mutations;
   "customers/queries": typeof customers_queries;
   "customers/query_customers": typeof customers_query_customers;
@@ -1665,6 +1668,7 @@ declare const fullApi: ApiFromModules<{
   "workflows/executions/list_executions": typeof workflows_executions_list_executions;
   "workflows/executions/list_executions_cursor": typeof workflows_executions_list_executions_cursor;
   "workflows/executions/list_executions_paginated": typeof workflows_executions_list_executions_paginated;
+  "workflows/executions/list_executions_paginated_native": typeof workflows_executions_list_executions_paginated_native;
   "workflows/executions/patch_execution": typeof workflows_executions_patch_execution;
   "workflows/executions/resume_execution": typeof workflows_executions_resume_execution;
   "workflows/executions/set_component_workflow": typeof workflows_executions_set_component_workflow;
