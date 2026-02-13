@@ -48,11 +48,14 @@ export async function handleWorkflowComplete(
         output: toConvexJsonValue(result.returnValue),
       },
     );
-    await emitEvent(ctx, {
-      organizationId: exec.organizationId,
-      eventType: 'workflow.completed',
-      eventData: { execution: exec },
-    });
+    const updatedExec = await ctx.db.get(exec._id);
+    if (updatedExec) {
+      await emitEvent(ctx, {
+        organizationId: updatedExec.organizationId,
+        eventType: 'workflow.completed',
+        eventData: { execution: updatedExec },
+      });
+    }
   } else if (kind === 'failed') {
     await ctx.runMutation(
       internal.wf_executions.internal_mutations.failExecution,
