@@ -20,12 +20,17 @@ export const listApprovalsPaginated = query({
     excludeStatus: v.optional(approvalStatusValidator),
   },
   handler: async (ctx, args) => {
+    const emptyResult = { page: [], isDone: true, continueCursor: '' };
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new Error('Unauthenticated');
+      return emptyResult;
     }
 
-    await getOrganizationMember(ctx, args.organizationId, authUser);
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch {
+      return emptyResult;
+    }
 
     return await listApprovalsPaginatedHelper(ctx, args);
   },
