@@ -9,7 +9,7 @@ requires-python = ">=3.11"
 dependencies = [
     "cognee[baml]==0.5.1",
     "cognee-community-hybrid-adapter-falkor==0.2.0",
-    "unstructured[xlsx,docx,pptx]==0.18.32",
+    "unstructured[xlsx,docx,pptx]==0.20.2",
     "PyMuPDF==1.26.7",
     "asyncpg==0.31.0",
     "psycopg2-binary==2.9.11",
