@@ -554,12 +554,9 @@ export function DataTable<TData, TValue = unknown>({
           </div>
         </>
       ) : (
-        <p
-          className="text-muted-foreground py-3 text-center text-xs"
-          role="status"
-        >
+        <output className="text-muted-foreground block py-3 text-center text-xs">
           {t('pagination.noMore')}
-        </p>
+        </output>
       )}
     </div>
   );
