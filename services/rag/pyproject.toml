@@ -10,7 +10,7 @@ dependencies = [
     "cognee[baml]==0.5.1",
     "cognee-community-hybrid-adapter-falkor==0.2.0",
     "unstructured[xlsx,docx,pptx]==0.20.2",
-    "PyMuPDF==1.26.7",
+    "PyMuPDF==1.27.1",
     "asyncpg==0.31.0",
     "psycopg2-binary==2.9.11",
     "python-multipart==0.0.20",
