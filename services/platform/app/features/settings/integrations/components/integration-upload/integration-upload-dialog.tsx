@@ -9,10 +9,8 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import {
-  useCreateIntegration,
-  useGenerateUploadUrl,
-} from '../../hooks/actions';
+import { useCreateIntegration } from '../../hooks/actions';
+import { useGenerateUploadUrl } from '../../hooks/mutations';
 import { useUploadIntegration } from './hooks/use-upload-integration';
 import { PreviewStep } from './steps/preview-step';
 import { UploadStep } from './steps/upload-step';
@@ -30,8 +28,8 @@ export function IntegrationUploadDialog({
 }: IntegrationUploadDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const createIntegration = useCreateIntegration();
-  const generateUploadUrl = useGenerateUploadUrl();
+  const { mutateAsync: createIntegration } = useCreateIntegration();
+  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
 
   const state = useUploadIntegration();
 
@@ -62,7 +60,7 @@ export function IntegrationUploadDialog({
       // Upload icon to Convex storage if present
       let iconStorageId: string | undefined;
       if (iconFile) {
-        const uploadUrl = await generateUploadUrl();
+        const uploadUrl = await generateUploadUrl({});
         const uploadResponse = await fetch(uploadUrl, {
           method: 'POST',
           headers: { 'Content-Type': iconFile.type || 'image/png' },

@@ -460,7 +460,8 @@ export function OneDriveImportDialog({
   const { t: tCommon } = useT('common');
   const { selectedTeamId } = useTeamFilter();
 
-  const importFilesAction = useImportOneDriveFiles();
+  const { mutateAsync: importFilesAction, isPending: isImporting } =
+    useImportOneDriveFiles();
   const listOneDriveFiles = useConvexAction(api.onedrive.actions.listFiles);
   const listSharePointFiles = useConvexAction(
     api.onedrive.actions.listSharePointFiles,
@@ -484,9 +485,6 @@ export function OneDriveImportDialog({
   const [spFolderPath, setSpFolderPath] = useState<
     Array<{ id: string | undefined; name: string }>
   >([]);
-
-  // Import state
-  const [isImporting, setIsImporting] = useState(false);
 
   // File picker state
   const [searchQuery, setSearchQuery] = useState('');
@@ -761,8 +759,6 @@ export function OneDriveImportDialog({
     try {
       const selectedItemsArray = Array.from(selectedItems.values());
 
-      setIsImporting(true);
-
       // Convert selected items to OneDriveApiItem format for collectAllFiles
       const driveItems: OneDriveApiItem[] = selectedItemsArray.map(
         (item: OneDriveSelectedItem) => ({
@@ -878,8 +874,6 @@ export function OneDriveImportDialog({
           error instanceof Error ? error.message : tCommon('errors.generic'),
         variant: 'destructive',
       });
-    } finally {
-      setIsImporting(false);
     }
   };
 

@@ -4,6 +4,13 @@ import { useCallback } from 'react';
 
 import type { Vendor } from '@/lib/collections/entities/vendors';
 
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { api } from '@/convex/_generated/api';
+
+export function useBulkCreateVendors() {
+  return useConvexMutation(api.vendors.mutations.bulkCreateVendors);
+}
+
 export function useDeleteVendor(collection: Collection<Vendor, string>) {
   return useCallback(
     async (args: { vendorId: string }) => {

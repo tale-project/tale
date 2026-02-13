@@ -4,7 +4,13 @@ import { useCallback } from 'react';
 
 import type { Website } from '@/lib/collections/entities/websites';
 
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { api } from '@/convex/_generated/api';
 import { toId } from '@/lib/utils/type-guards';
+
+export function useRescanWebsite() {
+  return useConvexMutation(api.websites.mutations.rescanWebsite);
+}
 
 export function useCreateWebsite(collection: Collection<Website, string>) {
   return useCallback(

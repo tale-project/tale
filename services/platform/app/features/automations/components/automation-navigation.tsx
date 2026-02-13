@@ -8,7 +8,6 @@ import {
   Upload,
   Pencil,
 } from 'lucide-react';
-import { useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -33,7 +32,7 @@ import {
   useCreateDraftFromActive,
   usePublishAutomationDraft,
   useUnpublishAutomation,
-} from '../hooks/actions';
+} from '../hooks/mutations';
 import { useListWorkflowVersions } from '../hooks/queries';
 import { useAutomationVersionNavigation } from '../hooks/use-automation-version-navigation';
 
@@ -59,13 +58,13 @@ export function AutomationNavigation({
     automationId ?? '',
   );
   const { user } = useAuth();
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
-  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
-  const publishAutomation = usePublishAutomationDraft();
-  const createDraftFromActive = useCreateDraftFromActive();
-  const unpublishAutomation = useUnpublishAutomation();
+  const { mutateAsync: publishAutomation, isPending: isPublishing } =
+    usePublishAutomationDraft();
+  const { mutateAsync: createDraftFromActive, isPending: isCreatingDraft } =
+    useCreateDraftFromActive();
+  const { mutateAsync: unpublishAutomation, isPending: isUnpublishing } =
+    useUnpublishAutomation();
 
   const { data: versions } = useListWorkflowVersions(
     organizationId,
@@ -107,7 +106,6 @@ export function AutomationNavigation({
       return;
     }
 
-    setIsPublishing(true);
     try {
       await publishAutomation({
         wfDefinitionId: toId<'wfDefinitions'>(automationId),
@@ -127,8 +125,6 @@ export function AutomationNavigation({
             : t('navigation.toast.publishFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsPublishing(false);
     }
   };
 
@@ -141,7 +137,6 @@ export function AutomationNavigation({
       return;
     }
 
-    setIsCreatingDraft(true);
     try {
       const result = await createDraftFromActive({
         wfDefinitionId: toId<'wfDefinitions'>(automationId),
@@ -175,8 +170,6 @@ export function AutomationNavigation({
             : t('navigation.toast.draftFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsCreatingDraft(false);
     }
   };
 
@@ -189,7 +182,6 @@ export function AutomationNavigation({
       return;
     }
 
-    setIsUnpublishing(true);
     try {
       await unpublishAutomation({
         wfDefinitionId: toId<'wfDefinitions'>(automationId),
@@ -209,8 +201,6 @@ export function AutomationNavigation({
             : t('navigation.toast.deactivateFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsUnpublishing(false);
     }
   };
 

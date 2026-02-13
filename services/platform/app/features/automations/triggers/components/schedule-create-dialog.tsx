@@ -62,11 +62,11 @@ export function ScheduleCreateDialog({
   const { toast } = useToast();
   const createSchedule = useCreateSchedule(collection);
   const updateSchedule = useUpdateSchedule(collection);
-  const generateCron = useGenerateCron();
+  const { mutateAsync: generateCron, isPending: isGenerating } =
+    useGenerateCron();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [naturalLanguage, setNaturalLanguage] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [cronDescription, setCronDescription] = useState('');
   const [generateError, setGenerateError] = useState('');
   const isEdit = !!schedule;
@@ -113,7 +113,6 @@ export function ScheduleCreateDialog({
   const handleGenerate = useCallback(async () => {
     if (!naturalLanguage.trim() || isGenerating) return;
 
-    setIsGenerating(true);
     setGenerateError('');
     setCronDescription('');
 
@@ -127,8 +126,6 @@ export function ScheduleCreateDialog({
       setCronDescription(result.description);
     } catch {
       setGenerateError(t('triggers.schedules.form.ai.generateError'));
-    } finally {
-      setIsGenerating(false);
     }
   }, [naturalLanguage, isGenerating, generateCron, setValue, t]);
 

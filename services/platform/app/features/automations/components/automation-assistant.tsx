@@ -21,9 +21,11 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Button } from '@/app/components/ui/primitives/button';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
-import { useCreateThread } from '@/app/features/chat/hooks/actions';
 import { useThreadCollection } from '@/app/features/chat/hooks/collections';
-import { useDeleteThread } from '@/app/features/chat/hooks/mutations';
+import {
+  useCreateThread,
+  useDeleteThread,
+} from '@/app/features/chat/hooks/mutations';
 import { useThreadMessages } from '@/app/features/chat/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -293,10 +295,11 @@ function AutomationAssistantContent({
   });
 
   // Connect to workflow assistant agent
-  const chatWithWorkflowAssistant = useChatWithWorkflowAssistant();
+  const { mutateAsync: chatWithWorkflowAssistant } =
+    useChatWithWorkflowAssistant();
   const threadCollection = useThreadCollection();
   const wfAutomationCollection = useWfAutomationCollection(organizationId);
-  const createChatThread = useCreateThread();
+  const { mutateAsync: createChatThread } = useCreateThread();
   const deleteChatThread = useDeleteThread(threadCollection);
   const updateWorkflowMetadata = useUpdateAutomationMetadata(
     wfAutomationCollection,

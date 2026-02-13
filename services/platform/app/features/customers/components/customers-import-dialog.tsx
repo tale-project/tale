@@ -11,7 +11,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useBulkCreateCustomers } from '../hooks/actions';
+import { useBulkCreateCustomers } from '../hooks/mutations';
 import { CustomerImportForm } from './customer-import-form';
 
 export interface ParsedCustomer {
@@ -104,7 +104,7 @@ export function ImportCustomersDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const bulkCreateCustomers = useBulkCreateCustomers();
+  const { mutateAsync: bulkCreateCustomers } = useBulkCreateCustomers();
 
   const handleClose = useCallback(() => {
     formMethods.reset();

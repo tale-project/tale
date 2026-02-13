@@ -28,8 +28,7 @@ interface DocumentTeamTagsDialogProps {
  * Internal content component containing all hooks.
  * IMPORTANT: This component must only be rendered when the dialog is open.
  * Rendering it during Radix UI's closing animation causes "Maximum update depth exceeded"
- * errors due to hooks (useQuery, useMutation) triggering re-renders during the
- * animation phase. See the wrapper component below for the guard pattern.
+ * errors due to hooks triggering re-renders during the animation phase. See the wrapper component below for the guard pattern.
  */
 function DocumentTeamTagsDialogContent({
   open,
@@ -187,8 +186,7 @@ function DocumentTeamTagsDialogContent({
  * Dialog for managing team tags on a document.
  *
  * CRITICAL: This wrapper pattern prevents "Maximum update depth exceeded" errors.
- * Radix UI Dialog keeps components mounted during closing animations. When hooks
- * (useQuery, useMutation) run during this phase, they trigger state updates that
+ * Radix UI Dialog keeps components mounted during closing animations. When hooks run during this phase, they trigger state updates that
  * conflict with Radix's usePresence hook, causing infinite re-render loops.
  *
  * The fix: Return null when closed to fully unmount the content component,

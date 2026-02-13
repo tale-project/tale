@@ -11,7 +11,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
-import { useAddTeamMember } from '../hooks/actions';
+import { useCreateTeamMember } from '../hooks/mutations';
 
 interface TeamCreateDialogProps {
   organizationId: string;
@@ -33,7 +33,7 @@ export function TeamCreateDialog({
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const addMember = useAddTeamMember();
+  const { mutateAsync: addMember } = useCreateTeamMember();
 
   const nameRequiredError = tSettings('teams.teamNameRequired');
   const schema = useMemo(

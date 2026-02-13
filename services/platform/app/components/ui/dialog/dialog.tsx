@@ -96,8 +96,8 @@ export interface DialogProps {
  * Base dialog component that provides a consistent structure for all dialogs.
  * Use this as the foundation for more specific dialog types or directly for custom dialogs.
  *
- * IMPORTANT: If your dialog content uses hooks (useQuery, useMutation, useEffect, etc.),
- * wrap the content in a conditional render pattern to prevent "Maximum update depth exceeded"
+ * IMPORTANT If your dialog content uses hooks:
+ * Wrap the content in a conditional render pattern to prevent "Maximum update depth exceeded"
  * errors. Radix UI keeps dialog content mounted during closing animations, and hooks
  * running during this phase can conflict with Radix's usePresence hook.
  *
