@@ -59,7 +59,7 @@ export function ChatSearchDialog({
 
   const groupedChats = useMemo(() => {
     const groups: { label: string; chats: typeof chats }[] = [];
-    let currentLabel = '';
+    let currentLabel: string | null = null;
 
     for (const chat of chats) {
       const label = chat.createdAt

@@ -6,9 +6,7 @@ import { useMemo } from 'react';
 import type { Customer } from '@/lib/collections/entities/customers';
 
 export function useCustomers(collection: Collection<Customer, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q.from({ customer: collection }).select(({ customer }) => customer),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     customers: data,
@@ -25,7 +23,19 @@ export function useCustomerByEmail(
       q
         .from({ c: collection })
         .fn.where((row) => row.c.email === email)
-        .select(({ c }) => c),
+        .select(({ c }) => ({
+          _id: c._id,
+          _creationTime: c._creationTime,
+          organizationId: c.organizationId,
+          name: c.name,
+          email: c.email,
+          externalId: c.externalId,
+          status: c.status,
+          source: c.source,
+          locale: c.locale,
+          address: c.address,
+          metadata: c.metadata,
+        })),
     [email],
   );
 
@@ -41,7 +51,19 @@ export function useCustomerById(
       q
         .from({ c: collection })
         .fn.where((row) => row.c._id === customerId)
-        .select(({ c }) => c),
+        .select(({ c }) => ({
+          _id: c._id,
+          _creationTime: c._creationTime,
+          organizationId: c.organizationId,
+          name: c.name,
+          email: c.email,
+          externalId: c.externalId,
+          status: c.status,
+          source: c.source,
+          locale: c.locale,
+          address: c.address,
+          metadata: c.metadata,
+        })),
     [customerId],
   );
 
