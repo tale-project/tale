@@ -104,11 +104,11 @@ export function SSOConfigDialog({
     enableOneDriveAccess: boolean;
   } | null>(null);
 
-  const upsertSSOProvider = useUpsertSsoProvider();
-  const removeSSOProvider = useRemoveSsoProvider();
-  const getFullConfig = useSsoFullConfig();
-  const testSSOConfig = useTestSsoConfig();
-  const testExistingSSOConfig = useTestExistingSsoConfig();
+  const { mutateAsync: upsertSSOProvider } = useUpsertSsoProvider();
+  const { mutateAsync: removeSSOProvider } = useRemoveSsoProvider();
+  const { mutateAsync: getFullConfig } = useSsoFullConfig();
+  const { mutateAsync: testSSOConfig } = useTestSsoConfig();
+  const { mutateAsync: testExistingSSOConfig } = useTestExistingSsoConfig();
 
   const isConnected = !!existingProvider;
 

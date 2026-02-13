@@ -10,9 +10,16 @@ import { CustomAgentActiveToggle } from './custom-agent-active-toggle';
 const mockActivateVersion = vi.fn();
 const mockUnpublish = vi.fn();
 
-vi.mock('../hooks/actions', () => ({
-  useActivateCustomAgentVersion: () => mockActivateVersion,
-  useUnpublishCustomAgent: () => mockUnpublish,
+vi.mock('../hooks/mutations', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useActivateCustomAgentVersion: () => ({
+    mutateAsync: mockActivateVersion,
+    isPending: false,
+  }),
+  useUnpublishCustomAgent: () => ({
+    mutateAsync: mockUnpublish,
+    isPending: false,
+  }),
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({

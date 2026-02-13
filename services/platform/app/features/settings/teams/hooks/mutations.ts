@@ -4,6 +4,13 @@ import { useCallback } from 'react';
 
 import type { TeamMember } from '@/lib/collections/entities/team-members';
 
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { api } from '@/convex/_generated/api';
+
+export function useCreateTeamMember() {
+  return useConvexMutation(api.team_members.mutations.addMember);
+}
+
 export function useAddTeamMember(collection: Collection<TeamMember, string>) {
   return useCallback(
     async (args: {

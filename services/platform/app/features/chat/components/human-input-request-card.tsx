@@ -18,7 +18,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { cn } from '@/lib/utils/cn';
 
-import { useSubmitHumanInputResponse } from '../hooks/actions';
+import { useSubmitHumanInputResponse } from '../hooks/mutations';
 
 interface HumanInputRequestCardProps {
   approvalId: Id<'approvals'>;
@@ -36,13 +36,13 @@ function HumanInputRequestCardComponent({
   onResponseSubmitted,
 }: HumanInputRequestCardProps) {
   const { formatDate } = useFormatDate();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textValue, setTextValue] = useState('');
   const [selectedValue, setSelectedValue] = useState<string>('');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
 
-  const submitResponse = useSubmitHumanInputResponse();
+  const { mutateAsync: submitResponse, isPending: isSubmitting } =
+    useSubmitHumanInputResponse();
 
   const isPending = status === 'pending';
 
@@ -76,7 +76,6 @@ function HumanInputRequestCardComponent({
         return;
     }
 
-    setIsSubmitting(true);
     setError(null);
 
     try {
@@ -90,8 +89,6 @@ function HumanInputRequestCardComponent({
         err instanceof Error ? err.message : 'Failed to submit response',
       );
       console.error('Failed to submit response:', err);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

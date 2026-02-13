@@ -10,9 +10,16 @@ import { AutomationActiveToggle } from './automation-active-toggle';
 const mockRepublish = vi.fn();
 const mockUnpublish = vi.fn();
 
-vi.mock('../hooks/actions', () => ({
-  useRepublishAutomation: () => mockRepublish,
-  useUnpublishAutomation: () => mockUnpublish,
+vi.mock('../hooks/mutations', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useRepublishAutomation: () => ({
+    mutateAsync: mockRepublish,
+    isPending: false,
+  }),
+  useUnpublishAutomation: () => ({
+    mutateAsync: mockUnpublish,
+    isPending: false,
+  }),
 }));
 
 vi.mock('@/app/hooks/use-convex-auth', () => ({

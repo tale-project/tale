@@ -6,7 +6,6 @@ import {
   jsonValueValidator,
   jsonRecordValidator,
 } from '../../lib/shared/schemas/utils/json-value';
-import { api } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import { createIntegration } from './create_integration';
@@ -142,29 +141,5 @@ export const saveOAuth2ClientCredentials = action({
 
     await saveOAuth2ClientCredentialsHandler(ctx, args);
     return null;
-  },
-});
-
-export const updateIcon = action({
-  args: {
-    integrationId: v.id('integrations'),
-    iconStorageId: v.optional(v.id('_storage')),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    return await ctx.runMutation(api.integrations.mutations.updateIcon, args);
-  },
-});
-
-export const deleteIntegrationAction = action({
-  args: {
-    integrationId: v.id('integrations'),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    return await ctx.runMutation(
-      api.integrations.mutations.deleteIntegration,
-      args,
-    );
   },
 });

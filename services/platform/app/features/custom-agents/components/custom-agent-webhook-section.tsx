@@ -19,12 +19,12 @@ import { useSiteUrl } from '@/lib/site-url-context';
 import { toId } from '@/lib/utils/type-guards';
 
 import { SecretRevealDialog } from '../../automations/triggers/components/secret-reveal-dialog';
-import { useCreateCustomAgentWebhook } from '../hooks/actions';
 import {
   useCustomAgentVersionCollection,
   useCustomAgentWebhookCollection,
 } from '../hooks/collections';
 import {
+  useCreateCustomAgentWebhook,
   useDeleteCustomAgentWebhook,
   useToggleCustomAgentWebhook,
 } from '../hooks/mutations';
@@ -53,7 +53,8 @@ export function CustomAgentWebhookSection({
   const customAgentWebhookCollection = useCustomAgentWebhookCollection(agentId);
   const { webhooks } = useCustomAgentWebhooks(customAgentWebhookCollection);
 
-  const createWebhook = useCreateCustomAgentWebhook();
+  const { mutateAsync: createWebhook, isPending: isCreating } =
+    useCreateCustomAgentWebhook();
   const toggleWebhook = useToggleCustomAgentWebhook(
     customAgentWebhookCollection,
   );
@@ -61,7 +62,6 @@ export function CustomAgentWebhookSection({
     customAgentWebhookCollection,
   );
 
-  const [isCreating, setIsCreating] = useState(false);
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WebhookRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -78,7 +78,6 @@ export function CustomAgentWebhookSection({
   );
 
   const handleCreate = useCallback(async () => {
-    setIsCreating(true);
     try {
       const result = await createWebhook({
         organizationId,
@@ -94,8 +93,6 @@ export function CustomAgentWebhookSection({
         title: t('customAgents.webhook.toast.createFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsCreating(false);
     }
   }, [createWebhook, organizationId, agentId, toast, t, getWebhookUrl]);
 

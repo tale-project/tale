@@ -17,9 +17,11 @@ import { HumanInputRequestCard } from '@/app/features/chat/components/human-inpu
 import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
 import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
-import { useCreateThread } from '@/app/features/chat/hooks/actions';
 import { useThreadCollection } from '@/app/features/chat/hooks/collections';
-import { useDeleteThread } from '@/app/features/chat/hooks/mutations';
+import {
+  useCreateThread,
+  useDeleteThread,
+} from '@/app/features/chat/hooks/mutations';
 import {
   useThreadMessages,
   useIntegrationApprovals,
@@ -33,7 +35,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
 
-import { useTestAgent } from '../hooks/actions';
+import { useTestAgent } from '../hooks/mutations';
 import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
 
 const DUPLICATE_WINDOW_MS = 5000;
@@ -138,9 +140,9 @@ function TestChatPanelContent({
   });
 
   const { agent: currentAgent } = useCustomAgentVersion();
-  const testAgent = useTestAgent();
+  const { mutateAsync: testAgent } = useTestAgent();
   const threadCollection = useThreadCollection();
-  const createChatThread = useCreateThread();
+  const { mutateAsync: createChatThread } = useCreateThread();
   const deleteChatThread = useDeleteThread(threadCollection);
 
   const { approvals: integrationApprovals } = useIntegrationApprovals(

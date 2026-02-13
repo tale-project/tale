@@ -17,12 +17,12 @@ import { cn } from '@/lib/utils/cn';
 
 import type { Conversation } from '../types';
 
+import { useConversationCollection } from '../hooks/collections';
 import {
   useAddMessage,
   useBulkCloseConversations,
   useBulkReopenConversations,
-} from '../hooks/actions';
-import { useConversationCollection } from '../hooks/collections';
+} from '../hooks/mutations';
 import { useConversations } from '../hooks/queries';
 import { ActivateConversationsEmptyState } from './activate-conversations-empty-state';
 import { ConversationPanel } from './conversation-panel';
@@ -195,9 +195,9 @@ export function ConversationsClient({
   }, [allConversations, status, initialPriority, searchQuery, initialSearch]);
 
   // Convex mutations
-  const bulkResolve = useBulkCloseConversations();
-  const bulkReopen = useBulkReopenConversations();
-  const addMessage = useAddMessage();
+  const { mutateAsync: bulkResolve } = useBulkCloseConversations();
+  const { mutateAsync: bulkReopen } = useBulkReopenConversations();
+  const { mutateAsync: addMessage } = useAddMessage();
 
   const [selectionState, setSelectionState] = useState<SelectionState>({
     type: 'individual',
@@ -261,9 +261,9 @@ interface ConversationsClientInnerProps {
     isOpen: boolean;
     isSending: boolean;
   }) => void;
-  bulkResolve: ReturnType<typeof useBulkCloseConversations>;
-  bulkReopen: ReturnType<typeof useBulkReopenConversations>;
-  addMessage: ReturnType<typeof useAddMessage>;
+  bulkResolve: ReturnType<typeof useBulkCloseConversations>['mutateAsync'];
+  bulkReopen: ReturnType<typeof useBulkReopenConversations>['mutateAsync'];
+  addMessage: ReturnType<typeof useAddMessage>['mutateAsync'];
   tChat: ReturnType<typeof useT>['t'];
   tConversations: ReturnType<typeof useT>['t'];
   tCommon: ReturnType<typeof useT>['t'];

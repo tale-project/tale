@@ -13,7 +13,7 @@ import {
 import { compressImage } from '@/lib/utils/compress-image';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
 
-import { useGenerateUploadUrl } from './actions';
+import { useGenerateUploadUrl } from './mutations';
 
 interface FileAttachment {
   fileId: Id<'_storage'>;
@@ -37,7 +37,7 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
   const { t } = useT('chat');
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
-  const generateUploadUrl = useGenerateUploadUrl();
+  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
 
   const mergedConfig = useMemo(
     () => ({ ...DEFAULT_CONFIG, ...config }),
@@ -83,7 +83,7 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
             fileToUpload = compressionResult.file;
           }
 
-          const uploadUrl = await generateUploadUrl();
+          const uploadUrl = await generateUploadUrl({});
 
           const result = await fetch(uploadUrl, {
             method: 'POST',

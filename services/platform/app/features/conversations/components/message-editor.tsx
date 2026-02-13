@@ -46,8 +46,7 @@ import { cn } from '@/lib/utils/cn';
 
 import type { Message as ConversationMessage } from '../types';
 
-// AI improvement
-import { improveMessage } from '../actions/improve-message';
+import { useImproveMessage } from '../hooks/actions';
 import { MessageImprovementDialog } from './message-improvement-dialog';
 
 interface AttachedFile {
@@ -109,6 +108,8 @@ function MilkdownEditorInner({
   // Translations
   const { t: tConversations } = useT('conversations');
   const { t: tCommon } = useT('common');
+
+  const { mutateAsync: improveMessage } = useImproveMessage();
 
   // Helper function to format file size
   const formatFileSize = (bytes: number): string => {
@@ -272,10 +273,10 @@ function MilkdownEditorInner({
 
     startImprovingTransition(async () => {
       try {
-        const result = await improveMessage(
-          currentMarkdown,
-          improveInstruction.trim() || undefined,
-        );
+        const result = await improveMessage({
+          originalMessage: currentMarkdown,
+          instruction: improveInstruction.trim() || undefined,
+        });
 
         if (result.error) {
           toast({
