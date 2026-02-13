@@ -43,6 +43,7 @@ export const approvalsTable = defineTable({
     'status',
     'resourceType',
   ])
+  .index('by_org_resourceType', ['organizationId', 'resourceType'])
   .index('by_resource', ['resourceType', 'resourceId'])
   .index('by_resourceType_and_resourceId_and_status', [
     'resourceType',

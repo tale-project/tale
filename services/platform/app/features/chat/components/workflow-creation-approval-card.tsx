@@ -23,7 +23,6 @@ import {
 } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useExecuteApprovedWorkflowCreation } from '@/app/features/approvals/hooks/actions';
-import { useApprovalCollection } from '@/app/features/approvals/hooks/collections';
 import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCopyButton } from '@/app/hooks/use-copy';
@@ -247,10 +246,7 @@ function WorkflowCreationApprovalCardComponent({
   );
   const { copied, onClick: handleCopy } = useCopyButton(configJson);
 
-  // No optimistic update: approval triggers external workflow creation action with
-  // side effects that cannot be safely rolled back if the mutation fails.
-  const approvalCollection = useApprovalCollection(organizationId);
-  const updateApprovalStatus = useUpdateApprovalStatus(approvalCollection);
+  const { mutateAsync: updateApprovalStatus } = useUpdateApprovalStatus();
   const { mutateAsync: executeApprovedWorkflow } =
     useExecuteApprovedWorkflowCreation();
 

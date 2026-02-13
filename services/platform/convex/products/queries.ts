@@ -1,6 +1,8 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { queryWithRLS } from '../lib/rls';
+import { listProductsPaginated as listProductsPaginatedHelper } from './list_products_paginated';
 import { productDocValidator } from './validators';
 
 export const listProducts = queryWithRLS({
@@ -18,5 +20,17 @@ export const listProducts = queryWithRLS({
       results.push(product);
     }
     return results;
+  },
+});
+
+export const listProductsPaginated = queryWithRLS({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    organizationId: v.string(),
+    status: v.optional(v.string()),
+    category: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await listProductsPaginatedHelper(ctx, args);
   },
 });

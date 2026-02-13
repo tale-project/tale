@@ -1,13 +1,35 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import * as ApprovalsHelpers from './helpers';
+import { listApprovalsPaginated as listApprovalsPaginatedHelper } from './list_approvals_paginated';
 import {
   approvalItemValidator,
   approvalStatusValidator,
   approvalResourceTypeValidator,
 } from './validators';
+
+export const listApprovalsPaginated = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    organizationId: v.string(),
+    status: v.optional(approvalStatusValidator),
+    resourceType: v.optional(approvalResourceTypeValidator),
+    excludeStatus: v.optional(approvalStatusValidator),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    await getOrganizationMember(ctx, args.organizationId, authUser);
+
+    return await listApprovalsPaginatedHelper(ctx, args);
+  },
+});
 
 export const listApprovalsByOrganization = query({
   args: {

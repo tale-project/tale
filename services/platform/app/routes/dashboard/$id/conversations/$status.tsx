@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { ConversationsClient } from '@/app/features/conversations/components/conversations-client';
+import { useListConversationsPaginated } from '@/app/features/conversations/hooks/queries';
 
 const VALID_STATUSES = ['open', 'closed', 'archived', 'spam'] as const;
 type ConversationStatus = Doc<'conversations'>['status'];
@@ -16,10 +17,8 @@ const conversationStatusMap: Record<string, ConversationStatus> = {
 };
 
 const searchSchema = z.object({
-  category: z.string().optional(),
   priority: z.string().optional(),
   search: z.string().optional(),
-  page: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
@@ -34,18 +33,24 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
 
 function ConversationsStatusPage() {
   const { id: organizationId, status } = Route.useParams();
-  const { category, priority, search, page = '1' } = Route.useSearch();
+  const { priority, search } = Route.useSearch();
+
+  const mappedStatus = conversationStatusMap[status] ?? 'open';
+
+  const paginatedResult = useListConversationsPaginated({
+    organizationId,
+    status: mappedStatus,
+    priority: priority && priority.length > 0 ? priority : undefined,
+    initialNumItems: 30,
+  });
 
   return (
     <ConversationsClient
       key={`${organizationId}-${status}`}
-      status={conversationStatusMap[status] ?? 'open'}
+      status={mappedStatus}
       organizationId={organizationId}
-      page={parseInt(page)}
-      limit={20}
-      priority={priority && priority.length > 0 ? priority : undefined}
-      category={category && category.length > 0 ? category : undefined}
       search={search && search.length > 0 ? search : undefined}
+      paginatedResult={paginatedResult}
     />
   );
 }

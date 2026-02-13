@@ -19,7 +19,6 @@ import {
 } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useExecuteApprovedIntegrationOperation } from '@/app/features/approvals/hooks/actions';
-import { useApprovalCollection } from '@/app/features/approvals/hooks/collections';
 import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { Id } from '@/convex/_generated/dataModel';
@@ -42,7 +41,6 @@ interface IntegrationApprovalCardProps {
  */
 function IntegrationApprovalCardComponent({
   approvalId,
-  organizationId,
   status,
   metadata,
   executedAt,
@@ -55,8 +53,7 @@ function IntegrationApprovalCardComponent({
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const approvalCollection = useApprovalCollection(organizationId);
-  const updateApprovalStatus = useUpdateApprovalStatus(approvalCollection);
+  const { mutateAsync: updateApprovalStatus } = useUpdateApprovalStatus();
   const { mutateAsync: executeApprovedOperation } =
     useExecuteApprovedIntegrationOperation();
 
