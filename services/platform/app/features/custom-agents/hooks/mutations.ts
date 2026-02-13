@@ -42,42 +42,18 @@ export function useCreateCustomAgentWebhook() {
   return useConvexMutation(api.custom_agents.webhooks.mutations.createWebhook);
 }
 
-export function useUpdateCustomAgent(
-  collection: Collection<CustomAgent, string>,
-) {
-  return useCallback(
-    async (args: { customAgentId: string } & Record<string, unknown>) => {
-      const { customAgentId, ...fields } = args;
-      const tx = collection.update(customAgentId, (draft) => {
-        Object.assign(draft, fields);
-      });
-      await tx.isPersisted.promise;
-    },
-    [collection],
+export function useUpdateCustomAgent() {
+  const { mutateAsync } = useConvexMutation(
+    api.custom_agents.mutations.updateCustomAgent,
   );
+  return mutateAsync;
 }
 
-export function useUpdateCustomAgentMetadata(
-  collection: Collection<CustomAgent, string>,
-) {
-  return useCallback(
-    async (args: {
-      customAgentId: string;
-      name?: string;
-      displayName?: string;
-      description?: string;
-      avatarUrl?: string;
-      teamId?: string;
-      sharedWithTeamIds?: string[];
-    }) => {
-      const { customAgentId, ...fields } = args;
-      const tx = collection.update(customAgentId, (draft) => {
-        Object.assign(draft, fields);
-      });
-      await tx.isPersisted.promise;
-    },
-    [collection],
+export function useUpdateCustomAgentMetadata() {
+  const { mutateAsync } = useConvexMutation(
+    api.custom_agents.mutations.updateCustomAgentMetadata,
   );
+  return mutateAsync;
 }
 
 export function useDeleteCustomAgent(
