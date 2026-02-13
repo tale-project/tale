@@ -267,6 +267,10 @@
       "title": "No automations yet",
       "description": "Describe your workflow and let your AI automate it"
     },
+    "customAgents": {
+      "title": "No custom agents yet",
+      "description": "Create your first custom agent to specialize AI behavior for your team"
+    },
     "examples": {
       "title": "No examples yet",
       "description": "Add example messages to train the AI on your tone"
@@ -1532,7 +1536,8 @@
       "namePlaceholder": "e.g., Social media workflow",
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
-      "continue": "Continue"
+      "continue": "Continue",
+      "initialPrompt": "I just created a new automation called \"{name}\". Here is what it should do:\n\n{description}\n\nPlease help me build the workflow steps for this automation."
     },
     "editDialog": {
       "title": "Edit automation",
@@ -2543,7 +2548,7 @@
     },
     "editVendor": "Edit vendor",
     "deleteVendor": "Delete vendor",
-    "viewDetails": "View vendor details",
+    "viewDetails": "View details",
     "importMenu": {
       "importVendors": "Import vendors",
       "fromDevice": "From your device",
