@@ -21,7 +21,7 @@ function AutomationsEmptyState({ organizationId }: { organizationId: string }) {
   const { t: tAutomations } = useT('automations');
 
   return (
-    <ContentWrapper>
+    <ContentWrapper className="p-4">
       <DataTableEmptyState
         icon={Workflow}
         title={tEmpty('automations.title')}

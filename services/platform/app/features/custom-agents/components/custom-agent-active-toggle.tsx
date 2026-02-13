@@ -12,6 +12,7 @@ import type { CustomAgentRow } from './custom-agent-table';
 
 import {
   useActivateCustomAgentVersion,
+  usePublishCustomAgent,
   useUnpublishCustomAgent,
 } from '../hooks/mutations';
 
@@ -34,21 +35,30 @@ export function CustomAgentActiveToggle({
 
   const { mutateAsync: activateVersion, isPending: isActivating } =
     useActivateCustomAgentVersion();
+  const { mutateAsync: publishAgent, isPending: isPublishing } =
+    usePublishCustomAgent();
   const { mutateAsync: unpublishAgent, isPending: isUnpublishing } =
     useUnpublishCustomAgent();
 
-  const isToggling = isActivating || isUnpublishing;
+  const isToggling = isActivating || isPublishing || isUnpublishing;
 
   const rootId = agent.rootVersionId ?? agent._id;
   const isActive = agent.status === 'active';
-  const isDraft = agent.status === 'draft';
+  const isUnpublishedDraft =
+    agent.status === 'draft' && agent.versionNumber === 1;
 
   const handleActivate = useCallback(async () => {
     try {
-      await activateVersion({
-        customAgentId: toId<'customAgents'>(rootId),
-        targetVersion: agent.versionNumber,
-      });
+      if (agent.status === 'draft') {
+        await publishAgent({
+          customAgentId: toId<'customAgents'>(rootId),
+        });
+      } else {
+        await activateVersion({
+          customAgentId: toId<'customAgents'>(rootId),
+          targetVersion: agent.versionNumber,
+        });
+      }
       toast({
         title: t('customAgents.agentPublished'),
         variant: 'success',
@@ -60,7 +70,14 @@ export function CustomAgentActiveToggle({
         variant: 'destructive',
       });
     }
-  }, [activateVersion, rootId, agent.versionNumber, t]);
+  }, [
+    activateVersion,
+    publishAgent,
+    rootId,
+    agent.versionNumber,
+    agent.status,
+    t,
+  ]);
 
   const handleDeactivateConfirm = useCallback(async () => {
     try {
@@ -99,7 +116,7 @@ export function CustomAgentActiveToggle({
         onCheckedChange={handleToggle}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
-        disabled={isDraft || isToggling}
+        disabled={isUnpublishedDraft || isToggling}
         label={label}
         aria-label={t('customAgents.activeToggle.ariaLabel')}
       />

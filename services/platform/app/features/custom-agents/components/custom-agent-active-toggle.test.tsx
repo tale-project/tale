@@ -8,12 +8,17 @@ import { render, screen, waitFor } from '@/test/utils/render';
 import { CustomAgentActiveToggle } from './custom-agent-active-toggle';
 
 const mockActivateVersion = vi.fn();
+const mockPublish = vi.fn();
 const mockUnpublish = vi.fn();
 
 vi.mock('../hooks/mutations', async (importOriginal) => ({
   ...(await importOriginal()),
   useActivateCustomAgentVersion: () => ({
     mutateAsync: mockActivateVersion,
+    isPending: false,
+  }),
+  usePublishCustomAgent: () => ({
+    mutateAsync: mockPublish,
     isPending: false,
   }),
   useUnpublishCustomAgent: () => ({
@@ -52,6 +57,7 @@ describe('CustomAgentActiveToggle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockActivateVersion.mockResolvedValue(null);
+    mockPublish.mockResolvedValue(null);
     mockUnpublish.mockResolvedValue(null);
   });
 
@@ -70,12 +76,24 @@ describe('CustomAgentActiveToggle', () => {
       expect(toggle).toHaveAttribute('data-state', 'unchecked');
     });
 
-    it('renders disabled switch when agent is draft', () => {
+    it('renders disabled switch when agent is an unpublished draft', () => {
       render(
-        <CustomAgentActiveToggle agent={createAgent({ status: 'draft' })} />,
+        <CustomAgentActiveToggle
+          agent={createAgent({ status: 'draft', versionNumber: 1 })}
+        />,
       );
       const toggle = screen.getByRole('switch');
       expect(toggle).toBeDisabled();
+    });
+
+    it('renders enabled switch when agent is a draft with published versions', () => {
+      render(
+        <CustomAgentActiveToggle
+          agent={createAgent({ status: 'draft', versionNumber: 2 })}
+        />,
+      );
+      const toggle = screen.getByRole('switch');
+      expect(toggle).toBeEnabled();
     });
 
     it('renders with label when provided', () => {
@@ -99,6 +117,23 @@ describe('CustomAgentActiveToggle', () => {
           customAgentId: 'agent-root-1',
           targetVersion: 2,
         });
+      });
+    });
+
+    it('calls publishCustomAgent when toggling on a draft with published versions', async () => {
+      const { user } = render(
+        <CustomAgentActiveToggle
+          agent={createAgent({ status: 'draft', versionNumber: 2 })}
+        />,
+      );
+
+      await user.click(screen.getByRole('switch'));
+
+      await waitFor(() => {
+        expect(mockPublish).toHaveBeenCalledWith({
+          customAgentId: 'agent-root-1',
+        });
+        expect(mockActivateVersion).not.toHaveBeenCalled();
       });
     });
 
@@ -136,14 +171,17 @@ describe('CustomAgentActiveToggle', () => {
       });
     });
 
-    it('does not toggle when draft agent is clicked', async () => {
+    it('does not toggle when unpublished draft agent is clicked', async () => {
       const { user } = render(
-        <CustomAgentActiveToggle agent={createAgent({ status: 'draft' })} />,
+        <CustomAgentActiveToggle
+          agent={createAgent({ status: 'draft', versionNumber: 1 })}
+        />,
       );
 
       await user.click(screen.getByRole('switch'));
 
       expect(mockActivateVersion).not.toHaveBeenCalled();
+      expect(mockPublish).not.toHaveBeenCalled();
       expect(mockUnpublish).not.toHaveBeenCalled();
     });
   });
