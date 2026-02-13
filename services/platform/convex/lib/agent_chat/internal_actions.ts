@@ -35,6 +35,7 @@ const serializableAgentConfigValidator = v.object({
   maxSteps: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
   enableVectorSearch: v.optional(v.boolean()),
+  contextFeatures: v.optional(v.array(v.string())),
 });
 
 const hooksConfigValidator = v.object({
@@ -142,7 +143,7 @@ export const runAgentGeneration = internalAction({
 
     // Build hooks object from FunctionHandle strings
     const hooks: GenerateResponseHooks | undefined = hooksConfig
-      ? buildHooksFromConfig(hooksConfig)
+      ? buildHooksFromConfig(hooksConfig, agentConfig.contextFeatures)
       : undefined;
 
     try {
@@ -224,12 +225,15 @@ export const runAgentGeneration = internalAction({
  * Build hooks object from FunctionHandle configuration.
  * Converts string handles to callable functions.
  */
-function buildHooksFromConfig(hooksConfig: {
-  beforeContext?: string;
-  beforeGenerate?: string;
-  afterGenerate?: string;
-  onError?: string;
-}): GenerateResponseHooks {
+function buildHooksFromConfig(
+  hooksConfig: {
+    beforeContext?: string;
+    beforeGenerate?: string;
+    afterGenerate?: string;
+    onError?: string;
+  },
+  contextFeatures?: string[],
+): GenerateResponseHooks {
   const hooks: GenerateResponseHooks = {};
 
   if (hooksConfig.beforeContext) {
@@ -243,6 +247,7 @@ function buildHooksFromConfig(hooksConfig: {
         promptMessage: args.promptMessage,
         organizationId: args.organizationId,
         userTeamIds: args.userTeamIds,
+        contextFeatures,
       });
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       return result as BeforeContextResult;

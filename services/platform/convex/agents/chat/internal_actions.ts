@@ -73,51 +73,66 @@ export const beforeContextHook = internalAction({
     promptMessage: v.string(),
     organizationId: v.string(),
     userTeamIds: v.optional(v.array(v.string())),
+    contextFeatures: v.optional(v.array(v.string())),
   },
   returns: v.object({
     integrationsInfo: v.optional(v.string()),
     integrationsList: v.optional(v.array(v.any())),
   }),
-  handler: async (ctx, args) => {
-    const { threadId, organizationId } = args;
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    integrationsInfo?: string;
+    integrationsList?: Record<string, unknown>[];
+  }> => {
+    const { threadId, organizationId, contextFeatures } = args;
 
-    // Load integrations list
-    const integrationsList: Record<string, unknown>[] = await ctx.runQuery(
-      internal.integrations.internal_queries.listInternal,
-      {
-        organizationId,
-      },
-    );
+    // Determine which features to load.
+    // undefined = load all (backward compat for callers that don't pass contextFeatures)
+    const shouldLoad = (feature: string) =>
+      !contextFeatures || contextFeatures.includes(feature);
 
-    // Format integrations info
     let integrationsInfo: string | undefined;
-    if (integrationsList && integrationsList.length > 0) {
-      integrationsInfo = integrationsList
-        .map((integration: Record<string, unknown>) => {
-          const type =
-            typeof integration.type === 'string'
-              ? integration.type
-              : 'rest_api';
-          const status =
-            typeof integration.status === 'string'
-              ? integration.status
-              : 'active';
-          const name =
-            typeof integration.name === 'string' ? integration.name : '';
-          const title =
-            typeof integration.title === 'string' ? integration.title : name;
-          const desc =
-            typeof integration.description === 'string'
-              ? ` - ${integration.description}`
-              : '';
-          return `• ${name} (${type}, ${status}): ${title}${desc}`;
-        })
-        .join('\n');
+    let integrationsList: Record<string, unknown>[] | undefined;
+
+    if (shouldLoad('integrations')) {
+      integrationsList = await ctx.runQuery(
+        internal.integrations.internal_queries.listInternal,
+        {
+          organizationId,
+        },
+      );
+
+      if (integrationsList && integrationsList.length > 0) {
+        integrationsInfo = integrationsList
+          .map((integration: Record<string, unknown>) => {
+            const type =
+              typeof integration.type === 'string'
+                ? integration.type
+                : 'rest_api';
+            const status =
+              typeof integration.status === 'string'
+                ? integration.status
+                : 'active';
+            const name =
+              typeof integration.name === 'string' ? integration.name : '';
+            const title =
+              typeof integration.title === 'string' ? integration.title : name;
+            const desc =
+              typeof integration.description === 'string'
+                ? ` - ${integration.description}`
+                : '';
+            return `• ${name} (${type}, ${status}): ${title}${desc}`;
+          })
+          .join('\n');
+      }
     }
 
     debugLog('Initial context loaded', {
       threadId,
       integrationsCount: integrationsList?.length ?? 0,
+      contextFeatures,
     });
 
     return {
