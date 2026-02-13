@@ -41,13 +41,12 @@ export async function closeConversation(
     { status: 'closed', resolvedBy: args.resolvedBy },
   );
 
-  await emitEvent(ctx, {
-    organizationId: conversation.organizationId,
-    eventType: 'conversation.closed',
-    eventData: {
-      conversationId: args.conversationId,
-      previousStatus,
-      resolvedBy: args.resolvedBy,
-    },
-  });
+  const updatedConversation = await ctx.db.get(args.conversationId);
+  if (updatedConversation) {
+    await emitEvent(ctx, {
+      organizationId: conversation.organizationId,
+      eventType: 'conversation.closed',
+      eventData: { conversation: updatedConversation, previousStatus },
+    });
+  }
 }

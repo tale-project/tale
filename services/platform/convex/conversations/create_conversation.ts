@@ -46,16 +46,14 @@ export async function createConversation(
     },
   );
 
-  await emitEvent(ctx, {
-    organizationId: args.organizationId,
-    eventType: 'conversation.created',
-    eventData: {
-      conversationId,
-      channel: args.channel,
-      direction: args.direction,
-      customerId: args.customerId,
-    },
-  });
+  const conversation = await ctx.db.get(conversationId);
+  if (conversation) {
+    await emitEvent(ctx, {
+      organizationId: args.organizationId,
+      eventType: 'conversation.created',
+      eventData: { conversation },
+    });
+  }
 
   return {
     success: true,

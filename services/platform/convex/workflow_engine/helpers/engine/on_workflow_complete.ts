@@ -48,15 +48,14 @@ export async function handleWorkflowComplete(
         output: toConvexJsonValue(result.returnValue),
       },
     );
-    await emitEvent(ctx, {
-      organizationId: exec.organizationId,
-      eventType: 'workflow.completed',
-      eventData: {
-        executionId: exec._id,
-        wfDefinitionId: exec.wfDefinitionId,
-        rootWfDefinitionId: exec.rootWfDefinitionId,
-      },
-    });
+    const updatedExec = await ctx.db.get(exec._id);
+    if (updatedExec) {
+      await emitEvent(ctx, {
+        organizationId: updatedExec.organizationId,
+        eventType: 'workflow.completed',
+        eventData: { execution: updatedExec },
+      });
+    }
   } else if (kind === 'failed') {
     await ctx.runMutation(
       internal.wf_executions.internal_mutations.failExecution,
@@ -65,16 +64,6 @@ export async function handleWorkflowComplete(
         error: result.error || 'failed',
       },
     );
-    await emitEvent(ctx, {
-      organizationId: exec.organizationId,
-      eventType: 'workflow.failed',
-      eventData: {
-        executionId: exec._id,
-        wfDefinitionId: exec.wfDefinitionId,
-        rootWfDefinitionId: exec.rootWfDefinitionId,
-        error: result.error || 'failed',
-      },
-    });
   } else if (kind === 'canceled') {
     await ctx.runMutation(
       internal.wf_executions.internal_mutations.updateExecutionStatus,
@@ -84,15 +73,5 @@ export async function handleWorkflowComplete(
         error: 'canceled',
       },
     );
-    await emitEvent(ctx, {
-      organizationId: exec.organizationId,
-      eventType: 'workflow.failed',
-      eventData: {
-        executionId: exec._id,
-        wfDefinitionId: exec.wfDefinitionId,
-        rootWfDefinitionId: exec.rootWfDefinitionId,
-        error: 'canceled',
-      },
-    });
   }
 }

@@ -3,6 +3,21 @@ import type { MutationCtx } from '../../_generated/server';
 import { internal } from '../../_generated/api';
 import { getActiveWorkflowVersion } from './queries';
 
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  let current: unknown = obj;
+  for (const key of path.split('.')) {
+    if (
+      current === null ||
+      current === undefined ||
+      typeof current !== 'object'
+    )
+      return undefined;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic nested access
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
 function matchesFilter(
   eventData: Record<string, unknown> | undefined,
   eventFilter: Record<string, string> | undefined,
@@ -10,7 +25,7 @@ function matchesFilter(
   if (!eventFilter) return true;
   if (!eventData) return false;
   for (const [key, value] of Object.entries(eventFilter)) {
-    const eventVal = eventData[key];
+    const eventVal = getNestedValue(eventData, key);
     if (
       (typeof eventVal === 'string'
         ? eventVal
@@ -26,10 +41,12 @@ function isSelfTrigger(
   eventData: Record<string, unknown> | undefined,
   subscriptionWorkflowRootId: string,
 ): boolean {
-  if (eventType !== 'workflow.completed' && eventType !== 'workflow.failed')
-    return false;
+  if (eventType !== 'workflow.completed') return false;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-  const sourceRoot = eventData?.rootWfDefinitionId as string | undefined;
+  const sourceRoot = getNestedValue(
+    eventData ?? {},
+    'execution.rootWfDefinitionId',
+  ) as string | undefined;
   return !!sourceRoot && sourceRoot === subscriptionWorkflowRootId;
 }
 

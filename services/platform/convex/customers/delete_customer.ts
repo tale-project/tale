@@ -19,11 +19,7 @@ export async function deleteCustomer(
   await emitEvent(ctx, {
     organizationId: customer.organizationId,
     eventType: 'customer.deleted',
-    eventData: {
-      customerId,
-      name: customer.name,
-      email: customer.email,
-    },
+    eventData: { customer },
   });
 
   await ctx.db.delete(customerId);
