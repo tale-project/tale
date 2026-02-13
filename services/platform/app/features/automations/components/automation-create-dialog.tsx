@@ -10,10 +10,17 @@ import { z } from 'zod';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useCreateThread } from '@/app/features/chat/hooks/mutations';
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateAutomation } from '../hooks/mutations';
+import { useChatWithWorkflowAssistant } from '../hooks/actions';
+import { useWfAutomationCollection } from '../hooks/collections';
+import {
+  useCreateAutomation,
+  useUpdateAutomationMetadata,
+} from '../hooks/mutations';
 
 type FormData = {
   name: string;
@@ -33,6 +40,14 @@ export function CreateAutomationDialog({
 }: CreateAutomationDialogProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
+  const { user } = useAuth();
+  const { mutateAsync: createChatThread } = useCreateThread();
+  const wfAutomationCollection = useWfAutomationCollection(organizationId);
+  const updateWorkflowMetadata = useUpdateAutomationMetadata(
+    wfAutomationCollection,
+  );
+  const { mutateAsync: chatWithWorkflowAssistant } =
+    useChatWithWorkflowAssistant();
 
   const formSchema = useMemo(
     () =>
@@ -69,6 +84,38 @@ export function CreateAutomationDialog({
         },
         stepsConfig: [],
       });
+
+      const description = data.description?.trim();
+      if (description && user?.userId) {
+        try {
+          const title =
+            description.length > 50
+              ? `${description.slice(0, 50)}...`
+              : description;
+          const threadId = await createChatThread({
+            organizationId,
+            title,
+            chatType: 'workflow_assistant',
+          });
+          await updateWorkflowMetadata({
+            wfDefinitionId,
+            metadata: { threadId },
+            updatedBy: user.userId,
+          });
+          void chatWithWorkflowAssistant({
+            threadId,
+            organizationId,
+            workflowId: wfDefinitionId,
+            message: t('createDialog.initialPrompt', {
+              name: data.name,
+              description,
+            }),
+          });
+        } catch (error) {
+          console.error('Failed to initialize AI thread:', error);
+        }
+      }
+
       toast({
         title: t('toast.created'),
         variant: 'success',
