@@ -32,9 +32,9 @@ function DashboardIndex() {
 
     const firstOrgId = organizations[0]?.organizationId;
 
-    if (organizations.length === 0) {
+    if (organizations.length === 0 || !firstOrgId) {
       void navigate({ to: '/dashboard/create-organization' });
-    } else if (firstOrgId) {
+    } else {
       void navigate({
         to: '/dashboard/$id',
         params: { id: firstOrgId },
