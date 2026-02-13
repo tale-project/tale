@@ -43,15 +43,14 @@ export async function createCustomer(
     metadata: toConvexJsonRecord(args.metadata),
   });
 
-  await emitEvent(ctx, {
-    organizationId: args.organizationId,
-    eventType: 'customer.created',
-    eventData: {
-      customerId,
-      name: args.name,
-      email: args.email,
-    },
-  });
+  const customer = await ctx.db.get(customerId);
+  if (customer) {
+    await emitEvent(ctx, {
+      organizationId: args.organizationId,
+      eventType: 'customer.created',
+      eventData: { customer },
+    });
+  }
 
   return {
     success: true,

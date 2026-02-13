@@ -115,17 +115,15 @@ export async function addMessageToConversation(
     },
   );
 
-  await emitEvent(ctx, {
-    organizationId: args.organizationId,
-    eventType: 'conversation.message_received',
-    eventData: {
-      conversationId: args.conversationId,
-      messageId,
-      direction,
-      isCustomer: args.isCustomer,
-      sender: args.sender,
-    },
-  });
+  const message = await ctx.db.get(messageId);
+  if (message) {
+    const updatedConversation = await ctx.db.get(args.conversationId);
+    await emitEvent(ctx, {
+      organizationId: args.organizationId,
+      eventType: 'conversation.message_received',
+      eventData: { conversation: updatedConversation, message },
+    });
+  }
 
   return args.conversationId;
 }

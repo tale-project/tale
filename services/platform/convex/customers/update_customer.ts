@@ -85,11 +85,15 @@ export async function updateCustomer(
 
   await ctx.db.patch(customerId, cleanUpdateData);
 
-  await emitEvent(ctx, {
-    organizationId: existingCustomer.organizationId,
-    eventType: 'customer.updated',
-    eventData: { customerId },
-  });
+  const updatedCustomer = await ctx.db.get(customerId);
 
-  return await ctx.db.get(customerId);
+  if (updatedCustomer) {
+    await emitEvent(ctx, {
+      organizationId: existingCustomer.organizationId,
+      eventType: 'customer.updated',
+      eventData: { customer: updatedCustomer },
+    });
+  }
+
+  return updatedCustomer;
 }
