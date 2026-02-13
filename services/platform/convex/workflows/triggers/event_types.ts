@@ -69,19 +69,7 @@ export const EVENT_TYPES: Record<string, EventTypeDef> = {
     description: 'Triggered when a workflow execution completes successfully',
     filterFields: [
       {
-        key: 'rootWfDefinitionId',
-        label: 'Source workflow',
-        inputType: 'workflow-select',
-      },
-    ],
-  },
-  'workflow.failed': {
-    category: 'workflows',
-    label: 'Workflow failed',
-    description: 'Triggered when a workflow execution fails',
-    filterFields: [
-      {
-        key: 'rootWfDefinitionId',
+        key: 'execution.rootWfDefinitionId',
         label: 'Source workflow',
         inputType: 'workflow-select',
       },

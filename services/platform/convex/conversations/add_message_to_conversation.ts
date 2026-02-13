@@ -115,17 +115,14 @@ export async function addMessageToConversation(
     },
   );
 
-  await emitEvent(ctx, {
-    organizationId: args.organizationId,
-    eventType: 'conversation.message_received',
-    eventData: {
-      conversationId: args.conversationId,
-      messageId,
-      direction,
-      isCustomer: args.isCustomer,
-      sender: args.sender,
-    },
-  });
+  const message = await ctx.db.get(messageId);
+  if (message) {
+    await emitEvent(ctx, {
+      organizationId: args.organizationId,
+      eventType: 'conversation.message_received',
+      eventData: { conversation: parentConversation, message },
+    });
+  }
 
   return args.conversationId;
 }
