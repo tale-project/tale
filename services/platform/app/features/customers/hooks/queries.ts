@@ -1,9 +1,23 @@
-import type { Collection } from '@tanstack/db';
+import type { Collection, Ref } from '@tanstack/db';
 
 import { useLiveQuery } from '@tanstack/react-db';
 import { useMemo } from 'react';
 
 import type { Customer } from '@/lib/collections/entities/customers';
+
+const selectCustomerFields = ({ c }: { c: Ref<Customer> }) => ({
+  _id: c._id,
+  _creationTime: c._creationTime,
+  organizationId: c.organizationId,
+  name: c.name,
+  email: c.email,
+  externalId: c.externalId,
+  status: c.status,
+  source: c.source,
+  locale: c.locale,
+  address: c.address,
+  metadata: c.metadata,
+});
 
 export function useCustomers(collection: Collection<Customer, string>) {
   const { data, isLoading } = useLiveQuery(() => collection);
@@ -23,19 +37,7 @@ export function useCustomerByEmail(
       q
         .from({ c: collection })
         .fn.where((row) => row.c.email === email)
-        .select(({ c }) => ({
-          _id: c._id,
-          _creationTime: c._creationTime,
-          organizationId: c.organizationId,
-          name: c.name,
-          email: c.email,
-          externalId: c.externalId,
-          status: c.status,
-          source: c.source,
-          locale: c.locale,
-          address: c.address,
-          metadata: c.metadata,
-        })),
+        .select(selectCustomerFields),
     [email],
   );
 
@@ -51,19 +53,7 @@ export function useCustomerById(
       q
         .from({ c: collection })
         .fn.where((row) => row.c._id === customerId)
-        .select(({ c }) => ({
-          _id: c._id,
-          _creationTime: c._creationTime,
-          organizationId: c.organizationId,
-          name: c.name,
-          email: c.email,
-          externalId: c.externalId,
-          status: c.status,
-          source: c.source,
-          locale: c.locale,
-          address: c.address,
-          metadata: c.metadata,
-        })),
+        .select(selectCustomerFields),
     [customerId],
   );
 
