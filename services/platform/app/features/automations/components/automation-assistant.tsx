@@ -426,6 +426,17 @@ function AutomationAssistantContent({
     return serverMessages;
   }, [transformedMessages, messages, pendingUserMessage]);
 
+  // Detect when the AI is processing:
+  // - Last message is from user (assistant hasn't started yet), OR
+  // - Last message is assistant but has no content yet (generation just started, streaming empty)
+  const lastDisplayMessage =
+    displayMessages.length > 0
+      ? displayMessages[displayMessages.length - 1]
+      : null;
+  const isWaitingForResponse =
+    lastDisplayMessage !== null &&
+    (lastDisplayMessage.role === 'user' || !lastDisplayMessage.content.trim());
+
   // Scroll to bottom when new messages arrive using throttled scroll
   useEffect(() => {
     if (displayMessages.length === 0) return;
@@ -763,7 +774,7 @@ function AutomationAssistantContent({
                 </div>
               </div>
             ))}
-            {isLoading && (
+            {(isLoading || isWaitingForResponse) && (
               <ThinkingAnimation
                 steps={[
                   t('assistant.thinking.thinking'),

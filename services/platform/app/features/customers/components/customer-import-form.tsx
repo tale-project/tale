@@ -4,9 +4,7 @@ import { useFormContext } from 'react-hook-form';
 
 import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { Description } from '@/app/components/ui/forms/description';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Form } from '@/app/components/ui/forms/form';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
 import {
@@ -69,7 +67,7 @@ export function CustomerImportForm({
   const fileValue: File | null = watch('file');
 
   return (
-    <Form>
+    <div className="space-y-5">
       {!hideTabs && !mode && (
         <Tabs
           value={dataSource}
@@ -134,12 +132,12 @@ export function CustomerImportForm({
             }
             {...register('customers')}
           />
-          <Description className="text-xs">
-            <Stack gap={2} className="list-outside list-disc pl-4">
+          <div className="text-muted-foreground text-xs leading-relaxed">
+            <ul className="list-outside list-disc space-y-2 pl-4">
               <li>{t('importForm.localeHint')}</li>
               <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
-            </Stack>
-          </Description>
+            </ul>
+          </div>
         </Stack>
       )}
       {dataSource === 'file_upload' && (
@@ -165,12 +163,12 @@ export function CustomerImportForm({
               </p>
             </FileUpload.DropZone>
           </FileUpload.Root>
-          <Description className="text-xs">
-            <Stack gap={2} className="list-outside list-disc pl-4">
+          <div className="text-muted-foreground text-xs leading-relaxed">
+            <ul className="list-outside list-disc space-y-2 pl-4">
               <li>{t('importForm.localeHint')}</li>
               <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
-            </Stack>
-          </Description>
+            </ul>
+          </div>
           {typeof errors.file?.message === 'string' && (
             <p className="text-destructive text-sm">{errors.file.message}</p>
           )}
@@ -201,6 +199,6 @@ export function CustomerImportForm({
           )}
         </Stack>
       )}
-    </Form>
+    </div>
   );
 }

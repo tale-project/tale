@@ -2,9 +2,7 @@ import { Upload, Trash2 } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { Description } from '@/app/components/ui/forms/description';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Form } from '@/app/components/ui/forms/form';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
 import {
@@ -67,7 +65,7 @@ export function VendorImportForm({
   const fileValue: File | null = watch('file');
 
   return (
-    <Form>
+    <div className="space-y-5">
       {!hideTabs && !mode && (
         <Tabs
           value={dataSource}
@@ -98,11 +96,11 @@ export function VendorImportForm({
             }
             {...register('vendors')}
           />
-          <Description className="text-xs">
+          <div className="text-muted-foreground text-xs leading-relaxed">
             <ul className="list-outside list-disc space-y-2 pl-4">
               <li>{t('importForm.localeHint')}</li>
             </ul>
-          </Description>
+          </div>
         </Stack>
       )}
       {dataSource === 'file_upload' && (
@@ -128,11 +126,11 @@ export function VendorImportForm({
               </p>
             </FileUpload.DropZone>
           </FileUpload.Root>
-          <Description className="text-xs">
+          <div className="text-muted-foreground text-xs leading-relaxed">
             <ul className="list-outside list-disc space-y-2 pl-4">
               <li>{t('importForm.localeHint')}</li>
             </ul>
-          </Description>
+          </div>
           {typeof errors.file?.message === 'string' && (
             <p className="text-destructive text-sm">{errors.file.message}</p>
           )}
@@ -159,6 +157,6 @@ export function VendorImportForm({
           )}
         </Stack>
       )}
-    </Form>
+    </div>
   );
 }
