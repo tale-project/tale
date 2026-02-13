@@ -16,11 +16,11 @@ export const useVendorsTableConfig = createTableConfigHook<'vendors'>(
       header: () => tTables('headers.name'),
       size: 408,
       cell: ({ row }) => (
-        <Stack gap={1}>
-          <span className="text-foreground text-sm font-medium">
+        <Stack gap={0}>
+          <span className="text-foreground block text-sm font-medium">
             {row.original.name || ''}
           </span>
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground block text-xs">
             {row.original.email || tTables('cells.noEmail')}
           </span>
         </Stack>

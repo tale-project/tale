@@ -4,9 +4,7 @@ import { Upload, Trash2 } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { Description } from '@/app/components/ui/forms/description';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Form } from '@/app/components/ui/forms/form';
 import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
@@ -54,7 +52,7 @@ export function ProductImportForm({
   const fileValue: File | null = watch('file');
 
   return (
-    <Form>
+    <div className="space-y-5">
       <Stack gap={4}>
         <FileUpload.Root>
           <FileUpload.DropZone
@@ -75,12 +73,12 @@ export function ProductImportForm({
             </p>
           </FileUpload.DropZone>
         </FileUpload.Root>
-        <Description className="text-xs">
+        <div className="text-muted-foreground text-xs leading-relaxed">
           <ul className="list-outside list-disc space-y-2 pl-4">
             <li>{t('import.expectedColumns')}</li>
             <li className="text-blue-600">{t('import.draftStatusNote')}</li>
           </ul>
-        </Description>
+        </div>
         {typeof errors.file?.message === 'string' && (
           <p className="text-destructive text-sm">{errors.file.message}</p>
         )}
@@ -106,6 +104,6 @@ export function ProductImportForm({
           </VStack>
         )}
       </Stack>
-    </Form>
+    </div>
   );
 }
