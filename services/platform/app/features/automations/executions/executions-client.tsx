@@ -136,15 +136,18 @@ export function ExecutionsClient({
 
   const isSearching = !!searchTerm;
 
-  // Paginated query for the main list (skipped when searching by ID)
-  const paginatedResult = useListExecutions({
-    wfDefinitionId: amId,
-    status: status && status.length > 0 ? status : undefined,
-    triggeredBy: triggeredBy || undefined,
-    dateFrom: dateFrom || undefined,
-    dateTo: dateTo || undefined,
-    initialNumItems: pageSize,
-  });
+  const paginatedResult = useListExecutions(
+    isSearching
+      ? 'skip'
+      : {
+          wfDefinitionId: amId,
+          status: status && status.length > 0 ? status : undefined,
+          triggeredBy: triggeredBy || undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          initialNumItems: pageSize,
+        },
+  );
 
   // Exact ID lookup query (skipped when not searching)
   const { data: searchResult } = useSearchExecution(

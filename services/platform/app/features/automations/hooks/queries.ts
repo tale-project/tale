@@ -72,8 +72,15 @@ interface ListExecutionsArgs {
   initialNumItems: number;
 }
 
-export function useListExecutions(args: ListExecutionsArgs) {
-  const { initialNumItems, ...queryArgs } = args;
+export function useListExecutions(args: ListExecutionsArgs | 'skip') {
+  const queryArgs =
+    args === 'skip'
+      ? 'skip'
+      : (() => {
+          const { initialNumItems: _, ...rest } = args;
+          return rest;
+        })();
+  const initialNumItems = args === 'skip' ? 10 : args.initialNumItems;
 
   return useCachedPaginatedQuery(
     api.wf_executions.queries.listExecutions,
