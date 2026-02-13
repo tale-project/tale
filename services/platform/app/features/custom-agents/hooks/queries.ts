@@ -94,7 +94,7 @@ export function useAvailableIntegrations(
   const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
-    integrations: data ?? null,
+    integrations: data,
     isLoading,
   };
 }
