@@ -63,12 +63,8 @@ export function EventsSection({
     return map;
   }, [workflows]);
 
-  const toggleSubscription = useToggleEventSubscription(
-    eventSubscriptionCollection,
-  );
-  const deleteSubscriptionMutation = useDeleteEventSubscription(
-    eventSubscriptionCollection,
-  );
+  const toggleSubscription = useToggleEventSubscription();
+  const deleteSubscriptionMutation = useDeleteEventSubscription();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<EventSubscription | null>(null);
@@ -287,7 +283,6 @@ export function EventsSection({
         }}
         workflowRootId={workflowRootId}
         organizationId={organizationId}
-        collection={eventSubscriptionCollection}
         existingEventTypes={subscriptions?.map((s) => s.eventType) ?? []}
         editing={
           editTarget

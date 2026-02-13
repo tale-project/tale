@@ -61,7 +61,7 @@ export function ChatHistorySidebar({
   const threadCollection = useThreadCollection();
   const { threads: threadsData } = useThreads(threadCollection);
 
-  const updateThread = useUpdateThread(threadCollection);
+  const updateThread = useUpdateThread();
 
   const chats = useMemo(
     () =>

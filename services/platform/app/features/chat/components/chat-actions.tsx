@@ -16,7 +16,6 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useThreadCollection } from '../hooks/collections';
 import { useDeleteThread } from '../hooks/mutations';
 
 interface ChatActionsProps {
@@ -43,8 +42,7 @@ export function ChatActions({
   const { t: tCommon } = useT('common');
   const { t: tChat } = useT('chat');
 
-  const threadCollection = useThreadCollection();
-  const deleteThread = useDeleteThread(threadCollection);
+  const deleteThread = useDeleteThread();
 
   const handleDelete = async () => {
     try {

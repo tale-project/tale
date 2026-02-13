@@ -26,10 +26,7 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
-import {
-  useWfAutomationCollection,
-  useWorkflowStepCollection,
-} from '@/app/features/automations/hooks/collections';
+import { useWorkflowStepCollection } from '@/app/features/automations/hooks/collections';
 import { useUpdateAutomation } from '@/app/features/automations/hooks/mutations';
 import {
   useWorkflow,
@@ -104,8 +101,7 @@ function AutomationDetailLayout() {
   const [editMode, setEditMode] = useState(false);
   const isSubmittingRef = useRef(false);
   const { register, getValues } = useForm<{ name: string }>();
-  const wfAutomationCollection = useWfAutomationCollection(organizationId);
-  const updateWorkflow = useUpdateAutomation(wfAutomationCollection);
+  const { mutateAsync: updateWorkflow } = useUpdateAutomation();
 
   const { data: automation } = useWorkflow(automationId);
   const workflowStepCollection = useWorkflowStepCollection(amId);

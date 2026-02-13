@@ -14,7 +14,6 @@ import {
   PRODUCT_STATUS,
 } from '@/lib/shared/constants/convex-enums';
 
-import { useProductCollection } from '../hooks/collections';
 import { useCreateProduct } from '../hooks/mutations';
 import { ProductImportForm } from './product-import-form';
 
@@ -66,8 +65,7 @@ export function ProductsImportDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const productCollection = useProductCollection(organizationId);
-  const createProduct = useCreateProduct(productCollection);
+  const createProduct = useCreateProduct();
 
   const validateStatus = useCallback(
     (value: unknown): ProductStatus =>

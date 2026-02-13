@@ -40,7 +40,6 @@ import { useUrlState } from '@/app/hooks/use-url-state';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useWorkflowStepCollection } from '../hooks/collections';
 import { useCreateStep } from '../hooks/mutations';
 import { getLayoutedElements } from '../utils/dagre-layout';
 import { AutomationCallbacksProvider } from './automation-callbacks-context';
@@ -82,8 +81,7 @@ function AutomationStepsInner({
 }: AutomationStepsProps) {
   const { t } = useT('automations');
   const { user } = useAuth();
-  const wfStepCollection = useWorkflowStepCollection(automationId);
-  const createStep = useCreateStep(wfStepCollection);
+  const { mutateAsync: createStep } = useCreateStep();
   const isDraft = status === 'draft';
   const isActive = status === 'active';
   const hasSteps = steps && steps.length > 0;

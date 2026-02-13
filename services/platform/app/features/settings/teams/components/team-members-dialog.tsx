@@ -47,8 +47,8 @@ export function TeamMembersDialog({
   const { teamMembers, isLoading: isLoadingTeamMembers } =
     useTeamMembers(teamMemberCollection);
 
-  const addTeamMember = useAddTeamMember(teamMemberCollection);
-  const removeTeamMember = useRemoveTeamMember(teamMemberCollection);
+  const addTeamMember = useAddTeamMember();
+  const removeTeamMember = useRemoveTeamMember();
 
   const isLoading = isLoadingTeamMembers;
 

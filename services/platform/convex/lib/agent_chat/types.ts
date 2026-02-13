@@ -31,6 +31,8 @@ export interface SerializableAgentConfig {
   outputFormat?: 'text' | 'json';
   /** Enable vector search for semantic message retrieval */
   enableVectorSearch?: boolean;
+  /** Context features to load in beforeContext hook (e.g., ['integrations']). Undefined = load all (backward compat). */
+  contextFeatures?: string[];
 }
 
 /**
@@ -44,8 +46,6 @@ export interface AgentHooksConfig {
   beforeGenerate?: string;
   /** FunctionHandle for afterGenerate hook (mutation) */
   afterGenerate?: string;
-  /** FunctionHandle for onError hook (action) */
-  onError?: string;
 }
 
 /**

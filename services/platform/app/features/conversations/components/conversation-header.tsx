@@ -21,7 +21,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
 import { useCustomerById } from '@/app/features/customers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
-import { createConversationsCollection } from '@/lib/collections/entities/conversations';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { createCustomersCollection } from '@/lib/collections/entities/customers';
 import { useCollection } from '@/lib/collections/use-collection';
 import { useT } from '@/lib/i18n/client';
@@ -60,14 +60,9 @@ export function ConversationHeader({
   const isLoading =
     isResolvingLoading || isReopeningLoading || isMarkingSpamLoading;
 
-  const conversationCollection = useCollection(
-    'conversations',
-    createConversationsCollection,
-    organizationId,
-  );
-  const closeConversation = useCloseConversation(conversationCollection);
-  const reopenConversation = useReopenConversation(conversationCollection);
-  const markAsSpamMutation = useMarkAsSpam(conversationCollection);
+  const closeConversation = useCloseConversation();
+  const reopenConversation = useReopenConversation();
+  const markAsSpamMutation = useMarkAsSpam();
 
   // Lookup full customer document from collection
   const customersCollection = useCollection(
@@ -84,7 +79,7 @@ export function ConversationHeader({
     setIsResolvingLoading(true);
     try {
       await closeConversation({
-        conversationId: conversation.id,
+        conversationId: toId<'conversations'>(conversation.id),
       });
 
       toast({
@@ -107,7 +102,7 @@ export function ConversationHeader({
     setIsReopeningLoading(true);
     try {
       await reopenConversation({
-        conversationId: conversation.id,
+        conversationId: toId<'conversations'>(conversation.id),
       });
 
       toast({
@@ -130,7 +125,7 @@ export function ConversationHeader({
     setIsMarkingSpamLoading(true);
     try {
       await markAsSpamMutation({
-        conversationId: conversation.id,
+        conversationId: toId<'conversations'>(conversation.id),
       });
 
       toast({

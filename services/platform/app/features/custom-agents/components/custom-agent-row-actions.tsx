@@ -1,11 +1,7 @@
 'use client';
 
-import type { Collection } from '@tanstack/db';
-
 import { CircleStop, Copy, Play, Trash2, Upload } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
-
-import type { CustomAgent } from '@/lib/collections/entities/custom-agents';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
@@ -31,13 +27,9 @@ interface CustomAgentRowActionsProps {
     CustomAgentRow,
     '_id' | 'displayName' | 'rootVersionId' | 'status' | 'versionNumber'
   >;
-  collection: Collection<CustomAgent, string>;
 }
 
-export function CustomAgentRowActions({
-  agent,
-  collection,
-}: CustomAgentRowActionsProps) {
+export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t } = useT('settings');
   const dialogs = useEntityRowDialogs(['delete', 'deactivate']);
@@ -190,7 +182,6 @@ export function CustomAgentRowActions({
         open={dialogs.isOpen.delete}
         onOpenChange={dialogs.setOpen.delete}
         agent={agent}
-        collection={collection}
       />
 
       <ConfirmDialog

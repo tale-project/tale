@@ -23,7 +23,7 @@ import type {
 import { FILE_PREPROCESSING_INSTRUCTIONS } from '../../lib/shared/constants/custom-agents';
 
 const beforeGenerateHookRef = makeFunctionReference<'action'>(
-  'custom_agents/internal_actions:beforeGenerateHook',
+  'lib/agent_chat/internal_actions:beforeGenerateHook',
 );
 
 function resolveModelPreset(preset: string): string | undefined {

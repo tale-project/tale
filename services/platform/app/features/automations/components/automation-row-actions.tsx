@@ -13,7 +13,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useWfAutomationCollection } from '../hooks/collections';
 import {
   useDeleteAutomation,
   useDuplicateAutomation,
@@ -38,15 +37,12 @@ export function AutomationRowActions({
   const dialogs = useEntityRowDialogs(['delete', 'rename', 'unpublish']);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const wfAutomationCollection = useWfAutomationCollection(
-    automation.organizationId,
-  );
   const { mutateAsync: duplicateAutomation } = useDuplicateAutomation();
-  const deleteAutomation = useDeleteAutomation(wfAutomationCollection);
+  const { mutateAsync: deleteAutomation } = useDeleteAutomation();
   const { mutateAsync: republishAutomation } = useRepublishAutomation();
   const { mutateAsync: unpublishAutomation, isPending: isUnpublishing } =
     useUnpublishAutomation();
-  const updateAutomation = useUpdateAutomation(wfAutomationCollection);
+  const { mutateAsync: updateAutomation } = useUpdateAutomation();
 
   const handlePublish = useCallback(async () => {
     if (!user) return;

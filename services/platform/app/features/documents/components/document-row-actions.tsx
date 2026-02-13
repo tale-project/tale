@@ -12,7 +12,6 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useRetryRagIndexing } from '../hooks/actions';
-import { useDocumentCollection } from '../hooks/collections';
 import { useDeleteDocument } from '../hooks/mutations';
 import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
@@ -21,7 +20,6 @@ import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
 type StorageSourceMode = 'auto' | 'manual';
 
 interface DocumentRowActionsProps {
-  organizationId: string;
   documentId: string;
   itemType: 'file' | 'folder';
   name?: string | null;
@@ -32,7 +30,6 @@ interface DocumentRowActionsProps {
 }
 
 export function DocumentRowActions({
-  organizationId,
   documentId,
   itemType,
   name,
@@ -45,8 +42,7 @@ export function DocumentRowActions({
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['delete', 'deleteFolder', 'teamTags']);
   const [isDeleting, setIsDeleting] = useState(false);
-  const documentCollection = useDocumentCollection(organizationId);
-  const deleteDocument = useDeleteDocument(documentCollection);
+  const deleteDocument = useDeleteDocument();
   const { mutateAsync: retryRagIndexing, isPending: isReindexing } =
     useRetryRagIndexing();
 

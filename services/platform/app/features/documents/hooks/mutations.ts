@@ -1,11 +1,8 @@
 'use client';
 
-import type { Collection } from '@tanstack/db';
-
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import type { Document } from '@/lib/collections/entities/documents';
 
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
@@ -267,29 +264,16 @@ export function useDocumentUpload(options: UploadOptions) {
   };
 }
 
-export function useDeleteDocument(collection: Collection<Document, string>) {
-  return useCallback(
-    async (args: { documentId: string }) => {
-      const tx = collection.delete(args.documentId);
-      await tx.isPersisted.promise;
-    },
-    [collection],
+export function useDeleteDocument() {
+  const { mutateAsync } = useConvexMutation(
+    api.documents.mutations.deleteDocument,
   );
+  return mutateAsync;
 }
 
-export function useUpdateDocument(collection: Collection<Document, string>) {
-  return useCallback(
-    async (args: {
-      documentId: string;
-      teamTags?: string[];
-      name?: string;
-    }) => {
-      const tx = collection.update(args.documentId, (draft) => {
-        if (args.teamTags !== undefined) draft.teamTags = args.teamTags;
-        if (args.name !== undefined) draft.name = args.name;
-      });
-      await tx.isPersisted.promise;
-    },
-    [collection],
+export function useUpdateDocument() {
+  const { mutateAsync } = useConvexMutation(
+    api.documents.mutations.updateDocument,
   );
+  return mutateAsync;
 }

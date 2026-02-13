@@ -1,11 +1,8 @@
 'use client';
 
-import type { Collection } from '@tanstack/db';
-
 import { useState, useMemo, useEffect } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import type { WfEventSubscription } from '@/lib/collections/entities/wf-event-subscriptions';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
@@ -38,7 +35,6 @@ interface EventCreateDialogProps {
   onOpenChange: (open: boolean) => void;
   workflowRootId: Id<'wfDefinitions'>;
   organizationId: string;
-  collection: Collection<WfEventSubscription, string>;
   existingEventTypes: string[];
   editing?: EditingSubscription | null;
 }
@@ -48,15 +44,14 @@ export function EventCreateDialog({
   onOpenChange,
   workflowRootId,
   organizationId,
-  collection,
   existingEventTypes,
   editing,
 }: EventCreateDialogProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const createEventSubscription = useCreateEventSubscription(collection);
-  const updateEventSubscription = useUpdateEventSubscription(collection);
+  const createEventSubscription = useCreateEventSubscription();
+  const updateEventSubscription = useUpdateEventSubscription();
 
   const isEditMode = !!editing;
 
