@@ -199,7 +199,9 @@ function IntegrationBindingsSection({
   onToggle,
   t,
 }: {
-  integrations: Array<{ name: string; title: string; type: string }> | null;
+  integrations:
+    | Array<{ name: string; title: string; type: string }>
+    | undefined;
   isLoading: boolean;
   selectedBindingsSet: Set<string>;
   onToggle: (name: string) => void;

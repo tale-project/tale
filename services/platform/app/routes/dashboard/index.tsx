@@ -30,12 +30,14 @@ function DashboardIndex() {
       return;
     }
 
-    if (organizations.length === 0) {
+    const firstOrgId = organizations[0]?.organizationId;
+
+    if (organizations.length === 0 || !firstOrgId) {
       void navigate({ to: '/dashboard/create-organization' });
     } else {
       void navigate({
         to: '/dashboard/$id',
-        params: { id: organizations[0].organizationId },
+        params: { id: firstOrgId },
       });
     }
   }, [isAuthLoading, isAuthenticated, isOrgsLoading, organizations, navigate]);

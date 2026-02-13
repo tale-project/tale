@@ -9,9 +9,7 @@ import { useReactQuery } from '@/app/hooks/use-react-query';
 import { api } from '@/convex/_generated/api';
 
 export function useDocuments(collection: Collection<Document, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q.from({ document: collection }).select(({ document }) => document),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     documents: data,

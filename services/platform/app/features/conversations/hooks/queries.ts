@@ -9,11 +9,7 @@ import { api } from '@/convex/_generated/api';
 import { toId } from '@/lib/utils/type-guards';
 
 export function useConversations(collection: Collection<Conversation, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q
-      .from({ conversation: collection })
-      .select(({ conversation }) => conversation),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     conversations: data,

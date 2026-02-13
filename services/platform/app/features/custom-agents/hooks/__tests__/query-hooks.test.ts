@@ -28,7 +28,7 @@ describe('useAvailableIntegrations', () => {
   it('calls useLiveQuery with the provided collection', () => {
     useAvailableIntegrations(mockCollection);
 
-    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function), []);
+    expect(mockUseLiveQuery).toHaveBeenCalledWith(expect.any(Function));
   });
 
   it('returns data when loaded', () => {

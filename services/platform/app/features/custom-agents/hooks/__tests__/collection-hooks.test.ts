@@ -45,9 +45,10 @@ function extractWhereFilter(): (row: { agent: Agent }) => boolean {
         where: (fn: (row: { agent: Agent }) => boolean) => {
           whereFilter = fn;
           return {
-            select: (fn: (row: { agent: Agent }) => Agent) => {
-              const agent = { _id: 'test' } as Agent;
-              expect(fn({ agent })).toBe(agent);
+            select: (fn: (row: { agent: Agent }) => unknown) => {
+              const agent = { _id: 'test', status: 'active' } as Agent;
+              const result = fn({ agent });
+              expect(result).toHaveProperty('_id', 'test');
             },
           };
         },

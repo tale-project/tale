@@ -5,9 +5,7 @@ import { useLiveQuery } from '@tanstack/react-db';
 import type { Approval } from '@/lib/collections/entities/approvals';
 
 export function useApprovals(collection: Collection<Approval, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q.from({ approval: collection }).select(({ approval }) => approval),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     approvals: data,

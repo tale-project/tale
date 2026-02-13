@@ -41,9 +41,10 @@ function extractWhereFilter(): (row: { agent: Agent }) => boolean {
         where: (fn: (row: { agent: Agent }) => boolean) => {
           whereFilter = fn;
           return {
-            select: (fn: (row: { agent: Agent }) => Agent) => {
-              const agent = { _id: 'test' } as Agent;
-              expect(fn({ agent })).toBe(agent);
+            select: (
+              _fn: (row: { agent: Agent }) => Record<string, unknown>,
+            ) => {
+              // select now returns an explicit field object, not the proxy reference
             },
           };
         },

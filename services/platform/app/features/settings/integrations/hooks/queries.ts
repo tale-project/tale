@@ -8,14 +8,10 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
 export function useIntegrations(collection: Collection<Integration, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q
-      .from({ integration: collection })
-      .select(({ integration }) => integration),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
-    integrations: data,
+    integrations: data ?? [],
     isLoading,
   };
 }

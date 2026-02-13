@@ -17,9 +17,7 @@ import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 
 export function useThreads(collection: Collection<Thread, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q.from({ thread: collection }).select(({ thread }) => thread),
-  );
+  const { data, isLoading } = useLiveQuery(() => collection);
 
   return {
     threads: data,
@@ -43,7 +41,35 @@ export function useChatAgents(collection: Collection<CustomAgent, string>) {
             (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
           );
         })
-        .select(({ agent }) => agent),
+        .select(({ agent }) => ({
+          _id: agent._id,
+          _creationTime: agent._creationTime,
+          organizationId: agent.organizationId,
+          name: agent.name,
+          displayName: agent.displayName,
+          description: agent.description,
+          avatarUrl: agent.avatarUrl,
+          systemInstructions: agent.systemInstructions,
+          toolNames: agent.toolNames,
+          integrationBindings: agent.integrationBindings,
+          modelPreset: agent.modelPreset,
+          knowledgeEnabled: agent.knowledgeEnabled,
+          includeOrgKnowledge: agent.includeOrgKnowledge,
+          knowledgeTopK: agent.knowledgeTopK,
+          toneOfVoiceId: agent.toneOfVoiceId,
+          filePreprocessingEnabled: agent.filePreprocessingEnabled,
+          teamId: agent.teamId,
+          sharedWithTeamIds: agent.sharedWithTeamIds,
+          createdBy: agent.createdBy,
+          isActive: agent.isActive,
+          versionNumber: agent.versionNumber,
+          status: agent.status,
+          rootVersionId: agent.rootVersionId,
+          parentVersionId: agent.parentVersionId,
+          publishedAt: agent.publishedAt,
+          publishedBy: agent.publishedBy,
+          changeLog: agent.changeLog,
+        })),
     [selectedTeamId],
   );
 
