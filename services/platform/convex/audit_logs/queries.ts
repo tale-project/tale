@@ -1,8 +1,10 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import * as AuditLogHelpers from './helpers';
+import { listAuditLogsPaginated as listAuditLogsPaginatedHelper } from './list_audit_logs_paginated';
 import { auditLogFilterValidator, auditLogItemValidator } from './validators';
 
 export const listAuditLogs = query({
@@ -30,6 +32,25 @@ export const listAuditLogs = query({
       limit: args.limit,
       cursor: args.cursor,
     });
+  },
+});
+
+export const listAuditLogsPaginated = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    organizationId: v.string(),
+    category: v.optional(v.string()),
+    resourceType: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    await getOrganizationMember(ctx, args.organizationId, authUser);
+
+    return await listAuditLogsPaginatedHelper(ctx, args);
   },
 });
 

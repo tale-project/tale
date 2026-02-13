@@ -4,6 +4,7 @@ import { useLiveQuery } from '@tanstack/react-db';
 
 import type { Document } from '@/lib/collections/entities/documents';
 
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import { api } from '@/convex/_generated/api';
@@ -80,6 +81,22 @@ export function useSharePointDrives(
     staleTime: 5 * 60 * 1000,
     retry: 2,
   });
+}
+
+interface ListDocumentsPaginatedArgs {
+  organizationId: string;
+  sourceProvider?: string;
+  extension?: string;
+  initialNumItems: number;
+}
+
+export function useListDocumentsPaginated(args: ListDocumentsPaginatedArgs) {
+  const { initialNumItems, ...queryArgs } = args;
+  return useCachedPaginatedQuery(
+    api.documents.queries.listDocumentsPaginated,
+    queryArgs,
+    { initialNumItems },
+  );
 }
 
 export function useSharePointFiles(

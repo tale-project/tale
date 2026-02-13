@@ -25,8 +25,7 @@ import { useT } from '@/lib/i18n/client';
 import { filterByTextSearch } from '@/lib/utils/filtering';
 import { formatBytes } from '@/lib/utils/format/number';
 
-import { useDocumentCollection } from '../hooks/collections';
-import { useDocuments } from '../hooks/queries';
+import { useListDocumentsPaginated } from '../hooks/queries';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { DocumentPreviewDialog } from './document-preview-dialog';
 import { DocumentRowActions } from './document-row-actions';
@@ -94,14 +93,14 @@ export function DocumentsClient({
 
   const { selectedTeamId } = useTeamFilter();
 
-  const documentCollection = useDocumentCollection(organizationId);
-  const { documents: rawDocuments, isLoading: isDocumentsLoading } =
-    useDocuments(documentCollection);
+  const paginatedResult = useListDocumentsPaginated({
+    organizationId,
+    initialNumItems: PAGE_SIZE,
+  });
 
-  const allDocuments = useMemo(() => {
-    if (!rawDocuments) return [];
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Collection returns DocumentItemResponse; cast to DocumentItem for table
-    let filtered = [...rawDocuments] as DocumentItem[];
+  const filteredResults = useMemo(() => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Backend returns DocumentItemResponse; cast to DocumentItem for table
+    let filtered = paginatedResult.results as DocumentItem[];
     if (selectedTeamId) {
       filtered = filtered.filter((doc) =>
         doc.teamTags?.includes(selectedTeamId),
@@ -117,7 +116,7 @@ export function DocumentsClient({
     }
     return filtered;
   }, [
-    rawDocuments,
+    paginatedResult.results,
     selectedTeamId,
     currentFolderPath,
     organizationId,
@@ -126,8 +125,11 @@ export function DocumentsClient({
 
   const list = useListPage({
     dataSource: {
-      type: 'query',
-      data: isDocumentsLoading ? undefined : allDocuments,
+      type: 'paginated',
+      results: filteredResults,
+      status: paginatedResult.status,
+      loadMore: paginatedResult.loadMore,
+      isLoading: paginatedResult.isLoading,
     },
     pageSize: PAGE_SIZE,
     search: {
@@ -150,9 +152,9 @@ export function DocumentsClient({
   });
 
   const previewDocument = useMemo(() => {
-    if (!docId || !allDocuments.length) return null;
-    return allDocuments.find((item) => item.id === docId) ?? null;
-  }, [allDocuments, docId]);
+    if (!docId || !filteredResults.length) return null;
+    return filteredResults.find((item) => item.id === docId) ?? null;
+  }, [filteredResults, docId]);
 
   const previewPath = previewDocument?.storagePath ?? null;
   const previewFileName = previewDocument?.name ?? null;
@@ -430,7 +432,7 @@ export function DocumentsClient({
     ],
   );
 
-  if (isDocumentsLoading) {
+  if (paginatedResult.status === 'LoadingFirstPage') {
     return <DocumentsSkeleton />;
   }
 

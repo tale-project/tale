@@ -4,8 +4,7 @@ import { z } from 'zod';
 import { ProductTable } from '@/app/features/products/components/product-table';
 import { ProductTableSkeleton } from '@/app/features/products/components/product-table-skeleton';
 import { ProductsEmptyState } from '@/app/features/products/components/products-empty-state';
-import { useProductCollection } from '@/app/features/products/hooks/collections';
-import { useProducts } from '@/app/features/products/hooks/queries';
+import { useListProductsPaginated } from '@/app/features/products/hooks/queries';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -20,16 +19,31 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/products')({
 
 function ProductsPage() {
   const { id: organizationId } = Route.useParams();
-  const productCollection = useProductCollection(organizationId);
-  const { products, isLoading } = useProducts(productCollection);
+  const search = Route.useSearch();
 
-  if (isLoading) {
+  const paginatedResult = useListProductsPaginated({
+    organizationId,
+    status: search.status,
+    category: search.category,
+    initialNumItems: 20,
+  });
+
+  if (paginatedResult.status === 'LoadingFirstPage') {
     return <ProductTableSkeleton organizationId={organizationId} />;
   }
 
-  if (!products || products.length === 0) {
+  if (
+    paginatedResult.status === 'Exhausted' &&
+    paginatedResult.results.length === 0
+  ) {
     return <ProductsEmptyState organizationId={organizationId} />;
   }
 
-  return <ProductTable organizationId={organizationId} products={products} />;
+  return (
+    <ProductTable
+      organizationId={organizationId}
+      paginatedResult={paginatedResult}
+      status={search.status}
+    />
+  );
 }

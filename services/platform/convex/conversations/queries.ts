@@ -5,14 +5,29 @@
  * Business logic is in ./helpers.ts
  */
 
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 
 import { queryWithRLS } from '../lib/rls';
 import * as ConversationsHelpers from './helpers';
+import { listConversationsPaginated as listConversationsPaginatedHelper } from './list_conversations_paginated';
 import { transformConversation } from './transform_conversation';
 import { conversationWithMessagesValidator } from './validators';
+
+export const listConversationsPaginated = queryWithRLS({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    organizationId: v.string(),
+    status: v.optional(v.string()),
+    priority: v.optional(v.string()),
+    channel: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await listConversationsPaginatedHelper(ctx, args);
+  },
+});
 
 export const listConversations = queryWithRLS({
   args: {

@@ -525,35 +525,41 @@ export function DataTable<TData, TValue = unknown>({
   );
 
   // Infinite scroll content - renders inside table container
-  // Shows sentinel element for auto-loading or manual button/loading indicator
-  const infiniteScrollContent = infiniteScroll &&
-    data.length > 0 &&
-    infiniteScroll.hasMore && (
-      <div className="border-border border-t">
-        {/* Sentinel element for IntersectionObserver (auto-loading) */}
-        {infiniteScroll.autoLoad !== false && (
-          <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
-        )}
+  // Shows sentinel element for auto-loading, manual button, or end-of-list indicator
+  const infiniteScrollContent = infiniteScroll && data.length > 0 && (
+    <div className="border-border border-t">
+      {infiniteScroll.hasMore ? (
+        <>
+          {/* Sentinel element for IntersectionObserver (auto-loading) */}
+          {infiniteScroll.autoLoad !== false && (
+            <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
+          )}
 
-        {/* Loading indicator or manual button */}
-        <div className="flex justify-center py-3">
-          {infiniteScroll.isLoadingMore ? (
-            <div className="text-muted-foreground flex items-center gap-2 text-sm">
-              <Spinner size="sm" label={t('pagination.loading')} />
-              <span>{t('pagination.loading')}</span>
-            </div>
-          ) : infiniteScroll.autoLoad === false ? (
-            <Button
-              variant="ghost"
-              onClick={infiniteScroll.onLoadMore}
-              aria-label={t('pagination.loadMore')}
-            >
-              {t('pagination.loadMore')}
-            </Button>
-          ) : null}
-        </div>
-      </div>
-    );
+          {/* Loading indicator or manual button */}
+          <div className="flex justify-center py-3">
+            {infiniteScroll.isLoadingMore ? (
+              <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                <Spinner size="sm" label={t('pagination.loading')} />
+                <span>{t('pagination.loading')}</span>
+              </div>
+            ) : infiniteScroll.autoLoad === false ? (
+              <Button
+                variant="ghost"
+                onClick={infiniteScroll.onLoadMore}
+                aria-label={t('pagination.loadMore')}
+              >
+                {t('pagination.loadMore')}
+              </Button>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <output className="text-muted-foreground block py-3 text-center text-xs">
+          {t('pagination.noMore')}
+        </output>
+      )}
+    </div>
+  );
 
   // Filtered empty state content (rendered inline to preserve filter popover state)
   const filteredEmptyContent = (

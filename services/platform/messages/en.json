@@ -1275,6 +1275,15 @@
           "previousState": "Previous state",
           "newState": "New state",
           "metadata": "Metadata"
+        },
+        "categories": {
+          "auth": "Auth",
+          "member": "Member",
+          "data": "Data",
+          "integration": "Integration",
+          "workflow": "Workflow",
+          "security": "Security",
+          "admin": "Admin"
         }
       }
     }

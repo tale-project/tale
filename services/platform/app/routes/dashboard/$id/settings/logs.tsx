@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
@@ -17,11 +18,16 @@ import {
   TabsTrigger,
 } from '@/app/components/ui/navigation/tabs';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
-import { useListAuditLogs } from '@/app/features/settings/audit-logs/hooks/queries';
+import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 
+const searchSchema = z.object({
+  category: z.string().optional(),
+});
+
 export const Route = createFileRoute('/dashboard/$id/settings/logs')({
+  validateSearch: searchSchema,
   component: LogsPage,
 });
 
@@ -66,19 +72,20 @@ function LogsSkeleton() {
 
 function LogsPage() {
   const { id: organizationId } = Route.useParams();
+  const search = Route.useSearch();
   const { t } = useT('settings');
   const { t: tAccess } = useT('accessDenied');
 
   const { data: memberContext, isLoading: isMemberLoading } =
     useCurrentMemberContext(organizationId);
 
-  const { data: auditLogs, isLoading: isLogsLoading } = useListAuditLogs(
+  const paginatedResult = useListAuditLogsPaginated({
     organizationId,
-    undefined,
-    100,
-  );
+    category: search.category,
+    initialNumItems: 30,
+  });
 
-  if (isMemberLoading || isLogsLoading || !auditLogs) {
+  if (isMemberLoading || paginatedResult.status === 'LoadingFirstPage') {
     return <LogsSkeleton />;
   }
 
@@ -101,7 +108,11 @@ function LogsPage() {
               <CardTitle>{t('logs.auditLogs')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <AuditLogTable logs={auditLogs.logs} />
+              <AuditLogTable
+                organizationId={organizationId}
+                paginatedResult={paginatedResult}
+                category={search.category}
+              />
             </CardContent>
           </Card>
         </TabsContent>

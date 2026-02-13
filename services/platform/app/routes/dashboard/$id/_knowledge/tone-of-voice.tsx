@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { z } from 'zod';
 
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -10,8 +11,13 @@ import {
 } from '@/app/features/tone-of-voice/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
+const searchSchema = z.object({
+  page: z.string().optional(),
+});
+
 export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')(
   {
+    validateSearch: searchSchema,
     component: ToneOfVoicePage,
   },
 );

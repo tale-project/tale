@@ -5,6 +5,9 @@ import { useMemo } from 'react';
 
 import type { Customer } from '@/lib/collections/entities/customers';
 
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { api } from '@/convex/_generated/api';
+
 const selectCustomerFields = ({ c }: { c: Ref<Customer> }) => ({
   _id: c._id,
   _creationTime: c._creationTime,
@@ -58,4 +61,22 @@ export function useCustomerById(
   );
 
   return useMemo(() => data?.[0] ?? null, [data]);
+}
+
+interface ListCustomersPaginatedArgs {
+  organizationId: string;
+  status?: string;
+  source?: string;
+  locale?: string;
+  initialNumItems: number;
+}
+
+export function useListCustomersPaginated(args: ListCustomersPaginatedArgs) {
+  const { initialNumItems, ...queryArgs } = args;
+
+  return useCachedPaginatedQuery(
+    api.customers.queries.listCustomersPaginated,
+    queryArgs,
+    { initialNumItems },
+  );
 }

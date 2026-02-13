@@ -1,8 +1,8 @@
 'use client';
 
 import { decode } from 'he';
-import { Mail, ClipboardList, Sparkles } from 'lucide-react';
-import { memo, useRef } from 'react';
+import { ClipboardList, Loader2, Mail, Sparkles } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import striptags from 'striptags';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -116,6 +116,12 @@ interface ConversationsListProps {
   onConversationSelect?: (conversation: Conversation) => void;
   onConversationCheck?: (conversationId: string, checked: boolean) => void;
   isConversationSelected?: (conversationId: string) => boolean;
+  paginationStatus?:
+    | 'LoadingFirstPage'
+    | 'CanLoadMore'
+    | 'LoadingMore'
+    | 'Exhausted';
+  loadMore?: (numItems: number) => void;
 }
 
 const priorityConfig = {
@@ -308,12 +314,16 @@ const ConversationRow = memo(function ConversationRow({
   );
 });
 
+const PAGE_SIZE = 30;
+
 export function ConversationsList({
   conversations,
   selectedConversationId,
   onConversationSelect,
   onConversationCheck,
   isConversationSelected,
+  paginationStatus,
+  loadMore,
 }: ConversationsListProps) {
   const { formatDateSmart } = useFormatDate();
   const { t } = useT('conversations');
@@ -328,6 +338,32 @@ export function ConversationsList({
   const stableTDialogs = useRef((key: string) =>
     tDialogsRef.current(key),
   ).current;
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const handleIntersect = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (
+        entries[0]?.isIntersecting &&
+        paginationStatus === 'CanLoadMore' &&
+        loadMore
+      ) {
+        loadMore(PAGE_SIZE);
+      }
+    },
+    [paginationStatus, loadMore],
+  );
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(handleIntersect, {
+      rootMargin: '200px',
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleIntersect]);
 
   if (conversations === undefined) {
     return <ConversationsListSkeleton />;
@@ -348,6 +384,15 @@ export function ConversationsList({
           tDialogs={stableTDialogs}
         />
       ))}
+      {paginationStatus === 'LoadingMore' && (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="text-muted-foreground size-5 animate-spin" />
+        </div>
+      )}
+      {(paginationStatus === 'CanLoadMore' ||
+        paginationStatus === 'LoadingMore') && (
+        <div ref={sentinelRef} className="h-1" aria-hidden="true" />
+      )}
     </div>
   );
 }

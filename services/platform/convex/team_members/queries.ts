@@ -21,7 +21,7 @@ export const listByTeam = query({
   ),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
+    if (!authUser || !args.teamId) {
       return [];
     }
 
