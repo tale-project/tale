@@ -1,6 +1,14 @@
 'use client';
 
-import { Bot, Send, Paperclip, X, LoaderCircle, RotateCcw } from 'lucide-react';
+import {
+  Bot,
+  Send,
+  Paperclip,
+  X,
+  LoaderCircle,
+  Trash2,
+  Info,
+} from 'lucide-react';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -16,6 +24,7 @@ import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { HumanInputRequestCard } from '@/app/features/chat/components/human-input-request-card';
 import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
+import { MessageInfoDialog } from '@/app/features/chat/components/message-info-dialog';
 import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
 import { useThreadCollection } from '@/app/features/chat/hooks/collections';
 import {
@@ -27,6 +36,7 @@ import {
   useIntegrationApprovals,
   useWorkflowCreationApprovals,
   useHumanInputRequests,
+  useMessageMetadata,
 } from '@/app/features/chat/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useMergedChatItems } from '@/app/features/chat/hooks/use-merged-chat-items';
@@ -101,16 +111,48 @@ function ThinkingDots() {
   );
 }
 
+function AssistantMessageInfo({
+  messageId,
+  timestamp,
+}: {
+  messageId: string;
+  timestamp: Date;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const { metadata } = useMessageMetadata(messageId);
+
+  return (
+    <div className="flex items-center">
+      <IconButton
+        icon={Info}
+        aria-label="Message info"
+        onClick={() => setIsOpen(true)}
+        iconSize={3}
+        className="text-muted-foreground hover:text-foreground p-1"
+      />
+      <MessageInfoDialog
+        isOpen={isOpen}
+        onOpenChange={setIsOpen}
+        messageId={messageId}
+        timestamp={timestamp}
+        metadata={metadata}
+      />
+    </div>
+  );
+}
+
 interface TestChatPanelProps {
   organizationId: string;
   agentId: string;
   onClose: () => void;
+  onReset?: () => void;
 }
 
 function TestChatPanelContent({
   organizationId,
   agentId,
   onClose,
+  onReset,
 }: TestChatPanelProps) {
   const { t } = useT('settings');
 
@@ -480,23 +522,14 @@ function TestChatPanelContent({
     }
   };
 
-  const handleClearChat = useCallback(async () => {
-    try {
-      if (threadId) {
-        await deleteChatThread({ threadId });
-      }
-      setThreadId(null);
-      setMessages([]);
-      setInputValue('');
-      setPendingUserMessage(null);
-    } catch (error) {
-      console.error('Error clearing test chat:', error);
-      setThreadId(null);
-      setMessages([]);
-      setInputValue('');
-      setPendingUserMessage(null);
+  const handleClearChat = useCallback(() => {
+    if (threadId) {
+      void deleteChatThread({ threadId }).catch((error) => {
+        console.error('Error deleting test chat thread:', error);
+      });
     }
-  }, [threadId, deleteChatThread]);
+    onReset?.();
+  }, [threadId, deleteChatThread, onReset]);
 
   return (
     <div className="flex h-full flex-col">
@@ -508,7 +541,7 @@ function TestChatPanelContent({
         <div className="flex items-center gap-1">
           {displayItems.length > 0 && threadId && (
             <IconButton
-              icon={RotateCcw}
+              icon={Trash2}
               aria-label={t('customAgents.testChat.newConversation')}
               title={t('customAgents.testChat.newConversation')}
               onClick={handleClearChat}
@@ -675,6 +708,13 @@ function TestChatPanelContent({
                           )}
                         </div>
                       )}
+                      {message.role === 'assistant' &&
+                        !message.id.startsWith('pending-') && (
+                          <AssistantMessageInfo
+                            messageId={message.id}
+                            timestamp={message.timestamp}
+                          />
+                        )}
                     </div>
                   </div>
                 );
