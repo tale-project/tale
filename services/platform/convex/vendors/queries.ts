@@ -1,6 +1,8 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { queryWithRLS } from '../lib/rls';
+import { listVendorsPaginated as listVendorsPaginatedHelper } from './list_vendors_paginated';
 
 export const listVendors = queryWithRLS({
   args: {
@@ -16,5 +18,17 @@ export const listVendors = queryWithRLS({
       results.push(vendor);
     }
     return results;
+  },
+});
+
+export const listVendorsPaginated = queryWithRLS({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    organizationId: v.string(),
+    source: v.optional(v.string()),
+    locale: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await listVendorsPaginatedHelper(ctx, args);
   },
 });

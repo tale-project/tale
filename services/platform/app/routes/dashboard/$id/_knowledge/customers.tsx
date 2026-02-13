@@ -4,8 +4,7 @@ import { z } from 'zod';
 import { CustomersEmptyState } from '@/app/features/customers/components/customers-empty-state';
 import { CustomersTable } from '@/app/features/customers/components/customers-table';
 import { CustomersTableSkeleton } from '@/app/features/customers/components/customers-table-skeleton';
-import { useCustomerCollection } from '@/app/features/customers/hooks/collections';
-import { useCustomers } from '@/app/features/customers/hooks/queries';
+import { useListCustomersPaginated } from '@/app/features/customers/hooks/queries';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -21,18 +20,34 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/customers')({
 
 function CustomersPage() {
   const { id: organizationId } = Route.useParams();
-  const customerCollection = useCustomerCollection(organizationId);
-  const { customers, isLoading } = useCustomers(customerCollection);
+  const search = Route.useSearch();
 
-  if (isLoading) {
+  const paginatedResult = useListCustomersPaginated({
+    organizationId,
+    status: search.status,
+    source: search.source,
+    locale: search.locale,
+    initialNumItems: 20,
+  });
+
+  if (paginatedResult.status === 'LoadingFirstPage') {
     return <CustomersTableSkeleton organizationId={organizationId} />;
   }
 
-  if (!customers || customers.length === 0) {
+  if (
+    paginatedResult.status === 'Exhausted' &&
+    paginatedResult.results.length === 0
+  ) {
     return <CustomersEmptyState organizationId={organizationId} />;
   }
 
   return (
-    <CustomersTable organizationId={organizationId} customers={customers} />
+    <CustomersTable
+      organizationId={organizationId}
+      paginatedResult={paginatedResult}
+      status={search.status}
+      source={search.source}
+      locale={search.locale}
+    />
   );
 }

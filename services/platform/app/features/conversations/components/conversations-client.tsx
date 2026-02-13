@@ -1,5 +1,7 @@
 'use client';
 
+import type { UsePaginatedQueryResult } from 'convex/react';
+
 import { Loader2Icon } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -17,13 +19,11 @@ import { cn } from '@/lib/utils/cn';
 
 import type { Conversation } from '../types';
 
-import { useConversationCollection } from '../hooks/collections';
 import {
   useAddMessage,
   useBulkCloseConversations,
   useBulkReopenConversations,
 } from '../hooks/mutations';
-import { useConversations } from '../hooks/queries';
 import { ActivateConversationsEmptyState } from './activate-conversations-empty-state';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationsList } from './conversations-list';
@@ -31,11 +31,8 @@ import { ConversationsList } from './conversations-list';
 interface ConversationsClientProps {
   status?: Conversation['status'];
   organizationId: string;
-  page?: number;
-  limit?: number;
-  priority?: string;
-  category?: string;
   search?: string;
+  paginatedResult: UsePaginatedQueryResult<ConversationItem>;
 }
 
 type SelectionState =
@@ -143,11 +140,8 @@ function ConversationsClientSkeleton() {
 export function ConversationsClient({
   status,
   organizationId,
-  page: _page = 1,
-  limit: _limit = 20,
-  priority: initialPriority,
-  category: _initialCategory,
   search: initialSearch,
+  paginatedResult,
 }: ConversationsClientProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
@@ -161,29 +155,10 @@ export function ConversationsClient({
   const { t: tConversations } = useT('conversations');
   const { t: tCommon } = useT('common');
 
-  const conversationCollection = useConversationCollection(organizationId);
-  const { conversations: allConversations, isLoading } = useConversations(
-    conversationCollection,
-  );
-
-  // Client-side filtering by status, priority, and search
   const filteredConversations = useMemo(() => {
-    if (!allConversations) return [];
-
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Collection returns ConversationItem from transform; cast to preserve narrow type
-    let data = [...allConversations] as ConversationItem[];
-
-    if (status) {
-      data = data.filter((c) => c.status === status);
-    }
-
-    if (initialPriority) {
-      data = data.filter((c) => c.priority === initialPriority);
-    }
-
     const searchTerm = searchQuery || initialSearch;
     if (searchTerm) {
-      data = filterByTextSearch(data, searchTerm, [
+      return filterByTextSearch(paginatedResult.results, searchTerm, [
         'title',
         'description',
         'subject',
@@ -191,8 +166,8 @@ export function ConversationsClient({
       ]);
     }
 
-    return data;
-  }, [allConversations, status, initialPriority, searchQuery, initialSearch]);
+    return paginatedResult.results;
+  }, [paginatedResult.results, searchQuery, initialSearch]);
 
   // Convex mutations
   const { mutateAsync: bulkResolve } = useBulkCloseConversations();
@@ -209,7 +184,7 @@ export function ConversationsClient({
     isSending: false,
   });
 
-  if (isLoading) {
+  if (paginatedResult.status === 'LoadingFirstPage') {
     return <ConversationsClientSkeleton />;
   }
 
@@ -237,6 +212,7 @@ export function ConversationsClient({
       bulkResolve={bulkResolve}
       bulkReopen={bulkReopen}
       addMessage={addMessage}
+      paginatedResult={paginatedResult}
       tChat={tChat}
       tConversations={tConversations}
       tCommon={tCommon}
@@ -264,6 +240,7 @@ interface ConversationsClientInnerProps {
   bulkResolve: ReturnType<typeof useBulkCloseConversations>['mutateAsync'];
   bulkReopen: ReturnType<typeof useBulkReopenConversations>['mutateAsync'];
   addMessage: ReturnType<typeof useAddMessage>['mutateAsync'];
+  paginatedResult: UsePaginatedQueryResult<ConversationItem>;
   tChat: ReturnType<typeof useT>['t'];
   tConversations: ReturnType<typeof useT>['t'];
   tCommon: ReturnType<typeof useT>['t'];
@@ -286,6 +263,7 @@ function ConversationsClientInner({
   bulkResolve,
   bulkReopen,
   addMessage,
+  paginatedResult,
   tChat,
   tConversations,
   tCommon,
@@ -607,6 +585,8 @@ function ConversationsClientInner({
           onConversationSelect={handleConversationSelect}
           onConversationCheck={handleConversationCheck}
           isConversationSelected={isConversationSelected}
+          paginationStatus={paginatedResult.status}
+          loadMore={paginatedResult.loadMore}
         />
         {isBulkProcessing && (
           <div className="bg-background/50 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-sm">

@@ -1,8 +1,12 @@
 'use client';
 
+import type { UsePaginatedQueryResult } from 'convex/react';
+
 import { type ColumnDef } from '@tanstack/react-table';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
+
+import type { Doc } from '@/convex/_generated/dataModel';
 
 import { CellErrorBoundary } from '@/app/components/error-boundaries/boundaries/cell-error-boundary';
 import { Image } from '@/app/components/ui/data-display/image';
@@ -23,39 +27,20 @@ import {
   safeGetArray,
 } from '@/lib/utils/safe-parsers';
 
-import { useApprovalCollection } from '../hooks/collections';
 import {
   useRemoveRecommendedProduct,
   useUpdateApprovalStatus,
 } from '../hooks/mutations';
-import { useApprovals } from '../hooks/queries';
 import { ApprovalDetail } from '../types/approval-detail';
 import { ApprovalDetailDialog } from './approval-detail-dialog';
 
-type ApprovalItem = {
-  _id: string;
-  _creationTime: number;
-  organizationId: string;
-  wfExecutionId?: string;
-  stepSlug?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  approvedBy?: string;
-  reviewedAt?: number;
-  resourceType: string;
-  resourceId: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  dueDate?: number;
-  executedAt?: number;
-  executionError?: string;
-  metadata?: Record<string, unknown>;
-  threadId?: string;
-  messageId?: string;
-};
+type ApprovalItem = Doc<'approvals'>;
 
 interface ApprovalsClientProps {
   status?: 'pending' | 'resolved';
   organizationId: string;
   search?: string;
+  paginatedResult: UsePaginatedQueryResult<ApprovalItem>;
 }
 
 function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
@@ -93,6 +78,7 @@ export function ApprovalsClient({
   status,
   organizationId,
   search,
+  paginatedResult,
 }: ApprovalsClientProps) {
   const { t } = useT('approvals');
   const { formatDate } = useFormatDate();
@@ -121,50 +107,35 @@ export function ApprovalsClient({
   );
   const [approvalDetailDialogOpen, setApprovalDetailDialogOpen] =
     useState(false);
-  const pageSize = 10;
+  const pageSize = 30;
 
-  const approvalCollection = useApprovalCollection(organizationId);
-  const { approvals: allApprovalsRaw, isLoading: isApprovalsLoading } =
-    useApprovals(approvalCollection);
-
-  const approvalsResult = useMemo(() => {
-    if (!allApprovalsRaw) return undefined;
-    let filtered = [...allApprovalsRaw];
-    filtered = filtered.filter(
-      (a) => a.resourceType === 'product_recommendation',
-    );
-    if (status === 'pending') {
-      filtered = filtered.filter((a) => a.status === 'pending');
-    } else if (status === 'resolved') {
-      filtered = filtered.filter((a) => a.status !== 'pending');
-    }
-    if (search) {
-      const lowerSearch = search.toLowerCase();
-      filtered = filtered.filter((a) => {
-        const metadata = a.metadata ?? {};
-        const customerName =
-          typeof metadata['customerName'] === 'string'
-            ? metadata['customerName']
-            : '';
-        const customerEmail =
-          typeof metadata['customerEmail'] === 'string'
-            ? metadata['customerEmail']
-            : '';
-        return (
-          customerName.toLowerCase().includes(lowerSearch) ||
-          customerEmail.toLowerCase().includes(lowerSearch)
-        );
-      });
-    }
-    return filtered;
-  }, [allApprovalsRaw, status, search]);
-
-  const allApprovals = useMemo(() => approvalsResult ?? [], [approvalsResult]);
+  const allApprovals = useMemo(() => {
+    if (!search) return paginatedResult.results;
+    const lowerSearch = search.toLowerCase();
+    return paginatedResult.results.filter((a) => {
+      const metadata = a.metadata ?? {};
+      const customerName =
+        typeof metadata['customerName'] === 'string'
+          ? metadata['customerName']
+          : '';
+      const customerEmail =
+        typeof metadata['customerEmail'] === 'string'
+          ? metadata['customerEmail']
+          : '';
+      return (
+        customerName.toLowerCase().includes(lowerSearch) ||
+        customerEmail.toLowerCase().includes(lowerSearch)
+      );
+    });
+  }, [paginatedResult.results, search]);
 
   const list = useListPage<ApprovalItem>({
     dataSource: {
-      type: 'query',
-      data: isApprovalsLoading ? undefined : allApprovals,
+      type: 'paginated',
+      results: allApprovals,
+      status: paginatedResult.status,
+      loadMore: paginatedResult.loadMore,
+      isLoading: paginatedResult.isLoading,
     },
     pageSize,
     getRowId: (row) => row._id,
@@ -172,7 +143,7 @@ export function ApprovalsClient({
 
   const { data: memberContext } = useCurrentMemberContext(organizationId);
 
-  const updateApprovalStatus = useUpdateApprovalStatus(approvalCollection);
+  const { mutateAsync: updateApprovalStatus } = useUpdateApprovalStatus();
   const { mutateAsync: removeRecommendedProduct } =
     useRemoveRecommendedProduct();
 
@@ -513,7 +484,7 @@ export function ApprovalsClient({
         : Math.round(n);
   }, []);
 
-  if (approvalsResult === undefined) {
+  if (paginatedResult.status === 'LoadingFirstPage') {
     return <ApprovalsSkeleton status={status} />;
   }
 

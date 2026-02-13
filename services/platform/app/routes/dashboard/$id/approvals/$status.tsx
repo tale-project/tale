@@ -1,20 +1,13 @@
-import { createFileRoute, notFound, useLocation } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { createFileRoute, notFound } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { ApprovalsClient } from '@/app/features/approvals/components/approvals-client';
+import { useListApprovalsPaginated } from '@/app/features/approvals/hooks/queries';
 
 const VALID_STATUSES = ['pending', 'resolved'] as const;
-type ApprovalStatus = (typeof VALID_STATUSES)[number];
-
-const approvalStatusMap: Record<string, ApprovalStatus> = {
-  pending: 'pending',
-  resolved: 'resolved',
-};
 
 const searchSchema = z.object({
   search: z.string().optional(),
-  page: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/approvals/$status')({
@@ -28,24 +21,25 @@ export const Route = createFileRoute('/dashboard/$id/approvals/$status')({
 });
 
 function ApprovalsStatusPage() {
-  const location = useLocation();
+  const { id: organizationId, status } = Route.useParams();
   const { search } = Route.useSearch();
+  const isPending = status === 'pending';
 
-  const { organizationId, status } = useMemo(() => {
-    const pathParts = location.pathname.split('/');
-    const approvalsIndex = pathParts.indexOf('approvals');
-    return {
-      organizationId: pathParts[2],
-      status: approvalStatusMap[pathParts[approvalsIndex + 1]] ?? 'pending',
-    };
-  }, [location.pathname]);
+  const paginatedResult = useListApprovalsPaginated({
+    organizationId,
+    ...(isPending
+      ? { status: 'pending', resourceType: 'product_recommendation' }
+      : { resourceType: 'product_recommendation', excludeStatus: 'pending' }),
+    initialNumItems: 30,
+  });
 
   return (
     <ApprovalsClient
-      key={`${organizationId}-${status}-${search}`}
-      status={status}
+      key={`${organizationId}-${status}`}
+      status={isPending ? 'pending' : 'resolved'}
       organizationId={organizationId}
       search={search}
+      paginatedResult={paginatedResult}
     />
   );
 }

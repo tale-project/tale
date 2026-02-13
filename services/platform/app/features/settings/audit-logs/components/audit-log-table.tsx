@@ -1,28 +1,89 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
+import type { UsePaginatedQueryResult } from 'convex/react';
 
-import { useMemo, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { useCallback, useMemo, useState } from 'react';
 
-import type { AuditLogItem } from '@/convex/audit_logs/types';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+type AuditLog = Doc<'auditLogs'>;
+
 interface AuditLogTableProps {
-  logs: AuditLogItem[];
+  organizationId: string;
+  paginatedResult: UsePaginatedQueryResult<AuditLog>;
+  category?: string;
 }
 
-export function AuditLogTable({ logs }: AuditLogTableProps) {
+const PAGE_SIZE = 30;
+
+export function AuditLogTable({
+  organizationId,
+  paginatedResult,
+  category,
+}: AuditLogTableProps) {
+  const navigate = useNavigate();
   const { formatDate, formatRelative } = useFormatDate();
   const { t } = useT('settings');
-  const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
-  const columns = useMemo<ColumnDef<AuditLogItem>[]>(
+  const handleCategoryChange = useCallback(
+    (values: string[]) => {
+      void navigate({
+        to: '/dashboard/$id/settings/logs',
+        params: { id: organizationId },
+        search: (prev) => ({
+          ...prev,
+          category: values[0] || undefined,
+        }),
+      });
+    },
+    [navigate, organizationId],
+  );
+
+  const handleClearFilters = useCallback(() => {
+    void navigate({
+      to: '/dashboard/$id/settings/logs',
+      params: { id: organizationId },
+      search: {},
+    });
+  }, [navigate, organizationId]);
+
+  const filterConfigs = useMemo(
+    () => [
+      {
+        key: 'category',
+        title: t('logs.audit.columns.category'),
+        multiSelect: false,
+        options: [
+          { value: 'auth', label: t('logs.audit.categories.auth') },
+          { value: 'member', label: t('logs.audit.categories.member') },
+          { value: 'data', label: t('logs.audit.categories.data') },
+          {
+            value: 'integration',
+            label: t('logs.audit.categories.integration'),
+          },
+          { value: 'workflow', label: t('logs.audit.categories.workflow') },
+          { value: 'security', label: t('logs.audit.categories.security') },
+          { value: 'admin', label: t('logs.audit.categories.admin') },
+        ],
+        selectedValues: category ? [category] : [],
+        onChange: handleCategoryChange,
+      },
+    ],
+    [category, t, handleCategoryChange],
+  );
+
+  const columns = useMemo<ColumnDef<AuditLog>[]>(
     () => [
       {
         accessorKey: 'timestamp',
@@ -109,18 +170,34 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
     [t, formatRelative],
   );
 
+  const list = useListPage<AuditLog>({
+    dataSource: {
+      type: 'paginated',
+      results: paginatedResult.results,
+      status: paginatedResult.status,
+      loadMore: paginatedResult.loadMore,
+      isLoading: paginatedResult.isLoading,
+    },
+    pageSize: PAGE_SIZE,
+    filters: {
+      configs: filterConfigs,
+      onClear: handleClearFilters,
+    },
+  });
+
   return (
     <>
       <DataTable
         columns={columns}
-        data={logs}
         caption={t('logs.audit.tableCaption')}
+        stickyLayout
         emptyState={{
           title: t('logs.audit.emptyTitle'),
           description: t('logs.audit.emptyDescription'),
         }}
         onRowClick={(row) => setSelectedLog(row.original)}
         clickableRows
+        {...list.tableProps}
       />
 
       <Dialog

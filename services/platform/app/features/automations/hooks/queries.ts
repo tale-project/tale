@@ -8,6 +8,7 @@ import type { AutomationRoot } from '@/lib/collections/entities/automation-roots
 import type { WfAutomation } from '@/lib/collections/entities/wf-automations';
 import type { WfStep } from '@/lib/collections/entities/wf-steps';
 
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { api } from '@/convex/_generated/api';
@@ -64,17 +65,41 @@ export function useExecutionJournal(
 
 interface ListExecutionsArgs {
   wfDefinitionId: Id<'wfDefinitions'>;
-  searchTerm?: string;
   status?: string[];
   triggeredBy?: string;
   dateFrom?: string;
   dateTo?: string;
-  cursor?: string;
+  initialNumItems: number;
+}
+
+export function useListExecutions(args: ListExecutionsArgs | 'skip') {
+  const queryArgs =
+    args === 'skip'
+      ? 'skip'
+      : (() => {
+          const { initialNumItems: _, ...rest } = args;
+          return rest;
+        })();
+  const initialNumItems = args === 'skip' ? 10 : args.initialNumItems;
+
+  return useCachedPaginatedQuery(
+    api.wf_executions.queries.listExecutions,
+    queryArgs,
+    { initialNumItems },
+  );
+}
+
+interface SearchExecutionArgs {
+  wfDefinitionId: Id<'wfDefinitions'>;
+  searchTerm: string;
   numItems: number;
 }
 
-export function useListExecutions(args: ListExecutionsArgs) {
-  return useConvexQuery(api.wf_executions.queries.listExecutionsCursor, args);
+export function useSearchExecution(args: SearchExecutionArgs | undefined) {
+  return useConvexQuery(
+    api.wf_executions.queries.listExecutionsCursor,
+    args ? { ...args, cursor: undefined } : 'skip',
+  );
 }
 
 export function useDryRunWorkflow(
