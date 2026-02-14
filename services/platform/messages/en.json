@@ -1836,8 +1836,14 @@
       "improveWithAi": "Improve with AI",
       "generateImprovement": "Generate improvement"
     },
+    "attachment": {
+      "download": "Download",
+      "downloading": "Downloading...",
+      "attachments": "{count, plural, one {# attachment} other {# attachments}}"
+    },
     "panel": {
       "uploadFailed": "Failed to upload attachments. Please try again.",
+      "downloadFailed": "Failed to download attachments. Please try again.",
       "noSelected": "No conversation selected",
       "selectToView": "Select a conversation to view details",
       "notFound": "Conversation not found",

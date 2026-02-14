@@ -209,6 +209,9 @@ export const integrationAction: ActionDefinition<{
       result: result.result,
       duration: result.duration,
       version: connectorConfig.version,
+      ...(result.fileReferences
+        ? { fileReferences: result.fileReferences }
+        : {}),
     };
   },
 };

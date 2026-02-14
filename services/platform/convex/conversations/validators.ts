@@ -16,6 +16,7 @@ import {
   messageSchema,
   customerInfoSchema,
   attachmentSchema,
+  emailAttachmentMetaSchema,
   bulkOperationResultSchema,
 } from '../../lib/shared/schemas/conversations';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
@@ -29,6 +30,7 @@ export {
   customerInfoSchema,
   conversationItemSchema,
   attachmentSchema,
+  emailAttachmentMetaSchema,
   conversationWithMessagesSchema,
 } from '../../lib/shared/schemas/conversations';
 import { approvalItemValidator } from '../approvals/validators';
@@ -45,6 +47,9 @@ export const messageDirectionValidator = zodToConvex(messageDirectionSchema);
 export const messageValidator = zodToConvex(messageSchema);
 export const customerInfoValidator = zodToConvex(customerInfoSchema);
 export const attachmentValidator = zodToConvex(attachmentSchema);
+export const emailAttachmentMetaValidator = zodToConvex(
+  emailAttachmentMetaSchema,
+);
 export const bulkOperationResultValidator = zodToConvex(
   bulkOperationResultSchema,
 );

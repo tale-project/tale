@@ -108,6 +108,21 @@ export const queryConversations = internalQuery({
   },
 });
 
+export const getMessageById = internalQuery({
+  args: {
+    messageId: v.id('conversationMessages'),
+    organizationId: v.string(),
+  },
+  returns: v.union(internalMessageRecordValidator, v.null()),
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.organizationId !== args.organizationId) {
+      return null;
+    }
+    return message;
+  },
+});
+
 export const queryConversationMessages = internalQuery({
   args: {
     organizationId: v.string(),

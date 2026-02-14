@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { executeIntegrationImpl } from '../internal_actions';
+import { executeIntegrationImpl } from '../execute_integration_impl';
 
 describe('executeIntegrationImpl __test_connection__', () => {
   it('should call testConnection and return success', async () => {

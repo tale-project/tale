@@ -4,20 +4,8 @@
 
 import type { HttpRequest, HttpResponse } from '../types';
 
-function validateHost(url: string, allowedHosts: string[]): void {
-  const parsed = new URL(url);
-  const hostname = parsed.hostname;
-
-  const isAllowed = allowedHosts.some((allowed) => {
-    return hostname === allowed || hostname.endsWith('.' + allowed);
-  });
-
-  if (!isAllowed) {
-    throw new Error(
-      `HTTP request to "${hostname}" blocked: host not in allowedHosts [${allowedHosts.join(', ')}]`,
-    );
-  }
-}
+import { base64ToBytes } from '../../../lib/crypto/base64_to_bytes';
+import { validateHost } from './validate_host';
 
 export async function executeHttpRequest(
   req: HttpRequest,
@@ -27,20 +15,44 @@ export async function executeHttpRequest(
     validateHost(req.url, allowedHosts);
   }
 
-  const response = await globalThis.fetch(req.url, req.options);
+  let fetchOptions = req.options;
+
+  if (req.binaryBody) {
+    const bytes = base64ToBytes(req.binaryBody);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SharedArrayBuffer TS compat
+    const body = new Blob([bytes as unknown as ArrayBuffer]);
+    fetchOptions = { ...req.options, body };
+  }
+
+  const response = await globalThis.fetch(req.url, {
+    ...fetchOptions,
+    redirect: 'manual',
+  });
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get('location') ?? 'unknown';
+    throw new Error(
+      `HTTP request redirected to "${location}" for "${req.url}". Add the redirect host to allowedHosts.`,
+    );
+  }
   const contentType = response.headers.get('content-type') || '';
 
   let body: unknown;
-  const text = await response.text();
 
-  if (contentType.includes('application/json')) {
-    try {
-      body = JSON.parse(text);
-    } catch {
+  if (req.responseType === 'base64') {
+    const arrayBuffer = await response.arrayBuffer();
+    body = Buffer.from(arrayBuffer).toString('base64');
+  } else {
+    const text = await response.text();
+
+    if (contentType.includes('application/json')) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = text;
+      }
+    } else {
       body = text;
     }
-  } else {
-    body = text;
   }
 
   const headersObj: Record<string, string> = {};

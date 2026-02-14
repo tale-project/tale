@@ -18,6 +18,12 @@ export interface SendMessageViaIntegrationArgs {
   text?: string;
   inReplyTo?: string;
   references?: Array<string>;
+  attachments?: Array<{
+    storageId: Id<'_storage'>;
+    fileName: string;
+    contentType: string;
+    size: number;
+  }>;
 }
 
 export async function sendMessageViaIntegration(
@@ -52,6 +58,25 @@ export async function sendMessageViaIntegration(
   });
 
   const now = Date.now();
+
+  // Build attachment metadata so outbound messages display their attachments
+  let attachmentsMeta: Array<Record<string, unknown>> | undefined;
+  if (args.attachments && args.attachments.length > 0) {
+    attachmentsMeta = await Promise.all(
+      args.attachments.map(async (att) => {
+        const url = await ctx.storage.getUrl(att.storageId);
+        return {
+          id: att.storageId,
+          filename: att.fileName,
+          contentType: att.contentType,
+          size: att.size,
+          storageId: att.storageId,
+          url: url ?? undefined,
+        };
+      }),
+    );
+  }
+
   const messageMetadata: Record<string, unknown> = {
     sender: 'integration',
     isCustomer: false,
@@ -61,6 +86,7 @@ export async function sendMessageViaIntegration(
     ...(args.cc && { cc: args.cc }),
     ...(inReplyTo && { inReplyTo }),
     ...(references && { references }),
+    ...(attachmentsMeta && { attachments: attachmentsMeta }),
   };
 
   const messageId = await ctx.db.insert('conversationMessages', {
@@ -88,6 +114,7 @@ export async function sendMessageViaIntegration(
       contentType: args.html ? 'HTML' : 'Text',
       inReplyTo,
       references,
+      ...(args.attachments?.length ? { attachments: args.attachments } : {}),
     },
   );
 

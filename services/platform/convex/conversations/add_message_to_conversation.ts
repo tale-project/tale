@@ -35,6 +35,14 @@ export async function addMessageToConversation(
     isCustomer: boolean;
     status?: string;
     attachment?: unknown;
+    attachments?: Array<{
+      id: string;
+      filename: string;
+      contentType: string;
+      size: number;
+      storageId?: string;
+      url?: string;
+    }>;
     externalMessageId?: string;
     metadata?: unknown;
     sentAt?: number;
@@ -80,6 +88,7 @@ export async function addMessageToConversation(
       sender: args.sender,
       isCustomer: args.isCustomer,
       ...(args.attachment ? { attachment: args.attachment } : {}),
+      ...(args.attachments?.length ? { attachments: args.attachments } : {}),
       ...safeMetadata,
     },
   });

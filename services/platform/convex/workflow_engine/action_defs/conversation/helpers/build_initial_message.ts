@@ -20,7 +20,7 @@ export function buildInitialMessage(
     externalMessageId: email.messageId,
     metadata: buildEmailMetadata(email),
     sentAt: emailTimestamp,
-    // For email sync, set deliveredAt to email timestamp since the email exists in the mailbox
     deliveredAt: status === 'delivered' ? emailTimestamp : undefined,
+    ...(email.attachments?.length ? { attachments: email.attachments } : {}),
   };
 }

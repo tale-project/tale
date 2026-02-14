@@ -133,11 +133,17 @@ Write operations create approval cards. Use integration_batch for multiple paral
           };
         }
 
+        const fileReferences =
+          isRecord(result) && Array.isArray(result.fileReferences)
+            ? result.fileReferences
+            : undefined;
+
         return {
           success: true,
           integration: args.integrationName,
           operation: args.operation,
           data: result,
+          ...(fileReferences ? { fileReferences } : {}),
         };
       } catch (error) {
         // Provide a helpful error message to the agent
