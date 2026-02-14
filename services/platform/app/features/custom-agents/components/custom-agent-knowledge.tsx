@@ -121,7 +121,7 @@ export function CustomAgentKnowledge({
       knowledgeEnabled?: boolean;
       includeOrgKnowledge?: boolean;
     }) => {
-      await updateAgent({
+      await updateAgent.mutateAsync({
         customAgentId: toId<'customAgents'>(agentId),
         knowledgeEnabled: data.knowledgeEnabled,
         includeOrgKnowledge: data.includeOrgKnowledge,

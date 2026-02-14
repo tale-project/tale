@@ -31,7 +31,7 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
   const handleDeleteConfirm = useCallback(async () => {
     try {
       setIsDeleting(true);
-      await deleteProduct({
+      await deleteProduct.mutateAsync({
         productId: product._id,
       });
       dialogs.setOpen.delete(false);

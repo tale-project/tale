@@ -6,6 +6,7 @@ import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/lib/utils/type-guards';
 
 export type CustomAgent = ConvexItemOf<
   typeof api.custom_agents.queries.listCustomAgents
@@ -43,7 +44,7 @@ export type CustomAgentVersion = ConvexItemOf<
 export function useCustomAgentVersions(customAgentId: string) {
   const { data, isLoading } = useConvexQuery(
     api.custom_agents.queries.getCustomAgentVersions,
-    { customAgentId },
+    { customAgentId: toId<'customAgents'>(customAgentId) },
   );
 
   return {
@@ -59,7 +60,7 @@ export type CustomAgentWebhook = ConvexItemOf<
 export function useCustomAgentWebhooks(customAgentId: string) {
   const { data, isLoading } = useConvexQuery(
     api.custom_agents.webhooks.queries.getWebhooks,
-    { customAgentId },
+    { customAgentId: toId<'customAgents'>(customAgentId) },
   );
 
   return {

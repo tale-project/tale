@@ -70,7 +70,7 @@ export function EventsSection({
   const handleToggle = useCallback(
     async (subscriptionId: Id<'wfEventSubscriptions'>, isActive: boolean) => {
       try {
-        await toggleSubscription({ subscriptionId, isActive });
+        await toggleSubscription.mutateAsync({ subscriptionId, isActive });
         toast({
           title: isActive
             ? t('triggers.events.toast.enabled')
@@ -91,7 +91,9 @@ export function EventsSection({
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      await deleteSubscriptionMutation({ subscriptionId: deleteTarget._id });
+      await deleteSubscriptionMutation.mutateAsync({
+        subscriptionId: deleteTarget._id,
+      });
       toast({
         title: t('triggers.events.toast.deleted'),
         variant: 'success',

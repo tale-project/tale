@@ -49,7 +49,7 @@ export function CustomerDeleteDialog({
 
   const handleDelete = useCallback(
     async (c: Doc<'customers'>) => {
-      await deleteCustomer({ customerId: c._id });
+      await deleteCustomer.mutateAsync({ customerId: c._id });
     },
     [deleteCustomer],
   );

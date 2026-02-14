@@ -1,12 +1,17 @@
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { api } from '@/convex/_generated/api';
 
 export type Team = ConvexItemOf<typeof api.members.queries.getMyTeams>;
 
 export function useTeams() {
-  const { data, isLoading } = useConvexQuery(api.members.queries.getMyTeams);
+  const organizationId = useOrganizationId();
+  const { data, isLoading } = useConvexQuery(
+    api.members.queries.getMyTeams,
+    organizationId ? { organizationId } : 'skip',
+  );
 
   return {
     teams: data ?? null,

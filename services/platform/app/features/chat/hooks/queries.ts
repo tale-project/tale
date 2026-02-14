@@ -10,6 +10,7 @@ import { useApprovals } from '@/app/features/approvals/hooks/queries';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/lib/utils/type-guards';
 
 export type Thread = ConvexItemOf<typeof api.threads.queries.listThreads>;
 
@@ -97,7 +98,7 @@ export function useHumanInputRequests(
           a.metadata !== undefined,
       )
       .map((a) => ({
-        _id: a._id,
+        _id: toId<'approvals'>(a._id),
         status: a.status,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any(); cast to specific schema type
         metadata: a.metadata as unknown as HumanInputRequestMetadata,
@@ -153,7 +154,7 @@ export function useIntegrationApprovals(
           a.metadata !== undefined,
       )
       .map((a) => ({
-        _id: a._id,
+        _id: toId<'approvals'>(a._id),
         status: a.status,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any(); cast to specific metadata shape
         metadata: a.metadata as IntegrationOperationMetadata,
@@ -196,7 +197,7 @@ export function useWorkflowCreationApprovals(
           a.metadata !== undefined,
       )
       .map((a) => ({
-        _id: a._id,
+        _id: toId<'approvals'>(a._id),
         status: a.status,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any(); cast to specific metadata shape
         metadata: a.metadata as WorkflowCreationMetadata,

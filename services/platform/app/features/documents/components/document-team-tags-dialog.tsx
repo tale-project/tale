@@ -69,7 +69,7 @@ function DocumentTeamTagsDialogContent({
     setIsSubmitting(true);
 
     try {
-      await updateDocument({
+      await updateDocument.mutateAsync({
         documentId: toId<'documents'>(documentId),
         teamTags: Array.from(selectedTeams),
       });

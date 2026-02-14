@@ -47,7 +47,7 @@ export function SchedulesSection({
   const handleToggle = useCallback(
     async (scheduleId: Id<'wfSchedules'>, isActive: boolean) => {
       try {
-        await toggleSchedule({ scheduleId, isActive });
+        await toggleSchedule.mutateAsync({ scheduleId, isActive });
         toast({
           title: isActive
             ? t('triggers.schedules.toast.enabled')
@@ -68,7 +68,9 @@ export function SchedulesSection({
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      await deleteScheduleMutation({ scheduleId: deleteTarget._id });
+      await deleteScheduleMutation.mutateAsync({
+        scheduleId: deleteTarget._id,
+      });
       toast({
         title: t('triggers.schedules.toast.deleted'),
         variant: 'success',

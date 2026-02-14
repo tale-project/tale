@@ -127,7 +127,7 @@ export function EventCreateDialog({
         Object.keys(filterValues).length > 0 ? filterValues : undefined;
 
       if (isEditMode && editing) {
-        await updateEventSubscription({
+        await updateEventSubscription.mutateAsync({
           subscriptionId: editing._id,
           eventFilter: filterPayload,
         });
@@ -136,7 +136,7 @@ export function EventCreateDialog({
           variant: 'success',
         });
       } else {
-        await createEventSubscription({
+        await createEventSubscription.mutateAsync({
           organizationId,
           workflowRootId,
           eventType: selectedEventType,

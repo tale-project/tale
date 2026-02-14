@@ -2,6 +2,7 @@ import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/lib/utils/type-guards';
 
 export type WfSchedule = ConvexItemOf<
   typeof api.workflows.triggers.queries.getSchedules
@@ -18,7 +19,7 @@ export type WfEventSubscription = ConvexItemOf<
 export function useSchedules(workflowRootId: string) {
   const { data, isLoading } = useConvexQuery(
     api.workflows.triggers.queries.getSchedules,
-    { workflowRootId },
+    { workflowRootId: toId<'wfDefinitions'>(workflowRootId) },
   );
 
   return {
@@ -30,7 +31,7 @@ export function useSchedules(workflowRootId: string) {
 export function useWebhooks(workflowRootId: string) {
   const { data, isLoading } = useConvexQuery(
     api.workflows.triggers.queries.getWebhooks,
-    { workflowRootId },
+    { workflowRootId: toId<'wfDefinitions'>(workflowRootId) },
   );
 
   return {
@@ -42,7 +43,7 @@ export function useWebhooks(workflowRootId: string) {
 export function useEventSubscriptions(workflowRootId: string) {
   const { data, isLoading } = useConvexQuery(
     api.workflows.triggers.queries.getEventSubscriptions,
-    { workflowRootId },
+    { workflowRootId: toId<'wfDefinitions'>(workflowRootId) },
   );
 
   return {

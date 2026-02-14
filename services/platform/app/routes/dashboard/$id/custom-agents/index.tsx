@@ -34,7 +34,7 @@ function CustomAgentsIndexPage() {
     <ContentWrapper>
       <CustomAgentTable
         organizationId={organizationId}
-        agents={agents}
+        agents={agents ?? null}
         isLoading={isLoading}
       />
     </ContentWrapper>

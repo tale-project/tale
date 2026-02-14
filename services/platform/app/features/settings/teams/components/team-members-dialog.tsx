@@ -70,7 +70,7 @@ export function TeamMembersDialog({
 
     setIsAdding(true);
     try {
-      await addTeamMember({
+      await addTeamMember.mutateAsync({
         teamId: team.id,
         userId: selectedMemberId,
         organizationId,
@@ -96,7 +96,7 @@ export function TeamMembersDialog({
   const handleRemoveMember = async (teamMemberId: string) => {
     setRemovingMemberId(teamMemberId);
     try {
-      await removeTeamMember({
+      await removeTeamMember.mutateAsync({
         teamMemberId,
         organizationId,
       });
