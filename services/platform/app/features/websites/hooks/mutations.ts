@@ -6,22 +6,13 @@ export function useRescanWebsite() {
 }
 
 export function useCreateWebsite() {
-  const { mutateAsync } = useConvexMutation(
-    api.websites.mutations.createWebsite,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.websites.mutations.createWebsite);
 }
 
 export function useDeleteWebsite() {
-  const { mutateAsync } = useConvexMutation(
-    api.websites.mutations.deleteWebsite,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.websites.mutations.deleteWebsite);
 }
 
 export function useUpdateWebsite() {
-  const { mutateAsync } = useConvexMutation(
-    api.websites.mutations.updateWebsite,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.websites.mutations.updateWebsite);
 }

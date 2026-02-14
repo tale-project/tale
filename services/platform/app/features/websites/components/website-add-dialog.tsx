@@ -31,7 +31,7 @@ export function AddWebsiteDialog({
 }: AddWebsiteDialogProps) {
   const { t: tWebsites } = useT('websites');
   const [isLoading, setIsLoading] = useState(false);
-  const createWebsite = useCreateWebsite();
+  const { mutateAsync: createWebsite } = useCreateWebsite();
 
   const formSchema = useMemo(
     () =>
