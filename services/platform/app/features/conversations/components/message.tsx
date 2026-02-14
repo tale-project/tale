@@ -118,9 +118,9 @@ function AttachmentCard({
         <button
           type="button"
           onClick={() => {
-            if (hasUrl) {
+            if (attachment.url) {
               const a = document.createElement('a');
-              a.href = attachment.url!;
+              a.href = attachment.url;
               a.download = attachment.filename;
               a.click();
             } else {
