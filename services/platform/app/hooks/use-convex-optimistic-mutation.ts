@@ -12,6 +12,7 @@ import type {
 import { convexQuery } from '@convex-dev/react-query';
 import { useMutation } from '@tanstack/react-query';
 
+import { invalidateConvexQueries } from './invalidate';
 import { useConvexClient } from './use-convex-client';
 import { useOrganizationId } from './use-organization-id';
 import { useReactQueryClient } from './use-react-query-client';
@@ -169,10 +170,16 @@ export function useConvexOptimisticMutation<
   > = {
     mutationFn: (args) => convexClient.mutation(mutationFunc, args),
     onMutate: (args) => config.onMutate(args, helpers),
-    onError: (_err, _vars, ctx) => {
-      if (isOptimisticContext(ctx)) {
-        queryClient.setQueryData(ctx.queryKey, ctx.previous);
+    onError: (_err, _vars, onMutateResult) => {
+      if (isOptimisticContext(onMutateResult)) {
+        queryClient.setQueryData(
+          onMutateResult.queryKey,
+          onMutateResult.previous,
+        );
       }
+    },
+    onSettled: async () => {
+      await invalidateConvexQueries(queryClient, [queryFunc]);
     },
   };
 

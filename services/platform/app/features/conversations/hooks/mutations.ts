@@ -9,6 +9,9 @@ export function useGenerateUploadUrl() {
 export function useAddMessage() {
   return useConvexMutation(
     api.conversations.mutations.addMessageToConversation,
+    {
+      invalidates: [api.conversations.queries.getConversationWithMessages],
+    },
   );
 }
 
@@ -39,6 +42,9 @@ export function useBulkReopenConversations() {
 export function useSendMessageViaIntegration() {
   return useConvexMutation(
     api.conversations.mutations.sendMessageViaIntegration,
+    {
+      invalidates: [api.conversations.queries.getConversationWithMessages],
+    },
   );
 }
 
@@ -67,7 +73,9 @@ export function useReopenConversation() {
 }
 
 export function useMarkAsRead() {
-  return useConvexMutation(api.conversations.mutations.markConversationAsRead);
+  return useConvexMutation(api.conversations.mutations.markConversationAsRead, {
+    invalidates: [api.conversations.queries.listConversations],
+  });
 }
 
 export function useMarkAsSpam() {

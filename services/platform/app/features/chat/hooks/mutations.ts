@@ -3,20 +3,38 @@ import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-m
 import { api } from '@/convex/_generated/api';
 
 export function useChatWithAgent() {
-  return useConvexMutation(api.agents.chat.mutations.chatWithAgent);
+  return useConvexMutation(api.agents.chat.mutations.chatWithAgent, {
+    invalidates: [
+      api.conversations.queries.getConversationWithMessages,
+      api.threads.queries.listThreads,
+    ],
+  });
 }
 
 export function useChatWithBuiltinAgent() {
-  return useConvexMutation(api.agents.builtin_agents.chatWithBuiltinAgent);
+  return useConvexMutation(api.agents.builtin_agents.chatWithBuiltinAgent, {
+    invalidates: [
+      api.conversations.queries.getConversationWithMessages,
+      api.threads.queries.listThreads,
+    ],
+  });
 }
 
 export function useChatWithCustomAgent() {
-  return useConvexMutation(api.custom_agents.chat.chatWithCustomAgent);
+  return useConvexMutation(api.custom_agents.chat.chatWithCustomAgent, {
+    invalidates: [
+      api.conversations.queries.getConversationWithMessages,
+      api.threads.queries.listThreads,
+    ],
+  });
 }
 
 export function useSubmitHumanInputResponse() {
   return useConvexMutation(
     api.agent_tools.human_input.mutations.submitHumanInputResponse,
+    {
+      invalidates: [api.conversations.queries.getConversationWithMessages],
+    },
   );
 }
 

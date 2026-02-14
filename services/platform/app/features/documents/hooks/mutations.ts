@@ -59,6 +59,9 @@ export function useDocumentUpload(options: UploadOptions) {
   );
   const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
     api.documents.mutations.createDocumentFromUpload,
+    {
+      invalidates: [api.documents.queries.listDocuments],
+    },
   );
 
   const uploadFiles = async (

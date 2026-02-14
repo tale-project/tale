@@ -14,19 +14,27 @@ export function useTestExistingSsoConfig() {
 }
 
 export function useCreateIntegration() {
-  return useConvexAction(api.integrations.actions.create);
+  return useConvexAction(api.integrations.actions.create, {
+    invalidates: [api.integrations.queries.list],
+  });
 }
 
 export function useUpdateIntegration() {
-  return useConvexAction(api.integrations.actions.update);
+  return useConvexAction(api.integrations.actions.update, {
+    invalidates: [api.integrations.queries.list],
+  });
 }
 
 export function useUpsertSsoProvider() {
-  return useConvexAction(api.sso_providers.actions.upsert);
+  return useConvexAction(api.sso_providers.actions.upsert, {
+    invalidates: [api.sso_providers.queries.get],
+  });
 }
 
 export function useRemoveSsoProvider() {
-  return useConvexAction(api.sso_providers.actions.remove);
+  return useConvexAction(api.sso_providers.actions.remove, {
+    invalidates: [api.sso_providers.queries.get],
+  });
 }
 
 export function useSsoFullConfig() {
@@ -38,5 +46,7 @@ export function useGenerateIntegrationOAuth2Url() {
 }
 
 export function useSaveOAuth2Credentials() {
-  return useConvexAction(api.integrations.actions.saveOAuth2ClientCredentials);
+  return useConvexAction(api.integrations.actions.saveOAuth2ClientCredentials, {
+    invalidates: [api.integrations.queries.list],
+  });
 }

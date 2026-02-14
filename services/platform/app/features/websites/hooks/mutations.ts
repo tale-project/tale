@@ -3,7 +3,9 @@ import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-m
 import { api } from '@/convex/_generated/api';
 
 export function useRescanWebsite() {
-  return useConvexMutation(api.websites.mutations.rescanWebsite);
+  return useConvexMutation(api.websites.mutations.rescanWebsite, {
+    invalidates: [api.websites.queries.listWebsites],
+  });
 }
 
 export function useCreateWebsite() {

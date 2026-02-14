@@ -7,7 +7,9 @@ export function useGenerateUploadUrl() {
 }
 
 export function useUpdateIntegrationIcon() {
-  return useConvexMutation(api.integrations.mutations.updateIcon);
+  return useConvexMutation(api.integrations.mutations.updateIcon, {
+    invalidates: [api.integrations.queries.list],
+  });
 }
 
 export function useDeleteIntegration() {

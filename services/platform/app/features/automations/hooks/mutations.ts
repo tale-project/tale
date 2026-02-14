@@ -9,11 +9,22 @@ export function useStartWorkflow() {
 export function useCreateAutomation() {
   return useConvexMutation(
     api.wf_definitions.mutations.createWorkflowWithSteps,
+    {
+      invalidates: [
+        api.wf_definitions.queries.listAutomations,
+        api.wf_definitions.queries.listAutomationRoots,
+      ],
+    },
   );
 }
 
 export function useDuplicateAutomation() {
-  return useConvexMutation(api.wf_definitions.mutations.duplicateWorkflow);
+  return useConvexMutation(api.wf_definitions.mutations.duplicateWorkflow, {
+    invalidates: [
+      api.wf_definitions.queries.listAutomations,
+      api.wf_definitions.queries.listAutomationRoots,
+    ],
+  });
 }
 
 export function usePublishAutomationDraft() {
@@ -53,19 +64,27 @@ export function useRepublishAutomation() {
 }
 
 export function useCreateDraftFromActive() {
-  return useConvexMutation(api.wf_definitions.mutations.createDraftFromActive);
+  return useConvexMutation(api.wf_definitions.mutations.createDraftFromActive, {
+    invalidates: [api.wf_definitions.queries.listAutomations],
+  });
 }
 
 export function useCreateStep() {
-  return useConvexMutation(api.wf_step_defs.mutations.createStep);
+  return useConvexMutation(api.wf_step_defs.mutations.createStep, {
+    invalidates: [api.wf_step_defs.queries.getWorkflowSteps],
+  });
 }
 
 export function useUpdateStep() {
-  return useConvexMutation(api.wf_step_defs.mutations.updateStep);
+  return useConvexMutation(api.wf_step_defs.mutations.updateStep, {
+    invalidates: [api.wf_step_defs.queries.getWorkflowSteps],
+  });
 }
 
 export function useUpdateAutomation() {
-  return useConvexMutation(api.wf_definitions.mutations.updateWorkflow);
+  return useConvexMutation(api.wf_definitions.mutations.updateWorkflow, {
+    invalidates: [api.wf_definitions.queries.listAutomations],
+  });
 }
 
 export function useDeleteAutomation() {

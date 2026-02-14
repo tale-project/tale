@@ -3,7 +3,9 @@ import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-m
 import { api } from '@/convex/_generated/api';
 
 export function useBulkCreateCustomers() {
-  return useConvexMutation(api.customers.mutations.bulkCreateCustomers);
+  return useConvexMutation(api.customers.mutations.bulkCreateCustomers, {
+    invalidates: [api.customers.queries.listCustomers],
+  });
 }
 
 export function useDeleteCustomer() {

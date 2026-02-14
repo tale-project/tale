@@ -3,7 +3,9 @@ import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-m
 import { api } from '@/convex/_generated/api';
 
 export function useBulkCreateVendors() {
-  return useConvexMutation(api.vendors.mutations.bulkCreateVendors);
+  return useConvexMutation(api.vendors.mutations.bulkCreateVendors, {
+    invalidates: [api.vendors.queries.listVendors],
+  });
 }
 
 export function useDeleteVendor() {

@@ -3,7 +3,9 @@ import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-m
 import { api } from '@/convex/_generated/api';
 
 export function useRemoveRecommendedProduct() {
-  return useConvexMutation(api.approvals.mutations.removeRecommendedProduct);
+  return useConvexMutation(api.approvals.mutations.removeRecommendedProduct, {
+    invalidates: [api.approvals.queries.listApprovalsByOrganization],
+  });
 }
 
 export function useUpdateApprovalStatus() {

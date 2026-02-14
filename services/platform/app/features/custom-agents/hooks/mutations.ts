@@ -25,17 +25,24 @@ export function useCreateCustomAgent() {
 }
 
 export function useDuplicateCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.duplicateCustomAgent);
+  return useConvexMutation(api.custom_agents.mutations.duplicateCustomAgent, {
+    invalidates: [api.custom_agents.queries.listCustomAgents],
+  });
 }
 
 export function useActivateCustomAgentVersion() {
   return useConvexMutation(
     api.custom_agents.mutations.activateCustomAgentVersion,
+    {
+      invalidates: [api.custom_agents.queries.listCustomAgents],
+    },
   );
 }
 
 export function useCreateDraftFromVersion() {
-  return useConvexMutation(api.custom_agents.mutations.createDraftFromVersion);
+  return useConvexMutation(api.custom_agents.mutations.createDraftFromVersion, {
+    invalidates: [api.custom_agents.queries.listCustomAgents],
+  });
 }
 
 export function usePublishCustomAgent() {
