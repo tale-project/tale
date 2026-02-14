@@ -816,7 +816,7 @@ function getAttachments(http, headers, files, params) {
     var contentType = att.contentType || 'application/octet-stream';
 
     if (att.contentBytes) {
-      var file = files.store(att.contentBytes, {
+      var storedFile = files.store(att.contentBytes, {
         encoding: 'base64',
         contentType: contentType,
         fileName: fileName,
@@ -826,8 +826,8 @@ function getAttachments(http, headers, files, params) {
         name: fileName,
         contentType: contentType,
         size: att.size,
-        fileId: file.fileId,
-        url: file.url,
+        fileId: storedFile.fileId,
+        url: storedFile.url,
       });
     } else {
       var downloadUrl =
@@ -837,7 +837,7 @@ function getAttachments(http, headers, files, params) {
         '/attachments/' +
         att.id +
         '/$value';
-      var file = files.download(downloadUrl, {
+      var downloadedFile = files.download(downloadUrl, {
         headers: { Authorization: headers.Authorization },
         fileName: fileName,
       });
@@ -846,8 +846,8 @@ function getAttachments(http, headers, files, params) {
         name: fileName,
         contentType: contentType,
         size: att.size,
-        fileId: file.fileId,
-        url: file.url,
+        fileId: downloadedFile.fileId,
+        url: downloadedFile.url,
       });
     }
   }
