@@ -30,7 +30,10 @@ export function useDeleteSchedule() {
 }
 
 export function useCreateWebhook() {
-  return useConvexMutation(api.workflows.triggers.mutations.createWebhook);
+  const { mutateAsync, isPending } = useConvexMutation(
+    api.workflows.triggers.mutations.createWebhook,
+  );
+  return { mutateAsync, isPending };
 }
 
 export function useToggleWebhook() {
