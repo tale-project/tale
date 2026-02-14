@@ -6,11 +6,9 @@ export function useBulkCreateVendors() {
 }
 
 export function useDeleteVendor() {
-  const { mutateAsync } = useConvexMutation(api.vendors.mutations.deleteVendor);
-  return mutateAsync;
+  return useConvexMutation(api.vendors.mutations.deleteVendor);
 }
 
 export function useUpdateVendor() {
-  const { mutateAsync } = useConvexMutation(api.vendors.mutations.updateVendor);
-  return mutateAsync;
+  return useConvexMutation(api.vendors.mutations.updateVendor);
 }

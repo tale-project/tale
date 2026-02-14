@@ -29,7 +29,7 @@ export function VendorDeleteDialog({
 }: VendorDeleteDialogProps) {
   const { t: tVendors } = useT('vendors');
   const { t: tToast } = useT('toast');
-  const deleteVendor = useDeleteVendor();
+  const { mutateAsync: deleteVendor } = useDeleteVendor();
 
   const dialog = useDeleteDialog({
     isOpen: controlledIsOpen,

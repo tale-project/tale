@@ -35,7 +35,7 @@ export function VendorEditDialog({
   const { t: tVendors } = useT('vendors');
   const { t: tCommon } = useT('common');
   const { t: tGlobal } = useT('global');
-  const updateVendor = useUpdateVendor();
+  const { mutateAsync: updateVendor } = useUpdateVendor();
 
   const localeOptions = useMemo(
     () => [
