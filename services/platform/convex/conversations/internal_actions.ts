@@ -35,6 +35,16 @@ export const sendMessageViaIntegrationAction = internalAction({
     contentType: v.optional(v.string()),
     inReplyTo: v.optional(v.string()),
     references: v.optional(v.array(v.string())),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          storageId: v.string(),
+          fileName: v.string(),
+          contentType: v.string(),
+          size: v.optional(v.number()),
+        }),
+      ),
+    ),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -80,6 +90,24 @@ export const sendMessageViaIntegrationAction = internalAction({
 
       if (args.references && args.references.length > 0) {
         opParams.references = args.references;
+      }
+
+      if (args.attachments && args.attachments.length > 0) {
+        const attachmentData = await Promise.all(
+          args.attachments.map(async (att) => {
+            const blob = await ctx.storage.get(att.storageId);
+            if (!blob)
+              throw new Error(`Attachment not found: ${att.storageId}`);
+            const buffer = await blob.arrayBuffer();
+            const base64 = Buffer.from(buffer).toString('base64');
+            return {
+              name: att.fileName,
+              contentType: att.contentType,
+              contentBytes: base64,
+            };
+          }),
+        );
+        opParams.attachments = attachmentData;
       }
 
       const result = await ctx.runAction(
@@ -280,6 +308,118 @@ export const checkMessageDeliveryAction = internalAction({
     } catch (error) {
       console.error(
         '[checkMessageDelivery] error:',
+        error instanceof Error ? error.message : error,
+      );
+    }
+
+    return null;
+  },
+});
+
+export const downloadAttachmentsAction = internalAction({
+  args: {
+    messageId: v.id('conversationMessages'),
+    organizationId: v.string(),
+    integrationName: v.string(),
+    externalMessageId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    try {
+      const integration = await ctx.runQuery(
+        internal.integrations.internal_queries.getByName,
+        { organizationId: args.organizationId, name: args.integrationName },
+      );
+
+      if (!integration) {
+        throw new Error(
+          `Integration "${args.integrationName}" not found in organization "${args.organizationId}"`,
+        );
+      }
+
+      const connectorConfig = resolveConnectorConfig(
+        integration.connector,
+        args.integrationName,
+      );
+
+      if (!connectorConfig) {
+        throw new Error(
+          `No connector configuration found for integration "${args.integrationName}".`,
+        );
+      }
+
+      const secrets = await buildIntegrationSecrets(ctx, integration);
+
+      const result = await ctx.runAction(
+        internal.node_only.integration_sandbox.internal_actions
+          .executeIntegration,
+        {
+          code: connectorConfig.code,
+          operation: 'get_attachments',
+          params: toConvexJsonRecord({
+            messageId: args.externalMessageId,
+          }),
+          variables: {},
+          secrets,
+          allowedHosts: connectorConfig.allowedHosts ?? [],
+          timeoutMs: connectorConfig.timeoutMs ?? 30000,
+        },
+      );
+
+      if (!result.success) {
+        throw new Error(`Attachment download failed: ${result.error}`);
+      }
+
+      const fileRefs = result.fileReferences ?? [];
+      if (fileRefs.length === 0) {
+        return null;
+      }
+
+      const message = await ctx.runQuery(
+        internal.conversations.internal_queries.getMessageById,
+        { messageId: args.messageId },
+      );
+
+      if (!message) {
+        throw new Error(`Message ${args.messageId} not found`);
+      }
+
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata is jsonRecord
+      const existingMeta = (message.metadata ?? {}) as Record<string, unknown>;
+      const existingAttachments = Array.isArray(existingMeta.attachments)
+        ? existingMeta.attachments
+        : [];
+
+      const updatedAttachments = existingAttachments.map((att) => {
+        if (typeof att !== 'object' || att === null) return att;
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic metadata
+        const a = att as Record<string, unknown>;
+        const matchingRef = fileRefs.find(
+          (ref) => ref.fileName === String(a.filename),
+        );
+        if (matchingRef) {
+          return {
+            ...a,
+            storageId: matchingRef.fileId,
+            url: matchingRef.url,
+          };
+        }
+        return att;
+      });
+
+      await ctx.runMutation(
+        internal.conversations.internal_mutations.updateConversationMessage,
+        {
+          messageId: args.messageId,
+          metadata: {
+            ...existingMeta,
+            attachments: updatedAttachments,
+          },
+        },
+      );
+    } catch (error) {
+      console.error(
+        '[downloadAttachmentsAction] error:',
         error instanceof Error ? error.message : error,
       );
     }

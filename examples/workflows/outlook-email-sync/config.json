@@ -66,6 +66,7 @@
             "orderby": "receivedDateTime desc",
             "top": 1,
             "select": "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,internetMessageId,conversationId,isRead,hasAttachments,bodyPreview",
+            "expand": "attachments($select=id,name,contentType,size)",
             "format": "email"
           }
         }
@@ -87,6 +88,7 @@
             "orderby": "receivedDateTime asc",
             "top": 1,
             "select": "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,internetMessageId,conversationId,isRead,hasAttachments,bodyPreview",
+            "expand": "attachments($select=id,name,contentType,size)",
             "format": "email"
           }
         }
@@ -140,6 +142,7 @@
             "orderby": "receivedDateTime asc",
             "top": 50,
             "select": "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,internetMessageId,conversationId,isRead,hasAttachments,bodyPreview",
+            "expand": "attachments($select=id,name,contentType,size)",
             "format": "email"
           }
         }

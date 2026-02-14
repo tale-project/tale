@@ -29,6 +29,14 @@ export interface IntegrationExecutionResult {
   approvalCreated?: boolean;
   /** Message to show user about the approval */
   approvalMessage?: string;
+  /** File references from attachment download/store operations */
+  fileReferences?: Array<{
+    fileId: string;
+    url: string;
+    fileName: string;
+    contentType: string;
+    size: number;
+  }>;
 }
 
 /**

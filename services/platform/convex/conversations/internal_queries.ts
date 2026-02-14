@@ -108,6 +108,16 @@ export const queryConversations = internalQuery({
   },
 });
 
+export const getMessageById = internalQuery({
+  args: {
+    messageId: v.id('conversationMessages'),
+  },
+  returns: v.union(internalMessageRecordValidator, v.null()),
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.messageId);
+  },
+});
+
 export const queryConversationMessages = internalQuery({
   args: {
     organizationId: v.string(),

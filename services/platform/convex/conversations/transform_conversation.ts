@@ -120,6 +120,28 @@ export async function transformConversation(
           }
         : undefined;
 
+    const rawAttachments = m.metadata?.attachments;
+    const attachments =
+      Array.isArray(rawAttachments) && rawAttachments.length > 0
+        ? rawAttachments
+            .filter(
+              (a): a is Record<string, unknown> =>
+                typeof a === 'object' && a !== null,
+            )
+            .map((a) => ({
+              id: typeof a.id === 'string' ? a.id : '',
+              filename: typeof a.filename === 'string' ? a.filename : '',
+              contentType:
+                typeof a.contentType === 'string'
+                  ? a.contentType
+                  : 'application/octet-stream',
+              size: typeof a.size === 'number' ? a.size : 0,
+              storageId:
+                typeof a.storageId === 'string' ? a.storageId : undefined,
+              url: typeof a.url === 'string' ? a.url : undefined,
+            }))
+        : undefined;
+
     return {
       id: String(m._id),
       sender:
@@ -133,6 +155,7 @@ export async function transformConversation(
       isCustomer: m.direction === 'inbound',
       status: m.deliveryState || 'sent',
       attachment,
+      attachments,
     };
   });
 

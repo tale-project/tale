@@ -12,6 +12,7 @@ import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import {
+  useDownloadAttachments,
   useGenerateUploadUrl,
   useMarkAsRead,
   useSendMessageViaIntegration,
@@ -62,6 +63,7 @@ export function ConversationPanel({
   const { mutateAsync: sendMessageViaIntegration } =
     useSendMessageViaIntegration();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  const { mutateAsync: downloadAttachments } = useDownloadAttachments();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const messageComposerRef = useRef<HTMLDivElement>(null);
@@ -121,7 +123,15 @@ export function ConversationPanel({
       return;
     }
 
-    // Upload attachments to Convex storage (stored for future reference)
+    let uploadedAttachments:
+      | Array<{
+          storageId: string;
+          fileName: string;
+          contentType: string;
+          size: number;
+        }>
+      | undefined;
+
     if (attachments && attachments.length > 0) {
       try {
         const validAttachments = attachments.filter((a) => a.file);
@@ -129,21 +139,33 @@ export function ConversationPanel({
           throw new Error(tConversations('panel.invalidFileAttachment'));
         }
 
-        const uploadUrls = await Promise.all(
-          validAttachments.map(() => generateUploadUrl({})),
-        );
-
-        await Promise.all(
-          validAttachments.map(async (attachment, index) => {
+        uploadedAttachments = await Promise.all(
+          validAttachments.map(async (attachment) => {
             const file = attachment.file;
             if (!file)
               throw new Error(tConversations('panel.invalidFileAttachment'));
 
-            await fetch(uploadUrls[index], {
+            const uploadUrl = await generateUploadUrl({});
+
+            const result = await fetch(uploadUrl, {
               method: 'POST',
               headers: { 'Content-Type': file.type },
               body: file,
             });
+
+            const json = await result.json();
+            const storageId = json.storageId;
+
+            if (typeof storageId !== 'string') {
+              throw new Error(tConversations('panel.uploadFailed'));
+            }
+
+            return {
+              storageId,
+              fileName: file.name,
+              contentType: file.type,
+              size: file.size,
+            };
           }),
         );
       } catch (error) {
@@ -170,7 +192,6 @@ export function ConversationPanel({
       subject,
     });
 
-    // Send message via integration (backend resolves threading headers + connector + secrets)
     await sendMessageViaIntegration({
       conversationId: toId<'conversations'>(conversation._id),
       organizationId: conversation.organizationId,
@@ -180,9 +201,10 @@ export function ConversationPanel({
       subject: replySubject,
       html: message,
       text: message.replace(/<[^>]*>/g, ''),
+      ...(uploadedAttachments?.length
+        ? { attachments: uploadedAttachments }
+        : {}),
     });
-
-    // Convex will automatically update the conversation reactively
   };
 
   if (!selectedConversationId) {
@@ -341,7 +363,17 @@ export function ConversationPanel({
               {/* Messages for this date */}
               <Stack gap={4} className="mb-8">
                 {group.messages.map((message) => (
-                  <Message key={message.id} message={message} />
+                  <Message
+                    key={message.id}
+                    message={message}
+                    onDownloadAttachments={(messageId) => {
+                      downloadAttachments({
+                        messageId: toId<'conversationMessages'>(messageId),
+                      }).catch((error: Error) => {
+                        console.error('Failed to download attachments:', error);
+                      });
+                    }}
+                  />
                 ))}
               </Stack>
             </div>

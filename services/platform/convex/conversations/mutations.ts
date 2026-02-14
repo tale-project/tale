@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { internal } from '../_generated/api';
 import { mutationWithRLS } from '../lib/rls';
 import * as ConversationsHelpers from './helpers';
 import {
@@ -56,6 +57,16 @@ export const sendMessageViaIntegration = mutationWithRLS({
     text: v.optional(v.string()),
     inReplyTo: v.optional(v.string()),
     references: v.optional(v.array(v.string())),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          storageId: v.string(),
+          fileName: v.string(),
+          contentType: v.string(),
+          size: v.number(),
+        }),
+      ),
+    ),
   },
   returns: v.id('conversationMessages'),
   handler: async (ctx, args) => {
@@ -126,5 +137,45 @@ export const bulkReopenConversations = mutationWithRLS({
   returns: bulkOperationResultValidator,
   handler: async (ctx, args) => {
     return await ConversationsHelpers.bulkReopenConversations(ctx, args);
+  },
+});
+
+export const downloadAttachments = mutationWithRLS({
+  args: {
+    messageId: v.id('conversationMessages'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    const conversation = await ctx.db.get(message.conversationId);
+    if (!conversation) {
+      throw new Error('Conversation not found');
+    }
+
+    if (!message.externalMessageId) {
+      throw new Error('Message has no external ID for attachment download');
+    }
+
+    const integrationName =
+      typeof conversation.metadata?.integrationName === 'string'
+        ? conversation.metadata.integrationName
+        : 'outlook';
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.conversations.internal_actions.downloadAttachmentsAction,
+      {
+        messageId: args.messageId,
+        organizationId: conversation.organizationId,
+        integrationName,
+        externalMessageId: message.externalMessageId,
+      },
+    );
+
+    return null;
   },
 });

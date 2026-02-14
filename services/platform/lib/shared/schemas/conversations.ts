@@ -36,6 +36,16 @@ export const attachmentSchema = z.object({
 });
 type Attachment = z.infer<typeof attachmentSchema>;
 
+export const emailAttachmentMetaSchema = z.object({
+  id: z.string(),
+  filename: z.string(),
+  contentType: z.string(),
+  size: z.number(),
+  storageId: z.string().optional(),
+  url: z.string().optional(),
+});
+type EmailAttachmentMeta = z.infer<typeof emailAttachmentMetaSchema>;
+
 export const messageSchema = z.object({
   id: z.string(),
   sender: z.string(),
@@ -44,6 +54,7 @@ export const messageSchema = z.object({
   isCustomer: z.boolean(),
   status: messageStatusSchema,
   attachment: attachmentSchema.optional(),
+  attachments: z.array(emailAttachmentMetaSchema).optional(),
 });
 type Message = z.infer<typeof messageSchema>;
 

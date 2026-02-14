@@ -197,8 +197,12 @@ export async function listApprovalsByOrganization(
   // When using the 3-field index, resourceType is already filtered by the index
   const needsResourceTypeFilter = resourceTypeSet && !singleResourceType;
 
-  if (args.status === 'pending') {
-    const query = buildQuery('pending');
+  const statuses: ApprovalStatus[] = args.status
+    ? [args.status]
+    : ['pending', 'approved', 'rejected'];
+
+  for (const status of statuses) {
+    const query = buildQuery(status);
 
     for await (const approval of query) {
       if (
@@ -213,52 +217,10 @@ export async function listApprovalsByOrganization(
       }
 
       result.push(approval);
-      if (result.length >= limit) break;
-    }
-
-    result.sort((a, b) => b._creationTime - a._creationTime);
-    return result;
-  }
-
-  const approvedQuery = buildQuery('approved');
-
-  for await (const approval of approvedQuery) {
-    if (
-      needsResourceTypeFilter &&
-      !resourceTypeSet.has(approval.resourceType)
-    ) {
-      continue;
-    }
-
-    if (searchLower && !matchesSearch(approval, searchLower)) {
-      continue;
-    }
-
-    result.push(approval);
-    if (result.length >= limit) {
-      result.sort((a, b) => b._creationTime - a._creationTime);
-      return result;
-    }
-  }
-
-  const rejectedQuery = buildQuery('rejected');
-
-  for await (const approval of rejectedQuery) {
-    if (
-      needsResourceTypeFilter &&
-      !resourceTypeSet.has(approval.resourceType)
-    ) {
-      continue;
-    }
-
-    if (searchLower && !matchesSearch(approval, searchLower)) {
-      continue;
-    }
-
-    result.push(approval);
-    if (result.length >= limit) {
-      result.sort((a, b) => b._creationTime - a._creationTime);
-      return result;
+      if (result.length >= limit) {
+        result.sort((a, b) => b._creationTime - a._creationTime);
+        return result;
+      }
     }
   }
 
