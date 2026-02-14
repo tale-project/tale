@@ -33,7 +33,6 @@ import {
   useTestIntegration,
   useUpdateIntegration,
 } from '../hooks/actions';
-import { useIntegrationCollection } from '../hooks/collections';
 import {
   useDeleteIntegration,
   useGenerateUploadUrl,
@@ -171,12 +170,9 @@ export function IntegrationManageDialog({
   const isActive = optimisticActive ?? integration.isActive;
   const iconUrl = optimisticIconUrl ?? integration.iconUrl;
 
-  const integrationCollection = useIntegrationCollection(
-    integration.organizationId,
-  );
   const { mutateAsync: updateIntegration } = useUpdateIntegration();
   const { mutateAsync: testConnection } = useTestIntegration();
-  const deleteIntegration = useDeleteIntegration(integrationCollection);
+  const deleteIntegration = useDeleteIntegration();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
   const { mutateAsync: updateIcon } = useUpdateIntegrationIcon();
   const { mutateAsync: generateOAuth2Url } = useGenerateIntegrationOAuth2Url();
@@ -587,7 +583,7 @@ export function IntegrationManageDialog({
   const handleDelete = useCallback(async () => {
     setIsSubmitting(true);
     try {
-      await deleteIntegration({ integrationId: String(integration._id) });
+      await deleteIntegration({ integrationId: integration._id });
       toast({
         title: t('integrations.manageDialog.deleted'),
         description: t('integrations.manageDialog.deletedDescription', {

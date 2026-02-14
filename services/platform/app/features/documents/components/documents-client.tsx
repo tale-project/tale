@@ -409,7 +409,6 @@ export function DocumentsClient({
         cell: ({ row }) => (
           <HStack justify="end">
             <DocumentRowActions
-              organizationId={organizationId}
               documentId={row.original.id}
               itemType={row.original.type}
               name={row.original.name ?? null}
@@ -422,14 +421,7 @@ export function DocumentsClient({
         ),
       },
     ],
-    [
-      handleDocumentClick,
-      isLoadingTeams,
-      tTables,
-      tDocuments,
-      teamMap,
-      organizationId,
-    ],
+    [handleDocumentClick, isLoadingTeams, tTables, tDocuments, teamMap],
   );
 
   if (paginatedResult.status === 'LoadingFirstPage') {

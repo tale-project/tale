@@ -13,12 +13,21 @@ import type {
 } from '../agent_response/types';
 import type { AgentType } from '../context_management/constants';
 
-import { isRecord, getString, getNumber } from '../../../lib/utils/type-guards';
+import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
 import { fetchOperationsSummary } from '../../agent_tools/integrations/fetch_operations_summary';
+import { getToolRegistryMap } from '../../agent_tools/tool_registry';
 import { generateAgentResponse } from '../agent_response';
+import { processAttachments } from '../attachments';
+import {
+  estimateTokens,
+  DEFAULT_MODEL_CONTEXT_LIMIT,
+  CONTEXT_SAFETY_MARGIN,
+  SYSTEM_INSTRUCTIONS_TOKENS,
+  OUTPUT_RESERVE,
+} from '../context_management';
 import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
 import { classifyError, NonRetryableError } from '../error_classification';
@@ -35,13 +44,13 @@ const serializableAgentConfigValidator = v.object({
   maxSteps: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
   enableVectorSearch: v.optional(v.boolean()),
+  contextFeatures: v.optional(v.array(v.string())),
 });
 
 const hooksConfigValidator = v.object({
   beforeContext: v.optional(v.string()),
   beforeGenerate: v.optional(v.string()),
   afterGenerate: v.optional(v.string()),
-  onError: v.optional(v.string()),
 });
 
 export const runAgentGeneration = internalAction({
@@ -142,8 +151,14 @@ export const runAgentGeneration = internalAction({
 
     // Build hooks object from FunctionHandle strings
     const hooks: GenerateResponseHooks | undefined = hooksConfig
-      ? buildHooksFromConfig(hooksConfig)
+      ? buildHooksFromConfig(hooksConfig, agentConfig.contextFeatures)
       : undefined;
+
+    // Build tools summary for context window display
+    const toolsSummary = buildToolsSummary(
+      agentConfig.convexToolNames,
+      integrationExtraTools,
+    );
 
     try {
       const result = await generateAgentResponse(
@@ -157,6 +172,7 @@ export const runAgentGeneration = internalAction({
           hooks,
           convexToolNames: agentConfig.convexToolNames,
           instructions: agentConfig.instructions,
+          toolsSummary,
         },
         {
           ctx,
@@ -224,12 +240,14 @@ export const runAgentGeneration = internalAction({
  * Build hooks object from FunctionHandle configuration.
  * Converts string handles to callable functions.
  */
-function buildHooksFromConfig(hooksConfig: {
-  beforeContext?: string;
-  beforeGenerate?: string;
-  afterGenerate?: string;
-  onError?: string;
-}): GenerateResponseHooks {
+function buildHooksFromConfig(
+  hooksConfig: {
+    beforeContext?: string;
+    beforeGenerate?: string;
+    afterGenerate?: string;
+  },
+  contextFeatures?: string[],
+): GenerateResponseHooks {
   const hooks: GenerateResponseHooks = {};
 
   if (hooksConfig.beforeContext) {
@@ -243,6 +261,7 @@ function buildHooksFromConfig(hooksConfig: {
         promptMessage: args.promptMessage,
         organizationId: args.organizationId,
         userTeamIds: args.userTeamIds,
+        contextFeatures,
       });
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
       return result as BeforeContextResult;
@@ -279,21 +298,118 @@ function buildHooksFromConfig(hooksConfig: {
     };
   }
 
-  if (hooksConfig.onError) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const handle = hooksConfig.onError as FunctionHandle<'action'>;
-    hooks.onError = async (ctx, args, error) => {
-      const err = isRecord(error) ? error : { message: String(error) };
-      await ctx.runAction(handle, {
-        threadId: args.threadId,
-        errorName: getString(err, 'name'),
-        errorMessage: getString(err, 'message'),
-        errorStatus: getNumber(err, 'status') ?? getString(err, 'status'),
-        errorType: getString(err, 'type'),
-        errorCode: getString(err, 'code'),
-      });
-    };
-  }
-
   return hooks;
 }
+
+/**
+ * Extract a tool description from a createTool() result.
+ */
+function getToolDescription(tool: unknown): string | undefined {
+  if (isRecord(tool) && typeof tool['description'] === 'string') {
+    return tool['description'];
+  }
+  return undefined;
+}
+
+/**
+ * Build a formatted summary of all tools available to the agent.
+ * Used for context window display only — not sent to the LLM.
+ */
+function buildToolsSummary(
+  convexToolNames: string[] | undefined,
+  integrationExtraTools: Record<string, unknown> | undefined,
+): string | undefined {
+  const entries: string[] = [];
+
+  // Registry tools
+  if (convexToolNames?.length) {
+    const registry = getToolRegistryMap();
+    for (const name of convexToolNames) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic lookup
+      const toolDef = registry[name as keyof typeof registry];
+      if (toolDef) {
+        const description = getToolDescription(toolDef.tool);
+        entries.push(
+          description ? `### ${name}\n${description}` : `### ${name}`,
+        );
+      } else {
+        entries.push(`### ${name}`);
+      }
+    }
+  }
+
+  // Integration-bound tools
+  if (integrationExtraTools) {
+    for (const [name, tool] of Object.entries(integrationExtraTools)) {
+      const description = getToolDescription(tool);
+      entries.push(description ? `### ${name}\n${description}` : `### ${name}`);
+    }
+  }
+
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  return entries.join('\n\n');
+}
+
+const beforeGenerateDebugLog = createDebugLog(
+  'DEBUG_CHAT_AGENT',
+  '[beforeGenerateHook]',
+);
+
+export const beforeGenerateHook = internalAction({
+  args: {
+    threadId: v.string(),
+    promptMessage: v.string(),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
+    contextMessagesTokens: v.number(),
+  },
+  returns: v.object({
+    promptContent: v.optional(v.any()),
+    contextExceedsBudget: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const { threadId, promptMessage, attachments, contextMessagesTokens } =
+      args;
+
+    // Token budget check for logging
+    const currentPromptTokens = estimateTokens(promptMessage || '');
+    const contextBudget =
+      DEFAULT_MODEL_CONTEXT_LIMIT * CONTEXT_SAFETY_MARGIN -
+      SYSTEM_INSTRUCTIONS_TOKENS -
+      currentPromptTokens -
+      OUTPUT_RESERVE;
+
+    const contextExceedsBudget = contextMessagesTokens > contextBudget;
+    if (contextExceedsBudget) {
+      beforeGenerateDebugLog('Context may exceed budget', {
+        threadId,
+        budget: contextBudget,
+        contextTokens: contextMessagesTokens,
+      });
+    }
+
+    // Process attachments
+    const { promptContent: attachmentPrompt } = await processAttachments(
+      ctx,
+      attachments ?? [],
+      promptMessage,
+      { debugLog: beforeGenerateDebugLog, toolName: 'agent' },
+    );
+
+    return {
+      promptContent: attachmentPrompt,
+      contextExceedsBudget,
+    };
+  },
+});

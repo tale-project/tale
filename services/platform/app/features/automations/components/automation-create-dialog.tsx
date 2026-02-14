@@ -16,7 +16,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useChatWithWorkflowAssistant } from '../hooks/actions';
-import { useWfAutomationCollection } from '../hooks/collections';
 import {
   useCreateAutomation,
   useUpdateAutomationMetadata,
@@ -42,10 +41,7 @@ export function CreateAutomationDialog({
   const { t: tCommon } = useT('common');
   const { user } = useAuth();
   const { mutateAsync: createChatThread } = useCreateThread();
-  const wfAutomationCollection = useWfAutomationCollection(organizationId);
-  const updateWorkflowMetadata = useUpdateAutomationMetadata(
-    wfAutomationCollection,
-  );
+  const { mutateAsync: updateWorkflowMetadata } = useUpdateAutomationMetadata();
   const { mutateAsync: chatWithWorkflowAssistant } =
     useChatWithWorkflowAssistant();
 

@@ -54,10 +54,7 @@ const beforeContextHookRef = makeFunctionReference<'action'>(
   'agents/chat/internal_actions:beforeContextHook',
 );
 const beforeGenerateHookRef = makeFunctionReference<'action'>(
-  'agents/chat/internal_actions:beforeGenerateHook',
-);
-const onErrorHookRef = makeFunctionReference<'action'>(
-  'agents/chat/internal_actions:onErrorHook',
+  'lib/agent_chat/internal_actions:beforeGenerateHook',
 );
 
 /**
@@ -67,15 +64,13 @@ const onErrorHookRef = makeFunctionReference<'action'>(
 export async function createChatHookHandles(
   _ctx: MutationCtx,
 ): Promise<AgentHooksConfig> {
-  const [beforeContext, beforeGenerate, onError] = await Promise.all([
+  const [beforeContext, beforeGenerate] = await Promise.all([
     createFunctionHandle(beforeContextHookRef),
     createFunctionHandle(beforeGenerateHookRef),
-    createFunctionHandle(onErrorHookRef),
   ]);
 
   return {
     beforeContext,
     beforeGenerate,
-    onError,
   };
 }

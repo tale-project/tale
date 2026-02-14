@@ -607,7 +607,6 @@ function ConversationsClientInner({
       >
         <ConversationPanel
           selectedConversationId={selectedConversationId}
-          organizationId={organizationId}
           onSelectedConversationChange={setSelectedConversationId}
         />
       </div>

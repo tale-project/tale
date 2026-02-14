@@ -38,7 +38,6 @@ function CustomAgentsIndexPage() {
         organizationId={organizationId}
         agents={agents}
         isLoading={isLoading}
-        collection={customAgentCollection}
       />
     </ContentWrapper>
   );

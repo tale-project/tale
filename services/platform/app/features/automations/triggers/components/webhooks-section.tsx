@@ -45,8 +45,8 @@ export function WebhooksSection({
 
   const { mutateAsync: createWebhook, isPending: isCreating } =
     useCreateWebhook();
-  const toggleWebhook = useToggleWebhook(webhookCollection);
-  const deleteWebhookMutation = useDeleteWebhook(webhookCollection);
+  const toggleWebhook = useToggleWebhook();
+  const deleteWebhookMutation = useDeleteWebhook();
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WebhookRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);

@@ -47,6 +47,7 @@ interface BuiltinAgentDefinition {
   toolNames: ToolName[];
   maxSteps: number;
   model?: string;
+  contextFeatures?: string[];
 }
 
 function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
@@ -69,6 +70,7 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
         'request_human_input',
       ],
       maxSteps: 20,
+      contextFeatures: ['integrations'],
     },
     {
       type: 'web',
@@ -79,6 +81,7 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
       instructions: WEB_AGENT_INSTRUCTIONS,
       toolNames: ['web'],
       maxSteps: 5,
+      contextFeatures: [],
     },
     {
       type: 'crm',
@@ -89,6 +92,7 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
       instructions: CRM_AGENT_INSTRUCTIONS,
       toolNames: ['customer_read', 'product_read'],
       maxSteps: 10,
+      contextFeatures: [],
     },
     {
       type: 'document',
@@ -99,6 +103,7 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
       instructions: DOCUMENT_AGENT_INSTRUCTIONS,
       toolNames: ['pdf', 'image', 'docx', 'pptx', 'txt', 'generate_excel'],
       maxSteps: 15,
+      contextFeatures: [],
     },
     {
       type: 'integration',
@@ -114,6 +119,7 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
         'verify_approval',
       ],
       maxSteps: 20,
+      contextFeatures: ['integrations'],
     },
     {
       type: 'workflow',
@@ -131,6 +137,7 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
         'database_schema',
       ],
       maxSteps: 30,
+      contextFeatures: [],
     },
   ];
 }
@@ -143,6 +150,7 @@ function toSerializableConfig(
     instructions: def.instructions,
     convexToolNames: def.toolNames,
     maxSteps: def.maxSteps,
+    contextFeatures: def.contextFeatures,
   };
 
   if (def.type === 'workflow') {

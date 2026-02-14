@@ -11,7 +11,6 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
-import { useConversationCollection } from '../hooks/collections';
 import {
   useGenerateUploadUrl,
   useMarkAsRead,
@@ -44,13 +43,11 @@ interface AttachedFile {
 
 interface ConversationPanelProps {
   selectedConversationId: string | null;
-  organizationId: string;
   onSelectedConversationChange: (conversationId: string | null) => void;
 }
 
 export function ConversationPanel({
   selectedConversationId,
-  organizationId,
   onSelectedConversationChange,
 }: ConversationPanelProps) {
   // Translations
@@ -61,8 +58,7 @@ export function ConversationPanel({
     selectedConversationId,
   );
 
-  const conversationCollection = useConversationCollection(organizationId);
-  const markAsRead = useMarkAsRead(conversationCollection);
+  const { mutateAsync: markAsRead } = useMarkAsRead();
   const { mutateAsync: sendMessageViaIntegration } =
     useSendMessageViaIntegration();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
@@ -109,7 +105,7 @@ export function ConversationPanel({
 
       if (hasUnreadMessages) {
         markAsRead({
-          conversationId: selectedConversationId,
+          conversationId: toId<'conversations'>(selectedConversationId),
         }).catch((error: Error) => {
           console.error('Failed to mark conversation as read:', error);
         });

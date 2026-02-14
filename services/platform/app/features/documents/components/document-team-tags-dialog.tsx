@@ -11,9 +11,9 @@ import { useTeamCollection } from '@/app/features/settings/teams/hooks/collectio
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
-import { useDocumentCollection } from '../hooks/collections';
 import { useUpdateDocument } from '../hooks/mutations';
 
 interface DocumentTeamTagsDialogProps {
@@ -46,8 +46,7 @@ function DocumentTeamTagsDialogContent({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const documentCollection = useDocumentCollection(organizationId ?? '');
-  const updateDocument = useUpdateDocument(documentCollection);
+  const updateDocument = useUpdateDocument();
 
   const teamCollection = useTeamCollection(organizationId ?? undefined);
   const { teams, isLoading } = useTeams(teamCollection);
@@ -75,7 +74,7 @@ function DocumentTeamTagsDialogContent({
 
     try {
       await updateDocument({
-        documentId,
+        documentId: toId<'documents'>(documentId),
         teamTags: Array.from(selectedTeams),
       });
 

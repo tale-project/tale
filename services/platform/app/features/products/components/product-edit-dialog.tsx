@@ -10,7 +10,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useProductCollection } from '../hooks/collections';
 import { useUpdateProduct } from '../hooks/mutations';
 
 interface EditProductDialogProps {
@@ -37,8 +36,7 @@ export function ProductEditDialog({
 }: EditProductDialogProps) {
   const { t: tProducts } = useT('products');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const productCollection = useProductCollection(product.organizationId);
-  const updateProduct = useUpdateProduct(productCollection);
+  const updateProduct = useUpdateProduct();
 
   // Form state
   const [formData, setFormData] = useState({

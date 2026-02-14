@@ -12,7 +12,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useCustomerCollection } from '../hooks/collections';
 import { useUpdateCustomer } from '../hooks/mutations';
 
 type CustomerFormData = {
@@ -36,8 +35,7 @@ export function CustomerEditDialog({
   const { t: tCustomers } = useT('customers');
   const { t: tCommon } = useT('common');
   const { t: tGlobal } = useT('global');
-  const customerCollection = useCustomerCollection(customer.organizationId);
-  const updateCustomer = useUpdateCustomer(customerCollection);
+  const updateCustomer = useUpdateCustomer();
 
   const localeOptions = useMemo(
     () => [

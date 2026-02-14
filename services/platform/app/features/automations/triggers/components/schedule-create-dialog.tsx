@@ -1,7 +1,5 @@
 'use client';
 
-import type { Collection } from '@tanstack/db';
-
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CronExpressionParser } from 'cron-parser';
 import { Sparkles } from 'lucide-react';
@@ -10,7 +8,6 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import type { WfSchedule } from '@/lib/collections/entities/wf-schedules';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
@@ -33,7 +30,6 @@ interface ScheduleCreateDialogProps {
   onOpenChange: (open: boolean) => void;
   workflowRootId: Id<'wfDefinitions'>;
   organizationId: string;
-  collection: Collection<WfSchedule, string>;
   schedule?: ScheduleData | null;
 }
 
@@ -54,14 +50,13 @@ export function ScheduleCreateDialog({
   onOpenChange,
   workflowRootId,
   organizationId,
-  collection,
   schedule,
 }: ScheduleCreateDialogProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const createSchedule = useCreateSchedule(collection);
-  const updateSchedule = useUpdateSchedule(collection);
+  const createSchedule = useCreateSchedule();
+  const updateSchedule = useUpdateSchedule();
   const { mutateAsync: generateCron, isPending: isGenerating } =
     useGenerateCron();
 

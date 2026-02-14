@@ -19,8 +19,13 @@ import { api } from '@/convex/_generated/api';
 export function useThreads(collection: Collection<Thread, string>) {
   const { data, isLoading } = useLiveQuery(() => collection);
 
+  const sorted = useMemo(
+    () => data?.slice().sort((a, b) => b._creationTime - a._creationTime),
+    [data],
+  );
+
   return {
-    threads: data,
+    threads: sorted,
     isLoading,
   };
 }

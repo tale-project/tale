@@ -12,7 +12,6 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useCustomerCollection } from '../hooks/collections';
 import { useDeleteCustomer } from '../hooks/mutations';
 
 interface CustomerDeleteDialogProps {
@@ -30,8 +29,7 @@ export function CustomerDeleteDialog({
 }: CustomerDeleteDialogProps) {
   const { t: tCustomers } = useT('customers');
   const { t: tToast } = useT('toast');
-  const customerCollection = useCustomerCollection(customer.organizationId);
-  const deleteCustomer = useDeleteCustomer(customerCollection);
+  const deleteCustomer = useDeleteCustomer();
 
   const dialog = useDeleteDialog({
     isOpen: controlledIsOpen,

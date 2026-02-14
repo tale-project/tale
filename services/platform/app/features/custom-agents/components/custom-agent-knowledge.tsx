@@ -14,7 +14,6 @@ import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
-import { useCustomAgentCollection } from '../hooks/collections';
 import { useUpdateCustomAgent } from '../hooks/mutations';
 import { useAutoSave } from '../hooks/use-auto-save';
 import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
@@ -67,8 +66,7 @@ export function CustomAgentKnowledge({
 }: CustomAgentKnowledgeProps) {
   const { t } = useT('settings');
   const { agent, isReadOnly } = useCustomAgentVersion();
-  const customAgentCollection = useCustomAgentCollection(organizationId);
-  const updateAgent = useUpdateCustomAgent(customAgentCollection);
+  const updateAgent = useUpdateCustomAgent();
   const { teams } = useTeamFilter();
 
   const teamName = useMemo(() => {

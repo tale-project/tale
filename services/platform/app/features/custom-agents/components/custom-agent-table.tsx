@@ -1,13 +1,10 @@
 'use client';
 
-import type { Collection } from '@tanstack/db';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 
 import { useNavigate } from '@tanstack/react-router';
 import { Bot } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
-
-import type { CustomAgent } from '@/lib/collections/entities/custom-agents';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -46,14 +43,12 @@ interface CustomAgentTableProps {
   organizationId: string;
   agents: CustomAgentRow[] | null;
   isLoading: boolean;
-  collection: Collection<CustomAgent, string>;
 }
 
 export function CustomAgentTable({
   organizationId,
   agents,
   isLoading,
-  collection,
 }: CustomAgentTableProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -177,16 +172,13 @@ export function CustomAgentTable({
         header: '',
         cell: ({ row }) => (
           <HStack gap={1} justify="end">
-            <CustomAgentRowActions
-              agent={row.original}
-              collection={collection}
-            />
+            <CustomAgentRowActions agent={row.original} />
           </HStack>
         ),
         size: 80,
       },
     ],
-    [t, tCommon, tTables, teamNameMap, modelPresets, collection],
+    [t, tCommon, tTables, teamNameMap, modelPresets],
   );
 
   const list = useListPage({

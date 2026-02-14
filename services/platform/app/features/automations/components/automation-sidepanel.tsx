@@ -24,7 +24,6 @@ import { Doc, Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useWorkflowStepCollection } from '../hooks/collections';
 import { useUpdateStep } from '../hooks/mutations';
 import { useStepValidation } from '../hooks/queries';
 import { getStepIcon } from '../utils/step-icons';
@@ -88,8 +87,7 @@ export function AutomationSidePanel({
     Record<string, string>
   >({});
   const [isSaving, setIsSaving] = useState(false);
-  const wfStepCollection = useWorkflowStepCollection(automationId ?? '');
-  const updateStep = useUpdateStep(wfStepCollection);
+  const { mutateAsync: updateStep } = useUpdateStep();
 
   const originalConfigJson = useMemo(
     () => (step?.config ? JSON.stringify(step.config, null, 2) : '{}'),

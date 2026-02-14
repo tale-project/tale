@@ -12,7 +12,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useWebsiteCollection } from '../hooks/collections';
 import { useUpdateWebsite } from '../hooks/mutations';
 
 type FormData = {
@@ -33,8 +32,7 @@ export function EditWebsiteDialog({
 }: EditWebsiteDialogProps) {
   const { t: tWebsites } = useT('websites');
   const [isLoading, setIsLoading] = useState(false);
-  const websiteCollection = useWebsiteCollection(website.organizationId);
-  const updateWebsite = useUpdateWebsite(websiteCollection);
+  const { mutateAsync: updateWebsite } = useUpdateWebsite();
 
   const formSchema = useMemo(
     () =>

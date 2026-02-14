@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
@@ -40,6 +40,11 @@ function CustomAgentDetailLayout() {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const [isTestOpen, setIsTestOpen] = useState(false);
+
+  const handleTestReset = useCallback(() => {
+    setIsTestOpen(false);
+    requestAnimationFrame(() => setIsTestOpen(true));
+  }, []);
 
   const { data: agent, isLoading: isLoadingAgent } = useCustomAgentByVersion(
     toId<'customAgents'>(agentId),
@@ -142,6 +147,7 @@ function CustomAgentDetailLayout() {
               organizationId={organizationId}
               agentId={agentId}
               onClose={() => setIsTestOpen(false)}
+              onReset={handleTestReset}
             />
           </SheetContent>
         </Sheet>

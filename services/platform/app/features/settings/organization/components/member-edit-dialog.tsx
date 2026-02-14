@@ -1,13 +1,9 @@
 'use client';
 
-import type { Collection } from '@tanstack/db';
-
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import * as z from 'zod';
-
-import type { Member } from '@/lib/collections/entities/members';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Banner } from '@/app/components/ui/feedback/banner';
@@ -24,7 +20,6 @@ import {
   useUpdateMemberRole,
 } from '../hooks/mutations';
 
-// Type for the form data
 type EditMemberFormData = {
   displayName: string;
   role: 'disabled' | 'admin' | 'developer' | 'editor' | 'member';
@@ -58,7 +53,6 @@ interface EditMemberDialogProps {
   onOpenChange: (open: boolean) => void;
   member: MemberLite | null;
   currentUserMemberId?: string;
-  collection: Collection<Member, string>;
 }
 
 export function EditMemberDialog({
@@ -66,12 +60,10 @@ export function EditMemberDialog({
   onOpenChange,
   member,
   currentUserMemberId,
-  collection,
 }: EditMemberDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
-  // Create Zod schema with translated validation messages
   const editMemberSchema = useMemo(
     () =>
       z.object({
@@ -97,8 +89,8 @@ export function EditMemberDialog({
     },
   });
 
-  const updateMemberRole = useUpdateMemberRole(collection);
-  const updateMemberDisplayName = useUpdateMemberDisplayName(collection);
+  const updateMemberRole = useUpdateMemberRole();
+  const updateMemberDisplayName = useUpdateMemberDisplayName();
   const { mutateAsync: setMemberPassword } = useSetMemberPassword();
 
   const handleUpdateMember = async (

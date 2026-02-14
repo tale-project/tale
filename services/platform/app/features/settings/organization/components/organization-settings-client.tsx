@@ -182,7 +182,6 @@ export function OrganizationSettingsClient({
         <MemberTable
           members={members || []}
           sortOrder={sortOrder}
-          collection={memberCollection}
           memberContext={
             memberContext
               ? {

@@ -9,7 +9,7 @@
  *
  * Features:
  * - Supports both generateText (sub-agents) and streamText (chat agent)
- * - Hooks system for customizing the pipeline (beforeContext, beforeGenerate, afterGenerate, onError)
+ * - Hooks system for customizing the pipeline (beforeContext, beforeGenerate, afterGenerate)
  * - Automatic tool call extraction and sub-agent usage tracking
  * - Context window building and token estimation
  */
@@ -31,6 +31,7 @@ import { onAgentComplete } from '../agent_completion';
 import {
   buildStructuredContext,
   AGENT_CONTEXT_CONFIGS,
+  estimateTokens,
 } from '../context_management';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
@@ -64,6 +65,7 @@ export async function generateAgentResponse(
     hooks,
     convexToolNames,
     instructions,
+    toolsSummary,
   } = config;
   const {
     ctx,
@@ -472,11 +474,25 @@ export async function generateAgentResponse(
     if (instructions) {
       contextWindowParts.push(wrapInDetails('📋 System Prompt', instructions));
     }
+    if (toolsSummary) {
+      contextWindowParts.push(wrapInDetails('🔧 Tools', toolsSummary));
+    }
     contextWindowParts.push(structuredThreadContext.threadContext);
     const completeContextWindow = contextWindowParts.join('\n\n');
 
     // Get actual model from response (no fallback to config)
     const actualModel = result.response?.modelId;
+
+    // Augment context stats to include system prompt + tools tokens
+    const systemPromptTokens = instructions ? estimateTokens(instructions) : 0;
+    const toolsTokens = toolsSummary ? estimateTokens(toolsSummary) : 0;
+    const contextStats = {
+      ...structuredThreadContext.stats,
+      totalTokens:
+        structuredThreadContext.stats.totalTokens +
+        systemPromptTokens +
+        toolsTokens,
+    };
 
     const responseResult: GenerateResponseResult = {
       threadId,
@@ -488,7 +504,7 @@ export async function generateAgentResponse(
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       subAgentUsage: subAgentUsage.length > 0 ? subAgentUsage : undefined,
       contextWindow: completeContextWindow,
-      contextStats: structuredThreadContext.stats,
+      contextStats,
       model: actualModel,
       provider,
     };
@@ -604,19 +620,6 @@ export async function generateAgentResponse(
           '[generateAgentResponse] Failed to mark stream as errored:',
           streamError,
         );
-      }
-    }
-
-    // Call onError hook if provided - wrap in try/catch to not mask the original error
-    if (hooks?.onError) {
-      try {
-        await hooks.onError(ctx, args, error);
-      } catch (hookError) {
-        console.error(
-          '[generateAgentResponse] onError hook failed:',
-          hookError,
-        );
-        // Still throw the original error, not the hook error
       }
     }
 
