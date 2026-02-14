@@ -29,7 +29,10 @@ export interface RunWithPassesParams {
   fileRequests: PendingFileOperation[];
   allowedHosts?: string[];
   storageProvider?: StorageProvider;
+  timeoutMs?: number;
 }
+
+const DEFAULT_TIMEOUT_MS = 30000;
 
 export async function runWithPasses(
   fn: (ctx: unknown) => unknown,
@@ -43,68 +46,107 @@ export async function runWithPasses(
     fileRequests,
     allowedHosts,
     storageProvider,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
   } = params;
 
-  let result: unknown;
+  const deadline = Date.now() + timeoutMs;
 
-  for (let pass = 0; pass < MAX_PASSES; pass++) {
-    httpApiState.pendingHttpCount = 0;
-    httpRequests.length = 0;
-    filesApiState.pendingFileCount = 0;
-    fileRequests.length = 0;
+  const executeLoop = async () => {
+    let result: unknown;
 
-    const currentCtx =
-      pass === 0
-        ? ctx
-        : {
-            ...ctx,
-            http: createHttpApi(httpApiState),
-            ...(storageProvider
-              ? { files: createFilesApi(filesApiState) }
-              : {}),
-          };
-
-    try {
-      result = fn(currentCtx);
-    } catch (e) {
-      if (!(e instanceof PendingOperationError)) {
-        throw e;
+    for (let pass = 0; pass < MAX_PASSES; pass++) {
+      if (Date.now() > deadline) {
+        throw new Error(`Integration execution timed out after ${timeoutMs}ms`);
       }
-    }
 
-    if (httpRequests.length === 0 && fileRequests.length === 0) break;
+      httpApiState.pendingHttpCount = 0;
+      httpRequests.length = 0;
+      filesApiState.pendingFileCount = 0;
+      fileRequests.length = 0;
 
-    for (let i = 0; i < httpRequests.length; i++) {
+      const currentCtx =
+        pass === 0
+          ? ctx
+          : {
+              ...ctx,
+              http: createHttpApi(httpApiState),
+              ...(storageProvider
+                ? { files: createFilesApi(filesApiState) }
+                : {}),
+            };
+
       try {
-        const response = await executeHttpRequest(
-          httpRequests[i].request,
-          allowedHosts,
-        );
-        httpRequests[i].callback(response);
+        result = fn(currentCtx);
       } catch (e) {
-        httpRequests[i].errorCallback(
-          e instanceof Error ? e : new Error(String(e)),
-        );
+        if (!(e instanceof PendingOperationError)) {
+          throw e;
+        }
       }
-    }
 
-    if (storageProvider) {
-      for (let i = 0; i < fileRequests.length; i++) {
+      if (httpRequests.length === 0 && fileRequests.length === 0) break;
+
+      for (let i = 0; i < httpRequests.length; i++) {
+        if (Date.now() > deadline) {
+          throw new Error(
+            `Integration execution timed out after ${timeoutMs}ms`,
+          );
+        }
+
         try {
-          const ref = await executeFileOperation(
-            fileRequests[i],
-            storageProvider,
+          const response = await executeHttpRequest(
+            httpRequests[i].request,
             allowedHosts,
           );
-          fileRequests[i].callback(ref);
+          httpRequests[i].callback(response);
         } catch (e) {
-          fileRequests[i].errorCallback(
+          httpRequests[i].errorCallback(
             e instanceof Error ? e : new Error(String(e)),
           );
         }
       }
-    }
-  }
 
-  return result;
+      if (storageProvider) {
+        for (let i = 0; i < fileRequests.length; i++) {
+          if (Date.now() > deadline) {
+            throw new Error(
+              `Integration execution timed out after ${timeoutMs}ms`,
+            );
+          }
+
+          try {
+            const ref = await executeFileOperation(
+              fileRequests[i],
+              storageProvider,
+              allowedHosts,
+            );
+            fileRequests[i].callback(ref);
+          } catch (e) {
+            fileRequests[i].errorCallback(
+              e instanceof Error ? e : new Error(String(e)),
+            );
+          }
+        }
+      }
+    }
+
+    return result;
+  };
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      executeLoop(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(`Integration execution timed out after ${timeoutMs}ms`),
+            ),
+          Math.max(0, deadline - Date.now()),
+        );
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }

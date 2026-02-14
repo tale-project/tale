@@ -1,4 +1,4 @@
-'use node'
+'use node';
 
 /**
  * Core integration execution logic.
@@ -59,6 +59,7 @@ export async function executeIntegrationImpl(
     fileRequests,
     allowedHosts: params.allowedHosts,
     storageProvider: params.storageProvider,
+    timeoutMs: params.timeoutMs,
   };
 
   try {
