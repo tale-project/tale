@@ -58,6 +58,7 @@ export interface HttpRequest {
   url: string;
   options: RequestInit;
   binaryBody?: string;
+  responseType?: 'base64';
 }
 
 export interface HttpResponse {

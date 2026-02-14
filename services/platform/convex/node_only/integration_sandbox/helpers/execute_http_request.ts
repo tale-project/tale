@@ -28,16 +28,22 @@ export async function executeHttpRequest(
   const contentType = response.headers.get('content-type') || '';
 
   let body: unknown;
-  const text = await response.text();
 
-  if (contentType.includes('application/json')) {
-    try {
-      body = JSON.parse(text);
-    } catch {
+  if (req.responseType === 'base64') {
+    const arrayBuffer = await response.arrayBuffer();
+    body = Buffer.from(arrayBuffer).toString('base64');
+  } else {
+    const text = await response.text();
+
+    if (contentType.includes('application/json')) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = text;
+      }
+    } else {
       body = text;
     }
-  } else {
-    body = text;
   }
 
   const headersObj: Record<string, string> = {};

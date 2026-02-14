@@ -12,17 +12,18 @@ export interface HttpApiState {
   httpRequests: PendingHttpRequest[];
 }
 
-type BodyMethodOptions = {
+type HttpMethodOptions = {
   headers?: Record<string, string>;
+  responseType?: 'base64';
+};
+
+type BodyMethodOptions = HttpMethodOptions & {
   body?: string;
   binaryBody?: string;
 };
 
 export interface HttpApi {
-  get: (
-    url: string,
-    options?: { headers?: Record<string, string> },
-  ) => HttpResponse;
+  get: (url: string, options?: HttpMethodOptions) => HttpResponse;
   post: (url: string, options?: BodyMethodOptions) => HttpResponse;
   put: (url: string, options?: BodyMethodOptions) => HttpResponse;
   patch: (url: string, options?: BodyMethodOptions) => HttpResponse;
@@ -42,6 +43,7 @@ function createBodyMethod(state: HttpApiState, method: string) {
         body: options.binaryBody ? undefined : options.body,
       },
       binaryBody: options.binaryBody,
+      responseType: options.responseType,
     };
 
     const cachedResult = state.httpResults.get(requestId);
@@ -63,10 +65,7 @@ function createBodyMethod(state: HttpApiState, method: string) {
 
 export function createHttpApi(state: HttpApiState): HttpApi {
   return {
-    get: (
-      url: string,
-      options: { headers?: Record<string, string> } = {},
-    ): HttpResponse => {
+    get: (url: string, options: HttpMethodOptions = {}): HttpResponse => {
       const requestId = state.pendingHttpCount++;
       const request: HttpRequest = {
         url,
@@ -74,6 +73,7 @@ export function createHttpApi(state: HttpApiState): HttpApi {
           method: 'GET',
           headers: options.headers,
         },
+        responseType: options.responseType,
       };
 
       const cachedResult = state.httpResults.get(requestId);

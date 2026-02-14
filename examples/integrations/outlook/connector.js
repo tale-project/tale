@@ -865,11 +865,27 @@ function addAttachmentsToDraft(http, headers, draftId, attachments) {
   var url = GRAPH_BASE_URL + '/me/messages/' + draftId + '/attachments';
   for (var i = 0; i < attachments.length; i++) {
     var att = attachments[i];
+
+    // Download the file content as base64 from Convex storage URL
+    var fileResponse = http.get(att.url, { responseType: 'base64' });
+    if (fileResponse.status === 0) {
+      return false;
+    }
+    if (fileResponse.status !== 200) {
+      throw new Error(
+        'Failed to download attachment "' +
+          att.name +
+          '" (' +
+          fileResponse.status +
+          ')',
+      );
+    }
+
     var payload = {
       '@odata.type': '#microsoft.graph.fileAttachment',
       name: att.name,
       contentType: att.contentType || 'application/octet-stream',
-      contentBytes: att.contentBytes,
+      contentBytes: fileResponse.body,
     };
     console.log('Adding attachment: ' + att.name);
     var resp = http.post(url, {

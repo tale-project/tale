@@ -92,22 +92,27 @@ export const sendMessageViaIntegrationAction = internalAction({
         opParams.references = args.references;
       }
 
+      const extraAllowedHosts: string[] = [];
+
       if (args.attachments && args.attachments.length > 0) {
         const attachmentData = await Promise.all(
           args.attachments.map(async (att) => {
-            const blob = await ctx.storage.get(att.storageId);
-            if (!blob)
-              throw new Error(`Attachment not found: ${att.storageId}`);
-            const buffer = await blob.arrayBuffer();
-            const base64 = Buffer.from(buffer).toString('base64');
+            const url = await ctx.storage.getUrl(att.storageId);
+            if (!url)
+              throw new Error(`Attachment URL not found: ${att.storageId}`);
             return {
               name: att.fileName,
               contentType: att.contentType,
-              contentBytes: base64,
+              size: att.size ?? 0,
+              url,
             };
           }),
         );
         opParams.attachments = attachmentData;
+
+        // Whitelist the Convex storage host so the connector can download files
+        const storageHost = new URL(attachmentData[0].url).hostname;
+        extraAllowedHosts.push(storageHost);
       }
 
       const result = await ctx.runAction(
@@ -119,7 +124,10 @@ export const sendMessageViaIntegrationAction = internalAction({
           params: toConvexJsonRecord(opParams),
           variables: {},
           secrets,
-          allowedHosts: connectorConfig.allowedHosts ?? [],
+          allowedHosts: [
+            ...(connectorConfig.allowedHosts ?? []),
+            ...extraAllowedHosts,
+          ],
           timeoutMs: connectorConfig.timeoutMs ?? 30000,
         },
       );

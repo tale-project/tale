@@ -2,6 +2,132 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { executeIntegrationImpl } from '../execute_integration_impl';
 
+describe('responseType base64 support in HTTP methods', () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    globalThis.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f]), {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'content-type': 'application/octet-stream' },
+        }),
+      ),
+      { preconnect: vi.fn() },
+    );
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('should return base64-encoded body for GET with responseType base64', async () => {
+    const code = `
+      var connector = {
+        operations: ['download'],
+        testConnection: function(ctx) { return { status: 'ok' }; },
+        execute: function(ctx) {
+          var response = ctx.http.get('https://api.example.com/file', {
+            responseType: 'base64'
+          });
+          return { body: response.body, status: response.status };
+        }
+      };
+    `;
+
+    const result = await executeIntegrationImpl({
+      code,
+      operation: 'download',
+      params: {},
+      variables: {},
+      secrets: {},
+      allowedHosts: ['example.com'],
+      timeoutMs: 5000,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.result).toEqual({
+      body: Buffer.from([0x48, 0x65, 0x6c, 0x6c, 0x6f]).toString('base64'),
+      status: 200,
+    });
+  });
+
+  it('should return base64-encoded body for POST with responseType base64', async () => {
+    const code = `
+      var connector = {
+        operations: ['upload'],
+        testConnection: function(ctx) { return { status: 'ok' }; },
+        execute: function(ctx) {
+          var response = ctx.http.post('https://api.example.com/upload', {
+            body: JSON.stringify({ key: 'value' }),
+            responseType: 'base64'
+          });
+          return { body: response.body, status: response.status };
+        }
+      };
+    `;
+
+    const result = await executeIntegrationImpl({
+      code,
+      operation: 'upload',
+      params: {},
+      variables: {},
+      secrets: {},
+      allowedHosts: ['example.com'],
+      timeoutMs: 5000,
+    });
+
+    expect(result.success).toBe(true);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test assertion
+    const data = result.result as { body: string; status: number };
+    expect(data.status).toBe(200);
+    expect(Buffer.from(data.body, 'base64')).toEqual(
+      Buffer.from([0x48, 0x65, 0x6c, 0x6c, 0x6f]),
+    );
+  });
+
+  it('should return text body when responseType is not set', async () => {
+    globalThis.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response('plain text response', {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'content-type': 'text/plain' },
+        }),
+      ),
+      { preconnect: vi.fn() },
+    );
+
+    const code = `
+      var connector = {
+        operations: ['fetch'],
+        testConnection: function(ctx) { return { status: 'ok' }; },
+        execute: function(ctx) {
+          var response = ctx.http.get('https://api.example.com/text');
+          return { body: response.body, status: response.status };
+        }
+      };
+    `;
+
+    const result = await executeIntegrationImpl({
+      code,
+      operation: 'fetch',
+      params: {},
+      variables: {},
+      secrets: {},
+      allowedHosts: ['example.com'],
+      timeoutMs: 5000,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.result).toEqual({
+      body: 'plain text response',
+      status: 200,
+    });
+  });
+});
+
 describe('binaryBody support in HTTP methods', () => {
   const originalFetch = globalThis.fetch;
 
