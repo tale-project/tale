@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { ContentWrapper } from '@/app/components/layout/content-wrapper';
@@ -5,8 +6,16 @@ import { CustomAgentTable } from '@/app/features/custom-agents/components/custom
 import { CustomAgentsEmptyState } from '@/app/features/custom-agents/components/custom-agents-empty-state';
 import { CustomAgentsTableSkeleton } from '@/app/features/custom-agents/components/custom-agents-table-skeleton';
 import { useCustomAgents } from '@/app/features/custom-agents/hooks/queries';
+import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/')({
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.custom_agents.queries.listCustomAgents, {
+        organizationId: params.id,
+      }),
+    );
+  },
   component: CustomAgentsIndexPage,
 });
 

@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 
 import {
@@ -9,8 +10,16 @@ import { Navigation } from '@/app/components/ui/navigation/navigation';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
+import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute('/dashboard/$id')({
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.members.queries.getCurrentMemberContext, {
+        organizationId: params.id,
+      }),
+    );
+  },
   component: DashboardLayout,
 });
 

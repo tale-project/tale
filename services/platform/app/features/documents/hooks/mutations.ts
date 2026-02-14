@@ -5,7 +5,6 @@ import { useState, useRef } from 'react';
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -59,9 +58,6 @@ export function useDocumentUpload(options: UploadOptions) {
   );
   const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
     api.documents.mutations.createDocumentFromUpload,
-    {
-      invalidates: [api.documents.queries.listDocuments],
-    },
   );
 
   const uploadFiles = async (
@@ -269,24 +265,9 @@ export function useDocumentUpload(options: UploadOptions) {
 }
 
 export function useDeleteDocument() {
-  return useConvexOptimisticMutation(
-    api.documents.mutations.deleteDocument,
-    api.documents.queries.listDocuments,
-    {
-      queryArgs: (organizationId) => ({ organizationId }),
-      onMutate: ({ documentId }, { remove }) => remove(documentId),
-    },
-  );
+  return useConvexMutation(api.documents.mutations.deleteDocument);
 }
 
 export function useUpdateDocument() {
-  return useConvexOptimisticMutation(
-    api.documents.mutations.updateDocument,
-    api.documents.queries.listDocuments,
-    {
-      queryArgs: (organizationId) => ({ organizationId }),
-      onMutate: ({ documentId, ...changes }, { update }) =>
-        update(documentId, changes),
-    },
-  );
+  return useConvexMutation(api.documents.mutations.updateDocument);
 }

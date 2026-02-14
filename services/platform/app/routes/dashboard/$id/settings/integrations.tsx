@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
@@ -11,6 +12,7 @@ import {
   useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 const searchSchema = z.object({
@@ -19,6 +21,13 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
   validateSearch: searchSchema,
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.integrations.queries.list, {
+        organizationId: params.id,
+      }),
+    );
+  },
   component: IntegrationsPage,
 });
 

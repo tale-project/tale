@@ -21,13 +21,10 @@ export function useConvexQuery<Func extends FunctionReference<'query'>>(
   func: Func,
   ...[args, options]: QueryArgs<Func>
 ) {
-  const { queryKey, ...convexOptions } = convexQuery(func, args ?? {});
-  const query = useQuery({
-    queryKey,
-    ...convexOptions,
+  return useQuery({
+    ...convexQuery(func, args ?? {}),
     ...options,
   });
-  return Object.assign(query, { queryKey });
 }
 
 export type { ConvexQueryOptions };
