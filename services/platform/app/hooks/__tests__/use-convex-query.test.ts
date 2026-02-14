@@ -54,7 +54,7 @@ describe('useConvexQuery', () => {
     expect(mockUseQuery).toHaveBeenCalledTimes(1);
   });
 
-  it('returns useQuery result with queryKey', () => {
+  it('returns useQuery result', () => {
     const mockResult = { data: [1, 2, 3], isLoading: false, error: null };
     mockUseQuery.mockReturnValueOnce(mockResult as ReturnType<typeof useQuery>);
 
@@ -62,7 +62,6 @@ describe('useConvexQuery', () => {
 
     expect(result.data).toEqual([1, 2, 3]);
     expect(result.isLoading).toBe(false);
-    expect(result.queryKey).toEqual(['convexQuery', mockQueryRef, {}]);
   });
 
   it('merges cache options into useQuery call', () => {

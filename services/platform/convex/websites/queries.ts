@@ -1,24 +1,16 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
-import { query } from '../_generated/server';
-import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import { queryWithRLS } from '../lib/rls';
+import { listWebsitesPaginated as listWebsitesPaginatedHelper } from './list_websites_paginated';
+import { websiteValidator } from './validators';
 
-export const listWebsites = query({
+export const listWebsites = queryWithRLS({
   args: {
     organizationId: v.string(),
   },
+  returns: v.array(websiteValidator),
   handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      return [];
-    }
-
-    try {
-      await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return [];
-    }
-
     const results = [];
     for await (const website of ctx.db
       .query('websites')
@@ -28,5 +20,16 @@ export const listWebsites = query({
       results.push(website);
     }
     return results;
+  },
+});
+
+export const listWebsitesPaginated = queryWithRLS({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    organizationId: v.string(),
+    status: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await listWebsitesPaginatedHelper(ctx, args);
   },
 });

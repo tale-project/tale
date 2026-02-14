@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
@@ -9,6 +10,7 @@ import {
   useToneOfVoiceWithExamples,
   useHasExampleMessages,
 } from '@/app/features/tone-of-voice/hooks/queries';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 const searchSchema = z.object({
@@ -18,6 +20,18 @@ const searchSchema = z.object({
 export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')(
   {
     validateSearch: searchSchema,
+    loader: ({ context, params }) => {
+      void context.queryClient.prefetchQuery(
+        convexQuery(api.tone_of_voice.queries.getToneOfVoiceWithExamples, {
+          organizationId: params.id,
+        }),
+      );
+      void context.queryClient.prefetchQuery(
+        convexQuery(api.tone_of_voice.queries.hasExampleMessages, {
+          organizationId: params.id,
+        }),
+      );
+    },
     component: ToneOfVoicePage,
   },
 );

@@ -1,18 +1,9 @@
-import type { FunctionReference } from 'convex/server';
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined);
+const mockMutationFn = vi.fn();
 
 vi.mock('@convex-dev/react-query', () => ({
-  convexQuery: vi.fn((func: { _name: string }) => ({
-    queryKey: ['convexQuery', func._name, {}],
-    queryFn: vi.fn(),
-  })),
-}));
-
-vi.mock('convex/server', () => ({
-  getFunctionName: (ref: { _name?: string }) => ref._name ?? 'unknown',
+  useConvexMutation: vi.fn(() => mockMutationFn),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -29,29 +20,16 @@ vi.mock('@tanstack/react-query', () => ({
   })),
 }));
 
-vi.mock('../use-convex-client', () => ({
-  useConvexClient: () => ({
-    mutation: vi.fn(),
-  }),
-}));
-
-vi.mock('../use-react-query-client', () => ({
-  useReactQueryClient: () => ({
-    invalidateQueries: mockInvalidateQueries,
-  }),
-}));
-
+import { useConvexMutation as useMutationFn } from '@convex-dev/react-query';
 import { useMutation } from '@tanstack/react-query';
 
 import { useConvexMutation } from '../use-convex-mutation';
 
+const mockUseMutationFn = vi.mocked(useMutationFn);
 const mockUseMutation = vi.mocked(useMutation);
 const mockMutationRef = {
   _name: 'items:update',
 } as unknown as Parameters<typeof useConvexMutation>[0];
-const mockQueryRef = {
-  _name: 'items:list',
-} as unknown as FunctionReference<'query'>;
 
 describe('useConvexMutation', () => {
   beforeEach(() => {
@@ -70,115 +48,33 @@ describe('useConvexMutation', () => {
     expect(result.isPending).toBe(false);
   });
 
-  it('invalidates own key when no invalidates option is provided', async () => {
+  it('passes the function reference to useConvexMutation from @convex-dev/react-query', () => {
     useConvexMutation(mockMutationRef);
-
-    const options = mockUseMutation.mock.calls[0]?.[0];
-    // @ts-expect-error -- calling mock onSettled directly for testing
-    await options.onSettled?.();
-
-    expect(mockInvalidateQueries).toHaveBeenCalledTimes(1);
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['convexQuery', 'items:update'],
-    });
+    expect(mockUseMutationFn).toHaveBeenCalledWith(mockMutationRef);
   });
 
-  it('invalidates own key and specified query functions on settled', async () => {
-    useConvexMutation(mockMutationRef, {
-      invalidates: [mockQueryRef],
-    });
-
+  it('uses the returned function as mutationFn', () => {
+    useConvexMutation(mockMutationRef);
     const options = mockUseMutation.mock.calls[0]?.[0];
-    // @ts-expect-error -- calling mock onSettled directly for testing
-    await options.onSettled?.();
-
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['convexQuery', 'items:update'],
-    });
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['convexQuery', 'items:list'],
-    });
+    expect(options).toHaveProperty('mutationFn');
+    const args = { input: 'test' };
+    (options.mutationFn as Function)(args);
+    expect(mockMutationFn).toHaveBeenCalledWith(args);
   });
 
-  it('invalidates own key and multiple query functions', async () => {
-    const secondQueryRef = {
-      _name: 'items:get',
-    } as unknown as FunctionReference<'query'>;
-    useConvexMutation(mockMutationRef, {
-      invalidates: [mockQueryRef, secondQueryRef],
-    });
-
-    const options = mockUseMutation.mock.calls[0]?.[0];
-    // @ts-expect-error -- calling mock onSettled directly for testing
-    await options.onSettled?.();
-
-    expect(mockInvalidateQueries).toHaveBeenCalledTimes(3);
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['convexQuery', 'items:update'],
-    });
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['convexQuery', 'items:list'],
-    });
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['convexQuery', 'items:get'],
-    });
-  });
-
-  it('calls user-provided onSettled after invalidation', async () => {
-    const userOnSettled = vi.fn();
-    useConvexMutation(mockMutationRef, {
-      invalidates: [mockQueryRef],
-      onSettled: userOnSettled,
-    });
-
-    const options = mockUseMutation.mock.calls[0]?.[0];
-    // @ts-expect-error -- calling mock onSettled directly for testing
-    await options.onSettled?.();
-
-    expect(mockInvalidateQueries).toHaveBeenCalled();
-    expect(userOnSettled).toHaveBeenCalled();
-  });
-
-  it('invalidates before calling user onSettled', async () => {
-    const callOrder: string[] = [];
-    mockInvalidateQueries.mockImplementation(async () => {
-      callOrder.push('invalidate');
-    });
-    const userOnSettled = vi.fn(() => {
-      callOrder.push('userOnSettled');
-    });
-
-    useConvexMutation(mockMutationRef, {
-      invalidates: [mockQueryRef],
-      onSettled: userOnSettled,
-    });
-
-    const options = mockUseMutation.mock.calls[0]?.[0];
-    // @ts-expect-error -- calling mock onSettled directly for testing
-    await options.onSettled?.();
-
-    expect(callOrder).toEqual(['invalidate', 'invalidate', 'userOnSettled']);
-  });
-
-  it('preserves other user options', () => {
+  it('preserves user options', () => {
     const userOnSuccess = vi.fn();
     const userOnError = vi.fn();
+    const userOnSettled = vi.fn();
     useConvexMutation(mockMutationRef, {
       onSuccess: userOnSuccess,
       onError: userOnError,
+      onSettled: userOnSettled,
     });
 
     const options = mockUseMutation.mock.calls[0]?.[0];
     expect(options.onSuccess).toBe(userOnSuccess);
     expect(options.onError).toBe(userOnError);
-  });
-
-  it('does not pass invalidates to useMutation options', () => {
-    useConvexMutation(mockMutationRef, {
-      invalidates: [mockQueryRef],
-    });
-
-    const options = mockUseMutation.mock.calls[0]?.[0];
-    expect(options).not.toHaveProperty('invalidates');
+    expect(options.onSettled).toBe(userOnSettled);
   });
 });

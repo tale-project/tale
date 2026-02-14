@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Workflow, Sparkles } from 'lucide-react';
 
@@ -9,9 +10,17 @@ import { AutomationsClient } from '@/app/features/automations/components/automat
 import { AutomationsTableSkeleton } from '@/app/features/automations/components/automations-table-skeleton';
 import { useAutomations } from '@/app/features/automations/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/automations/')({
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.wf_definitions.queries.listAutomations, {
+        organizationId: params.id,
+      }),
+    );
+  },
   component: AutomationsPage,
 });
 

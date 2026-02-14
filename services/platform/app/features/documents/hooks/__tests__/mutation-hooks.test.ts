@@ -19,10 +19,6 @@ vi.mock('@/app/hooks/use-convex-mutation', () => ({
   useConvexMutation: () => mockMutationResult,
 }));
 
-vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
-  useConvexOptimisticMutation: () => mockMutationResult,
-}));
-
 vi.mock('@/convex/_generated/api', () => ({
   api: {
     documents: {
@@ -44,7 +40,7 @@ describe('useDeleteDocument', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useDeleteDocument();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -76,7 +72,7 @@ describe('useUpdateDocument', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useUpdateDocument();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');

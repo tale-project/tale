@@ -1,8 +1,10 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { useHasMicrosoftAccount } from '@/app/features/auth/hooks/queries';
 import { DocumentsClient } from '@/app/features/documents/components/documents-client';
+import { api } from '@/convex/_generated/api';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -12,6 +14,11 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
   validateSearch: searchSchema,
+  loader: ({ context }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.accounts.queries.hasMicrosoftAccount, {}),
+    );
+  },
   component: DocumentsPage,
 });
 

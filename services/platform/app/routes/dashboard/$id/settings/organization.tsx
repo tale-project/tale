@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -7,9 +8,17 @@ import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { OrganizationSettingsClient } from '@/app/features/settings/organization/components/organization-settings-client';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/settings/organization')({
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.organizations.queries.getOrganization, {
+        id: params.id,
+      }),
+    );
+  },
   component: OrganizationSettingsPage,
 });
 

@@ -22,7 +22,6 @@ export function createRouter() {
       queries: {
         queryKeyHashFn: convexQueryClient.hashFn(),
         queryFn: convexQueryClient.queryFn(),
-        staleTime: 5 * 60 * 1000,
         gcTime: 120 * 60 * 1000,
       },
     },

@@ -19,10 +19,6 @@ vi.mock('@/app/hooks/use-convex-mutation', () => ({
   useConvexMutation: () => mockMutationResult,
 }));
 
-vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
-  useConvexOptimisticMutation: () => mockMutationResult,
-}));
-
 vi.mock('@/convex/_generated/api', () => ({
   api: {
     conversations: {
@@ -51,7 +47,7 @@ describe('useCloseConversation', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useCloseConversation();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -87,7 +83,7 @@ describe('useReopenConversation', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useReopenConversation();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -123,7 +119,7 @@ describe('useMarkAsRead', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useMarkAsRead();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -159,7 +155,7 @@ describe('useMarkAsSpam', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useMarkAsSpam();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');

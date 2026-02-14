@@ -19,10 +19,6 @@ vi.mock('@/app/hooks/use-convex-mutation', () => ({
   useConvexMutation: () => mockMutationResult,
 }));
 
-vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
-  useConvexOptimisticMutation: () => mockMutationResult,
-}));
-
 vi.mock('@/convex/_generated/api', () => ({
   api: {
     vendors: {
@@ -45,7 +41,7 @@ import {
 } from '../mutations';
 
 describe('useBulkCreateVendors', () => {
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useBulkCreateVendors();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -57,7 +53,7 @@ describe('useDeleteVendor', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useDeleteVendor();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -87,7 +83,7 @@ describe('useUpdateVendor', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useUpdateVendor();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');

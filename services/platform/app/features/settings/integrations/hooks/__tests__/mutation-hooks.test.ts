@@ -19,10 +19,6 @@ vi.mock('@/app/hooks/use-convex-mutation', () => ({
   useConvexMutation: () => mockMutationResult,
 }));
 
-vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
-  useConvexOptimisticMutation: () => mockMutationResult,
-}));
-
 vi.mock('@/convex/_generated/api', () => ({
   api: {
     files: {
@@ -49,7 +45,7 @@ describe('useDeleteIntegration', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useDeleteIntegration();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');

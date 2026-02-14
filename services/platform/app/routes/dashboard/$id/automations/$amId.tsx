@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import {
   createFileRoute,
   Outlet,
@@ -35,6 +36,7 @@ import {
 import { useAutomationVersionNavigation } from '@/app/features/automations/hooks/use-automation-version-navigation';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -53,6 +55,18 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
   validateSearch: searchSchema,
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.wf_definitions.queries.getWorkflow, {
+        wfDefinitionId: toId<'wfDefinitions'>(params.amId),
+      }),
+    );
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.wf_step_defs.queries.getWorkflowSteps, {
+        wfDefinitionId: toId<'wfDefinitions'>(params.amId),
+      }),
+    );
+  },
   component: AutomationDetailLayout,
 });
 
