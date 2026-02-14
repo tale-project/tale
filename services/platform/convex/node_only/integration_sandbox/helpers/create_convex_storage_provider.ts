@@ -21,7 +21,16 @@ export function createConvexStorageProvider(ctx: ActionCtx): StorageProvider {
         validateHost(url, allowedHosts);
       }
 
-      const response = await globalThis.fetch(url, { headers });
+      const response = await globalThis.fetch(url, {
+        headers,
+        redirect: 'manual',
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location') ?? 'unknown';
+        throw new Error(
+          `File download redirected to "${location}" for "${url}". Add the redirect host to allowedHosts.`,
+        );
+      }
       if (!response.ok) {
         throw new Error(
           `File download failed: ${response.status} ${response.statusText} for "${url}"`,

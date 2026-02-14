@@ -24,7 +24,16 @@ export async function executeHttpRequest(
     fetchOptions = { ...req.options, body };
   }
 
-  const response = await globalThis.fetch(req.url, fetchOptions);
+  const response = await globalThis.fetch(req.url, {
+    ...fetchOptions,
+    redirect: 'manual',
+  });
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get('location') ?? 'unknown';
+    throw new Error(
+      `HTTP request redirected to "${location}" for "${req.url}". Add the redirect host to allowedHosts.`,
+    );
+  }
   const contentType = response.headers.get('content-type') || '';
 
   let body: unknown;
