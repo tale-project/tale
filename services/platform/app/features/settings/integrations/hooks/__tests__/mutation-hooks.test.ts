@@ -2,10 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { toId } from '@/convex/lib/type_cast_helpers';
 
-const mockMutationFn = vi.fn();
+const mockMutateAsync = vi.fn();
 
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => mockMutationFn,
+  useConvexMutation: () => ({
+    mutate: mockMutateAsync,
+    mutateAsync: mockMutateAsync,
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+    error: null,
+    data: undefined,
+    reset: vi.fn(),
+  }),
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -31,27 +40,28 @@ describe('useDeleteIntegration', () => {
     vi.clearAllMocks();
   });
 
-  it('returns the mutation function from useConvexMutation', () => {
-    const deleteIntegration = useDeleteIntegration();
-    expect(deleteIntegration).toBe(mockMutationFn);
+  it('returns a mutation result object from useConvexMutation', () => {
+    const result = useDeleteIntegration();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
   it('calls mutation with the correct args', async () => {
-    mockMutationFn.mockResolvedValueOnce(null);
-    const deleteIntegration = useDeleteIntegration();
+    mockMutateAsync.mockResolvedValueOnce(null);
+    const { mutateAsync: deleteIntegration } = useDeleteIntegration();
 
     await deleteIntegration({
       integrationId: toId<'integrations'>('int-123'),
     });
 
-    expect(mockMutationFn).toHaveBeenCalledWith({
+    expect(mockMutateAsync).toHaveBeenCalledWith({
       integrationId: 'int-123',
     });
   });
 
   it('propagates errors from mutation', async () => {
-    mockMutationFn.mockRejectedValueOnce(new Error('Delete failed'));
-    const deleteIntegration = useDeleteIntegration();
+    mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
+    const { mutateAsync: deleteIntegration } = useDeleteIntegration();
 
     await expect(
       deleteIntegration({

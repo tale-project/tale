@@ -53,12 +53,12 @@ function ConfigurationPage() {
     '{\n  "environment": "production"\n}',
   );
   const [hasChanges, setHasChanges] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
   const { data: workflow, isLoading: isWorkflowLoading } =
     useWorkflow(automationId);
 
-  const updateWorkflow = useUpdateAutomation();
+  const { mutateAsync: updateWorkflow, isPending: isSaving } =
+    useUpdateAutomation();
 
   useEffect(() => {
     if (workflow) {
@@ -134,7 +134,6 @@ function ConfigurationPage() {
       }
     }
 
-    setIsSaving(true);
     try {
       let parsedVariables: Record<string, unknown> | undefined;
       if (variables.trim()) {
@@ -168,8 +167,6 @@ function ConfigurationPage() {
         title: tToast('error.saveFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsSaving(false);
     }
   };
 

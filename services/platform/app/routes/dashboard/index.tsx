@@ -1,7 +1,6 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { useUserOrganizationCollection } from '@/app/features/organization/hooks/collections';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
 import { authClient } from '@/lib/auth-client';
 
@@ -23,7 +22,7 @@ function DashboardIndex() {
     isLoading: isOrgsLoading,
     isAuthLoading,
     isAuthenticated,
-  } = useUserOrganizations(useUserOrganizationCollection());
+  } = useUserOrganizations();
 
   useEffect(() => {
     if (isAuthLoading || !isAuthenticated || isOrgsLoading || !organizations) {

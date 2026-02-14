@@ -34,7 +34,7 @@ export function CreateCustomAgentDialog({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
-  const createAgent = useCreateCustomAgent();
+  const { mutateAsync: createAgent } = useCreateCustomAgent();
 
   const formSchema = useMemo(
     () =>

@@ -56,8 +56,8 @@ export function AutomationTester({
   const [isDryRunning, setIsDryRunning] = useState(false);
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
 
-  const startWorkflow = useStartWorkflow();
-  const [isExecuting, setIsExecuting] = useState(false);
+  const { mutateAsync: startWorkflow, isPending: isExecuting } =
+    useStartWorkflow();
 
   const parsedInput = (() => {
     try {
@@ -105,7 +105,6 @@ export function AutomationTester({
       return;
     }
 
-    setIsExecuting(true);
     try {
       const executionId = await startWorkflow({
         organizationId,
@@ -137,8 +136,6 @@ export function AutomationTester({
             : t('tester.toast.startFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsExecuting(false);
     }
   };
 

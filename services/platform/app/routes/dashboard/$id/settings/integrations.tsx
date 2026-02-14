@@ -6,7 +6,6 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Card, CardContent, CardFooter } from '@/app/components/ui/layout/card';
 import { Stack, Grid, HStack } from '@/app/components/ui/layout/layout';
 import { IntegrationsClient } from '@/app/features/settings/integrations/components/integrations-client';
-import { useIntegrationCollection } from '@/app/features/settings/integrations/hooks/collections';
 import {
   useIntegrations,
   useSsoProvider,
@@ -70,10 +69,8 @@ function IntegrationsPage() {
 
   const { data: memberContext, isLoading: isMemberLoading } =
     useCurrentMemberContext(organizationId);
-  const integrationCollection = useIntegrationCollection(organizationId);
-  const { integrations, isLoading: isIntegrationsLoading } = useIntegrations(
-    integrationCollection,
-  );
+  const { integrations, isLoading: isIntegrationsLoading } =
+    useIntegrations(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
 
   if (

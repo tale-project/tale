@@ -13,9 +13,21 @@ const mockUnpublish = vi.fn();
 
 vi.mock('../hooks/mutations', async (importOriginal) => ({
   ...(await importOriginal()),
-  useActivateCustomAgentVersion: () => mockActivateVersion,
-  usePublishCustomAgent: () => mockPublish,
-  useUnpublishCustomAgent: () => mockUnpublish,
+  useActivateCustomAgentVersion: () => ({
+    mutate: mockActivateVersion,
+    mutateAsync: mockActivateVersion,
+    isPending: false,
+  }),
+  usePublishCustomAgent: () => ({
+    mutate: mockPublish,
+    mutateAsync: mockPublish,
+    isPending: false,
+  }),
+  useUnpublishCustomAgent: () => ({
+    mutate: mockUnpublish,
+    mutateAsync: mockUnpublish,
+    isPending: false,
+  }),
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({
@@ -104,10 +116,13 @@ describe('CustomAgentActiveToggle', () => {
       await user.click(screen.getByRole('switch'));
 
       await waitFor(() => {
-        expect(mockActivateVersion).toHaveBeenCalledWith({
-          customAgentId: 'agent-root-1',
-          targetVersion: 2,
-        });
+        expect(mockActivateVersion).toHaveBeenCalledWith(
+          {
+            customAgentId: 'agent-root-1',
+            targetVersion: 2,
+          },
+          expect.any(Object),
+        );
       });
     });
 
@@ -121,9 +136,10 @@ describe('CustomAgentActiveToggle', () => {
       await user.click(screen.getByRole('switch'));
 
       await waitFor(() => {
-        expect(mockPublish).toHaveBeenCalledWith({
-          customAgentId: 'agent-root-1',
-        });
+        expect(mockPublish).toHaveBeenCalledWith(
+          { customAgentId: 'agent-root-1' },
+          expect.any(Object),
+        );
         expect(mockActivateVersion).not.toHaveBeenCalled();
       });
     });
@@ -156,9 +172,10 @@ describe('CustomAgentActiveToggle', () => {
       await user.click(confirmButton);
 
       await waitFor(() => {
-        expect(mockUnpublish).toHaveBeenCalledWith({
-          customAgentId: 'agent-root-1',
-        });
+        expect(mockUnpublish).toHaveBeenCalledWith(
+          { customAgentId: 'agent-root-1' },
+          expect.any(Object),
+        );
       });
     });
 

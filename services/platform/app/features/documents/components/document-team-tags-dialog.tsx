@@ -7,9 +7,7 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
-import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
-import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
@@ -39,7 +37,6 @@ function DocumentTeamTagsDialogContent({
 }: DocumentTeamTagsDialogProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
-  const organizationId = useOrganizationId();
 
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(
     () => new Set(currentTeamTags),
@@ -48,8 +45,7 @@ function DocumentTeamTagsDialogContent({
 
   const updateDocument = useUpdateDocument();
 
-  const teamCollection = useTeamCollection(organizationId ?? undefined);
-  const { teams, isLoading } = useTeams(teamCollection);
+  const { teams, isLoading } = useTeams();
 
   const handleToggleTeam = useCallback((teamId: string) => {
     setSelectedTeams((prev) => {

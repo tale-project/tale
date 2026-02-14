@@ -32,13 +32,13 @@ export function CustomAgentActiveToggle({
   const { t: tCommon } = useT('common');
 
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
-  const [isActivating, setIsActivating] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
-  const activateVersion = useActivateCustomAgentVersion();
-  const publishAgent = usePublishCustomAgent();
-  const unpublishAgent = useUnpublishCustomAgent();
+  const { mutate: activateVersion, isPending: isActivating } =
+    useActivateCustomAgentVersion();
+  const { mutate: publishAgent, isPending: isPublishing } =
+    usePublishCustomAgent();
+  const { mutate: unpublishAgent, isPending: isUnpublishing } =
+    useUnpublishCustomAgent();
 
   const isToggling = isActivating || isPublishing || isUnpublishing;
 
@@ -47,36 +47,33 @@ export function CustomAgentActiveToggle({
   const isUnpublishedDraft =
     agent.status === 'draft' && agent.versionNumber === 1;
 
-  const handleActivate = useCallback(async () => {
-    if (agent.status === 'draft') {
-      setIsPublishing(true);
-    } else {
-      setIsActivating(true);
-    }
-    try {
-      if (agent.status === 'draft') {
-        await publishAgent({
-          customAgentId: toId<'customAgents'>(rootId),
+  const handleActivate = useCallback(() => {
+    const callbacks = {
+      onSuccess: () => {
+        toast({
+          title: t('customAgents.agentPublished'),
+          variant: 'success',
         });
-      } else {
-        await activateVersion({
+      },
+      onError: (error: Error) => {
+        console.error('Failed to activate agent:', error);
+        toast({
+          title: t('customAgents.agentPublishFailed'),
+          variant: 'destructive',
+        });
+      },
+    };
+
+    if (agent.status === 'draft') {
+      publishAgent({ customAgentId: toId<'customAgents'>(rootId) }, callbacks);
+    } else {
+      activateVersion(
+        {
           customAgentId: toId<'customAgents'>(rootId),
           targetVersion: agent.versionNumber,
-        });
-      }
-      toast({
-        title: t('customAgents.agentPublished'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to activate agent:', error);
-      toast({
-        title: t('customAgents.agentPublishFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsPublishing(false);
-      setIsActivating(false);
+        },
+        callbacks,
+      );
     }
   }, [
     activateVersion,
@@ -87,32 +84,32 @@ export function CustomAgentActiveToggle({
     t,
   ]);
 
-  const handleDeactivateConfirm = useCallback(async () => {
-    setIsUnpublishing(true);
-    try {
-      await unpublishAgent({
-        customAgentId: toId<'customAgents'>(rootId),
-      });
-      setShowDeactivateDialog(false);
-      toast({
-        title: t('customAgents.agentDeactivated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to deactivate agent:', error);
-      toast({
-        title: t('customAgents.agentDeactivateFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsUnpublishing(false);
-    }
+  const handleDeactivateConfirm = useCallback(() => {
+    unpublishAgent(
+      { customAgentId: toId<'customAgents'>(rootId) },
+      {
+        onSuccess: () => {
+          setShowDeactivateDialog(false);
+          toast({
+            title: t('customAgents.agentDeactivated'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to deactivate agent:', error);
+          toast({
+            title: t('customAgents.agentDeactivateFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [unpublishAgent, rootId, t]);
 
   const handleToggle = useCallback(
     (checked: boolean) => {
       if (checked) {
-        void handleActivate();
+        handleActivate();
       } else {
         setShowDeactivateDialog(true);
       }

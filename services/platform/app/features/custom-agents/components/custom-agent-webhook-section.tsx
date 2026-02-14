@@ -20,10 +20,6 @@ import { toId } from '@/lib/utils/type-guards';
 
 import { SecretRevealDialog } from '../../automations/triggers/components/secret-reveal-dialog';
 import {
-  useCustomAgentVersionCollection,
-  useCustomAgentWebhookCollection,
-} from '../hooks/collections';
-import {
   useCreateCustomAgentWebhook,
   useDeleteCustomAgentWebhook,
   useToggleCustomAgentWebhook,
@@ -48,19 +44,17 @@ export function CustomAgentWebhookSection({
   const { t } = useT('settings');
   const { toast } = useToast();
 
-  const customAgentVersionCollection = useCustomAgentVersionCollection(agentId);
-  const { versions } = useCustomAgentVersions(customAgentVersionCollection);
-  const customAgentWebhookCollection = useCustomAgentWebhookCollection(agentId);
-  const { webhooks } = useCustomAgentWebhooks(customAgentWebhookCollection);
+  const { versions } = useCustomAgentVersions(agentId);
+  const { webhooks } = useCustomAgentWebhooks(agentId);
 
-  const [isCreating, setIsCreating] = useState(false);
-  const createWebhook = useCreateCustomAgentWebhook();
-  const toggleWebhook = useToggleCustomAgentWebhook();
-  const deleteWebhookMutation = useDeleteCustomAgentWebhook();
+  const { mutateAsync: createWebhook, isPending: isCreating } =
+    useCreateCustomAgentWebhook();
+  const { mutateAsync: toggleWebhook } = useToggleCustomAgentWebhook();
+  const { mutate: deleteWebhookMutation, isPending: isDeleting } =
+    useDeleteCustomAgentWebhook();
 
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WebhookRow | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [usageTarget, setUsageTarget] = useState<WebhookRow | null>(null);
   const [copiedExample, setCopiedExample] = useState<string | null>(null);
@@ -74,7 +68,6 @@ export function CustomAgentWebhookSection({
   );
 
   const handleCreate = useCallback(async () => {
-    setIsCreating(true);
     try {
       const result = await createWebhook({
         organizationId,
@@ -90,8 +83,6 @@ export function CustomAgentWebhookSection({
         title: t('customAgents.webhook.toast.createFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsCreating(false);
     }
   }, [createWebhook, organizationId, agentId, toast, t, getWebhookUrl]);
 
@@ -112,29 +103,29 @@ export function CustomAgentWebhookSection({
         });
       }
     },
-    [toggleWebhook, toast, t],
+    [toggleWebhook, t, toast],
   );
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (!deleteTarget) return;
-    setIsDeleting(true);
-    try {
-      await deleteWebhookMutation({
-        webhookId: toId<'customAgentWebhooks'>(deleteTarget._id),
-      });
-      toast({
-        title: t('customAgents.webhook.toast.deleted'),
-        variant: 'success',
-      });
-      setDeleteTarget(null);
-    } catch {
-      toast({
-        title: t('customAgents.webhook.toast.deleteFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+    deleteWebhookMutation(
+      { webhookId: toId<'customAgentWebhooks'>(deleteTarget._id) },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('customAgents.webhook.toast.deleted'),
+            variant: 'success',
+          });
+          setDeleteTarget(null);
+        },
+        onError: () => {
+          toast({
+            title: t('customAgents.webhook.toast.deleteFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [deleteTarget, deleteWebhookMutation, toast, t]);
 
   const handleCopyUrl = useCallback(

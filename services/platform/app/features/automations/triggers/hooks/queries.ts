@@ -1,36 +1,52 @@
-import type { Collection } from '@tanstack/db';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-import { useLiveQuery } from '@tanstack/react-db';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 
-import type { WfEventSubscription } from '@/lib/collections/entities/wf-event-subscriptions';
-import type { WfSchedule } from '@/lib/collections/entities/wf-schedules';
-import type { WfWebhook } from '@/lib/collections/entities/wf-webhooks';
+export type WfSchedule = ConvexItemOf<
+  typeof api.workflows.triggers.queries.getSchedules
+>;
 
-export function useSchedules(collection: Collection<WfSchedule, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type WfWebhook = ConvexItemOf<
+  typeof api.workflows.triggers.queries.getWebhooks
+>;
+
+export type WfEventSubscription = ConvexItemOf<
+  typeof api.workflows.triggers.queries.getEventSubscriptions
+>;
+
+export function useSchedules(workflowRootId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.workflows.triggers.queries.getSchedules,
+    { workflowRootId },
+  );
 
   return {
-    schedules: data,
+    schedules: data ?? [],
     isLoading,
   };
 }
 
-export function useWebhooks(collection: Collection<WfWebhook, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export function useWebhooks(workflowRootId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.workflows.triggers.queries.getWebhooks,
+    { workflowRootId },
+  );
 
   return {
-    webhooks: data,
+    webhooks: data ?? [],
     isLoading,
   };
 }
 
-export function useEventSubscriptions(
-  collection: Collection<WfEventSubscription, string>,
-) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export function useEventSubscriptions(workflowRootId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.workflows.triggers.queries.getEventSubscriptions,
+    { workflowRootId },
+  );
 
   return {
-    subscriptions: data,
+    subscriptions: data ?? [],
     isLoading,
   };
 }

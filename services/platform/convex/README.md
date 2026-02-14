@@ -5,15 +5,13 @@ Backend functions for the Tale platform. All queries and mutations are protected
 ## Architecture
 
 ```
-Convex WebSocket → ConvexQueryClient → TanStack Query cache
-  → QueryCollection → Collection sync store → Live Queries → UI
+Convex WebSocket → @convex-dev/react-query → TanStack Query cache → UI
 ```
 
 ### Data Layer
 
-- **Collections** (`lib/collections/`) provide real-time reactive data via TanStack DB, backed by Convex WebSocket subscriptions
-- **Queries** return raw data without pagination, filtering, or sorting — all handled client-side via live queries
-- **Mutations** are called via `useConvexMutation` — Convex WebSocket auto-syncs collections when mutations complete
+- **Queries** are consumed via `useConvexQuery` which bridges Convex real-time subscriptions to TanStack Query. Queries return raw data without pagination, filtering, or sorting — all handled client-side
+- **Mutations** are called via `useConvexMutation` (wraps TanStack Query's `useMutation`) — Convex WebSocket auto-syncs queries when mutations complete
 - **Actions** are called via `useConvexAction` for operations with side effects (external APIs, bulk operations)
 
 ### Validation
@@ -127,50 +125,39 @@ export const retryRagIndexing = action({
 
 ## Client-Side Patterns
 
-### Collection (real-time list data)
+### Query Hooks
 
-Collections are the primary way to consume list data. They provide live, reactive queries powered by TanStack DB.
-
-```ts
-// features/customers/hooks/collections.ts
-export function createCustomersCollection(queryClient, convexQueryFn, scopeId) {
-  return convexCollectionOptions({
-    id: 'customers',
-    queryFn: api.customers.queries.listCustomers,
-    args: { organizationId: scopeId },
-    queryClient,
-    convexQueryFn,
-    getKey: (item) => item._id,
-  });
-}
-
-// features/customers/hooks/use-customer-collection.ts
-export function useCustomerCollection(organizationId: string) {
-  return useCollection('customers', createCustomersCollection, organizationId);
-}
-```
-
-### Live Queries (filtering, sorting, joining)
+All data fetching uses `useConvexQuery` which bridges Convex real-time subscriptions to TanStack Query. Types are extracted with `ConvexItemOf`.
 
 ```ts
 // features/customers/hooks/queries.ts
-export function useCustomers(collection: Collection<Customer, string>) {
-  const { data, isLoading } = useLiveQuery((q) =>
-    q.from({ customer: collection }).select(({ customer }) => customer),
-  );
-  return { customers: data, isLoading };
-}
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 
-export function useCustomerByEmail(collection, email: string | undefined) {
-  const { data } = useLiveQuery(
-    (q) => q.from({ c: collection }).fn.where((row) => row.c.email === email),
-    [email],
+export type Customer = ConvexItemOf<typeof api.customers.queries.listCustomers>;
+
+export function useCustomers(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.customers.queries.listCustomers,
+    { organizationId },
   );
-  return useMemo(() => data?.[0] ?? null, [data]);
+  return { customers: data ?? [], isLoading };
 }
 ```
 
-### Mutations (via Convex WebSocket)
+Conditional/skippable queries pass `'skip'` as args:
+
+```ts
+export function useWorkflow(wfDefinitionId: string | undefined) {
+  return useConvexQuery(
+    api.wf_definitions.queries.getWorkflow,
+    wfDefinitionId ? { wfDefinitionId } : 'skip',
+  );
+}
+```
+
+### Mutations (via TanStack Query + Convex WebSocket)
 
 ```ts
 // features/customers/hooks/mutations.ts
@@ -185,16 +172,6 @@ export function useUpdateCustomer() {
 // features/documents/hooks/actions.ts
 export function useRetryRagIndexing() {
   return useConvexAction(api.documents.actions.retryRagIndexing);
-}
-```
-
-### Standalone Queries (non-collection)
-
-For singleton data or queries that don't fit the collection pattern:
-
-```ts
-export function useCurrentUser() {
-  return useConvexQuery(api.auth.queries.getCurrentUser);
 }
 ```
 

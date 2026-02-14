@@ -15,7 +15,6 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useThreadCollection } from '../hooks/collections';
 import { useUpdateThread } from '../hooks/mutations';
 import { useThreads } from '../hooks/queries';
 import { ChatActions } from './chat-actions';
@@ -58,10 +57,9 @@ export function ChatHistorySidebar({
   const isMounted = useIsMounted();
   const { toast } = useToast();
 
-  const threadCollection = useThreadCollection();
-  const { threads: threadsData } = useThreads(threadCollection);
+  const { threads: threadsData } = useThreads();
 
-  const updateThread = useUpdateThread();
+  const { mutateAsync: updateThread } = useUpdateThread();
 
   const chats = useMemo(
     () =>

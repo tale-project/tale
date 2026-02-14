@@ -30,67 +30,71 @@ export function AutomationActiveToggle({
 
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
 
-  const republishAutomation = useRepublishAutomation();
-  const [isRepublishing, setIsRepublishing] = useState(false);
-  const unpublishAutomation = useUnpublishAutomation();
-  const [isUnpublishing, setIsUnpublishing] = useState(false);
+  const { mutate: republishAutomation, isPending: isRepublishing } =
+    useRepublishAutomation();
+  const { mutate: unpublishAutomation, isPending: isUnpublishing } =
+    useUnpublishAutomation();
 
   const isToggling = isRepublishing || isUnpublishing;
 
   const isActive = automation.status === 'active';
   const isDraft = automation.status === 'draft';
 
-  const handleActivate = useCallback(async () => {
+  const handleActivate = useCallback(() => {
     if (!user) return;
-    setIsRepublishing(true);
-    try {
-      await republishAutomation({
+    republishAutomation(
+      {
         wfDefinitionId: automation._id,
         publishedBy: user.email ?? user.userId,
-      });
-      toast({
-        title: tToast('success.automationPublished'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to activate automation:', error);
-      toast({
-        title: tToast('error.automationPublishFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsRepublishing(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: tToast('success.automationPublished'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to activate automation:', error);
+          toast({
+            title: tToast('error.automationPublishFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [republishAutomation, automation._id, user, tToast]);
 
-  const handleDeactivateConfirm = useCallback(async () => {
+  const handleDeactivateConfirm = useCallback(() => {
     if (!user) return;
-    setIsUnpublishing(true);
-    try {
-      await unpublishAutomation({
+    unpublishAutomation(
+      {
         wfDefinitionId: automation._id,
         updatedBy: user.userId,
-      });
-      setShowDeactivateDialog(false);
-      toast({
-        title: tToast('success.automationDeactivated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to deactivate automation:', error);
-      toast({
-        title: tToast('error.automationDeactivateFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsUnpublishing(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          setShowDeactivateDialog(false);
+          toast({
+            title: tToast('success.automationDeactivated'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to deactivate automation:', error);
+          toast({
+            title: tToast('error.automationDeactivateFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [unpublishAutomation, automation._id, user, tToast]);
 
   const handleToggle = useCallback(
     (checked: boolean) => {
       if (checked) {
-        void handleActivate();
+        handleActivate();
       } else {
         setShowDeactivateDialog(true);
       }

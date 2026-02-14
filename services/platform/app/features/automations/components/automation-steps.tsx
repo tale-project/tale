@@ -81,7 +81,7 @@ function AutomationStepsInner({
 }: AutomationStepsProps) {
   const { t } = useT('automations');
   const { user } = useAuth();
-  const createStep = useCreateStep();
+  const { mutateAsync: createStep } = useCreateStep();
   const isDraft = status === 'draft';
   const isActive = status === 'active';
   const hasSteps = steps && steps.length > 0;

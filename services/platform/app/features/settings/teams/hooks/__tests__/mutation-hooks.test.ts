@@ -1,9 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockMutationFn = vi.fn();
+const mockMutateAsync = vi.fn();
 
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => mockMutationFn,
+  useConvexMutation: () => ({
+    mutate: mockMutateAsync,
+    mutateAsync: mockMutateAsync,
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+    error: null,
+    data: undefined,
+    reset: vi.fn(),
+  }),
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -28,14 +37,15 @@ describe('useAddTeamMember', () => {
     vi.clearAllMocks();
   });
 
-  it('returns the mutation function from useConvexMutation', () => {
-    const addTeamMember = useAddTeamMember();
-    expect(addTeamMember).toBe(mockMutationFn);
+  it('returns a mutation result object from useConvexMutation', () => {
+    const result = useAddTeamMember();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
   it('calls mutation with the correct args', async () => {
-    mockMutationFn.mockResolvedValueOnce(undefined);
-    const addTeamMember = useAddTeamMember();
+    mockMutateAsync.mockResolvedValueOnce(undefined);
+    const { mutateAsync: addTeamMember } = useAddTeamMember();
 
     await addTeamMember({
       teamId: 'team-123',
@@ -43,7 +53,7 @@ describe('useAddTeamMember', () => {
       organizationId: 'org-789',
     });
 
-    expect(mockMutationFn).toHaveBeenCalledWith({
+    expect(mockMutateAsync).toHaveBeenCalledWith({
       teamId: 'team-123',
       userId: 'user-456',
       organizationId: 'org-789',
@@ -51,8 +61,8 @@ describe('useAddTeamMember', () => {
   });
 
   it('propagates errors from mutation', async () => {
-    mockMutationFn.mockRejectedValueOnce(new Error('Add failed'));
-    const addTeamMember = useAddTeamMember();
+    mockMutateAsync.mockRejectedValueOnce(new Error('Add failed'));
+    const { mutateAsync: addTeamMember } = useAddTeamMember();
 
     await expect(
       addTeamMember({
@@ -69,29 +79,30 @@ describe('useRemoveTeamMember', () => {
     vi.clearAllMocks();
   });
 
-  it('returns the mutation function from useConvexMutation', () => {
-    const removeTeamMember = useRemoveTeamMember();
-    expect(removeTeamMember).toBe(mockMutationFn);
+  it('returns a mutation result object from useConvexMutation', () => {
+    const result = useRemoveTeamMember();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
   it('calls mutation with the correct args', async () => {
-    mockMutationFn.mockResolvedValueOnce(undefined);
-    const removeTeamMember = useRemoveTeamMember();
+    mockMutateAsync.mockResolvedValueOnce(undefined);
+    const { mutateAsync: removeTeamMember } = useRemoveTeamMember();
 
     await removeTeamMember({
       teamMemberId: 'tm-123',
       organizationId: 'org-456',
     });
 
-    expect(mockMutationFn).toHaveBeenCalledWith({
+    expect(mockMutateAsync).toHaveBeenCalledWith({
       teamMemberId: 'tm-123',
       organizationId: 'org-456',
     });
   });
 
   it('propagates errors from mutation', async () => {
-    mockMutationFn.mockRejectedValueOnce(new Error('Remove failed'));
-    const removeTeamMember = useRemoveTeamMember();
+    mockMutateAsync.mockRejectedValueOnce(new Error('Remove failed'));
+    const { mutateAsync: removeTeamMember } = useRemoveTeamMember();
 
     await expect(
       removeTeamMember({
@@ -103,8 +114,9 @@ describe('useRemoveTeamMember', () => {
 });
 
 describe('useCreateTeamMember', () => {
-  it('returns the mutation function from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexMutation', () => {
     const result = useCreateTeamMember();
-    expect(result).toBe(mockMutationFn);
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 });

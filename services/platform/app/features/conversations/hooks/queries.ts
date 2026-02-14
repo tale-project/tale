@@ -1,19 +1,22 @@
-import type { Collection } from '@tanstack/db';
-
-import { useLiveQuery } from '@tanstack/react-db';
-
-import type { Conversation } from '@/lib/collections/entities/conversations';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/lib/utils/type-guards';
 
-export function useConversations(collection: Collection<Conversation, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type Conversation = ConvexItemOf<
+  typeof api.conversations.queries.listConversations
+>;
+
+export function useConversations(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.conversations.queries.listConversations,
+    { organizationId },
+  );
 
   return {
-    conversations: data,
+    conversations: data ?? [],
     isLoading,
   };
 }

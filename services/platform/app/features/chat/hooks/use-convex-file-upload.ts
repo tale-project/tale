@@ -37,7 +37,7 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
   const { t } = useT('chat');
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
-  const generateUploadUrl = useGenerateUploadUrl();
+  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
 
   const mergedConfig = useMemo(
     () => ({ ...DEFAULT_CONFIG, ...config }),

@@ -15,9 +15,10 @@ import {
 } from '@/app/components/ui/overlays/sheet';
 import { CustomAgentNavigation } from '@/app/features/custom-agents/components/custom-agent-navigation';
 import { TestChatPanel } from '@/app/features/custom-agents/components/test-chat-panel';
-import { useCustomAgentVersionCollection } from '@/app/features/custom-agents/hooks/collections';
-import { useCustomAgentVersions } from '@/app/features/custom-agents/hooks/queries';
-import { useCustomAgentByVersion } from '@/app/features/custom-agents/hooks/queries';
+import {
+  useCustomAgentVersions,
+  useCustomAgentByVersion,
+} from '@/app/features/custom-agents/hooks/queries';
 import { CustomAgentVersionProvider } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -51,10 +52,8 @@ function CustomAgentDetailLayout() {
     versionNumber,
   );
 
-  const customAgentVersionCollection = useCustomAgentVersionCollection(agentId);
-  const { versions, isLoading: isLoadingVersions } = useCustomAgentVersions(
-    customAgentVersionCollection,
-  );
+  const { versions, isLoading: isLoadingVersions } =
+    useCustomAgentVersions(agentId);
 
   if (isLoadingAgent || isLoadingVersions) {
     return (

@@ -1,7 +1,7 @@
 'use client';
 
 import { CircleStop, Copy, Play, Trash2, Upload } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
@@ -33,102 +33,106 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t } = useT('settings');
   const dialogs = useEntityRowDialogs(['delete', 'deactivate']);
-  const [isDuplicating, setIsDuplicating] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [isDeactivating, setIsDeactivating] = useState(false);
-  const [isActivating, setIsActivating] = useState(false);
-  const duplicateAgent = useDuplicateCustomAgent();
-  const publishAgent = usePublishCustomAgent();
-  const unpublishAgent = useUnpublishCustomAgent();
-  const activateVersion = useActivateCustomAgentVersion();
+  const { mutate: duplicateAgent, isPending: isDuplicating } =
+    useDuplicateCustomAgent();
+  const { mutate: publishAgent, isPending: isPublishing } =
+    usePublishCustomAgent();
+  const { mutate: unpublishAgent, isPending: isDeactivating } =
+    useUnpublishCustomAgent();
+  const { mutate: activateVersion, isPending: isActivating } =
+    useActivateCustomAgentVersion();
 
   const rootId = agent.rootVersionId ?? agent._id;
 
-  const handleDuplicate = useCallback(async () => {
+  const handleDuplicate = useCallback(() => {
     if (isDuplicating) return;
-    setIsDuplicating(true);
-    try {
-      await duplicateAgent({ customAgentId: toId<'customAgents'>(agent._id) });
-      toast({
-        title: t('customAgents.agentDuplicated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('customAgents.agentDuplicateFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDuplicating(false);
-    }
+    duplicateAgent(
+      { customAgentId: toId<'customAgents'>(agent._id) },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('customAgents.agentDuplicated'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error(error);
+          toast({
+            title: t('customAgents.agentDuplicateFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [isDuplicating, duplicateAgent, agent._id, t]);
 
-  const handlePublish = useCallback(async () => {
+  const handlePublish = useCallback(() => {
     if (isPublishing) return;
-    setIsPublishing(true);
-    try {
-      await publishAgent({
-        customAgentId: toId<'customAgents'>(rootId),
-      });
-      toast({
-        title: t('customAgents.agentPublished'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('customAgents.agentPublishFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsPublishing(false);
-    }
+    publishAgent(
+      { customAgentId: toId<'customAgents'>(rootId) },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('customAgents.agentPublished'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error(error);
+          toast({
+            title: t('customAgents.agentPublishFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [isPublishing, publishAgent, rootId, t]);
 
-  const handleDeactivateConfirm = useCallback(async () => {
-    setIsDeactivating(true);
-    try {
-      await unpublishAgent({
-        customAgentId: toId<'customAgents'>(rootId),
-      });
-      dialogs.setOpen.deactivate(false);
-      toast({
-        title: t('customAgents.agentDeactivated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('customAgents.agentDeactivateFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeactivating(false);
-    }
+  const handleDeactivateConfirm = useCallback(() => {
+    unpublishAgent(
+      { customAgentId: toId<'customAgents'>(rootId) },
+      {
+        onSuccess: () => {
+          dialogs.setOpen.deactivate(false);
+          toast({
+            title: t('customAgents.agentDeactivated'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error(error);
+          toast({
+            title: t('customAgents.agentDeactivateFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [unpublishAgent, rootId, dialogs.setOpen, t]);
 
-  const handleActivate = useCallback(async () => {
+  const handleActivate = useCallback(() => {
     if (isActivating) return;
-    setIsActivating(true);
-    try {
-      await activateVersion({
+    activateVersion(
+      {
         customAgentId: toId<'customAgents'>(rootId),
         targetVersion: agent.versionNumber,
-      });
-      toast({
-        title: t('customAgents.agentPublished'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('customAgents.agentPublishFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsActivating(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('customAgents.agentPublished'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error(error);
+          toast({
+            title: t('customAgents.agentPublishFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [isActivating, activateVersion, rootId, agent.versionNumber, t]);
 
   const actions = useMemo(

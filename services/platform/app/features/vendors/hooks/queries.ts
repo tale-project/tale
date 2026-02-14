@@ -1,17 +1,18 @@
-import type { Collection } from '@tanstack/db';
-
-import { useLiveQuery } from '@tanstack/react-db';
-
-import type { Vendor } from '@/lib/collections/entities/vendors';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
-export function useVendors(collection: Collection<Vendor, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type Vendor = ConvexItemOf<typeof api.vendors.queries.listVendors>;
+
+export function useVendors(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(api.vendors.queries.listVendors, {
+    organizationId,
+  });
 
   return {
-    vendors: data,
+    vendors: data ?? [],
     isLoading,
   };
 }

@@ -1,19 +1,21 @@
-import type { Collection } from '@tanstack/db';
-
-import { useLiveQuery } from '@tanstack/react-db';
-
-import type { Document } from '@/lib/collections/entities/documents';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import { api } from '@/convex/_generated/api';
 
-export function useDocuments(collection: Collection<Document, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type Document = ConvexItemOf<typeof api.documents.queries.listDocuments>;
+
+export function useDocuments(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.documents.queries.listDocuments,
+    { organizationId },
+  );
 
   return {
-    documents: data,
+    documents: data ?? [],
     isLoading,
   };
 }

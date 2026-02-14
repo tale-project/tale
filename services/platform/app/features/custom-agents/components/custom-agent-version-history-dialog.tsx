@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef } from 'react';
 
 import type { VersionStatus } from '@/lib/shared/schemas/custom_agents';
 
@@ -14,7 +14,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { toId } from '@/lib/utils/type-guards';
 
-import { useCustomAgentVersionCollection } from '../hooks/collections';
 import { useActivateCustomAgentVersion } from '../hooks/mutations';
 import { useCustomAgentVersions } from '../hooks/queries';
 
@@ -40,41 +39,42 @@ export function CustomAgentVersionHistoryDialog({
 }: CustomAgentVersionHistoryDialogProps) {
   const { t } = useT('settings');
   const { formatDate } = useFormatDate();
-  const activateVersion = useActivateCustomAgentVersion();
-  const [activatingVersion, setActivatingVersion] = useState<number | null>(
-    null,
-  );
+  const { mutate: activateVersion, isPending: isActivating } =
+    useActivateCustomAgentVersion();
+  const activatingVersionRef = useRef<number | null>(null);
 
-  const customAgentVersionCollection = useCustomAgentVersionCollection(
-    open ? customAgentId : undefined,
-  );
-  const { versions, isLoading: isLoadingVersions } = useCustomAgentVersions(
-    customAgentVersionCollection,
-  );
+  const { versions, isLoading: isLoadingVersions } =
+    useCustomAgentVersions(customAgentId);
 
   const hasActiveVersion =
     versions?.some((v) => v.status === 'active') ?? false;
 
-  const handleActivate = async (targetVersion: number) => {
-    setActivatingVersion(targetVersion);
-    try {
-      await activateVersion({
+  const handleActivate = (targetVersion: number) => {
+    activatingVersionRef.current = targetVersion;
+    activateVersion(
+      {
         customAgentId: toId<'customAgents'>(customAgentId),
         targetVersion,
-      });
-      toast({
-        title: t('customAgents.agentPublished'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('customAgents.agentPublishFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setActivatingVersion(null);
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('customAgents.agentPublished'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error(error);
+          toast({
+            title: t('customAgents.agentPublishFailed'),
+            variant: 'destructive',
+          });
+        },
+        onSettled: () => {
+          activatingVersionRef.current = null;
+        },
+      },
+    );
   };
 
   return (
@@ -132,9 +132,10 @@ export function CustomAgentVersionHistoryDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => handleActivate(version.versionNumber)}
-                  disabled={activatingVersion !== null || hasActiveVersion}
+                  disabled={isActivating || hasActiveVersion}
                 >
-                  {activatingVersion === version.versionNumber
+                  {isActivating &&
+                  activatingVersionRef.current === version.versionNumber
                     ? t('customAgents.versions.activating')
                     : t('customAgents.versions.activate')}
                 </Button>

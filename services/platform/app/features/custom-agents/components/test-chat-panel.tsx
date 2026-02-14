@@ -181,9 +181,9 @@ function TestChatPanelContent({
   });
 
   const { agent: currentAgent } = useCustomAgentVersion();
-  const testAgent = useTestAgent();
-  const createChatThread = useCreateThread();
-  const deleteChatThread = useDeleteThread();
+  const { mutateAsync: testAgent } = useTestAgent();
+  const { mutateAsync: createChatThread } = useCreateThread();
+  const { mutateAsync: deleteChatThread } = useDeleteThread();
 
   const { approvals: integrationApprovals } = useIntegrationApprovals(
     organizationId,

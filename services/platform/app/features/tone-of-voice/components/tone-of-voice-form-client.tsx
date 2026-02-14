@@ -44,12 +44,12 @@ export function ToneOfVoiceFormClient({
   const { t: tToast } = useT('toast');
   const orgId = organizationId;
 
-  const addExample = useAddExample();
-  const updateExample = useUpdateExample();
-  const deleteExample = useDeleteExample();
-  const upsertTone = useUpsertTone();
-  const generateTone = useGenerateTone();
-  const [isGenerating, setIsGenerating] = useState(false);
+  const { mutateAsync: addExample } = useAddExample();
+  const { mutateAsync: updateExample } = useUpdateExample();
+  const { mutateAsync: deleteExample } = useDeleteExample();
+  const { mutateAsync: upsertTone } = useUpsertTone();
+  const { mutateAsync: generateTone, isPending: isGenerating } =
+    useGenerateTone();
 
   const form = useForm<ToneFormData>();
   const { register, setValue, watch, formState, handleSubmit } = form;
@@ -151,7 +151,6 @@ export function ToneOfVoiceFormClient({
       return;
     }
 
-    setIsGenerating(true);
     try {
       const result = await generateTone({
         organizationId: orgId,
@@ -175,8 +174,6 @@ export function ToneOfVoiceFormClient({
         title: tToast('error.toneGenerateFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsGenerating(false);
     }
   };
 

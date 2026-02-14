@@ -49,11 +49,11 @@ export function useSendMessage({
   const { t } = useT('chat');
   const navigate = useNavigate();
 
-  const createThread = useCreateThread();
-  const updateThread = useUpdateThread();
-  const chatWithAgent = useChatWithAgent();
-  const chatWithBuiltinAgent = useChatWithBuiltinAgent();
-  const chatWithCustomAgent = useChatWithCustomAgent();
+  const { mutateAsync: createThread } = useCreateThread();
+  const { mutateAsync: updateThread } = useUpdateThread();
+  const { mutateAsync: chatWithAgent } = useChatWithAgent();
+  const { mutateAsync: chatWithBuiltinAgent } = useChatWithBuiltinAgent();
+  const { mutateAsync: chatWithCustomAgent } = useChatWithCustomAgent();
 
   const sendMessage = useCallback(
     async (message: string, attachments?: FileAttachment[]) => {

@@ -1,12 +1,12 @@
-import type { Collection } from '@tanstack/db';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-import { useLiveQuery } from '@tanstack/react-db';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 
-import type { TeamMember } from '@/lib/collections/entities/team-members';
-import type { Team } from '@/lib/collections/entities/teams';
+export type Team = ConvexItemOf<typeof api.members.queries.getMyTeams>;
 
-export function useTeams(collection: Collection<Team, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export function useTeams() {
+  const { data, isLoading } = useConvexQuery(api.members.queries.getMyTeams);
 
   return {
     teams: data ?? null,
@@ -14,8 +14,15 @@ export function useTeams(collection: Collection<Team, string>) {
   };
 }
 
-export function useTeamMembers(collection: Collection<TeamMember, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type TeamMember = ConvexItemOf<
+  typeof api.team_members.queries.listByTeam
+>;
+
+export function useTeamMembers(teamId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.team_members.queries.listByTeam,
+    { teamId },
+  );
 
   return {
     teamMembers: data,

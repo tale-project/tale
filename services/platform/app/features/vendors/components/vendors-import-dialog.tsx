@@ -101,7 +101,7 @@ export function ImportVendorsDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const bulkCreateVendors = useBulkCreateVendors();
+  const { mutateAsync: bulkCreateVendors } = useBulkCreateVendors();
 
   // Reset form when mode changes to ensure defaultValues are current
   useEffect(() => {

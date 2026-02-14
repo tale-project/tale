@@ -1,48 +1,60 @@
-import type { Collection } from '@tanstack/db';
-
-import { useLiveQuery } from '@tanstack/react-db';
 import { useMemo } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import type { AutomationRoot } from '@/lib/collections/entities/automation-roots';
-import type { WfAutomation } from '@/lib/collections/entities/wf-automations';
-import type { WfStep } from '@/lib/collections/entities/wf-steps';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { api } from '@/convex/_generated/api';
 
-export function useAutomationRoots(
-  collection: Collection<AutomationRoot, string>,
-) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type AutomationRoot = ConvexItemOf<
+  typeof api.wf_definitions.queries.listAutomationRoots
+>;
+
+export type WfAutomation = ConvexItemOf<
+  typeof api.wf_definitions.queries.listAutomations
+>;
+
+export type WfStep = ConvexItemOf<
+  typeof api.wf_step_defs.queries.getWorkflowSteps
+>;
+
+export function useAutomationRoots(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.wf_definitions.queries.listAutomationRoots,
+    { organizationId },
+  );
 
   return {
-    automationRoots: data,
+    automationRoots: data ?? [],
     isLoading,
   };
 }
 
-export function useAutomations(collection: Collection<WfAutomation, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export function useAutomations(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.wf_definitions.queries.listAutomations,
+    { organizationId },
+  );
 
   return {
-    automations: data,
+    automations: data ?? [],
     isLoading,
   };
 }
 
-export function useWorkflowSteps(collection: Collection<WfStep, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export function useWorkflowSteps(wfDefinitionId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.wf_step_defs.queries.getWorkflowSteps,
+    { wfDefinitionId },
+  );
 
   return {
-    steps: data,
+    steps: data ?? [],
     isLoading,
   };
 }
-
-export type { AutomationRoot };
 
 export function useListWorkflowVersions(
   organizationId: string | undefined,

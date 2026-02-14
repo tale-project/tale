@@ -170,9 +170,9 @@ export function ConversationsClient({
   }, [paginatedResult.results, searchQuery, initialSearch]);
 
   // Convex mutations
-  const bulkResolve = useBulkCloseConversations();
-  const bulkReopen = useBulkReopenConversations();
-  const addMessage = useAddMessage();
+  const { mutateAsync: bulkResolve } = useBulkCloseConversations();
+  const { mutateAsync: bulkReopen } = useBulkReopenConversations();
+  const { mutateAsync: addMessage } = useAddMessage();
 
   const [selectionState, setSelectionState] = useState<SelectionState>({
     type: 'individual',
@@ -237,9 +237,9 @@ interface ConversationsClientInnerProps {
     isOpen: boolean;
     isSending: boolean;
   }) => void;
-  bulkResolve: ReturnType<typeof useBulkCloseConversations>;
-  bulkReopen: ReturnType<typeof useBulkReopenConversations>;
-  addMessage: ReturnType<typeof useAddMessage>;
+  bulkResolve: ReturnType<typeof useBulkCloseConversations>['mutateAsync'];
+  bulkReopen: ReturnType<typeof useBulkReopenConversations>['mutateAsync'];
+  addMessage: ReturnType<typeof useAddMessage>['mutateAsync'];
   paginatedResult: UsePaginatedQueryResult<ConversationItem>;
   tChat: ReturnType<typeof useT>['t'];
   tConversations: ReturnType<typeof useT>['t'];

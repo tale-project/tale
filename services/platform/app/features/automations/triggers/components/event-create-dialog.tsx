@@ -17,7 +17,6 @@ import {
 } from '@/convex/workflows/triggers/event_types';
 import { useT } from '@/lib/i18n/client';
 
-import { useAutomationRootCollection } from '../../hooks/collections';
 import { useAutomationRoots } from '../../hooks/queries';
 import {
   useCreateEventSubscription,
@@ -76,10 +75,7 @@ export function EventCreateDialog({
     [selectedEventType],
   );
 
-  const automationRootCollection = useAutomationRootCollection(organizationId);
-  const { automationRoots: workflows } = useAutomationRoots(
-    automationRootCollection,
-  );
+  const { automationRoots: workflows } = useAutomationRoots(organizationId);
 
   const options = useMemo(() => {
     const result: { value: string; label: string; disabled?: boolean }[] = [];

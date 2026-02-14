@@ -8,7 +8,6 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
-import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
@@ -44,8 +43,7 @@ export function DocumentUploadDialog({
   );
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  const teamCollection = useTeamCollection(organizationId);
-  const { teams, isLoading: isLoadingTeams } = useTeams(teamCollection);
+  const { teams, isLoading: isLoadingTeams } = useTeams();
 
   const { uploadFiles, isUploading } = useDocumentUpload({
     organizationId,

@@ -6,7 +6,6 @@ import { Plus, Webhook, Copy, Check, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import type { WfWebhook } from '@/lib/collections/entities/wf-webhooks';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -16,7 +15,8 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 
-import { useWebhookCollection } from '../hooks/collections';
+import type { WfWebhook } from '../hooks/queries';
+
 import {
   useCreateWebhook,
   useDeleteWebhook,
@@ -40,16 +40,15 @@ export function WebhooksSection({
   const { t } = useT('automations');
   const { toast } = useToast();
 
-  const webhookCollection = useWebhookCollection(workflowRootId);
-  const { webhooks } = useWebhooks(webhookCollection);
+  const { webhooks } = useWebhooks(workflowRootId);
 
-  const createWebhook = useCreateWebhook();
-  const [isCreating, setIsCreating] = useState(false);
-  const toggleWebhook = useToggleWebhook();
-  const deleteWebhookMutation = useDeleteWebhook();
+  const { mutateAsync: createWebhook, isPending: isCreating } =
+    useCreateWebhook();
+  const { mutateAsync: toggleWebhook } = useToggleWebhook();
+  const { mutate: deleteWebhookMutation, isPending: isDeleting } =
+    useDeleteWebhook();
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WebhookRow | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const siteUrl = useSiteUrl();
@@ -60,7 +59,6 @@ export function WebhooksSection({
   );
 
   const handleCreate = useCallback(async () => {
-    setIsCreating(true);
     try {
       const result = await createWebhook({
         organizationId,
@@ -73,8 +71,6 @@ export function WebhooksSection({
       });
     } catch {
       toast({ title: 'Failed to create webhook', variant: 'destructive' });
-    } finally {
-      setIsCreating(false);
     }
   }, [createWebhook, organizationId, workflowRootId, toast, t, getWebhookUrl]);
 
@@ -95,21 +91,26 @@ export function WebhooksSection({
     [toggleWebhook, toast, t],
   );
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (!deleteTarget) return;
-    setIsDeleting(true);
-    try {
-      await deleteWebhookMutation({ webhookId: deleteTarget._id });
-      toast({
-        title: t('triggers.webhooks.toast.deleted'),
-        variant: 'success',
-      });
-      setDeleteTarget(null);
-    } catch {
-      toast({ title: 'Failed to delete webhook', variant: 'destructive' });
-    } finally {
-      setIsDeleting(false);
-    }
+    deleteWebhookMutation(
+      { webhookId: deleteTarget._id },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('triggers.webhooks.toast.deleted'),
+            variant: 'success',
+          });
+          setDeleteTarget(null);
+        },
+        onError: () => {
+          toast({
+            title: 'Failed to delete webhook',
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [deleteTarget, deleteWebhookMutation, toast, t]);
 
   const handleCopyUrl = useCallback(

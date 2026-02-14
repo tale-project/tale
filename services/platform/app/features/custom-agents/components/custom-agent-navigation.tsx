@@ -2,7 +2,7 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { ChevronDown, CircleStop, FlaskConical, Pencil } from 'lucide-react';
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import {
@@ -47,14 +47,14 @@ export function CustomAgentNavigation({
   const { agent, versions, hasDraft, draftVersionNumber } =
     useCustomAgentVersion();
 
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [isUnpublishing, setIsUnpublishing] = useState(false);
-  const [isActivating, setIsActivating] = useState(false);
-  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
-  const publishAgent = usePublishCustomAgent();
-  const unpublishAgent = useUnpublishCustomAgent();
-  const activateVersion = useActivateCustomAgentVersion();
-  const createDraft = useCreateDraftFromVersion();
+  const { mutate: publishAgent, isPending: isPublishing } =
+    usePublishCustomAgent();
+  const { mutate: unpublishAgent, isPending: isUnpublishing } =
+    useUnpublishCustomAgent();
+  const { mutate: activateVersion, isPending: isActivating } =
+    useActivateCustomAgentVersion();
+  const { mutateAsync: createDraft, isPending: isCreatingDraft } =
+    useCreateDraftFromVersion();
 
   const basePath = `/dashboard/${organizationId}/custom-agents/${agentId}`;
   const versionSearch =
@@ -112,68 +112,70 @@ export function CustomAgentNavigation({
     });
   }, [navigate, organizationId, agentId]);
 
-  const handlePublish = async () => {
-    setIsPublishing(true);
-    try {
-      await publishAgent({
-        customAgentId: toId<'customAgents'>(agentId),
-      });
-      toast({
-        title: t('customAgents.agentPublished'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('customAgents.agentPublishFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsPublishing(false);
-    }
+  const handlePublish = () => {
+    publishAgent(
+      { customAgentId: toId<'customAgents'>(agentId) },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('customAgents.agentPublished'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error(error);
+          toast({
+            title: t('customAgents.agentPublishFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   };
 
-  const handleUnpublish = async () => {
-    setIsUnpublishing(true);
-    try {
-      await unpublishAgent({
-        customAgentId: toId<'customAgents'>(agentId),
-      });
-      toast({
-        title: t('customAgents.agentDeactivated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('customAgents.agentDeactivateFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsUnpublishing(false);
-    }
+  const handleUnpublish = () => {
+    unpublishAgent(
+      { customAgentId: toId<'customAgents'>(agentId) },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('customAgents.agentDeactivated'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error(error);
+          toast({
+            title: t('customAgents.agentDeactivateFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   };
 
-  const handleActivate = async () => {
-    setIsActivating(true);
-    try {
-      await activateVersion({
+  const handleActivate = () => {
+    activateVersion(
+      {
         customAgentId: toId<'customAgents'>(agentId),
         targetVersion: agent.versionNumber,
-      });
-      toast({
-        title: t('customAgents.agentPublished'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: t('customAgents.agentPublishFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsActivating(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('customAgents.agentPublished'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error(error);
+          toast({
+            title: t('customAgents.agentPublishFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   };
 
   const handleCreateDraft = async () => {
@@ -182,7 +184,6 @@ export function CustomAgentNavigation({
       return;
     }
 
-    setIsCreatingDraft(true);
     try {
       await createDraft({
         customAgentId: toId<'customAgents'>(agentId),
@@ -195,8 +196,6 @@ export function CustomAgentNavigation({
         title: t('customAgents.agentUpdateFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsCreatingDraft(false);
     }
   };
 

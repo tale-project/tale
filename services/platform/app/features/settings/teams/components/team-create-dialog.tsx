@@ -33,7 +33,7 @@ export function TeamCreateDialog({
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const addMember = useCreateTeamMember();
+  const { mutateAsync: addMember } = useCreateTeamMember();
 
   const nameRequiredError = tSettings('teams.teamNameRequired');
   const schema = useMemo(

@@ -246,8 +246,9 @@ function WorkflowCreationApprovalCardComponent({
   );
   const { copied, onClick: handleCopy } = useCopyButton(configJson);
 
-  const updateApprovalStatus = useUpdateApprovalStatus();
-  const executeApprovedWorkflow = useExecuteApprovedWorkflowCreation();
+  const { mutateAsync: updateApprovalStatus } = useUpdateApprovalStatus();
+  const { mutateAsync: executeApprovedWorkflow } =
+    useExecuteApprovedWorkflowCreation();
 
   const isPending = status === 'pending';
   const isProcessing = isApproving || isRejecting;

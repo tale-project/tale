@@ -53,8 +53,9 @@ function IntegrationApprovalCardComponent({
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const updateApprovalStatus = useUpdateApprovalStatus();
-  const executeApprovedOperation = useExecuteApprovedIntegrationOperation();
+  const { mutateAsync: updateApprovalStatus } = useUpdateApprovalStatus();
+  const { mutateAsync: executeApprovedOperation } =
+    useExecuteApprovedIntegrationOperation();
 
   const isPending = status === 'pending';
   const isProcessing = isApproving || isRejecting;

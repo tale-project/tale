@@ -10,13 +10,9 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import type { Team } from '../hooks/collections';
-
-import { useMemberCollection } from '../../organization/hooks/collections';
 import { useMembers } from '../../organization/hooks/queries';
-import { useTeamMemberCollection } from '../hooks/collections';
 import { useAddTeamMember, useRemoveTeamMember } from '../hooks/mutations';
-import { useTeamMembers } from '../hooks/queries';
+import { useTeamMembers, type Team } from '../hooks/queries';
 
 interface TeamMembersDialogProps {
   open: boolean;
@@ -38,14 +34,11 @@ export function TeamMembersDialog({
   const [isAdding, setIsAdding] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
-  const memberCollection = useMemberCollection(organizationId);
-  const { members: orgMembers } = useMembers(memberCollection);
+  const { members: orgMembers } = useMembers(organizationId);
 
-  const teamMemberCollection = useTeamMemberCollection(
-    open ? team.id : undefined,
+  const { teamMembers, isLoading: isLoadingTeamMembers } = useTeamMembers(
+    team.id,
   );
-  const { teamMembers, isLoading: isLoadingTeamMembers } =
-    useTeamMembers(teamMemberCollection);
 
   const addTeamMember = useAddTeamMember();
   const removeTeamMember = useRemoveTeamMember();

@@ -1,7 +1,7 @@
 'use client';
 
 import { RefreshCw, Trash2, Users } from 'lucide-react';
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback } from 'react';
 
 import {
   EntityRowActions,
@@ -41,10 +41,9 @@ export function DocumentRowActions({
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['delete', 'deleteFolder', 'teamTags']);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const deleteDocument = useDeleteDocument();
-  const retryRagIndexing = useRetryRagIndexing();
-  const [isReindexing, setIsReindexing] = useState(false);
+  const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
+  const { mutateAsync: retryRagIndexing, isPending: isReindexing } =
+    useRetryRagIndexing();
 
   // Determine if delete action should be visible
   const canDelete =
@@ -52,40 +51,36 @@ export function DocumentRowActions({
     !!isDirectlySelected ||
     (itemType === 'folder' && !!syncConfigId);
 
-  const handleDeleteConfirm = useCallback(async () => {
-    try {
-      setIsDeleting(true);
-      await deleteDocument({
-        documentId: toId<'documents'>(documentId),
-      });
-      dialogs.setOpen.delete(false);
-    } catch (error) {
-      console.error('Delete error:', error);
-      toast({
-        title: tDocuments('actions.deleteFileFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+  const handleDeleteConfirm = useCallback(() => {
+    deleteDocument(
+      { documentId: toId<'documents'>(documentId) },
+      {
+        onSuccess: () => dialogs.setOpen.delete(false),
+        onError: (error) => {
+          console.error('Delete error:', error);
+          toast({
+            title: tDocuments('actions.deleteFileFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [deleteDocument, documentId, dialogs.setOpen, tDocuments]);
 
-  const handleDeleteFolderConfirm = useCallback(async () => {
-    try {
-      setIsDeleting(true);
-      await deleteDocument({
-        documentId: toId<'documents'>(documentId),
-      });
-      dialogs.setOpen.deleteFolder(false);
-    } catch (error) {
-      console.error('Failed to delete folder:', error);
-      toast({
-        title: tDocuments('actions.deleteFolderFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+  const handleDeleteFolderConfirm = useCallback(() => {
+    deleteDocument(
+      { documentId: toId<'documents'>(documentId) },
+      {
+        onSuccess: () => dialogs.setOpen.deleteFolder(false),
+        onError: (error) => {
+          console.error('Failed to delete folder:', error);
+          toast({
+            title: tDocuments('actions.deleteFolderFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [deleteDocument, documentId, dialogs.setOpen, tDocuments]);
 
   const handleDeleteClick = useCallback(() => {
@@ -98,7 +93,6 @@ export function DocumentRowActions({
 
   const handleReindex = useCallback(async () => {
     if (isReindexing) return;
-    setIsReindexing(true);
     try {
       const result = await retryRagIndexing({
         documentId: toId<'documents'>(documentId),
@@ -121,8 +115,6 @@ export function DocumentRowActions({
         title: tDocuments('rag.toast.unexpectedError'),
         variant: 'destructive',
       });
-    } finally {
-      setIsReindexing(false);
     }
   }, [documentId, retryRagIndexing, tDocuments, isReindexing]);
 

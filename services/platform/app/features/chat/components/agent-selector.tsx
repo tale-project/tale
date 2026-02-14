@@ -8,7 +8,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/app/components/ui/overlays/popover';
-import { useCustomAgentCollection } from '@/app/features/custom-agents/hooks/collections';
 import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
@@ -47,8 +46,7 @@ function filterOptions(options: AgentOption[], query: string) {
 export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const { t } = useT('chat');
   const { selectedAgent, setSelectedAgent } = useChatLayout();
-  const customAgentCollection = useCustomAgentCollection(organizationId);
-  const { agents: customAgents } = useChatAgents(customAgentCollection);
+  const { agents: customAgents } = useChatAgents(organizationId);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
