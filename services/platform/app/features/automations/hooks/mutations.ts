@@ -1,4 +1,5 @@
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useStartWorkflow() {
@@ -16,15 +17,39 @@ export function useDuplicateAutomation() {
 }
 
 export function usePublishAutomationDraft() {
-  return useConvexMutation(api.wf_definitions.mutations.publishDraft);
+  return useConvexOptimisticMutation(
+    api.wf_definitions.mutations.publishDraft,
+    api.wf_definitions.queries.listAutomations,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ wfDefinitionId }, { update }) =>
+        update(wfDefinitionId, { status: 'active' }),
+    },
+  );
 }
 
 export function useUnpublishAutomation() {
-  return useConvexMutation(api.wf_definitions.mutations.unpublishWorkflow);
+  return useConvexOptimisticMutation(
+    api.wf_definitions.mutations.unpublishWorkflow,
+    api.wf_definitions.queries.listAutomations,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ wfDefinitionId }, { update }) =>
+        update(wfDefinitionId, { status: 'archived' }),
+    },
+  );
 }
 
 export function useRepublishAutomation() {
-  return useConvexMutation(api.wf_definitions.mutations.republishWorkflow);
+  return useConvexOptimisticMutation(
+    api.wf_definitions.mutations.republishWorkflow,
+    api.wf_definitions.queries.listAutomations,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ wfDefinitionId }, { update }) =>
+        update(wfDefinitionId, { status: 'active' }),
+    },
+  );
 }
 
 export function useCreateDraftFromActive() {
@@ -44,9 +69,24 @@ export function useUpdateAutomation() {
 }
 
 export function useDeleteAutomation() {
-  return useConvexMutation(api.wf_definitions.mutations.deleteWorkflow);
+  return useConvexOptimisticMutation(
+    api.wf_definitions.mutations.deleteWorkflow,
+    api.wf_definitions.queries.listAutomations,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ wfDefinitionId }, { remove }) => remove(wfDefinitionId),
+    },
+  );
 }
 
 export function useUpdateAutomationMetadata() {
-  return useConvexMutation(api.wf_definitions.mutations.updateWorkflowMetadata);
+  return useConvexOptimisticMutation(
+    api.wf_definitions.mutations.updateWorkflowMetadata,
+    api.wf_definitions.queries.listAutomations,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ wfDefinitionId, ...changes }, { update }) =>
+        update(wfDefinitionId, changes),
+    },
+  );
 }

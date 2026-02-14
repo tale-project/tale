@@ -62,4 +62,24 @@ describe('useConvexQuery', () => {
 
     expect(result).toBe(mockResult);
   });
+
+  it('merges cache options into useQuery call', () => {
+    const args = { organizationId: 'org-123' };
+    const options = { staleTime: 10_000, gcTime: 60_000 };
+
+    useConvexQuery(mockQueryRef, args, options);
+
+    const passedOptions = mockUseQuery.mock.calls[0]?.[0];
+    expect(passedOptions).toMatchObject(options);
+  });
+
+  it('does not include undefined options when omitted', () => {
+    const args = { organizationId: 'org-123' };
+
+    useConvexQuery(mockQueryRef, args);
+
+    const passedOptions = mockUseQuery.mock.calls[0]?.[0];
+    expect(passedOptions).not.toHaveProperty('staleTime');
+    expect(passedOptions).not.toHaveProperty('gcTime');
+  });
 });

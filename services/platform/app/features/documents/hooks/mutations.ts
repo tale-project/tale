@@ -5,6 +5,7 @@ import { useState, useRef } from 'react';
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -265,9 +266,24 @@ export function useDocumentUpload(options: UploadOptions) {
 }
 
 export function useDeleteDocument() {
-  return useConvexMutation(api.documents.mutations.deleteDocument);
+  return useConvexOptimisticMutation(
+    api.documents.mutations.deleteDocument,
+    api.documents.queries.listDocuments,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ documentId }, { remove }) => remove(documentId),
+    },
+  );
 }
 
 export function useUpdateDocument() {
-  return useConvexMutation(api.documents.mutations.updateDocument);
+  return useConvexOptimisticMutation(
+    api.documents.mutations.updateDocument,
+    api.documents.queries.listDocuments,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ documentId, ...changes }, { update }) =>
+        update(documentId, changes),
+    },
+  );
 }

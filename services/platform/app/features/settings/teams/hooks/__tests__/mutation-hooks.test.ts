@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockMutateAsync = vi.fn();
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
+vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
+  useConvexOptimisticMutation: () => ({
     mutate: mockMutateAsync,
     mutateAsync: mockMutateAsync,
     isPending: false,
@@ -22,6 +22,9 @@ vi.mock('@/convex/_generated/api', () => ({
         addMember: 'addMember',
         removeMember: 'removeMember',
       },
+      queries: {
+        listByTeam: 'listByTeam',
+      },
     },
   },
 }));
@@ -37,7 +40,7 @@ describe('useAddTeamMember', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
     const result = useAddTeamMember();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -79,7 +82,7 @@ describe('useRemoveTeamMember', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
     const result = useRemoveTeamMember();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -114,7 +117,7 @@ describe('useRemoveTeamMember', () => {
 });
 
 describe('useCreateTeamMember', () => {
-  it('returns a mutation result object from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
     const result = useCreateTeamMember();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');

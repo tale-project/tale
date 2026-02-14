@@ -58,7 +58,7 @@ export function ScheduleCreateDialog({
   const { mutateAsync: createSchedule, isPending: isCreatingSchedule } =
     useCreateSchedule();
   const { mutateAsync: updateSchedule, isPending: isUpdatingSchedule } =
-    useUpdateSchedule();
+    useUpdateSchedule(workflowRootId);
   const { mutateAsync: generateCron, isPending: isGenerating } =
     useGenerateCron();
   const isSubmitting = isCreatingSchedule || isUpdatingSchedule;

@@ -4,17 +4,23 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 
 const mockMutateAsync = vi.fn();
 
+const mockMutationResult = {
+  mutate: mockMutateAsync,
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+  isError: false,
+  isSuccess: false,
+  error: null,
+  data: undefined,
+  reset: vi.fn(),
+};
+
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
-    mutate: mockMutateAsync,
-    mutateAsync: mockMutateAsync,
-    isPending: false,
-    isError: false,
-    isSuccess: false,
-    error: null,
-    data: undefined,
-    reset: vi.fn(),
-  }),
+  useConvexMutation: () => mockMutationResult,
+}));
+
+vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
+  useConvexOptimisticMutation: () => mockMutationResult,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -29,6 +35,9 @@ vi.mock('@/convex/_generated/api', () => ({
         updateIcon: 'updateIcon',
         deleteIntegration: 'deleteIntegration',
       },
+      queries: {
+        list: 'list',
+      },
     },
   },
 }));
@@ -40,7 +49,7 @@ describe('useDeleteIntegration', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
     const result = useDeleteIntegration();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');

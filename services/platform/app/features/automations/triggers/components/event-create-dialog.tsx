@@ -50,7 +50,7 @@ export function EventCreateDialog({
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const createEventSubscription = useCreateEventSubscription();
-  const updateEventSubscription = useUpdateEventSubscription();
+  const updateEventSubscription = useUpdateEventSubscription(workflowRootId);
 
   const isEditMode = !!editing;
 

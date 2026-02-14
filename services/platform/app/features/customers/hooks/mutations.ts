@@ -1,4 +1,5 @@
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useBulkCreateCustomers() {
@@ -6,9 +7,24 @@ export function useBulkCreateCustomers() {
 }
 
 export function useDeleteCustomer() {
-  return useConvexMutation(api.customers.mutations.deleteCustomer);
+  return useConvexOptimisticMutation(
+    api.customers.mutations.deleteCustomer,
+    api.customers.queries.listCustomers,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ customerId }, { remove }) => remove(customerId),
+    },
+  );
 }
 
 export function useUpdateCustomer() {
-  return useConvexMutation(api.customers.mutations.updateCustomer);
+  return useConvexOptimisticMutation(
+    api.customers.mutations.updateCustomer,
+    api.customers.queries.listCustomers,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ customerId, ...changes }, { update }) =>
+        update(customerId, changes),
+    },
+  );
 }

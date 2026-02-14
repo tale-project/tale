@@ -2,17 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockMutateAsync = vi.fn();
 
+const mockMutationResult = {
+  mutate: mockMutateAsync,
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+  isError: false,
+  isSuccess: false,
+  error: null,
+  data: undefined,
+  reset: vi.fn(),
+};
+
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
-    mutate: mockMutateAsync,
-    mutateAsync: mockMutateAsync,
-    isPending: false,
-    isError: false,
-    isSuccess: false,
-    error: null,
-    data: undefined,
-    reset: vi.fn(),
-  }),
+  useConvexMutation: () => mockMutationResult,
+}));
+
+vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
+  useConvexOptimisticMutation: () => mockMutationResult,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -29,22 +35,71 @@ vi.mock('@/convex/_generated/api', () => ({
         updateMemberRole: 'updateMemberRole',
         updateMemberDisplayName: 'updateMemberDisplayName',
       },
+      queries: {
+        listByOrganization: 'listByOrganization',
+      },
     },
   },
 }));
 
 import {
+  useCreateMember,
   useRemoveMember,
   useUpdateMemberRole,
   useUpdateMemberDisplayName,
 } from '../mutations';
+
+describe('useCreateMember', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useCreateMember();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
+  });
+
+  it('calls mutation with the correct args', async () => {
+    mockMutateAsync.mockResolvedValueOnce({
+      userId: 'user-1',
+      memberId: 'member-1',
+      isExistingUser: false,
+    });
+    const { mutateAsync: createMember } = useCreateMember();
+
+    await createMember({
+      organizationId: 'org-123',
+      email: 'test@example.com',
+      role: 'member',
+    });
+
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      organizationId: 'org-123',
+      email: 'test@example.com',
+      role: 'member',
+    });
+  });
+
+  it('propagates errors from mutation', async () => {
+    mockMutateAsync.mockRejectedValueOnce(new Error('Create failed'));
+    const { mutateAsync: createMember } = useCreateMember();
+
+    await expect(
+      createMember({
+        organizationId: 'org-123',
+        email: 'test@example.com',
+      }),
+    ).rejects.toThrow('Create failed');
+  });
+});
 
 describe('useRemoveMember', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
     const result = useRemoveMember();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -74,7 +129,7 @@ describe('useUpdateMemberRole', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
     const result = useUpdateMemberRole();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -107,7 +162,7 @@ describe('useUpdateMemberDisplayName', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
     const result = useUpdateMemberDisplayName();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');

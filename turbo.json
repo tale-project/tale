@@ -41,10 +41,12 @@
       "outputs": []
     },
     "lint:fix": {
+      "dependsOn": ["setup"],
       "cache": false,
       "outputs": []
     },
     "format": {
+      "dependsOn": ["setup"],
       "cache": false,
       "outputs": []
     },
