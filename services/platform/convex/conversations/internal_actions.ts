@@ -385,7 +385,7 @@ export const downloadAttachmentsAction = internalAction({
 
       const message = await ctx.runQuery(
         internal.conversations.internal_queries.getMessageById,
-        { messageId: args.messageId },
+        { messageId: args.messageId, organizationId: args.organizationId },
       );
 
       if (!message) {
