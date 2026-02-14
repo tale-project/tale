@@ -28,8 +28,8 @@ export function IntegrationUploadDialog({
 }: IntegrationUploadDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { mutateAsync: createIntegration } = useCreateIntegration();
-  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  const createIntegration = useCreateIntegration();
+  const generateUploadUrl = useGenerateUploadUrl();
 
   const state = useUploadIntegration();
 

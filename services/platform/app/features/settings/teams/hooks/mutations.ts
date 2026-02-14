@@ -6,15 +6,9 @@ export function useCreateTeamMember() {
 }
 
 export function useAddTeamMember() {
-  const { mutateAsync } = useConvexMutation(
-    api.team_members.mutations.addMember,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.team_members.mutations.addMember);
 }
 
 export function useRemoveTeamMember() {
-  const { mutateAsync } = useConvexMutation(
-    api.team_members.mutations.removeMember,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.team_members.mutations.removeMember);
 }

@@ -2,13 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { toId } from '@/convex/lib/type_cast_helpers';
 
-const mockMutateAsync = vi.fn();
+const mockMutationFn = vi.fn();
 
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
-    mutateAsync: mockMutateAsync,
-    isPending: false,
-  }),
+  useConvexMutation: () => mockMutationFn,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -29,24 +26,24 @@ describe('useDeleteDocument', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
+  it('returns the mutation function from useConvexMutation', () => {
     const deleteDocument = useDeleteDocument();
-    expect(deleteDocument).toBe(mockMutateAsync);
+    expect(deleteDocument).toBe(mockMutationFn);
   });
 
-  it('calls mutateAsync with the correct args', async () => {
-    mockMutateAsync.mockResolvedValueOnce(null);
+  it('calls mutation with the correct args', async () => {
+    mockMutationFn.mockResolvedValueOnce(null);
     const deleteDocument = useDeleteDocument();
 
     await deleteDocument({ documentId: toId<'documents'>('doc-123') });
 
-    expect(mockMutateAsync).toHaveBeenCalledWith({
+    expect(mockMutationFn).toHaveBeenCalledWith({
       documentId: toId<'documents'>('doc-123'),
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
-    mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
+  it('propagates errors from mutation', async () => {
+    mockMutationFn.mockRejectedValueOnce(new Error('Delete failed'));
     const deleteDocument = useDeleteDocument();
 
     await expect(
@@ -60,13 +57,13 @@ describe('useUpdateDocument', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
+  it('returns the mutation function from useConvexMutation', () => {
     const updateDocument = useUpdateDocument();
-    expect(updateDocument).toBe(mockMutateAsync);
+    expect(updateDocument).toBe(mockMutationFn);
   });
 
-  it('calls mutateAsync with documentId and teamTags', async () => {
-    mockMutateAsync.mockResolvedValueOnce(undefined);
+  it('calls mutation with documentId and teamTags', async () => {
+    mockMutationFn.mockResolvedValueOnce(undefined);
     const updateDocument = useUpdateDocument();
 
     await updateDocument({
@@ -74,25 +71,25 @@ describe('useUpdateDocument', () => {
       teamTags: ['team-1', 'team-2'],
     });
 
-    expect(mockMutateAsync).toHaveBeenCalledWith({
+    expect(mockMutationFn).toHaveBeenCalledWith({
       documentId: toId<'documents'>('doc-123'),
       teamTags: ['team-1', 'team-2'],
     });
   });
 
-  it('calls mutateAsync with documentId only', async () => {
-    mockMutateAsync.mockResolvedValueOnce(undefined);
+  it('calls mutation with documentId only', async () => {
+    mockMutationFn.mockResolvedValueOnce(undefined);
     const updateDocument = useUpdateDocument();
 
     await updateDocument({ documentId: toId<'documents'>('doc-123') });
 
-    expect(mockMutateAsync).toHaveBeenCalledWith({
+    expect(mockMutationFn).toHaveBeenCalledWith({
       documentId: toId<'documents'>('doc-123'),
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
-    mockMutateAsync.mockRejectedValueOnce(new Error('Update failed'));
+  it('propagates errors from mutation', async () => {
+    mockMutationFn.mockRejectedValueOnce(new Error('Update failed'));
     const updateDocument = useUpdateDocument();
 
     await expect(

@@ -104,7 +104,7 @@ export function ImportCustomersDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const { mutateAsync: bulkCreateCustomers } = useBulkCreateCustomers();
+  const bulkCreateCustomers = useBulkCreateCustomers();
 
   const handleClose = useCallback(() => {
     formMethods.reset();

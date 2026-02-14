@@ -2,22 +2,13 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useCreateProduct() {
-  const { mutateAsync } = useConvexMutation(
-    api.products.mutations.createProduct,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.products.mutations.createProduct);
 }
 
 export function useDeleteProduct() {
-  const { mutateAsync } = useConvexMutation(
-    api.products.mutations.deleteProduct,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.products.mutations.deleteProduct);
 }
 
 export function useUpdateProduct() {
-  const { mutateAsync } = useConvexMutation(
-    api.products.mutations.updateProduct,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.products.mutations.updateProduct);
 }

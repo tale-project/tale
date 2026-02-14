@@ -61,11 +61,10 @@ export function ConversationPanel({
     selectedConversationId,
   );
 
-  const { mutateAsync: markAsRead } = useMarkAsRead();
-  const { mutateAsync: sendMessageViaIntegration } =
-    useSendMessageViaIntegration();
-  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
-  const { mutateAsync: downloadAttachments } = useDownloadAttachments();
+  const markAsRead = useMarkAsRead();
+  const sendMessageViaIntegration = useSendMessageViaIntegration();
+  const generateUploadUrl = useGenerateUploadUrl();
+  const downloadAttachments = useDownloadAttachments();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const messageComposerRef = useRef<HTMLDivElement>(null);

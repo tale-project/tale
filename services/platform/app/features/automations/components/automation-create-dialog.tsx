@@ -40,10 +40,9 @@ export function CreateAutomationDialog({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { user } = useAuth();
-  const { mutateAsync: createChatThread } = useCreateThread();
-  const { mutateAsync: updateWorkflowMetadata } = useUpdateAutomationMetadata();
-  const { mutateAsync: chatWithWorkflowAssistant } =
-    useChatWithWorkflowAssistant();
+  const createChatThread = useCreateThread();
+  const updateWorkflowMetadata = useUpdateAutomationMetadata();
+  const chatWithWorkflowAssistant = useChatWithWorkflowAssistant();
 
   const formSchema = useMemo(
     () =>
@@ -67,7 +66,7 @@ export function CreateAutomationDialog({
   });
   const navigate = useNavigate();
 
-  const { mutateAsync: createAutomation } = useCreateAutomation();
+  const createAutomation = useCreateAutomation();
 
   const onSubmit = async (data: FormData) => {
     try {

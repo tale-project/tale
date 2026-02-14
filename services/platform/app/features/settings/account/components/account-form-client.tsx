@@ -44,7 +44,7 @@ export function AccountFormClient({
   const { t: tAuth } = useT('auth');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
-  const { mutateAsync: updatePassword } = useUpdatePassword();
+  const updatePassword = useUpdatePassword();
   const { toast } = useToast();
 
   const { data: hasCredential, isLoading: isCredentialLoading } =
@@ -101,7 +101,7 @@ function ChangePasswordForm({
   tCommon,
   tToast,
 }: {
-  updatePassword: ReturnType<typeof useUpdatePassword>['mutateAsync'];
+  updatePassword: ReturnType<typeof useUpdatePassword>;
   toast: ReturnType<typeof useToast>['toast'];
   tAuth: ReturnType<typeof useT>['t'];
   tCommon: ReturnType<typeof useT>['t'];
@@ -205,7 +205,7 @@ function SetPasswordForm({
   tCommon,
   tToast,
 }: {
-  updatePassword: ReturnType<typeof useUpdatePassword>['mutateAsync'];
+  updatePassword: ReturnType<typeof useUpdatePassword>;
   toast: ReturnType<typeof useToast>['toast'];
   tAuth: ReturnType<typeof useT>['t'];
   tCommon: ReturnType<typeof useT>['t'];

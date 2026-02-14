@@ -32,13 +32,13 @@ export function CustomAgentActiveToggle({
   const { t: tCommon } = useT('common');
 
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
-  const { mutateAsync: activateVersion, isPending: isActivating } =
-    useActivateCustomAgentVersion();
-  const { mutateAsync: publishAgent, isPending: isPublishing } =
-    usePublishCustomAgent();
-  const { mutateAsync: unpublishAgent, isPending: isUnpublishing } =
-    useUnpublishCustomAgent();
+  const activateVersion = useActivateCustomAgentVersion();
+  const publishAgent = usePublishCustomAgent();
+  const unpublishAgent = useUnpublishCustomAgent();
 
   const isToggling = isActivating || isPublishing || isUnpublishing;
 
@@ -48,6 +48,11 @@ export function CustomAgentActiveToggle({
     agent.status === 'draft' && agent.versionNumber === 1;
 
   const handleActivate = useCallback(async () => {
+    if (agent.status === 'draft') {
+      setIsPublishing(true);
+    } else {
+      setIsActivating(true);
+    }
     try {
       if (agent.status === 'draft') {
         await publishAgent({
@@ -69,6 +74,9 @@ export function CustomAgentActiveToggle({
         title: t('customAgents.agentPublishFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsPublishing(false);
+      setIsActivating(false);
     }
   }, [
     activateVersion,
@@ -80,6 +88,7 @@ export function CustomAgentActiveToggle({
   ]);
 
   const handleDeactivateConfirm = useCallback(async () => {
+    setIsUnpublishing(true);
     try {
       await unpublishAgent({
         customAgentId: toId<'customAgents'>(rootId),
@@ -95,6 +104,8 @@ export function CustomAgentActiveToggle({
         title: t('customAgents.agentDeactivateFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsUnpublishing(false);
     }
   }, [unpublishAgent, rootId, t]);
 

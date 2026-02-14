@@ -58,7 +58,7 @@ function ConfigurationPage() {
   const { data: workflow, isLoading: isWorkflowLoading } =
     useWorkflow(automationId);
 
-  const { mutateAsync: updateWorkflow } = useUpdateAutomation();
+  const updateWorkflow = useUpdateAutomation();
 
   useEffect(() => {
     if (workflow) {

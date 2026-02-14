@@ -1,7 +1,7 @@
 'use client';
 
 import { Eye, ScanText, RefreshCcw, Pencil, Trash2 } from 'lucide-react';
-import { useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 
 import {
   EntityRowActions,
@@ -25,10 +25,11 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
 
-  const { mutateAsync: rescanWebsite, isPending: isRescanning } =
-    useRescanWebsite();
+  const [isRescanning, setIsRescanning] = useState(false);
+  const rescanWebsite = useRescanWebsite();
 
   const handleRescan = useCallback(async () => {
+    setIsRescanning(true);
     try {
       await rescanWebsite({ websiteId: website._id });
       toast({
@@ -41,6 +42,8 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         title: t('actions.rescanFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsRescanning(false);
     }
   }, [rescanWebsite, website._id, t]);
 

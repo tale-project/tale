@@ -40,7 +40,7 @@ export function CustomAgentVersionHistoryDialog({
 }: CustomAgentVersionHistoryDialogProps) {
   const { t } = useT('settings');
   const { formatDate } = useFormatDate();
-  const { mutateAsync: activateVersion } = useActivateCustomAgentVersion();
+  const activateVersion = useActivateCustomAgentVersion();
   const [activatingVersion, setActivatingVersion] = useState<number | null>(
     null,
   );

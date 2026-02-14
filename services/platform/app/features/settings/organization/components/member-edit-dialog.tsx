@@ -91,7 +91,7 @@ export function EditMemberDialog({
 
   const updateMemberRole = useUpdateMemberRole();
   const updateMemberDisplayName = useUpdateMemberDisplayName();
-  const { mutateAsync: setMemberPassword } = useSetMemberPassword();
+  const setMemberPassword = useSetMemberPassword();
 
   const handleUpdateMember = async (
     memberId: string,

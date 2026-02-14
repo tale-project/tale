@@ -293,11 +293,10 @@ function AutomationAssistantContent({
   });
 
   // Connect to workflow assistant agent
-  const { mutateAsync: chatWithWorkflowAssistant } =
-    useChatWithWorkflowAssistant();
-  const { mutateAsync: createChatThread } = useCreateThread();
-  const { mutateAsync: deleteChatThread } = useDeleteThread();
-  const { mutateAsync: updateWorkflowMetadata } = useUpdateAutomationMetadata();
+  const chatWithWorkflowAssistant = useChatWithWorkflowAssistant();
+  const createChatThread = useCreateThread();
+  const deleteChatThread = useDeleteThread();
+  const updateWorkflowMetadata = useUpdateAutomationMetadata();
 
   const { data: workflow } = useWorkflow(automationId);
 

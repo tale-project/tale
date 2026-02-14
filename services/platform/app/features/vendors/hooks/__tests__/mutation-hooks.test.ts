@@ -2,13 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { toId } from '@/convex/lib/type_cast_helpers';
 
-const mockMutateAsync = vi.fn();
+const mockMutationFn = vi.fn();
 
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
-    mutateAsync: mockMutateAsync,
-    isPending: false,
-  }),
+  useConvexMutation: () => mockMutationFn,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -30,10 +27,9 @@ import {
 } from '../mutations';
 
 describe('useBulkCreateVendors', () => {
-  it('returns the full mutation result from useConvexMutation', () => {
+  it('returns the mutation function from useConvexMutation', () => {
     const result = useBulkCreateVendors();
-    expect(result).toHaveProperty('mutateAsync', mockMutateAsync);
-    expect(result).toHaveProperty('isPending', false);
+    expect(result).toBe(mockMutationFn);
   });
 });
 
@@ -42,24 +38,23 @@ describe('useDeleteVendor', () => {
     vi.clearAllMocks();
   });
 
-  it('returns the full mutation result from useConvexMutation', () => {
+  it('returns the mutation function from useConvexMutation', () => {
     const result = useDeleteVendor();
-    expect(result).toHaveProperty('mutateAsync', mockMutateAsync);
-    expect(result).toHaveProperty('isPending', false);
+    expect(result).toBe(mockMutationFn);
   });
 
-  it('calls mutateAsync with the correct args', async () => {
-    mockMutateAsync.mockResolvedValueOnce(null);
-    const { mutateAsync: deleteVendor } = useDeleteVendor();
+  it('calls mutation with the correct args', async () => {
+    mockMutationFn.mockResolvedValueOnce(null);
+    const deleteVendor = useDeleteVendor();
 
     await deleteVendor({ vendorId: toId<'vendors'>('vendor-123') });
 
-    expect(mockMutateAsync).toHaveBeenCalledWith({ vendorId: 'vendor-123' });
+    expect(mockMutationFn).toHaveBeenCalledWith({ vendorId: 'vendor-123' });
   });
 
-  it('propagates errors from mutateAsync', async () => {
-    mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
-    const { mutateAsync: deleteVendor } = useDeleteVendor();
+  it('propagates errors from mutation', async () => {
+    mockMutationFn.mockRejectedValueOnce(new Error('Delete failed'));
+    const deleteVendor = useDeleteVendor();
 
     await expect(
       deleteVendor({ vendorId: toId<'vendors'>('vendor-789') }),
@@ -72,15 +67,14 @@ describe('useUpdateVendor', () => {
     vi.clearAllMocks();
   });
 
-  it('returns the full mutation result from useConvexMutation', () => {
+  it('returns the mutation function from useConvexMutation', () => {
     const result = useUpdateVendor();
-    expect(result).toHaveProperty('mutateAsync', mockMutateAsync);
-    expect(result).toHaveProperty('isPending', false);
+    expect(result).toBe(mockMutationFn);
   });
 
-  it('calls mutateAsync with the correct args', async () => {
-    mockMutateAsync.mockResolvedValueOnce(undefined);
-    const { mutateAsync: updateVendor } = useUpdateVendor();
+  it('calls mutation with the correct args', async () => {
+    mockMutationFn.mockResolvedValueOnce(undefined);
+    const updateVendor = useUpdateVendor();
 
     await updateVendor({
       vendorId: toId<'vendors'>('vendor-123'),
@@ -88,25 +82,25 @@ describe('useUpdateVendor', () => {
       email: 'new@example.com',
     });
 
-    expect(mockMutateAsync).toHaveBeenCalledWith({
+    expect(mockMutationFn).toHaveBeenCalledWith({
       vendorId: 'vendor-123',
       name: 'Updated Name',
       email: 'new@example.com',
     });
   });
 
-  it('calls mutateAsync with only vendorId when no fields updated', async () => {
-    mockMutateAsync.mockResolvedValueOnce(undefined);
-    const { mutateAsync: updateVendor } = useUpdateVendor();
+  it('calls mutation with only vendorId when no fields updated', async () => {
+    mockMutationFn.mockResolvedValueOnce(undefined);
+    const updateVendor = useUpdateVendor();
 
     await updateVendor({ vendorId: toId<'vendors'>('vendor-456') });
 
-    expect(mockMutateAsync).toHaveBeenCalledWith({ vendorId: 'vendor-456' });
+    expect(mockMutationFn).toHaveBeenCalledWith({ vendorId: 'vendor-456' });
   });
 
-  it('propagates errors from mutateAsync', async () => {
-    mockMutateAsync.mockRejectedValueOnce(new Error('Update failed'));
-    const { mutateAsync: updateVendor } = useUpdateVendor();
+  it('propagates errors from mutation', async () => {
+    mockMutationFn.mockRejectedValueOnce(new Error('Update failed'));
+    const updateVendor = useUpdateVendor();
 
     await expect(
       updateVendor({ vendorId: toId<'vendors'>('vendor-789'), name: 'Fail' }),

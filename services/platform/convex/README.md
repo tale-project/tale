@@ -89,27 +89,38 @@ export const updateCustomer = mutationWithRLS({
 ### Action
 
 ```ts
-// convex/customers/actions.ts
-import { action } from './_generated/server';
+// convex/documents/actions.ts
 import { v } from 'convex/values';
 
-export const bulkCreateCustomers = action({
+import { internal } from '../_generated/api';
+import { action } from '../_generated/server';
+
+export const retryRagIndexing = action({
   args: {
-    organizationId: v.string(),
-    customers: v.array(
-      v.object({
-        /* fields */
-      }),
-    ),
+    documentId: v.id('documents'),
   },
+  returns: v.object({
+    success: v.boolean(),
+    jobId: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
   handler: async (ctx, args) => {
-    // Actions can call mutations and interact with external systems
-    for (const customer of args.customers) {
-      await ctx.runMutation(api.customers.mutations.createCustomer, {
-        organizationId: args.organizationId,
-        ...customer,
-      });
+    // Actions can call queries/mutations and interact with external systems
+    const document = await ctx.runQuery(
+      internal.documents.internal_queries.getDocumentByIdRaw,
+      { documentId: args.documentId },
+    );
+
+    if (!document) {
+      return { success: false, error: 'Document not found' };
     }
+
+    const result = await ragAction.execute(ctx, {
+      operation: 'upload_document',
+      recordId: args.documentId,
+    });
+
+    return { success: result.success, jobId: result.jobId };
   },
 });
 ```
@@ -171,9 +182,9 @@ export function useUpdateCustomer() {
 ### Actions (for side effects)
 
 ```ts
-// features/customers/hooks/actions.ts
-export function useBulkCreateCustomers() {
-  return useConvexAction(api.customers.actions.bulkCreateCustomers);
+// features/documents/hooks/actions.ts
+export function useRetryRagIndexing() {
+  return useConvexAction(api.documents.actions.retryRagIndexing);
 }
 ```
 

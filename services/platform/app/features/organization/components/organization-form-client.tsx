@@ -42,8 +42,7 @@ export function OrganizationFormClient() {
     },
   });
 
-  const { mutateAsync: initializeDefaultWorkflows } =
-    useInitializeDefaultWorkflows();
+  const initializeDefaultWorkflows = useInitializeDefaultWorkflows();
 
   const handleSubmit = form.handleSubmit(async (data) => {
     if (!user) {

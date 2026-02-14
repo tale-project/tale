@@ -45,8 +45,8 @@ export function RagStatusBadge({
 }: RagStatusBadgeProps) {
   const { t } = useT('documents');
   const { formatDate } = useFormatDate();
-  const { mutateAsync: retryRagIndexing, isPending: isRetrying } =
-    useRetryRagIndexing();
+  const retryRagIndexing = useRetryRagIndexing();
+  const [isRetrying, setIsRetrying] = useState(false);
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
   const [isFailedDialogOpen, setIsFailedDialogOpen] = useState(false);
 
@@ -77,6 +77,7 @@ export function RagStatusBadge({
       return;
     }
 
+    setIsRetrying(true);
     try {
       const result = await retryRagIndexing({
         documentId: toId<'documents'>(documentId),
@@ -98,6 +99,8 @@ export function RagStatusBadge({
         title: t('rag.toast.unexpectedError'),
         variant: 'destructive',
       });
+    } finally {
+      setIsRetrying(false);
     }
   };
 

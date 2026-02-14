@@ -37,7 +37,7 @@ export function ApiKeyCreateDialog({
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const { mutateAsync: createKey } = useCreateApiKey(organizationId);
+  const createKey = useCreateApiKey(organizationId);
 
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);

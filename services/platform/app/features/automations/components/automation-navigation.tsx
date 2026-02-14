@@ -8,6 +8,7 @@ import {
   Upload,
   Pencil,
 } from 'lucide-react';
+import { useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -59,12 +60,12 @@ export function AutomationNavigation({
   );
   const { user } = useAuth();
 
-  const { mutateAsync: publishAutomation, isPending: isPublishing } =
-    usePublishAutomationDraft();
-  const { mutateAsync: createDraftFromActive, isPending: isCreatingDraft } =
-    useCreateDraftFromActive();
-  const { mutateAsync: unpublishAutomation, isPending: isUnpublishing } =
-    useUnpublishAutomation();
+  const publishAutomation = usePublishAutomationDraft();
+  const [isPublishing, setIsPublishing] = useState(false);
+  const createDraftFromActive = useCreateDraftFromActive();
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
+  const unpublishAutomation = useUnpublishAutomation();
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
   const { data: versions } = useListWorkflowVersions(
     organizationId,
@@ -106,6 +107,7 @@ export function AutomationNavigation({
       return;
     }
 
+    setIsPublishing(true);
     try {
       await publishAutomation({
         wfDefinitionId: toId<'wfDefinitions'>(automationId),
@@ -125,6 +127,8 @@ export function AutomationNavigation({
             : t('navigation.toast.publishFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -137,6 +141,7 @@ export function AutomationNavigation({
       return;
     }
 
+    setIsCreatingDraft(true);
     try {
       const result = await createDraftFromActive({
         wfDefinitionId: toId<'wfDefinitions'>(automationId),
@@ -170,6 +175,8 @@ export function AutomationNavigation({
             : t('navigation.toast.draftFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsCreatingDraft(false);
     }
   };
 
@@ -182,6 +189,7 @@ export function AutomationNavigation({
       return;
     }
 
+    setIsUnpublishing(true);
     try {
       await unpublishAutomation({
         wfDefinitionId: toId<'wfDefinitions'>(automationId),
@@ -201,6 +209,8 @@ export function AutomationNavigation({
             : t('navigation.toast.deactivateFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsUnpublishing(false);
     }
   };
 

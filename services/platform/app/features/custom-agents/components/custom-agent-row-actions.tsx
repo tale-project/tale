@@ -1,7 +1,7 @@
 'use client';
 
 import { CircleStop, Copy, Play, Trash2, Upload } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
@@ -33,19 +33,20 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t } = useT('settings');
   const dialogs = useEntityRowDialogs(['delete', 'deactivate']);
-  const { mutateAsync: duplicateAgent, isPending: isDuplicating } =
-    useDuplicateCustomAgent();
-  const { mutateAsync: publishAgent, isPending: isPublishing } =
-    usePublishCustomAgent();
-  const { mutateAsync: unpublishAgent, isPending: isDeactivating } =
-    useUnpublishCustomAgent();
-  const { mutateAsync: activateVersion, isPending: isActivating } =
-    useActivateCustomAgentVersion();
+  const [isDuplicating, setIsDuplicating] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const duplicateAgent = useDuplicateCustomAgent();
+  const publishAgent = usePublishCustomAgent();
+  const unpublishAgent = useUnpublishCustomAgent();
+  const activateVersion = useActivateCustomAgentVersion();
 
   const rootId = agent.rootVersionId ?? agent._id;
 
   const handleDuplicate = useCallback(async () => {
     if (isDuplicating) return;
+    setIsDuplicating(true);
     try {
       await duplicateAgent({ customAgentId: toId<'customAgents'>(agent._id) });
       toast({
@@ -58,11 +59,14 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
         title: t('customAgents.agentDuplicateFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsDuplicating(false);
     }
   }, [isDuplicating, duplicateAgent, agent._id, t]);
 
   const handlePublish = useCallback(async () => {
     if (isPublishing) return;
+    setIsPublishing(true);
     try {
       await publishAgent({
         customAgentId: toId<'customAgents'>(rootId),
@@ -77,10 +81,13 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
         title: t('customAgents.agentPublishFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsPublishing(false);
     }
   }, [isPublishing, publishAgent, rootId, t]);
 
   const handleDeactivateConfirm = useCallback(async () => {
+    setIsDeactivating(true);
     try {
       await unpublishAgent({
         customAgentId: toId<'customAgents'>(rootId),
@@ -96,11 +103,14 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
         title: t('customAgents.agentDeactivateFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsDeactivating(false);
     }
   }, [unpublishAgent, rootId, dialogs.setOpen, t]);
 
   const handleActivate = useCallback(async () => {
     if (isActivating) return;
+    setIsActivating(true);
     try {
       await activateVersion({
         customAgentId: toId<'customAgents'>(rootId),
@@ -116,6 +126,8 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
         title: t('customAgents.agentPublishFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsActivating(false);
     }
   }, [isActivating, activateVersion, rootId, agent.versionNumber, t]);
 

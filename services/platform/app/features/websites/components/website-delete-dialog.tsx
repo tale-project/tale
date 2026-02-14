@@ -22,7 +22,7 @@ export function DeleteWebsiteDialog({
 }: DeleteWebsiteDialogProps) {
   const { t: tWebsites } = useT('websites');
   const { t: tToast } = useT('toast');
-  const { mutateAsync: deleteWebsite } = useDeleteWebsite();
+  const deleteWebsite = useDeleteWebsite();
 
   const translations = useDeleteDialogTranslations({
     tEntity: tWebsites,

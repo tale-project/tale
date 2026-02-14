@@ -1,10 +1,10 @@
-import { useConvexActionMutation } from '@/app/hooks/use-convex-action-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
 export function useRetryRagIndexing() {
-  return useConvexActionMutation(api.documents.actions.retryRagIndexing);
+  return useConvexAction(api.documents.actions.retryRagIndexing);
 }
 
 export function useImportOneDriveFiles() {
-  return useConvexActionMutation(api.onedrive.actions.importFiles);
+  return useConvexAction(api.onedrive.actions.importFiles);
 }

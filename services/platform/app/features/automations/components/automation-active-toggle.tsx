@@ -30,10 +30,10 @@ export function AutomationActiveToggle({
 
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
 
-  const { mutateAsync: republishAutomation, isPending: isRepublishing } =
-    useRepublishAutomation();
-  const { mutateAsync: unpublishAutomation, isPending: isUnpublishing } =
-    useUnpublishAutomation();
+  const republishAutomation = useRepublishAutomation();
+  const [isRepublishing, setIsRepublishing] = useState(false);
+  const unpublishAutomation = useUnpublishAutomation();
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
   const isToggling = isRepublishing || isUnpublishing;
 
@@ -42,6 +42,7 @@ export function AutomationActiveToggle({
 
   const handleActivate = useCallback(async () => {
     if (!user) return;
+    setIsRepublishing(true);
     try {
       await republishAutomation({
         wfDefinitionId: automation._id,
@@ -57,11 +58,14 @@ export function AutomationActiveToggle({
         title: tToast('error.automationPublishFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsRepublishing(false);
     }
   }, [republishAutomation, automation._id, user, tToast]);
 
   const handleDeactivateConfirm = useCallback(async () => {
     if (!user) return;
+    setIsUnpublishing(true);
     try {
       await unpublishAutomation({
         wfDefinitionId: automation._id,
@@ -78,6 +82,8 @@ export function AutomationActiveToggle({
         title: tToast('error.automationDeactivateFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsUnpublishing(false);
     }
   }, [unpublishAutomation, automation._id, user, tToast]);
 

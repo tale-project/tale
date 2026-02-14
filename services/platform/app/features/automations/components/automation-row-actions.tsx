@@ -37,12 +37,12 @@ export function AutomationRowActions({
   const dialogs = useEntityRowDialogs(['delete', 'rename', 'unpublish']);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const { mutateAsync: duplicateAutomation } = useDuplicateAutomation();
-  const { mutateAsync: deleteAutomation } = useDeleteAutomation();
-  const { mutateAsync: republishAutomation } = useRepublishAutomation();
-  const { mutateAsync: unpublishAutomation, isPending: isUnpublishing } =
-    useUnpublishAutomation();
-  const { mutateAsync: updateAutomation } = useUpdateAutomation();
+  const duplicateAutomation = useDuplicateAutomation();
+  const deleteAutomation = useDeleteAutomation();
+  const republishAutomation = useRepublishAutomation();
+  const unpublishAutomation = useUnpublishAutomation();
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
+  const updateAutomation = useUpdateAutomation();
 
   const handlePublish = useCallback(async () => {
     if (!user) return;
@@ -109,6 +109,7 @@ export function AutomationRowActions({
 
   const handleUnpublishConfirm = useCallback(async () => {
     if (!user) return;
+    setIsUnpublishing(true);
     try {
       await unpublishAutomation({
         wfDefinitionId: automation._id,
@@ -125,6 +126,8 @@ export function AutomationRowActions({
         title: tToast('error.automationDeactivateFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsUnpublishing(false);
     }
   }, [unpublishAutomation, automation._id, user, dialogs.setOpen, tToast]);
 

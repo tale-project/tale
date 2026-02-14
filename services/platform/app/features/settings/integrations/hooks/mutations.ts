@@ -10,8 +10,5 @@ export function useUpdateIntegrationIcon() {
 }
 
 export function useDeleteIntegration() {
-  const { mutateAsync } = useConvexMutation(
-    api.integrations.mutations.deleteIntegration,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.integrations.mutations.deleteIntegration);
 }

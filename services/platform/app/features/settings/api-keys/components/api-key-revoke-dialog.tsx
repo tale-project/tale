@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -24,29 +26,30 @@ export function ApiKeyRevokeDialog({
   onSuccess,
 }: ApiKeyRevokeDialogProps) {
   const { t: tSettings } = useT('settings');
-  const { mutate: revokeKey, isPending: isRevoking } =
-    useRevokeApiKey(organizationId);
+  const [isRevoking, setIsRevoking] = useState(false);
+  const revokeKey = useRevokeApiKey(organizationId);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (isRevoking) return;
 
-    revokeKey(apiKey.id, {
-      onSuccess: () => {
-        toast({
-          title: tSettings('apiKeys.keyRevoked'),
-          variant: 'success',
-        });
-        onOpenChange(false);
-        onSuccess?.();
-      },
-      onError: (error) => {
-        console.error(error);
-        toast({
-          title: tSettings('apiKeys.keyRevokeFailed'),
-          variant: 'destructive',
-        });
-      },
-    });
+    setIsRevoking(true);
+    try {
+      await revokeKey(apiKey.id);
+      toast({
+        title: tSettings('apiKeys.keyRevoked'),
+        variant: 'success',
+      });
+      onOpenChange(false);
+      onSuccess?.();
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: tSettings('apiKeys.keyRevokeFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRevoking(false);
+    }
   };
 
   return (

@@ -1,14 +1,12 @@
-import { useConvexActionMutation } from '@/app/hooks/use-convex-action-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
 export function useExecuteApprovedIntegrationOperation() {
-  return useConvexActionMutation(
+  return useConvexAction(
     api.approvals.actions.executeApprovedIntegrationOperation,
   );
 }
 
 export function useExecuteApprovedWorkflowCreation() {
-  return useConvexActionMutation(
-    api.approvals.actions.executeApprovedWorkflowCreation,
-  );
+  return useConvexAction(api.approvals.actions.executeApprovedWorkflowCreation);
 }

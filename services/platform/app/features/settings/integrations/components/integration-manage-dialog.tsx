@@ -170,13 +170,13 @@ export function IntegrationManageDialog({
   const isActive = optimisticActive ?? integration.isActive;
   const iconUrl = optimisticIconUrl ?? integration.iconUrl;
 
-  const { mutateAsync: updateIntegration } = useUpdateIntegration();
-  const { mutateAsync: testConnection } = useTestIntegration();
+  const updateIntegration = useUpdateIntegration();
+  const testConnection = useTestIntegration();
   const deleteIntegration = useDeleteIntegration();
-  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
-  const { mutateAsync: updateIcon } = useUpdateIntegrationIcon();
-  const { mutateAsync: generateOAuth2Url } = useGenerateIntegrationOAuth2Url();
-  const { mutateAsync: saveOAuth2Credentials } = useSaveOAuth2Credentials();
+  const generateUploadUrl = useGenerateUploadUrl();
+  const updateIcon = useUpdateIntegrationIcon();
+  const generateOAuth2Url = useGenerateIntegrationOAuth2Url();
+  const saveOAuth2Credentials = useSaveOAuth2Credentials();
 
   const hasOAuth2Config = !!integration.oauth2Config;
 

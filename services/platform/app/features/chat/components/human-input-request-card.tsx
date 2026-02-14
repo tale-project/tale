@@ -41,8 +41,8 @@ function HumanInputRequestCardComponent({
   const [selectedValue, setSelectedValue] = useState<string>('');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
 
-  const { mutateAsync: submitResponse, isPending: isSubmitting } =
-    useSubmitHumanInputResponse();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitResponse = useSubmitHumanInputResponse();
 
   const isPending = status === 'pending';
 
@@ -77,6 +77,7 @@ function HumanInputRequestCardComponent({
     }
 
     setError(null);
+    setIsSubmitting(true);
 
     try {
       await submitResponse({
@@ -89,6 +90,8 @@ function HumanInputRequestCardComponent({
         err instanceof Error ? err.message : 'Failed to submit response',
       );
       console.error('Failed to submit response:', err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

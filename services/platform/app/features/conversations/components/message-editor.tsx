@@ -109,7 +109,7 @@ function MilkdownEditorInner({
   const { t: tConversations } = useT('conversations');
   const { t: tCommon } = useT('common');
 
-  const { mutateAsync: improveMessage } = useImproveMessage();
+  const improveMessage = useImproveMessage();
 
   // Helper function to format file size
   const formatFileSize = (bytes: number): string => {

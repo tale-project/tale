@@ -2,7 +2,7 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { ChevronDown, CircleStop, FlaskConical, Pencil } from 'lucide-react';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import {
@@ -47,14 +47,14 @@ export function CustomAgentNavigation({
   const { agent, versions, hasDraft, draftVersionNumber } =
     useCustomAgentVersion();
 
-  const { mutateAsync: publishAgent, isPending: isPublishing } =
-    usePublishCustomAgent();
-  const { mutateAsync: unpublishAgent, isPending: isUnpublishing } =
-    useUnpublishCustomAgent();
-  const { mutateAsync: activateVersion, isPending: isActivating } =
-    useActivateCustomAgentVersion();
-  const { mutateAsync: createDraft, isPending: isCreatingDraft } =
-    useCreateDraftFromVersion();
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
+  const publishAgent = usePublishCustomAgent();
+  const unpublishAgent = useUnpublishCustomAgent();
+  const activateVersion = useActivateCustomAgentVersion();
+  const createDraft = useCreateDraftFromVersion();
 
   const basePath = `/dashboard/${organizationId}/custom-agents/${agentId}`;
   const versionSearch =
@@ -113,6 +113,7 @@ export function CustomAgentNavigation({
   }, [navigate, organizationId, agentId]);
 
   const handlePublish = async () => {
+    setIsPublishing(true);
     try {
       await publishAgent({
         customAgentId: toId<'customAgents'>(agentId),
@@ -127,10 +128,13 @@ export function CustomAgentNavigation({
         title: t('customAgents.agentPublishFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsPublishing(false);
     }
   };
 
   const handleUnpublish = async () => {
+    setIsUnpublishing(true);
     try {
       await unpublishAgent({
         customAgentId: toId<'customAgents'>(agentId),
@@ -145,10 +149,13 @@ export function CustomAgentNavigation({
         title: t('customAgents.agentDeactivateFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsUnpublishing(false);
     }
   };
 
   const handleActivate = async () => {
+    setIsActivating(true);
     try {
       await activateVersion({
         customAgentId: toId<'customAgents'>(agentId),
@@ -164,6 +171,8 @@ export function CustomAgentNavigation({
         title: t('customAgents.agentPublishFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsActivating(false);
     }
   };
 
@@ -173,6 +182,7 @@ export function CustomAgentNavigation({
       return;
     }
 
+    setIsCreatingDraft(true);
     try {
       await createDraft({
         customAgentId: toId<'customAgents'>(agentId),
@@ -185,6 +195,8 @@ export function CustomAgentNavigation({
         title: t('customAgents.agentUpdateFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsCreatingDraft(false);
     }
   };
 

@@ -6,15 +6,9 @@ export function useBulkCreateCustomers() {
 }
 
 export function useDeleteCustomer() {
-  const { mutateAsync } = useConvexMutation(
-    api.customers.mutations.deleteCustomer,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.customers.mutations.deleteCustomer);
 }
 
 export function useUpdateCustomer() {
-  const { mutateAsync } = useConvexMutation(
-    api.customers.mutations.updateCustomer,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.customers.mutations.updateCustomer);
 }

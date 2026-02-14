@@ -53,8 +53,8 @@ export function CustomAgentWebhookSection({
   const customAgentWebhookCollection = useCustomAgentWebhookCollection(agentId);
   const { webhooks } = useCustomAgentWebhooks(customAgentWebhookCollection);
 
-  const { mutateAsync: createWebhook, isPending: isCreating } =
-    useCreateCustomAgentWebhook();
+  const [isCreating, setIsCreating] = useState(false);
+  const createWebhook = useCreateCustomAgentWebhook();
   const toggleWebhook = useToggleCustomAgentWebhook();
   const deleteWebhookMutation = useDeleteCustomAgentWebhook();
 
@@ -74,6 +74,7 @@ export function CustomAgentWebhookSection({
   );
 
   const handleCreate = useCallback(async () => {
+    setIsCreating(true);
     try {
       const result = await createWebhook({
         organizationId,
@@ -89,6 +90,8 @@ export function CustomAgentWebhookSection({
         title: t('customAgents.webhook.toast.createFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsCreating(false);
     }
   }, [createWebhook, organizationId, agentId, toast, t, getWebhookUrl]);
 

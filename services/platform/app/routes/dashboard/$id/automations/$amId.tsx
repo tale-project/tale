@@ -101,7 +101,7 @@ function AutomationDetailLayout() {
   const [editMode, setEditMode] = useState(false);
   const isSubmittingRef = useRef(false);
   const { register, getValues } = useForm<{ name: string }>();
-  const { mutateAsync: updateWorkflow } = useUpdateAutomation();
+  const updateWorkflow = useUpdateAutomation();
 
   const { data: automation } = useWorkflow(automationId);
   const workflowStepCollection = useWorkflowStepCollection(amId);

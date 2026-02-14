@@ -43,8 +43,8 @@ export function DocumentRowActions({
   const dialogs = useEntityRowDialogs(['delete', 'deleteFolder', 'teamTags']);
   const [isDeleting, setIsDeleting] = useState(false);
   const deleteDocument = useDeleteDocument();
-  const { mutateAsync: retryRagIndexing, isPending: isReindexing } =
-    useRetryRagIndexing();
+  const retryRagIndexing = useRetryRagIndexing();
+  const [isReindexing, setIsReindexing] = useState(false);
 
   // Determine if delete action should be visible
   const canDelete =
@@ -98,6 +98,7 @@ export function DocumentRowActions({
 
   const handleReindex = useCallback(async () => {
     if (isReindexing) return;
+    setIsReindexing(true);
     try {
       const result = await retryRagIndexing({
         documentId: toId<'documents'>(documentId),
@@ -120,6 +121,8 @@ export function DocumentRowActions({
         title: tDocuments('rag.toast.unexpectedError'),
         variant: 'destructive',
       });
+    } finally {
+      setIsReindexing(false);
     }
   }, [documentId, retryRagIndexing, tDocuments, isReindexing]);
 

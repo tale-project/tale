@@ -1,4 +1,5 @@
-import { useReactMutation } from '@/app/hooks/use-react-mutation';
+import { useCallback } from 'react';
+
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { authClient } from '@/lib/auth-client';
@@ -32,8 +33,8 @@ export function useApiKeys(organizationId: string) {
 export function useCreateApiKey(organizationId: string) {
   const queryClient = useReactQueryClient();
 
-  return useReactMutation({
-    mutationFn: async ({
+  return useCallback(
+    async ({
       name,
       expiresIn,
     }: CreateApiKeyParams): Promise<CreateApiKeyResult> => {
@@ -50,24 +51,24 @@ export function useCreateApiKey(organizationId: string) {
         throw new Error('API key creation returned no key/id');
       }
 
+      void queryClient.invalidateQueries({
+        queryKey: ['api-keys', organizationId],
+      });
+
       return {
         key: result.data.key,
         id: result.data.id,
       };
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ['api-keys', organizationId],
-      });
-    },
-  });
+    [queryClient, organizationId],
+  );
 }
 
 export function useRevokeApiKey(organizationId: string) {
   const queryClient = useReactQueryClient();
 
-  return useReactMutation({
-    mutationFn: async (keyId: string) => {
+  return useCallback(
+    async (keyId: string) => {
       const result = await authClient.apiKey.delete({
         keyId,
       });
@@ -76,12 +77,12 @@ export function useRevokeApiKey(organizationId: string) {
         throw new Error(result.error.message);
       }
 
-      return result.data;
-    },
-    onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ['api-keys', organizationId],
       });
+
+      return result.data;
     },
-  });
+    [queryClient, organizationId],
+  );
 }

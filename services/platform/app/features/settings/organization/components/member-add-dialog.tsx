@@ -80,8 +80,8 @@ export function AddMemberDialog({
   } | null>(null);
   const { toast } = useToast();
 
-  const { mutateAsync: createMember, isPending: isSubmitting } =
-    useCreateMember();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const createMember = useCreateMember();
   const form = useForm<AddMemberFormData>({
     resolver: zodResolver(addMemberSchema),
     defaultValues: {
@@ -120,6 +120,7 @@ export function AddMemberDialog({
   );
 
   const onSubmit = async (data: AddMemberFormData) => {
+    setIsSubmitting(true);
     try {
       const result = await createMember({
         organizationId,
@@ -153,6 +154,8 @@ export function AddMemberDialog({
         title: tToast('error.addMemberFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

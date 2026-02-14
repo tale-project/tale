@@ -32,7 +32,7 @@ export function EditWebsiteDialog({
 }: EditWebsiteDialogProps) {
   const { t: tWebsites } = useT('websites');
   const [isLoading, setIsLoading] = useState(false);
-  const { mutateAsync: updateWebsite } = useUpdateWebsite();
+  const updateWebsite = useUpdateWebsite();
 
   const formSchema = useMemo(
     () =>

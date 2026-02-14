@@ -87,7 +87,7 @@ export function AutomationSidePanel({
     Record<string, string>
   >({});
   const [isSaving, setIsSaving] = useState(false);
-  const { mutateAsync: updateStep } = useUpdateStep();
+  const updateStep = useUpdateStep();
 
   const originalConfigJson = useMemo(
     () => (step?.config ? JSON.stringify(step.config, null, 2) : '{}'),

@@ -36,36 +36,23 @@ export function useCreateCustomAgentWebhook() {
 }
 
 export function useUpdateCustomAgent() {
-  const { mutateAsync } = useConvexMutation(
-    api.custom_agents.mutations.updateCustomAgent,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.custom_agents.mutations.updateCustomAgent);
 }
 
 export function useUpdateCustomAgentMetadata() {
-  const { mutateAsync } = useConvexMutation(
+  return useConvexMutation(
     api.custom_agents.mutations.updateCustomAgentMetadata,
   );
-  return mutateAsync;
 }
 
 export function useDeleteCustomAgent() {
-  const { mutateAsync } = useConvexMutation(
-    api.custom_agents.mutations.deleteCustomAgent,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.custom_agents.mutations.deleteCustomAgent);
 }
 
 export function useToggleCustomAgentWebhook() {
-  const { mutateAsync } = useConvexMutation(
-    api.custom_agents.webhooks.mutations.toggleWebhook,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.custom_agents.webhooks.mutations.toggleWebhook);
 }
 
 export function useDeleteCustomAgentWebhook() {
-  const { mutateAsync } = useConvexMutation(
-    api.custom_agents.webhooks.mutations.deleteWebhook,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.custom_agents.webhooks.mutations.deleteWebhook);
 }

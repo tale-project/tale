@@ -143,9 +143,8 @@ export function ApprovalsClient({
 
   const { data: memberContext } = useCurrentMemberContext(organizationId);
 
-  const { mutateAsync: updateApprovalStatus } = useUpdateApprovalStatus();
-  const { mutateAsync: removeRecommendedProduct } =
-    useRemoveRecommendedProduct();
+  const updateApprovalStatus = useUpdateApprovalStatus();
+  const removeRecommendedProduct = useRemoveRecommendedProduct();
 
   const handleApprove = useCallback(
     async (approvalId: string) => {

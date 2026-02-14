@@ -43,8 +43,8 @@ export function WebhooksSection({
   const webhookCollection = useWebhookCollection(workflowRootId);
   const { webhooks } = useWebhooks(webhookCollection);
 
-  const { mutateAsync: createWebhook, isPending: isCreating } =
-    useCreateWebhook();
+  const createWebhook = useCreateWebhook();
+  const [isCreating, setIsCreating] = useState(false);
   const toggleWebhook = useToggleWebhook();
   const deleteWebhookMutation = useDeleteWebhook();
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
@@ -60,6 +60,7 @@ export function WebhooksSection({
   );
 
   const handleCreate = useCallback(async () => {
+    setIsCreating(true);
     try {
       const result = await createWebhook({
         organizationId,
@@ -72,6 +73,8 @@ export function WebhooksSection({
       });
     } catch {
       toast({ title: 'Failed to create webhook', variant: 'destructive' });
+    } finally {
+      setIsCreating(false);
     }
   }, [createWebhook, organizationId, workflowRootId, toast, t, getWebhookUrl]);
 

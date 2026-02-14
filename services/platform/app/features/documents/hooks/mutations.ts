@@ -53,10 +53,10 @@ export function useDocumentUpload(options: UploadOptions) {
   const { t } = useT('documents');
   const [isUploading, setIsUploading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { mutateAsync: generateUploadUrl } = useConvexMutation(
+  const generateUploadUrl = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
-  const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
+  const createDocumentFromUpload = useConvexMutation(
     api.documents.mutations.createDocumentFromUpload,
   );
 
@@ -265,15 +265,9 @@ export function useDocumentUpload(options: UploadOptions) {
 }
 
 export function useDeleteDocument() {
-  const { mutateAsync } = useConvexMutation(
-    api.documents.mutations.deleteDocument,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.documents.mutations.deleteDocument);
 }
 
 export function useUpdateDocument() {
-  const { mutateAsync } = useConvexMutation(
-    api.documents.mutations.updateDocument,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.documents.mutations.updateDocument);
 }

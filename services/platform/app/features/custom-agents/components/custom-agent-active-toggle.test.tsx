@@ -13,18 +13,9 @@ const mockUnpublish = vi.fn();
 
 vi.mock('../hooks/mutations', async (importOriginal) => ({
   ...(await importOriginal()),
-  useActivateCustomAgentVersion: () => ({
-    mutateAsync: mockActivateVersion,
-    isPending: false,
-  }),
-  usePublishCustomAgent: () => ({
-    mutateAsync: mockPublish,
-    isPending: false,
-  }),
-  useUnpublishCustomAgent: () => ({
-    mutateAsync: mockUnpublish,
-    isPending: false,
-  }),
+  useActivateCustomAgentVersion: () => mockActivateVersion,
+  usePublishCustomAgent: () => mockPublish,
+  useUnpublishCustomAgent: () => mockUnpublish,
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({

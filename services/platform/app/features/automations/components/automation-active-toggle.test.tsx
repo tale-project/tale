@@ -12,14 +12,8 @@ const mockUnpublish = vi.fn();
 
 vi.mock('../hooks/mutations', async (importOriginal) => ({
   ...(await importOriginal()),
-  useRepublishAutomation: () => ({
-    mutateAsync: mockRepublish,
-    isPending: false,
-  }),
-  useUnpublishAutomation: () => ({
-    mutateAsync: mockUnpublish,
-    isPending: false,
-  }),
+  useRepublishAutomation: () => mockRepublish,
+  useUnpublishAutomation: () => mockUnpublish,
 }));
 
 vi.mock('@/app/hooks/use-convex-auth', () => ({

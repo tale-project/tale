@@ -10,20 +10,13 @@ export function useCreateMember() {
 }
 
 export function useRemoveMember() {
-  const { mutateAsync } = useConvexMutation(api.members.mutations.removeMember);
-  return mutateAsync;
+  return useConvexMutation(api.members.mutations.removeMember);
 }
 
 export function useUpdateMemberRole() {
-  const { mutateAsync } = useConvexMutation(
-    api.members.mutations.updateMemberRole,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.members.mutations.updateMemberRole);
 }
 
 export function useUpdateMemberDisplayName() {
-  const { mutateAsync } = useConvexMutation(
-    api.members.mutations.updateMemberDisplayName,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.members.mutations.updateMemberDisplayName);
 }

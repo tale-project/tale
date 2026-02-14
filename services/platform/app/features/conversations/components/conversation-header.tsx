@@ -55,12 +55,12 @@ export function ConversationHeader({
   const { customer } = conversation;
   const [isCustomerInfoOpen, setIsCustomerInfoOpen] = useState(false);
 
-  const { mutateAsync: closeConversation, isPending: isClosing } =
-    useCloseConversation();
-  const { mutateAsync: reopenConversation, isPending: isReopening } =
-    useReopenConversation();
-  const { mutateAsync: markAsSpamMutation, isPending: isMarkingSpam } =
-    useMarkAsSpam();
+  const [isClosing, setIsClosing] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
+  const [isMarkingSpam, setIsMarkingSpam] = useState(false);
+  const closeConversation = useCloseConversation();
+  const reopenConversation = useReopenConversation();
+  const markAsSpamMutation = useMarkAsSpam();
   const isLoading = isClosing || isReopening || isMarkingSpam;
 
   // Lookup full customer document from collection
@@ -75,6 +75,7 @@ export function ConversationHeader({
   );
 
   const handleResolveConversation = async () => {
+    setIsClosing(true);
     try {
       await closeConversation({
         conversationId: toId<'conversations'>(conversation.id),
@@ -91,10 +92,13 @@ export function ConversationHeader({
         title: t('header.toast.closeFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsClosing(false);
     }
   };
 
   const handleReopenConversation = async () => {
+    setIsReopening(true);
     try {
       await reopenConversation({
         conversationId: toId<'conversations'>(conversation.id),
@@ -111,10 +115,13 @@ export function ConversationHeader({
         title: t('header.toast.reopenFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsReopening(false);
     }
   };
 
   const handleMarkAsSpam = async () => {
+    setIsMarkingSpam(true);
     try {
       await markAsSpamMutation({
         conversationId: toId<'conversations'>(conversation.id),
@@ -131,6 +138,8 @@ export function ConversationHeader({
         title: t('header.toast.markAsSpamFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsMarkingSpam(false);
     }
   };
 

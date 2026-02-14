@@ -1,8 +1,6 @@
-import { useConvexActionMutation } from '@/app/hooks/use-convex-action-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
 export function useGenerateCron() {
-  return useConvexActionMutation(
-    api.workflows.triggers.actions.generateCronExpression,
-  );
+  return useConvexAction(api.workflows.triggers.actions.generateCronExpression);
 }
