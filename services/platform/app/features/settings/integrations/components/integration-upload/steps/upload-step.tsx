@@ -59,10 +59,14 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
           inputId="integration-package-upload"
           aria-label={t('integrations.upload.dropZoneLabel')}
           className={cn(
-            'border-border hover:border-primary/50 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors',
+            'border-border hover:border-primary/50 relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors',
             isParsing && 'pointer-events-none opacity-50',
           )}
         >
+          <FileUpload.Overlay
+            label={t('integrations.upload.dropHere')}
+            className="rounded-lg"
+          />
           <Upload className="text-muted-foreground size-8" />
           <Stack gap={1} className="text-center">
             <p className="text-sm font-medium">
@@ -75,7 +79,6 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
             </p>
           </Stack>
         </FileUpload.DropZone>
-        <FileUpload.Overlay label={t('integrations.upload.dropHere')} />
       </FileUpload.Root>
 
       {error && (

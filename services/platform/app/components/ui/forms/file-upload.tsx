@@ -92,7 +92,13 @@ function DropZone({
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDragOver(false);
+      const { relatedTarget } = e;
+      if (
+        !(relatedTarget instanceof Node) ||
+        !e.currentTarget.contains(relatedTarget)
+      ) {
+        setIsDragOver(false);
+      }
     },
     [setIsDragOver],
   );
