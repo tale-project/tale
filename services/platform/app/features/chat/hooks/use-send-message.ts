@@ -13,7 +13,6 @@ import type {
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
 
-import { useThreadCollection } from './collections';
 import {
   useChatWithAgent,
   useChatWithBuiltinAgent,
@@ -50,9 +49,8 @@ export function useSendMessage({
   const { t } = useT('chat');
   const navigate = useNavigate();
 
-  const threadCollection = useThreadCollection();
   const { mutateAsync: createThread } = useCreateThread();
-  const updateThread = useUpdateThread(threadCollection);
+  const { mutateAsync: updateThread } = useUpdateThread();
   const { mutateAsync: chatWithAgent } = useChatWithAgent();
   const { mutateAsync: chatWithBuiltinAgent } = useChatWithBuiltinAgent();
   const { mutateAsync: chatWithCustomAgent } = useChatWithCustomAgent();

@@ -12,7 +12,6 @@ import { useT } from '@/lib/i18n/client';
 
 import type { Product } from '../hooks/use-products-table-config';
 
-import { useProductCollection } from '../hooks/collections';
 import { useDeleteProduct } from '../hooks/mutations';
 import { ProductDeleteDialog } from './product-delete-dialog';
 import { ProductEditDialog } from './product-edit-dialog';
@@ -27,8 +26,7 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
   const [isDeleting, setIsDeleting] = useState(false);
-  const productCollection = useProductCollection(product.organizationId);
-  const deleteProduct = useDeleteProduct(productCollection);
+  const deleteProduct = useDeleteProduct();
 
   const handleDeleteConfirm = useCallback(async () => {
     try {

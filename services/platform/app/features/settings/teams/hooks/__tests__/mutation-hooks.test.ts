@@ -1,66 +1,114 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('react', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react')>();
-  return {
-    ...actual,
-    useCallback: (fn: unknown) => fn,
-  };
-});
+const mockMutateAsync = vi.fn();
 
-import { useRemoveTeamMember } from '../mutations';
+vi.mock('@/app/hooks/use-convex-mutation', () => ({
+  useConvexMutation: () => ({
+    mutateAsync: mockMutateAsync,
+    isPending: false,
+  }),
+}));
 
-function createMockCollection() {
-  const persistedPromise = Promise.resolve();
-  return {
-    delete: vi.fn(() => ({
-      isPersisted: { promise: persistedPromise },
-    })),
-    _persistedPromise: persistedPromise,
-  };
-}
+vi.mock('@/convex/_generated/api', () => ({
+  api: {
+    team_members: {
+      mutations: {
+        addMember: 'addMember',
+        removeMember: 'removeMember',
+      },
+    },
+  },
+}));
 
-describe('useRemoveTeamMember', () => {
-  let mockCollection: ReturnType<typeof createMockCollection>;
+import {
+  useAddTeamMember,
+  useCreateTeamMember,
+  useRemoveTeamMember,
+} from '../mutations';
 
+describe('useAddTeamMember', () => {
   beforeEach(() => {
-    mockCollection = createMockCollection();
+    vi.clearAllMocks();
   });
 
-  it('calls collection.delete with teamMemberId and metadata', async () => {
-    const removeTeamMember = useRemoveTeamMember(mockCollection as never);
+  it('returns mutateAsync from useConvexMutation', () => {
+    const addTeamMember = useAddTeamMember();
+    expect(addTeamMember).toBe(mockMutateAsync);
+  });
+
+  it('calls mutateAsync with the correct args', async () => {
+    mockMutateAsync.mockResolvedValueOnce(undefined);
+    const addTeamMember = useAddTeamMember();
+
+    await addTeamMember({
+      teamId: 'team-123',
+      userId: 'user-456',
+      organizationId: 'org-789',
+    });
+
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      teamId: 'team-123',
+      userId: 'user-456',
+      organizationId: 'org-789',
+    });
+  });
+
+  it('propagates errors from mutateAsync', async () => {
+    mockMutateAsync.mockRejectedValueOnce(new Error('Add failed'));
+    const addTeamMember = useAddTeamMember();
+
+    await expect(
+      addTeamMember({
+        teamId: 'team-123',
+        userId: 'user-456',
+        organizationId: 'org-789',
+      }),
+    ).rejects.toThrow('Add failed');
+  });
+});
+
+describe('useRemoveTeamMember', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns mutateAsync from useConvexMutation', () => {
+    const removeTeamMember = useRemoveTeamMember();
+    expect(removeTeamMember).toBe(mockMutateAsync);
+  });
+
+  it('calls mutateAsync with the correct args', async () => {
+    mockMutateAsync.mockResolvedValueOnce(undefined);
+    const removeTeamMember = useRemoveTeamMember();
+
     await removeTeamMember({
       teamMemberId: 'tm-123',
       organizationId: 'org-456',
     });
 
-    expect(mockCollection.delete).toHaveBeenCalledWith('tm-123', {
-      metadata: { organizationId: 'org-456' },
-    });
-  });
-
-  it('awaits isPersisted.promise', async () => {
-    const removeTeamMember = useRemoveTeamMember(mockCollection as never);
-    const result = removeTeamMember({
+    expect(mockMutateAsync).toHaveBeenCalledWith({
       teamMemberId: 'tm-123',
       organizationId: 'org-456',
     });
-
-    await expect(result).resolves.toBeUndefined();
   });
 
-  it('propagates errors from isPersisted.promise', async () => {
-    const rejectedPromise = Promise.reject(new Error('Delete failed'));
-    mockCollection.delete.mockReturnValueOnce({
-      isPersisted: { promise: rejectedPromise },
-    });
+  it('propagates errors from mutateAsync', async () => {
+    mockMutateAsync.mockRejectedValueOnce(new Error('Remove failed'));
+    const removeTeamMember = useRemoveTeamMember();
 
-    const removeTeamMember = useRemoveTeamMember(mockCollection as never);
     await expect(
       removeTeamMember({
         teamMemberId: 'tm-789',
         organizationId: 'org-456',
       }),
-    ).rejects.toThrow('Delete failed');
+    ).rejects.toThrow('Remove failed');
+  });
+});
+
+describe('useCreateTeamMember', () => {
+  it('returns the full mutation result from useConvexMutation', () => {
+    const result = useCreateTeamMember();
+    expect(result).toHaveProperty('mutateAsync', mockMutateAsync);
+    expect(result).toHaveProperty('isPending', false);
   });
 });

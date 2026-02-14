@@ -37,8 +37,8 @@ export function SchedulesSection({
   const scheduleCollection = useScheduleCollection(workflowRootId);
   const { schedules } = useSchedules(scheduleCollection);
 
-  const toggleSchedule = useToggleSchedule(scheduleCollection);
-  const deleteScheduleMutation = useDeleteSchedule(scheduleCollection);
+  const toggleSchedule = useToggleSchedule();
+  const deleteScheduleMutation = useDeleteSchedule();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
@@ -215,7 +215,6 @@ export function SchedulesSection({
         }}
         workflowRootId={workflowRootId}
         organizationId={organizationId}
-        collection={scheduleCollection}
         schedule={editSchedule}
       />
 

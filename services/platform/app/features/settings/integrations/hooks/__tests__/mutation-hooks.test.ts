@@ -1,60 +1,65 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('react', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react')>();
-  return {
-    ...actual,
-    useCallback: (fn: unknown) => fn,
-  };
-});
+import { toId } from '@/convex/lib/type_cast_helpers';
+
+const mockMutateAsync = vi.fn();
+
+vi.mock('@/app/hooks/use-convex-mutation', () => ({
+  useConvexMutation: () => ({
+    mutateAsync: mockMutateAsync,
+    isPending: false,
+  }),
+}));
+
+vi.mock('@/convex/_generated/api', () => ({
+  api: {
+    files: {
+      mutations: {
+        generateUploadUrl: 'generateUploadUrl',
+      },
+    },
+    integrations: {
+      mutations: {
+        updateIcon: 'updateIcon',
+        deleteIntegration: 'deleteIntegration',
+      },
+    },
+  },
+}));
 
 import { useDeleteIntegration } from '../mutations';
 
-function createMockCollection() {
-  const persistedPromise = Promise.resolve();
-  return {
-    delete: vi.fn((_id: string) => ({
-      isPersisted: { promise: persistedPromise },
-    })),
-    update: vi.fn(
-      (_id: string, _cb: (draft: Record<string, unknown>) => void) => ({
-        isPersisted: { promise: persistedPromise },
-      }),
-    ),
-    _persistedPromise: persistedPromise,
-  };
-}
-
 describe('useDeleteIntegration', () => {
-  let mockCollection: ReturnType<typeof createMockCollection>;
-
   beforeEach(() => {
-    mockCollection = createMockCollection();
+    vi.clearAllMocks();
   });
 
-  it('calls collection.delete with the integrationId', async () => {
-    const deleteIntegration = useDeleteIntegration(mockCollection as never);
-    await deleteIntegration({ integrationId: 'int-123' });
-
-    expect(mockCollection.delete).toHaveBeenCalledWith('int-123');
+  it('returns mutateAsync from useConvexMutation', () => {
+    const deleteIntegration = useDeleteIntegration();
+    expect(deleteIntegration).toBe(mockMutateAsync);
   });
 
-  it('awaits isPersisted.promise', async () => {
-    const deleteIntegration = useDeleteIntegration(mockCollection as never);
-    const result = deleteIntegration({ integrationId: 'int-456' });
+  it('calls mutateAsync with the correct args', async () => {
+    mockMutateAsync.mockResolvedValueOnce(null);
+    const deleteIntegration = useDeleteIntegration();
 
-    await expect(result).resolves.toBeUndefined();
-  });
-
-  it('propagates errors from isPersisted.promise', async () => {
-    const rejectedPromise = Promise.reject(new Error('Delete failed'));
-    mockCollection.delete.mockReturnValueOnce({
-      isPersisted: { promise: rejectedPromise },
+    await deleteIntegration({
+      integrationId: toId<'integrations'>('int-123'),
     });
 
-    const deleteIntegration = useDeleteIntegration(mockCollection as never);
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      integrationId: 'int-123',
+    });
+  });
+
+  it('propagates errors from mutateAsync', async () => {
+    mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
+    const deleteIntegration = useDeleteIntegration();
+
     await expect(
-      deleteIntegration({ integrationId: 'int-789' }),
+      deleteIntegration({
+        integrationId: toId<'integrations'>('int-789'),
+      }),
     ).rejects.toThrow('Delete failed');
   });
 });

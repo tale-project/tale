@@ -55,12 +55,8 @@ export function CustomAgentWebhookSection({
 
   const { mutateAsync: createWebhook, isPending: isCreating } =
     useCreateCustomAgentWebhook();
-  const toggleWebhook = useToggleCustomAgentWebhook(
-    customAgentWebhookCollection,
-  );
-  const deleteWebhookMutation = useDeleteCustomAgentWebhook(
-    customAgentWebhookCollection,
-  );
+  const toggleWebhook = useToggleCustomAgentWebhook();
+  const deleteWebhookMutation = useDeleteCustomAgentWebhook();
 
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WebhookRow | null>(null);
@@ -120,7 +116,9 @@ export function CustomAgentWebhookSection({
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      await deleteWebhookMutation({ webhookId: deleteTarget._id });
+      await deleteWebhookMutation({
+        webhookId: toId<'customAgentWebhooks'>(deleteTarget._id),
+      });
       toast({
         title: t('customAgents.webhook.toast.deleted'),
         variant: 'success',

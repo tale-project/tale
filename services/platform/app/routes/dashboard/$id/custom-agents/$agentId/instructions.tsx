@@ -9,7 +9,6 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
-import { useCustomAgentCollection } from '@/app/features/custom-agents/hooks/collections';
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
 import { useModelPresets } from '@/app/features/custom-agents/hooks/queries';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
@@ -33,11 +32,10 @@ interface InstructionsFormData {
 const MODEL_PRESET_OPTIONS = ['fast', 'standard', 'advanced'] as const;
 
 function InstructionsTab() {
-  const { id: organizationId, agentId } = Route.useParams();
+  const { agentId } = Route.useParams();
   const { t } = useT('settings');
   const { agent, isReadOnly } = useCustomAgentVersion();
-  const customAgentCollection = useCustomAgentCollection(organizationId);
-  const updateAgent = useUpdateCustomAgent(customAgentCollection);
+  const updateAgent = useUpdateCustomAgent();
 
   const { data: modelPresets } = useModelPresets();
 

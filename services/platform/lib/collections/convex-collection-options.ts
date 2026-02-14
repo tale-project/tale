@@ -55,8 +55,7 @@ function wrapHandler<TParams>(handler: (params: TParams) => Promise<unknown>) {
  *     → QueryCollection QueryObserver → Collection sync store → Live Queries → UI
  *
  * Mutation flow:
- *   collection.update() → optimistic UI → onUpdate handler → convexClient.mutation()
- *     → Convex backend → WebSocket update → auto-replaces optimistic state
+ *   UI → convexClient.mutation() → Convex backend → WebSocket update → Collection syncs automatically
  */
 export function convexCollectionOptions<
   TQuery extends ConvexQueryRef,
