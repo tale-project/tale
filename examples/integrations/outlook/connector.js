@@ -833,7 +833,7 @@ function getAttachments(http, headers, files, params) {
       var downloadUrl =
         GRAPH_BASE_URL +
         '/me/messages/' +
-        params.messageId +
+        graphId +
         '/attachments/' +
         att.id +
         '/$value';
