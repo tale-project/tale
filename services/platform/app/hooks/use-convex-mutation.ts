@@ -5,37 +5,19 @@ import type {
   FunctionReturnType,
 } from 'convex/server';
 
+import { useConvexMutation as useMutationFn } from '@convex-dev/react-query';
 import { useMutation } from '@tanstack/react-query';
-import { getFunctionName } from 'convex/server';
-
-import { invalidateConvexQueries } from './invalidate';
-import { useConvexClient } from './use-convex-client';
-import { useReactQueryClient } from './use-react-query-client';
 
 export function useConvexMutation<Func extends FunctionReference<'mutation'>>(
   func: Func,
   options?: Omit<
     UseMutationOptions<FunctionReturnType<Func>, Error, FunctionArgs<Func>>,
     'mutationFn'
-  > & {
-    invalidates?: FunctionReference<'query'>[];
-  },
+  >,
 ) {
-  const { invalidates, ...mutationOptions } = options ?? {};
-  const convexClient = useConvexClient();
-  const queryClient = useReactQueryClient();
-
+  const mutate = useMutationFn(func);
   return useMutation({
-    mutationFn: (args: FunctionArgs<Func>) => convexClient.mutation(func, args),
-    ...mutationOptions,
-    onSettled: async (...args) => {
-      await queryClient.invalidateQueries({
-        queryKey: ['convexQuery', getFunctionName(func)],
-      });
-      if (invalidates?.length) {
-        await invalidateConvexQueries(queryClient, invalidates);
-      }
-      return mutationOptions.onSettled?.(...args);
-    },
+    mutationFn: (args: FunctionArgs<Func>) => mutate(args),
+    ...options,
   });
 }

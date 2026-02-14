@@ -1,7 +1,9 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
+import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/dashboard/')({
@@ -11,6 +13,11 @@ export const Route = createFileRoute('/dashboard/')({
       throw redirect({ to: '/log-in' });
     }
     return { user: session.data.user };
+  },
+  loader: ({ context }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.members.queries.getUserOrganizationsList, {}),
+    );
   },
   component: DashboardIndex,
 });

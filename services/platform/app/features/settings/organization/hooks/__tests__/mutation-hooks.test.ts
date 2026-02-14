@@ -17,10 +17,6 @@ vi.mock('@/app/hooks/use-convex-mutation', () => ({
   useConvexMutation: () => mockMutationResult,
 }));
 
-vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
-  useConvexOptimisticMutation: () => mockMutationResult,
-}));
-
 vi.mock('@/convex/_generated/api', () => ({
   api: {
     users: {
@@ -54,7 +50,7 @@ describe('useCreateMember', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useCreateMember();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -99,7 +95,7 @@ describe('useRemoveMember', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useRemoveMember();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -129,7 +125,7 @@ describe('useUpdateMemberRole', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useUpdateMemberRole();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');
@@ -162,7 +158,7 @@ describe('useUpdateMemberDisplayName', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+  it('returns a mutation result object', () => {
     const result = useUpdateMemberDisplayName();
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('isPending');

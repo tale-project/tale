@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
 
@@ -20,6 +21,7 @@ import {
   useCustomAgentByVersion,
 } from '@/app/features/custom-agents/hooks/queries';
 import { CustomAgentVersionProvider } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { toId } from '@/lib/utils/type-guards';
@@ -29,10 +31,22 @@ interface SearchParams {
 }
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId')({
-  component: CustomAgentDetailLayout,
   validateSearch: (search: Record<string, unknown>): SearchParams => ({
     v: typeof search.v === 'number' ? search.v : undefined,
   }),
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.custom_agents.queries.getCustomAgentByVersion, {
+        customAgentId: toId<'customAgents'>(params.agentId),
+      }),
+    );
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.custom_agents.queries.getCustomAgentVersions, {
+        customAgentId: toId<'customAgents'>(params.agentId),
+      }),
+    );
+  },
+  component: CustomAgentDetailLayout,
 });
 
 function CustomAgentDetailLayout() {
