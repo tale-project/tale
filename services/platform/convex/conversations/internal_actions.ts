@@ -398,14 +398,17 @@ export const downloadAttachmentsAction = internalAction({
         ? existingMeta.attachments
         : [];
 
+      const unmatchedRefs = [...fileRefs];
       const updatedAttachments = existingAttachments.map((att) => {
         if (typeof att !== 'object' || att === null) return att;
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic metadata
         const a = att as Record<string, unknown>;
-        const matchingRef = fileRefs.find(
+        const matchIdx = unmatchedRefs.findIndex(
           (ref) => ref.fileName === String(a.filename),
         );
-        if (matchingRef) {
+        if (matchIdx !== -1) {
+          const matchingRef = unmatchedRefs[matchIdx];
+          unmatchedRefs.splice(matchIdx, 1);
           return {
             ...a,
             storageId: matchingRef.fileId,
