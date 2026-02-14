@@ -3,6 +3,8 @@
 import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
+import type { Id } from '@/convex/_generated/dataModel';
+
 import { CardContent } from '@/app/components/ui/layout/card';
 import { Stack, VStack, Center } from '@/app/components/ui/layout/layout';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
@@ -125,7 +127,7 @@ export function ConversationPanel({
 
     let uploadedAttachments:
       | Array<{
-          storageId: string;
+          storageId: Id<'_storage'>;
           fileName: string;
           contentType: string;
           size: number;
@@ -154,14 +156,14 @@ export function ConversationPanel({
             });
 
             const json = await result.json();
-            const storageId = json.storageId;
+            const rawStorageId = json.storageId;
 
-            if (typeof storageId !== 'string') {
+            if (typeof rawStorageId !== 'string') {
               throw new Error(tConversations('panel.uploadFailed'));
             }
 
             return {
-              storageId,
+              storageId: toId<'_storage'>(rawStorageId),
               fileName: file.name,
               contentType: file.type,
               size: file.size,

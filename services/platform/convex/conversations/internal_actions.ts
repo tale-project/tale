@@ -38,7 +38,7 @@ export const sendMessageViaIntegrationAction = internalAction({
     attachments: v.optional(
       v.array(
         v.object({
-          storageId: v.string(),
+          storageId: v.id('_storage'),
           fileName: v.string(),
           contentType: v.string(),
           size: v.optional(v.number()),

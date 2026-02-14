@@ -4,7 +4,6 @@ import type { MutationCtx } from '../_generated/server';
 import { internal } from '../_generated/api';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
-import { toId } from '../lib/type_cast_helpers';
 import { buildThreadingHeaders } from './build_threading_headers';
 
 export interface SendMessageViaIntegrationArgs {
@@ -20,7 +19,7 @@ export interface SendMessageViaIntegrationArgs {
   inReplyTo?: string;
   references?: Array<string>;
   attachments?: Array<{
-    storageId: string;
+    storageId: Id<'_storage'>;
     fileName: string;
     contentType: string;
     size: number;
@@ -65,7 +64,7 @@ export async function sendMessageViaIntegration(
   if (args.attachments && args.attachments.length > 0) {
     attachmentsMeta = await Promise.all(
       args.attachments.map(async (att) => {
-        const url = await ctx.storage.getUrl(toId<'_storage'>(att.storageId));
+        const url = await ctx.storage.getUrl(att.storageId);
         return {
           id: att.storageId,
           filename: att.fileName,

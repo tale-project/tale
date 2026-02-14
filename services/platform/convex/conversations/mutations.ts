@@ -60,7 +60,7 @@ export const sendMessageViaIntegration = mutationWithRLS({
     attachments: v.optional(
       v.array(
         v.object({
-          storageId: v.string(),
+          storageId: v.id('_storage'),
           fileName: v.string(),
           contentType: v.string(),
           size: v.number(),
