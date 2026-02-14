@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CronExpressionParser } from 'cron-parser';
 import { Sparkles } from 'lucide-react';
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useMemo, useEffect, useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -55,12 +55,13 @@ export function ScheduleCreateDialog({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const createSchedule = useCreateSchedule();
-  const updateSchedule = useUpdateSchedule();
+  const { mutateAsync: createSchedule, isPending: isCreatingSchedule } =
+    useCreateSchedule();
+  const { mutateAsync: updateSchedule, isPending: isUpdatingSchedule } =
+    useUpdateSchedule(workflowRootId);
   const { mutateAsync: generateCron, isPending: isGenerating } =
     useGenerateCron();
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmitting = isCreatingSchedule || isUpdatingSchedule;
   const [naturalLanguage, setNaturalLanguage] = useState('');
   const [cronDescription, setCronDescription] = useState('');
   const [generateError, setGenerateError] = useState('');
@@ -125,7 +126,6 @@ export function ScheduleCreateDialog({
   }, [naturalLanguage, isGenerating, generateCron, setValue, t]);
 
   const onSubmit = async (data: ScheduleFormData) => {
-    setIsSubmitting(true);
     try {
       if (isEdit && schedule) {
         await updateSchedule({
@@ -155,8 +155,6 @@ export function ScheduleCreateDialog({
         title: tCommon('errors.generic'),
         variant: 'destructive',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

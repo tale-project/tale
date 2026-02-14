@@ -1,6 +1,8 @@
-import { useConvexActionMutation } from '@/app/hooks/use-convex-action-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
 export function useGenerateTone() {
-  return useConvexActionMutation(api.tone_of_voice.actions.generateToneOfVoice);
+  return useConvexAction(api.tone_of_voice.actions.generateToneOfVoice, {
+    invalidates: [api.tone_of_voice.queries.getToneOfVoiceWithExamples],
+  });
 }

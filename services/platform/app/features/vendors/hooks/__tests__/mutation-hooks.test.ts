@@ -4,11 +4,23 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 
 const mockMutateAsync = vi.fn();
 
+const mockMutationResult = {
+  mutate: mockMutateAsync,
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+  isError: false,
+  isSuccess: false,
+  error: null,
+  data: undefined,
+  reset: vi.fn(),
+};
+
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
-    mutateAsync: mockMutateAsync,
-    isPending: false,
-  }),
+  useConvexMutation: () => mockMutationResult,
+}));
+
+vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
+  useConvexOptimisticMutation: () => mockMutationResult,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -18,6 +30,9 @@ vi.mock('@/convex/_generated/api', () => ({
         bulkCreateVendors: 'bulkCreateVendors',
         deleteVendor: 'deleteVendor',
         updateVendor: 'updateVendor',
+      },
+      queries: {
+        listVendors: 'listVendors',
       },
     },
   },
@@ -30,10 +45,10 @@ import {
 } from '../mutations';
 
 describe('useBulkCreateVendors', () => {
-  it('returns the full mutation result from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
     const result = useBulkCreateVendors();
-    expect(result).toHaveProperty('mutateAsync', mockMutateAsync);
-    expect(result).toHaveProperty('isPending', false);
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 });
 
@@ -42,13 +57,13 @@ describe('useDeleteVendor', () => {
     vi.clearAllMocks();
   });
 
-  it('returns the full mutation result from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
     const result = useDeleteVendor();
-    expect(result).toHaveProperty('mutateAsync', mockMutateAsync);
-    expect(result).toHaveProperty('isPending', false);
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
     const { mutateAsync: deleteVendor } = useDeleteVendor();
 
@@ -57,7 +72,7 @@ describe('useDeleteVendor', () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({ vendorId: 'vendor-123' });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
     const { mutateAsync: deleteVendor } = useDeleteVendor();
 
@@ -72,13 +87,13 @@ describe('useUpdateVendor', () => {
     vi.clearAllMocks();
   });
 
-  it('returns the full mutation result from useConvexMutation', () => {
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
     const result = useUpdateVendor();
-    expect(result).toHaveProperty('mutateAsync', mockMutateAsync);
-    expect(result).toHaveProperty('isPending', false);
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(undefined);
     const { mutateAsync: updateVendor } = useUpdateVendor();
 
@@ -95,7 +110,7 @@ describe('useUpdateVendor', () => {
     });
   });
 
-  it('calls mutateAsync with only vendorId when no fields updated', async () => {
+  it('calls mutation with only vendorId when no fields updated', async () => {
     mockMutateAsync.mockResolvedValueOnce(undefined);
     const { mutateAsync: updateVendor } = useUpdateVendor();
 
@@ -104,7 +119,7 @@ describe('useUpdateVendor', () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({ vendorId: 'vendor-456' });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Update failed'));
     const { mutateAsync: updateVendor } = useUpdateVendor();
 

@@ -2,11 +2,11 @@
 
 import { Globe } from 'lucide-react';
 
-import type { Website } from '@/lib/collections/entities/websites';
-
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
+
+import type { Website } from '../hooks/queries';
 
 import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
 import { WebsitesActionMenu } from './websites-action-menu';

@@ -1,5 +1,7 @@
 'use client';
 
+import { useCallback } from 'react';
+
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -27,7 +29,7 @@ export function ApiKeyRevokeDialog({
   const { mutate: revokeKey, isPending: isRevoking } =
     useRevokeApiKey(organizationId);
 
-  const handleConfirm = () => {
+  const handleConfirm = useCallback(() => {
     if (isRevoking) return;
 
     revokeKey(apiKey.id, {
@@ -47,7 +49,7 @@ export function ApiKeyRevokeDialog({
         });
       },
     });
-  };
+  }, [isRevoking, revokeKey, apiKey.id, tSettings, onOpenChange, onSuccess]);
 
   return (
     <DeleteDialog

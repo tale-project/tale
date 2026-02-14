@@ -1,17 +1,19 @@
-import type { Collection } from '@tanstack/db';
-
-import { useLiveQuery } from '@tanstack/react-db';
-
-import type { Product } from '@/lib/collections/entities/products';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
-export function useProducts(collection: Collection<Product, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type Product = ConvexItemOf<typeof api.products.queries.listProducts>;
+
+export function useProducts(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.products.queries.listProducts,
+    { organizationId },
+  );
 
   return {
-    products: data,
+    products: data ?? [],
     isLoading,
   };
 }

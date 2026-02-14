@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -30,8 +30,7 @@ export function AddWebsiteDialog({
   organizationId,
 }: AddWebsiteDialogProps) {
   const { t: tWebsites } = useT('websites');
-  const [isLoading, setIsLoading] = useState(false);
-  const { mutateAsync: createWebsite } = useCreateWebsite();
+  const { mutate: createWebsite, isPending: isLoading } = useCreateWebsite();
 
   const formSchema = useMemo(
     () =>
@@ -74,31 +73,31 @@ export function AddWebsiteDialog({
 
   const scanInterval = watch('scanInterval');
 
-  const onSubmit = async (data: FormData) => {
-    setIsLoading(true);
-    try {
-      await createWebsite({
+  const onSubmit = (data: FormData) => {
+    createWebsite(
+      {
         organizationId,
         domain: data.domain,
         scanInterval: data.scanInterval,
-      });
-
-      toast({
-        title: tWebsites('toast.addSuccess'),
-        variant: 'success',
-      });
-
-      reset();
-      onClose();
-    } catch (error) {
-      console.error('Failed to add website:', error);
-      toast({
-        title: tWebsites('toast.addError'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: tWebsites('toast.addSuccess'),
+            variant: 'success',
+          });
+          reset();
+          onClose();
+        },
+        onError: (error) => {
+          console.error('Failed to add website:', error);
+          toast({
+            title: tWebsites('toast.addError'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   };
 
   const handleClose = () => {

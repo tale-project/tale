@@ -1,85 +1,57 @@
-import type { Collection } from '@tanstack/db';
-
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
-import { useLiveQuery } from '@tanstack/react-db';
 import { useMemo } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type { WorkflowCreationMetadata } from '@/convex/approvals/types';
-import type { CustomAgent } from '@/lib/collections/entities/custom-agents';
-import type { Thread } from '@/lib/collections/entities/threads';
 import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-import { useApprovalCollection } from '@/app/features/approvals/hooks/collections';
 import { useApprovals } from '@/app/features/approvals/hooks/queries';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/lib/utils/type-guards';
 
-export function useThreads(collection: Collection<Thread, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type Thread = ConvexItemOf<typeof api.threads.queries.listThreads>;
 
-  const sorted = useMemo(
+export function useThreads() {
+  const { data, isLoading } = useConvexQuery(api.threads.queries.listThreads);
+
+  const threads = useMemo(
     () => data?.slice().sort((a, b) => b._creationTime - a._creationTime),
     [data],
   );
 
   return {
-    threads: sorted,
+    threads,
     isLoading,
   };
 }
 
-export function useChatAgents(collection: Collection<CustomAgent, string>) {
-  const { selectedTeamId } = useTeamFilter();
+export type CustomAgent = ConvexItemOf<
+  typeof api.custom_agents.queries.listCustomAgents
+>;
 
-  const { data } = useLiveQuery(
-    (q) =>
-      q
-        .from({ agent: collection })
-        .fn.where((row) => {
-          const { agent } = row;
-          if (agent.status !== 'active') return false;
-          if (!selectedTeamId) return true;
-          return (
-            agent.teamId === selectedTeamId ||
-            (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
-          );
-        })
-        .select(({ agent }) => ({
-          _id: agent._id,
-          _creationTime: agent._creationTime,
-          organizationId: agent.organizationId,
-          name: agent.name,
-          displayName: agent.displayName,
-          description: agent.description,
-          avatarUrl: agent.avatarUrl,
-          systemInstructions: agent.systemInstructions,
-          toolNames: agent.toolNames,
-          integrationBindings: agent.integrationBindings,
-          modelPreset: agent.modelPreset,
-          knowledgeEnabled: agent.knowledgeEnabled,
-          includeOrgKnowledge: agent.includeOrgKnowledge,
-          knowledgeTopK: agent.knowledgeTopK,
-          toneOfVoiceId: agent.toneOfVoiceId,
-          filePreprocessingEnabled: agent.filePreprocessingEnabled,
-          teamId: agent.teamId,
-          sharedWithTeamIds: agent.sharedWithTeamIds,
-          createdBy: agent.createdBy,
-          isActive: agent.isActive,
-          versionNumber: agent.versionNumber,
-          status: agent.status,
-          rootVersionId: agent.rootVersionId,
-          parentVersionId: agent.parentVersionId,
-          publishedAt: agent.publishedAt,
-          publishedBy: agent.publishedBy,
-          changeLog: agent.changeLog,
-        })),
-    [selectedTeamId],
-  );
+export function useChatAgents(organizationId: string) {
+  const { selectedTeamId } = useTeamFilter();
+  const { data } = useConvexQuery(api.custom_agents.queries.listCustomAgents, {
+    organizationId,
+  });
+
+  const agents = useMemo(() => {
+    if (!data) return undefined;
+    return data.filter((agent) => {
+      if (agent.status !== 'active') return false;
+      if (!selectedTeamId) return true;
+      return (
+        agent.teamId === selectedTeamId ||
+        (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
+      );
+    });
+  }, [data, selectedTeamId]);
 
   return {
-    agents: data,
+    agents,
   };
 }
 
@@ -114,8 +86,7 @@ export function useHumanInputRequests(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const approvalCollection = useApprovalCollection(organizationId);
-  const { approvals, isLoading } = useApprovals(approvalCollection);
+  const { approvals, isLoading } = useApprovals(organizationId);
 
   const humanInputRequests = useMemo((): HumanInputRequest[] => {
     if (!approvals || !threadId) return [];
@@ -127,10 +98,9 @@ export function useHumanInputRequests(
           a.metadata !== undefined,
       )
       .map((a) => ({
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- collection returns string IDs; downstream expects Id<'approvals'>
-        _id: a._id as Id<'approvals'>,
+        _id: toId<'approvals'>(a._id),
         status: a.status,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing from generic JSON record to specific schema type
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any(); cast to specific schema type
         metadata: a.metadata as unknown as HumanInputRequestMetadata,
         _creationTime: a._creationTime,
         messageId: a.messageId,
@@ -172,8 +142,7 @@ export function useIntegrationApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const approvalCollection = useApprovalCollection(organizationId);
-  const { approvals, isLoading } = useApprovals(approvalCollection);
+  const { approvals, isLoading } = useApprovals(organizationId);
 
   const integrationApprovals = useMemo((): IntegrationApproval[] => {
     if (!approvals || !threadId) return [];
@@ -185,8 +154,7 @@ export function useIntegrationApprovals(
           a.metadata !== undefined,
       )
       .map((a) => ({
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- collection returns string IDs; downstream expects Id<'approvals'>
-        _id: a._id as Id<'approvals'>,
+        _id: toId<'approvals'>(a._id),
         status: a.status,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any(); cast to specific metadata shape
         metadata: a.metadata as IntegrationOperationMetadata,
@@ -217,8 +185,7 @@ export function useWorkflowCreationApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const approvalCollection = useApprovalCollection(organizationId);
-  const { approvals, isLoading } = useApprovals(approvalCollection);
+  const { approvals, isLoading } = useApprovals(organizationId);
 
   const workflowCreationApprovals = useMemo((): WorkflowCreationApproval[] => {
     if (!approvals || !threadId) return [];
@@ -230,8 +197,7 @@ export function useWorkflowCreationApprovals(
           a.metadata !== undefined,
       )
       .map((a) => ({
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- collection returns string IDs; downstream expects Id<'approvals'>
-        _id: a._id as Id<'approvals'>,
+        _id: toId<'approvals'>(a._id),
         status: a.status,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any(); cast to specific metadata shape
         metadata: a.metadata as WorkflowCreationMetadata,

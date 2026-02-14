@@ -1,14 +1,18 @@
-import type { Collection } from '@tanstack/db';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-import { useLiveQuery } from '@tanstack/react-db';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 
-import type { Website } from '@/lib/collections/entities/websites';
+export type Website = ConvexItemOf<typeof api.websites.queries.listWebsites>;
 
-export function useWebsites(collection: Collection<Website, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export function useWebsites(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.websites.queries.listWebsites,
+    { organizationId },
+  );
 
   return {
-    websites: data,
+    websites: data ?? [],
     isLoading,
   };
 }

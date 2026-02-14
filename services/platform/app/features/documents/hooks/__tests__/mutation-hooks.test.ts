@@ -4,11 +4,23 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 
 const mockMutateAsync = vi.fn();
 
+const mockMutationResult = {
+  mutate: mockMutateAsync,
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+  isError: false,
+  isSuccess: false,
+  error: null,
+  data: undefined,
+  reset: vi.fn(),
+};
+
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
-    mutateAsync: mockMutateAsync,
-    isPending: false,
-  }),
+  useConvexMutation: () => mockMutationResult,
+}));
+
+vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
+  useConvexOptimisticMutation: () => mockMutationResult,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -17,6 +29,9 @@ vi.mock('@/convex/_generated/api', () => ({
       mutations: {
         deleteDocument: 'deleteDocument',
         updateDocument: 'updateDocument',
+      },
+      queries: {
+        listDocuments: 'listDocuments',
       },
     },
   },
@@ -29,14 +44,15 @@ describe('useDeleteDocument', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
-    const deleteDocument = useDeleteDocument();
-    expect(deleteDocument).toBe(mockMutateAsync);
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useDeleteDocument();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const deleteDocument = useDeleteDocument();
+    const { mutateAsync: deleteDocument } = useDeleteDocument();
 
     await deleteDocument({ documentId: toId<'documents'>('doc-123') });
 
@@ -45,9 +61,9 @@ describe('useDeleteDocument', () => {
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
-    const deleteDocument = useDeleteDocument();
+    const { mutateAsync: deleteDocument } = useDeleteDocument();
 
     await expect(
       deleteDocument({ documentId: toId<'documents'>('doc-789') }),
@@ -60,14 +76,15 @@ describe('useUpdateDocument', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
-    const updateDocument = useUpdateDocument();
-    expect(updateDocument).toBe(mockMutateAsync);
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useUpdateDocument();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with documentId and teamTags', async () => {
+  it('calls mutation with documentId and teamTags', async () => {
     mockMutateAsync.mockResolvedValueOnce(undefined);
-    const updateDocument = useUpdateDocument();
+    const { mutateAsync: updateDocument } = useUpdateDocument();
 
     await updateDocument({
       documentId: toId<'documents'>('doc-123'),
@@ -80,9 +97,9 @@ describe('useUpdateDocument', () => {
     });
   });
 
-  it('calls mutateAsync with documentId only', async () => {
+  it('calls mutation with documentId only', async () => {
     mockMutateAsync.mockResolvedValueOnce(undefined);
-    const updateDocument = useUpdateDocument();
+    const { mutateAsync: updateDocument } = useUpdateDocument();
 
     await updateDocument({ documentId: toId<'documents'>('doc-123') });
 
@@ -91,9 +108,9 @@ describe('useUpdateDocument', () => {
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Update failed'));
-    const updateDocument = useUpdateDocument();
+    const { mutateAsync: updateDocument } = useUpdateDocument();
 
     await expect(
       updateDocument({

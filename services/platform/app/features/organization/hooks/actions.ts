@@ -1,8 +1,11 @@
-import { useConvexActionMutation } from '@/app/hooks/use-convex-action-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
 export function useInitializeDefaultWorkflows() {
-  return useConvexActionMutation(
-    api.organizations.actions.initializeDefaultWorkflows,
-  );
+  return useConvexAction(api.organizations.actions.initializeDefaultWorkflows, {
+    invalidates: [
+      api.wf_definitions.queries.listAutomations,
+      api.wf_definitions.queries.listAutomationRoots,
+    ],
+  });
 }

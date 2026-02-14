@@ -4,11 +4,23 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 
 const mockMutateAsync = vi.fn();
 
+const mockMutationResult = {
+  mutate: mockMutateAsync,
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+  isError: false,
+  isSuccess: false,
+  error: null,
+  data: undefined,
+  reset: vi.fn(),
+};
+
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
-    mutateAsync: mockMutateAsync,
-    isPending: false,
-  }),
+  useConvexMutation: () => mockMutationResult,
+}));
+
+vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
+  useConvexOptimisticMutation: () => mockMutationResult,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -23,6 +35,9 @@ vi.mock('@/convex/_generated/api', () => ({
         updateIcon: 'updateIcon',
         deleteIntegration: 'deleteIntegration',
       },
+      queries: {
+        list: 'list',
+      },
     },
   },
 }));
@@ -34,14 +49,15 @@ describe('useDeleteIntegration', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
-    const deleteIntegration = useDeleteIntegration();
-    expect(deleteIntegration).toBe(mockMutateAsync);
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useDeleteIntegration();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const deleteIntegration = useDeleteIntegration();
+    const { mutateAsync: deleteIntegration } = useDeleteIntegration();
 
     await deleteIntegration({
       integrationId: toId<'integrations'>('int-123'),
@@ -52,9 +68,9 @@ describe('useDeleteIntegration', () => {
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
-    const deleteIntegration = useDeleteIntegration();
+    const { mutateAsync: deleteIntegration } = useDeleteIntegration();
 
     await expect(
       deleteIntegration({

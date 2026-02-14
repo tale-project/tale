@@ -1,4 +1,5 @@
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useTestAgent() {
@@ -6,66 +7,139 @@ export function useTestAgent() {
 }
 
 export function useCreateCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.createCustomAgent);
+  return useConvexOptimisticMutation(
+    api.custom_agents.mutations.createCustomAgent,
+    api.custom_agents.queries.listCustomAgents,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ name, displayName, description }, { insert }) =>
+        insert({
+          name,
+          displayName,
+          description,
+          status: 'draft',
+          _creationTime: Date.now(),
+        }),
+    },
+  );
 }
 
 export function useDuplicateCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.duplicateCustomAgent);
+  return useConvexMutation(api.custom_agents.mutations.duplicateCustomAgent, {
+    invalidates: [api.custom_agents.queries.listCustomAgents],
+  });
 }
 
 export function useActivateCustomAgentVersion() {
   return useConvexMutation(
     api.custom_agents.mutations.activateCustomAgentVersion,
+    {
+      invalidates: [api.custom_agents.queries.listCustomAgents],
+    },
   );
 }
 
 export function useCreateDraftFromVersion() {
-  return useConvexMutation(api.custom_agents.mutations.createDraftFromVersion);
+  return useConvexMutation(api.custom_agents.mutations.createDraftFromVersion, {
+    invalidates: [api.custom_agents.queries.listCustomAgents],
+  });
 }
 
 export function usePublishCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.publishCustomAgent);
+  return useConvexOptimisticMutation(
+    api.custom_agents.mutations.publishCustomAgent,
+    api.custom_agents.queries.listCustomAgents,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ customAgentId }, { update }) =>
+        update(customAgentId, { status: 'active' }),
+    },
+  );
 }
 
 export function useUnpublishCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.unpublishCustomAgent);
+  return useConvexOptimisticMutation(
+    api.custom_agents.mutations.unpublishCustomAgent,
+    api.custom_agents.queries.listCustomAgents,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ customAgentId }, { update }) =>
+        update(customAgentId, { status: 'archived' }),
+    },
+  );
 }
 
-export function useCreateCustomAgentWebhook() {
-  return useConvexMutation(api.custom_agents.webhooks.mutations.createWebhook);
+export function useCreateCustomAgentWebhook(customAgentId?: string) {
+  return useConvexOptimisticMutation(
+    api.custom_agents.webhooks.mutations.createWebhook,
+    api.custom_agents.webhooks.queries.getWebhooks,
+    {
+      queryArgs: customAgentId ? { customAgentId } : undefined,
+      onMutate: ({ organizationId }, { insert }) =>
+        insert({
+          organizationId,
+          customAgentId: customAgentId ?? '',
+          token: '',
+          isActive: true,
+          createdAt: Date.now(),
+        }),
+    },
+  );
 }
 
 export function useUpdateCustomAgent() {
-  const { mutateAsync } = useConvexMutation(
+  return useConvexOptimisticMutation(
     api.custom_agents.mutations.updateCustomAgent,
+    api.custom_agents.queries.listCustomAgents,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ customAgentId, ...changes }, { update }) =>
+        update(customAgentId, changes),
+    },
   );
-  return mutateAsync;
 }
 
 export function useUpdateCustomAgentMetadata() {
-  const { mutateAsync } = useConvexMutation(
+  return useConvexOptimisticMutation(
     api.custom_agents.mutations.updateCustomAgentMetadata,
+    api.custom_agents.queries.listCustomAgents,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ customAgentId, ...changes }, { update }) =>
+        update(customAgentId, changes),
+    },
   );
-  return mutateAsync;
 }
 
 export function useDeleteCustomAgent() {
-  const { mutateAsync } = useConvexMutation(
+  return useConvexOptimisticMutation(
     api.custom_agents.mutations.deleteCustomAgent,
+    api.custom_agents.queries.listCustomAgents,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ customAgentId }, { remove }) => remove(customAgentId),
+    },
   );
-  return mutateAsync;
 }
 
-export function useToggleCustomAgentWebhook() {
-  const { mutateAsync } = useConvexMutation(
+export function useToggleCustomAgentWebhook(customAgentId?: string) {
+  return useConvexOptimisticMutation(
     api.custom_agents.webhooks.mutations.toggleWebhook,
+    api.custom_agents.webhooks.queries.getWebhooks,
+    {
+      queryArgs: customAgentId ? { customAgentId } : undefined,
+      onMutate: ({ webhookId }, { toggle }) => toggle(webhookId, 'isActive'),
+    },
   );
-  return mutateAsync;
 }
 
-export function useDeleteCustomAgentWebhook() {
-  const { mutateAsync } = useConvexMutation(
+export function useDeleteCustomAgentWebhook(customAgentId?: string) {
+  return useConvexOptimisticMutation(
     api.custom_agents.webhooks.mutations.deleteWebhook,
+    api.custom_agents.webhooks.queries.getWebhooks,
+    {
+      queryArgs: customAgentId ? { customAgentId } : undefined,
+      onMutate: ({ webhookId }, { remove }) => remove(webhookId),
+    },
   );
-  return mutateAsync;
 }

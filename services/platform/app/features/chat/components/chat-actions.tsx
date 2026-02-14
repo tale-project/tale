@@ -2,7 +2,7 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { HStack } from '@/app/components/ui/layout/layout';
@@ -36,39 +36,45 @@ export function ChatActions({
 }: ChatActionsProps) {
   const navigate = useNavigate();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const { t: tCommon } = useT('common');
   const { t: tChat } = useT('chat');
 
-  const { mutateAsync: deleteThread } = useDeleteThread();
+  const { mutate: deleteThread, isPending: isLoading } = useDeleteThread();
 
-  const handleDelete = async () => {
-    try {
-      setIsLoading(true);
-      await deleteThread({
-        threadId: chat.id,
-      });
+  const handleDelete = useCallback(() => {
+    deleteThread(
+      { threadId: chat.id },
+      {
+        onSuccess: () => {
+          setIsDeleteDialogOpen(false);
 
-      setIsDeleteDialogOpen(false);
-
-      if (currentChatId === chat.id) {
-        void navigate({
-          to: '/dashboard/$id/chat',
-          params: { id: organizationId },
-        });
-      }
-    } catch (error) {
-      console.error('Failed to delete chat:', error);
-      toast({
-        title: tChat('deleteFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+          if (currentChatId === chat.id) {
+            void navigate({
+              to: '/dashboard/$id/chat',
+              params: { id: organizationId },
+            });
+          }
+        },
+        onError: (error) => {
+          console.error('Failed to delete chat:', error);
+          toast({
+            title: tChat('deleteFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  }, [
+    chat.id,
+    currentChatId,
+    organizationId,
+    deleteThread,
+    navigate,
+    toast,
+    tChat,
+  ]);
 
   return (
     <>

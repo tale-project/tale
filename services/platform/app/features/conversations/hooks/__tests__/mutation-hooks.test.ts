@@ -4,11 +4,23 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 
 const mockMutateAsync = vi.fn();
 
+const mockMutationResult = {
+  mutate: mockMutateAsync,
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+  isError: false,
+  isSuccess: false,
+  error: null,
+  data: undefined,
+  reset: vi.fn(),
+};
+
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
-    mutateAsync: mockMutateAsync,
-    isPending: false,
-  }),
+  useConvexMutation: () => mockMutationResult,
+}));
+
+vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
+  useConvexOptimisticMutation: () => mockMutationResult,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -19,6 +31,9 @@ vi.mock('@/convex/_generated/api', () => ({
         reopenConversation: 'reopenConversation',
         markConversationAsRead: 'markConversationAsRead',
         markConversationAsSpam: 'markConversationAsSpam',
+      },
+      queries: {
+        listConversations: 'listConversations',
       },
     },
   },
@@ -36,13 +51,13 @@ describe('useCloseConversation', () => {
     vi.clearAllMocks();
   });
 
-  it('returns full mutation object from useConvexMutation', () => {
-    const mutation = useCloseConversation();
-    expect(mutation.mutateAsync).toBe(mockMutateAsync);
-    expect(mutation.isPending).toBe(false);
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useCloseConversation();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
     const { mutateAsync: closeConversation } = useCloseConversation();
 
@@ -55,7 +70,7 @@ describe('useCloseConversation', () => {
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Close failed'));
     const { mutateAsync: closeConversation } = useCloseConversation();
 
@@ -72,13 +87,13 @@ describe('useReopenConversation', () => {
     vi.clearAllMocks();
   });
 
-  it('returns full mutation object from useConvexMutation', () => {
-    const mutation = useReopenConversation();
-    expect(mutation.mutateAsync).toBe(mockMutateAsync);
-    expect(mutation.isPending).toBe(false);
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useReopenConversation();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
     const { mutateAsync: reopenConversation } = useReopenConversation();
 
@@ -91,7 +106,7 @@ describe('useReopenConversation', () => {
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Reopen failed'));
     const { mutateAsync: reopenConversation } = useReopenConversation();
 
@@ -108,13 +123,13 @@ describe('useMarkAsRead', () => {
     vi.clearAllMocks();
   });
 
-  it('returns full mutation object from useConvexMutation', () => {
-    const mutation = useMarkAsRead();
-    expect(mutation.mutateAsync).toBe(mockMutateAsync);
-    expect(mutation.isPending).toBe(false);
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useMarkAsRead();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
     const { mutateAsync: markAsRead } = useMarkAsRead();
 
@@ -127,7 +142,7 @@ describe('useMarkAsRead', () => {
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('MarkAsRead failed'));
     const { mutateAsync: markAsRead } = useMarkAsRead();
 
@@ -144,13 +159,13 @@ describe('useMarkAsSpam', () => {
     vi.clearAllMocks();
   });
 
-  it('returns full mutation object from useConvexMutation', () => {
-    const mutation = useMarkAsSpam();
-    expect(mutation.mutateAsync).toBe(mockMutateAsync);
-    expect(mutation.isPending).toBe(false);
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useMarkAsSpam();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
     const { mutateAsync: markAsSpam } = useMarkAsSpam();
 
@@ -163,7 +178,7 @@ describe('useMarkAsSpam', () => {
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Spam failed'));
     const { mutateAsync: markAsSpam } = useMarkAsSpam();
 

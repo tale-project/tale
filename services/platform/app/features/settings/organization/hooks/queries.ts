@@ -1,16 +1,20 @@
-import type { Collection } from '@tanstack/db';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-import { useLiveQuery } from '@tanstack/react-db';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 
-import type { Member } from '@/lib/collections/entities/members';
+export type Member = ConvexItemOf<
+  typeof api.members.queries.listByOrganization
+>;
 
-export function useMembers(collection: Collection<Member, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export function useMembers(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.members.queries.listByOrganization,
+    { organizationId },
+  );
 
   return {
     members: data,
     isLoading,
   };
 }
-
-export type { Member };

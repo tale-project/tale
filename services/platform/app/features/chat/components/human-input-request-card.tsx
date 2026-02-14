@@ -1,7 +1,7 @@
 'use client';
 
 import { XCircle, Loader2, MessageCircleQuestion, Send } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
@@ -41,12 +41,12 @@ function HumanInputRequestCardComponent({
   const [selectedValue, setSelectedValue] = useState<string>('');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
 
-  const { mutateAsync: submitResponse, isPending: isSubmitting } =
+  const { mutate: submitResponse, isPending: isSubmitting } =
     useSubmitHumanInputResponse();
 
   const isPending = status === 'pending';
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(() => {
     let response: string | string[];
 
     switch (metadata.format) {
@@ -78,19 +78,29 @@ function HumanInputRequestCardComponent({
 
     setError(null);
 
-    try {
-      await submitResponse({
-        approvalId,
-        response,
-      });
-      onResponseSubmitted?.();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to submit response',
-      );
-      console.error('Failed to submit response:', err);
-    }
-  };
+    submitResponse(
+      { approvalId, response },
+      {
+        onSuccess: () => {
+          onResponseSubmitted?.();
+        },
+        onError: (err) => {
+          setError(
+            err instanceof Error ? err.message : 'Failed to submit response',
+          );
+          console.error('Failed to submit response:', err);
+        },
+      },
+    );
+  }, [
+    metadata.format,
+    textValue,
+    selectedValue,
+    selectedValues,
+    approvalId,
+    submitResponse,
+    onResponseSubmitted,
+  ]);
 
   const handleMultiSelectToggle = (value: string) => {
     setSelectedValues((prev) =>

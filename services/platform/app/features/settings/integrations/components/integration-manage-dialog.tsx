@@ -129,8 +129,6 @@ export function IntegrationManageDialog({
 }: IntegrationManageDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
@@ -170,13 +168,18 @@ export function IntegrationManageDialog({
   const isActive = optimisticActive ?? integration.isActive;
   const iconUrl = optimisticIconUrl ?? integration.iconUrl;
 
-  const { mutateAsync: updateIntegration } = useUpdateIntegration();
-  const { mutateAsync: testConnection } = useTestIntegration();
-  const deleteIntegration = useDeleteIntegration();
+  const { mutateAsync: updateIntegration, isPending: isUpdating } =
+    useUpdateIntegration();
+  const { mutateAsync: testConnection, isPending: isTesting } =
+    useTestIntegration();
+  const { mutateAsync: deleteIntegration, isPending: isDeleting } =
+    useDeleteIntegration();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
   const { mutateAsync: updateIcon } = useUpdateIntegrationIcon();
   const { mutateAsync: generateOAuth2Url } = useGenerateIntegrationOAuth2Url();
   const { mutateAsync: saveOAuth2Credentials } = useSaveOAuth2Credentials();
+
+  const isSubmitting = isUpdating || isDeleting;
 
   const hasOAuth2Config = !!integration.oauth2Config;
 
@@ -414,7 +417,6 @@ export function IntegrationManageDialog({
   ]);
 
   const handleTestConnection = useCallback(async () => {
-    setIsTesting(true);
     setTestResult(null);
 
     try {
@@ -461,8 +463,6 @@ export function IntegrationManageDialog({
             ? error.message
             : t('integrations.failedToTestConnection'),
       });
-    } finally {
-      setIsTesting(false);
     }
   }, [
     isSql,
@@ -478,7 +478,6 @@ export function IntegrationManageDialog({
   ]);
 
   const handleDisconnect = useCallback(async () => {
-    setIsSubmitting(true);
     try {
       await updateIntegration({
         integrationId: integration._id,
@@ -506,8 +505,6 @@ export function IntegrationManageDialog({
               }),
         variant: 'destructive',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   }, [updateIntegration, integration, t]);
 
@@ -581,7 +578,6 @@ export function IntegrationManageDialog({
     oauth2Fields.clientSecret.trim().length > 0;
 
   const handleDelete = useCallback(async () => {
-    setIsSubmitting(true);
     try {
       await deleteIntegration({ integrationId: integration._id });
       toast({
@@ -598,7 +594,6 @@ export function IntegrationManageDialog({
         variant: 'destructive',
       });
     } finally {
-      setIsSubmitting(false);
       setConfirmDelete(false);
     }
   }, [deleteIntegration, integration, onOpenChange, t]);

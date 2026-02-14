@@ -1,8 +1,8 @@
-import { useConvexActionMutation } from '@/app/hooks/use-convex-action-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
 export function useSaveOAuth2Credentials() {
-  return useConvexActionMutation(
-    api.integrations.actions.saveOAuth2ClientCredentials,
-  );
+  return useConvexAction(api.integrations.actions.saveOAuth2ClientCredentials, {
+    invalidates: [api.integrations.queries.list],
+  });
 }

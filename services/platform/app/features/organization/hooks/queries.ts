@@ -1,19 +1,19 @@
-import type { Collection } from '@tanstack/db';
-
-import { useLiveQuery } from '@tanstack/react-db';
-
-import type { UserOrganization } from '@/lib/collections/entities/user-organizations';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
-export function useUserOrganizations(
-  collection: Collection<UserOrganization, string>,
-) {
+export type UserOrganization = ConvexItemOf<
+  typeof api.members.queries.getUserOrganizationsList
+>;
+
+export function useUserOrganizations() {
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
 
-  const { data, isLoading } = useLiveQuery(() => collection);
+  const { data, isLoading } = useConvexQuery(
+    api.members.queries.getUserOrganizationsList,
+  );
 
   return {
     organizations: data,

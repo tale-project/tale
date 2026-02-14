@@ -1,7 +1,7 @@
 'use client';
 
 import { CircleStop, Copy, Pencil, Trash2, Upload } from 'lucide-react';
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
@@ -35,51 +35,61 @@ export function AutomationRowActions({
   const { t: tToast } = useT('toast');
   const { user } = useAuth();
   const dialogs = useEntityRowDialogs(['delete', 'rename', 'unpublish']);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  const { mutateAsync: duplicateAutomation } = useDuplicateAutomation();
-  const { mutateAsync: deleteAutomation } = useDeleteAutomation();
-  const { mutateAsync: republishAutomation } = useRepublishAutomation();
-  const { mutateAsync: unpublishAutomation, isPending: isUnpublishing } =
+  const { mutate: duplicateAutomation } = useDuplicateAutomation();
+  const { mutate: deleteAutomation, isPending: isDeleting } =
+    useDeleteAutomation();
+  const { mutate: republishAutomation } = useRepublishAutomation();
+  const { mutate: unpublishAutomation, isPending: isUnpublishing } =
     useUnpublishAutomation();
   const { mutateAsync: updateAutomation } = useUpdateAutomation();
 
-  const handlePublish = useCallback(async () => {
+  const handlePublish = useCallback(() => {
     if (!user) return;
-    try {
-      await republishAutomation({
+    republishAutomation(
+      {
         wfDefinitionId: automation._id,
         publishedBy: user.email ?? user.userId,
-      });
-      toast({
-        title: tToast('success.automationPublished'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to publish automation:', error);
-      toast({
-        title: tToast('error.automationPublishFailed'),
-        variant: 'destructive',
-      });
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: tToast('success.automationPublished'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to publish automation:', error);
+          toast({
+            title: tToast('error.automationPublishFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [republishAutomation, automation._id, user, tToast]);
 
-  const handleDuplicate = useCallback(async () => {
-    try {
-      await duplicateAutomation({
+  const handleDuplicate = useCallback(() => {
+    duplicateAutomation(
+      {
         wfDefinitionId: automation._id,
-      });
-      toast({
-        title: tToast('success.automationDuplicated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to duplicate automation:', error);
-      toast({
-        title: tToast('error.automationDuplicateFailed'),
-        variant: 'destructive',
-      });
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: tToast('success.automationDuplicated'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to duplicate automation:', error);
+          toast({
+            title: tToast('error.automationDuplicateFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [duplicateAutomation, automation._id, tToast]);
 
   const handleRename = useCallback(
@@ -107,43 +117,50 @@ export function AutomationRowActions({
     [updateAutomation, automation._id, user, tToast],
   );
 
-  const handleUnpublishConfirm = useCallback(async () => {
+  const handleUnpublishConfirm = useCallback(() => {
     if (!user) return;
-    try {
-      await unpublishAutomation({
+    unpublishAutomation(
+      {
         wfDefinitionId: automation._id,
         updatedBy: user.userId,
-      });
-      dialogs.setOpen.unpublish(false);
-      toast({
-        title: tToast('success.automationDeactivated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to unpublish automation:', error);
-      toast({
-        title: tToast('error.automationDeactivateFailed'),
-        variant: 'destructive',
-      });
-    }
+      },
+      {
+        onSuccess: () => {
+          dialogs.setOpen.unpublish(false);
+          toast({
+            title: tToast('success.automationDeactivated'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to unpublish automation:', error);
+          toast({
+            title: tToast('error.automationDeactivateFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [unpublishAutomation, automation._id, user, dialogs.setOpen, tToast]);
 
-  const handleDeleteConfirm = useCallback(async () => {
-    setIsDeleting(true);
-    try {
-      await deleteAutomation({
+  const handleDeleteConfirm = useCallback(() => {
+    deleteAutomation(
+      {
         wfDefinitionId: automation._id,
-      });
-      dialogs.setOpen.delete(false);
-    } catch (error) {
-      console.error('Failed to delete automation:', error);
-      toast({
-        title: tToast('error.automationDeleteFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          dialogs.setOpen.delete(false);
+        },
+        onError: (error) => {
+          console.error('Failed to delete automation:', error);
+          toast({
+            title: tToast('error.automationDeleteFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [deleteAutomation, automation._id, dialogs.setOpen, tToast]);
 
   const actions = useMemo(

@@ -71,7 +71,7 @@ function GeneralTab() {
 
   const handleSave = useCallback(
     async (data: CombinedSaveData) => {
-      await updateMetadata({
+      await updateMetadata.mutateAsync({
         customAgentId: toId<'customAgents'>(agentId),
         name: data.name,
         displayName: data.displayName,

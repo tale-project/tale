@@ -1,4 +1,5 @@
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useGenerateUploadUrl() {
@@ -8,37 +9,85 @@ export function useGenerateUploadUrl() {
 export function useAddMessage() {
   return useConvexMutation(
     api.conversations.mutations.addMessageToConversation,
+    {
+      invalidates: [api.conversations.queries.getConversationWithMessages],
+    },
   );
 }
 
 export function useBulkCloseConversations() {
-  return useConvexMutation(api.conversations.mutations.bulkCloseConversations);
+  return useConvexOptimisticMutation(
+    api.conversations.mutations.bulkCloseConversations,
+    api.conversations.queries.listConversations,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ conversationIds }, { bulkUpdate }) =>
+        bulkUpdate(conversationIds, { status: 'closed' }),
+    },
+  );
 }
 
 export function useBulkReopenConversations() {
-  return useConvexMutation(api.conversations.mutations.bulkReopenConversations);
+  return useConvexOptimisticMutation(
+    api.conversations.mutations.bulkReopenConversations,
+    api.conversations.queries.listConversations,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ conversationIds }, { bulkUpdate }) =>
+        bulkUpdate(conversationIds, { status: 'open' }),
+    },
+  );
 }
 
 export function useSendMessageViaIntegration() {
   return useConvexMutation(
     api.conversations.mutations.sendMessageViaIntegration,
+    {
+      invalidates: [api.conversations.queries.getConversationWithMessages],
+    },
   );
 }
 
 export function useCloseConversation() {
-  return useConvexMutation(api.conversations.mutations.closeConversation);
+  return useConvexOptimisticMutation(
+    api.conversations.mutations.closeConversation,
+    api.conversations.queries.listConversations,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ conversationId }, { update }) =>
+        update(conversationId, { status: 'closed' }),
+    },
+  );
 }
 
 export function useReopenConversation() {
-  return useConvexMutation(api.conversations.mutations.reopenConversation);
+  return useConvexOptimisticMutation(
+    api.conversations.mutations.reopenConversation,
+    api.conversations.queries.listConversations,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ conversationId }, { update }) =>
+        update(conversationId, { status: 'open' }),
+    },
+  );
 }
 
 export function useMarkAsRead() {
-  return useConvexMutation(api.conversations.mutations.markConversationAsRead);
+  return useConvexMutation(api.conversations.mutations.markConversationAsRead, {
+    invalidates: [api.conversations.queries.listConversations],
+  });
 }
 
 export function useMarkAsSpam() {
-  return useConvexMutation(api.conversations.mutations.markConversationAsSpam);
+  return useConvexOptimisticMutation(
+    api.conversations.mutations.markConversationAsSpam,
+    api.conversations.queries.listConversations,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ conversationId }, { update }) =>
+        update(conversationId, { status: 'spam' }),
+    },
+  );
 }
 
 export function useDownloadAttachments() {

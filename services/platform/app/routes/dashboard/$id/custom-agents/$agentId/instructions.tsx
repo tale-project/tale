@@ -62,7 +62,7 @@ function InstructionsTab() {
 
   const handleSave = useCallback(
     async (data: InstructionsFormData) => {
-      await updateAgent({
+      await updateAgent.mutateAsync({
         customAgentId: toId<'customAgents'>(agentId),
         systemInstructions: data.systemInstructions,
         modelPreset: data.modelPreset,

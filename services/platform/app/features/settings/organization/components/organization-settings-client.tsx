@@ -15,7 +15,6 @@ import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
-import { useMemberCollection } from '../hooks/collections';
 import { useMembers } from '../hooks/queries';
 import { AddMemberDialog } from './member-add-dialog';
 import { MemberTable } from './member-table';
@@ -64,8 +63,7 @@ export function OrganizationSettingsClient({
   const { formState, handleSubmit, register, reset } = form;
   const { isDirty, isSubmitting } = formState;
 
-  const memberCollection = useMemberCollection(organization?._id ?? '');
-  const { members: allMembers } = useMembers(memberCollection);
+  const { members: allMembers } = useMembers(organization?._id ?? '');
 
   const members = useMemo(() => {
     if (!allMembers) return null;

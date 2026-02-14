@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Copy, Check } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -37,7 +37,8 @@ export function ApiKeyCreateDialog({
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const { mutateAsync: createKey } = useCreateApiKey(organizationId);
+  const { mutateAsync: createKey, isPending: isSubmitting } =
+    useCreateApiKey(organizationId);
 
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -75,8 +76,6 @@ export function ApiKeyCreateDialog({
     [nameRequiredError],
   );
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const form = useForm<ApiKeyFormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -89,7 +88,6 @@ export function ApiKeyCreateDialog({
   const expiresInValue = watch('expiresIn');
 
   const onSubmit = async (data: ApiKeyFormData) => {
-    setIsSubmitting(true);
     try {
       const expiresIn =
         data.expiresIn === '0' ? undefined : parseInt(data.expiresIn, 10);
@@ -113,8 +111,6 @@ export function ApiKeyCreateDialog({
         title: tCommon('errors.generic'),
         variant: 'destructive',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

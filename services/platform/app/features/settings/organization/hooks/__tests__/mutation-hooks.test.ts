@@ -2,11 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockMutateAsync = vi.fn();
 
+const mockMutationResult = {
+  mutate: mockMutateAsync,
+  mutateAsync: mockMutateAsync,
+  isPending: false,
+  isError: false,
+  isSuccess: false,
+  error: null,
+  data: undefined,
+  reset: vi.fn(),
+};
+
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
-    mutateAsync: mockMutateAsync,
-    isPending: false,
-  }),
+  useConvexMutation: () => mockMutationResult,
+}));
+
+vi.mock('@/app/hooks/use-convex-optimistic-mutation', () => ({
+  useConvexOptimisticMutation: () => mockMutationResult,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -23,38 +35,88 @@ vi.mock('@/convex/_generated/api', () => ({
         updateMemberRole: 'updateMemberRole',
         updateMemberDisplayName: 'updateMemberDisplayName',
       },
+      queries: {
+        listByOrganization: 'listByOrganization',
+      },
     },
   },
 }));
 
 import {
+  useCreateMember,
   useRemoveMember,
   useUpdateMemberRole,
   useUpdateMemberDisplayName,
 } from '../mutations';
+
+describe('useCreateMember', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useCreateMember();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
+  });
+
+  it('calls mutation with the correct args', async () => {
+    mockMutateAsync.mockResolvedValueOnce({
+      userId: 'user-1',
+      memberId: 'member-1',
+      isExistingUser: false,
+    });
+    const { mutateAsync: createMember } = useCreateMember();
+
+    await createMember({
+      organizationId: 'org-123',
+      email: 'test@example.com',
+      role: 'member',
+    });
+
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      organizationId: 'org-123',
+      email: 'test@example.com',
+      role: 'member',
+    });
+  });
+
+  it('propagates errors from mutation', async () => {
+    mockMutateAsync.mockRejectedValueOnce(new Error('Create failed'));
+    const { mutateAsync: createMember } = useCreateMember();
+
+    await expect(
+      createMember({
+        organizationId: 'org-123',
+        email: 'test@example.com',
+      }),
+    ).rejects.toThrow('Create failed');
+  });
+});
 
 describe('useRemoveMember', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
-    const removeMember = useRemoveMember();
-    expect(removeMember).toBe(mockMutateAsync);
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useRemoveMember();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const removeMember = useRemoveMember();
+    const { mutateAsync: removeMember } = useRemoveMember();
 
     await removeMember({ memberId: 'member-123' });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({ memberId: 'member-123' });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
-    const removeMember = useRemoveMember();
+    const { mutateAsync: removeMember } = useRemoveMember();
 
     await expect(removeMember({ memberId: 'member-789' })).rejects.toThrow(
       'Delete failed',
@@ -67,14 +129,15 @@ describe('useUpdateMemberRole', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
-    const updateRole = useUpdateMemberRole();
-    expect(updateRole).toBe(mockMutateAsync);
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useUpdateMemberRole();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const updateRole = useUpdateMemberRole();
+    const { mutateAsync: updateRole } = useUpdateMemberRole();
 
     await updateRole({ memberId: 'member-123', role: 'admin' });
 
@@ -84,9 +147,9 @@ describe('useUpdateMemberRole', () => {
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Update failed'));
-    const updateRole = useUpdateMemberRole();
+    const { mutateAsync: updateRole } = useUpdateMemberRole();
 
     await expect(
       updateRole({ memberId: 'member-789', role: 'admin' }),
@@ -99,14 +162,15 @@ describe('useUpdateMemberDisplayName', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
-    const updateName = useUpdateMemberDisplayName();
-    expect(updateName).toBe(mockMutateAsync);
+  it('returns a mutation result object from useConvexOptimisticMutation', () => {
+    const result = useUpdateMemberDisplayName();
+    expect(result).toHaveProperty('mutateAsync');
+    expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutateAsync with the correct args', async () => {
+  it('calls mutation with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const updateName = useUpdateMemberDisplayName();
+    const { mutateAsync: updateName } = useUpdateMemberDisplayName();
 
     await updateName({ memberId: 'member-123', displayName: 'New Name' });
 
@@ -116,9 +180,9 @@ describe('useUpdateMemberDisplayName', () => {
     });
   });
 
-  it('propagates errors from mutateAsync', async () => {
+  it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Update failed'));
-    const updateName = useUpdateMemberDisplayName();
+    const { mutateAsync: updateName } = useUpdateMemberDisplayName();
 
     await expect(
       updateName({ memberId: 'member-789', displayName: 'Fail' }),

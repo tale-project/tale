@@ -59,7 +59,7 @@ function ToolsTab() {
           ? [...tools, 'rag_search']
           : tools;
       await saveWithStatus(() =>
-        updateAgent({
+        updateAgent.mutateAsync({
           customAgentId: toId<'customAgents'>(agentId),
           toolNames: finalTools,
         }),
@@ -72,7 +72,7 @@ function ToolsTab() {
     async (bindings: string[]) => {
       if (isReadOnly) return;
       await saveWithStatus(() =>
-        updateAgent({
+        updateAgent.mutateAsync({
           customAgentId: toId<'customAgents'>(agentId),
           integrationBindings: bindings,
         }),

@@ -8,7 +8,7 @@ import {
   ShieldX,
   UserIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import {
@@ -19,11 +19,12 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
-import { useCustomerById } from '@/app/features/customers/hooks/queries';
+import {
+  useCustomerById,
+  useCustomers,
+} from '@/app/features/customers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
-import { createCustomersCollection } from '@/lib/collections/entities/customers';
-import { useCollection } from '@/lib/collections/use-collection';
 import { useT } from '@/lib/i18n/client';
 
 import type { ConversationWithMessages } from '../types';
@@ -55,84 +56,82 @@ export function ConversationHeader({
   const { customer } = conversation;
   const [isCustomerInfoOpen, setIsCustomerInfoOpen] = useState(false);
 
-  const { mutateAsync: closeConversation, isPending: isClosing } =
+  const { mutate: closeConversation, isPending: isClosing } =
     useCloseConversation();
-  const { mutateAsync: reopenConversation, isPending: isReopening } =
+  const { mutate: reopenConversation, isPending: isReopening } =
     useReopenConversation();
-  const { mutateAsync: markAsSpamMutation, isPending: isMarkingSpam } =
+  const { mutate: markAsSpamMutation, isPending: isMarkingSpam } =
     useMarkAsSpam();
   const isLoading = isClosing || isReopening || isMarkingSpam;
 
-  // Lookup full customer document from collection
-  const customersCollection = useCollection(
-    'customers',
-    createCustomersCollection,
-    organizationId,
-  );
-  const customerDoc = useCustomerById(
-    customersCollection,
-    conversation.customerId,
-  );
+  const { customers } = useCustomers(organizationId);
+  const customerDoc = useCustomerById(customers, conversation.customerId);
 
-  const handleResolveConversation = async () => {
-    try {
-      await closeConversation({
-        conversationId: toId<'conversations'>(conversation.id),
-      });
+  const handleResolveConversation = useCallback(() => {
+    closeConversation(
+      { conversationId: toId<'conversations'>(conversation.id) },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('header.toast.closed'),
+            variant: 'success',
+          });
+          onResolve?.();
+        },
+        onError: (error) => {
+          console.error('Error closing conversation:', error);
+          toast({
+            title: t('header.toast.closeFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  }, [closeConversation, conversation.id, t, onResolve]);
 
-      toast({
-        title: t('header.toast.closed'),
-        variant: 'success',
-      });
-      onResolve?.();
-    } catch (error) {
-      console.error('Error closing conversation:', error);
-      toast({
-        title: t('header.toast.closeFailed'),
-        variant: 'destructive',
-      });
-    }
-  };
+  const handleReopenConversation = useCallback(() => {
+    reopenConversation(
+      { conversationId: toId<'conversations'>(conversation.id) },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('header.toast.reopened'),
+            variant: 'success',
+          });
+          onReopen?.();
+        },
+        onError: (error) => {
+          console.error('Error reopening conversation:', error);
+          toast({
+            title: t('header.toast.reopenFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  }, [reopenConversation, conversation.id, t, onReopen]);
 
-  const handleReopenConversation = async () => {
-    try {
-      await reopenConversation({
-        conversationId: toId<'conversations'>(conversation.id),
-      });
-
-      toast({
-        title: t('header.toast.reopened'),
-        variant: 'success',
-      });
-      onReopen?.();
-    } catch (error) {
-      console.error('Error reopening conversation:', error);
-      toast({
-        title: t('header.toast.reopenFailed'),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleMarkAsSpam = async () => {
-    try {
-      await markAsSpamMutation({
-        conversationId: toId<'conversations'>(conversation.id),
-      });
-
-      toast({
-        title: t('header.toast.markedAsSpam'),
-        variant: 'success',
-      });
-      onResolve?.();
-    } catch (error) {
-      console.error('Error marking conversation as spam:', error);
-      toast({
-        title: t('header.toast.markAsSpamFailed'),
-        variant: 'destructive',
-      });
-    }
-  };
+  const handleMarkAsSpam = useCallback(() => {
+    markAsSpamMutation(
+      { conversationId: toId<'conversations'>(conversation.id) },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('header.toast.markedAsSpam'),
+            variant: 'success',
+          });
+          onResolve?.();
+        },
+        onError: (error) => {
+          console.error('Error marking conversation as spam:', error);
+          toast({
+            title: t('header.toast.markAsSpamFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  }, [markAsSpamMutation, conversation.id, t, onResolve]);
 
   return (
     <>

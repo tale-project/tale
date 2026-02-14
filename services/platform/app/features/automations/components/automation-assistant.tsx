@@ -292,7 +292,6 @@ function AutomationAssistantContent({
     delay: 16,
   });
 
-  // Connect to workflow assistant agent
   const { mutateAsync: chatWithWorkflowAssistant } =
     useChatWithWorkflowAssistant();
   const { mutateAsync: createChatThread } = useCreateThread();

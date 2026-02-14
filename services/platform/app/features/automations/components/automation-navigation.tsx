@@ -59,11 +59,11 @@ export function AutomationNavigation({
   );
   const { user } = useAuth();
 
-  const { mutateAsync: publishAutomation, isPending: isPublishing } =
+  const { mutate: publishAutomation, isPending: isPublishing } =
     usePublishAutomationDraft();
   const { mutateAsync: createDraftFromActive, isPending: isCreatingDraft } =
     useCreateDraftFromActive();
-  const { mutateAsync: unpublishAutomation, isPending: isUnpublishing } =
+  const { mutate: unpublishAutomation, isPending: isUnpublishing } =
     useUnpublishAutomation();
 
   const { data: versions } = useListWorkflowVersions(
@@ -97,7 +97,7 @@ export function AutomationNavigation({
     return null;
   }
 
-  const handlePublish = async () => {
+  const handlePublish = () => {
     if (!automationId || !user?.email) {
       toast({
         title: t('navigation.toast.unableToPublish'),
@@ -106,26 +106,30 @@ export function AutomationNavigation({
       return;
     }
 
-    try {
-      await publishAutomation({
+    publishAutomation(
+      {
         wfDefinitionId: toId<'wfDefinitions'>(automationId),
         publishedBy: user.email,
-      });
-
-      toast({
-        title: t('navigation.toast.published'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to publish automation:', error);
-      toast({
-        title:
-          error instanceof Error
-            ? error.message
-            : t('navigation.toast.publishFailed'),
-        variant: 'destructive',
-      });
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('navigation.toast.published'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to publish automation:', error);
+          toast({
+            title:
+              error instanceof Error
+                ? error.message
+                : t('navigation.toast.publishFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   };
 
   const handleCreateDraft = async () => {
@@ -143,14 +147,12 @@ export function AutomationNavigation({
         createdBy: user.email,
       });
 
-      // Navigate to the draft
       void navigate({
         to: '/dashboard/$id/automations/$amId',
         params: { id: organizationId, amId: result.draftId },
         search: { panel: 'ai-chat' },
       });
 
-      // Show appropriate message based on whether it's new or existing
       if (result.isNewDraft) {
         toast({
           title: t('navigation.toast.draftCreated'),
@@ -173,7 +175,7 @@ export function AutomationNavigation({
     }
   };
 
-  const handleUnpublish = async () => {
+  const handleUnpublish = () => {
     if (!automationId || !user?.userId) {
       toast({
         title: t('navigation.toast.unableToDeactivate'),
@@ -182,26 +184,30 @@ export function AutomationNavigation({
       return;
     }
 
-    try {
-      await unpublishAutomation({
+    unpublishAutomation(
+      {
         wfDefinitionId: toId<'wfDefinitions'>(automationId),
         updatedBy: user.userId,
-      });
-
-      toast({
-        title: t('navigation.toast.deactivated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to unpublish automation:', error);
-      toast({
-        title:
-          error instanceof Error
-            ? error.message
-            : t('navigation.toast.deactivateFailed'),
-        variant: 'destructive',
-      });
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('navigation.toast.deactivated'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to unpublish automation:', error);
+          toast({
+            title:
+              error instanceof Error
+                ? error.message
+                : t('navigation.toast.deactivateFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   };
 
   return (

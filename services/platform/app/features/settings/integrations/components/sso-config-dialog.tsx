@@ -85,9 +85,6 @@ export function SSOConfigDialog({
   );
   const [defaultRole, setDefaultRole] = useState<PlatformRole>('member');
   const [enableOneDriveAccess, setEnableOneDriveAccess] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     valid: boolean;
     error?: string;
@@ -104,11 +101,19 @@ export function SSOConfigDialog({
     enableOneDriveAccess: boolean;
   } | null>(null);
 
-  const { mutateAsync: upsertSSOProvider } = useUpsertSsoProvider();
-  const { mutateAsync: removeSSOProvider } = useRemoveSsoProvider();
-  const { mutateAsync: getFullConfig } = useSsoFullConfig();
-  const { mutateAsync: testSSOConfig } = useTestSsoConfig();
-  const { mutateAsync: testExistingSSOConfig } = useTestExistingSsoConfig();
+  const { mutateAsync: upsertSSOProvider, isPending: isUpserting } =
+    useUpsertSsoProvider();
+  const { mutateAsync: removeSSOProvider, isPending: isRemoving } =
+    useRemoveSsoProvider();
+  const { mutateAsync: getFullConfig, isPending: isLoadingConfig } =
+    useSsoFullConfig();
+  const { mutateAsync: testSSOConfig, isPending: isTestingNew } =
+    useTestSsoConfig();
+  const { mutateAsync: testExistingSSOConfig, isPending: isTestingExisting } =
+    useTestExistingSsoConfig();
+
+  const isSubmitting = isUpserting || isRemoving;
+  const isTesting = isTestingNew || isTestingExisting;
 
   const isConnected = !!existingProvider;
 
@@ -151,7 +156,6 @@ export function SSOConfigDialog({
 
   useEffect(() => {
     if (open && existingProvider) {
-      setIsLoadingConfig(true);
       getFullConfig({})
         .then((config) => {
           if (config) {
@@ -197,9 +201,6 @@ export function SSOConfigDialog({
             description: t('integrations.sso.configureError'),
             variant: 'destructive',
           });
-        })
-        .finally(() => {
-          setIsLoadingConfig(false);
         });
     } else if (!existingProvider) {
       setIssuer('');
@@ -226,7 +227,6 @@ export function SSOConfigDialog({
       return;
     }
 
-    setIsSubmitting(true);
     try {
       await upsertSSOProvider({
         organizationId,
@@ -268,13 +268,10 @@ export function SSOConfigDialog({
             : t('integrations.sso.configureError'),
         variant: 'destructive',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleDisconnect = async () => {
-    setIsSubmitting(true);
     try {
       await removeSSOProvider({ organizationId });
 
@@ -293,8 +290,6 @@ export function SSOConfigDialog({
             : t('integrations.sso.disconnectError'),
         variant: 'destructive',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -310,7 +305,6 @@ export function SSOConfigDialog({
       return;
     }
 
-    setIsTesting(true);
     setTestResult(null);
 
     try {
@@ -354,8 +348,6 @@ export function SSOConfigDialog({
             : t('integrations.sso.testError'),
         variant: 'destructive',
       });
-    } finally {
-      setIsTesting(false);
     }
   };
 
