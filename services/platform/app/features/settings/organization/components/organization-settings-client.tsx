@@ -117,7 +117,7 @@ export function OrganizationSettingsClient({
             id="org-name"
             label={tSettings('organization.title')}
             {...register('name')}
-            className="max-w-sm flex-1"
+            wrapperClassName="max-w-sm flex-1"
           />
           <Button
             type="submit"

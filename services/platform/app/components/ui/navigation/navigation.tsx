@@ -139,7 +139,7 @@ export function Navigation({ organizationId, role }: NavigationProps) {
           <TaleLogo />
         </Link>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto py-4">
+      <div className="mx-1 min-h-0 flex-1 py-4">
         <NavigationMenuList className="block space-y-2 space-x-0">
           {navigationItems.map((item) => (
             <NavigationItem key={item.href} item={item} role={role} />
