@@ -26,33 +26,17 @@ export function useSendMessageViaIntegration() {
 }
 
 export function useCloseConversation() {
-  const { mutateAsync } = useConvexMutation(
-    api.conversations.mutations.closeConversation,
-  );
-
-  return mutateAsync;
+  return useConvexMutation(api.conversations.mutations.closeConversation);
 }
 
 export function useReopenConversation() {
-  const { mutateAsync } = useConvexMutation(
-    api.conversations.mutations.reopenConversation,
-  );
-
-  return mutateAsync;
+  return useConvexMutation(api.conversations.mutations.reopenConversation);
 }
 
 export function useMarkAsRead() {
-  const { mutateAsync } = useConvexMutation(
-    api.conversations.mutations.markConversationAsRead,
-  );
-
-  return mutateAsync;
+  return useConvexMutation(api.conversations.mutations.markConversationAsRead);
 }
 
 export function useMarkAsSpam() {
-  const { mutateAsync } = useConvexMutation(
-    api.conversations.mutations.markConversationAsSpam,
-  );
-
-  return mutateAsync;
+  return useConvexMutation(api.conversations.mutations.markConversationAsSpam);
 }

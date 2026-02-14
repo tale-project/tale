@@ -54,15 +54,14 @@ export function ConversationHeader({
   const { t: tCommon } = useT('common');
   const { customer } = conversation;
   const [isCustomerInfoOpen, setIsCustomerInfoOpen] = useState(false);
-  const [isResolvingLoading, setIsResolvingLoading] = useState(false);
-  const [isReopeningLoading, setIsReopeningLoading] = useState(false);
-  const [isMarkingSpamLoading, setIsMarkingSpamLoading] = useState(false);
-  const isLoading =
-    isResolvingLoading || isReopeningLoading || isMarkingSpamLoading;
 
-  const closeConversation = useCloseConversation();
-  const reopenConversation = useReopenConversation();
-  const markAsSpamMutation = useMarkAsSpam();
+  const { mutateAsync: closeConversation, isPending: isClosing } =
+    useCloseConversation();
+  const { mutateAsync: reopenConversation, isPending: isReopening } =
+    useReopenConversation();
+  const { mutateAsync: markAsSpamMutation, isPending: isMarkingSpam } =
+    useMarkAsSpam();
+  const isLoading = isClosing || isReopening || isMarkingSpam;
 
   // Lookup full customer document from collection
   const customersCollection = useCollection(
@@ -76,7 +75,6 @@ export function ConversationHeader({
   );
 
   const handleResolveConversation = async () => {
-    setIsResolvingLoading(true);
     try {
       await closeConversation({
         conversationId: toId<'conversations'>(conversation.id),
@@ -93,13 +91,10 @@ export function ConversationHeader({
         title: t('header.toast.closeFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsResolvingLoading(false);
     }
   };
 
   const handleReopenConversation = async () => {
-    setIsReopeningLoading(true);
     try {
       await reopenConversation({
         conversationId: toId<'conversations'>(conversation.id),
@@ -116,13 +111,10 @@ export function ConversationHeader({
         title: t('header.toast.reopenFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsReopeningLoading(false);
     }
   };
 
   const handleMarkAsSpam = async () => {
-    setIsMarkingSpamLoading(true);
     try {
       await markAsSpamMutation({
         conversationId: toId<'conversations'>(conversation.id),
@@ -139,8 +131,6 @@ export function ConversationHeader({
         title: t('header.toast.markAsSpamFailed'),
         variant: 'destructive',
       });
-    } finally {
-      setIsMarkingSpamLoading(false);
     }
   };
 
@@ -232,7 +222,7 @@ export function ConversationHeader({
                 >
                   <MessageSquareOff className="text-muted-foreground size-5" />
                   <span className="text-muted-foreground text-sm font-medium">
-                    {isResolvingLoading
+                    {isClosing
                       ? t('header.closing')
                       : t('header.closeConversation')}
                   </span>
@@ -246,7 +236,7 @@ export function ConversationHeader({
                 >
                   <MessageSquare className="text-muted-foreground size-5" />
                   <span className="text-muted-foreground text-sm font-medium">
-                    {isReopeningLoading
+                    {isReopening
                       ? t('header.reopening')
                       : t('header.reopenConversation')}
                   </span>
@@ -260,7 +250,7 @@ export function ConversationHeader({
                 >
                   <ShieldX className="text-muted-foreground size-5" />
                   <span className="text-muted-foreground text-sm font-medium">
-                    {isMarkingSpamLoading
+                    {isMarkingSpam
                       ? t('header.markingAsSpam')
                       : t('header.markAsSpam')}
                   </span>

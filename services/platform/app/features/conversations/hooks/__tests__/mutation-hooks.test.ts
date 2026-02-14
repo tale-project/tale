@@ -36,14 +36,15 @@ describe('useCloseConversation', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
-    const closeConversation = useCloseConversation();
-    expect(closeConversation).toBe(mockMutateAsync);
+  it('returns full mutation object from useConvexMutation', () => {
+    const mutation = useCloseConversation();
+    expect(mutation.mutateAsync).toBe(mockMutateAsync);
+    expect(mutation.isPending).toBe(false);
   });
 
   it('calls mutateAsync with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const closeConversation = useCloseConversation();
+    const { mutateAsync: closeConversation } = useCloseConversation();
 
     await closeConversation({
       conversationId: toId<'conversations'>('conv-123'),
@@ -56,7 +57,7 @@ describe('useCloseConversation', () => {
 
   it('propagates errors from mutateAsync', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Close failed'));
-    const closeConversation = useCloseConversation();
+    const { mutateAsync: closeConversation } = useCloseConversation();
 
     await expect(
       closeConversation({
@@ -71,14 +72,15 @@ describe('useReopenConversation', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
-    const reopenConversation = useReopenConversation();
-    expect(reopenConversation).toBe(mockMutateAsync);
+  it('returns full mutation object from useConvexMutation', () => {
+    const mutation = useReopenConversation();
+    expect(mutation.mutateAsync).toBe(mockMutateAsync);
+    expect(mutation.isPending).toBe(false);
   });
 
   it('calls mutateAsync with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const reopenConversation = useReopenConversation();
+    const { mutateAsync: reopenConversation } = useReopenConversation();
 
     await reopenConversation({
       conversationId: toId<'conversations'>('conv-123'),
@@ -91,7 +93,7 @@ describe('useReopenConversation', () => {
 
   it('propagates errors from mutateAsync', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Reopen failed'));
-    const reopenConversation = useReopenConversation();
+    const { mutateAsync: reopenConversation } = useReopenConversation();
 
     await expect(
       reopenConversation({
@@ -106,14 +108,15 @@ describe('useMarkAsRead', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
-    const markAsRead = useMarkAsRead();
-    expect(markAsRead).toBe(mockMutateAsync);
+  it('returns full mutation object from useConvexMutation', () => {
+    const mutation = useMarkAsRead();
+    expect(mutation.mutateAsync).toBe(mockMutateAsync);
+    expect(mutation.isPending).toBe(false);
   });
 
   it('calls mutateAsync with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const markAsRead = useMarkAsRead();
+    const { mutateAsync: markAsRead } = useMarkAsRead();
 
     await markAsRead({
       conversationId: toId<'conversations'>('conv-123'),
@@ -126,7 +129,7 @@ describe('useMarkAsRead', () => {
 
   it('propagates errors from mutateAsync', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('MarkAsRead failed'));
-    const markAsRead = useMarkAsRead();
+    const { mutateAsync: markAsRead } = useMarkAsRead();
 
     await expect(
       markAsRead({
@@ -141,14 +144,15 @@ describe('useMarkAsSpam', () => {
     vi.clearAllMocks();
   });
 
-  it('returns mutateAsync from useConvexMutation', () => {
-    const markAsSpam = useMarkAsSpam();
-    expect(markAsSpam).toBe(mockMutateAsync);
+  it('returns full mutation object from useConvexMutation', () => {
+    const mutation = useMarkAsSpam();
+    expect(mutation.mutateAsync).toBe(mockMutateAsync);
+    expect(mutation.isPending).toBe(false);
   });
 
   it('calls mutateAsync with the correct args', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const markAsSpam = useMarkAsSpam();
+    const { mutateAsync: markAsSpam } = useMarkAsSpam();
 
     await markAsSpam({
       conversationId: toId<'conversations'>('conv-123'),
@@ -161,7 +165,7 @@ describe('useMarkAsSpam', () => {
 
   it('propagates errors from mutateAsync', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Spam failed'));
-    const markAsSpam = useMarkAsSpam();
+    const { mutateAsync: markAsSpam } = useMarkAsSpam();
 
     await expect(
       markAsSpam({
