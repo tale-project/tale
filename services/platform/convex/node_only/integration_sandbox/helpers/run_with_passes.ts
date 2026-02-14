@@ -129,6 +129,12 @@ export async function runWithPasses(
       }
     }
 
+    if (httpRequests.length > 0 || fileRequests.length > 0) {
+      console.warn(
+        `[runWithPasses] Reached MAX_PASSES (${MAX_PASSES}) with ${httpRequests.length} HTTP and ${fileRequests.length} file operations still pending`,
+      );
+    }
+
     return result;
   };
 
