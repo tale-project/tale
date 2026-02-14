@@ -42,7 +42,7 @@ export function ChatActions({
   const { t: tCommon } = useT('common');
   const { t: tChat } = useT('chat');
 
-  const deleteThread = useDeleteThread();
+  const { mutateAsync: deleteThread } = useDeleteThread();
 
   const handleDelete = async () => {
     try {

@@ -28,15 +28,9 @@ export function useGenerateUploadUrl() {
 }
 
 export function useDeleteThread() {
-  const { mutateAsync } = useConvexMutation(
-    api.threads.mutations.deleteChatThread,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.threads.mutations.deleteChatThread);
 }
 
 export function useUpdateThread() {
-  const { mutateAsync } = useConvexMutation(
-    api.threads.mutations.updateChatThread,
-  );
-  return mutateAsync;
+  return useConvexMutation(api.threads.mutations.updateChatThread);
 }

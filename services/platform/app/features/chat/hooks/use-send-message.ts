@@ -50,7 +50,7 @@ export function useSendMessage({
   const navigate = useNavigate();
 
   const { mutateAsync: createThread } = useCreateThread();
-  const updateThread = useUpdateThread();
+  const { mutateAsync: updateThread } = useUpdateThread();
   const { mutateAsync: chatWithAgent } = useChatWithAgent();
   const { mutateAsync: chatWithBuiltinAgent } = useChatWithBuiltinAgent();
   const { mutateAsync: chatWithCustomAgent } = useChatWithCustomAgent();

@@ -296,7 +296,7 @@ function AutomationAssistantContent({
   const { mutateAsync: chatWithWorkflowAssistant } =
     useChatWithWorkflowAssistant();
   const { mutateAsync: createChatThread } = useCreateThread();
-  const deleteChatThread = useDeleteThread();
+  const { mutateAsync: deleteChatThread } = useDeleteThread();
   const { mutateAsync: updateWorkflowMetadata } = useUpdateAutomationMetadata();
 
   const { data: workflow } = useWorkflow(automationId);
