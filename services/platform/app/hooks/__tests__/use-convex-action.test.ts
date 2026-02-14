@@ -56,7 +56,10 @@ describe('useConvexAction', () => {
   it('uses the returned function as mutationFn', () => {
     useConvexAction(mockActionRef);
     const options = mockUseMutation.mock.calls[0]?.[0];
-    expect(options).toHaveProperty('mutationFn', mockActionFn);
+    expect(options).toHaveProperty('mutationFn');
+    const args = { input: 'test' };
+    (options.mutationFn as Function)(args);
+    expect(mockActionFn).toHaveBeenCalledWith(args);
   });
 
   it('preserves user options', () => {
