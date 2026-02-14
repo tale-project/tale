@@ -1,0 +1,158 @@
+{
+  "workflowConfig": {
+    "name": "Email Sync (Gmail)",
+    "description": "Sync emails from Gmail via Google Gmail API into conversations with automatic thread grouping",
+    "version": "1.0.0",
+    "workflowType": "predefined",
+    "config": {
+      "timeout": 300000,
+      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
+      "variables": {
+        "organizationId": "",
+        "conversationStatus": "open"
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "Start",
+      "stepType": "start",
+      "order": 1,
+      "config": {},
+      "nextSteps": { "success": "query_latest_inbound_message" }
+    },
+    {
+      "stepSlug": "query_latest_inbound_message",
+      "name": "Query Latest Inbound Message",
+      "stepType": "action",
+      "order": 2,
+      "config": {
+        "type": "conversation",
+        "parameters": {
+          "operation": "query_latest_message_by_delivery_state",
+          "channel": "email",
+          "direction": "inbound",
+          "deliveryState": "delivered",
+          "integrationName": "gmail"
+        }
+      },
+      "nextSteps": { "success": "check_has_cursor" }
+    },
+    {
+      "stepSlug": "check_has_cursor",
+      "name": "Check Has Cursor",
+      "stepType": "condition",
+      "order": 3,
+      "config": {
+        "expression": "steps.query_latest_inbound_message.output.data.message != null",
+        "description": "Check if we have a previously synced message to use as cursor"
+      },
+      "nextSteps": {
+        "true": "fetch_new_emails",
+        "false": "fetch_latest_email"
+      }
+    },
+    {
+      "stepSlug": "fetch_latest_email",
+      "name": "Fetch Latest Email (First Run)",
+      "stepType": "action",
+      "order": 4,
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "gmail",
+          "operation": "list_messages",
+          "params": {
+            "maxResults": 1
+          }
+        }
+      },
+      "nextSteps": { "success": "check_has_emails" }
+    },
+    {
+      "stepSlug": "fetch_new_emails",
+      "name": "Fetch New Emails (Incremental)",
+      "stepType": "action",
+      "order": 5,
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "gmail",
+          "operation": "list_messages",
+          "params": {
+            "q": "after:{{steps.query_latest_inbound_message.output.data.message.deliveredAt|epochSeconds}}",
+            "maxResults": 1
+          }
+        }
+      },
+      "nextSteps": { "success": "check_has_emails" }
+    },
+    {
+      "stepSlug": "check_has_emails",
+      "name": "Check Has Emails",
+      "stepType": "condition",
+      "order": 6,
+      "config": {
+        "expression": "(steps.fetch_new_emails.output.data.result.data|length > 0) || (steps.fetch_latest_email.output.data.result.data|length > 0)",
+        "description": "Check if any emails were fetched from either path"
+      },
+      "nextSteps": {
+        "true": "set_thread_id",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "set_thread_id",
+      "name": "Extract Thread ID",
+      "stepType": "action",
+      "order": 7,
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "gmailThreadId",
+              "value": "{{(steps.fetch_new_emails.output.data.result.data|first || steps.fetch_latest_email.output.data.result.data|first).threadId}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "fetch_thread_messages" }
+    },
+    {
+      "stepSlug": "fetch_thread_messages",
+      "name": "Fetch Thread Messages",
+      "stepType": "action",
+      "order": 8,
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "gmail",
+          "operation": "get_thread",
+          "params": {
+            "threadId": "{{gmailThreadId}}",
+            "format": "email"
+          }
+        }
+      },
+      "nextSteps": { "success": "insert_email_to_conversation" }
+    },
+    {
+      "stepSlug": "insert_email_to_conversation",
+      "name": "Insert Emails to Conversation",
+      "stepType": "action",
+      "order": 9,
+      "config": {
+        "type": "conversation",
+        "parameters": {
+          "operation": "create_from_email",
+          "emails": "{{steps.fetch_thread_messages.output.data.result.data}}",
+          "status": "{{conversationStatus}}",
+          "integrationName": "gmail"
+        }
+      },
+      "nextSteps": { "success": "noop" }
+    }
+  ]
+}

@@ -72,9 +72,10 @@ describe('sanitizeDepth', () => {
 
       expect(truncated._truncated).toBe(true);
       expect(truncated._originalType).toBe('object');
+      expect(truncated._stringified).toBe(JSON.stringify({ l7: 'too deep' }));
     });
 
-    it('should truncate arrays at max depth with item count', () => {
+    it('should truncate arrays at max depth with item count and stringified data', () => {
       const deep = {
         l1: { l2: { l3: { l4: { l5: { l6: [1, 2, 3, 4, 5] } } } } },
       };
@@ -89,6 +90,7 @@ describe('sanitizeDepth', () => {
       expect(truncated._truncated).toBe(true);
       expect(truncated._originalType).toBe('array');
       expect(truncated._itemCount).toBe(5);
+      expect(truncated._stringified).toBe(JSON.stringify([1, 2, 3, 4, 5]));
     });
 
     it('should preserve structure up to max depth', () => {
@@ -153,7 +155,11 @@ describe('sanitizeDepth', () => {
 
       expect(result).toEqual({
         a: {
-          b: { _truncated: true, _originalType: 'object' },
+          b: {
+            _truncated: true,
+            _originalType: 'object',
+            _stringified: JSON.stringify({ c: 'value' }),
+          },
         },
       });
     });

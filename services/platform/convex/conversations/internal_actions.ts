@@ -2,26 +2,12 @@
 
 import { v } from 'convex/values';
 
-import type { ConnectorConfig } from '../integrations/types';
-
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { buildIntegrationSecrets } from '../integrations/build_test_secrets';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
-import { getPredefinedIntegration } from '../predefined_integrations';
-
 const DELIVERY_CHECK_DELAY_MS = 60_000;
 const MAX_DELIVERY_CHECK_RETRIES = 5;
-
-function resolveConnectorConfig(
-  connector: ConnectorConfig | undefined,
-  integrationName: string,
-): ConnectorConfig | undefined {
-  if (connector) {
-    return connector;
-  }
-  return getPredefinedIntegration(integrationName)?.connector;
-}
 
 export const sendMessageViaIntegrationAction = internalAction({
   args: {
@@ -60,10 +46,7 @@ export const sendMessageViaIntegrationAction = internalAction({
         );
       }
 
-      const connectorConfig = resolveConnectorConfig(
-        integration.connector,
-        args.integrationName,
-      );
+      const connectorConfig = integration.connector;
 
       if (!connectorConfig) {
         throw new Error(
@@ -150,11 +133,19 @@ export const sendMessageViaIntegrationAction = internalAction({
           ? resultData.internetMessageId
           : undefined;
 
+      // Prefer the Gmail internal hex ID for externalMessageId — this is the
+      // same format used by the connector during sync (msg.id), ensuring
+      // deduplication works when sent messages are later fetched by sync.
+      const gmailMessageId =
+        resultData && typeof resultData.id === 'string'
+          ? resultData.id
+          : undefined;
+
       await ctx.runMutation(
         internal.conversations.internal_mutations.updateConversationMessage,
         {
           messageId: args.messageId,
-          externalMessageId: internetMessageId,
+          externalMessageId: gmailMessageId ?? internetMessageId,
           deliveryState: 'sent',
           sentAt: Date.now(),
         },
@@ -221,10 +212,7 @@ export const checkMessageDeliveryAction = internalAction({
         return null;
       }
 
-      const connectorConfig = resolveConnectorConfig(
-        integration.connector,
-        args.integrationName,
-      );
+      const connectorConfig = integration.connector;
 
       if (!connectorConfig) {
         console.error(
@@ -345,10 +333,7 @@ export const downloadAttachmentsAction = internalAction({
         );
       }
 
-      const connectorConfig = resolveConnectorConfig(
-        integration.connector,
-        args.integrationName,
-      );
+      const connectorConfig = integration.connector;
 
       if (!connectorConfig) {
         throw new Error(

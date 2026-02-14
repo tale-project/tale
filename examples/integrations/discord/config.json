@@ -1,0 +1,117 @@
+{
+  "name": "discord",
+  "title": "Discord",
+  "description": "Discord Bot API integration for guilds, channels, and messages",
+  "version": 1,
+  "authMethod": "bearer_token",
+  "supportedAuthMethods": ["bearer_token"],
+  "secretBindings": ["accessToken"],
+  "allowedHosts": ["discord.com"],
+  "operations": [
+    {
+      "name": "list_guilds",
+      "title": "List Guilds",
+      "description": "Fetch guilds the bot is a member of",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "number", "description": "Number of guilds to return (max 200, default 50)", "required": false },
+          "before": { "type": "string", "description": "Get guilds before this guild ID", "required": false },
+          "after": { "type": "string", "description": "Get guilds after this guild ID", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_guild",
+      "title": "Get Guild",
+      "description": "Fetch a single guild by ID",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "guild_id": { "type": "string", "description": "Guild (server) ID", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_channels",
+      "title": "List Channels",
+      "description": "Fetch all channels in a guild",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "guild_id": { "type": "string", "description": "Guild (server) ID", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_messages",
+      "title": "List Messages",
+      "description": "Fetch messages from a channel",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "channel_id": { "type": "string", "description": "Channel ID", "required": true },
+          "limit": { "type": "number", "description": "Number of messages to return (max 100, default 50)", "required": false },
+          "before": { "type": "string", "description": "Get messages before this message ID", "required": false },
+          "after": { "type": "string", "description": "Get messages after this message ID", "required": false },
+          "around": { "type": "string", "description": "Get messages around this message ID", "required": false }
+        }
+      }
+    },
+    {
+      "name": "send_message",
+      "title": "Send Message",
+      "description": "Send a message to a channel",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "channel_id": { "type": "string", "description": "Channel ID", "required": true },
+          "content": { "type": "string", "description": "Message content text", "required": true },
+          "embeds": { "type": "string", "description": "JSON array of embed objects", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_user",
+      "title": "Get User",
+      "description": "Fetch a Discord user by ID",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "User ID", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_members",
+      "title": "List Members",
+      "description": "Fetch members of a guild",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "guild_id": { "type": "string", "description": "Guild (server) ID", "required": true },
+          "limit": { "type": "number", "description": "Number of members to return (max 1000, default 50)", "required": false },
+          "after": { "type": "string", "description": "Get members after this user ID", "required": false }
+        }
+      }
+    },
+    {
+      "name": "create_channel",
+      "title": "Create Channel",
+      "description": "Create a new channel in a guild",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "guild_id": { "type": "string", "description": "Guild (server) ID", "required": true },
+          "name": { "type": "string", "description": "Channel name", "required": true },
+          "type": { "type": "integer", "description": "Channel type (0 = text, 2 = voice, 4 = category, default 0)", "required": false },
+          "topic": { "type": "string", "description": "Channel topic", "required": false }
+        }
+      }
+    }
+  ]
+}

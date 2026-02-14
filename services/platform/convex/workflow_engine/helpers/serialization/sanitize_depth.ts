@@ -19,6 +19,7 @@ export interface TruncationMarker {
   _truncated: true;
   _originalType: 'array' | 'object';
   _itemCount?: number;
+  _stringified?: string;
 }
 
 /**
@@ -41,16 +42,25 @@ export function sanitizeDepth(
   if (typeof value !== 'object') return value;
 
   if (currentDepth >= maxDepth) {
+    let stringified: string | undefined;
+    try {
+      stringified = JSON.stringify(value);
+    } catch {
+      // Circular references or other serialization failures — skip
+    }
+
     if (Array.isArray(value)) {
       return {
         _truncated: true,
         _originalType: 'array',
         _itemCount: value.length,
+        ...(stringified ? { _stringified: stringified } : {}),
       } as TruncationMarker;
     }
     return {
       _truncated: true,
       _originalType: 'object',
+      ...(stringified ? { _stringified: stringified } : {}),
     } as TruncationMarker;
   }
 

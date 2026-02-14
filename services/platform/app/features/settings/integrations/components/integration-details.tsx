@@ -21,6 +21,7 @@ import { isRecord } from '@/lib/utils/type-guards';
 
 interface IntegrationDetailsProps {
   integration: Doc<'integrations'> & { iconUrl?: string | null };
+  children?: React.ReactNode;
 }
 
 function CopyButton({ value }: { value: string }) {
@@ -145,7 +146,10 @@ function ParametersDisplay({
   );
 }
 
-export function IntegrationDetails({ integration }: IntegrationDetailsProps) {
+export function IntegrationDetails({
+  integration,
+  children,
+}: IntegrationDetailsProps) {
   const { t } = useT('settings');
 
   const restOperations = useMemo(
@@ -197,7 +201,8 @@ export function IntegrationDetails({ integration }: IntegrationDetailsProps) {
     restOperations.length > 0 ||
     sqlOperations.length > 0 ||
     allowedHosts.length > 0 ||
-    (lineCount > 0 && !isSql);
+    (lineCount > 0 && !isSql) ||
+    !!children;
 
   if (!hasAnyDetails) return null;
 
@@ -400,6 +405,8 @@ export function IntegrationDetails({ integration }: IntegrationDetailsProps) {
           </pre>
         </details>
       )}
+
+      {children}
     </Stack>
   );
 }

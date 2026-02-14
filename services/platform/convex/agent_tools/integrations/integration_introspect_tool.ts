@@ -20,7 +20,6 @@ import type {
 
 import { internal } from '../../_generated/api';
 import { isSqlIntegration } from '../../integrations/helpers';
-import { getPredefinedIntegration } from '../../predefined_integrations';
 import { getIntrospectionOperations } from '../../workflow_engine/action_defs/integration/helpers/get_introspection_operations';
 
 const integrationIntrospectArgs = z.object({
@@ -123,14 +122,7 @@ Returns operation names and types. Use 'operation' param to get parameter detail
       }
 
       // Handle REST API integrations
-      let connectorConfig = integration.connector;
-
-      if (!connectorConfig) {
-        const predefined = getPredefinedIntegration(args.integrationName);
-        if (predefined) {
-          connectorConfig = predefined.connector;
-        }
-      }
+      const connectorConfig = integration.connector;
 
       if (!connectorConfig) {
         throw new Error(

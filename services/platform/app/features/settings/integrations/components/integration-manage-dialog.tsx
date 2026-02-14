@@ -1,7 +1,10 @@
 'use client';
 
 import {
+  AlertCircle,
   CheckCircle,
+  ChevronRight,
+  Code,
   ExternalLink,
   XCircle,
   Loader2,
@@ -9,6 +12,7 @@ import {
   Trash2,
   Upload,
   X,
+  Zap,
 } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
@@ -18,6 +22,7 @@ import { Image } from '@/app/components/ui/data-display/image';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Center, Stack, HStack } from '@/app/components/ui/layout/layout';
@@ -26,6 +31,8 @@ import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+import type { ParsedPackage } from './integration-upload/utils/parse-integration-package';
 
 import {
   useGenerateIntegrationOAuth2Url,
@@ -39,6 +46,7 @@ import {
   useUpdateIntegrationIcon,
 } from '../hooks/mutations';
 import { IntegrationDetails } from './integration-details';
+import { parseIntegrationFiles } from './integration-upload/utils/parse-integration-package';
 
 const SENSITIVE_KEYS = new Set([
   'password',
@@ -145,6 +153,12 @@ export function IntegrationManageDialog({
   );
   const iconInputRef = useRef<HTMLInputElement>(null);
 
+  // Update integration package state
+  const [parsedUpdate, setParsedUpdate] = useState<ParsedPackage | null>(null);
+  const [isParsingUpdate, setIsParsingUpdate] = useState(false);
+  const [updateParseError, setUpdateParseError] = useState<string | null>(null);
+  const [isApplyingUpdate, setIsApplyingUpdate] = useState(false);
+
   // Clear optimistic overrides when Convex reactive query updates the real data
   useEffect(() => {
     setOptimisticActive(null);
@@ -246,7 +260,7 @@ export function IntegrationManageDialog({
   );
   const hasChanges = hasCredentialChanges || hasSqlConfigChanges;
 
-  const busy = isSubmitting || isTesting || isSavingOAuth2;
+  const busy = isSubmitting || isTesting || isSavingOAuth2 || isApplyingUpdate;
 
   // Prevent closing while busy
   const busyRef = useRef(false);
@@ -326,6 +340,147 @@ export function IntegrationManageDialog({
     },
     [generateUploadUrl, updateIcon, integration._id, t],
   );
+
+  const handleUpdateFilesSelected = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+
+      setUpdateParseError(null);
+      setIsParsingUpdate(true);
+      setParsedUpdate(null);
+
+      try {
+        const result = await parseIntegrationFiles(files);
+        if (result.success && result.data) {
+          setParsedUpdate(result.data);
+        } else {
+          setUpdateParseError(
+            result.error ?? t('integrations.upload.parseError'),
+          );
+        }
+      } catch {
+        setUpdateParseError(t('integrations.upload.unexpectedError'));
+      } finally {
+        setIsParsingUpdate(false);
+      }
+    },
+    [t],
+  );
+
+  const handleApplyUpdate = useCallback(async () => {
+    if (!parsedUpdate) return;
+
+    setIsApplyingUpdate(true);
+
+    try {
+      const { config, connectorCode } = parsedUpdate;
+      const isSqlUpdate = config.type === 'sql';
+      const authMethod =
+        config.authMethod === 'bearer_token' ? 'api_key' : config.authMethod;
+      const supportedAuthMethods = config.supportedAuthMethods?.map(
+        (m: string) => (m === 'bearer_token' ? 'api_key' : m),
+      );
+
+      const connector =
+        !isSqlUpdate && connectorCode.trim().length > 0
+          ? {
+              code: connectorCode,
+              version: (integration.connector?.version ?? 0) + 1,
+              operations: config.operations.map((op) => ({
+                name: op.name,
+                title: op.title,
+                description: op.description,
+                parametersSchema: op.parametersSchema,
+                operationType: op.operationType,
+                requiresApproval: op.requiresApproval,
+              })),
+              secretBindings: config.secretBindings,
+              allowedHosts: config.allowedHosts,
+              timeoutMs: config.connectionConfig?.timeout,
+            }
+          : undefined;
+
+      const payload: Record<string, unknown> = {
+        integrationId: integration._id,
+        title: config.title,
+        description: config.description,
+        authMethod,
+        supportedAuthMethods,
+        connector,
+      };
+
+      if (isSqlUpdate && config.sqlConnectionConfig) {
+        payload.sqlConnectionConfig = config.sqlConnectionConfig;
+      }
+
+      if (isSqlUpdate) {
+        const sqlOps = config.operations
+          .filter((op) => op.query)
+          .map((op) => ({
+            name: op.name,
+            title: op.title,
+            description: op.description,
+            query: op.query,
+            parametersSchema: op.parametersSchema,
+            operationType: op.operationType,
+            requiresApproval: op.requiresApproval,
+          }));
+        if (sqlOps.length > 0) {
+          payload.sqlOperations = sqlOps;
+        }
+      }
+
+      // Upload icon if present in the update package
+      if (parsedUpdate.iconFile) {
+        const uploadUrl = await generateUploadUrl({});
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': parsedUpdate.iconFile.type || 'image/png',
+          },
+          body: parsedUpdate.iconFile,
+        });
+        if (uploadResponse.ok) {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
+          const { storageId } = (await uploadResponse.json()) as {
+            storageId: string;
+          };
+          await updateIcon({
+            integrationId: integration._id,
+            iconStorageId: toId<'_storage'>(storageId),
+          });
+        }
+      }
+
+      await updateIntegration(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic payload
+        payload as Parameters<typeof updateIntegration>[0],
+      );
+
+      toast({
+        title: t('integrations.manageDialog.updateSuccess'),
+        description: t('integrations.manageDialog.updateSuccessDescription'),
+        variant: 'success',
+      });
+      setParsedUpdate(null);
+      setUpdateParseError(null);
+    } catch (error) {
+      toast({
+        title: t('integrations.manageDialog.updateFailed'),
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsApplyingUpdate(false);
+    }
+  }, [
+    parsedUpdate,
+    integration,
+    updateIntegration,
+    generateUploadUrl,
+    updateIcon,
+    t,
+  ]);
 
   const buildCredentialPayload = useCallback(() => {
     const authMethod = selectedAuthMethod;
@@ -669,8 +824,123 @@ export function IntegrationManageDialog({
           )}
         </HStack>
 
-        {/* Operations & connector details */}
-        <IntegrationDetails integration={integration} />
+        {/* Operations, connector details & update */}
+        <IntegrationDetails integration={integration}>
+          <details className="group">
+            <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium select-none">
+              <ChevronRight className="text-muted-foreground size-3.5 shrink-0 transition-transform duration-200 group-open:rotate-90" />
+              <Upload className="size-4 shrink-0" />
+              <span>{t('integrations.manageDialog.updateIntegration')}</span>
+            </summary>
+            <Stack gap={3} className="mt-2 ml-6">
+              <p className="text-muted-foreground text-xs">
+                {t('integrations.manageDialog.updateIntegrationDescription')}
+              </p>
+
+              <FileUpload.Root>
+                <FileUpload.DropZone
+                  onFilesSelected={handleUpdateFilesSelected}
+                  accept=".zip,.json,.js,.png,.svg,.jpg,.jpeg,.webp"
+                  multiple
+                  disabled={isParsingUpdate || isApplyingUpdate}
+                  inputId="integration-update-upload"
+                  aria-label={t('integrations.manageDialog.updateIntegration')}
+                  className={cn(
+                    'border-border hover:border-primary/50 flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 transition-colors',
+                    (isParsingUpdate || isApplyingUpdate) &&
+                      'pointer-events-none opacity-50',
+                  )}
+                >
+                  <Upload className="text-muted-foreground size-5" />
+                  <Stack gap={1} className="text-center">
+                    <p className="text-xs font-medium">
+                      {isParsingUpdate
+                        ? t('integrations.upload.parsing')
+                        : t('integrations.manageDialog.dropFilesToUpdate')}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {t('integrations.manageDialog.acceptedUpdateFormats')}
+                    </p>
+                  </Stack>
+                </FileUpload.DropZone>
+                <FileUpload.Overlay label={t('integrations.upload.dropHere')} />
+              </FileUpload.Root>
+
+              {updateParseError && (
+                <div
+                  className="bg-destructive/10 text-destructive flex items-start gap-2 rounded-md p-3 text-sm"
+                  role="alert"
+                >
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                  <pre className="font-sans whitespace-pre-wrap">
+                    {updateParseError}
+                  </pre>
+                </div>
+              )}
+
+              {parsedUpdate && (
+                <Stack gap={3}>
+                  <Stack gap={2} className="bg-muted/50 rounded-lg p-3">
+                    <p className="text-xs font-medium">
+                      {t('integrations.manageDialog.updatePreview')}
+                    </p>
+                    <HStack gap={3} className="text-muted-foreground text-xs">
+                      <HStack gap={1} className="items-center">
+                        <Zap className="size-3" />
+                        <span>
+                          {t('integrations.manageDialog.newOperations', {
+                            count: parsedUpdate.config.operations.length,
+                          })}
+                        </span>
+                      </HStack>
+                      {parsedUpdate.connectorCode.trim().length > 0 && (
+                        <HStack gap={1} className="items-center">
+                          <Code className="size-3" />
+                          <span>
+                            {t('integrations.manageDialog.newCodeLines', {
+                              count: parsedUpdate.connectorCode
+                                .trim()
+                                .split('\n').length,
+                            })}
+                          </span>
+                        </HStack>
+                      )}
+                    </HStack>
+                  </Stack>
+
+                  <HStack gap={2}>
+                    <Button
+                      onClick={handleApplyUpdate}
+                      disabled={busy}
+                      size="sm"
+                      className="flex-1"
+                    >
+                      {isApplyingUpdate ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          {t('integrations.manageDialog.applyingUpdate')}
+                        </>
+                      ) : (
+                        t('integrations.manageDialog.applyUpdate')
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setParsedUpdate(null);
+                        setUpdateParseError(null);
+                      }}
+                      disabled={busy}
+                    >
+                      {tCommon('actions.cancel')}
+                    </Button>
+                  </HStack>
+                </Stack>
+              )}
+            </Stack>
+          </details>
+        </IntegrationDetails>
 
         {/* Active: read-only credentials + Disconnect */}
         {isActive ? (

@@ -1,0 +1,144 @@
+{
+  "name": "teams",
+  "title": "Microsoft Teams",
+  "description": "Microsoft Graph API integration for Teams channels, messages, and chats",
+  "version": 1,
+  "authMethod": "oauth2",
+  "supportedAuthMethods": ["oauth2"],
+  "secretBindings": ["accessToken"],
+  "allowedHosts": ["graph.microsoft.com"],
+  "oauth2Config": {
+    "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    "scopes": [
+      "Team.ReadBasic.All",
+      "Channel.ReadBasic.All",
+      "ChannelMessage.Read.All",
+      "ChannelMessage.Send",
+      "TeamMember.Read.All",
+      "Chat.Read",
+      "Chat.ReadWrite"
+    ]
+  },
+  "operations": [
+    {
+      "name": "list_teams",
+      "title": "List Teams",
+      "description": "Fetch teams the authenticated user has joined",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "top": { "type": "number", "description": "Number of teams to return (max 999, default 50)", "required": false },
+          "skip": { "type": "number", "description": "Number of teams to skip for pagination", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_team",
+      "title": "Get Team",
+      "description": "Fetch a single team by ID",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "teamId": { "type": "string", "description": "Team ID", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_channels",
+      "title": "List Channels",
+      "description": "Fetch all channels in a team",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "teamId": { "type": "string", "description": "Team ID", "required": true }
+        }
+      }
+    },
+    {
+      "name": "get_channel",
+      "title": "Get Channel",
+      "description": "Fetch a single channel by ID",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "teamId": { "type": "string", "description": "Team ID", "required": true },
+          "channelId": { "type": "string", "description": "Channel ID", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_messages",
+      "title": "List Messages",
+      "description": "Fetch messages from a channel",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "teamId": { "type": "string", "description": "Team ID", "required": true },
+          "channelId": { "type": "string", "description": "Channel ID", "required": true },
+          "top": { "type": "number", "description": "Number of messages to return (max 50, default 20)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "send_message",
+      "title": "Send Message",
+      "description": "Send a message to a channel",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "teamId": { "type": "string", "description": "Team ID", "required": true },
+          "channelId": { "type": "string", "description": "Channel ID", "required": true },
+          "content": { "type": "string", "description": "Message content", "required": true },
+          "contentType": { "type": "string", "description": "Content type: text or html (default text)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "list_members",
+      "title": "List Members",
+      "description": "Fetch members of a team",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "teamId": { "type": "string", "description": "Team ID", "required": true },
+          "top": { "type": "number", "description": "Number of members to return (default 100)", "required": false },
+          "skip": { "type": "number", "description": "Number of members to skip for pagination", "required": false }
+        }
+      }
+    },
+    {
+      "name": "list_chats",
+      "title": "List Chats",
+      "description": "Fetch chats the authenticated user is part of",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "top": { "type": "number", "description": "Number of chats to return (max 50, default 20)", "required": false },
+          "skip": { "type": "number", "description": "Number of chats to skip for pagination", "required": false }
+        }
+      }
+    },
+    {
+      "name": "send_chat_message",
+      "title": "Send Chat Message",
+      "description": "Send a message to a chat",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "chatId": { "type": "string", "description": "Chat ID", "required": true },
+          "content": { "type": "string", "description": "Message content", "required": true },
+          "contentType": { "type": "string", "description": "Content type: text or html (default text)", "required": false }
+        }
+      }
+    }
+  ],
+  "connectionConfig": {
+    "apiVersion": "v1.0",
+    "timeout": 30000
+  }
+}

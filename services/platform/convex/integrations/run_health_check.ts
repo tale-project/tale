@@ -8,8 +8,6 @@ import type { ConnectorConfig, SqlConnectionConfig } from './types';
 
 import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
-import { getPredefinedIntegration } from '../predefined_integrations';
-
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
 interface HealthCheckArgs {
@@ -41,14 +39,7 @@ async function runSqlHealthCheck(
   ctx: ActionCtx,
   args: HealthCheckArgs,
 ): Promise<void> {
-  let sqlConfig = args.sqlConnectionConfig;
-
-  if (!sqlConfig) {
-    const predefined = getPredefinedIntegration(args.name);
-    if (predefined?.type === 'sql' && predefined.sqlConnectionConfig) {
-      sqlConfig = predefined.sqlConnectionConfig;
-    }
-  }
+  const sqlConfig = args.sqlConnectionConfig;
 
   if (!sqlConfig?.server || !sqlConfig.database) {
     debugLog(
@@ -110,19 +101,9 @@ async function runRestHealthCheck(
     secrets['accessToken'] = args.oauth2Auth.accessToken;
   }
 
-  // Find connector code
-  let connectorCode = args.connector?.code;
-  let allowedHosts = args.connector?.allowedHosts;
-  let timeoutMs = args.connector?.timeoutMs;
-
-  if (!connectorCode) {
-    const predefined = getPredefinedIntegration(args.name);
-    if (predefined?.connector) {
-      connectorCode = predefined.connector.code;
-      allowedHosts = predefined.connector.allowedHosts;
-      timeoutMs = predefined.connector.timeoutMs;
-    }
-  }
+  const connectorCode = args.connector?.code;
+  const allowedHosts = args.connector?.allowedHosts;
+  const timeoutMs = args.connector?.timeoutMs;
 
   if (!connectorCode) {
     throw new Error(

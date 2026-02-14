@@ -227,7 +227,7 @@ export function AutomationNavigation({
                 size="sm"
                 className="hidden h-8 text-sm md:flex"
               >
-                {automation.version}
+                {`v${automation.versionNumber}`}
                 <ChevronDown className="ml-1 size-3" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
@@ -238,7 +238,7 @@ export function AutomationNavigation({
                   onClick={() => navigateToVersion(version._id)}
                   className={cn(version._id === automationId && 'bg-accent/50')}
                 >
-                  <span>{version.version}</span>
+                  <span>{`v${version.versionNumber}`}</span>
                   <span className="text-muted-foreground ml-1 text-xs">
                     {version.status === 'draft' && tCommon('status.draft')}
                     {version.status === 'active' && tCommon('status.active')}

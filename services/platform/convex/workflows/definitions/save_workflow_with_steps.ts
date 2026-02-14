@@ -57,7 +57,6 @@ export async function saveWorkflowWithSteps(
   // Update workflow config/metadata
   await ctx.db.patch(args.workflowId, {
     description: args.workflowConfig.description ?? existing.description,
-    version: args.workflowConfig.version ?? existing.version,
     workflowType: args.workflowConfig.workflowType ?? existing.workflowType,
     config: args.workflowConfig.config ?? existing.config ?? {},
     metadata: {

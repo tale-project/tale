@@ -15,6 +15,7 @@ export interface QueryLatestMessageByDeliveryStateArgs {
   channel: string;
   direction: 'inbound' | 'outbound';
   deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
+  integrationName?: string;
 }
 
 export interface QueryLatestMessageByDeliveryStateResult {
@@ -38,17 +39,32 @@ export async function queryLatestMessageByDeliveryState(
   ctx: QueryCtx,
   args: QueryLatestMessageByDeliveryStateArgs,
 ): Promise<QueryLatestMessageByDeliveryStateResult> {
-  const message = await ctx.db
-    .query('conversationMessages')
-    .withIndex('by_org_channel_direction_deliveryState_deliveredAt', (q) =>
-      q
-        .eq('organizationId', args.organizationId)
-        .eq('channel', args.channel)
-        .eq('direction', args.direction)
-        .eq('deliveryState', args.deliveryState),
-    )
-    .order('desc')
-    .first();
+  const message = args.integrationName
+    ? await ctx.db
+        .query('conversationMessages')
+        .withIndex(
+          'by_org_channel_direction_deliveryState_integration_deliveredAt',
+          (q) =>
+            q
+              .eq('organizationId', args.organizationId)
+              .eq('channel', args.channel)
+              .eq('direction', args.direction)
+              .eq('deliveryState', args.deliveryState)
+              .eq('integrationName', args.integrationName),
+        )
+        .order('desc')
+        .first()
+    : await ctx.db
+        .query('conversationMessages')
+        .withIndex('by_org_channel_direction_deliveryState_deliveredAt', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('channel', args.channel)
+            .eq('direction', args.direction)
+            .eq('deliveryState', args.deliveryState),
+        )
+        .order('desc')
+        .first();
 
   return {
     message: message

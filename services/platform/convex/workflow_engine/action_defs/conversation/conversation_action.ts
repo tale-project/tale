@@ -89,6 +89,7 @@ type ConversationActionParams =
       channel: string;
       direction: 'inbound' | 'outbound';
       deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
+      integrationName?: string;
     }
   | {
       operation: 'update';
@@ -102,6 +103,7 @@ type ConversationActionParams =
       status?: ConversationStatus;
       priority?: ConversationPriority;
       type?: string;
+      integrationName?: string;
     }
   | {
       operation: 'create_from_sent_email';
@@ -110,6 +112,7 @@ type ConversationActionParams =
       status?: ConversationStatus;
       priority?: ConversationPriority;
       type?: string;
+      integrationName?: string;
     };
 
 export const conversationAction: ActionDefinition<ConversationActionParams> = {
@@ -160,6 +163,7 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       channel: v.string(),
       direction: directionValidator,
       deliveryState: deliveryStateValidator,
+      integrationName: v.optional(v.string()),
     }),
     // update: Update a conversation by ID
     v.object({
@@ -175,6 +179,7 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       status: v.optional(statusValidator),
       priority: v.optional(priorityValidator),
       type: v.optional(v.string()),
+      integrationName: v.optional(v.string()),
     }),
     // create_from_sent_email: Create conversation from sent email
     v.object({
@@ -184,6 +189,7 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       status: v.optional(statusValidator),
       priority: v.optional(priorityValidator),
       type: v.optional(v.string()),
+      integrationName: v.optional(v.string()),
     }),
   ),
   async execute(ctx, params, variables) {
@@ -234,9 +240,9 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       case 'query_latest_message_by_delivery_state': {
         return await queryLatestMessageByDeliveryState(ctx, {
           organizationId,
-          channel: params.channel, // Required by validator
-          direction: params.direction, // Required by validator
-          deliveryState: params.deliveryState, // Required by validator
+          channel: params.channel,
+          direction: params.direction,
+          deliveryState: params.deliveryState,
         });
       }
 
@@ -252,11 +258,12 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
         const accountEmail = params.accountEmail?.trim() || undefined;
         return await createConversationFromEmail(ctx, {
           organizationId,
-          emails: params.emails, // Required by validator
+          emails: params.emails,
           status: params.status,
           priority: params.priority,
           type: params.type,
           accountEmail,
+          integrationName: params.integrationName,
         });
       }
 
@@ -264,11 +271,12 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
         const accountEmail = params.accountEmail?.trim() || undefined;
         return await createConversationFromSentEmail(ctx, {
           organizationId,
-          emails: params.emails, // Required by validator
+          emails: params.emails,
           status: params.status,
           priority: params.priority,
           accountEmail,
           type: params.type,
+          integrationName: params.integrationName,
         });
       }
 
