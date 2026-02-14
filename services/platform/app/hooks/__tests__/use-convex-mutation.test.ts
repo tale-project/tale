@@ -11,6 +11,10 @@ vi.mock('@convex-dev/react-query', () => ({
   })),
 }));
 
+vi.mock('convex/server', () => ({
+  getFunctionName: (ref: { _name?: string }) => ref._name ?? 'unknown',
+}));
+
 vi.mock('@tanstack/react-query', () => ({
   useMutation: vi.fn((options: Record<string, unknown>) => ({
     mutate: vi.fn(),
@@ -42,7 +46,9 @@ import { useMutation } from '@tanstack/react-query';
 import { useConvexMutation } from '../use-convex-mutation';
 
 const mockUseMutation = vi.mocked(useMutation);
-const mockMutationRef = {} as Parameters<typeof useConvexMutation>[0];
+const mockMutationRef = {
+  _name: 'items:update',
+} as unknown as Parameters<typeof useConvexMutation>[0];
 const mockQueryRef = {
   _name: 'items:list',
 } as unknown as FunctionReference<'query'>;
@@ -64,17 +70,20 @@ describe('useConvexMutation', () => {
     expect(result.isPending).toBe(false);
   });
 
-  it('does not invalidate when no invalidates option is provided', async () => {
+  it('invalidates own key when no invalidates option is provided', async () => {
     useConvexMutation(mockMutationRef);
 
     const options = mockUseMutation.mock.calls[0]?.[0];
     // @ts-expect-error -- calling mock onSettled directly for testing
     await options.onSettled?.();
 
-    expect(mockInvalidateQueries).not.toHaveBeenCalled();
+    expect(mockInvalidateQueries).toHaveBeenCalledTimes(1);
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['convexQuery', 'items:update'],
+    });
   });
 
-  it('invalidates specified query functions on settled', async () => {
+  it('invalidates own key and specified query functions on settled', async () => {
     useConvexMutation(mockMutationRef, {
       invalidates: [mockQueryRef],
     });
@@ -84,11 +93,14 @@ describe('useConvexMutation', () => {
     await options.onSettled?.();
 
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['convexQuery', 'items:update'],
+    });
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ['convexQuery', 'items:list'],
     });
   });
 
-  it('invalidates multiple query functions', async () => {
+  it('invalidates own key and multiple query functions', async () => {
     const secondQueryRef = {
       _name: 'items:get',
     } as unknown as FunctionReference<'query'>;
@@ -100,7 +112,10 @@ describe('useConvexMutation', () => {
     // @ts-expect-error -- calling mock onSettled directly for testing
     await options.onSettled?.();
 
-    expect(mockInvalidateQueries).toHaveBeenCalledTimes(2);
+    expect(mockInvalidateQueries).toHaveBeenCalledTimes(3);
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['convexQuery', 'items:update'],
+    });
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ['convexQuery', 'items:list'],
     });
@@ -142,7 +157,7 @@ describe('useConvexMutation', () => {
     // @ts-expect-error -- calling mock onSettled directly for testing
     await options.onSettled?.();
 
-    expect(callOrder).toEqual(['invalidate', 'userOnSettled']);
+    expect(callOrder).toEqual(['invalidate', 'invalidate', 'userOnSettled']);
   });
 
   it('preserves other user options', () => {

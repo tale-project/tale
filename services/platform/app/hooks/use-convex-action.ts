@@ -6,6 +6,7 @@ import type {
 } from 'convex/server';
 
 import { useMutation } from '@tanstack/react-query';
+import { getFunctionName } from 'convex/server';
 
 import { invalidateConvexQueries } from './invalidate';
 import { useConvexClient } from './use-convex-client';
@@ -28,6 +29,9 @@ export function useConvexAction<Func extends FunctionReference<'action'>>(
     mutationFn: (args: FunctionArgs<Func>) => convexClient.action(func, args),
     ...mutationOptions,
     onSettled: async (...args) => {
+      await queryClient.invalidateQueries({
+        queryKey: ['convexQuery', getFunctionName(func)],
+      });
       if (invalidates?.length) {
         await invalidateConvexQueries(queryClient, invalidates);
       }
