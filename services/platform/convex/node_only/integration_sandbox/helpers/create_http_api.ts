@@ -4,13 +4,19 @@
 
 import type { HttpRequest, HttpResponse, PendingHttpRequest } from '../types';
 
+import { PendingOperationError } from '../types';
+
 export interface HttpApiState {
   pendingHttpCount: number;
   httpResults: Map<number, HttpResponse>;
   httpRequests: PendingHttpRequest[];
 }
 
-type BodyMethodOptions = { headers?: Record<string, string>; body?: string };
+type BodyMethodOptions = {
+  headers?: Record<string, string>;
+  body?: string;
+  binaryBody?: string;
+};
 
 export interface HttpApi {
   get: (
@@ -18,17 +24,10 @@ export interface HttpApi {
     options?: { headers?: Record<string, string> },
   ) => HttpResponse;
   post: (url: string, options?: BodyMethodOptions) => HttpResponse;
+  put: (url: string, options?: BodyMethodOptions) => HttpResponse;
   patch: (url: string, options?: BodyMethodOptions) => HttpResponse;
+  delete: (url: string, options?: BodyMethodOptions) => HttpResponse;
 }
-
-const PENDING_RESPONSE: HttpResponse = {
-  status: 0,
-  statusText: 'pending',
-  headers: {},
-  body: null,
-  text: () => '',
-  json: () => null,
-};
 
 function createBodyMethod(state: HttpApiState, method: string) {
   return (url: string, options: BodyMethodOptions = {}): HttpResponse => {
@@ -37,12 +36,12 @@ function createBodyMethod(state: HttpApiState, method: string) {
       url,
       options: {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        body: options.body,
+        headers: options.binaryBody
+          ? { ...options.headers }
+          : { 'Content-Type': 'application/json', ...options.headers },
+        body: options.binaryBody ? undefined : options.body,
       },
+      binaryBody: options.binaryBody,
     };
 
     const cachedResult = state.httpResults.get(requestId);
@@ -58,7 +57,7 @@ function createBodyMethod(state: HttpApiState, method: string) {
       },
     });
 
-    return PENDING_RESPONSE;
+    throw new PendingOperationError();
   };
 }
 
@@ -90,9 +89,11 @@ export function createHttpApi(state: HttpApiState): HttpApi {
         },
       });
 
-      return PENDING_RESPONSE;
+      throw new PendingOperationError();
     },
     post: createBodyMethod(state, 'POST'),
+    put: createBodyMethod(state, 'PUT'),
     patch: createBodyMethod(state, 'PATCH'),
+    delete: createBodyMethod(state, 'DELETE'),
   };
 }
