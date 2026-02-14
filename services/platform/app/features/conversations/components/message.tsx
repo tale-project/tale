@@ -30,13 +30,16 @@ function getDeliveryIcon(status: string) {
 function formatFileSize(bytes: number, tCommon: (key: string) => string) {
   if (bytes === 0) return `0 ${tCommon('fileSize.bytes')}`;
   const k = 1024;
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
   const units = [
     tCommon('fileSize.bytes'),
     tCommon('fileSize.kb'),
     tCommon('fileSize.mb'),
     tCommon('fileSize.gb'),
   ];
+  const i = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(k)),
+    units.length - 1,
+  );
   return `${Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${units[i]}`;
 }
 
