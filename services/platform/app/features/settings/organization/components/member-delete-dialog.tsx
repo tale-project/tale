@@ -38,7 +38,7 @@ export function DeleteMemberDialog({
   const handleConfirm = async () => {
     setIsDeleting(true);
     try {
-      await removeMember({
+      await removeMember.mutateAsync({
         memberId: member._id,
       });
 

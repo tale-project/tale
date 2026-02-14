@@ -89,8 +89,8 @@ export function EditMemberDialog({
     },
   });
 
-  const updateMemberRole = useUpdateMemberRole();
-  const updateMemberDisplayName = useUpdateMemberDisplayName();
+  const { mutateAsync: updateMemberRole } = useUpdateMemberRole();
+  const { mutateAsync: updateMemberDisplayName } = useUpdateMemberDisplayName();
   const { mutateAsync: setMemberPassword } = useSetMemberPassword();
 
   const handleUpdateMember = async (

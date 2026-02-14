@@ -16,7 +16,6 @@ import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-ske
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';
-import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
@@ -81,8 +80,7 @@ export function DocumentsClient({
   const [query, setQuery] = useState(searchQuery ?? '');
   const debouncedQuery = useDebounce(query, 300);
 
-  const teamCollection = useTeamCollection(organizationId);
-  const { teams, isLoading: isLoadingTeams } = useTeams(teamCollection);
+  const { teams, isLoading: isLoadingTeams } = useTeams();
 
   const teamMap = useMemo(() => {
     if (!teams) return new Map<string, string>();

@@ -8,10 +8,11 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
-import { useCustomerByEmail } from '@/app/features/customers/hooks/queries';
+import {
+  useCustomerByEmail,
+  useCustomers,
+} from '@/app/features/customers/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { createCustomersCollection } from '@/lib/collections/entities/customers';
-import { useCollection } from '@/lib/collections/use-collection';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -49,14 +50,9 @@ export function ApprovalDetailDialog({
   const { formatDate } = useFormatDate();
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
 
-  // Lookup customer by email from collection
-  const customersCollection = useCollection(
-    'customers',
-    createCustomersCollection,
-    approvalDetail?.organizationId ?? '',
-  );
+  const { customers } = useCustomers(approvalDetail?.organizationId ?? '');
   const customerRecord = useCustomerByEmail(
-    customersCollection,
+    customers,
     approvalDetail?.customer.email,
   );
 

@@ -86,8 +86,7 @@ export function AutomationSidePanel({
   const [editedNextSteps, setEditedNextSteps] = useState<
     Record<string, string>
   >({});
-  const [isSaving, setIsSaving] = useState(false);
-  const { mutateAsync: updateStep } = useUpdateStep();
+  const { mutate: updateStep, isPending: isSaving } = useUpdateStep();
 
   const originalConfigJson = useMemo(
     () => (step?.config ? JSON.stringify(step.config, null, 2) : '{}'),
@@ -143,33 +142,35 @@ export function AutomationSidePanel({
     setEditedConfig(value);
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     if (!step || !parsedEditedConfig || !isValid) return;
 
-    setIsSaving(true);
-    try {
-      const updates: Record<string, unknown> = { config: parsedEditedConfig };
-      if (isNextStepsDirty) {
-        updates.nextSteps = editedNextSteps;
-      }
-      await updateStep({
+    const updates: Record<string, unknown> = { config: parsedEditedConfig };
+    if (isNextStepsDirty) {
+      updates.nextSteps = editedNextSteps;
+    }
+    updateStep(
+      {
         stepRecordId: step._id,
         updates,
         editMode: 'json',
-      });
-      toast({
-        title: t('sidePanel.stepSaved'),
-        variant: 'default',
-      });
-    } catch (error) {
-      console.error('Failed to save step:', error);
-      toast({
-        title: t('sidePanel.stepSaveFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSaving(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('sidePanel.stepSaved'),
+            variant: 'default',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to save step:', error);
+          toast({
+            title: t('sidePanel.stepSaveFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [
     step,
     parsedEditedConfig,

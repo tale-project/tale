@@ -12,7 +12,6 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { filterByTextSearch } from '@/lib/utils/filtering';
 
-import { useThreadCollection } from '../hooks/collections';
 import { useThreads } from '../hooks/queries';
 
 interface ChatSearchDialogProps {
@@ -38,8 +37,7 @@ export function ChatSearchDialog({
 
   const debouncedQuery = useDebounce(query, 300);
 
-  const threadCollection = useThreadCollection();
-  const { threads: allThreads } = useThreads(threadCollection);
+  const { threads: allThreads } = useThreads();
 
   const threadsData = useMemo(() => {
     if (!allThreads) return null;

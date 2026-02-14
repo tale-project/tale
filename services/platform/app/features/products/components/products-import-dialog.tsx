@@ -154,7 +154,7 @@ export function ProductsImportDialog({
 
         const results = await Promise.allSettled(
           products.map((product) =>
-            createProduct({
+            createProduct.mutateAsync({
               organizationId,
               name: product.name,
               description: product.description,

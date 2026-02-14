@@ -9,10 +9,6 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useT } from '@/lib/i18n/client';
 
-import {
-  useAvailableIntegrationCollection,
-  useAvailableToolCollection,
-} from '../hooks/collections';
 import { useAvailableIntegrations, useAvailableTools } from '../hooks/queries';
 
 interface ToolSelectorProps {
@@ -78,12 +74,9 @@ export function ToolSelector({
   lockedTools,
 }: ToolSelectorProps) {
   const { t } = useT('settings');
-  const availableToolCollection = useAvailableToolCollection();
-  const { tools, isLoading } = useAvailableTools(availableToolCollection);
-  const availableIntegrationCollection =
-    useAvailableIntegrationCollection(organizationId);
+  const { tools, isLoading } = useAvailableTools();
   const { integrations, isLoading: integrationsLoading } =
-    useAvailableIntegrations(availableIntegrationCollection);
+    useAvailableIntegrations(organizationId);
 
   const selectedSet = useMemo(() => new Set(value), [value]);
   const selectedBindingsSet = useMemo(

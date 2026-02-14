@@ -1,22 +1,20 @@
-import type { Collection } from '@tanstack/db';
-
-import { useLiveQuery } from '@tanstack/react-db';
-
-import type { Integration } from '@/lib/collections/entities/integrations';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
-export function useIntegrations(collection: Collection<Integration, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type Integration = ConvexItemOf<typeof api.integrations.queries.list>;
+
+export function useIntegrations(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(api.integrations.queries.list, {
+    organizationId,
+  });
 
   return {
     integrations: data ?? [],
     isLoading,
   };
 }
-
-export type { Integration };
 
 export function useSsoProvider() {
   return useConvexQuery(api.sso_providers.queries.get, {});

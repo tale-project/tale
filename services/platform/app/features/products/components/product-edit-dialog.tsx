@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
@@ -35,8 +35,7 @@ export function ProductEditDialog({
   product,
 }: EditProductDialogProps) {
   const { t: tProducts } = useT('products');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const updateProduct = useUpdateProduct();
+  const { mutate: updateProduct, isPending: isSubmitting } = useUpdateProduct();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -62,7 +61,7 @@ export function ProductEditDialog({
     });
   }, [product]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name.trim()) {
@@ -73,10 +72,8 @@ export function ProductEditDialog({
       return;
     }
 
-    try {
-      setIsSubmitting(true);
-
-      await updateProduct({
+    updateProduct(
+      {
         productId: product._id,
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
@@ -85,23 +82,24 @@ export function ProductEditDialog({
         price: formData.price ? parseFloat(formData.price) : undefined,
         currency: formData.currency || undefined,
         category: formData.category.trim() || undefined,
-      });
-
-      toast({
-        title: tProducts('edit.toast.success'),
-        variant: 'success',
-      });
-
-      onClose();
-    } catch (err) {
-      console.error('Update error:', err);
-      toast({
-        title: tProducts('edit.toast.error'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: tProducts('edit.toast.success'),
+            variant: 'success',
+          });
+          onClose();
+        },
+        onError: (err) => {
+          console.error('Update error:', err);
+          toast({
+            title: tProducts('edit.toast.error'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   };
 
   return (

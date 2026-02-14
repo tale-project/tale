@@ -9,10 +9,10 @@
     "docker:build": "docker compose build graph-db",
     "logs": "docker compose logs -f graph-db",
     "shell": "docker exec -it tale-graph-db sh",
-    "lint": "uv run ruff check .",
-    "lint:fix": "uv run ruff check --fix .",
-    "format": "uv run ruff format .",
-    "format:check": "uv run ruff format --check .",
+    "lint": "uv run ruff check tests",
+    "lint:fix": "uv run ruff check --fix tests",
+    "format": "uv run ruff format tests",
+    "format:check": "uv run ruff format --check tests",
     "test": "uv run pytest"
   }
 }

@@ -1,44 +1,52 @@
-import { useConvexActionMutation } from '@/app/hooks/use-convex-action-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
 export function useTestIntegration() {
-  return useConvexActionMutation(api.integrations.actions.testConnection);
+  return useConvexAction(api.integrations.actions.testConnection);
 }
 
 export function useTestSsoConfig() {
-  return useConvexActionMutation(api.sso_providers.actions.testConfig);
+  return useConvexAction(api.sso_providers.actions.testConfig);
 }
 
 export function useTestExistingSsoConfig() {
-  return useConvexActionMutation(api.sso_providers.actions.testExistingConfig);
+  return useConvexAction(api.sso_providers.actions.testExistingConfig);
 }
 
 export function useCreateIntegration() {
-  return useConvexActionMutation(api.integrations.actions.create);
+  return useConvexAction(api.integrations.actions.create, {
+    invalidates: [api.integrations.queries.list],
+  });
 }
 
 export function useUpdateIntegration() {
-  return useConvexActionMutation(api.integrations.actions.update);
+  return useConvexAction(api.integrations.actions.update, {
+    invalidates: [api.integrations.queries.list],
+  });
 }
 
 export function useUpsertSsoProvider() {
-  return useConvexActionMutation(api.sso_providers.actions.upsert);
+  return useConvexAction(api.sso_providers.actions.upsert, {
+    invalidates: [api.sso_providers.queries.get],
+  });
 }
 
 export function useRemoveSsoProvider() {
-  return useConvexActionMutation(api.sso_providers.actions.remove);
+  return useConvexAction(api.sso_providers.actions.remove, {
+    invalidates: [api.sso_providers.queries.get],
+  });
 }
 
 export function useSsoFullConfig() {
-  return useConvexActionMutation(api.sso_providers.actions.getWithClientId);
+  return useConvexAction(api.sso_providers.actions.getWithClientId);
 }
 
 export function useGenerateIntegrationOAuth2Url() {
-  return useConvexActionMutation(api.integrations.actions.generateOAuth2Url);
+  return useConvexAction(api.integrations.actions.generateOAuth2Url);
 }
 
 export function useSaveOAuth2Credentials() {
-  return useConvexActionMutation(
-    api.integrations.actions.saveOAuth2ClientCredentials,
-  );
+  return useConvexAction(api.integrations.actions.saveOAuth2ClientCredentials, {
+    invalidates: [api.integrations.queries.list],
+  });
 }

@@ -6,7 +6,6 @@ import { Plus, Calendar, Pencil, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import type { WfSchedule } from '@/lib/collections/entities/wf-schedules';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -15,7 +14,8 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useScheduleCollection } from '../hooks/collections';
+import type { WfSchedule } from '../hooks/queries';
+
 import { useDeleteSchedule, useToggleSchedule } from '../hooks/mutations';
 import { useSchedules } from '../hooks/queries';
 import { CollapsibleSection } from './collapsible-section';
@@ -34,8 +34,7 @@ export function SchedulesSection({
 }: SchedulesSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
-  const scheduleCollection = useScheduleCollection(workflowRootId);
-  const { schedules } = useSchedules(scheduleCollection);
+  const { schedules } = useSchedules(workflowRootId);
 
   const toggleSchedule = useToggleSchedule();
   const deleteScheduleMutation = useDeleteSchedule();
@@ -48,7 +47,7 @@ export function SchedulesSection({
   const handleToggle = useCallback(
     async (scheduleId: Id<'wfSchedules'>, isActive: boolean) => {
       try {
-        await toggleSchedule({ scheduleId, isActive });
+        await toggleSchedule.mutateAsync({ scheduleId, isActive });
         toast({
           title: isActive
             ? t('triggers.schedules.toast.enabled')
@@ -69,7 +68,9 @@ export function SchedulesSection({
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      await deleteScheduleMutation({ scheduleId: deleteTarget._id });
+      await deleteScheduleMutation.mutateAsync({
+        scheduleId: deleteTarget._id,
+      });
       toast({
         title: t('triggers.schedules.toast.deleted'),
         variant: 'success',

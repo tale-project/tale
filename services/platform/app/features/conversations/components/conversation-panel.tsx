@@ -61,11 +61,11 @@ export function ConversationPanel({
     selectedConversationId,
   );
 
-  const { mutateAsync: markAsRead } = useMarkAsRead();
+  const { mutate: markAsRead } = useMarkAsRead();
   const { mutateAsync: sendMessageViaIntegration } =
     useSendMessageViaIntegration();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
-  const { mutateAsync: downloadAttachments } = useDownloadAttachments();
+  const { mutate: downloadAttachments } = useDownloadAttachments();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const messageComposerRef = useRef<HTMLDivElement>(null);
@@ -108,11 +108,14 @@ export function ConversationPanel({
             new Date(conversation.last_read_at));
 
       if (hasUnreadMessages) {
-        markAsRead({
-          conversationId: toId<'conversations'>(selectedConversationId),
-        }).catch((error: Error) => {
-          console.error('Failed to mark conversation as read:', error);
-        });
+        markAsRead(
+          { conversationId: toId<'conversations'>(selectedConversationId) },
+          {
+            onError: (error) => {
+              console.error('Failed to mark conversation as read:', error);
+            },
+          },
+        );
       }
     }
   }, [conversation, selectedConversationId, markAsRead]);
@@ -369,15 +372,23 @@ export function ConversationPanel({
                     key={message.id}
                     message={message}
                     onDownloadAttachments={(messageId) => {
-                      downloadAttachments({
-                        messageId: toId<'conversationMessages'>(messageId),
-                      }).catch((error: Error) => {
-                        console.error('Failed to download attachments:', error);
-                        toast({
-                          title: tConversations('panel.downloadFailed'),
-                          variant: 'destructive',
-                        });
-                      });
+                      downloadAttachments(
+                        {
+                          messageId: toId<'conversationMessages'>(messageId),
+                        },
+                        {
+                          onError: (error) => {
+                            console.error(
+                              'Failed to download attachments:',
+                              error,
+                            );
+                            toast({
+                              title: tConversations('panel.downloadFailed'),
+                              variant: 'destructive',
+                            });
+                          },
+                        },
+                      );
                     }}
                   />
                 ))}

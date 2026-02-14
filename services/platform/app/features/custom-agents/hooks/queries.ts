@@ -1,75 +1,51 @@
-import type { Collection } from '@tanstack/db';
-
-import { useLiveQuery } from '@tanstack/react-db';
+import { useMemo } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import type { AvailableIntegration } from '@/lib/collections/entities/available-integrations';
-import type { AvailableTool } from '@/lib/collections/entities/available-tools';
-import type { CustomAgentVersion } from '@/lib/collections/entities/custom-agent-versions';
-import type { CustomAgentWebhook } from '@/lib/collections/entities/custom-agent-webhooks';
-import type { CustomAgent } from '@/lib/collections/entities/custom-agents';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/lib/utils/type-guards';
 
-export function useCustomAgents(collection: Collection<CustomAgent, string>) {
+export type CustomAgent = ConvexItemOf<
+  typeof api.custom_agents.queries.listCustomAgents
+>;
+
+export function useCustomAgents(organizationId: string) {
   const { selectedTeamId } = useTeamFilter();
 
-  const { data, isLoading } = useLiveQuery(
-    (q) =>
-      q
-        .from({ agent: collection })
-        .fn.where((row) => {
-          if (!selectedTeamId) return true;
-          const { agent } = row;
-          return (
-            agent.teamId === selectedTeamId ||
-            (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
-          );
-        })
-        .select(({ agent }) => ({
-          _id: agent._id,
-          _creationTime: agent._creationTime,
-          organizationId: agent.organizationId,
-          name: agent.name,
-          displayName: agent.displayName,
-          description: agent.description,
-          avatarUrl: agent.avatarUrl,
-          systemInstructions: agent.systemInstructions,
-          toolNames: agent.toolNames,
-          integrationBindings: agent.integrationBindings,
-          modelPreset: agent.modelPreset,
-          knowledgeEnabled: agent.knowledgeEnabled,
-          includeOrgKnowledge: agent.includeOrgKnowledge,
-          knowledgeTopK: agent.knowledgeTopK,
-          toneOfVoiceId: agent.toneOfVoiceId,
-          filePreprocessingEnabled: agent.filePreprocessingEnabled,
-          teamId: agent.teamId,
-          sharedWithTeamIds: agent.sharedWithTeamIds,
-          createdBy: agent.createdBy,
-          isActive: agent.isActive,
-          versionNumber: agent.versionNumber,
-          status: agent.status,
-          rootVersionId: agent.rootVersionId,
-          parentVersionId: agent.parentVersionId,
-          publishedAt: agent.publishedAt,
-          publishedBy: agent.publishedBy,
-          changeLog: agent.changeLog,
-        })),
-    [selectedTeamId],
+  const { data, isLoading } = useConvexQuery(
+    api.custom_agents.queries.listCustomAgents,
+    { organizationId },
   );
 
+  const agents = useMemo(() => {
+    if (!data) return undefined;
+    return data.filter((agent) => {
+      if (!selectedTeamId) return true;
+      return (
+        agent.teamId === selectedTeamId ||
+        (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
+      );
+    });
+  }, [data, selectedTeamId]);
+
   return {
-    agents: data,
+    agents,
     isLoading,
   };
 }
 
-export function useCustomAgentVersions(
-  collection: Collection<CustomAgentVersion, string>,
-) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type CustomAgentVersion = ConvexItemOf<
+  typeof api.custom_agents.queries.getCustomAgentVersions
+>;
+
+export function useCustomAgentVersions(customAgentId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.custom_agents.queries.getCustomAgentVersions,
+    { customAgentId: toId<'customAgents'>(customAgentId) },
+  );
 
   return {
     versions: data,
@@ -77,10 +53,15 @@ export function useCustomAgentVersions(
   };
 }
 
-export function useCustomAgentWebhooks(
-  collection: Collection<CustomAgentWebhook, string>,
-) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type CustomAgentWebhook = ConvexItemOf<
+  typeof api.custom_agents.webhooks.queries.getWebhooks
+>;
+
+export function useCustomAgentWebhooks(customAgentId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.custom_agents.webhooks.queries.getWebhooks,
+    { customAgentId: toId<'customAgents'>(customAgentId) },
+  );
 
   return {
     webhooks: data,
@@ -88,10 +69,15 @@ export function useCustomAgentWebhooks(
   };
 }
 
-export function useAvailableIntegrations(
-  collection: Collection<AvailableIntegration, string>,
-) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type AvailableIntegration = ConvexItemOf<
+  typeof api.custom_agents.queries.getAvailableIntegrations
+>;
+
+export function useAvailableIntegrations(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.custom_agents.queries.getAvailableIntegrations,
+    { organizationId },
+  );
 
   return {
     integrations: data,
@@ -99,10 +85,14 @@ export function useAvailableIntegrations(
   };
 }
 
-export function useAvailableTools(
-  collection: Collection<AvailableTool, string>,
-) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type AvailableTool = ConvexItemOf<
+  typeof api.custom_agents.queries.getAvailableTools
+>;
+
+export function useAvailableTools() {
+  const { data, isLoading } = useConvexQuery(
+    api.custom_agents.queries.getAvailableTools,
+  );
 
   return {
     tools: data,
@@ -123,5 +113,3 @@ export function useCustomAgentByVersion(
 export function useModelPresets() {
   return useConvexQuery(api.custom_agents.queries.getModelPresets);
 }
-
-export type { CustomAgentVersion, CustomAgentWebhook };

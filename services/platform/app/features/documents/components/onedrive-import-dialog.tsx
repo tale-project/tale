@@ -3,7 +3,7 @@
 import type { ColumnDef } from '@tanstack/react-table';
 
 import { Home, Loader2, Database, Users } from 'lucide-react';
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
@@ -19,7 +19,6 @@ import {
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
-import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -462,8 +461,10 @@ export function OneDriveImportDialog({
 
   const { mutateAsync: importFilesAction, isPending: isImporting } =
     useImportOneDriveFiles();
-  const listOneDriveFiles = useConvexAction(api.onedrive.actions.listFiles);
-  const listSharePointFiles = useConvexAction(
+  const { mutateAsync: listOneDriveFiles } = useConvexAction(
+    api.onedrive.actions.listFiles,
+  );
+  const { mutateAsync: listSharePointFiles } = useConvexAction(
     api.onedrive.actions.listSharePointFiles,
   );
 
@@ -498,8 +499,7 @@ export function OneDriveImportDialog({
     Array<{ id: string | undefined; name: string }>
   >([{ id: undefined, name: t('breadcrumb.oneDrive') }]);
 
-  const teamCollection = useTeamCollection(organizationId);
-  const { teams, isLoading: isLoadingTeams } = useTeams(teamCollection);
+  const { teams, isLoading: isLoadingTeams } = useTeams();
 
   const handleToggleTeam = useCallback((teamId: string) => {
     setSelectedTeams((prev) => {

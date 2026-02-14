@@ -1,3 +1,7 @@
 {
-  "recommendations": ["oxc.oxc-vscode", "foxundermoon.shell-format"]
+  "recommendations": [
+    "oxc.oxc-vscode",
+    "foxundermoon.shell-format",
+    "charliermarsh.ruff"
+  ]
 }

@@ -1,4 +1,5 @@
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useSetMemberPassword() {
@@ -6,24 +7,55 @@ export function useSetMemberPassword() {
 }
 
 export function useCreateMember() {
-  return useConvexMutation(api.users.mutations.createMember);
+  return useConvexOptimisticMutation(
+    api.users.mutations.createMember,
+    api.members.queries.listByOrganization,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ organizationId, email, displayName, role }, { insert }) =>
+        insert({
+          organizationId,
+          userId: '',
+          role: role ?? 'member',
+          createdAt: Date.now(),
+          displayName,
+          email,
+        }),
+    },
+  );
 }
 
 export function useRemoveMember() {
-  const { mutateAsync } = useConvexMutation(api.members.mutations.removeMember);
-  return mutateAsync;
+  return useConvexOptimisticMutation(
+    api.members.mutations.removeMember,
+    api.members.queries.listByOrganization,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ memberId }, { remove }) => remove(memberId),
+    },
+  );
 }
 
 export function useUpdateMemberRole() {
-  const { mutateAsync } = useConvexMutation(
+  return useConvexOptimisticMutation(
     api.members.mutations.updateMemberRole,
+    api.members.queries.listByOrganization,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ memberId, ...changes }, { update }) =>
+        update(memberId, changes),
+    },
   );
-  return mutateAsync;
 }
 
 export function useUpdateMemberDisplayName() {
-  const { mutateAsync } = useConvexMutation(
+  return useConvexOptimisticMutation(
     api.members.mutations.updateMemberDisplayName,
+    api.members.queries.listByOrganization,
+    {
+      queryArgs: (organizationId) => ({ organizationId }),
+      onMutate: ({ memberId, ...changes }, { update }) =>
+        update(memberId, changes),
+    },
   );
-  return mutateAsync;
 }

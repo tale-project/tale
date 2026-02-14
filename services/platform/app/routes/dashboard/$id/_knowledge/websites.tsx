@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { WebsitesEmptyState } from '@/app/features/websites/components/websites-empty-state';
 import { WebsitesTable } from '@/app/features/websites/components/websites-table';
 import { WebsitesTableSkeleton } from '@/app/features/websites/components/websites-table-skeleton';
-import { useWebsiteCollection } from '@/app/features/websites/hooks/collections';
 import { useWebsites } from '@/app/features/websites/hooks/queries';
 
 const searchSchema = z.object({
@@ -19,8 +18,7 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/websites')({
 
 function WebsitesPage() {
   const { id: organizationId } = Route.useParams();
-  const websiteCollection = useWebsiteCollection(organizationId);
-  const { websites, isLoading } = useWebsites(websiteCollection);
+  const { websites, isLoading } = useWebsites(organizationId);
 
   if (isLoading) {
     return <WebsitesTableSkeleton organizationId={organizationId} />;

@@ -54,12 +54,34 @@ describe('useConvexQuery', () => {
     expect(mockUseQuery).toHaveBeenCalledTimes(1);
   });
 
-  it('returns useQuery result', () => {
+  it('returns useQuery result with queryKey', () => {
     const mockResult = { data: [1, 2, 3], isLoading: false, error: null };
     mockUseQuery.mockReturnValueOnce(mockResult as ReturnType<typeof useQuery>);
 
     const result = useConvexQuery(mockQueryRef, {});
 
-    expect(result).toBe(mockResult);
+    expect(result.data).toEqual([1, 2, 3]);
+    expect(result.isLoading).toBe(false);
+    expect(result.queryKey).toEqual(['convexQuery', mockQueryRef, {}]);
+  });
+
+  it('merges cache options into useQuery call', () => {
+    const args = { organizationId: 'org-123' };
+    const options = { staleTime: 10_000, gcTime: 60_000 };
+
+    useConvexQuery(mockQueryRef, args, options);
+
+    const passedOptions = mockUseQuery.mock.calls[0]?.[0];
+    expect(passedOptions).toMatchObject(options);
+  });
+
+  it('does not include undefined options when omitted', () => {
+    const args = { organizationId: 'org-123' };
+
+    useConvexQuery(mockQueryRef, args);
+
+    const passedOptions = mockUseQuery.mock.calls[0]?.[0];
+    expect(passedOptions).not.toHaveProperty('staleTime');
+    expect(passedOptions).not.toHaveProperty('gcTime');
   });
 });

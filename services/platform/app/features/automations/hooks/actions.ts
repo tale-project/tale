@@ -1,8 +1,6 @@
-import { useConvexActionMutation } from '@/app/hooks/use-convex-action-mutation';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
 export function useChatWithWorkflowAssistant() {
-  return useConvexActionMutation(
-    api.agents.workflow.actions.chatWithWorkflowAssistant,
-  );
+  return useConvexAction(api.agents.workflow.actions.chatWithWorkflowAssistant);
 }

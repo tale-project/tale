@@ -17,7 +17,6 @@ import {
 } from '@/convex/workflows/triggers/event_types';
 import { useT } from '@/lib/i18n/client';
 
-import { useAutomationRootCollection } from '../../hooks/collections';
 import { useAutomationRoots } from '../../hooks/queries';
 import {
   useCreateEventSubscription,
@@ -51,7 +50,7 @@ export function EventCreateDialog({
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const createEventSubscription = useCreateEventSubscription();
-  const updateEventSubscription = useUpdateEventSubscription();
+  const updateEventSubscription = useUpdateEventSubscription(workflowRootId);
 
   const isEditMode = !!editing;
 
@@ -76,10 +75,7 @@ export function EventCreateDialog({
     [selectedEventType],
   );
 
-  const automationRootCollection = useAutomationRootCollection(organizationId);
-  const { automationRoots: workflows } = useAutomationRoots(
-    automationRootCollection,
-  );
+  const { automationRoots: workflows } = useAutomationRoots(organizationId);
 
   const options = useMemo(() => {
     const result: { value: string; label: string; disabled?: boolean }[] = [];
@@ -131,7 +127,7 @@ export function EventCreateDialog({
         Object.keys(filterValues).length > 0 ? filterValues : undefined;
 
       if (isEditMode && editing) {
-        await updateEventSubscription({
+        await updateEventSubscription.mutateAsync({
           subscriptionId: editing._id,
           eventFilter: filterPayload,
         });
@@ -140,7 +136,7 @@ export function EventCreateDialog({
           variant: 'success',
         });
       } else {
-        await createEventSubscription({
+        await createEventSubscription.mutateAsync({
           organizationId,
           workflowRootId,
           eventType: selectedEventType,

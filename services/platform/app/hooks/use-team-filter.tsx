@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from 'react';
 
-import { useTeamCollection } from '@/app/features/settings/teams/hooks/collections';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 
 function getStorageKey(organizationId: string) {
@@ -60,8 +59,7 @@ export function TeamFilterProvider({
     return localStorage.getItem(storageKey);
   });
 
-  const teamCollection = useTeamCollection(organizationId);
-  const { teams, isLoading: isLoadingTeams } = useTeams(teamCollection);
+  const { teams, isLoading: isLoadingTeams } = useTeams();
 
   // Validate: clear selection if stored team no longer exists
   const validatedTeamId =

@@ -1,17 +1,21 @@
-import type { Collection } from '@tanstack/db';
-
-import { useLiveQuery } from '@tanstack/react-db';
-
-import type { Approval } from '@/lib/collections/entities/approvals';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
-export function useApprovals(collection: Collection<Approval, string>) {
-  const { data, isLoading } = useLiveQuery(() => collection);
+export type Approval = ConvexItemOf<
+  typeof api.approvals.queries.listApprovalsByOrganization
+>;
+
+export function useApprovals(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.approvals.queries.listApprovalsByOrganization,
+    { organizationId },
+  );
 
   return {
-    approvals: data,
+    approvals: data ?? [],
     isLoading,
   };
 }

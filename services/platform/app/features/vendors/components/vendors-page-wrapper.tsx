@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react';
 
-import { useVendorCollection } from '../hooks/collections';
 import { useVendors } from '../hooks/queries';
 import { VendorsEmptyState } from './vendors-empty-state';
 
@@ -15,8 +14,7 @@ export function VendorsPageWrapper({
   organizationId,
   children,
 }: VendorsPageWrapperProps) {
-  const vendorCollection = useVendorCollection(organizationId);
-  const { vendors } = useVendors(vendorCollection);
+  const { vendors } = useVendors(organizationId);
   const hasVendors = (vendors?.length ?? 0) > 0;
 
   if (!hasVendors) {

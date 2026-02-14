@@ -8,7 +8,6 @@ import type { RagStatus } from '@/types/documents';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
-import { useDocumentCollection } from '@/app/features/documents/hooks/collections';
 import { useDocuments } from '@/app/features/documents/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
@@ -74,9 +73,8 @@ export function CustomAgentKnowledge({
     return teams.find((team) => team.id === agent.teamId)?.name ?? null;
   }, [agent?.teamId, teams]);
 
-  const documentCollection = useDocumentCollection(organizationId);
   const { documents: allDocuments, isLoading: isDocumentsLoading } =
-    useDocuments(documentCollection);
+    useDocuments(organizationId);
 
   const documents = useMemo(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Collection returns DocumentItemResponse; cast to DocumentEntry for display
@@ -123,7 +121,7 @@ export function CustomAgentKnowledge({
       knowledgeEnabled?: boolean;
       includeOrgKnowledge?: boolean;
     }) => {
-      await updateAgent({
+      await updateAgent.mutateAsync({
         customAgentId: toId<'customAgents'>(agentId),
         knowledgeEnabled: data.knowledgeEnabled,
         includeOrgKnowledge: data.includeOrgKnowledge,

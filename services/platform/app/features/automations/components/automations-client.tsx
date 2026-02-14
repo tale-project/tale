@@ -11,7 +11,6 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
-import { useWfAutomationCollection } from '../hooks/collections';
 import { useAutomations } from '../hooks/queries';
 import { AutomationsActionMenu } from './automations-action-menu';
 import { useAutomationsTableConfig } from './use-automations-table-config';
@@ -29,8 +28,7 @@ export function AutomationsClient({ organizationId }: AutomationsClientProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useAutomationsTableConfig();
 
-  const wfAutomationCollection = useWfAutomationCollection(organizationId);
-  const { automations, isLoading } = useAutomations(wfAutomationCollection);
+  const { automations, isLoading } = useAutomations(organizationId);
 
   const handleRowClick = useCallback(
     (row: Row<Doc<'wfDefinitions'>>) => {

@@ -31,7 +31,9 @@ export function CustomAgentDeleteDialog({
     if (isDeleting) return;
     setIsDeleting(true);
     try {
-      await deleteAgent({ customAgentId: toId<'customAgents'>(agent._id) });
+      await deleteAgent.mutateAsync({
+        customAgentId: toId<'customAgents'>(agent._id),
+      });
       toast({
         title: t('customAgents.agentDeleted'),
         variant: 'success',

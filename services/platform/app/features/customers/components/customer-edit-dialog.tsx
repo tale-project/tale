@@ -100,7 +100,7 @@ export function CustomerEditDialog({
 
   const onSubmit = async (data: CustomerFormData) => {
     try {
-      await updateCustomer({
+      await updateCustomer.mutateAsync({
         customerId: customer._id,
         name: data.name.trim(),
         email: data.email.trim(),

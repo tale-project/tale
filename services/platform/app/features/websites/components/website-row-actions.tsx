@@ -25,23 +25,27 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
 
-  const { mutateAsync: rescanWebsite, isPending: isRescanning } =
-    useRescanWebsite();
+  const { mutate: rescanWebsite, isPending: isRescanning } = useRescanWebsite();
 
-  const handleRescan = useCallback(async () => {
-    try {
-      await rescanWebsite({ websiteId: website._id });
-      toast({
-        title: t('actions.rescanTriggered'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to rescan website:', error);
-      toast({
-        title: t('actions.rescanFailed'),
-        variant: 'destructive',
-      });
-    }
+  const handleRescan = useCallback(() => {
+    rescanWebsite(
+      { websiteId: website._id },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('actions.rescanTriggered'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to rescan website:', error);
+          toast({
+            title: t('actions.rescanFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [rescanWebsite, website._id, t]);
 
   const actions = useMemo(

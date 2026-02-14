@@ -6,7 +6,6 @@ import { Plus, Zap, Trash2, Pencil } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import type { WfEventSubscription } from '@/lib/collections/entities/wf-event-subscriptions';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -20,9 +19,9 @@ import {
 } from '@/convex/workflows/triggers/event_types';
 import { useT } from '@/lib/i18n/client';
 
-import { useAutomationRootCollection } from '../../hooks/collections';
+import type { WfEventSubscription } from '../hooks/queries';
+
 import { useAutomationRoots } from '../../hooks/queries';
-import { useEventSubscriptionCollection } from '../hooks/collections';
 import {
   useDeleteEventSubscription,
   useToggleEventSubscription,
@@ -44,14 +43,9 @@ export function EventsSection({
 }: EventsSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
-  const eventSubscriptionCollection =
-    useEventSubscriptionCollection(workflowRootId);
-  const { subscriptions } = useEventSubscriptions(eventSubscriptionCollection);
+  const { subscriptions } = useEventSubscriptions(workflowRootId);
 
-  const automationRootCollection = useAutomationRootCollection(organizationId);
-  const { automationRoots: workflows } = useAutomationRoots(
-    automationRootCollection,
-  );
+  const { automationRoots: workflows } = useAutomationRoots(organizationId);
 
   const workflowNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -76,7 +70,7 @@ export function EventsSection({
   const handleToggle = useCallback(
     async (subscriptionId: Id<'wfEventSubscriptions'>, isActive: boolean) => {
       try {
-        await toggleSubscription({ subscriptionId, isActive });
+        await toggleSubscription.mutateAsync({ subscriptionId, isActive });
         toast({
           title: isActive
             ? t('triggers.events.toast.enabled')
@@ -97,7 +91,9 @@ export function EventsSection({
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      await deleteSubscriptionMutation({ subscriptionId: deleteTarget._id });
+      await deleteSubscriptionMutation.mutateAsync({
+        subscriptionId: deleteTarget._id,
+      });
       toast({
         title: t('triggers.events.toast.deleted'),
         variant: 'success',

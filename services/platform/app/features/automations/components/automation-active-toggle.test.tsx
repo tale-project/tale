@@ -13,12 +13,24 @@ const mockUnpublish = vi.fn();
 vi.mock('../hooks/mutations', async (importOriginal) => ({
   ...(await importOriginal()),
   useRepublishAutomation: () => ({
+    mutate: mockRepublish,
     mutateAsync: mockRepublish,
     isPending: false,
+    isError: false,
+    isSuccess: false,
+    error: null,
+    data: undefined,
+    reset: vi.fn(),
   }),
   useUnpublishAutomation: () => ({
+    mutate: mockUnpublish,
     mutateAsync: mockUnpublish,
     isPending: false,
+    isError: false,
+    isSuccess: false,
+    error: null,
+    data: undefined,
+    reset: vi.fn(),
   }),
 }));
 
@@ -111,10 +123,13 @@ describe('AutomationActiveToggle', () => {
       await user.click(screen.getByRole('switch'));
 
       await waitFor(() => {
-        expect(mockRepublish).toHaveBeenCalledWith({
-          wfDefinitionId: 'wf-1',
-          publishedBy: 'test@example.com',
-        });
+        expect(mockRepublish).toHaveBeenCalledWith(
+          {
+            wfDefinitionId: 'wf-1',
+            publishedBy: 'test@example.com',
+          },
+          expect.any(Object),
+        );
       });
     });
 
@@ -146,10 +161,13 @@ describe('AutomationActiveToggle', () => {
       await user.click(confirmButton);
 
       await waitFor(() => {
-        expect(mockUnpublish).toHaveBeenCalledWith({
-          wfDefinitionId: 'wf-1',
-          updatedBy: 'user-1',
-        });
+        expect(mockUnpublish).toHaveBeenCalledWith(
+          {
+            wfDefinitionId: 'wf-1',
+            updatedBy: 'user-1',
+          },
+          expect.any(Object),
+        );
       });
     });
 

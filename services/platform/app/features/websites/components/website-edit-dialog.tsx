@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -31,8 +31,7 @@ export function EditWebsiteDialog({
   website,
 }: EditWebsiteDialogProps) {
   const { t: tWebsites } = useT('websites');
-  const [isLoading, setIsLoading] = useState(false);
-  const { mutateAsync: updateWebsite } = useUpdateWebsite();
+  const { mutate: updateWebsite, isPending: isLoading } = useUpdateWebsite();
 
   const formSchema = useMemo(
     () =>
@@ -84,30 +83,30 @@ export function EditWebsiteDialog({
     }
   }, [website, reset]);
 
-  const onSubmit = async (data: FormData) => {
-    setIsLoading(true);
-    try {
-      await updateWebsite({
+  const onSubmit = (data: FormData) => {
+    updateWebsite(
+      {
         websiteId: website._id,
         domain: data.domain,
         scanInterval: data.scanInterval,
-      });
-
-      toast({
-        title: tWebsites('toast.updateSuccess'),
-        variant: 'success',
-      });
-
-      onClose();
-    } catch (error) {
-      console.error('Failed to update website:', error);
-      toast({
-        title: tWebsites('toast.updateError'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: tWebsites('toast.updateSuccess'),
+            variant: 'success',
+          });
+          onClose();
+        },
+        onError: (error) => {
+          console.error('Failed to update website:', error);
+          toast({
+            title: tWebsites('toast.updateError'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   };
 
   return (

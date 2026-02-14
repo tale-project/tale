@@ -1,79 +1,149 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexOptimisticMutation } from '@/app/hooks/use-convex-optimistic-mutation';
 import { api } from '@/convex/_generated/api';
 
-export function useCreateSchedule() {
-  const { mutateAsync } = useConvexMutation(
+export function useCreateSchedule(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.createSchedule,
+    api.workflows.triggers.queries.getSchedules,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ cronExpression, timezone, organizationId }, { insert }) =>
+        insert({
+          organizationId,
+          workflowRootId: workflowRootId ?? '',
+          cronExpression,
+          timezone,
+          isActive: true,
+          createdAt: Date.now(),
+        }),
+    },
   );
-  return mutateAsync;
 }
 
-export function useUpdateSchedule() {
-  const { mutateAsync } = useConvexMutation(
+export function useUpdateSchedule(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.updateSchedule,
+    api.workflows.triggers.queries.getSchedules,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ scheduleId, ...changes }, { update }) =>
+        update(scheduleId, changes),
+    },
   );
-  return mutateAsync;
 }
 
-export function useToggleSchedule() {
-  const { mutateAsync } = useConvexMutation(
+export function useToggleSchedule(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.toggleSchedule,
+    api.workflows.triggers.queries.getSchedules,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ scheduleId }, { toggle }) => toggle(scheduleId, 'isActive'),
+    },
   );
-  return mutateAsync;
 }
 
-export function useDeleteSchedule() {
-  const { mutateAsync } = useConvexMutation(
+export function useDeleteSchedule(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.deleteSchedule,
+    api.workflows.triggers.queries.getSchedules,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ scheduleId }, { remove }) => remove(scheduleId),
+    },
   );
-  return mutateAsync;
 }
 
-export function useCreateWebhook() {
-  const { mutateAsync, isPending } = useConvexMutation(
+export function useCreateWebhook(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.createWebhook,
+    api.workflows.triggers.queries.getWebhooks,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ organizationId }, { insert }) =>
+        insert({
+          organizationId,
+          workflowRootId: workflowRootId ?? '',
+          token: '',
+          isActive: true,
+          createdAt: Date.now(),
+        }),
+    },
   );
-  return { mutateAsync, isPending };
 }
 
-export function useToggleWebhook() {
-  const { mutateAsync } = useConvexMutation(
+export function useToggleWebhook(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.toggleWebhook,
+    api.workflows.triggers.queries.getWebhooks,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ webhookId }, { toggle }) => toggle(webhookId, 'isActive'),
+    },
   );
-  return mutateAsync;
 }
 
-export function useDeleteWebhook() {
-  const { mutateAsync } = useConvexMutation(
+export function useDeleteWebhook(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.deleteWebhook,
+    api.workflows.triggers.queries.getWebhooks,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ webhookId }, { remove }) => remove(webhookId),
+    },
   );
-  return mutateAsync;
 }
 
-export function useCreateEventSubscription() {
-  const { mutateAsync } = useConvexMutation(
+export function useCreateEventSubscription(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.createEventSubscription,
+    api.workflows.triggers.queries.getEventSubscriptions,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ eventType, eventFilter, organizationId }, { insert }) =>
+        insert({
+          organizationId,
+          workflowRootId: workflowRootId ?? '',
+          eventType,
+          eventFilter,
+          isActive: true,
+          createdAt: Date.now(),
+        }),
+    },
   );
-  return mutateAsync;
 }
 
-export function useUpdateEventSubscription() {
-  const { mutateAsync } = useConvexMutation(
+export function useUpdateEventSubscription(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.updateEventSubscription,
+    api.workflows.triggers.queries.getEventSubscriptions,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ subscriptionId, ...changes }, { update }) =>
+        update(subscriptionId, changes),
+    },
   );
-  return mutateAsync;
 }
 
-export function useToggleEventSubscription() {
-  const { mutateAsync } = useConvexMutation(
+export function useToggleEventSubscription(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.toggleEventSubscription,
+    api.workflows.triggers.queries.getEventSubscriptions,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ subscriptionId }, { toggle }) =>
+        toggle(subscriptionId, 'isActive'),
+    },
   );
-  return mutateAsync;
 }
 
-export function useDeleteEventSubscription() {
-  const { mutateAsync } = useConvexMutation(
+export function useDeleteEventSubscription(workflowRootId?: string) {
+  return useConvexOptimisticMutation(
     api.workflows.triggers.mutations.deleteEventSubscription,
+    api.workflows.triggers.queries.getEventSubscriptions,
+    {
+      queryArgs: workflowRootId ? { workflowRootId } : undefined,
+      onMutate: ({ subscriptionId }, { remove }) => remove(subscriptionId),
+    },
   );
-  return mutateAsync;
 }

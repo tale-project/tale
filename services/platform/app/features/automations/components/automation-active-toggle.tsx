@@ -30,9 +30,9 @@ export function AutomationActiveToggle({
 
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
 
-  const { mutateAsync: republishAutomation, isPending: isRepublishing } =
+  const { mutate: republishAutomation, isPending: isRepublishing } =
     useRepublishAutomation();
-  const { mutateAsync: unpublishAutomation, isPending: isUnpublishing } =
+  const { mutate: unpublishAutomation, isPending: isUnpublishing } =
     useUnpublishAutomation();
 
   const isToggling = isRepublishing || isUnpublishing;
@@ -40,51 +40,61 @@ export function AutomationActiveToggle({
   const isActive = automation.status === 'active';
   const isDraft = automation.status === 'draft';
 
-  const handleActivate = useCallback(async () => {
+  const handleActivate = useCallback(() => {
     if (!user) return;
-    try {
-      await republishAutomation({
+    republishAutomation(
+      {
         wfDefinitionId: automation._id,
         publishedBy: user.email ?? user.userId,
-      });
-      toast({
-        title: tToast('success.automationPublished'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to activate automation:', error);
-      toast({
-        title: tToast('error.automationPublishFailed'),
-        variant: 'destructive',
-      });
-    }
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: tToast('success.automationPublished'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to activate automation:', error);
+          toast({
+            title: tToast('error.automationPublishFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [republishAutomation, automation._id, user, tToast]);
 
-  const handleDeactivateConfirm = useCallback(async () => {
+  const handleDeactivateConfirm = useCallback(() => {
     if (!user) return;
-    try {
-      await unpublishAutomation({
+    unpublishAutomation(
+      {
         wfDefinitionId: automation._id,
         updatedBy: user.userId,
-      });
-      setShowDeactivateDialog(false);
-      toast({
-        title: tToast('success.automationDeactivated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to deactivate automation:', error);
-      toast({
-        title: tToast('error.automationDeactivateFailed'),
-        variant: 'destructive',
-      });
-    }
+      },
+      {
+        onSuccess: () => {
+          setShowDeactivateDialog(false);
+          toast({
+            title: tToast('success.automationDeactivated'),
+            variant: 'success',
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to deactivate automation:', error);
+          toast({
+            title: tToast('error.automationDeactivateFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
   }, [unpublishAutomation, automation._id, user, tToast]);
 
   const handleToggle = useCallback(
     (checked: boolean) => {
       if (checked) {
-        void handleActivate();
+        handleActivate();
       } else {
         setShowDeactivateDialog(true);
       }
