@@ -371,6 +371,10 @@ export function ConversationPanel({
                         messageId: toId<'conversationMessages'>(messageId),
                       }).catch((error: Error) => {
                         console.error('Failed to download attachments:', error);
+                        toast({
+                          title: tConversations('panel.downloadFailed'),
+                          variant: 'destructive',
+                        });
                       });
                     }}
                   />
