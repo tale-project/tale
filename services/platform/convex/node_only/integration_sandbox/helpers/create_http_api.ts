@@ -4,31 +4,31 @@
 
 import type { HttpRequest, HttpResponse, PendingHttpRequest } from '../types';
 
+import { PendingOperationError } from '../types';
+
 export interface HttpApiState {
   pendingHttpCount: number;
   httpResults: Map<number, HttpResponse>;
   httpRequests: PendingHttpRequest[];
 }
 
-type BodyMethodOptions = { headers?: Record<string, string>; body?: string };
+type HttpMethodOptions = {
+  headers?: Record<string, string>;
+  responseType?: 'base64';
+};
+
+type BodyMethodOptions = HttpMethodOptions & {
+  body?: string;
+  binaryBody?: string;
+};
 
 export interface HttpApi {
-  get: (
-    url: string,
-    options?: { headers?: Record<string, string> },
-  ) => HttpResponse;
+  get: (url: string, options?: HttpMethodOptions) => HttpResponse;
   post: (url: string, options?: BodyMethodOptions) => HttpResponse;
+  put: (url: string, options?: BodyMethodOptions) => HttpResponse;
   patch: (url: string, options?: BodyMethodOptions) => HttpResponse;
+  delete: (url: string, options?: BodyMethodOptions) => HttpResponse;
 }
-
-const PENDING_RESPONSE: HttpResponse = {
-  status: 0,
-  statusText: 'pending',
-  headers: {},
-  body: null,
-  text: () => '',
-  json: () => null,
-};
 
 function createBodyMethod(state: HttpApiState, method: string) {
   return (url: string, options: BodyMethodOptions = {}): HttpResponse => {
@@ -37,12 +37,13 @@ function createBodyMethod(state: HttpApiState, method: string) {
       url,
       options: {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        body: options.body,
+        headers: options.binaryBody
+          ? { ...options.headers }
+          : { 'Content-Type': 'application/json', ...options.headers },
+        body: options.binaryBody ? undefined : options.body,
       },
+      binaryBody: options.binaryBody,
+      responseType: options.responseType,
     };
 
     const cachedResult = state.httpResults.get(requestId);
@@ -58,16 +59,13 @@ function createBodyMethod(state: HttpApiState, method: string) {
       },
     });
 
-    return PENDING_RESPONSE;
+    throw new PendingOperationError();
   };
 }
 
 export function createHttpApi(state: HttpApiState): HttpApi {
   return {
-    get: (
-      url: string,
-      options: { headers?: Record<string, string> } = {},
-    ): HttpResponse => {
+    get: (url: string, options: HttpMethodOptions = {}): HttpResponse => {
       const requestId = state.pendingHttpCount++;
       const request: HttpRequest = {
         url,
@@ -75,6 +73,7 @@ export function createHttpApi(state: HttpApiState): HttpApi {
           method: 'GET',
           headers: options.headers,
         },
+        responseType: options.responseType,
       };
 
       const cachedResult = state.httpResults.get(requestId);
@@ -90,9 +89,11 @@ export function createHttpApi(state: HttpApiState): HttpApi {
         },
       });
 
-      return PENDING_RESPONSE;
+      throw new PendingOperationError();
     },
     post: createBodyMethod(state, 'POST'),
+    put: createBodyMethod(state, 'PUT'),
     patch: createBodyMethod(state, 'PATCH'),
+    delete: createBodyMethod(state, 'DELETE'),
   };
 }

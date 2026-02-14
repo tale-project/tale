@@ -2,7 +2,7 @@
   "name": "outlook",
   "title": "Microsoft Outlook",
   "description": "Microsoft Graph API integration for Outlook mail, calendar, and contacts",
-  "version": 1,
+  "version": 2,
   "authMethod": "oauth2",
   "supportedAuthMethods": ["oauth2"],
   "secretBindings": ["accessToken"],
@@ -33,6 +33,7 @@
           "filter": { "type": "string", "description": "OData $filter expression (takes precedence over folder)", "required": false },
           "orderby": { "type": "string", "description": "OData $orderby expression (default: receivedDateTime desc)", "required": false },
           "select": { "type": "string", "description": "Comma-separated list of fields to return", "required": false },
+          "expand": { "type": "string", "description": "OData $expand expression (e.g. 'attachments($select=id,name,contentType,size)' to include attachment metadata)", "required": false },
           "format": { "type": "string", "description": "When set to 'email', transforms Graph API response to standard email format with messageId, from, to, cc, bcc, subject, date, text, html, flags, headers", "required": false }
         }
       }
@@ -40,7 +41,19 @@
     {
       "name": "get_message",
       "title": "Get Message",
-      "description": "Fetch a single email message by ID",
+      "description": "Fetch a single email message by ID, optionally including file attachments",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "messageId": { "type": "string", "description": "Message ID", "required": true },
+          "includeAttachments": { "type": "boolean", "description": "When true, downloads and stores all file attachments. Each attachment is stored and returned with a fileId and URL.", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_attachments",
+      "title": "Get Message Attachments",
+      "description": "Download all file attachments from a message and store them. Returns fileId and URL for each attachment.",
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -73,7 +86,8 @@
           "subject": { "type": "string", "description": "Email subject", "required": true },
           "body": { "type": "string", "description": "Email body content", "required": false },
           "contentType": { "type": "string", "description": "Body content type: Text or HTML", "required": false },
-          "cc": { "type": "string", "description": "CC recipient email address (or array of addresses)", "required": false }
+          "cc": { "type": "string", "description": "CC recipient email address (or array of addresses)", "required": false },
+          "attachments": { "type": "array", "description": "Array of file attachments, each with name (string), contentType (string), and contentBytes (base64-encoded string)", "required": false }
         }
       }
     },

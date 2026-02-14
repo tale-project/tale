@@ -3,6 +3,8 @@
 import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
+import type { Id } from '@/convex/_generated/dataModel';
+
 import { CardContent } from '@/app/components/ui/layout/card';
 import { Stack, VStack, Center } from '@/app/components/ui/layout/layout';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
@@ -12,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import {
+  useDownloadAttachments,
   useGenerateUploadUrl,
   useMarkAsRead,
   useSendMessageViaIntegration,
@@ -62,6 +65,7 @@ export function ConversationPanel({
   const { mutateAsync: sendMessageViaIntegration } =
     useSendMessageViaIntegration();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  const { mutateAsync: downloadAttachments } = useDownloadAttachments();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const messageComposerRef = useRef<HTMLDivElement>(null);
@@ -121,7 +125,15 @@ export function ConversationPanel({
       return;
     }
 
-    // Upload attachments to Convex storage (stored for future reference)
+    let uploadedAttachments:
+      | Array<{
+          storageId: Id<'_storage'>;
+          fileName: string;
+          contentType: string;
+          size: number;
+        }>
+      | undefined;
+
     if (attachments && attachments.length > 0) {
       try {
         const validAttachments = attachments.filter((a) => a.file);
@@ -129,21 +141,33 @@ export function ConversationPanel({
           throw new Error(tConversations('panel.invalidFileAttachment'));
         }
 
-        const uploadUrls = await Promise.all(
-          validAttachments.map(() => generateUploadUrl({})),
-        );
-
-        await Promise.all(
-          validAttachments.map(async (attachment, index) => {
+        uploadedAttachments = await Promise.all(
+          validAttachments.map(async (attachment) => {
             const file = attachment.file;
             if (!file)
               throw new Error(tConversations('panel.invalidFileAttachment'));
 
-            await fetch(uploadUrls[index], {
+            const uploadUrl = await generateUploadUrl({});
+
+            const result = await fetch(uploadUrl, {
               method: 'POST',
               headers: { 'Content-Type': file.type },
               body: file,
             });
+
+            const json = await result.json();
+            const rawStorageId = json.storageId;
+
+            if (typeof rawStorageId !== 'string') {
+              throw new Error(tConversations('panel.uploadFailed'));
+            }
+
+            return {
+              storageId: toId<'_storage'>(rawStorageId),
+              fileName: file.name,
+              contentType: file.type,
+              size: file.size,
+            };
           }),
         );
       } catch (error) {
@@ -170,7 +194,6 @@ export function ConversationPanel({
       subject,
     });
 
-    // Send message via integration (backend resolves threading headers + connector + secrets)
     await sendMessageViaIntegration({
       conversationId: toId<'conversations'>(conversation._id),
       organizationId: conversation.organizationId,
@@ -180,9 +203,10 @@ export function ConversationPanel({
       subject: replySubject,
       html: message,
       text: message.replace(/<[^>]*>/g, ''),
+      ...(uploadedAttachments?.length
+        ? { attachments: uploadedAttachments }
+        : {}),
     });
-
-    // Convex will automatically update the conversation reactively
   };
 
   if (!selectedConversationId) {
@@ -341,7 +365,21 @@ export function ConversationPanel({
               {/* Messages for this date */}
               <Stack gap={4} className="mb-8">
                 {group.messages.map((message) => (
-                  <Message key={message.id} message={message} />
+                  <Message
+                    key={message.id}
+                    message={message}
+                    onDownloadAttachments={(messageId) => {
+                      downloadAttachments({
+                        messageId: toId<'conversationMessages'>(messageId),
+                      }).catch((error: Error) => {
+                        console.error('Failed to download attachments:', error);
+                        toast({
+                          title: tConversations('panel.downloadFailed'),
+                          variant: 'destructive',
+                        });
+                      });
+                    }}
+                  />
                 ))}
               </Stack>
             </div>

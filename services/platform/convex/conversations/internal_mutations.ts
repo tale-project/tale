@@ -9,6 +9,7 @@ import {
   conversationStatusValidator,
   conversationPriorityValidator,
   attachmentValidator,
+  emailAttachmentMetaValidator,
   messageStatusValidator,
 } from './validators';
 
@@ -53,6 +54,7 @@ export const createConversationWithMessage = internalMutation({
       isCustomer: v.boolean(),
       status: v.optional(messageStatusValidator),
       attachment: v.optional(attachmentValidator),
+      attachments: v.optional(v.array(emailAttachmentMetaValidator)),
       externalMessageId: v.optional(v.string()),
       metadata: v.optional(jsonRecordValidator),
       sentAt: v.optional(v.number()),
@@ -104,6 +106,7 @@ export const addMessageToConversation = internalMutation({
     isCustomer: v.boolean(),
     status: v.optional(v.string()),
     attachment: v.optional(attachmentValidator),
+    attachments: v.optional(v.array(emailAttachmentMetaValidator)),
     externalMessageId: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
     sentAt: v.optional(v.number()),

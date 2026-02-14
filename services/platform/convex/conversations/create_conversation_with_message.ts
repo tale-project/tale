@@ -21,6 +21,14 @@ export interface CreateConversationWithMessageArgs extends CreateConversationArg
     isCustomer: boolean;
     status?: string;
     attachment?: unknown;
+    attachments?: Array<{
+      id: string;
+      filename: string;
+      contentType: string;
+      size: number;
+      storageId?: string;
+      url?: string;
+    }>;
     externalMessageId?: string;
     metadata?: unknown;
     sentAt?: number; // Timestamp when message was sent (for outbound) or received (for inbound)
@@ -94,6 +102,9 @@ export async function createConversationWithMessage(
       isCustomer: args.initialMessage.isCustomer,
       ...(args.initialMessage.attachment
         ? { attachment: args.initialMessage.attachment }
+        : {}),
+      ...(args.initialMessage.attachments?.length
+        ? { attachments: args.initialMessage.attachments }
         : {}),
       ...(typeof args.initialMessage.metadata === 'object' &&
       args.initialMessage.metadata !== null &&

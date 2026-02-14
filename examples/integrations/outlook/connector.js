@@ -7,6 +7,7 @@ var connector = {
   operations: [
     'list_messages',
     'get_message',
+    'get_attachments',
     'search_messages',
     'send_message',
     'check_delivery',
@@ -63,6 +64,7 @@ var connector = {
     var params = ctx.params;
     var http = ctx.http;
     var secrets = ctx.secrets;
+    var files = ctx.files;
 
     var accessToken = secrets.get('accessToken');
     if (!accessToken) {
@@ -79,7 +81,10 @@ var connector = {
       return listMessages(http, headers, params);
     }
     if (operation === 'get_message') {
-      return getMessage(http, headers, params);
+      return getMessage(http, headers, params, files);
+    }
+    if (operation === 'get_attachments') {
+      return getAttachments(http, headers, files, params);
     }
     if (operation === 'search_messages') {
       return searchMessages(http, headers, params);
@@ -147,7 +152,19 @@ function mapGraphToEmailType(msg, accountEmail) {
     html: contentType === 'html' ? bodyContent : '',
     flags: msg.isRead ? ['\\Seen'] : [],
     headers: {},
-    attachments: [],
+    attachments: (msg.attachments || [])
+      .filter(function (att) {
+        return att['@odata.type'] === '#microsoft.graph.fileAttachment';
+      })
+      .map(function (att) {
+        return {
+          id: att.id,
+          filename: att.name || 'attachment',
+          contentType: att.contentType || 'application/octet-stream',
+          size: att.size || 0,
+        };
+      }),
+    hasAttachments: !!msg.hasAttachments,
     conversationId: msg.conversationId || '',
     direction: direction,
   };
@@ -200,6 +217,9 @@ function listMessages(http, headers, params) {
   if (params.skip) {
     queryParts.push('$skip=' + params.skip);
   }
+  if (params.expand) {
+    queryParts.push('$expand=' + params.expand);
+  }
 
   var url = GRAPH_BASE_URL + '/me/messages?' + queryParts.join('&');
   console.log('Fetching messages from: ' + url);
@@ -239,7 +259,7 @@ function listMessages(http, headers, params) {
   };
 }
 
-function getMessage(http, headers, params) {
+function getMessage(http, headers, params, files) {
   if (!params.messageId) {
     throw new Error('messageId is required.');
   }
@@ -251,6 +271,14 @@ function getMessage(http, headers, params) {
   handleError(response, 'get message');
 
   var message = response.json();
+
+  if (params.includeAttachments && message.hasAttachments && files) {
+    var attachmentResult = getAttachments(http, headers, files, {
+      messageId: params.messageId,
+    });
+    message.attachmentFiles = attachmentResult.data;
+  }
+
   return {
     success: true,
     operation: 'get_message',
@@ -427,6 +455,23 @@ function sendDirectMail(http, headers, params, toRecipients) {
   handleError(createResponse, 'create draft');
 
   var created = createResponse.json();
+
+  if (params.attachments && params.attachments.length > 0) {
+    var attached = addAttachmentsToDraft(
+      http,
+      headers,
+      created.id,
+      params.attachments,
+    );
+    if (!attached) {
+      return {
+        success: true,
+        operation: 'send_message',
+        data: { pending: true },
+      };
+    }
+  }
+
   return sendDraftAndReturn(
     http,
     headers,
@@ -476,6 +521,23 @@ function sendReply(http, headers, params, graphMessageId, toRecipients) {
   handleError(createResponse, 'create reply draft');
 
   var created = createResponse.json();
+
+  if (params.attachments && params.attachments.length > 0) {
+    var attached = addAttachmentsToDraft(
+      http,
+      headers,
+      created.id,
+      params.attachments,
+    );
+    if (!attached) {
+      return {
+        success: true,
+        operation: 'send_message',
+        data: { pending: true },
+      };
+    }
+  }
+
   return sendDraftAndReturn(
     http,
     headers,
@@ -709,6 +771,133 @@ function getContact(http, headers, params) {
     count: 1,
     timestamp: Date.now(),
   };
+}
+
+function getAttachments(http, headers, files, params) {
+  if (!params.messageId) {
+    throw new Error('messageId is required.');
+  }
+  if (!files) {
+    throw new Error(
+      'File storage is not available. The ctx.files API is required for attachment operations.',
+    );
+  }
+
+  // The stored externalMessageId may be an RFC 2822 internet message ID
+  // (e.g. "<ABC@prod.outlook.com>") rather than a Graph internal ID.
+  // The Graph API requires the internal ID for resource paths.
+  var graphId = params.messageId;
+  if (graphId.indexOf('<') !== -1 || graphId.indexOf('@') !== -1) {
+    var resolved = findGraphMessageByInternetId(http, headers, graphId);
+    if (!resolved || resolved === 'pending') {
+      throw new Error(
+        'Could not resolve internet message ID to Graph ID: ' + graphId,
+      );
+    }
+    graphId = resolved;
+  }
+
+  var url = GRAPH_BASE_URL + '/me/messages/' + graphId + '/attachments';
+  console.log('Fetching attachments from: ' + url);
+
+  var response = http.get(url, { headers: headers });
+  handleError(response, 'get attachments');
+
+  var data = response.json();
+  var attachments = [];
+
+  for (var i = 0; i < data.value.length; i++) {
+    var att = data.value[i];
+    if (att['@odata.type'] !== '#microsoft.graph.fileAttachment') {
+      continue;
+    }
+
+    var fileName = att.name || 'attachment';
+    var contentType = att.contentType || 'application/octet-stream';
+
+    if (att.contentBytes) {
+      var storedFile = files.store(att.contentBytes, {
+        encoding: 'base64',
+        contentType: contentType,
+        fileName: fileName,
+      });
+      attachments.push({
+        id: att.id,
+        name: fileName,
+        contentType: contentType,
+        size: att.size,
+        fileId: storedFile.fileId,
+        url: storedFile.url,
+      });
+    } else {
+      var downloadUrl =
+        GRAPH_BASE_URL +
+        '/me/messages/' +
+        graphId +
+        '/attachments/' +
+        att.id +
+        '/$value';
+      var downloadedFile = files.download(downloadUrl, {
+        headers: { Authorization: headers.Authorization },
+        fileName: fileName,
+      });
+      attachments.push({
+        id: att.id,
+        name: fileName,
+        contentType: contentType,
+        size: att.size,
+        fileId: downloadedFile.fileId,
+        url: downloadedFile.url,
+      });
+    }
+  }
+
+  return {
+    success: true,
+    operation: 'get_attachments',
+    data: attachments,
+    count: attachments.length,
+    timestamp: Date.now(),
+  };
+}
+
+function addAttachmentsToDraft(http, headers, draftId, attachments) {
+  var url = GRAPH_BASE_URL + '/me/messages/' + draftId + '/attachments';
+  for (var i = 0; i < attachments.length; i++) {
+    var att = attachments[i];
+
+    // Download the file content as base64 from Convex storage URL
+    var fileResponse = http.get(att.url, { responseType: 'base64' });
+    if (fileResponse.status === 0) {
+      return false;
+    }
+    if (fileResponse.status !== 200) {
+      throw new Error(
+        'Failed to download attachment "' +
+          att.name +
+          '" (' +
+          fileResponse.status +
+          ')',
+      );
+    }
+
+    var payload = {
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: att.name,
+      contentType: att.contentType || 'application/octet-stream',
+      contentBytes: fileResponse.body,
+    };
+    console.log('Adding attachment: ' + att.name);
+    var resp = http.post(url, {
+      headers: headers,
+      body: JSON.stringify(payload),
+    });
+    if (resp.status === 0) {
+      return false;
+    }
+    handleError(resp, 'add attachment');
+  }
+  return true;
 }
 
 function handleError(response, operation) {

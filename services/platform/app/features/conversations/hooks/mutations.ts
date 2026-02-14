@@ -40,3 +40,7 @@ export function useMarkAsRead() {
 export function useMarkAsSpam() {
   return useConvexMutation(api.conversations.mutations.markConversationAsSpam);
 }
+
+export function useDownloadAttachments() {
+  return useConvexMutation(api.conversations.mutations.downloadAttachments);
+}
