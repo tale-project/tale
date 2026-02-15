@@ -27,10 +27,7 @@
       "description": "Fetch teams the authenticated user has joined",
       "parametersSchema": {
         "type": "object",
-        "properties": {
-          "top": { "type": "number", "description": "Number of teams to return (max 999, default 50)", "required": false },
-          "skip": { "type": "number", "description": "Number of teams to skip for pagination", "required": false }
-        }
+        "properties": {}
       }
     },
     {
@@ -116,8 +113,7 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "top": { "type": "number", "description": "Number of chats to return (max 50, default 20)", "required": false },
-          "skip": { "type": "number", "description": "Number of chats to skip for pagination", "required": false }
+          "top": { "type": "number", "description": "Number of chats to return (max 50, default 20)", "required": false }
         }
       }
     },

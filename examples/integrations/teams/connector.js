@@ -151,13 +151,7 @@ function handleError(response, operation) {
 }
 
 function listTeams(http, headers, params) {
-  var top = Math.min(params.top || 50, 999);
-  var queryParts = ['$top=' + top];
-  if (params.skip) {
-    queryParts.push('$skip=' + params.skip);
-  }
-
-  var url = GRAPH_BASE_URL + '/me/joinedTeams?' + queryParts.join('&');
+  var url = GRAPH_BASE_URL + '/me/joinedTeams';
   console.log('Fetching teams from: ' + url);
 
   var response = http.get(url, { headers: headers });
@@ -380,12 +374,7 @@ function listMembers(http, headers, params) {
 
 function listChats(http, headers, params) {
   var top = Math.min(params.top || 20, 50);
-  var queryParts = ['$top=' + top];
-  if (params.skip) {
-    queryParts.push('$skip=' + params.skip);
-  }
-
-  var url = GRAPH_BASE_URL + '/me/chats?' + queryParts.join('&');
+  var url = GRAPH_BASE_URL + '/me/chats?$top=' + top;
   console.log('Fetching chats from: ' + url);
 
   var response = http.get(url, { headers: headers });
