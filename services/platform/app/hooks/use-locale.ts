@@ -4,23 +4,22 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { loadDayjsLocale } from '@/lib/utils/date/format';
 import { isValidLocale } from '@/lib/utils/intl/is-valid-locale';
+import { parseAcceptLanguage } from '@/lib/utils/intl/parse-accept-language';
+import { resolveLocale } from '@/lib/utils/intl/resolve-locale';
 
 function detectLocale(defaultLocale: string) {
   const savedLocale = localStorage.getItem('user-locale');
   if (savedLocale && isValidLocale(savedLocale)) return savedLocale;
 
-  const browserLocale = navigator.language || navigator.languages?.[0];
-  if (browserLocale && isValidLocale(browserLocale)) return browserLocale;
-
-  if (browserLocale) {
-    const base = browserLocale.split('-')[0];
-    if (base === 'en') {
-      const fallbackLocale = `${base}-US`;
-      if (isValidLocale(fallbackLocale)) return fallbackLocale;
-    }
+  const serverHeader = window.__ACCEPT_LANGUAGE__;
+  if (serverHeader) {
+    return resolveLocale(parseAcceptLanguage(serverHeader), defaultLocale);
   }
 
-  return defaultLocale;
+  return resolveLocale(
+    navigator.languages ?? [navigator.language],
+    defaultLocale,
+  );
 }
 
 /**

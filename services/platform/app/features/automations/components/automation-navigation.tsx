@@ -11,6 +11,7 @@ import {
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -41,6 +42,7 @@ interface AutomationNavigationProps {
   automationId?: string;
   userRole?: string | null;
   automation?: Doc<'wfDefinitions'> | null;
+  isLoading?: boolean;
 }
 
 export function AutomationNavigation({
@@ -48,6 +50,7 @@ export function AutomationNavigation({
   automationId,
   userRole,
   automation,
+  isLoading,
 }: AutomationNavigationProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
@@ -218,8 +221,20 @@ export function AutomationNavigation({
       ariaLabel={tCommon('aria.automationsNavigation')}
     >
       <div className="ml-auto flex items-center gap-2">
+        {isLoading && (
+          <>
+            <div className="hidden items-center gap-2 md:flex">
+              <Skeleton className="h-8 w-12 rounded-md" />
+              <Skeleton className="h-8 w-20 rounded-md" />
+            </div>
+            <div className="flex items-center gap-2 md:hidden">
+              <Skeleton className="h-8 w-8 rounded-md" />
+            </div>
+          </>
+        )}
+
         {/* Version select - hidden on mobile (shown in first header row instead) */}
-        {automation && versions && versions.length > 0 && (
+        {!isLoading && automation && versions && versions.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -252,92 +267,95 @@ export function AutomationNavigation({
         )}
 
         {/* Desktop: Show buttons directly */}
-        <div className="hidden items-center gap-4 md:flex">
-          {(automation?.status === 'draft' ||
-            automation?.status === 'archived') && (
-            <Button onClick={handlePublish} disabled={isPublishing} size="sm">
-              {isPublishing
-                ? t('navigation.publishing')
-                : t('navigation.publish')}
-            </Button>
-          )}
+        {!isLoading && (
+          <div className="hidden items-center gap-4 md:flex">
+            {(automation?.status === 'draft' ||
+              automation?.status === 'archived') && (
+              <Button onClick={handlePublish} disabled={isPublishing} size="sm">
+                {isPublishing
+                  ? t('navigation.publishing')
+                  : t('navigation.publish')}
+              </Button>
+            )}
 
-          {automation?.status === 'active' && (
-            <>
-              <Button
-                onClick={handleUnpublish}
-                disabled={isUnpublishing}
-                size="sm"
-                variant="outline"
-              >
-                <CircleStop className="mr-1.5 size-3.5" aria-hidden="true" />
-                {isUnpublishing
-                  ? tCommon('actions.deactivating')
-                  : tCommon('actions.deactivate')}
-              </Button>
-              <Button
-                onClick={handleCreateDraft}
-                disabled={isCreatingDraft}
-                size="sm"
-                variant="outline"
-              >
-                {tCommon('actions.edit')}
-              </Button>
-            </>
-          )}
-        </div>
+            {automation?.status === 'active' && (
+              <>
+                <Button
+                  onClick={handleUnpublish}
+                  disabled={isUnpublishing}
+                  size="sm"
+                  variant="outline"
+                >
+                  <CircleStop className="mr-1.5 size-3.5" aria-hidden="true" />
+                  {isUnpublishing
+                    ? tCommon('actions.deactivating')
+                    : tCommon('actions.deactivate')}
+                </Button>
+                <Button
+                  onClick={handleCreateDraft}
+                  disabled={isCreatingDraft}
+                  size="sm"
+                  variant="outline"
+                >
+                  {tCommon('actions.edit')}
+                </Button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Mobile: Show options dropdown */}
-        {(automation?.status === 'draft' ||
-          automation?.status === 'active' ||
-          automation?.status === 'archived') && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden"
-                aria-label={tCommon('aria.actionsMenu')}
-              >
-                <MoreVertical className="size-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              {(automation?.status === 'draft' ||
-                automation?.status === 'archived') && (
-                <DropdownMenuItem
-                  onClick={handlePublish}
-                  disabled={isPublishing}
+        {!isLoading &&
+          (automation?.status === 'draft' ||
+            automation?.status === 'active' ||
+            automation?.status === 'archived') && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  aria-label={tCommon('aria.actionsMenu')}
                 >
-                  <Upload className="mr-2 size-4" />
-                  {isPublishing
-                    ? t('navigation.publishing')
-                    : t('navigation.publish')}
-                </DropdownMenuItem>
-              )}
-              {automation?.status === 'active' && (
-                <>
+                  <MoreVertical className="size-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                {(automation?.status === 'draft' ||
+                  automation?.status === 'archived') && (
                   <DropdownMenuItem
-                    onClick={handleUnpublish}
-                    disabled={isUnpublishing}
+                    onClick={handlePublish}
+                    disabled={isPublishing}
                   >
-                    <CircleStop className="mr-2 size-4" />
-                    {isUnpublishing
-                      ? tCommon('actions.deactivating')
-                      : tCommon('actions.deactivate')}
+                    <Upload className="mr-2 size-4" />
+                    {isPublishing
+                      ? t('navigation.publishing')
+                      : t('navigation.publish')}
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={handleCreateDraft}
-                    disabled={isCreatingDraft}
-                  >
-                    <Pencil className="mr-2 size-4" />
-                    {tCommon('actions.edit')}
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+                )}
+                {automation?.status === 'active' && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={handleUnpublish}
+                      disabled={isUnpublishing}
+                    >
+                      <CircleStop className="mr-2 size-4" />
+                      {isUnpublishing
+                        ? tCommon('actions.deactivating')
+                        : tCommon('actions.deactivate')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleCreateDraft}
+                      disabled={isCreatingDraft}
+                    >
+                      <Pencil className="mr-2 size-4" />
+                      {tCommon('actions.edit')}
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
       </div>
     </TabNavigation>
   );

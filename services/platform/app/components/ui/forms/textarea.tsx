@@ -5,22 +5,37 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
+import { Description } from './description';
 import { Label } from './label';
 
 interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
   label?: string;
+  description?: React.ReactNode;
   errorMessage?: string;
 }
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   (
-    { className, label, required, errorMessage, id: providedId, ...props },
+    {
+      className,
+      label,
+      description,
+      required,
+      errorMessage,
+      id: providedId,
+      ...props
+    },
     ref,
   ) => {
     const generatedId = React.useId();
     const id = providedId ?? generatedId;
     const errorId = `${id}-error`;
+    const descriptionId = `${id}-description`;
     const hasError = !!errorMessage;
+    const describedBy =
+      [description && descriptionId, hasError && errorId]
+        .filter(Boolean)
+        .join(' ') || undefined;
     const [showShake, setShowShake] = React.useState(false);
 
     // Trigger shake animation when error appears
@@ -50,7 +65,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           required={required}
           aria-invalid={hasError || undefined}
-          aria-describedby={hasError ? errorId : undefined}
+          aria-describedby={describedBy}
           aria-errormessage={hasError ? errorId : undefined}
           {...props}
         />
@@ -64,6 +79,11 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             <Info className="size-4" aria-hidden="true" />
             {errorMessage}
           </p>
+        )}
+        {description && (
+          <Description id={descriptionId} className="text-xs">
+            {description}
+          </Description>
         )}
       </div>
     );

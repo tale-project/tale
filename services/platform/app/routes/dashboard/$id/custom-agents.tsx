@@ -10,8 +10,12 @@ import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents')({
+  head: () => ({
+    meta: seo('customAgents'),
+  }),
   component: CustomAgentsLayout,
 });
 

@@ -1,10 +1,11 @@
 'use client';
 
 import { Code2, Save, X } from 'lucide-react';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { z } from 'zod';
 
 import { useTheme } from '@/app/components/theme/theme-provider';
+import { Description } from '@/app/components/ui/forms/description';
 import { Label } from '@/app/components/ui/forms/label';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
@@ -36,7 +37,7 @@ interface JsonInputProps {
   label?: string;
   indentWidth?: number;
   schema?: z.ZodSchema;
-  description?: string;
+  description?: React.ReactNode;
   className?: string;
   rows?: number;
   fontSize?: number;
@@ -57,6 +58,9 @@ export function JsonInput({
   id,
 }: JsonInputProps) {
   const { t } = useT('common');
+  const generatedId = useId();
+  const resolvedId = id ?? generatedId;
+  const descriptionId = `${resolvedId}-description`;
   const [isEditing, setIsEditing] = useState(false);
   const [textValue, setTextValue] = useState(value);
   const [parsedValue, setParsedValue] = useState(() => {
@@ -303,6 +307,8 @@ export function JsonInput({
             onKeyDown={handleTextareaKeyDown}
             disabled={disabled}
             rows={rows}
+            id={resolvedId}
+            aria-describedby={description ? descriptionId : undefined}
             className={cn(
               'w-full resize-none border-0 bg-transparent p-3 text-xs focus:outline-none focus:ring-0 h-[12.5rem] overflow-y-auto',
               'font-mono leading-relaxed',
@@ -321,7 +327,11 @@ export function JsonInput({
             placeholder={JSON.stringify({ key: 'value' }, null, 2)}
           />
         ) : (
-          <div className="p-3">
+          <div
+            className="p-3"
+            role="region"
+            aria-describedby={description ? descriptionId : undefined}
+          >
             <ReactJsonView
               name={false}
               quotesOnKeys
@@ -388,7 +398,9 @@ export function JsonInput({
       )}
 
       {description && (
-        <p className="text-muted-foreground text-xs">{description}</p>
+        <Description id={descriptionId} className="text-xs">
+          {description}
+        </Description>
       )}
     </div>
   );

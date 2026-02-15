@@ -88,31 +88,6 @@ export interface ListExecutionsArgs {
   dateTo?: string;
 }
 
-export interface ListExecutionsPaginatedArgs {
-  wfDefinitionId: Doc<'wfDefinitions'>['_id'];
-  currentPage?: number;
-  pageSize?: number;
-  searchTerm?: string;
-  status?: string[];
-  triggeredBy?: string[];
-  dateFrom?: string;
-  dateTo?: string;
-  sortField?: string;
-  sortOrder?: 'asc' | 'desc';
-}
-
-export interface PaginatedExecutionsResult {
-  items: WorkflowExecution[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
-  /** True if the query hit scan limits and results may be incomplete */
-  hasMore?: boolean;
-}
-
 // =============================================================================
 // CURSOR-BASED PAGINATION (for infinite scroll)
 // =============================================================================

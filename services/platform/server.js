@@ -29,7 +29,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.get('{*path}', (_req, res) => {
+app.get('{*path}', (req, res) => {
   if (!indexHtmlTemplate) {
     indexHtmlTemplate = readFileSync(
       join(__dirname, 'dist', 'index.html'),
@@ -38,10 +38,17 @@ app.get('{*path}', (_req, res) => {
   }
 
   const envConfig = getEnvConfig();
-  const html = indexHtmlTemplate.replace(
-    /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
-    `window.__ENV__ = ${JSON.stringify(envConfig)};`,
-  );
+  const acceptLanguage = req.headers['accept-language'] || '';
+
+  const html = indexHtmlTemplate
+    .replace(
+      /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
+      `window.__ENV__ = ${JSON.stringify(envConfig)};`,
+    )
+    .replace(
+      /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
+      `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
+    );
 
   res.setHeader('Content-Type', 'text/html');
   res.send(html);

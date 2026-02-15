@@ -67,6 +67,13 @@ export const WithLabel: Story = {
   },
 };
 
+export const WithDescription: Story = {
+  args: {
+    label: 'Email notifications',
+    description: 'Receive email alerts when important events occur.',
+  },
+};
+
 export const Checked: Story = {
   args: {
     label: 'Dark mode',

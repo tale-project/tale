@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { Input } from '../forms/input';
-import { Label } from '../forms/label';
 import { Button } from '../primitives/button';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 
@@ -58,22 +57,8 @@ export const Default: Story = {
             </p>
           </div>
           <div className="grid gap-2">
-            <div className="grid grid-cols-3 items-center gap-4">
-              <Label htmlFor="width">Width</Label>
-              <Input
-                id="width"
-                defaultValue="100%"
-                className="col-span-2 h-8"
-              />
-            </div>
-            <div className="grid grid-cols-3 items-center gap-4">
-              <Label htmlFor="height">Height</Label>
-              <Input
-                id="height"
-                defaultValue="25px"
-                className="col-span-2 h-8"
-              />
-            </div>
+            <Input label="Width" defaultValue="100%" className="h-8" />
+            <Input label="Height" defaultValue="25px" className="h-8" />
           </div>
         </div>
       </PopoverContent>

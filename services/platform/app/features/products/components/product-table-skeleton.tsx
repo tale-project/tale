@@ -7,17 +7,20 @@ import { ProductsActionMenu } from './products-action-menu';
 
 interface ProductTableSkeletonProps {
   organizationId: string;
+  rows?: number;
 }
 
 /** Skeleton-only version for Suspense fallback */
 export function ProductTableSkeleton({
   organizationId,
+  rows,
 }: ProductTableSkeletonProps) {
   const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
     useProductsTableConfig();
 
   return (
     <DataTableSkeleton
+      rows={rows}
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}

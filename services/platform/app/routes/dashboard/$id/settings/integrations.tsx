@@ -14,18 +14,25 @@ import {
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
   tab: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
+  head: () => ({
+    meta: seo('integrations'),
+  }),
   validateSearch: searchSchema,
   loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.integrations.queries.list, {
         organizationId: params.id,
       }),
+    );
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.sso_providers.queries.get, {}),
     );
   },
   component: IntegrationsPage,

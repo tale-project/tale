@@ -11,8 +11,12 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { KnowledgeNavigation } from '@/app/features/knowledge/components/knowledge-navigation';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge')({
+  head: () => ({
+    meta: seo('knowledge'),
+  }),
   component: KnowledgeLayout,
 });
 

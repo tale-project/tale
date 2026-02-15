@@ -15,8 +15,6 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { cn } from '@/lib/utils/cn';
 
-import { DataTablePagination } from './data-table-pagination';
-
 /** Skeleton type for different cell content patterns */
 type SkeletonType = 'text' | 'badge' | 'id-copy' | 'avatar-text' | 'action';
 
@@ -50,10 +48,6 @@ export interface DataTableSkeletonProps<TData = unknown, TValue = unknown> {
   searchPlaceholder?: string;
   /** Action menu element to render in the header */
   actionMenu?: ReactNode;
-  /** Whether to show the pagination skeleton (for offset-based pagination) */
-  showPagination?: boolean;
-  /** Page size for pagination display */
-  pageSize?: number;
   /** Additional class name */
   className?: string;
   /** Disable default avatar layout for first column */
@@ -74,6 +68,7 @@ interface ColumnMeta {
   isAction?: boolean;
   hasAvatar?: boolean;
   skeleton?: { type?: SkeletonType };
+  headerLabel?: string;
 }
 
 /** Extract skeleton column info from TanStack Table column definitions */
@@ -98,7 +93,9 @@ function normalizeColumns<TData, TValue>(
     const meta = tanstackCol.meta as ColumnMeta | undefined;
     return {
       header:
-        typeof tanstackCol.header === 'string' ? tanstackCol.header : undefined,
+        typeof tanstackCol.header === 'string'
+          ? tanstackCol.header
+          : meta?.headerLabel,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table ColumnDef.size is number | undefined; narrowed by 'in' check
       size: 'size' in tanstackCol ? (tanstackCol.size as number) : undefined,
       isAction: meta?.isAction,
@@ -127,8 +124,6 @@ export function DataTableSkeleton<TData = unknown, TValue = unknown>({
   showHeader = true,
   searchPlaceholder,
   actionMenu,
-  showPagination = true,
-  pageSize = 10,
   className,
   noFirstColumnAvatar = false,
   stickyLayout = false,
@@ -267,17 +262,6 @@ export function DataTableSkeleton<TData = unknown, TValue = unknown>({
     </div>
   ) : null;
 
-  // Pagination content for offset-based pagination
-  const paginationContent = showPagination && !infiniteScroll && (
-    <DataTablePagination
-      currentPage={1}
-      total={0}
-      pageSize={pageSize}
-      totalPages={1}
-      isLoading
-    />
-  );
-
   // Infinite scroll content (load more button skeleton) for cursor-based pagination
   const infiniteScrollContent = infiniteScroll && (
     <div className="border-border flex justify-center border-t py-3">
@@ -294,9 +278,6 @@ export function DataTableSkeleton<TData = unknown, TValue = unknown>({
           {tableContent}
           {infiniteScrollContent}
         </div>
-        {paginationContent && (
-          <div className="shrink-0 pt-6">{paginationContent}</div>
-        )}
       </div>
     );
   }
@@ -308,7 +289,6 @@ export function DataTableSkeleton<TData = unknown, TValue = unknown>({
         {tableContent}
         {infiniteScrollContent}
       </div>
-      {paginationContent}
     </Stack>
   );
 }

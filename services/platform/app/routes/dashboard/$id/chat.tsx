@@ -10,8 +10,12 @@ import {
   useChatLayout,
 } from '@/app/features/chat/context/chat-layout-context';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/chat')({
+  head: () => ({
+    meta: seo('chat'),
+  }),
   component: ChatLayout,
 });
 

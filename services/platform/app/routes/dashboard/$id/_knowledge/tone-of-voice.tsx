@@ -12,6 +12,7 @@ import {
 } from '@/app/features/tone-of-voice/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
   page: z.string().optional(),
@@ -19,6 +20,9 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')(
   {
+    head: () => ({
+      meta: seo('toneOfVoice'),
+    }),
     validateSearch: searchSchema,
     loader: ({ context, params }) => {
       void context.queryClient.prefetchQuery(

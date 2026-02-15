@@ -97,7 +97,7 @@ export interface DataTableProps<TData, TValue = unknown> {
     isInitialLoading?: boolean;
     /** Enable automatic loading on scroll (default: true) */
     autoLoad?: boolean;
-    /** Distance from bottom to trigger load in px (default: 500) */
+    /** Distance from bottom to trigger load in px (default: 1000) */
     threshold?: number;
   };
   /** Sorting configuration from useDataTable hook */
@@ -252,7 +252,7 @@ export function DataTable<TData, TValue = unknown>({
     onLoadMore: infiniteScroll?.onLoadMore ?? noop,
     hasMore: infiniteScroll?.hasMore ?? false,
     isLoading: infiniteScroll?.isLoadingMore ?? false,
-    threshold: infiniteScroll?.threshold ?? 500,
+    threshold: infiniteScroll?.threshold ?? 1000,
     enabled: !!(infiniteScroll && infiniteScroll.autoLoad !== false),
     root: stickyLayout ? scrollContainerRef : undefined,
   });

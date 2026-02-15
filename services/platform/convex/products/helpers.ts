@@ -8,7 +8,6 @@ export * from './update_products';
 export * from './list_by_organization';
 export * from './filter_products';
 
-export * from './get_products';
 export * from './get_products_cursor';
 export * from './get_product';
 export * from './create_product_with_translations';

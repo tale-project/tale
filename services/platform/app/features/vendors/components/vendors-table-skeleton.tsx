@@ -7,17 +7,20 @@ import { VendorsActionMenu } from './vendors-action-menu';
 
 interface VendorsTableSkeletonProps {
   organizationId: string;
+  rows?: number;
 }
 
 /** Skeleton-only version for Suspense fallback */
 export function VendorsTableSkeleton({
   organizationId,
+  rows,
 }: VendorsTableSkeletonProps) {
   const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
     useVendorsTableConfig();
 
   return (
     <DataTableSkeleton
+      rows={rows}
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}

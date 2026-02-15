@@ -14,7 +14,7 @@ export const useCustomersTableConfig = createTableConfigHook<'customers'>(
   ({ tTables, builders }) => [
     {
       accessorKey: 'name',
-      header: () => tTables('headers.name'),
+      header: tTables('headers.name'),
       size: 278,
       cell: ({ row }) => (
         <Stack gap={1}>
@@ -29,7 +29,7 @@ export const useCustomersTableConfig = createTableConfigHook<'customers'>(
     },
     {
       accessorKey: 'status',
-      header: () => tTables('headers.status'),
+      header: tTables('headers.status'),
       size: 140,
       cell: ({ row }) => <CustomerStatusBadge status={row.original.status} />,
     },

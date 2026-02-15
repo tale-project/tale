@@ -64,6 +64,20 @@ export const WithLabel: Story = {
   },
 };
 
+export const WithDescription: Story = {
+  render: () => (
+    <RadioGroup
+      defaultValue="email"
+      label="Notification preferences"
+      description="Choose how you want to receive notifications."
+    >
+      <RadioGroupItem value="email" label="Email notifications" />
+      <RadioGroupItem value="sms" label="SMS notifications" />
+      <RadioGroupItem value="push" label="Push notifications" />
+    </RadioGroup>
+  ),
+};
+
 export const Horizontal: Story = {
   render: () => (
     <RadioGroup defaultValue="medium" className="flex gap-4">

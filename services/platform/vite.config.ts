@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import tsConfigPaths from 'vite-tsconfig-paths';
 
+import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectEnv } from './vite-plugins/inject-env';
 import { stubSSRImports } from './vite-plugins/stub-ssr';
 
@@ -109,6 +110,7 @@ export default defineConfig({
   plugins: [
     tanstackRouter(),
     injectEnv(),
+    injectAcceptLanguage(),
     stubSSRImports(),
     tsConfigPaths(),
     viteReact(),

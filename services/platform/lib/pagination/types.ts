@@ -1,9 +1,8 @@
 /**
- * Unified pagination and filtering types for the frontend
+ * Filtering and sorting types for the frontend
  *
  * These types are used by:
  * - useUrlFilters hook for URL state management
- * - useOffsetPaginatedQuery / useCursorPaginatedQuery hooks
  * - Server-side URL parsing utilities
  */
 
@@ -144,18 +143,6 @@ interface SortingItem {
 export type SortingState = SortingItem[];
 
 // ============================================================================
-// PAGINATION TYPES
-// ============================================================================
-
-/**
- * Offset-based pagination state (for page numbers)
- */
-export interface OffsetPaginationState {
-  page: number;
-  pageSize: number;
-}
-
-// ============================================================================
 // HOOK RETURN TYPES
 // ============================================================================
 
@@ -167,8 +154,6 @@ export interface UseUrlFiltersReturn<T extends FilterDefinitions> {
   filters: ParsedFilters<T>;
   /** Filter definitions for rendering UI */
   definitions: T;
-  /** Current pagination state */
-  pagination: OffsetPaginationState;
   /** Current sorting state (TanStack Table compatible) */
   sorting: SortingState;
   /** Update a single filter value */
@@ -176,10 +161,6 @@ export interface UseUrlFiltersReturn<T extends FilterDefinitions> {
     key: K,
     value: ParsedFilterValue<T[K]>,
   ) => void;
-  /** Set current page */
-  setPage: (page: number) => void;
-  /** Set page size */
-  setPageSize: (size: number) => void;
   /** Set sorting state (TanStack Table compatible) */
   setSorting: (
     sorting: SortingState | ((prev: SortingState) => SortingState),

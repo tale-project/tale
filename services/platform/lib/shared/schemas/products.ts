@@ -11,16 +11,6 @@ const productStatusLiterals = [
 export const productStatusSchema = z.enum(productStatusLiterals);
 type ProductStatus = z.infer<typeof productStatusSchema>;
 
-const productSortByLiterals = [
-  'name',
-  'createdAt',
-  'lastUpdated',
-  'stock',
-  'price',
-] as const;
-export const productSortBySchema = z.enum(productSortByLiterals);
-type ProductSortBy = z.infer<typeof productSortBySchema>;
-
 export const productTranslationSchema = z.object({
   language: z.string(),
   name: z.string().optional(),
@@ -51,16 +41,6 @@ export const productItemSchema = z.object({
   metadata: jsonRecordSchema.optional(),
 });
 type ProductItem = z.infer<typeof productItemSchema>;
-
-export const productListResponseSchema = z.object({
-  products: z.array(productItemSchema),
-  total: z.number(),
-  hasNextPage: z.boolean(),
-  currentPage: z.number(),
-  pageSize: z.number(),
-  error: z.string().optional(),
-});
-type ProductListResponse = z.infer<typeof productListResponseSchema>;
 
 const productDocSchema = z.object({
   _id: z.string(),

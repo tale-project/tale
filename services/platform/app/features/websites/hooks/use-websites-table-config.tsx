@@ -17,7 +17,7 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
   ({ tTables, builders }) => [
     {
       accessorKey: 'domain',
-      header: () => tTables('headers.website'),
+      header: tTables('headers.website'),
       size: 256,
       cell: ({ row }) => (
         <HStack gap={2}>
@@ -32,7 +32,7 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
     },
     {
       accessorKey: 'title',
-      header: () => tTables('headers.title'),
+      header: tTables('headers.title'),
       size: 192,
       cell: ({ row }) => (
         <div className="text-foreground max-w-sm truncate text-sm">
@@ -42,7 +42,7 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
     },
     {
       accessorKey: 'description',
-      header: () => tTables('headers.description'),
+      header: tTables('headers.description'),
       size: 256,
       cell: ({ row }) => (
         <div className="text-muted-foreground max-w-sm truncate text-xs">
@@ -54,17 +54,24 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
     },
     {
       accessorKey: 'lastScannedAt',
-      header: () => tTables('headers.scanned'),
+      header: () => (
+        <span className="block w-full text-right">
+          {tTables('headers.scanned')}
+        </span>
+      ),
       size: 128,
+      meta: { headerLabel: tTables('headers.scanned') },
       cell: ({ row }) =>
         row.original.lastScannedAt ? (
           <TableDateCell
             date={row.original.lastScannedAt}
             preset="short"
-            className="text-xs"
+            alignRight
           />
         ) : (
-          <Loader className="text-muted-foreground size-4 animate-spin" />
+          <div className="flex justify-end">
+            <Loader className="text-muted-foreground size-4 animate-spin" />
+          </div>
         ),
     },
     {
@@ -75,6 +82,7 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
         </span>
       ),
       size: 96,
+      meta: { headerLabel: tTables('headers.interval') },
       cell: ({ row }) => (
         <span className="text-muted-foreground block w-full text-right text-xs">
           {row.original.scanInterval}

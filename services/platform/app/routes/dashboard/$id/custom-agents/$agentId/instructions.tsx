@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback } from 'react';
 import { useForm } from 'react-hook-form';
@@ -13,13 +14,23 @@ import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutatio
 import { useModelPresets } from '@/app/features/custom-agents/hooks/queries';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { FILE_PREPROCESSING_INSTRUCTIONS } from '@/lib/shared/constants/custom-agents';
+import { seo } from '@/lib/utils/seo';
 import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute(
   '/dashboard/$id/custom-agents/$agentId/instructions',
 )({
+  head: () => ({
+    meta: seo('agentInstructions'),
+  }),
+  loader: ({ context }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.custom_agents.queries.getModelPresets, {}),
+    );
+  },
   component: InstructionsTab,
 });
 

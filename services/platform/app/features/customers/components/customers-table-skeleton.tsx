@@ -7,17 +7,20 @@ import { CustomersActionMenu } from './customers-action-menu';
 
 interface CustomersTableSkeletonProps {
   organizationId: string;
+  rows?: number;
 }
 
 /** Skeleton-only version for Suspense fallback */
 export function CustomersTableSkeleton({
   organizationId,
+  rows,
 }: CustomersTableSkeletonProps) {
   const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
     useCustomersTableConfig();
 
   return (
     <DataTableSkeleton
+      rows={rows}
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}

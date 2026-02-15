@@ -81,6 +81,14 @@ export const WithLabel: Story = {
   },
 };
 
+export const WithDescription: Story = {
+  args: {
+    label: 'Bio',
+    description: 'Write a short description about yourself.',
+    placeholder: 'Tell us about yourself...',
+  },
+};
+
 export const Required: Story = {
   args: {
     label: 'Bio',

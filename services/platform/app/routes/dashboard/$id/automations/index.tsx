@@ -9,14 +9,20 @@ import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-e
 import { AutomationsClient } from '@/app/features/automations/components/automations-client';
 import { AutomationsTableSkeleton } from '@/app/features/automations/components/automations-table-skeleton';
 import { useAutomations } from '@/app/features/automations/hooks/queries';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute('/dashboard/$id/automations/')({
-  loader: ({ context, params }) => {
+  loader: async ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.wf_definitions.queries.listAutomations, {
+        organizationId: params.id,
+      }),
+    );
+    await context.queryClient.ensureQueryData(
+      convexQuery(api.wf_definitions.queries.countAutomations, {
         organizationId: params.id,
       }),
     );
@@ -55,10 +61,21 @@ function AutomationsPage() {
   const { automations, isLoading: isAutomationsLoading } =
     useAutomations(organizationId);
 
+  const { data: count } = useConvexQuery(
+    api.wf_definitions.queries.countAutomations,
+    { organizationId },
+  );
+
   if (isMemberLoading || isAutomationsLoading) {
+    if (count === 0) {
+      return <AutomationsEmptyState organizationId={organizationId} />;
+    }
     return (
       <ContentWrapper>
-        <AutomationsTableSkeleton organizationId={organizationId} />
+        <AutomationsTableSkeleton
+          organizationId={organizationId}
+          rows={Math.min(count ?? 10, 10)}
+        />
       </ContentWrapper>
     );
   }

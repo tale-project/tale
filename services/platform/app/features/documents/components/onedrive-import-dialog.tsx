@@ -151,9 +151,7 @@ function SharePointSitesTable({
   );
 
   if (isLoading) {
-    return (
-      <DataTableSkeleton columns={columns} rows={5} showPagination={false} />
-    );
+    return <DataTableSkeleton columns={columns} rows={5} />;
   }
 
   if (!sites || sites.length === 0) {
@@ -237,9 +235,7 @@ function SharePointDrivesTable({
   );
 
   if (isLoading) {
-    return (
-      <DataTableSkeleton columns={columns} rows={5} showPagination={false} />
-    );
+    return <DataTableSkeleton columns={columns} rows={5} />;
   }
 
   if (!drives || drives.length === 0) {
@@ -435,9 +431,7 @@ function OneDriveFileTable({
 
   // Show skeleton while loading
   if (isLoading) {
-    return (
-      <DataTableSkeleton columns={columns} rows={5} showPagination={false} />
-    );
+    return <DataTableSkeleton columns={columns} rows={5} />;
   }
 
   return (

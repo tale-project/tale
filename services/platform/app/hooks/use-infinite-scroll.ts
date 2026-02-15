@@ -19,7 +19,7 @@ interface UseInfiniteScrollOptions {
    */
   isLoading: boolean;
   /**
-   * Distance from bottom in pixels to trigger loading (default: 500px)
+   * Distance from bottom in pixels to trigger loading (default: 1000px)
    * Positive value means trigger BEFORE reaching the sentinel
    */
   threshold?: number;
@@ -67,7 +67,7 @@ interface UseInfiniteScrollReturn {
  *   onLoadMore: handleLoadMore,
  *   hasMore: status === 'CanLoadMore',
  *   isLoading: status === 'LoadingMore',
- *   threshold: 500,
+ *   threshold: 1000,
  * });
  *
  * return (
@@ -82,7 +82,7 @@ export function useInfiniteScroll({
   onLoadMore,
   hasMore,
   isLoading,
-  threshold = 500,
+  threshold = 1000,
   enabled = true,
   root,
 }: UseInfiniteScrollOptions): UseInfiniteScrollReturn {

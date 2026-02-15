@@ -20,7 +20,6 @@ import {
   setComponentWorkflowArgsSchema,
   updateExecutionVariablesArgsSchema,
   listExecutionsArgsSchema,
-  listExecutionsPaginatedArgsSchema,
   listExecutionsCursorArgsSchema,
 } from '../../../lib/shared/schemas/wf_executions';
 
@@ -35,7 +34,6 @@ export {
   updateExecutionMetadataArgsSchema,
   updateExecutionVariablesArgsSchema,
   listExecutionsArgsSchema,
-  listExecutionsPaginatedArgsSchema,
   listExecutionsCursorArgsSchema,
 } from '../../../lib/shared/schemas/wf_executions';
 
@@ -58,9 +56,6 @@ export const updateExecutionVariablesArgsValidator = zodToConvex(
 );
 export const listExecutionsArgsValidator = zodToConvex(
   listExecutionsArgsSchema,
-);
-export const listExecutionsPaginatedArgsValidator = zodToConvex(
-  listExecutionsPaginatedArgsSchema,
 );
 export const listExecutionsCursorArgsValidator = zodToConvex(
   listExecutionsCursorArgsSchema,

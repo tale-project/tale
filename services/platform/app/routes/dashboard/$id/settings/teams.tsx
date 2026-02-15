@@ -1,58 +1,49 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { TeamsSettings } from '@/app/features/settings/teams/components/teams-settings';
+import { TeamsEmptyState } from '@/app/features/settings/teams/components/teams-empty-state';
+import { TeamsTable } from '@/app/features/settings/teams/components/teams-table';
+import { TeamsTableSkeleton } from '@/app/features/settings/teams/components/teams-table-skeleton';
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/teams')({
+  head: () => ({
+    meta: seo('teams'),
+  }),
   component: TeamsSettingsPage,
 });
-
-function TeamsSettingsSkeleton() {
-  const { t } = useT('settings');
-
-  return (
-    <Stack>
-      <Stack gap={1}>
-        <Skeleton className="h-6 w-32" />
-        <Skeleton className="h-4 w-64" />
-      </Stack>
-
-      <HStack justify="between" className="pt-4">
-        <Skeleton className="h-9 w-full max-w-sm" />
-        <Skeleton className="h-9 w-32" />
-      </HStack>
-
-      <DataTableSkeleton
-        rows={5}
-        columns={[
-          { header: t('teams.columns.name'), size: 300 },
-          { isAction: true, size: 80 },
-        ]}
-        showHeader
-      />
-    </Stack>
-  );
-}
 
 function TeamsSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
-  const { data: memberContext, isLoading } =
+  const { data: memberContext, isLoading: isMemberLoading } =
     useCurrentMemberContext(organizationId);
 
-  if (isLoading) {
-    return <TeamsSettingsSkeleton />;
+  if (isMemberLoading) {
+    return <TeamsTableSkeleton organizationId={organizationId} />;
   }
 
   if (!memberContext || !memberContext.isAdmin) {
     return <AccessDenied message={t('teams')} />;
   }
 
-  return <TeamsSettings organizationId={organizationId} />;
+  return <TeamsContent organizationId={organizationId} />;
+}
+
+function TeamsContent({ organizationId }: { organizationId: string }) {
+  const { teams, isLoading } = useTeams();
+
+  if (isLoading) {
+    return <TeamsTableSkeleton organizationId={organizationId} />;
+  }
+
+  if (!teams || teams.length === 0) {
+    return <TeamsEmptyState organizationId={organizationId} />;
+  }
+
+  return <TeamsTable teams={teams} organizationId={organizationId} />;
 }

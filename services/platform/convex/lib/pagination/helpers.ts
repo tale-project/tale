@@ -1,11 +1,6 @@
 import type { GenericDocument } from 'convex/server';
 
-import {
-  DEFAULT_PAGE,
-  DEFAULT_PAGE_SIZE,
-  MAX_PAGE_SIZE,
-  type CursorPaginatedResult,
-} from './types';
+import type { CursorPaginatedResult } from './types';
 
 export async function paginateWithFilter<T extends GenericDocument>(
   query: AsyncIterable<T>,
@@ -58,35 +53,5 @@ export async function paginateWithFilter<T extends GenericDocument>(
     continueCursor:
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- GenericDocument._id is Value; always string at runtime
       items.length > 0 ? (items[items.length - 1]._id as string) : '',
-  };
-}
-
-export function normalizePaginationOptions(options?: {
-  page?: number;
-  pageSize?: number;
-}): { page: number; pageSize: number } {
-  return {
-    page: Math.max(options?.page ?? DEFAULT_PAGE, 1),
-    pageSize: Math.min(
-      Math.max(options?.pageSize ?? DEFAULT_PAGE_SIZE, 1),
-      MAX_PAGE_SIZE,
-    ),
-  };
-}
-
-export function calculatePaginationMeta(
-  total: number,
-  page: number,
-  pageSize: number,
-): {
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
-} {
-  const totalPages = Math.ceil(total / pageSize);
-  return {
-    totalPages,
-    hasNextPage: page < totalPages,
-    hasPreviousPage: page > 1,
   };
 }

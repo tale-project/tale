@@ -18,7 +18,7 @@ import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack, Center } from '@/app/components/ui/layout/layout';
+import { Center } from '@/app/components/ui/layout/layout';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +40,7 @@ import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { seo } from '@/lib/utils/seo';
 
 const AutomationSteps = lazy(() =>
   import('@/app/features/automations/components/automation-steps').then(
@@ -54,6 +55,9 @@ const searchSchema = z.object({
 });
 
 export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
+  head: () => ({
+    meta: seo('automation'),
+  }),
   validateSearch: searchSchema,
   loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
@@ -70,10 +74,37 @@ export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
   component: AutomationDetailLayout,
 });
 
+function StepCardSkeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        'w-[18.75rem] rounded-lg border border-border bg-card shadow-sm',
+        className,
+      )}
+    >
+      <div className="flex gap-3 px-2.5 py-2">
+        <Skeleton className="size-5 shrink-0 rounded-sm" />
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <Skeleton className="h-3.5 w-24" />
+          <Skeleton className="h-2.5 w-40" />
+        </div>
+        <Skeleton className="h-4 w-10 rounded-full" />
+      </div>
+    </div>
+  );
+}
+
+function ConnectorLine() {
+  return (
+    <div className="border-muted-foreground/30 mx-auto h-8 w-0 border-l-2" />
+  );
+}
+
 function AutomationStepsSkeleton() {
   return (
     <div className="flex size-full max-h-full flex-1 justify-stretch">
       <div className="bg-background relative min-h-0 flex-[1_1_0]">
+        {/* Dot grid background */}
         <div
           className="absolute inset-0 opacity-20"
           style={{
@@ -82,17 +113,31 @@ function AutomationStepsSkeleton() {
             backgroundSize: '20px 20px',
           }}
         />
+
+        {/* Workflow step cards */}
         <Center className="absolute inset-0">
-          <Stack gap={4} className="w-full max-w-sm text-center">
-            <Skeleton className="mx-auto h-20 w-72 rounded-lg" />
-            <Skeleton className="mx-auto h-4 w-48" />
-          </Stack>
+          <div className="flex flex-col items-center">
+            <StepCardSkeleton />
+            <ConnectorLine />
+            <StepCardSkeleton />
+            <ConnectorLine />
+            <StepCardSkeleton />
+          </div>
         </Center>
+
+        {/* Minimap skeleton */}
         <div className="absolute right-4 bottom-4">
-          <Skeleton className="h-32 w-48 rounded-lg" />
+          <Skeleton className="h-[128px] w-[192px] rounded-lg" />
         </div>
+
+        {/* Toolbar skeleton */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-          <Skeleton className="h-9 w-32 rounded-lg" />
+          <div className="ring-border bg-background flex items-center gap-2 rounded-lg p-1 shadow-sm ring-1">
+            <Skeleton className="size-8 rounded-md" />
+            <Skeleton className="size-8 rounded-md" />
+            <Skeleton className="size-8 rounded-md" />
+            <Skeleton className="size-8 rounded-md" />
+          </div>
         </div>
       </div>
     </div>
@@ -116,9 +161,11 @@ function AutomationDetailLayout() {
   const { mutateAsync: updateWorkflow, isPending: isUpdating } =
     useUpdateAutomation();
 
-  const { data: automation } = useWorkflow(automationId);
-  const { steps } = useWorkflowSteps(amId);
+  const { data: automation, isLoading: isLoadingAutomation } =
+    useWorkflow(automationId);
+  const { steps, isLoading: isLoadingSteps } = useWorkflowSteps(amId);
   const { data: memberContext } = useCurrentMemberContext(organizationId);
+  const isLoading = isLoadingAutomation || isLoadingSteps;
   const { data: versions } = useListWorkflowVersions(
     organizationId,
     automation?.name,
@@ -159,22 +206,25 @@ function AutomationDetailLayout() {
             <Link
               to="/dashboard/$id/automations"
               params={{ id: organizationId }}
-              className={cn(
-                'hidden md:inline text-foreground',
-                automation?.name && 'text-muted-foreground cursor-pointer',
-              )}
+              className="text-muted-foreground hidden cursor-pointer md:inline"
             >
               {t('title')}&nbsp;&nbsp;
             </Link>
-            {automation?.name && !editMode && (
+            {!isLoading && automation?.name && !editMode && (
               <button
                 type="button"
                 className="text-foreground font-inherit cursor-pointer appearance-none border-none bg-transparent p-0"
                 onClick={() => setEditMode(true)}
               >
                 <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-                {automation?.name}
+                {automation.name}
               </button>
+            )}
+            {isLoading && (
+              <>
+                <span className="hidden md:inline">/&nbsp;&nbsp;</span>
+                <Skeleton className="inline-block h-4 w-32 align-middle" />
+              </>
             )}
           </h1>
           {editMode && (
@@ -194,17 +244,18 @@ function AutomationDetailLayout() {
               }}
             />
           )}
-          {automation?.status === 'draft' && (
+          {isLoading && <Skeleton className="ml-2 h-5 w-14 rounded-full" />}
+          {!isLoading && automation?.status === 'draft' && (
             <Badge variant="outline" className="ml-2">
               {tCommon('status.draft')}
             </Badge>
           )}
-          {automation?.status === 'active' && (
+          {!isLoading && automation?.status === 'active' && (
             <Badge variant="green" className="ml-2">
               {tCommon('status.active')}
             </Badge>
           )}
-          {automation?.status === 'archived' && (
+          {!isLoading && automation?.status === 'archived' && (
             <Badge variant="outline" className="ml-2">
               {tCommon('status.archived')}
             </Badge>
@@ -246,19 +297,24 @@ function AutomationDetailLayout() {
           automationId={amId}
           automation={automation}
           userRole={memberContext?.role ?? 'Member'}
+          isLoading={isLoading}
         />
       </StickyHeader>
       <LayoutErrorBoundary organizationId={organizationId}>
         {isExactAutomationPage ? (
-          <Suspense fallback={<AutomationStepsSkeleton />}>
-            <AutomationSteps
-              status={status}
-              className="flex-1"
-              steps={steps || []}
-              organizationId={organizationId}
-              automationId={automationId}
-            />
-          </Suspense>
+          isLoading ? (
+            <AutomationStepsSkeleton />
+          ) : (
+            <Suspense fallback={<AutomationStepsSkeleton />}>
+              <AutomationSteps
+                status={status}
+                className="flex-1"
+                steps={steps || []}
+                organizationId={organizationId}
+                automationId={automationId}
+              />
+            </Suspense>
+          )
         ) : (
           <Outlet />
         )}

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
@@ -25,7 +26,6 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 interface ExampleMessage {
@@ -58,7 +58,6 @@ export function ExampleMessagesTable({
   const { t: tTone } = useT('toneOfVoice');
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
-  const { formatDate } = useFormatDate();
   const search = useSearch({ strict: false });
   const itemsPerPage = 5;
 
@@ -86,14 +85,19 @@ export function ExampleMessagesTable({
       },
       {
         accessorKey: 'updatedAt',
-        header: tTables('headers.updated'),
-        size: 140,
-        cell: ({ row }) => (
-          <span className="text-muted-foreground text-xs tracking-[-0.072px]">
-            {formatDate(row.original.updatedAt, undefined, {
-              customFormat: 'YYYY-MM-DD',
-            })}
+        header: () => (
+          <span className="block w-full text-right">
+            {tTables('headers.updated')}
           </span>
+        ),
+        size: 140,
+        meta: { headerLabel: tTables('headers.updated') },
+        cell: ({ row }) => (
+          <TableDateCell
+            date={row.original.updatedAt}
+            preset="short"
+            alignRight
+          />
         ),
       },
       {
@@ -132,14 +136,7 @@ export function ExampleMessagesTable({
       },
     ],
     // locale is not used in column definitions
-    [
-      tTables,
-      tCommon,
-      onViewExample,
-      onEditExample,
-      onDeleteExample,
-      formatDate,
-    ],
+    [tTables, tCommon, onViewExample, onEditExample, onDeleteExample],
   );
 
   // Header component

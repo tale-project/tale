@@ -12,11 +12,43 @@ import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
 
+const COUNT_CAP = 20;
+
 const STATUS_PRIORITY: Record<string, number> = {
   active: 0,
   draft: 1,
   archived: 2,
 };
+
+export const countCustomAgents = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+
+    const agents = ctx.db
+      .query('customAgents')
+      .withIndex('by_org_active_status', (q) =>
+        q.eq('organizationId', args.organizationId).eq('isActive', true),
+      );
+
+    const seenRoots = new Set<string>();
+    for await (const agent of agents) {
+      if (!hasTeamAccess(agent, userTeamIds)) continue;
+
+      const rootId = agent.rootVersionId ?? agent._id;
+      seenRoots.add(rootId);
+      if (seenRoots.size >= COUNT_CAP) break;
+    }
+
+    return seenRoots.size;
+  },
+});
 
 export const listCustomAgents = query({
   args: {

@@ -7,24 +7,28 @@ import { CustomAgentsActionMenu } from './custom-agents-action-menu';
 
 interface CustomAgentsTableSkeletonProps {
   organizationId: string;
+  rows?: number;
 }
 
 export function CustomAgentsTableSkeleton({
   organizationId,
+  rows,
 }: CustomAgentsTableSkeletonProps) {
   const { t } = useT('settings');
+  const { t: tTables } = useT('tables');
 
   return (
     <DataTableSkeleton
+      rows={rows}
       className="px-4 py-6"
       columns={[
-        { size: 250 },
-        { size: 140 },
-        { size: 80 },
-        { size: 200 },
-        { size: 100 },
-        { size: 140 },
-        { size: 80 },
+        { header: t('customAgents.columns.displayName'), size: 250 },
+        { header: tTables('headers.status'), size: 140 },
+        { header: t('customAgents.columns.active'), size: 80 },
+        { header: t('customAgents.columns.modelPreset'), size: 200 },
+        { header: t('customAgents.columns.tools'), size: 100 },
+        { header: t('customAgents.columns.team'), size: 140 },
+        { isAction: true, size: 80 },
       ]}
       noFirstColumnAvatar
       searchPlaceholder={t('customAgents.searchAgent')}

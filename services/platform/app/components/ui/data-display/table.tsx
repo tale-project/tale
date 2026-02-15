@@ -52,7 +52,11 @@ const TableBody = forwardRef<
   HTMLTableSectionElement,
   HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <tbody ref={ref} className={cn('', className)} {...props} />
+  <tbody
+    ref={ref}
+    className={cn('[&_tr:hover]:bg-secondary/20', className)}
+    {...props}
+  />
 ));
 TableBody.displayName = 'TableBody';
 
@@ -63,7 +67,7 @@ const TableRow = forwardRef<
   <tr
     ref={ref}
     className={cn(
-      'border-b last:border-b-0 transition-colors hover:bg-secondary/20 data-[state=selected]:bg-muted',
+      'border-b last:border-b-0 transition-colors data-[state=selected]:bg-muted',
       className,
     )}
     {...props}

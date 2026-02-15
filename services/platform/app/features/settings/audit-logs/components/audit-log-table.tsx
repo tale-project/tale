@@ -8,6 +8,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
+import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -32,7 +33,7 @@ export function AuditLogTable({
   category,
 }: AuditLogTableProps) {
   const navigate = useNavigate();
-  const { formatDate, formatRelative } = useFormatDate();
+  const { formatDate } = useFormatDate();
   const { t } = useT('settings');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
@@ -87,13 +88,20 @@ export function AuditLogTable({
     () => [
       {
         accessorKey: 'timestamp',
-        header: t('logs.audit.columns.timestamp'),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground text-sm whitespace-nowrap">
-            {formatRelative(new Date(row.original.timestamp))}
+        header: () => (
+          <span className="block w-full text-right">
+            {t('logs.audit.columns.timestamp')}
           </span>
         ),
         size: 140,
+        meta: { headerLabel: t('logs.audit.columns.timestamp') },
+        cell: ({ row }) => (
+          <TableDateCell
+            date={row.original.timestamp}
+            preset="relative"
+            alignRight
+          />
+        ),
       },
       {
         accessorKey: 'action',
@@ -167,7 +175,7 @@ export function AuditLogTable({
         size: 100,
       },
     ],
-    [t, formatRelative],
+    [t],
   );
 
   const list = useListPage<AuditLog>({

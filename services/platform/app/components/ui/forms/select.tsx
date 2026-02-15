@@ -1,6 +1,6 @@
 'use client';
 
-import type { ComponentPropsWithoutRef, ComponentRef } from 'react';
+import type { ComponentPropsWithoutRef, ComponentRef, ReactNode } from 'react';
 
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { cva } from 'class-variance-authority';
@@ -9,6 +9,7 @@ import { forwardRef, useId } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
+import { Description } from './description';
 import { Label } from './label';
 
 const selectContentVariants = cva(
@@ -61,6 +62,8 @@ interface SelectProps extends Omit<
   required?: boolean;
   /** Whether the field has an error */
   error?: boolean;
+  /** Description text displayed below the select */
+  description?: ReactNode;
   /** Additional class name for the trigger */
   className?: string;
   /** ID for the trigger element */
@@ -82,6 +85,7 @@ export const Select = forwardRef<
       placeholder,
       required,
       error,
+      description,
       className,
       id: providedId,
       position = 'popper',
@@ -93,6 +97,7 @@ export const Select = forwardRef<
   ) => {
     const generatedId = useId();
     const id = providedId ?? generatedId;
+    const descriptionId = `${id}-description`;
 
     const trigger = (
       <SelectPrimitive.Root disabled={disabled} {...props}>
@@ -105,6 +110,7 @@ export const Select = forwardRef<
             className,
           )}
           aria-invalid={error}
+          aria-describedby={description ? descriptionId : undefined}
         >
           <SelectPrimitive.Value placeholder={placeholder} />
           <SelectPrimitive.Icon asChild>
@@ -156,16 +162,23 @@ export const Select = forwardRef<
       </SelectPrimitive.Root>
     );
 
-    if (!label) {
+    if (!label && !description) {
       return trigger;
     }
 
     return (
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={id} required={required} error={error}>
-          {label}
-        </Label>
+        {label && (
+          <Label htmlFor={id} required={required} error={error}>
+            {label}
+          </Label>
+        )}
         {trigger}
+        {description && (
+          <Description id={descriptionId} className="text-xs">
+            {description}
+          </Description>
+        )}
       </div>
     );
   },
