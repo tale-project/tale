@@ -25,6 +25,7 @@ interface GenerateExcelResult {
   fileName: string;
   rowCount: number;
   sheetCount: number;
+  error?: string;
 }
 
 interface ParseExcelResult {
@@ -228,11 +229,21 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
           sheetCount: result.sheetCount,
         };
       } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         console.error('[tool:excel generate] error', {
           fileName: args.fileName,
-          error: error instanceof Error ? error.message : String(error),
+          error: message,
         });
-        throw error;
+        return {
+          operation: 'generate' as const,
+          success: false,
+          fileId: '',
+          url: '',
+          fileName: args.fileName ?? 'unknown.xlsx',
+          rowCount: 0,
+          sheetCount: 0,
+          error: message,
+        };
       }
     },
   }),
