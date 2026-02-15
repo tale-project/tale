@@ -288,6 +288,7 @@ function sendMessage(http, headers, params) {
     body: JSON.stringify(payload),
   });
 
+  // status 0 = sandbox placeholder (HTTP not yet executed)
   if (response.status === 0) {
     return {
       success: true,
@@ -390,6 +391,7 @@ function createChannel(http, headers, params) {
     body: JSON.stringify(payload),
   });
 
+  // status 0 = sandbox placeholder (HTTP not yet executed)
   if (response.status === 0) {
     return {
       success: true,
