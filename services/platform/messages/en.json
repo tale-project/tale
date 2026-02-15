@@ -1041,6 +1041,7 @@
         "updateSuccess": "Integration updated",
         "updateSuccessDescription": "The connector code and operations have been updated.",
         "updateFailed": "Failed to update integration",
+        "updateTypeMismatch": "Package type does not match this integration. A REST API package cannot be applied to a SQL integration, and vice versa.",
         "updatePreview": "Changes preview",
         "newOperations": "{count} operations",
         "newCodeLines": "{count} lines of code"

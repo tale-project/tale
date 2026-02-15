@@ -383,6 +383,17 @@ export function IntegrationManageDialog({
 
     try {
       const { config, connectorCode } = parsedUpdate;
+      const packageType = config.type ?? 'rest_api';
+      const integType = integration.type ?? 'rest_api';
+      if (packageType !== integType) {
+        toast({
+          title: t('integrations.manageDialog.updateFailed'),
+          description: t('integrations.manageDialog.updateTypeMismatch'),
+          variant: 'destructive',
+        });
+        setIsApplyingUpdate(false);
+        return;
+      }
       const isSqlUpdate = config.type === 'sql';
       const authMethod =
         config.authMethod === 'bearer_token' ? 'api_key' : config.authMethod;
