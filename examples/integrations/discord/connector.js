@@ -269,10 +269,15 @@ function sendMessage(http, headers, params) {
 
   var payload = { content: params.content };
   if (params.embeds) {
-    payload.embeds =
-      typeof params.embeds === 'string'
-        ? JSON.parse(params.embeds)
-        : params.embeds;
+    if (typeof params.embeds === 'string') {
+      try {
+        payload.embeds = JSON.parse(params.embeds);
+      } catch (e) {
+        throw new Error('Invalid embeds JSON: ' + e.message);
+      }
+    } else {
+      payload.embeds = params.embeds;
+    }
   }
 
   var url = API_BASE + '/channels/' + params.channel_id + '/messages';
