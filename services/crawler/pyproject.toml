@@ -9,7 +9,7 @@ dependencies = [
     "pydantic-settings==2.13.0",
     "crawl4ai==0.8.0",
     "beautifulsoup4==4.14.3",
-    "python-multipart==0.0.20",
+    "python-multipart==0.0.22",
     "python-dotenv==1.2.1",
     "loguru==0.7.3",
     "httpx==0.28.1",
