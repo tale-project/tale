@@ -137,7 +137,9 @@ export const sendMessageViaIntegrationAction = internalAction({
       // same format used by the connector during sync (msg.id), ensuring
       // deduplication works when sent messages are later fetched by sync.
       const gmailMessageId =
-        resultData && typeof resultData.id === 'string'
+        args.integrationName === 'gmail' &&
+        resultData &&
+        typeof resultData.id === 'string'
           ? resultData.id
           : undefined;
 
