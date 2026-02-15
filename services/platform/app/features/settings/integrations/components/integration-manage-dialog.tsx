@@ -212,6 +212,15 @@ export function IntegrationManageDialog({
     setSelectedAuthMethod(integration.authMethod);
   }, [integration.authMethod]);
 
+  // Reset update state when dialog reopens or integration changes
+  useEffect(() => {
+    if (!open) return;
+    setParsedUpdate(null);
+    setUpdateParseError(null);
+    setIsParsingUpdate(false);
+    setIsApplyingUpdate(false);
+  }, [open, integration._id]);
+
   // OAuth2 client credential state (for authorization flow)
   const [oauth2Fields, setOAuth2Fields] = useState({
     authorizationUrl: '',
