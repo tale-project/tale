@@ -576,7 +576,7 @@ function TestChatPanelContent({
             </div>
           ) : (
             <>
-              {displayItems.map((item) => {
+              {displayItems.map((item, idx) => {
                 if (item.type === 'approval') {
                   return (
                     <div
@@ -693,11 +693,13 @@ function TestChatPanelContent({
                           )}
                         >
                           {message.role === 'assistant' ? (
-                            <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-pre:text-[10px] prose-headings:my-1 prose-headings:text-xs max-w-none text-xs break-words">
+                            <div className="max-w-none text-xs break-words">
                               <Bot className="text-muted-foreground mb-1.5 size-3.5" />
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {message.content}
-                              </ReactMarkdown>
+                              <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-pre:text-[10px] prose-headings:my-1 prose-headings:text-xs max-w-none text-xs break-words">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {message.content}
+                                </ReactMarkdown>
+                              </div>
                             </div>
                           ) : (
                             <p className="text-xs leading-relaxed break-words whitespace-pre-wrap">
@@ -707,7 +709,8 @@ function TestChatPanelContent({
                         </div>
                       )}
                       {message.role === 'assistant' &&
-                        !message.id.startsWith('pending-') && (
+                        !message.id.startsWith('pending-') &&
+                        !(isBusy && idx === displayItems.length - 1) && (
                           <AssistantMessageInfo
                             messageId={message.id}
                             timestamp={message.timestamp}
