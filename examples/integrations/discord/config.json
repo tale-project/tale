@@ -69,7 +69,7 @@
         "properties": {
           "channel_id": { "type": "string", "description": "Channel ID", "required": true },
           "content": { "type": "string", "description": "Message content text", "required": true },
-          "embeds": { "type": "string", "description": "JSON array of embed objects", "required": false }
+          "embeds": { "type": "array", "description": "Array of embed objects", "required": false }
         }
       }
     },
