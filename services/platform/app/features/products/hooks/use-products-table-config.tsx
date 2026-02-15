@@ -18,7 +18,7 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
   ({ tTables, builders }) => [
     {
       accessorKey: 'name',
-      header: () => tTables('headers.product'),
+      header: tTables('headers.product'),
       size: 400,
       cell: ({ row }) => (
         <HStack gap={3}>
@@ -35,7 +35,7 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
     },
     {
       accessorKey: 'description',
-      header: () => tTables('headers.description'),
+      header: tTables('headers.description'),
       cell: ({ row }) => (
         <div className="text-muted-foreground max-w-sm truncate text-xs">
           {row.original.description ? `"${row.original.description}"` : '-'}
@@ -50,6 +50,7 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
         </span>
       ),
       size: 80,
+      meta: { headerLabel: tTables('headers.stock') },
       cell: ({ row }) => (
         <span
           className={`block text-right text-xs ${

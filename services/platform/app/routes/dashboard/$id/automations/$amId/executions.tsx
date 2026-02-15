@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { ExecutionsClient } from '@/app/features/automations/executions/executions-client';
 import { toId } from '@/convex/lib/type_cast_helpers';
+import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -15,6 +16,9 @@ const searchSchema = z.object({
 export const Route = createFileRoute(
   '/dashboard/$id/automations/$amId/executions',
 )({
+  head: () => ({
+    meta: seo('automationExecutions'),
+  }),
   validateSearch: searchSchema,
   component: ExecutionsPage,
 });

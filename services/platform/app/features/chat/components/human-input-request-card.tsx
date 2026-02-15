@@ -8,6 +8,7 @@ import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Description } from '@/app/components/ui/forms/description';
 import { Label } from '@/app/components/ui/forms/label';
 import {
   RadioGroup,
@@ -165,9 +166,9 @@ function HumanInputRequestCardComponent({
                       {option.label}
                     </Label>
                     {option.description && (
-                      <p className="text-muted-foreground mt-1 text-xs">
+                      <Description className="mt-1 text-xs">
                         {option.description}
-                      </p>
+                      </Description>
                     )}
                   </div>
                 </button>
@@ -209,9 +210,9 @@ function HumanInputRequestCardComponent({
                       {option.label}
                     </Label>
                     {option.description && (
-                      <p className="text-muted-foreground mt-1 text-xs">
+                      <Description className="mt-1 text-xs">
                         {option.description}
-                      </p>
+                      </Description>
                     )}
                   </div>
                 </button>

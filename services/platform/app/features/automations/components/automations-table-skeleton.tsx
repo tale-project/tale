@@ -7,17 +7,20 @@ import { useAutomationsTableConfig } from './use-automations-table-config';
 
 interface AutomationsTableSkeletonProps {
   organizationId: string;
+  rows?: number;
 }
 
 /** Skeleton-only version for Suspense fallback */
 export function AutomationsTableSkeleton({
   organizationId,
+  rows,
 }: AutomationsTableSkeletonProps) {
   const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
     useAutomationsTableConfig();
 
   return (
     <DataTableSkeleton
+      rows={rows}
       className="px-4 py-6"
       columns={columns}
       stickyLayout={stickyLayout}

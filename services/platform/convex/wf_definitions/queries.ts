@@ -45,6 +45,27 @@ export const listVersions = queryWithRLS({
   },
 });
 
+const COUNT_CAP = 20;
+
+export const countAutomations = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let count = 0;
+    for await (const _ of ctx.db
+      .query('wfDefinitions')
+      .withIndex('by_org_versionNumber', (q) =>
+        q.eq('organizationId', args.organizationId).eq('versionNumber', 1),
+      )) {
+      count++;
+      if (count >= COUNT_CAP) break;
+    }
+    return count;
+  },
+});
+
 export const listAutomations = queryWithRLS({
   args: {
     organizationId: v.string(),

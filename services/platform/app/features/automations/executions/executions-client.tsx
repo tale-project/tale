@@ -241,10 +241,15 @@ export function ExecutionsClient({
       },
       {
         accessorKey: 'startedAt',
-        header: tTables('headers.startedAt'),
+        header: () => (
+          <span className="block w-full text-right">
+            {tTables('headers.startedAt')}
+          </span>
+        ),
         size: 192,
+        meta: { headerLabel: tTables('headers.startedAt') },
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground block w-full text-right text-sm whitespace-nowrap">
             {formatTimestampWithMillis(row.original.startedAt)}
           </span>
         ),
@@ -431,9 +436,16 @@ export function ExecutionsClient({
     [],
   );
 
+  const hasServerFilters = !!(
+    (status && status.length > 0) ||
+    triggeredBy ||
+    dateFrom ||
+    dateTo
+  );
+
   const isInitialLoading = isSearching
     ? searchResult === undefined
-    : paginatedResult.status === 'LoadingFirstPage';
+    : paginatedResult.status === 'LoadingFirstPage' && !hasServerFilters;
 
   if (isInitialLoading) {
     return <ExecutionsTableSkeleton />;

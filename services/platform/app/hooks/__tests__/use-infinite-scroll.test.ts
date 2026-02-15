@@ -325,7 +325,7 @@ describe('useInfiniteScroll', () => {
       expect(observerOptions?.rootMargin).toBe('0px 0px 400px 0px');
     });
 
-    it('uses default threshold of 500px', () => {
+    it('uses default threshold of 1000px', () => {
       render(
         React.createElement(TestComponent, {
           onLoadMore: vi.fn(),
@@ -334,7 +334,7 @@ describe('useInfiniteScroll', () => {
         }),
       );
 
-      expect(observerOptions?.rootMargin).toBe('0px 0px 500px 0px');
+      expect(observerOptions?.rootMargin).toBe('0px 0px 1000px 0px');
     });
   });
 });

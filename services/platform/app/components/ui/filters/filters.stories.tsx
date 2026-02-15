@@ -3,7 +3,6 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { Label } from '@/app/components/ui/forms/label';
 
 import { FilterButton } from './filter-button';
 import { FilterSection } from './filter-section';
@@ -71,24 +70,9 @@ export const FilterSectionExample: StoryObj = {
           active={false}
         >
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Checkbox id="active" />
-              <Label htmlFor="active" className="text-sm">
-                Active
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="inactive" />
-              <Label htmlFor="inactive" className="text-sm">
-                Inactive
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="pending" />
-              <Label htmlFor="pending" className="text-sm">
-                Pending
-              </Label>
-            </div>
+            <Checkbox label="Active" />
+            <Checkbox label="Inactive" />
+            <Checkbox label="Pending" />
           </div>
         </FilterSection>
       </div>
@@ -108,18 +92,8 @@ export const FilterSectionActive: StoryObj = {
           active={true}
         >
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Checkbox id="cat1" defaultChecked />
-              <Label htmlFor="cat1" className="text-sm">
-                Electronics
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="cat2" />
-              <Label htmlFor="cat2" className="text-sm">
-                Clothing
-              </Label>
-            </div>
+            <Checkbox defaultChecked label="Electronics" />
+            <Checkbox label="Clothing" />
           </div>
         </FilterSection>
       </div>
@@ -149,18 +123,8 @@ export const MultipleFilterSections: StoryObj = {
           active={true}
         >
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Checkbox id="s1" defaultChecked />
-              <Label htmlFor="s1" className="text-sm">
-                Active
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="s2" />
-              <Label htmlFor="s2" className="text-sm">
-                Inactive
-              </Label>
-            </div>
+            <Checkbox defaultChecked label="Active" />
+            <Checkbox label="Inactive" />
           </div>
         </FilterSection>
 
@@ -170,18 +134,8 @@ export const MultipleFilterSections: StoryObj = {
           onToggle={() => setCategoryExpanded(!categoryExpanded)}
         >
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Checkbox id="c1" />
-              <Label htmlFor="c1" className="text-sm">
-                Type A
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="c2" />
-              <Label htmlFor="c2" className="text-sm">
-                Type B
-              </Label>
-            </div>
+            <Checkbox label="Type A" />
+            <Checkbox label="Type B" />
           </div>
         </FilterSection>
 
@@ -234,18 +188,8 @@ export const FilterPanelExample: StoryObj = {
               active={true}
             >
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Checkbox id="p1" defaultChecked />
-                  <Label htmlFor="p1" className="text-sm">
-                    Published
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox id="p2" />
-                  <Label htmlFor="p2" className="text-sm">
-                    Draft
-                  </Label>
-                </div>
+                <Checkbox defaultChecked label="Published" />
+                <Checkbox label="Draft" />
               </div>
             </FilterSection>
           </div>

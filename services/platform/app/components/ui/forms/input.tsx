@@ -4,6 +4,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { Eye, EyeOff, Info, XCircle } from 'lucide-react';
 import {
   InputHTMLAttributes,
+  ReactNode,
   forwardRef,
   useState,
   useId,
@@ -13,6 +14,7 @@ import {
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { Description } from './description';
 import { Label } from './label';
 
 const inputVariants = cva(
@@ -42,6 +44,7 @@ type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
     passwordToggle?: boolean;
     errorMessage?: string;
     label?: string;
+    description?: ReactNode;
     required?: boolean;
     wrapperClassName?: string;
   };
@@ -57,6 +60,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
       size,
       errorMessage,
       label,
+      description,
       required,
       wrapperClassName,
       id: providedId,
@@ -68,6 +72,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
     const generatedId = useId();
     const id = providedId ?? generatedId;
     const errorId = `${id}-error`;
+    const descriptionId = `${id}-description`;
     const isPassword = type === 'password';
     const [show, setShow] = useState(false);
     const [showShake, setShowShake] = useState(false);
@@ -75,6 +80,10 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
     const resolvedAutoComplete =
       autoComplete ?? (isPassword ? 'current-password' : undefined);
     const hasError = !!errorMessage;
+    const describedBy =
+      [description && descriptionId, hasError && errorId]
+        .filter(Boolean)
+        .join(' ') || undefined;
 
     // Trigger shake animation when error appears
     useEffect(() => {
@@ -108,7 +117,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
               ref={ref}
               required={required}
               aria-invalid={hasError || undefined}
-              aria-describedby={hasError ? errorId : undefined}
+              aria-describedby={describedBy}
               aria-errormessage={hasError ? errorId : undefined}
               {...props}
             />
@@ -139,6 +148,11 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
               {errorMessage}
             </p>
           )}
+          {description && (
+            <Description id={descriptionId} className="text-xs">
+              {description}
+            </Description>
+          )}
         </div>
       );
     }
@@ -163,7 +177,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
           ref={ref}
           required={required}
           aria-invalid={hasError || undefined}
-          aria-describedby={hasError ? errorId : undefined}
+          aria-describedby={describedBy}
           aria-errormessage={hasError ? errorId : undefined}
           {...props}
         />
@@ -177,6 +191,11 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
             <Info className="size-4" aria-hidden="true" />
             {errorMessage}
           </p>
+        )}
+        {description && (
+          <Description id={descriptionId} className="text-xs">
+            {description}
+          </Description>
         )}
       </div>
     );

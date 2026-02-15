@@ -7,17 +7,20 @@ import { WebsitesActionMenu } from './websites-action-menu';
 
 interface WebsitesTableSkeletonProps {
   organizationId: string;
+  rows?: number;
 }
 
 /** Skeleton-only version for Suspense fallback */
 export function WebsitesTableSkeleton({
   organizationId,
+  rows,
 }: WebsitesTableSkeletonProps) {
   const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
     useWebsitesTableConfig();
 
   return (
     <DataTableSkeleton
+      rows={rows}
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}

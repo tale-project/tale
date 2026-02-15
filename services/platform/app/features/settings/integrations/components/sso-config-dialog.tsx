@@ -12,9 +12,8 @@ import type {
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
-import { Description } from '@/app/components/ui/forms/description';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { Label } from '@/app/components/ui/forms/label';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
@@ -437,52 +436,40 @@ export function SSOConfigDialog({
           <span className="text-sm font-medium">Microsoft Entra ID</span>
         </HStack>
 
-        <Stack gap={3}>
-          <Input
-            id="sso-issuer"
-            label={t('integrations.sso.issuerLabel')}
-            placeholder="https://login.microsoftonline.com/{tenant-id}/v2.0"
-            value={issuer}
-            onChange={(e) => setIssuer(e.target.value)}
-            disabled={isSubmitting || isLoadingConfig}
-          />
-          <Description className="text-xs">
-            {t('integrations.sso.issuerHelp')}
-          </Description>
-        </Stack>
+        <Input
+          id="sso-issuer"
+          label={t('integrations.sso.issuerLabel')}
+          description={t('integrations.sso.issuerHelp')}
+          placeholder="https://login.microsoftonline.com/{tenant-id}/v2.0"
+          value={issuer}
+          onChange={(e) => setIssuer(e.target.value)}
+          disabled={isSubmitting || isLoadingConfig}
+        />
 
-        <Stack gap={3}>
-          <Input
-            id="sso-client-id"
-            label={t('integrations.sso.clientIdLabel')}
-            placeholder={
-              isLoadingConfig
-                ? tCommon('actions.loading')
-                : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
-            }
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            disabled={isSubmitting || isLoadingConfig}
-          />
-          <Description className="text-xs">
-            {t('integrations.sso.clientIdHelp')}
-          </Description>
-        </Stack>
+        <Input
+          id="sso-client-id"
+          label={t('integrations.sso.clientIdLabel')}
+          description={t('integrations.sso.clientIdHelp')}
+          placeholder={
+            isLoadingConfig
+              ? tCommon('actions.loading')
+              : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+          }
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+          disabled={isSubmitting || isLoadingConfig}
+        />
 
-        <Stack gap={3}>
-          <Input
-            id="sso-client-secret"
-            type="password"
-            label={t('integrations.sso.clientSecretLabel')}
-            placeholder={isConnected ? '••••••••••••••••' : ''}
-            value={clientSecret}
-            onChange={(e) => setClientSecret(e.target.value)}
-            disabled={isSubmitting || isLoadingConfig}
-          />
-          <Description className="text-xs">
-            {t('integrations.sso.clientSecretHelp')}
-          </Description>
-        </Stack>
+        <Input
+          id="sso-client-secret"
+          type="password"
+          label={t('integrations.sso.clientSecretLabel')}
+          description={t('integrations.sso.clientSecretHelp')}
+          placeholder={isConnected ? '••••••••••••••••' : ''}
+          value={clientSecret}
+          onChange={(e) => setClientSecret(e.target.value)}
+          disabled={isSubmitting || isLoadingConfig}
+        />
 
         <HStack gap={3} align="center">
           <Button
@@ -526,80 +513,50 @@ export function SSOConfigDialog({
           )}
         </HStack>
 
-        <Stack gap={3}>
-          <HStack justify="between" className="py-2">
-            <Label htmlFor="onedrive-access-toggle">
-              {t('integrations.sso.oneDriveAccessLabel')}
-            </Label>
-            <Switch
-              id="onedrive-access-toggle"
-              checked={enableOneDriveAccess}
-              onCheckedChange={setEnableOneDriveAccess}
-              disabled={isSubmitting || isLoadingConfig}
-            />
-          </HStack>
-          <Description className="text-xs">
-            {t('integrations.sso.oneDriveAccessHelp')}
-          </Description>
-        </Stack>
+        <Switch
+          id="onedrive-access-toggle"
+          label={t('integrations.sso.oneDriveAccessLabel')}
+          description={t('integrations.sso.oneDriveAccessHelp')}
+          checked={enableOneDriveAccess}
+          onCheckedChange={setEnableOneDriveAccess}
+          disabled={isSubmitting || isLoadingConfig}
+        />
 
-        <Stack gap={3}>
-          <HStack justify="between" className="py-2">
-            <Label htmlFor="auto-provision-team-toggle">
-              {t('integrations.sso.autoProvisionTeamLabel')}
-            </Label>
-            <Switch
-              id="auto-provision-team-toggle"
-              checked={autoProvisionTeam}
-              onCheckedChange={setAutoProvisionTeam}
-              disabled={isSubmitting || isLoadingConfig}
-            />
-          </HStack>
-          <Description className="text-xs">
-            {t('integrations.sso.autoProvisionTeamHelp')}
-          </Description>
-        </Stack>
+        <Switch
+          id="auto-provision-team-toggle"
+          label={t('integrations.sso.autoProvisionTeamLabel')}
+          description={t('integrations.sso.autoProvisionTeamHelp')}
+          checked={autoProvisionTeam}
+          onCheckedChange={setAutoProvisionTeam}
+          disabled={isSubmitting || isLoadingConfig}
+        />
 
         {autoProvisionTeam && (
-          <Stack gap={3}>
-            <Input
-              id="sso-exclude-groups"
-              label={t('integrations.sso.excludeGroupsLabel')}
-              placeholder="All-Employees, Domain-Users"
-              value={excludeGroups}
-              onChange={(e) => setExcludeGroups(e.target.value)}
-              disabled={isSubmitting || isLoadingConfig}
-            />
-            <Description className="text-xs">
-              {t('integrations.sso.excludeGroupsHelp')}
-            </Description>
-          </Stack>
+          <Input
+            id="sso-exclude-groups"
+            label={t('integrations.sso.excludeGroupsLabel')}
+            description={t('integrations.sso.excludeGroupsHelp')}
+            placeholder="All-Employees, Domain-Users"
+            value={excludeGroups}
+            onChange={(e) => setExcludeGroups(e.target.value)}
+            disabled={isSubmitting || isLoadingConfig}
+          />
         )}
 
-        <Stack gap={3}>
-          <HStack justify="between" className="py-2">
-            <Label htmlFor="auto-provision-role-toggle">
-              {t('integrations.sso.autoProvisionRoleLabel')}
-            </Label>
-            <Switch
-              id="auto-provision-role-toggle"
-              checked={autoProvisionRole}
-              onCheckedChange={setAutoProvisionRole}
-              disabled={isSubmitting || isLoadingConfig}
-            />
-          </HStack>
-          <Description className="text-xs">
-            {t('integrations.sso.autoProvisionRoleHelp')}
-          </Description>
-        </Stack>
+        <Switch
+          id="auto-provision-role-toggle"
+          label={t('integrations.sso.autoProvisionRoleLabel')}
+          description={t('integrations.sso.autoProvisionRoleHelp')}
+          checked={autoProvisionRole}
+          onCheckedChange={setAutoProvisionRole}
+          disabled={isSubmitting || isLoadingConfig}
+        />
 
         {autoProvisionRole && (
-          <Stack gap={3}>
-            <Label>{t('integrations.sso.roleMappingRulesLabel')}</Label>
-            <Description className="text-xs">
-              {t('integrations.sso.roleMappingRulesHelp')}
-            </Description>
-
+          <FormSection
+            label={t('integrations.sso.roleMappingRulesLabel')}
+            description={t('integrations.sso.roleMappingRulesHelp')}
+          >
             <Stack gap={0} className="divide-border divide-y">
               {roleMappingRules.map((rule, index) => (
                 <HStack
@@ -677,30 +634,26 @@ export function SSOConfigDialog({
                 {t('integrations.sso.addRule')}
               </Button>
             </Stack>
-          </Stack>
+          </FormSection>
         )}
 
-        <Stack gap={3}>
-          <Label htmlFor="default-role-select">
-            {t('integrations.sso.defaultRoleLabel')}
-          </Label>
-          <Select
-            value={defaultRole}
-            onValueChange={(value) =>
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
-              setDefaultRole(value as PlatformRole)
-            }
-            disabled={isSubmitting || isLoadingConfig}
-            id="default-role-select"
-            className="w-48"
-            options={platformRoles}
-          />
-          <Description className="text-xs">
-            {autoProvisionRole
+        <Select
+          value={defaultRole}
+          onValueChange={(value) =>
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
+            setDefaultRole(value as PlatformRole)
+          }
+          disabled={isSubmitting || isLoadingConfig}
+          id="default-role-select"
+          label={t('integrations.sso.defaultRoleLabel')}
+          description={
+            autoProvisionRole
               ? t('integrations.sso.defaultRoleHelp')
-              : t('integrations.sso.defaultRoleHelpNoAutoProvision')}
-          </Description>
-        </Stack>
+              : t('integrations.sso.defaultRoleHelpNoAutoProvision')
+          }
+          className="w-48"
+          options={platformRoles}
+        />
       </Stack>
     </FormDialog>
   );

@@ -21,12 +21,16 @@ import { AuditLogTable } from '@/app/features/settings/audit-logs/components/aud
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
   category: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/settings/logs')({
+  head: () => ({
+    meta: seo('logs'),
+  }),
   validateSearch: searchSchema,
   component: LogsPage,
 });
@@ -60,7 +64,6 @@ function LogsSkeleton() {
                 { header: t('logs.audit.columns.status'), size: 100 },
               ]}
               showHeader
-              showPagination={false}
               noFirstColumnAvatar
             />
           </CardContent>
@@ -85,7 +88,11 @@ function LogsPage() {
     initialNumItems: 30,
   });
 
-  if (isMemberLoading || paginatedResult.status === 'LoadingFirstPage') {
+  if (isMemberLoading) {
+    return <LogsSkeleton />;
+  }
+
+  if (paginatedResult.status === 'LoadingFirstPage' && !search.category) {
     return <LogsSkeleton />;
   }
 

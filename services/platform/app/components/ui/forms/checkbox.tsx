@@ -6,12 +6,14 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
+import { Description } from './description';
 import { Label } from './label';
 
 interface CheckboxProps extends React.ComponentPropsWithoutRef<
   typeof CheckboxPrimitive.Root
 > {
   label?: string;
+  description?: React.ReactNode;
   required?: boolean;
 }
 
@@ -25,6 +27,7 @@ export const Checkbox = React.forwardRef<
       onCheckedChange,
       checked,
       label,
+      description,
       required,
       id: providedId,
       ...rest
@@ -33,6 +36,7 @@ export const Checkbox = React.forwardRef<
   ) => {
     const generatedId = React.useId();
     const id = providedId ?? generatedId;
+    const descriptionId = `${id}-description`;
 
     const checkbox = (
       <CheckboxPrimitive.Root
@@ -46,6 +50,7 @@ export const Checkbox = React.forwardRef<
         {...rest}
         checked={checked}
         required={required}
+        aria-describedby={description ? descriptionId : undefined}
       >
         <CheckboxPrimitive.Indicator
           className={cn(
@@ -69,8 +74,30 @@ export const Checkbox = React.forwardRef<
       </CheckboxPrimitive.Root>
     );
 
-    if (!label) {
+    if (!label && !description) {
       return checkbox;
+    }
+
+    if (description) {
+      return (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            {checkbox}
+            {label && (
+              <Label
+                htmlFor={id}
+                required={required}
+                className="cursor-pointer"
+              >
+                {label}
+              </Label>
+            )}
+          </div>
+          <Description id={descriptionId} className="text-xs">
+            {description}
+          </Description>
+        </div>
+      );
     }
 
     return (

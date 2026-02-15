@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, HTMLAttributes, ReactNode } from 'react';
+import { forwardRef, HTMLAttributes, ReactNode, useId } from 'react';
 
 import { Stack } from '../layout/layout';
 
@@ -22,14 +22,28 @@ interface FieldProps extends HTMLAttributes<HTMLDivElement> {
  * ```
  */
 export const Field = forwardRef<HTMLDivElement, FieldProps>(
-  ({ label, children, className, ...props }, ref) => (
-    <div ref={ref} className={className} {...props}>
-      <h4 className="text-muted-foreground mb-1 text-sm font-medium">
-        {label}
-      </h4>
-      <div>{children}</div>
-    </div>
-  ),
+  ({ label, children, className, ...props }, ref) => {
+    const id = useId();
+    const labelId = `${id}-label`;
+
+    return (
+      <div
+        ref={ref}
+        role="group"
+        aria-labelledby={labelId}
+        className={className}
+        {...props}
+      >
+        <h4
+          id={labelId}
+          className="text-muted-foreground mb-1 text-sm font-medium"
+        >
+          {label}
+        </h4>
+        <div>{children}</div>
+      </div>
+    );
+  },
 );
 Field.displayName = 'Field';
 

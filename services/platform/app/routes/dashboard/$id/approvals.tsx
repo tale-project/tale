@@ -9,8 +9,12 @@ import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { ApprovalsNavigation } from '@/app/features/approvals/components/approvals-navigation';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/approvals')({
+  head: () => ({
+    meta: seo('approvals'),
+  }),
   beforeLoad: ({ params, location }) => {
     if (location.pathname === `/dashboard/${params.id}/approvals`) {
       throw redirect({

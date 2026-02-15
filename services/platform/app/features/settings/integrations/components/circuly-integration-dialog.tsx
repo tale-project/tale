@@ -220,9 +220,7 @@ export function CirculyIntegrationDialog({
             </div>
           </Stack>
 
-          <Description className="text-xs">
-            {t('integrations.circuly.syncingData')}
-          </Description>
+          <Description>{t('integrations.circuly.syncingData')}</Description>
         </Stack>
       ) : (
         // Not connected state - show connection form
@@ -239,16 +237,13 @@ export function CirculyIntegrationDialog({
           <Input
             type="password"
             label={t('integrations.circuly.password')}
+            description={t('integrations.circuly.enterCredentials')}
             placeholder={t('integrations.circuly.passwordPlaceholder')}
             disabled={isSubmitting}
             errorMessage={form.formState.errors.password?.message}
             className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
             {...form.register('password')}
           />
-
-          <Description className="text-xs">
-            {t('integrations.circuly.enterCredentials')}
-          </Description>
         </Stack>
       )}
     </FormDialog>

@@ -11,8 +11,12 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { SettingsNavigation } from '@/app/features/settings/components/settings-navigation';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings')({
+  head: () => ({
+    meta: seo('settings'),
+  }),
   component: SettingsLayout,
 });
 

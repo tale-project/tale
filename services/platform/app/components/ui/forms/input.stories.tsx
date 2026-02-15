@@ -93,6 +93,14 @@ export const WithLabel: Story = {
   },
 };
 
+export const WithDescription: Story = {
+  args: {
+    label: 'API Key',
+    description: 'You can find your API key in the developer settings.',
+    placeholder: 'sk-...',
+  },
+};
+
 export const Required: Story = {
   args: {
     label: 'Username',

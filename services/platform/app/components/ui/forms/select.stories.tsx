@@ -96,6 +96,14 @@ export const WithLabel: Story = {
   },
 };
 
+export const WithDescription: Story = {
+  args: {
+    label: 'Favorite Fruit',
+    description: 'Choose the fruit you enjoy the most.',
+    placeholder: 'Select a fruit...',
+  },
+};
+
 export const Required: Story = {
   args: {
     label: 'Favorite Fruit',
