@@ -243,6 +243,7 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
           channel: params.channel,
           direction: params.direction,
           deliveryState: params.deliveryState,
+          integrationName: params.integrationName,
         });
       }
 
