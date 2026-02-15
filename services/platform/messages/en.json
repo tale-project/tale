@@ -2018,12 +2018,11 @@
       "image": "Analyzing image",
       "pptx": "Processing presentation",
       "docx": "Processing document",
-      "resourceCheck": "Checking resources",
       "workflowRead": "Reading workflow",
       "updateWorkflowStep": "Updating workflow step",
       "saveWorkflowDefinition": "Saving workflow",
       "validateWorkflowDefinition": "Validating workflow",
-      "generateExcel": "Generating Excel file"
+      "excel": "Processing Excel file"
     },
     "agentSelector": {
       "label": "Select agent",

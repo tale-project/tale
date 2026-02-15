@@ -23,7 +23,7 @@ interface ToolSelectorProps {
 const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   CRM: ['customer_read', 'product_read'],
   Web: ['web'],
-  Documents: ['pdf', 'image', 'pptx', 'docx', 'txt'],
+  Documents: ['pdf', 'image', 'pptx', 'docx', 'txt', 'excel'],
   Knowledge: ['rag_search'],
   Workflows: [
     'workflow_read',
@@ -33,7 +33,7 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
     'create_workflow',
   ],
   Integrations: ['integration', 'integration_batch', 'integration_introspect'],
-  Data: ['generate_excel', 'database_schema', 'resource_check'],
+  Data: ['database_schema'],
   Assistants: [
     'crm_assistant',
     'web_assistant',
