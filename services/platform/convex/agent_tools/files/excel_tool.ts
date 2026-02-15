@@ -212,6 +212,10 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         const fileId = await ctx.storage.store(blob);
         const url = await ctx.storage.getUrl(fileId);
 
+        if (!url) {
+          throw new Error('Storage URL unavailable for generated Excel file.');
+        }
+
         debugLog('tool:excel generate success', {
           fileName: result.fileName,
           fileId,
@@ -223,7 +227,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
           operation: 'generate',
           success: true,
           fileId,
-          url: url ?? '',
+          url,
           fileName: result.fileName,
           rowCount: result.rowCount,
           sheetCount: result.sheetCount,
