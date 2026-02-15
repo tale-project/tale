@@ -24,6 +24,7 @@ import {
   getOperationType,
 } from './helpers/detect_write_operation';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
+import { validateOperationScopes } from './helpers/validate_operation_scopes';
 import { validateRequiredParameters } from './helpers/validate_required_parameters';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
@@ -126,6 +127,9 @@ export const integrationAction: ActionDefinition<{
 
     // 5. Validate required parameters before creating approval or executing
     validateRequiredParameters(operationConfig, opParams, operation);
+
+    // 5b. Validate operation scopes against integration's configured scopes
+    validateOperationScopes(operationConfig, integration, operation);
 
     // 6. Check if this operation requires approval
     if (!skipApprovalCheck && requiresApproval(operationConfig)) {

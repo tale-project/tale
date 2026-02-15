@@ -30,6 +30,7 @@
       "name": "list_channels",
       "title": "List Channels",
       "description": "List conversations (channels, DMs, group messages) the bot has access to",
+      "requiredScopes": ["channels:read", "groups:read", "im:read", "mpim:read"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -43,6 +44,7 @@
       "name": "get_channel",
       "title": "Get Channel",
       "description": "Get detailed information about a specific channel",
+      "requiredScopes": ["channels:read", "groups:read"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -54,6 +56,7 @@
       "name": "list_messages",
       "title": "List Messages",
       "description": "Fetch message history from a channel",
+      "requiredScopes": ["channels:history", "groups:history", "im:history", "mpim:history"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -71,6 +74,7 @@
       "description": "Send a message to a Slack channel or thread",
       "operationType": "write",
       "requiresApproval": true,
+      "requiredScopes": ["chat:write"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -85,6 +89,7 @@
       "name": "list_users",
       "title": "List Users",
       "description": "List all users in the Slack workspace",
+      "requiredScopes": ["users:read"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -97,6 +102,7 @@
       "name": "get_user",
       "title": "Get User",
       "description": "Get detailed profile information for a specific user",
+      "requiredScopes": ["users:read"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -108,6 +114,7 @@
       "name": "search_messages",
       "title": "Search Messages",
       "description": "Search for messages across the workspace",
+      "requiredScopes": ["search:read"],
       "parametersSchema": {
         "type": "object",
         "properties": {
@@ -123,6 +130,7 @@
       "description": "Upload a file to one or more Slack channels",
       "operationType": "write",
       "requiresApproval": true,
+      "requiredScopes": ["files:write"],
       "parametersSchema": {
         "type": "object",
         "properties": {

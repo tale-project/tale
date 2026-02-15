@@ -8,7 +8,9 @@ import {
   ExternalLink,
   XCircle,
   Loader2,
+  Pencil,
   Puzzle,
+  Save,
   Trash2,
   Upload,
   X,
@@ -25,6 +27,7 @@ import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Center, Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
@@ -227,8 +230,11 @@ export function IntegrationManageDialog({
     tokenUrl: '',
     clientId: '',
     clientSecret: '',
+    scopes: '',
   });
   const [isSavingOAuth2, setIsSavingOAuth2] = useState(false);
+  const [isEditingOAuth2, setIsEditingOAuth2] = useState(false);
+  const [oauth2SavedOptimistic, setOAuth2SavedOptimistic] = useState(false);
 
   // Pre-fill OAuth2 fields from integration config (reset fully on integration change)
   useEffect(() => {
@@ -238,7 +244,10 @@ export function IntegrationManageDialog({
       tokenUrl: config?.tokenUrl ?? '',
       clientId: config?.clientId ?? '',
       clientSecret: '',
+      scopes: config?.scopes?.join(', ') ?? '',
     });
+    setIsEditingOAuth2(false);
+    setOAuth2SavedOptimistic(false);
   }, [integration._id, integration.oauth2Config]);
 
   const isSql = integration.type === 'sql';
@@ -684,7 +693,7 @@ export function IntegrationManageDialog({
     }
   }, [updateIntegration, integration, t]);
 
-  const handleSaveAndAuthorize = useCallback(async () => {
+  const handleSaveOAuth2Only = useCallback(async () => {
     if (
       !oauth2Fields.authorizationUrl.trim() ||
       !oauth2Fields.tokenUrl.trim() ||
@@ -696,36 +705,41 @@ export function IntegrationManageDialog({
 
     setIsSavingOAuth2(true);
     try {
+      const parsedScopes = oauth2Fields.scopes
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
       await saveOAuth2Credentials({
         integrationId: integration._id,
         authorizationUrl: oauth2Fields.authorizationUrl.trim(),
         tokenUrl: oauth2Fields.tokenUrl.trim(),
-        scopes: integration.oauth2Config?.scopes,
+        scopes: parsedScopes.length > 0 ? parsedScopes : undefined,
         clientId: oauth2Fields.clientId.trim(),
         clientSecret: oauth2Fields.clientSecret.trim(),
       });
 
-      const authUrl = await generateOAuth2Url({
-        integrationId: integration._id,
-        organizationId: integration.organizationId,
-      });
+      setOAuth2Fields((prev) => ({ ...prev, clientSecret: '' }));
+      setIsEditingOAuth2(false);
+      setOAuth2SavedOptimistic(true);
 
-      window.location.href = authUrl;
+      toast({
+        title: t('integrations.manageDialog.credentialsSaved'),
+      });
     } catch (error) {
       toast({
-        title: t('integrations.manageDialog.oauth2AuthorizationFailed'),
+        title: t('integrations.manageDialog.credentialsSaveFailed'),
         description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       });
+    } finally {
       setIsSavingOAuth2(false);
     }
   }, [
     oauth2Fields,
     integration._id,
-    integration.organizationId,
     integration.oauth2Config?.scopes,
     saveOAuth2Credentials,
-    generateOAuth2Url,
     t,
   ]);
 
@@ -752,6 +766,9 @@ export function IntegrationManageDialog({
     oauth2Fields.tokenUrl.trim().length > 0 &&
     oauth2Fields.clientId.trim().length > 0 &&
     oauth2Fields.clientSecret.trim().length > 0;
+
+  const hasOAuth2Credentials =
+    !!integration.oauth2Config?.clientId || oauth2SavedOptimistic;
 
   const handleDelete = useCallback(async () => {
     try {
@@ -1268,77 +1285,172 @@ export function IntegrationManageDialog({
               )}
 
               {/* OAuth2: authorization flow when oauth2Config exists */}
-              {selectedAuthMethod === 'oauth2' && hasOAuth2Config && (
-                <>
-                  <Input
-                    id="manage-oauth2-authorization-url"
-                    label={t('integrations.manageDialog.authorizationUrl')}
-                    value={oauth2Fields.authorizationUrl}
-                    onChange={(e) =>
-                      setOAuth2Fields((prev) => ({
-                        ...prev,
-                        authorizationUrl: e.target.value,
-                      }))
-                    }
-                    disabled={busy}
-                  />
-                  <Input
-                    id="manage-oauth2-token-url"
-                    label={t('integrations.manageDialog.tokenUrl')}
-                    value={oauth2Fields.tokenUrl}
-                    onChange={(e) =>
-                      setOAuth2Fields((prev) => ({
-                        ...prev,
-                        tokenUrl: e.target.value,
-                      }))
-                    }
-                    disabled={busy}
-                  />
-                  <Input
-                    id="manage-oauth2-client-id"
-                    label={t('integrations.manageDialog.clientId')}
-                    value={oauth2Fields.clientId}
-                    onChange={(e) =>
-                      setOAuth2Fields((prev) => ({
-                        ...prev,
-                        clientId: e.target.value,
-                      }))
-                    }
-                    disabled={busy}
-                  />
-                  <Input
-                    id="manage-oauth2-client-secret"
-                    label={t('integrations.manageDialog.clientSecret')}
-                    type="password"
-                    placeholder="••••••••"
-                    value={oauth2Fields.clientSecret}
-                    onChange={(e) =>
-                      setOAuth2Fields((prev) => ({
-                        ...prev,
-                        clientSecret: e.target.value,
-                      }))
-                    }
-                    disabled={busy}
-                  />
-                  <Button
-                    onClick={handleSaveAndAuthorize}
-                    disabled={busy || !oauth2FieldsComplete}
-                    className="w-full"
-                  >
-                    {isSavingOAuth2 ? (
-                      <>
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        {t('integrations.manageDialog.savingCredentials')}
-                      </>
-                    ) : (
-                      <>
-                        <ExternalLink className="mr-2 size-4" />
-                        {t('integrations.manageDialog.saveAndAuthorize')}
-                      </>
+              {selectedAuthMethod === 'oauth2' &&
+                hasOAuth2Config &&
+                (hasOAuth2Credentials && !isEditingOAuth2 ? (
+                  <>
+                    <Stack gap={2}>
+                      <HStack
+                        gap={2}
+                        className="text-muted-foreground items-center text-sm"
+                      >
+                        <span className="w-20 shrink-0 text-xs">
+                          {t('integrations.manageDialog.clientId')}
+                        </span>
+                        <span className="truncate font-mono text-xs">
+                          {maskValue(integration.oauth2Config?.clientId ?? '')}
+                        </span>
+                      </HStack>
+                      <HStack
+                        gap={2}
+                        className="text-muted-foreground items-center text-sm"
+                      >
+                        <span className="w-20 shrink-0 text-xs">
+                          {t('integrations.manageDialog.clientSecret')}
+                        </span>
+                        <span className="font-mono text-xs">
+                          {'×'.repeat(8)}
+                        </span>
+                      </HStack>
+                      {integration.oauth2Config?.scopes &&
+                        integration.oauth2Config.scopes.length > 0 && (
+                          <HStack
+                            gap={2}
+                            className="text-muted-foreground items-start text-sm"
+                          >
+                            <span className="w-20 shrink-0 text-xs">
+                              {t('integrations.manageDialog.scopes')}
+                            </span>
+                            <span className="font-mono text-xs break-all">
+                              {integration.oauth2Config.scopes.join(', ')}
+                            </span>
+                          </HStack>
+                        )}
+                    </Stack>
+                    <Button
+                      onClick={handleReauthorize}
+                      disabled={busy}
+                      className="w-full"
+                    >
+                      {isSavingOAuth2 ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          {t('integrations.manageDialog.savingCredentials')}
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink className="mr-2 size-4" />
+                          {t('integrations.authorize')}
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditingOAuth2(true)}
+                      disabled={busy}
+                      className="w-full"
+                    >
+                      <Pencil className="mr-2 size-3.5" />
+                      {t('integrations.manageDialog.updateCredentials')}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      id="manage-oauth2-authorization-url"
+                      label={t('integrations.manageDialog.authorizationUrl')}
+                      value={oauth2Fields.authorizationUrl}
+                      onChange={(e) =>
+                        setOAuth2Fields((prev) => ({
+                          ...prev,
+                          authorizationUrl: e.target.value,
+                        }))
+                      }
+                      disabled={busy}
+                    />
+                    <Input
+                      id="manage-oauth2-token-url"
+                      label={t('integrations.manageDialog.tokenUrl')}
+                      value={oauth2Fields.tokenUrl}
+                      onChange={(e) =>
+                        setOAuth2Fields((prev) => ({
+                          ...prev,
+                          tokenUrl: e.target.value,
+                        }))
+                      }
+                      disabled={busy}
+                    />
+                    <Input
+                      id="manage-oauth2-client-id"
+                      label={t('integrations.manageDialog.clientId')}
+                      value={oauth2Fields.clientId}
+                      onChange={(e) =>
+                        setOAuth2Fields((prev) => ({
+                          ...prev,
+                          clientId: e.target.value,
+                        }))
+                      }
+                      disabled={busy}
+                    />
+                    <Input
+                      id="manage-oauth2-client-secret"
+                      label={t('integrations.manageDialog.clientSecret')}
+                      type="password"
+                      placeholder="••••••••"
+                      value={oauth2Fields.clientSecret}
+                      onChange={(e) =>
+                        setOAuth2Fields((prev) => ({
+                          ...prev,
+                          clientSecret: e.target.value,
+                        }))
+                      }
+                      disabled={busy}
+                    />
+                    <Textarea
+                      id="manage-oauth2-scopes"
+                      label={t('integrations.manageDialog.scopes')}
+                      placeholder="channels:read, channels:history"
+                      rows={3}
+                      value={oauth2Fields.scopes}
+                      onChange={(e) =>
+                        setOAuth2Fields((prev) => ({
+                          ...prev,
+                          scopes: e.target.value,
+                        }))
+                      }
+                      disabled={busy}
+                    />
+                    <Button
+                      onClick={handleSaveOAuth2Only}
+                      disabled={busy || !oauth2FieldsComplete}
+                      className="w-full"
+                    >
+                      {isSavingOAuth2 ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          {t('integrations.manageDialog.savingCredentials')}
+                        </>
+                      ) : (
+                        <>
+                          <Save className="mr-2 size-4" />
+                          {t('integrations.manageDialog.saveCredentials')}
+                        </>
+                      )}
+                    </Button>
+                    {isEditingOAuth2 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditingOAuth2(false)}
+                        disabled={busy}
+                        className="w-full"
+                      >
+                        {tCommon('actions.cancel')}
+                      </Button>
                     )}
-                  </Button>
-                </>
-              )}
+                  </>
+                ))}
 
               {/* OAuth2: manual token input as fallback when no oauth2Config */}
               {selectedAuthMethod === 'oauth2' && !hasOAuth2Config && (

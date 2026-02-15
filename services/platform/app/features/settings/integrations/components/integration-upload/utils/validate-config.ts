@@ -6,6 +6,7 @@ const operationSchema = z.object({
   description: z.string().optional(),
   operationType: z.enum(['read', 'write']).optional(),
   requiresApproval: z.boolean().optional(),
+  requiredScopes: z.array(z.string()).optional(),
   query: z.string().optional(),
   parametersSchema: z.record(z.string(), z.any()).optional(),
 });
