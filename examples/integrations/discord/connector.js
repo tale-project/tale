@@ -361,7 +361,7 @@ function listMembers(http, headers, params) {
     pagination: {
       hasNextPage: members.length >= limit,
       nextPageInfo:
-        members.length > 0 ? members[members.length - 1].user.id : null,
+        members.length > 0 ? members[members.length - 1].user?.id : null,
     },
     timestamp: Date.now(),
   };
