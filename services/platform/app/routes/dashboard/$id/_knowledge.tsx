@@ -15,10 +15,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge')({
   head: () => ({
-    meta: seo({
-      title: 'Knowledge - Tale',
-      description: 'Manage your knowledge base for AI agents.',
-    }),
+    meta: seo('knowledge'),
   }),
   component: KnowledgeLayout,
 });

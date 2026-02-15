@@ -19,7 +19,6 @@ export function injectAcceptLanguage(): Plugin {
         // Monkey-patch res.end to replace the placeholder in HTML responses.
         // This is a Vite-internal interception pattern — the type narrowing
         // is unavoidable since res.end has multiple overload signatures.
-        // @ts-expect-error — res.end overloads can't be satisfied with a single signature
         res.end = (chunk: unknown, ...rest: unknown[]) => {
           if (
             typeof chunk === 'string' &&
@@ -29,8 +28,10 @@ export function injectAcceptLanguage(): Plugin {
               "'__ACCEPT_LANGUAGE_PLACEHOLDER__'",
               JSON.stringify(acceptLanguage),
             );
+            // @ts-expect-error — forwarding rest args to overloaded res.end signature
             return originalEnd(injected, ...rest);
           }
+          // @ts-expect-error — forwarding rest args to overloaded res.end signature
           return originalEnd(chunk, ...rest);
         };
 

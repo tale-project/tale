@@ -11,10 +11,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/api-keys')({
   head: () => ({
-    meta: seo({
-      title: 'API keys - Tale',
-      description: 'Create and manage API keys for integrations.',
-    }),
+    meta: seo('apiKeys'),
   }),
   component: ApiKeysSettingsPage,
 });

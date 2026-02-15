@@ -15,10 +15,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings')({
   head: () => ({
-    meta: seo({
-      title: 'Settings - Tale',
-      description: 'Manage organization and account settings.',
-    }),
+    meta: seo('settings'),
   }),
   component: SettingsLayout,
 });

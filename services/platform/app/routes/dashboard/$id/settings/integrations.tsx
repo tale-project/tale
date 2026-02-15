@@ -22,10 +22,7 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
   head: () => ({
-    meta: seo({
-      title: 'Integrations - Tale',
-      description: 'Connect and manage third-party integrations.',
-    }),
+    meta: seo('integrations'),
   }),
   validateSearch: searchSchema,
   loader: ({ context, params }) => {

@@ -19,11 +19,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/_auth/sign-up')({
   head: () => ({
-    meta: seo({
-      title: 'Sign up - Tale',
-      description:
-        'Create a Tale account to get started with AI-powered customer service.',
-    }),
+    meta: seo('signup'),
   }),
   component: SignUpPage,
 });

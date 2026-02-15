@@ -7,10 +7,7 @@ export const Route = createFileRoute(
   '/dashboard/$id/custom-agents/$agentId/webhook',
 )({
   head: () => ({
-    meta: seo({
-      title: 'Agent webhook - Tale',
-      description: 'Manage webhook URLs for your custom agent.',
-    }),
+    meta: seo('agentWebhook'),
   }),
   component: WebhookTab,
 });

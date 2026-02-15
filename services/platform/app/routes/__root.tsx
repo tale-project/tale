@@ -20,13 +20,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
-    meta: [
-      ...seo({
-        title: 'Tale',
-        description:
-          'AI-powered customer service platform. Automate support with intelligent agents, manage conversations, and streamline workflows.',
-      }),
-    ],
+    meta: seo('default'),
   }),
   component: RootComponent,
 });

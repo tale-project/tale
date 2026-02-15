@@ -8,10 +8,7 @@ export const Route = createFileRoute(
   '/dashboard/$id/automations/$amId/triggers',
 )({
   head: () => ({
-    meta: seo({
-      title: 'Triggers - Tale',
-      description: 'Manage automation triggers, schedules, and webhooks.',
-    }),
+    meta: seo('automationTriggers'),
   }),
   component: TriggersPage,
 });

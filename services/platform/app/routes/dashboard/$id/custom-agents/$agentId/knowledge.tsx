@@ -7,10 +7,7 @@ export const Route = createFileRoute(
   '/dashboard/$id/custom-agents/$agentId/knowledge',
 )({
   head: () => ({
-    meta: seo({
-      title: 'Agent knowledge - Tale',
-      description: 'Manage knowledge base access for your custom agent.',
-    }),
+    meta: seo('agentKnowledge'),
   }),
   component: KnowledgeTab,
 });

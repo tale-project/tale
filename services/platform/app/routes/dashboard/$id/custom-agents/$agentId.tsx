@@ -33,10 +33,7 @@ interface SearchParams {
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId')({
   head: () => ({
-    meta: seo({
-      title: 'Custom agent - Tale',
-      description: 'Configure and test your custom AI agent.',
-    }),
+    meta: seo('customAgent'),
   }),
   validateSearch: (search: Record<string, unknown>): SearchParams => ({
     v: typeof search.v === 'number' ? search.v : undefined,

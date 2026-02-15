@@ -21,10 +21,7 @@ const searchSchema = z.object({
 export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')(
   {
     head: () => ({
-      meta: seo({
-        title: 'Tone of voice - Tale',
-        description: 'Define your brand tone of voice for AI responses.',
-      }),
+      meta: seo('toneOfVoice'),
     }),
     validateSearch: searchSchema,
     loader: ({ context, params }) => {

@@ -14,10 +14,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/organization')({
   head: () => ({
-    meta: seo({
-      title: 'Organization - Tale',
-      description: 'Manage organization settings and members.',
-    }),
+    meta: seo('organization'),
   }),
   loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(

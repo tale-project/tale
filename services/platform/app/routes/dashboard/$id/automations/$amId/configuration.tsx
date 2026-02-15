@@ -34,10 +34,7 @@ export const Route = createFileRoute(
   '/dashboard/$id/automations/$amId/configuration',
 )({
   head: () => ({
-    meta: seo({
-      title: 'Configuration - Tale',
-      description: 'Configure automation settings and parameters.',
-    }),
+    meta: seo('automationConfiguration'),
   }),
   component: ConfigurationPage,
 });

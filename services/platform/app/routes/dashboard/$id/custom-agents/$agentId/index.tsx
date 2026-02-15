@@ -19,10 +19,7 @@ import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId/')({
   head: () => ({
-    meta: seo({
-      title: 'Agent settings - Tale',
-      description: 'Configure custom agent general settings.',
-    }),
+    meta: seo('agentSettings'),
   }),
   component: GeneralTab,
 });

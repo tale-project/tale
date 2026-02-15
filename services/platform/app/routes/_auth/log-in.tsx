@@ -31,11 +31,7 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/_auth/log-in')({
   head: () => ({
-    meta: seo({
-      title: 'Log in - Tale',
-      description:
-        'Log in to your Tale account to manage AI-powered customer service.',
-    }),
+    meta: seo('login'),
   }),
   validateSearch: searchSchema,
   component: LogInPage,

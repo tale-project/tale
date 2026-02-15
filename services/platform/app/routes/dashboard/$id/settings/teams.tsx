@@ -11,10 +11,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/teams')({
   head: () => ({
-    meta: seo({
-      title: 'Teams - Tale',
-      description: 'Create and manage teams within your organization.',
-    }),
+    meta: seo('teams'),
   }),
   component: TeamsSettingsPage,
 });

@@ -18,10 +18,7 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge/vendors')({
   head: () => ({
-    meta: seo({
-      title: 'Vendors - Tale',
-      description: 'Manage your vendor knowledge base.',
-    }),
+    meta: seo('vendors'),
   }),
   validateSearch: searchSchema,
   loader: async ({ context, params }) => {

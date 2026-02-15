@@ -56,10 +56,7 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
   head: () => ({
-    meta: seo({
-      title: 'Automation - Tale',
-      description: 'View and edit automation workflow.',
-    }),
+    meta: seo('automation'),
   }),
   validateSearch: searchSchema,
   loader: ({ context, params }) => {

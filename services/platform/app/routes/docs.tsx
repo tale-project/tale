@@ -11,10 +11,7 @@ const SwaggerUI = lazy(() => import('swagger-ui-react'));
 
 export const Route = createFileRoute('/docs')({
   head: () => ({
-    meta: seo({
-      title: 'API documentation - Tale',
-      description: 'Explore the Tale API with interactive documentation.',
-    }),
+    meta: seo('apiDocs'),
   }),
   component: ApiDocsPage,
 });

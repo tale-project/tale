@@ -15,10 +15,7 @@ export const Route = createFileRoute(
   '/dashboard/$id/custom-agents/$agentId/tools',
 )({
   head: () => ({
-    meta: seo({
-      title: 'Agent tools - Tale',
-      description: 'Select and configure tools available to your agent.',
-    }),
+    meta: seo('agentTools'),
   }),
   component: ToolsTab,
 });

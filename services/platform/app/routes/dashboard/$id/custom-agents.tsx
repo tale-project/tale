@@ -14,10 +14,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents')({
   head: () => ({
-    meta: seo({
-      title: 'Custom agents - Tale',
-      description: 'Create and manage AI agents for customer service.',
-    }),
+    meta: seo('customAgents'),
   }),
   component: CustomAgentsLayout,
 });

@@ -2784,6 +2784,62 @@
     "createOrganization": {
       "title": "Create organization",
       "description": "Create a new organization."
+    },
+    "login": {
+      "title": "Log in",
+      "description": "Log in to your Tale account."
+    },
+    "signup": {
+      "title": "Sign up",
+      "description": "Create a new Tale account."
+    },
+    "apiDocs": {
+      "title": "API documentation",
+      "description": "Explore the Tale API with interactive documentation."
+    },
+    "convexDashboard": {
+      "title": "Convex Dashboard",
+      "description": "Manage the Convex backend."
+    },
+    "knowledge": {
+      "title": "Knowledge",
+      "description": "Manage your knowledge base for AI agents."
+    },
+    "customAgents": {
+      "title": "Custom agents",
+      "description": "Create and manage AI agents for customer service."
+    },
+    "customAgent": {
+      "title": "Custom agent",
+      "description": "Configure and test your custom AI agent."
+    },
+    "agentSettings": {
+      "title": "Agent settings",
+      "description": "Configure custom agent general settings."
+    },
+    "agentInstructions": {
+      "title": "Instructions",
+      "description": "Configure agent instructions and model settings."
+    },
+    "agentKnowledge": {
+      "title": "Agent knowledge",
+      "description": "Manage knowledge base access for your agent."
+    },
+    "agentTools": {
+      "title": "Agent tools",
+      "description": "Select and configure tools available to your agent."
+    },
+    "agentWebhook": {
+      "title": "Agent webhook",
+      "description": "Manage webhook URLs for your custom agent."
+    },
+    "automationTriggers": {
+      "title": "Triggers",
+      "description": "Manage automation triggers, schedules, and webhooks."
+    },
+    "apiKeys": {
+      "title": "API keys",
+      "description": "Create and manage API keys for integrations."
     }
   }
 }

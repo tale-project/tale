@@ -17,10 +17,7 @@ export const Route = createFileRoute(
   '/dashboard/$id/automations/$amId/executions',
 )({
   head: () => ({
-    meta: seo({
-      title: 'Executions - Tale',
-      description: 'View automation execution history and logs.',
-    }),
+    meta: seo('automationExecutions'),
   }),
   validateSearch: searchSchema,
   component: ExecutionsPage,

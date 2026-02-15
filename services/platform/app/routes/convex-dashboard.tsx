@@ -4,7 +4,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/convex-dashboard')({
   head: () => ({
-    meta: seo({ title: 'Convex Dashboard - Tale' }),
+    meta: seo('convexDashboard'),
   }),
   component: ConvexDashboardPage,
 });

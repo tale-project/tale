@@ -24,10 +24,7 @@ export const Route = createFileRoute(
   '/dashboard/$id/custom-agents/$agentId/instructions',
 )({
   head: () => ({
-    meta: seo({
-      title: 'Instructions - Tale',
-      description: 'Configure agent instructions and model settings.',
-    }),
+    meta: seo('agentInstructions'),
   }),
   loader: ({ context }) => {
     void context.queryClient.prefetchQuery(

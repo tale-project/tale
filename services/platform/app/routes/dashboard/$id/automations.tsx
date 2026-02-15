@@ -12,10 +12,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/automations')({
   head: () => ({
-    meta: seo({
-      title: 'Automations - Tale',
-      description: 'Build and manage automated workflows.',
-    }),
+    meta: seo('automations'),
   }),
   component: AutomationsLayout,
 });

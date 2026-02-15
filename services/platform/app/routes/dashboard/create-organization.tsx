@@ -7,10 +7,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/create-organization')({
   head: () => ({
-    meta: seo({
-      title: 'Create organization - Tale',
-      description: 'Set up a new organization in Tale.',
-    }),
+    meta: seo('createOrganization'),
   }),
   component: CreateOrganizationPage,
 });

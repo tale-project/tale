@@ -15,10 +15,7 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
   head: () => ({
-    meta: seo({
-      title: 'Documents - Tale',
-      description: 'Upload and manage documents in your knowledge base.',
-    }),
+    meta: seo('documents'),
   }),
   validateSearch: searchSchema,
   loader: ({ context }) => {

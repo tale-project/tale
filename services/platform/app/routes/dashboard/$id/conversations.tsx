@@ -13,10 +13,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/conversations')({
   head: () => ({
-    meta: seo({
-      title: 'Conversations - Tale',
-      description: 'View and manage customer conversations.',
-    }),
+    meta: seo('conversations'),
   }),
   beforeLoad: ({ params, location }) => {
     if (location.pathname === `/dashboard/${params.id}/conversations`) {

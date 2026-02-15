@@ -13,10 +13,7 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/approvals')({
   head: () => ({
-    meta: seo({
-      title: 'Approvals - Tale',
-      description: 'Review and manage pending approvals.',
-    }),
+    meta: seo('approvals'),
   }),
   beforeLoad: ({ params, location }) => {
     if (location.pathname === `/dashboard/${params.id}/approvals`) {

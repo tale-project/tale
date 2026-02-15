@@ -29,10 +29,7 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute('/dashboard/$id/settings/logs')({
   head: () => ({
-    meta: seo({
-      title: 'Logs - Tale',
-      description: 'View audit logs, activity, and error reports.',
-    }),
+    meta: seo('logs'),
   }),
   validateSearch: searchSchema,
   component: LogsPage,
