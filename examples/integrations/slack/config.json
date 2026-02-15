@@ -21,7 +21,6 @@
       "mpim:history",
       "chat:write",
       "users:read",
-      "search:read",
       "files:write"
     ]
   },
@@ -107,20 +106,6 @@
         "type": "object",
         "properties": {
           "user": { "type": "string", "description": "User ID (e.g. U01234ABCDE)", "required": true }
-        }
-      }
-    },
-    {
-      "name": "search_messages",
-      "title": "Search Messages",
-      "description": "Search for messages across the workspace",
-      "requiredScopes": ["search:read"],
-      "parametersSchema": {
-        "type": "object",
-        "properties": {
-          "query": { "type": "string", "description": "Search query string", "required": true },
-          "count": { "type": "number", "description": "Number of results per page (max 100, default 20)", "required": false },
-          "page": { "type": "number", "description": "Page number of results (1-based)", "required": false }
         }
       }
     },

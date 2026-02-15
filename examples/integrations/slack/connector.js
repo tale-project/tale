@@ -11,7 +11,6 @@ var connector = {
     'send_message',
     'list_users',
     'get_user',
-    'search_messages',
     'upload_file',
   ],
 
@@ -81,9 +80,6 @@ var connector = {
     }
     if (operation === 'get_user') {
       return getUser(http, headers, params);
-    }
-    if (operation === 'search_messages') {
-      return searchMessages(http, headers, params);
     }
     if (operation === 'upload_file') {
       return uploadFile(http, headers, params);
@@ -184,8 +180,11 @@ function getChannel(http, headers, params) {
   }
 
   var response = http.post(API_BASE + 'conversations.info', {
-    headers: headers,
-    body: JSON.stringify({ channel: params.channel }),
+    headers: {
+      Authorization: headers.Authorization,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'channel=' + encodeURIComponent(params.channel),
   });
   var data = handleSlackResponse(response, 'get channel');
 
@@ -321,8 +320,11 @@ function getUser(http, headers, params) {
   }
 
   var response = http.post(API_BASE + 'users.info', {
-    headers: headers,
-    body: JSON.stringify({ user: params.user }),
+    headers: {
+      Authorization: headers.Authorization,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'user=' + encodeURIComponent(params.user),
   });
   var data = handleSlackResponse(response, 'get user');
 
@@ -335,43 +337,6 @@ function getUser(http, headers, params) {
   };
 }
 
-function searchMessages(http, headers, params) {
-  if (!params.query) {
-    throw new Error('query (search query) is required.');
-  }
-
-  var body = {
-    query: params.query,
-    count: Math.min(params.count || 20, 100),
-  };
-  if (params.page) {
-    body.page = params.page;
-  }
-
-  var response = http.post(API_BASE + 'search.messages', {
-    headers: headers,
-    body: JSON.stringify(body),
-  });
-  var data = handleSlackResponse(response, 'search messages');
-
-  var messages =
-    data.messages && data.messages.matches ? data.messages.matches : [];
-  var paging =
-    data.messages && data.messages.paging ? data.messages.paging : {};
-
-  return {
-    success: true,
-    operation: 'search_messages',
-    data: messages,
-    count: messages.length,
-    pagination: {
-      hasNextPage: paging.page ? paging.page < paging.pages : false,
-      nextPageInfo: paging.page ? String(paging.page + 1) : null,
-    },
-    timestamp: Date.now(),
-  };
-}
-
 function uploadFile(http, headers, params) {
   if (!params.channels) {
     throw new Error('channels (comma-separated channel IDs) is required.');
@@ -380,49 +345,64 @@ function uploadFile(http, headers, params) {
     throw new Error('content (file content) is required.');
   }
 
-  var formParts = [];
-  formParts.push('channels=' + encodeURIComponent(params.channels));
-  formParts.push('content=' + encodeURIComponent(params.content));
-  formParts.push(
-    'filename=' + encodeURIComponent(params.filename || 'file.txt'),
-  );
-  if (params.title) {
-    formParts.push('title=' + encodeURIComponent(params.title));
-  }
-  if (params.initial_comment) {
-    formParts.push(
-      'initial_comment=' + encodeURIComponent(params.initial_comment),
-    );
-  }
+  var filename = params.filename || 'file.txt';
+  var contentLength = params.content.length;
 
-  var uploadHeaders = {
-    Authorization: headers.Authorization,
-    'Content-Type': 'application/x-www-form-urlencoded',
-  };
-
-  var response = http.post(API_BASE + 'files.upload', {
-    headers: uploadHeaders,
-    body: formParts.join('&'),
+  var urlResponse = http.post(API_BASE + 'files.getUploadURLExternal', {
+    headers: {
+      Authorization: headers.Authorization,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body:
+      'filename=' + encodeURIComponent(filename) + '&length=' + contentLength,
   });
-  if (response.status === 0) {
+  var urlData = handleSlackResponse(urlResponse, 'get upload URL');
+
+  var uploadResponse = http.post(urlData.upload_url, {
+    headers: { 'Content-Type': 'text/plain' },
+    body: params.content,
+  });
+  handleError(uploadResponse, 'upload file content');
+
+  var channelList = params.channels.split(',').map(function (ch) {
+    return ch.trim();
+  });
+  var files = [{ id: urlData.file_id }];
+  if (params.title) {
+    files[0].title = params.title;
+  }
+
+  var completeBody = {
+    files: files,
+    channel_id: channelList[0],
+  };
+  if (params.initial_comment) {
+    completeBody.initial_comment = params.initial_comment;
+  }
+
+  var completeResponse = http.post(API_BASE + 'files.completeUploadExternal', {
+    headers: headers,
+    body: JSON.stringify(completeBody),
+  });
+  if (completeResponse.status === 0) {
     return {
       success: true,
       operation: 'upload_file',
       data: { pending: true },
     };
   }
-  var data = handleSlackResponse(response, 'upload file');
+  var completeData = handleSlackResponse(completeResponse, 'complete upload');
+
+  var fileInfo =
+    completeData.files && completeData.files[0] ? completeData.files[0] : {};
 
   return {
     success: true,
     operation: 'upload_file',
     data: {
-      id: data.file.id,
-      name: data.file.name,
-      title: data.file.title,
-      mimetype: data.file.mimetype,
-      size: data.file.size,
-      url_private: data.file.url_private,
+      id: fileInfo.id || urlData.file_id,
+      name: fileInfo.name || filename,
+      title: fileInfo.title || params.title || filename,
     },
     count: 1,
     timestamp: Date.now(),
