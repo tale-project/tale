@@ -44,11 +44,16 @@ function WebsitesPage() {
     initialNumItems: 20,
   });
 
+  const hasServerFilters = !!search.status;
+
+  const isInitialLoading =
+    paginatedResult.status === 'LoadingFirstPage' && !hasServerFilters;
+
   if (count === 0) {
     return <WebsitesEmptyState organizationId={organizationId} />;
   }
 
-  if (paginatedResult.status === 'LoadingFirstPage' && !search.status) {
+  if (isInitialLoading) {
     return (
       <WebsitesTableSkeleton
         organizationId={organizationId}

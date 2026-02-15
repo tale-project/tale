@@ -222,10 +222,15 @@ export function AutomationNavigation({
     >
       <div className="ml-auto flex items-center gap-2">
         {isLoading && (
-          <div className="hidden items-center gap-2 md:flex">
-            <Skeleton className="h-8 w-12 rounded-md" />
-            <Skeleton className="h-8 w-20 rounded-md" />
-          </div>
+          <>
+            <div className="hidden items-center gap-2 md:flex">
+              <Skeleton className="h-8 w-12 rounded-md" />
+              <Skeleton className="h-8 w-20 rounded-md" />
+            </div>
+            <div className="flex items-center gap-2 md:hidden">
+              <Skeleton className="h-8 w-8 rounded-md" />
+            </div>
+          </>
         )}
 
         {/* Version select - hidden on mobile (shown in first header row instead) */}

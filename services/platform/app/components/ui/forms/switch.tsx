@@ -82,11 +82,11 @@ export const Switch = forwardRef<
     }
 
     return (
-      <div className="flex items-center gap-2">
-        {switchElement}
+      <div className="flex items-center justify-between">
         <Label htmlFor={id} required={required} className="cursor-pointer">
           {label}
         </Label>
+        {switchElement}
       </div>
     );
   },

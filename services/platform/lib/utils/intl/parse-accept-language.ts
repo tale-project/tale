@@ -28,7 +28,7 @@ export function parseAcceptLanguage(header: string): string[] {
 
     let quality = 1;
     for (const param of params) {
-      const match = param.trim().match(/^q\s*=\s*(\d+(?:\.\d+)?)$/);
+      const match = param.trim().match(/^q\s*=\s*(-?\d+(?:\.\d+)?)$/);
       if (match) {
         quality = Math.min(1, Math.max(0, Number(match[1])));
         break;

@@ -21,7 +21,7 @@ describe('resolveLocale', () => {
     );
   });
 
-  it('falls back to en-US for bare "en" via en fallback', () => {
+  it("returns 'en' for bare 'en' when valid", () => {
     expect(resolveLocale(['en'], 'de-DE')).toBe('en');
   });
 

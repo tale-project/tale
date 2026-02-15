@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
@@ -19,17 +19,29 @@ export function FormSection({
   children,
   className,
 }: FormSectionProps) {
+  const id = useId();
+
   return (
-    <div className={cn('flex flex-col gap-3', className)}>
+    <div
+      role="group"
+      aria-labelledby={label ? `${id}-label` : undefined}
+      aria-describedby={description ? `${id}-desc` : undefined}
+      className={cn('flex flex-col gap-3', className)}
+    >
       {(label || description) && (
         <div className="flex flex-col gap-1">
           {label && (
-            <span className="text-muted-foreground text-xs font-medium md:text-sm">
+            <span
+              id={`${id}-label`}
+              className="text-muted-foreground text-xs font-medium md:text-sm"
+            >
               {label}
             </span>
           )}
           {description && (
-            <Description className="text-xs">{description}</Description>
+            <Description id={`${id}-desc`} className="text-xs">
+              {description}
+            </Description>
           )}
         </div>
       )}

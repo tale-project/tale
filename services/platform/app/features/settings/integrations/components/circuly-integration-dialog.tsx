@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
-import { FormSection } from '@/app/components/ui/forms/form-section';
+import { Description } from '@/app/components/ui/forms/description';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -220,7 +220,7 @@ export function CirculyIntegrationDialog({
             </div>
           </Stack>
 
-          <FormSection description={t('integrations.circuly.syncingData')} />
+          <Description>{t('integrations.circuly.syncingData')}</Description>
         </Stack>
       ) : (
         // Not connected state - show connection form
