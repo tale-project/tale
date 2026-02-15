@@ -41,7 +41,13 @@ interface DocumentsClientProps {
 
 const PAGE_SIZE = 20;
 
-function DocumentsSkeleton() {
+function DocumentsSkeleton({
+  organizationId,
+  hasMicrosoftAccount,
+}: {
+  organizationId: string;
+  hasMicrosoftAccount: boolean;
+}) {
   const { t } = useT('tables');
   const { t: tDocuments } = useT('documents');
 
@@ -50,18 +56,23 @@ function DocumentsSkeleton() {
       rows={10}
       columns={[
         { header: t('headers.document') },
-        { header: t('headers.size'), size: 128 },
-        { header: t('headers.source'), size: 96 },
+        { header: t('headers.size'), size: 128, align: 'right' },
+        { header: t('headers.source'), size: 96, align: 'center' },
         { header: t('headers.ragStatus'), size: 160 },
         { header: t('headers.teams'), size: 160 },
         { header: t('headers.uploadedBy'), size: 160 },
-        { header: t('headers.modified'), size: 192 },
+        { header: t('headers.modified'), size: 192, align: 'right' },
         { isAction: true, size: 160 },
       ]}
       stickyLayout
       infiniteScroll
       searchPlaceholder={tDocuments('searchPlaceholder')}
-      actionMenu={<Skeleton className="h-9 w-40" />}
+      actionMenu={
+        <DocumentsActionMenu
+          organizationId={organizationId}
+          hasMicrosoftAccount={hasMicrosoftAccount}
+        />
+      }
     />
   );
 }
@@ -423,7 +434,12 @@ export function DocumentsClient({
   );
 
   if (paginatedResult.status === 'LoadingFirstPage') {
-    return <DocumentsSkeleton />;
+    return (
+      <DocumentsSkeleton
+        organizationId={organizationId}
+        hasMicrosoftAccount={hasMicrosoftAccount}
+      />
+    );
   }
 
   return (

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useHasMicrosoftAccount } from '@/app/features/auth/hooks/queries';
 import { DocumentsClient } from '@/app/features/documents/components/documents-client';
 import { api } from '@/convex/_generated/api';
+import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -13,6 +14,12 @@ const searchSchema = z.object({
 });
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
+  head: () => ({
+    meta: seo({
+      title: 'Documents - Tale',
+      description: 'Upload and manage documents in your knowledge base.',
+    }),
+  }),
   validateSearch: searchSchema,
   loader: ({ context }) => {
     void context.queryClient.prefetchQuery(

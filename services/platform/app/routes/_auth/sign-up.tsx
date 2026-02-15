@@ -15,8 +15,16 @@ import { useIsSsoConfigured } from '@/app/features/auth/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/_auth/sign-up')({
+  head: () => ({
+    meta: seo({
+      title: 'Sign up - Tale',
+      description:
+        'Create a Tale account to get started with AI-powered customer service.',
+    }),
+  }),
   component: SignUpPage,
 });
 

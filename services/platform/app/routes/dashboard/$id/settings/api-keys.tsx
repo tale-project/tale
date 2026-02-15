@@ -1,56 +1,33 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { ApiKeysSettings } from '@/app/features/settings/api-keys/components/api-keys-settings';
+import { ApiKeysEmptyState } from '@/app/features/settings/api-keys/components/api-keys-empty-state';
+import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
+import { ApiKeysTableSkeleton } from '@/app/features/settings/api-keys/components/api-keys-table-skeleton';
+import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/api-keys')({
+  head: () => ({
+    meta: seo({
+      title: 'API keys - Tale',
+      description: 'Create and manage API keys for integrations.',
+    }),
+  }),
   component: ApiKeysSettingsPage,
 });
-
-function ApiKeysSettingsSkeleton() {
-  const { t } = useT('settings');
-
-  return (
-    <Stack>
-      <Stack gap={1}>
-        <Skeleton className="h-6 w-32" />
-        <Skeleton className="h-4 w-64" />
-      </Stack>
-
-      <HStack justify="end" className="pt-4">
-        <Skeleton className="h-9 w-32" />
-      </HStack>
-
-      <DataTableSkeleton
-        rows={3}
-        columns={[
-          { header: t('apiKeys.columns.name'), size: 200 },
-          { header: t('apiKeys.columns.prefix'), size: 150 },
-          { header: t('apiKeys.columns.created'), size: 150 },
-          { header: t('apiKeys.columns.lastUsed'), size: 150 },
-          { header: t('apiKeys.columns.expires'), size: 150 },
-          { isAction: true, size: 80 },
-        ]}
-        showHeader
-      />
-    </Stack>
-  );
-}
 
 function ApiKeysSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
-  const { data: memberContext, isLoading } =
+  const { data: memberContext, isLoading: isMemberLoading } =
     useCurrentMemberContext(organizationId);
 
-  if (isLoading) {
-    return <ApiKeysSettingsSkeleton />;
+  if (isMemberLoading) {
+    return <ApiKeysTableSkeleton organizationId={organizationId} />;
   }
 
   if (!memberContext) {
@@ -64,5 +41,19 @@ function ApiKeysSettingsPage() {
     return <AccessDenied message={t('apiKeys')} />;
   }
 
-  return <ApiKeysSettings organizationId={organizationId} />;
+  return <ApiKeysContent organizationId={organizationId} />;
+}
+
+function ApiKeysContent({ organizationId }: { organizationId: string }) {
+  const { data: apiKeys, isLoading } = useApiKeys(organizationId);
+
+  if (isLoading) {
+    return <ApiKeysTableSkeleton organizationId={organizationId} />;
+  }
+
+  if (!apiKeys || apiKeys.length === 0) {
+    return <ApiKeysEmptyState organizationId={organizationId} />;
+  }
+
+  return <ApiKeysTable apiKeys={apiKeys} organizationId={organizationId} />;
 }

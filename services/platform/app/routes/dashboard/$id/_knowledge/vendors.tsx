@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
@@ -5,6 +6,9 @@ import { VendorsEmptyState } from '@/app/features/vendors/components/vendors-emp
 import { VendorsTable } from '@/app/features/vendors/components/vendors-table';
 import { VendorsTableSkeleton } from '@/app/features/vendors/components/vendors-table-skeleton';
 import { useListVendorsPaginated } from '@/app/features/vendors/hooks/queries';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
+import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -13,13 +17,30 @@ const searchSchema = z.object({
 });
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge/vendors')({
+  head: () => ({
+    meta: seo({
+      title: 'Vendors - Tale',
+      description: 'Manage your vendor knowledge base.',
+    }),
+  }),
   validateSearch: searchSchema,
+  loader: async ({ context, params }) => {
+    await context.queryClient.ensureQueryData(
+      convexQuery(api.vendors.queries.countVendors, {
+        organizationId: params.id,
+      }),
+    );
+  },
   component: VendorsPage,
 });
 
 function VendorsPage() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
+
+  const { data: count } = useConvexQuery(api.vendors.queries.countVendors, {
+    organizationId,
+  });
 
   const paginatedResult = useListVendorsPaginated({
     organizationId,
@@ -28,15 +49,22 @@ function VendorsPage() {
     initialNumItems: 20,
   });
 
-  if (paginatedResult.status === 'LoadingFirstPage') {
-    return <VendorsTableSkeleton organizationId={organizationId} />;
+  if (count === 0) {
+    return <VendorsEmptyState organizationId={organizationId} />;
   }
 
-  if (
-    paginatedResult.status === 'Exhausted' &&
-    paginatedResult.results.length === 0
-  ) {
-    return <VendorsEmptyState organizationId={organizationId} />;
+  const hasServerFilters = !!(search.source || search.locale);
+
+  const isInitialLoading =
+    paginatedResult.status === 'LoadingFirstPage' && !hasServerFilters;
+
+  if (isInitialLoading) {
+    return (
+      <VendorsTableSkeleton
+        organizationId={organizationId}
+        rows={Math.min(count ?? 10, 10)}
+      />
+    );
   }
 
   return (

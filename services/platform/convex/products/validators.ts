@@ -4,23 +4,16 @@
 import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
-import {
-  productStatusSchema,
-  productSortBySchema,
-} from '../../lib/shared/schemas/products';
+import { productStatusSchema } from '../../lib/shared/schemas/products';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export {
   productStatusSchema,
-  productSortBySchema,
   productTranslationSchema,
   productItemSchema,
-  productListResponseSchema,
 } from '../../lib/shared/schemas/products';
 
 export const productStatusValidator = zodToConvex(productStatusSchema);
-export const productSortByValidator = zodToConvex(productSortBySchema);
-export const sortOrderValidator = v.union(v.literal('asc'), v.literal('desc'));
 export const productTranslationValidator = v.object({
   language: v.string(),
   name: v.optional(v.string()),
@@ -48,15 +41,6 @@ export const productItemValidator = v.object({
   relatedProductsCount: v.optional(v.number()),
   translations: v.optional(v.array(productTranslationValidator)),
   metadata: v.optional(jsonRecordValidator),
-});
-
-export const productListResponseValidator = v.object({
-  products: v.array(productItemValidator),
-  total: v.number(),
-  hasNextPage: v.boolean(),
-  currentPage: v.number(),
-  pageSize: v.number(),
-  error: v.optional(v.string()),
 });
 
 export const productDocValidator = v.object({

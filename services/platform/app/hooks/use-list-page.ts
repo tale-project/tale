@@ -211,14 +211,16 @@ export function useListPage<TData>(
     setDisplayCount(pageSize);
   }, [pageSize]);
 
-  // 9. handleLoadMore
+  // 9. handleLoadMore — prefetch from backend before buffer is exhausted
   const handleLoadMore = useCallback(() => {
     if (dataSource.type === 'paginated') {
+      const nextDisplayCount = displayCount + pageSize;
+      const remainingAfterIncrement = processed.length - nextDisplayCount;
       if (
-        displayCount >= processed.length &&
+        remainingAfterIncrement <= pageSize &&
         dataSource.status === 'CanLoadMore'
       ) {
-        dataSource.loadMore(pageSize);
+        dataSource.loadMore(pageSize * 3);
       }
     }
     setDisplayCount((prev) => prev + pageSize);
@@ -304,7 +306,8 @@ export function useListPage<TData>(
         onLoadMore: handleLoadMore,
         isLoadingMore:
           dataSource.type === 'paginated'
-            ? dataSource.status === 'LoadingMore'
+            ? dataSource.status === 'LoadingMore' &&
+              displayCount >= processed.length
             : false,
         isInitialLoading:
           dataSource.type === 'paginated'

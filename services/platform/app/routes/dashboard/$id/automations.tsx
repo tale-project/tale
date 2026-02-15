@@ -8,8 +8,15 @@ import {
 import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { AutomationsListNavigation } from '@/app/features/automations/components/automations-list-navigation';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/automations')({
+  head: () => ({
+    meta: seo({
+      title: 'Automations - Tale',
+      description: 'Build and manage automated workflows.',
+    }),
+  }),
   component: AutomationsLayout,
 });
 

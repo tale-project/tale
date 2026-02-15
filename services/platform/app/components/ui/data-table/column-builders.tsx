@@ -133,6 +133,7 @@ export function createCreationTimeColumn<
       </span>
     ),
     size: options?.size ?? 140,
+    meta: { headerLabel: tTables('headers.created') },
     cell: ({ row }) => (
       <TableTimestampCell
         timestamp={row.original._creationTime}
@@ -147,7 +148,7 @@ export function createCreationTimeColumn<
  *
  * @example
  * ```tsx
- * createDateColumn('lastUpdated', 'headers.updated', tTables, { alignRight: true })
+ * createDateColumn('lastUpdated', 'headers.updated', tTables)
  * ```
  */
 export function createDateColumn<TData, K extends keyof TData>(
@@ -156,7 +157,7 @@ export function createDateColumn<TData, K extends keyof TData>(
   tTables: TranslationFn,
   options?: DateColumnOptions,
 ): ColumnDef<TData> {
-  const alignRight = options?.alignRight ?? false;
+  const alignRight = options?.alignRight ?? true;
 
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table accessorKey expects string; keyof TData is always string here
@@ -165,8 +166,9 @@ export function createDateColumn<TData, K extends keyof TData>(
       ? () => (
           <span className="block w-full text-right">{tTables(headerKey)}</span>
         )
-      : () => tTables(headerKey),
+      : tTables(headerKey),
     size: options?.size ?? 140,
+    meta: { headerLabel: tTables(headerKey) },
     cell: ({ row }) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TData[K] is date-like but generic prevents narrowing
       const date = row.original[accessorKey] as unknown as
@@ -178,7 +180,6 @@ export function createDateColumn<TData, K extends keyof TData>(
           date={date}
           preset={options?.preset ?? 'short'}
           alignRight={alignRight}
-          className="text-xs"
         />
       );
     },
@@ -199,7 +200,7 @@ export function createSourceColumn<TData extends { source?: string | null }>(
 ): ColumnDef<TData> {
   return {
     accessorKey: 'source',
-    header: () => tTables('headers.source'),
+    header: tTables('headers.source'),
     size: options?.size ?? 140,
     cell: ({ row }) => (
       <span className="text-muted-foreground text-xs">
@@ -251,7 +252,7 @@ export function createTextColumn<TData, K extends keyof TData>(
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table accessorKey expects string; keyof TData is always string here
     accessorKey: accessorKey as string,
-    header: () => tTables(headerKey),
+    header: tTables(headerKey),
     size: options?.size,
     cell: ({ row }) => {
       const value = row.original[accessorKey];

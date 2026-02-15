@@ -68,6 +68,13 @@ export const WithLabel: Story = {
   },
 };
 
+export const WithDescription: Story = {
+  args: {
+    label: 'Accept terms and conditions',
+    description: 'By checking this box you agree to our terms of service.',
+  },
+};
+
 export const Checked: Story = {
   args: {
     label: 'Email notifications',

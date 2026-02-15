@@ -13,7 +13,7 @@ export const useVendorsTableConfig = createTableConfigHook<'vendors'>(
   ({ tTables, builders }) => [
     {
       accessorKey: 'name',
-      header: () => tTables('headers.name'),
+      header: tTables('headers.name'),
       size: 408,
       cell: ({ row }) => (
         <Stack gap={0}>

@@ -23,12 +23,20 @@ import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
   redirectTo: z.string().optional(),
 });
 
 export const Route = createFileRoute('/_auth/log-in')({
+  head: () => ({
+    meta: seo({
+      title: 'Log in - Tale',
+      description:
+        'Log in to your Tale account to manage AI-powered customer service.',
+    }),
+  }),
   validateSearch: searchSchema,
   component: LogInPage,
 });

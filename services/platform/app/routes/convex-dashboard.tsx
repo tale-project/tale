@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { seo } from '@/lib/utils/seo';
+
 export const Route = createFileRoute('/convex-dashboard')({
   head: () => ({
-    meta: [{ title: 'Convex Dashboard' }],
+    meta: seo({ title: 'Convex Dashboard - Tale' }),
   }),
   component: ConvexDashboardPage,
 });

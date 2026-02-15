@@ -6,43 +6,58 @@ import {
   forwardRef,
   ComponentRef,
   ComponentPropsWithoutRef,
+  ReactNode,
   useId,
 } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
+import { Description } from './description';
 import { Label } from './label';
 
 interface RadioGroupProps extends ComponentPropsWithoutRef<
   typeof RadioGroupPrimitive.Root
 > {
   label?: string;
+  description?: ReactNode;
 }
 
 export const RadioGroup = forwardRef<
   ComponentRef<typeof RadioGroupPrimitive.Root>,
   RadioGroupProps
->(({ className, label, required, id: providedId, ...props }, ref) => {
-  const generatedId = useId();
-  const id = providedId ?? generatedId;
+>(
+  (
+    { className, label, description, required, id: providedId, ...props },
+    ref,
+  ) => {
+    const generatedId = useId();
+    const id = providedId ?? generatedId;
+    const descriptionId = `${id}-description`;
 
-  return (
-    <div className="flex flex-col gap-2">
-      {label && (
-        <Label id={`${id}-label`} required={required}>
-          {label}
-        </Label>
-      )}
-      <RadioGroupPrimitive.Root
-        className={cn('grid gap-2', className)}
-        {...props}
-        ref={ref}
-        required={required}
-        aria-labelledby={label ? `${id}-label` : undefined}
-      />
-    </div>
-  );
-});
+    return (
+      <div className="flex flex-col gap-2">
+        {label && (
+          <Label id={`${id}-label`} required={required}>
+            {label}
+          </Label>
+        )}
+        {description && (
+          <Description id={descriptionId} className="text-xs">
+            {description}
+          </Description>
+        )}
+        <RadioGroupPrimitive.Root
+          className={cn('grid gap-2', className)}
+          {...props}
+          ref={ref}
+          required={required}
+          aria-labelledby={label ? `${id}-label` : undefined}
+          aria-describedby={description ? descriptionId : undefined}
+        />
+      </div>
+    );
+  },
+);
 RadioGroup.displayName = RadioGroupPrimitive.Root.displayName;
 
 interface RadioGroupItemProps extends ComponentPropsWithoutRef<

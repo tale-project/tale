@@ -28,8 +28,13 @@ export function useExecutionsTableConfig() {
       },
       {
         accessorKey: 'startedAt',
-        header: tTables('headers.startedAt'),
+        header: () => (
+          <span className="block w-full text-right">
+            {tTables('headers.startedAt')}
+          </span>
+        ),
         size: 192,
+        meta: { headerLabel: tTables('headers.startedAt') },
       },
       {
         id: 'duration',

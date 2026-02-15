@@ -1,6 +1,7 @@
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
+import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
 import { queryWithRLS } from '../lib/rls';
 import { listVendorsPaginated as listVendorsPaginatedHelper } from './list_vendors_paginated';
 
@@ -18,6 +19,16 @@ export const listVendors = queryWithRLS({
       results.push(vendor);
     }
     return results;
+  },
+});
+
+export const countVendors = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    return await countItemsInOrg(ctx.db, 'vendors', args.organizationId);
   },
 });
 

@@ -290,6 +290,14 @@
     "members": {
       "title": "No members found",
       "description": "Add team members to get started"
+    },
+    "teams": {
+      "title": "No teams yet",
+      "description": "Create your first team to organize members and control access"
+    },
+    "apiKeys": {
+      "title": "No API keys yet",
+      "description": "Create an API key to enable external integrations via REST API"
     }
   },
   "tables": {
@@ -1225,6 +1233,7 @@
       "description": "Manage API keys for external integrations",
       "accessDenied": "You need Admin or Developer permissions to manage API keys.",
       "createKey": "Create API key",
+      "searchKeys": "Search API keys",
       "noKeys": "No API keys yet",
       "noKeysDescription": "Create an API key to enable external integrations via REST API.",
       "keyCreated": "API key created",

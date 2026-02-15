@@ -93,24 +93,6 @@ export const listExecutionsArgsSchema = z.object({
 
 type ListExecutionsArgs = z.infer<typeof listExecutionsArgsSchema>;
 
-export const listExecutionsPaginatedArgsSchema = z.object({
-  wfDefinitionId: z.string(),
-  organizationId: z.string().optional(),
-  currentPage: z.number().optional(),
-  pageSize: z.number().optional(),
-  searchTerm: z.string().optional(),
-  status: z.array(z.string()).optional(),
-  triggeredBy: z.array(z.string()).optional(),
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
-  sortField: z.string().optional(),
-  sortOrder: executionSortOrderSchema.optional(),
-});
-
-type ListExecutionsPaginatedArgs = z.infer<
-  typeof listExecutionsPaginatedArgsSchema
->;
-
 export const listExecutionsCursorArgsSchema = z.object({
   wfDefinitionId: z.string(),
   numItems: z.number().optional(),

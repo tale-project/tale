@@ -7,6 +7,7 @@ declare global {
       SENTRY_TRACES_SAMPLE_RATE?: number;
       TALE_VERSION?: string;
     };
+    __ACCEPT_LANGUAGE__?: string;
   }
 }
 

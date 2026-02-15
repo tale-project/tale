@@ -4,8 +4,15 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { AccountFormClient } from '@/app/features/settings/account/components/account-form-client';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/account')({
+  head: () => ({
+    meta: seo({
+      title: 'Account - Tale',
+      description: 'Manage your account settings and profile.',
+    }),
+  }),
   component: AccountPage,
 });
 

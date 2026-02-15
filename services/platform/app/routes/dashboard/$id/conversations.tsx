@@ -9,8 +9,15 @@ import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { ConversationsNavigation } from '@/app/features/conversations/components/conversations-navigation';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/conversations')({
+  head: () => ({
+    meta: seo({
+      title: 'Conversations - Tale',
+      description: 'View and manage customer conversations.',
+    }),
+  }),
   beforeLoad: ({ params, location }) => {
     if (location.pathname === `/dashboard/${params.id}/conversations`) {
       throw redirect({

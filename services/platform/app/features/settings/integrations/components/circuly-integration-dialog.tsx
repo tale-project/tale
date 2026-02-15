@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
-import { Description } from '@/app/components/ui/forms/description';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -220,9 +220,7 @@ export function CirculyIntegrationDialog({
             </div>
           </Stack>
 
-          <Description className="text-xs">
-            {t('integrations.circuly.syncingData')}
-          </Description>
+          <FormSection description={t('integrations.circuly.syncingData')} />
         </Stack>
       ) : (
         // Not connected state - show connection form
@@ -239,16 +237,13 @@ export function CirculyIntegrationDialog({
           <Input
             type="password"
             label={t('integrations.circuly.password')}
+            description={t('integrations.circuly.enterCredentials')}
             placeholder={t('integrations.circuly.passwordPlaceholder')}
             disabled={isSubmitting}
             errorMessage={form.formState.errors.password?.message}
             className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
             {...form.register('password')}
           />
-
-          <Description className="text-xs">
-            {t('integrations.circuly.enterCredentials')}
-          </Description>
         </Stack>
       )}
     </FormDialog>

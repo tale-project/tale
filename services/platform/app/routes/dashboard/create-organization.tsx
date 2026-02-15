@@ -3,8 +3,15 @@ import { useEffect } from 'react';
 
 import { OrganizationFormClient } from '@/app/features/organization/components/organization-form-client';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/create-organization')({
+  head: () => ({
+    meta: seo({
+      title: 'Create organization - Tale',
+      description: 'Set up a new organization in Tale.',
+    }),
+  }),
   component: CreateOrganizationPage,
 });
 

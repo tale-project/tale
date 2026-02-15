@@ -24,6 +24,7 @@ import { CustomAgentVersionProvider } from '@/app/features/custom-agents/hooks/u
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { seo } from '@/lib/utils/seo';
 import { toId } from '@/lib/utils/type-guards';
 
 interface SearchParams {
@@ -31,6 +32,12 @@ interface SearchParams {
 }
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId')({
+  head: () => ({
+    meta: seo({
+      title: 'Custom agent - Tale',
+      description: 'Configure and test your custom AI agent.',
+    }),
+  }),
   validateSearch: (search: Record<string, unknown>): SearchParams => ({
     v: typeof search.v === 'number' ? search.v : undefined,
   }),

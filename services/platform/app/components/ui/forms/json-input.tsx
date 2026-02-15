@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { z } from 'zod';
 
 import { useTheme } from '@/app/components/theme/theme-provider';
+import { Description } from '@/app/components/ui/forms/description';
 import { Label } from '@/app/components/ui/forms/label';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
@@ -388,7 +389,7 @@ export function JsonInput({
       )}
 
       {description && (
-        <p className="text-muted-foreground text-xs">{description}</p>
+        <Description className="text-xs">{description}</Description>
       )}
     </div>
   );

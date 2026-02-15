@@ -3,12 +3,19 @@ import { Suspense, lazy, useMemo } from 'react';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack } from '@/app/components/ui/layout/layout';
+import { seo } from '@/lib/utils/seo';
 
 import 'swagger-ui-react/swagger-ui.css';
 
 const SwaggerUI = lazy(() => import('swagger-ui-react'));
 
 export const Route = createFileRoute('/docs')({
+  head: () => ({
+    meta: seo({
+      title: 'API documentation - Tale',
+      description: 'Explore the Tale API with interactive documentation.',
+    }),
+  }),
   component: ApiDocsPage,
 });
 

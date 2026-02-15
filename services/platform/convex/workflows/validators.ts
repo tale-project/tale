@@ -42,7 +42,6 @@ export {
   updateExecutionMetadataArgsValidator,
   updateExecutionVariablesArgsValidator,
   listExecutionsArgsValidator,
-  listExecutionsPaginatedArgsValidator,
   listExecutionsCursorArgsValidator,
 } from './executions/validators';
 
