@@ -103,6 +103,7 @@ function ToolsTab() {
           onIntegrationBindingsChange={handleIntegrationBindingsChange}
           organizationId={organizationId}
           lockedTools={lockedTools}
+          disabled={isReadOnly}
         />
       </Stack>
     </NarrowContainer>

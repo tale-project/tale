@@ -576,7 +576,7 @@ function TestChatPanelContent({
             </div>
           ) : (
             <>
-              {displayItems.map((item, idx) => {
+              {displayItems.map((item) => {
                 if (item.type === 'approval') {
                   return (
                     <div
@@ -710,7 +710,7 @@ function TestChatPanelContent({
                       )}
                       {message.role === 'assistant' &&
                         !message.id.startsWith('pending-') &&
-                        !(isBusy && idx === displayItems.length - 1) && (
+                        message.content && (
                           <AssistantMessageInfo
                             messageId={message.id}
                             timestamp={message.timestamp}

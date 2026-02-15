@@ -18,6 +18,7 @@ interface ToolSelectorProps {
   onIntegrationBindingsChange: (bindings: string[]) => void;
   organizationId: string;
   lockedTools?: Set<string>;
+  disabled?: boolean;
 }
 
 const TOOL_CATEGORIES: Record<string, ToolName[]> = {
@@ -72,6 +73,7 @@ export function ToolSelector({
   onIntegrationBindingsChange,
   organizationId,
   lockedTools,
+  disabled,
 }: ToolSelectorProps) {
   const { t } = useT('settings');
   const { tools, isLoading } = useAvailableTools();
@@ -130,7 +132,7 @@ export function ToolSelector({
   }
 
   return (
-    <fieldset>
+    <fieldset disabled={disabled}>
       <div className="space-y-4">
         {Array.from(categorized.entries()).map(([category, toolNames]) => (
           <div key={category}>
