@@ -101,7 +101,7 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
       displayName: 'Docs',
       description: 'Reads and creates documents (PDF, Word, Excel, etc.)',
       instructions: DOCUMENT_AGENT_INSTRUCTIONS,
-      toolNames: ['pdf', 'image', 'docx', 'pptx', 'txt', 'generate_excel'],
+      toolNames: ['pdf', 'image', 'docx', 'pptx', 'txt', 'excel'],
       maxSteps: 15,
       contextFeatures: [],
     },

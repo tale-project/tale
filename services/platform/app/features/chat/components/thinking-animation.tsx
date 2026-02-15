@@ -73,12 +73,11 @@ export function ThinkingAnimation({
       image: t('tools.image'),
       pptx: t('tools.pptx'),
       docx: t('tools.docx'),
-      resource_check: t('tools.resourceCheck'),
       workflow_read: t('tools.workflowRead'),
       update_workflow_step: t('tools.updateWorkflowStep'),
       save_workflow_definition: t('tools.saveWorkflowDefinition'),
       validate_workflow_definition: t('tools.validateWorkflowDefinition'),
-      generate_excel: t('tools.generateExcel'),
+      excel: t('tools.excel'),
     };
 
     const displayText =

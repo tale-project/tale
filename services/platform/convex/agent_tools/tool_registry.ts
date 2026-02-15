@@ -11,11 +11,10 @@ import type { ToolDefinition } from './types';
 import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
 import { docxTool } from './files/docx_tool';
-import { generateExcelTool } from './files/generate_excel_tool';
+import { excelTool } from './files/excel_tool';
 import { imageTool } from './files/image_tool';
 import { pdfTool } from './files/pdf_tool';
 import { pptxTool } from './files/pptx_tool';
-import { resourceCheckTool } from './files/resource_check_tool';
 import { txtTool } from './files/txt_tool';
 import { requestHumanInputTool } from './human_input/request_human_input_tool';
 import { integrationBatchTool } from './integrations/integration_batch_tool';
@@ -52,13 +51,12 @@ export const TOOL_REGISTRY = [
   updateWorkflowStepTool,
   saveWorkflowDefinitionTool,
   createWorkflowTool,
-  generateExcelTool,
+  excelTool,
   pdfTool,
   imageTool,
   pptxTool,
   docxTool,
   txtTool,
-  resourceCheckTool,
   integrationTool,
   integrationBatchTool,
   integrationIntrospectTool,

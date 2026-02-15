@@ -1,8 +1,8 @@
 'use node';
 
 /**
- * Internal action to generate Excel files using xlsx.
- * Must run in Node.js runtime for buffer generation.
+ * Internal actions for Excel files using xlsx.
+ * Must run in Node.js runtime for buffer/binary operations.
  */
 
 import { v } from 'convex/values';
@@ -86,5 +86,63 @@ export const generateExcel = internalAction({
       rowCount: totalRows,
       sheetCount: args.sheets.length,
     };
+  },
+});
+
+export const parseExcel = internalAction({
+  args: {
+    storageId: v.id('_storage'),
+  },
+  returns: v.object({
+    sheets: v.array(
+      v.object({
+        name: v.string(),
+        headers: v.array(v.string()),
+        rows: v.array(
+          v.array(v.union(v.string(), v.number(), v.boolean(), v.null())),
+        ),
+        rowCount: v.number(),
+      }),
+    ),
+    totalRows: v.number(),
+    sheetCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    debugLog('parse_excel_internal start', { storageId: args.storageId });
+
+    const blob = await ctx.storage.get(args.storageId);
+    if (!blob) {
+      throw new Error(`File not found in storage: ${args.storageId}`);
+    }
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+
+    let totalRows = 0;
+    const sheets = workbook.SheetNames.map((name) => {
+      const worksheet = workbook.Sheets[name];
+      if (!worksheet) {
+        return { name, headers: [], rows: [], rowCount: 0 };
+      }
+
+      const jsonData: Array<Array<string | number | boolean | null>> =
+        XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+
+      const headers =
+        jsonData.length > 0
+          ? jsonData[0].map((cell) => String(cell ?? ''))
+          : [];
+      const rows = jsonData.slice(1);
+      totalRows += rows.length;
+
+      return { name, headers, rows, rowCount: rows.length };
+    });
+
+    debugLog('parse_excel_internal success', {
+      sheetCount: sheets.length,
+      totalRows,
+    });
+
+    return { sheets, totalRows, sheetCount: sheets.length };
   },
 });
