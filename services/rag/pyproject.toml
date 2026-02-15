@@ -13,7 +13,7 @@ dependencies = [
     "PyMuPDF==1.27.1",
     "asyncpg==0.31.0",
     "psycopg2-binary==2.9.11",
-    "python-multipart==0.0.20",
+    "python-multipart==0.0.22",
     "python-dotenv==1.2.1",
     "loguru==0.7.3",
     "httpx==0.28.1",
