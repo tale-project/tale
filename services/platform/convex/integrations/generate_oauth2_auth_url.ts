@@ -33,7 +33,7 @@ function applyProviderAuthParams(
     if (!scopes.includes('offline_access')) {
       scopes.push('offline_access');
     }
-    params.set('prompt', 'consent');
+    params.set('prompt', 'select_account');
   }
 }
 
