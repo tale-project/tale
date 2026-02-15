@@ -35,6 +35,8 @@ import { sanitizeDepth } from '../../workflow_engine/helpers/serialization/sanit
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
+const INTEGRATION_MAX_DEPTH = 8;
+
 // =============================================================================
 // EXECUTE INTEGRATION
 // =============================================================================
@@ -84,7 +86,7 @@ export const executeIntegration = internalAction({
       },
     );
 
-    return toConvexJsonValue(sanitizeDepth(result, 0, 8));
+    return toConvexJsonValue(sanitizeDepth(result, 0, INTEGRATION_MAX_DEPTH));
   },
 });
 
@@ -502,7 +504,7 @@ async function executeSqlBatch(
                 duration: result.duration,
               },
               0,
-              8,
+              INTEGRATION_MAX_DEPTH,
             ),
           ),
           duration: Date.now() - opStartTime,
@@ -622,7 +624,9 @@ async function executeRestApiBatch(
           id: op.id,
           operation: op.operation,
           success: true,
-          data: toConvexJsonValue(sanitizeDepth(result, 0, 8)),
+          data: toConvexJsonValue(
+            sanitizeDepth(result, 0, INTEGRATION_MAX_DEPTH),
+          ),
           duration,
           rowCount,
         };
