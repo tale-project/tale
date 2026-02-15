@@ -20,6 +20,7 @@ export const conversationsTable = defineTable({
   type: v.optional(v.string()),
   channel: v.optional(v.string()),
   direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
+  integrationName: v.optional(v.string()),
   lastMessageAt: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
 })
@@ -38,6 +39,11 @@ export const conversationsTable = defineTable({
     'organizationId',
     'status',
     'lastMessageAt',
+  ])
+  .index('by_org_integration_channel', [
+    'organizationId',
+    'integrationName',
+    'channel',
   ]);
 
 export const conversationMessagesTable = defineTable({
@@ -53,6 +59,7 @@ export const conversationMessagesTable = defineTable({
     v.literal('failed'),
   ),
   retryCount: v.optional(v.number()),
+  integrationName: v.optional(v.string()),
   content: v.string(),
   sentAt: v.optional(v.number()),
   deliveredAt: v.optional(v.number()),
@@ -81,5 +88,13 @@ export const conversationMessagesTable = defineTable({
     'channel',
     'direction',
     'deliveryState',
+    'deliveredAt',
+  ])
+  .index('by_org_channel_direction_deliveryState_integration_deliveredAt', [
+    'organizationId',
+    'channel',
+    'direction',
+    'deliveryState',
+    'integrationName',
     'deliveredAt',
   ]);

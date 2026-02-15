@@ -72,9 +72,10 @@ describe('sanitizeDepth', () => {
 
       expect(truncated._truncated).toBe(true);
       expect(truncated._originalType).toBe('object');
+      expect(truncated._stringified).toBe(JSON.stringify({ l7: 'too deep' }));
     });
 
-    it('should truncate arrays at max depth with item count', () => {
+    it('should truncate arrays at max depth with item count and stringified data', () => {
       const deep = {
         l1: { l2: { l3: { l4: { l5: { l6: [1, 2, 3, 4, 5] } } } } },
       };
@@ -89,6 +90,7 @@ describe('sanitizeDepth', () => {
       expect(truncated._truncated).toBe(true);
       expect(truncated._originalType).toBe('array');
       expect(truncated._itemCount).toBe(5);
+      expect(truncated._stringified).toBe(JSON.stringify([1, 2, 3, 4, 5]));
     });
 
     it('should preserve structure up to max depth', () => {
@@ -153,7 +155,11 @@ describe('sanitizeDepth', () => {
 
       expect(result).toEqual({
         a: {
-          b: { _truncated: true, _originalType: 'object' },
+          b: {
+            _truncated: true,
+            _originalType: 'object',
+            _stringified: JSON.stringify({ c: 'value' }),
+          },
         },
       });
     });
@@ -163,6 +169,38 @@ describe('sanitizeDepth', () => {
       const result = sanitizeDepth(input, 0, 10);
 
       expect(result).toEqual(input);
+    });
+  });
+
+  describe('stringified size capping', () => {
+    it('should cap _stringified when the serialized value is very large', () => {
+      const largeArray = Array.from({ length: 500 }, (_, i) => ({
+        key: `item-${i}`,
+        value: 'x'.repeat(20),
+      }));
+      const input = { wrapper: largeArray };
+      const result = sanitizeDepth(input, 0, 1) as Record<
+        string,
+        TruncationMarker
+      >;
+
+      expect(result.wrapper._truncated).toBe(true);
+      expect(result.wrapper._stringified).toBeDefined();
+      expect(result.wrapper._stringified?.length).toBeLessThanOrEqual(1003); // 1000 + '...'
+      expect(result.wrapper._stringified?.endsWith('...')).toBe(true);
+    });
+
+    it('should not cap _stringified when the serialized value is small', () => {
+      const small = { b: 'small' };
+      const input = { a: small };
+      const result = sanitizeDepth(input, 0, 1) as Record<
+        string,
+        TruncationMarker
+      >;
+
+      expect(result.a._truncated).toBe(true);
+      expect(result.a._stringified).toBe(JSON.stringify(small));
+      expect(result.a._stringified?.endsWith('...')).toBe(false);
     });
   });
 

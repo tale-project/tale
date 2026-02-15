@@ -1,0 +1,105 @@
+{
+  "name": "twilio",
+  "title": "Twilio",
+  "description": "Twilio API integration for SMS messaging, voice calls, and phone number management",
+  "version": 1,
+  "authMethod": "basic_auth",
+  "supportedAuthMethods": ["basic_auth"],
+  "secretBindings": ["username", "password"],
+  "allowedHosts": ["api.twilio.com"],
+  "operations": [
+    {
+      "name": "send_sms",
+      "title": "Send SMS",
+      "description": "Send an SMS message via Twilio",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "to": { "type": "string", "description": "Recipient phone number in E.164 format (e.g. +15551234567)", "required": true },
+          "from": { "type": "string", "description": "Twilio phone number to send from in E.164 format (e.g. +15559876543)", "required": true },
+          "body": { "type": "string", "description": "Text content of the SMS message", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_messages",
+      "title": "List Messages",
+      "description": "List SMS messages with optional filters",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "to": { "type": "string", "description": "Filter by recipient phone number in E.164 format", "required": false },
+          "from": { "type": "string", "description": "Filter by sender phone number in E.164 format", "required": false },
+          "dateSent": { "type": "string", "description": "Filter by date sent (YYYY-MM-DD)", "format": "date", "required": false },
+          "pageSize": { "type": "number", "description": "Number of messages per page (max 1000, default 50)", "required": false },
+          "page": { "type": "number", "description": "Page number (0-based)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_message",
+      "title": "Get Message",
+      "description": "Get details of a specific SMS message by SID",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "messageSid": { "type": "string", "description": "Twilio message SID (e.g. SM1234567890abcdef1234567890abcdef)", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_calls",
+      "title": "List Calls",
+      "description": "List voice calls with optional filters",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "to": { "type": "string", "description": "Filter by recipient phone number in E.164 format", "required": false },
+          "from": { "type": "string", "description": "Filter by caller phone number in E.164 format", "required": false },
+          "status": { "type": "string", "description": "Filter by call status: queued, ringing, in-progress, completed, busy, failed, no-answer, canceled", "required": false },
+          "pageSize": { "type": "number", "description": "Number of calls per page (max 1000, default 50)", "required": false },
+          "page": { "type": "number", "description": "Page number (0-based)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "make_call",
+      "title": "Make Call",
+      "description": "Initiate an outbound voice call via Twilio",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "to": { "type": "string", "description": "Recipient phone number in E.164 format (e.g. +15551234567)", "required": true },
+          "from": { "type": "string", "description": "Twilio phone number to call from in E.164 format", "required": true },
+          "url": { "type": "string", "description": "TwiML URL containing instructions for the call", "required": true },
+          "method": { "type": "string", "description": "HTTP method for the TwiML URL (GET or POST, default POST)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_account",
+      "title": "Get Account",
+      "description": "Get Twilio account details",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "list_phone_numbers",
+      "title": "List Phone Numbers",
+      "description": "List incoming phone numbers owned by the Twilio account",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "pageSize": { "type": "number", "description": "Number of phone numbers per page (max 1000, default 50)", "required": false },
+          "page": { "type": "number", "description": "Page number (0-based)", "required": false }
+        }
+      }
+    }
+  ]
+}

@@ -2,15 +2,12 @@
  * Internal mutation to create integration
  *
  * Supports both REST API and SQL integrations.
- * For predefined integrations (like Protel), automatically populates
- * connector code (REST API) or SQL operations from the predefined definitions.
  */
 
 import type { ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
 import type { MutationCtx } from '../_generated/server';
 
 import { Id } from '../_generated/dataModel';
-import { getPredefinedIntegration } from '../predefined_integrations';
 import {
   AuthMethod,
   Status,
@@ -58,42 +55,25 @@ export async function createIntegrationInternal(
   ctx: MutationCtx,
   args: CreateIntegrationInternalArgs,
 ): Promise<Id<'integrations'>> {
-  // Get connector config from args or predefined integration
-  let connector = args.connector;
-  let title = args.title;
-  let description = args.description;
-  let type = args.type;
-  let sqlConnectionConfig = args.sqlConnectionConfig;
-  let sqlOperations = args.sqlOperations;
+  const connector = args.connector;
+  const title = args.title;
+  const description = args.description;
+  const type = args.type;
+  const sqlConnectionConfig = args.sqlConnectionConfig;
+  const sqlOperations = args.sqlOperations;
 
-  // For predefined integrations, auto-populate from predefined definitions
-  const predefined = getPredefinedIntegration(args.name);
-  if (predefined) {
-    title = title ?? predefined.title;
-    description = description ?? predefined.description;
+  // Enforce unique name per organization
+  const existing = await ctx.db
+    .query('integrations')
+    .withIndex('by_organizationId_and_name', (q) =>
+      q.eq('organizationId', args.organizationId).eq('name', args.name),
+    )
+    .first();
 
-    // Check if this is a SQL integration
-    if (predefined.type === 'sql') {
-      type = 'sql';
-
-      // Merge SQL connection config: user-provided values override predefined defaults
-      if (predefined.sqlConnectionConfig && sqlConnectionConfig) {
-        sqlConnectionConfig = {
-          ...predefined.sqlConnectionConfig,
-          ...sqlConnectionConfig,
-        };
-      }
-
-      // Use predefined SQL operations if not provided
-      if (!sqlOperations && predefined.sqlOperations) {
-        sqlOperations = predefined.sqlOperations as SqlOperation[];
-      }
-    } else {
-      // REST API integration - use predefined connector
-      if (!connector && predefined.connector) {
-        connector = predefined.connector;
-      }
-    }
+  if (existing) {
+    throw new Error(
+      `Integration "${args.name}" already exists in this organization`,
+    );
   }
 
   const integrationId = await ctx.db.insert('integrations', {

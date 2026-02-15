@@ -1,0 +1,167 @@
+{
+  "name": "github",
+  "title": "GitHub",
+  "description": "GitHub REST API integration for repositories, issues, pull requests, and code search",
+  "version": 1,
+  "authMethod": "bearer_token",
+  "supportedAuthMethods": ["bearer_token"],
+  "secretBindings": ["accessToken"],
+  "allowedHosts": ["api.github.com"],
+  "operations": [
+    {
+      "name": "list_repos",
+      "title": "List Repositories",
+      "description": "List repositories for the authenticated user",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "per_page": { "type": "number", "description": "Number of results per page (max 100)", "required": false },
+          "page": { "type": "number", "description": "Page number for pagination", "required": false },
+          "sort": { "type": "string", "description": "Sort field: created, updated, pushed, or full_name", "required": false },
+          "visibility": { "type": "string", "description": "Filter by visibility: all, public, or private", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_repo",
+      "title": "Get Repository",
+      "description": "Get a single repository by owner and name",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
+          "repo": { "type": "string", "description": "Repository name", "required": true }
+        }
+      }
+    },
+    {
+      "name": "list_issues",
+      "title": "List Issues",
+      "description": "List issues for a repository",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
+          "repo": { "type": "string", "description": "Repository name", "required": true },
+          "state": { "type": "string", "description": "Filter by state: open, closed, or all", "required": false },
+          "per_page": { "type": "number", "description": "Number of results per page (max 100)", "required": false },
+          "page": { "type": "number", "description": "Page number for pagination", "required": false },
+          "labels": { "type": "string", "description": "Comma-separated list of label names to filter by", "required": false },
+          "sort": { "type": "string", "description": "Sort field: created, updated, or comments", "required": false },
+          "direction": { "type": "string", "description": "Sort direction: asc or desc", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_issue",
+      "title": "Get Issue",
+      "description": "Get a single issue by number",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
+          "repo": { "type": "string", "description": "Repository name", "required": true },
+          "issue_number": { "type": "number", "description": "Issue number", "required": true }
+        }
+      }
+    },
+    {
+      "name": "create_issue",
+      "title": "Create Issue",
+      "description": "Create a new issue in a repository",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
+          "repo": { "type": "string", "description": "Repository name", "required": true },
+          "title": { "type": "string", "description": "Issue title", "required": true },
+          "body": { "type": "string", "description": "Issue body content (Markdown supported)", "required": false },
+          "labels": { "type": "array", "description": "Array of label names to apply", "required": false },
+          "assignees": { "type": "array", "description": "Array of usernames to assign", "required": false }
+        }
+      }
+    },
+    {
+      "name": "list_pull_requests",
+      "title": "List Pull Requests",
+      "description": "List pull requests for a repository",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
+          "repo": { "type": "string", "description": "Repository name", "required": true },
+          "state": { "type": "string", "description": "Filter by state: open, closed, or all", "required": false },
+          "per_page": { "type": "number", "description": "Number of results per page (max 100)", "required": false },
+          "page": { "type": "number", "description": "Page number for pagination", "required": false },
+          "sort": { "type": "string", "description": "Sort field: created, updated, popularity, or long-running", "required": false },
+          "direction": { "type": "string", "description": "Sort direction: asc or desc", "required": false }
+        }
+      }
+    },
+    {
+      "name": "get_pull_request",
+      "title": "Get Pull Request",
+      "description": "Get a single pull request by number",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
+          "repo": { "type": "string", "description": "Repository name", "required": true },
+          "pull_number": { "type": "number", "description": "Pull request number", "required": true }
+        }
+      }
+    },
+    {
+      "name": "create_pull_request",
+      "title": "Create Pull Request",
+      "description": "Create a new pull request in a repository",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
+          "repo": { "type": "string", "description": "Repository name", "required": true },
+          "title": { "type": "string", "description": "Pull request title", "required": true },
+          "head": { "type": "string", "description": "The branch (or user:branch) containing the changes", "required": true },
+          "base": { "type": "string", "description": "The branch to merge changes into", "required": true },
+          "body": { "type": "string", "description": "Pull request body content (Markdown supported)", "required": false }
+        }
+      }
+    },
+    {
+      "name": "list_commits",
+      "title": "List Commits",
+      "description": "List commits for a repository",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
+          "repo": { "type": "string", "description": "Repository name", "required": true },
+          "per_page": { "type": "number", "description": "Number of results per page (max 100)", "required": false },
+          "page": { "type": "number", "description": "Page number for pagination", "required": false },
+          "sha": { "type": "string", "description": "Branch name or commit SHA to list commits from", "required": false }
+        }
+      }
+    },
+    {
+      "name": "search_code",
+      "title": "Search Code",
+      "description": "Search for code across GitHub repositories",
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "q": { "type": "string", "description": "Search query (supports GitHub search qualifiers like repo:, language:, path:)", "required": true },
+          "per_page": { "type": "number", "description": "Number of results per page (max 100)", "required": false },
+          "page": { "type": "number", "description": "Page number for pagination", "required": false }
+        }
+      }
+    }
+  ],
+  "connectionConfig": {
+    "apiEndpoint": "https://api.github.com",
+    "timeout": 30000
+  }
+}

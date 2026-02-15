@@ -33,6 +33,7 @@ export interface CreateConversationWithMessageArgs extends CreateConversationArg
     metadata?: unknown;
     sentAt?: number; // Timestamp when message was sent (for outbound) or received (for inbound)
     deliveredAt?: number; // Timestamp when message was delivered (for email sync)
+    integrationName?: string;
   };
 }
 
@@ -89,6 +90,8 @@ export async function createConversationWithMessage(
     direction,
     externalMessageId: args.initialMessage.externalMessageId,
     deliveryState,
+    integrationName:
+      args.initialMessage.integrationName ?? args.integrationName,
     content: args.initialMessage.content,
     sentAt: args.initialMessage.sentAt ? args.initialMessage.sentAt : undefined,
     deliveredAt: args.initialMessage.deliveredAt

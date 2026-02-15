@@ -308,6 +308,13 @@ jexlInstance.addTransform('isoDate', (dateVal: unknown) => {
   return new Date(timestamp).toISOString();
 });
 
+// Convert date value to Unix epoch seconds (for Gmail after: queries, etc.)
+jexlInstance.addTransform('epochSeconds', (dateVal: unknown) => {
+  const timestamp = parseDateValue(dateVal);
+  if (isNaN(timestamp)) return '';
+  return Math.floor(timestamp / 1000);
+});
+
 // Check if a date is before another date (or days ago)
 jexlInstance.addTransform(
   'isBefore',

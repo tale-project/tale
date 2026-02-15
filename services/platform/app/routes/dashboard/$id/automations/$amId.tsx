@@ -218,7 +218,7 @@ function AutomationDetailLayout() {
                   size="sm"
                   className="ml-auto h-8 text-sm md:hidden"
                 >
-                  {automation.version}
+                  {`v${automation.versionNumber}`}
                   <ChevronDown className="ml-1 size-3" aria-hidden="true" />
                 </Button>
               </DropdownMenuTrigger>
@@ -228,7 +228,7 @@ function AutomationDetailLayout() {
                     key={version._id}
                     onClick={() => navigateToVersion(version._id)}
                   >
-                    <span>{version.version}</span>
+                    <span>{`v${version.versionNumber}`}</span>
                     <span className="text-muted-foreground ml-1 text-xs">
                       {version.status === 'draft' && tCommon('status.draft')}
                       {version.status === 'active' && tCommon('status.active')}

@@ -33,7 +33,8 @@
           "operation": "query_latest_message_by_delivery_state",
           "channel": "email",
           "direction": "inbound",
-          "deliveryState": "delivered"
+          "deliveryState": "delivered",
+          "integrationName": "outlook"
         }
       },
       "nextSteps": { "success": "check_has_cursor" }
@@ -84,7 +85,7 @@
           "name": "outlook",
           "operation": "list_messages",
           "params": {
-            "filter": "receivedDateTime gt '{{steps.query_latest_inbound_message.output.data.message.deliveredAt|isoDate}}'",
+            "filter": "receivedDateTime gt {{steps.query_latest_inbound_message.output.data.message.deliveredAt|isoDate}}",
             "orderby": "receivedDateTime asc",
             "top": 1,
             "select": "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,internetMessageId,conversationId,isRead,hasAttachments,bodyPreview",
@@ -159,7 +160,8 @@
         "parameters": {
           "operation": "create_from_email",
           "emails": "{{steps.fetch_thread_messages.output.data.result.data}}",
-          "status": "{{conversationStatus}}"
+          "status": "{{conversationStatus}}",
+          "integrationName": "outlook"
         }
       },
       "nextSteps": { "success": "noop" }

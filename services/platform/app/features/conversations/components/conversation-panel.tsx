@@ -154,12 +154,17 @@ export function ConversationPanel({
 
             const result = await fetch(uploadUrl, {
               method: 'POST',
-              headers: { 'Content-Type': file.type },
+              headers: {
+                'Content-Type': file.type || 'application/octet-stream',
+              },
               body: file,
             });
 
-            const json = await result.json();
-            const rawStorageId = json.storageId;
+            if (!result.ok) {
+              throw new Error(tConversations('panel.uploadFailed'));
+            }
+
+            const { storageId: rawStorageId } = await result.json();
 
             if (typeof rawStorageId !== 'string') {
               throw new Error(tConversations('panel.uploadFailed'));
@@ -200,7 +205,7 @@ export function ConversationPanel({
     await sendMessageViaIntegration({
       conversationId: toId<'conversations'>(conversation._id),
       organizationId: conversation.organizationId,
-      integrationName: 'outlook',
+      integrationName: conversation.integrationName ?? 'outlook',
       content: message,
       to: [customerEmail],
       subject: replySubject,

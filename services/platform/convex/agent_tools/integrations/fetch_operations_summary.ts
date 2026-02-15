@@ -9,7 +9,6 @@ import type { ActionCtx } from '../../_generated/server';
 
 import { internal } from '../../_generated/api';
 import { isSqlIntegration } from '../../integrations/helpers';
-import { getPredefinedIntegration } from '../../predefined_integrations';
 
 interface OperationInfo {
   name: string;
@@ -50,14 +49,7 @@ export async function fetchOperationsSummary(
       });
     }
   } else {
-    let connectorConfig = integration.connector;
-
-    if (!connectorConfig) {
-      const predefined = getPredefinedIntegration(integrationName);
-      if (predefined) {
-        connectorConfig = predefined.connector;
-      }
-    }
+    const connectorConfig = integration.connector;
 
     if (connectorConfig?.operations) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic connector schema

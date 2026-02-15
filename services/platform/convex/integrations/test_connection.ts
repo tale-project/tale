@@ -19,7 +19,6 @@ import type {
 
 import { api, internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
-import { getPredefinedIntegration } from '../predefined_integrations';
 import { buildIntegrationSecrets } from './build_test_secrets';
 import { isSqlIntegration } from './guards/is_sql_integration';
 
@@ -108,19 +107,9 @@ async function testRestConnection(
     connectionConfig?: ConnectionConfig;
   },
 ): Promise<void> {
-  // Find connector code: from integration or from predefined fallback
-  let connectorCode = integration.connector?.code;
-  let allowedHosts = integration.connector?.allowedHosts;
-  let timeoutMs = integration.connector?.timeoutMs;
-
-  if (!connectorCode) {
-    const predefined = getPredefinedIntegration(integration.name);
-    if (predefined?.connector) {
-      connectorCode = predefined.connector.code;
-      allowedHosts = predefined.connector.allowedHosts;
-      timeoutMs = predefined.connector.timeoutMs;
-    }
-  }
+  const connectorCode = integration.connector?.code;
+  const allowedHosts = integration.connector?.allowedHosts;
+  const timeoutMs = integration.connector?.timeoutMs;
 
   if (!connectorCode) {
     throw new Error(

@@ -1,14 +1,20 @@
 'use client';
 
 import {
+  AlertCircle,
   CheckCircle,
+  ChevronRight,
+  Code,
   ExternalLink,
   XCircle,
   Loader2,
+  Pencil,
   Puzzle,
+  Save,
   Trash2,
   Upload,
   X,
+  Zap,
 } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
@@ -18,14 +24,18 @@ import { Image } from '@/app/components/ui/data-display/image';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Center, Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+import type { ParsedPackage } from './integration-upload/utils/parse-integration-package';
 
 import {
   useGenerateIntegrationOAuth2Url,
@@ -39,6 +49,7 @@ import {
   useUpdateIntegrationIcon,
 } from '../hooks/mutations';
 import { IntegrationDetails } from './integration-details';
+import { parseIntegrationFiles } from './integration-upload/utils/parse-integration-package';
 
 const SENSITIVE_KEYS = new Set([
   'password',
@@ -145,6 +156,12 @@ export function IntegrationManageDialog({
   );
   const iconInputRef = useRef<HTMLInputElement>(null);
 
+  // Update integration package state
+  const [parsedUpdate, setParsedUpdate] = useState<ParsedPackage | null>(null);
+  const [isParsingUpdate, setIsParsingUpdate] = useState(false);
+  const [updateParseError, setUpdateParseError] = useState<string | null>(null);
+  const [isApplyingUpdate, setIsApplyingUpdate] = useState(false);
+
   // Clear optimistic overrides when Convex reactive query updates the real data
   useEffect(() => {
     setOptimisticActive(null);
@@ -198,14 +215,26 @@ export function IntegrationManageDialog({
     setSelectedAuthMethod(integration.authMethod);
   }, [integration.authMethod]);
 
+  // Reset update state when dialog reopens or integration changes
+  useEffect(() => {
+    if (!open) return;
+    setParsedUpdate(null);
+    setUpdateParseError(null);
+    setIsParsingUpdate(false);
+    setIsApplyingUpdate(false);
+  }, [open, integration._id]);
+
   // OAuth2 client credential state (for authorization flow)
   const [oauth2Fields, setOAuth2Fields] = useState({
     authorizationUrl: '',
     tokenUrl: '',
     clientId: '',
     clientSecret: '',
+    scopes: '',
   });
   const [isSavingOAuth2, setIsSavingOAuth2] = useState(false);
+  const [isEditingOAuth2, setIsEditingOAuth2] = useState(false);
+  const [oauth2SavedOptimistic, setOAuth2SavedOptimistic] = useState(false);
 
   // Pre-fill OAuth2 fields from integration config (reset fully on integration change)
   useEffect(() => {
@@ -215,7 +244,10 @@ export function IntegrationManageDialog({
       tokenUrl: config?.tokenUrl ?? '',
       clientId: config?.clientId ?? '',
       clientSecret: '',
+      scopes: config?.scopes?.join(', ') ?? '',
     });
+    setIsEditingOAuth2(false);
+    setOAuth2SavedOptimistic(false);
   }, [integration._id, integration.oauth2Config]);
 
   const isSql = integration.type === 'sql';
@@ -246,7 +278,7 @@ export function IntegrationManageDialog({
   );
   const hasChanges = hasCredentialChanges || hasSqlConfigChanges;
 
-  const busy = isSubmitting || isTesting || isSavingOAuth2;
+  const busy = isSubmitting || isTesting || isSavingOAuth2 || isApplyingUpdate;
 
   // Prevent closing while busy
   const busyRef = useRef(false);
@@ -326,6 +358,159 @@ export function IntegrationManageDialog({
     },
     [generateUploadUrl, updateIcon, integration._id, t],
   );
+
+  const handleUpdateFilesSelected = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+
+      setUpdateParseError(null);
+      setIsParsingUpdate(true);
+      setParsedUpdate(null);
+
+      try {
+        const result = await parseIntegrationFiles(files);
+        if (result.success && result.data) {
+          setParsedUpdate(result.data);
+        } else {
+          setUpdateParseError(
+            result.error ?? t('integrations.upload.parseError'),
+          );
+        }
+      } catch {
+        setUpdateParseError(t('integrations.upload.unexpectedError'));
+      } finally {
+        setIsParsingUpdate(false);
+      }
+    },
+    [t],
+  );
+
+  const handleApplyUpdate = useCallback(async () => {
+    if (!parsedUpdate) return;
+
+    setIsApplyingUpdate(true);
+
+    try {
+      const { config, connectorCode } = parsedUpdate;
+      const packageType = config.type ?? 'rest_api';
+      const integType = integration.type ?? 'rest_api';
+      if (packageType !== integType) {
+        toast({
+          title: t('integrations.manageDialog.updateFailed'),
+          description: t('integrations.manageDialog.updateTypeMismatch'),
+          variant: 'destructive',
+        });
+        setIsApplyingUpdate(false);
+        return;
+      }
+      const isSqlUpdate = config.type === 'sql';
+      const authMethod =
+        config.authMethod === 'bearer_token' ? 'api_key' : config.authMethod;
+      const supportedAuthMethods = config.supportedAuthMethods?.map(
+        (m: string) => (m === 'bearer_token' ? 'api_key' : m),
+      );
+
+      const connector =
+        !isSqlUpdate && connectorCode.trim().length > 0
+          ? {
+              code: connectorCode,
+              version: (integration.connector?.version ?? 0) + 1,
+              operations: config.operations.map((op) => ({
+                name: op.name,
+                title: op.title,
+                description: op.description,
+                parametersSchema: op.parametersSchema,
+                operationType: op.operationType,
+                requiresApproval: op.requiresApproval,
+              })),
+              secretBindings: config.secretBindings,
+              allowedHosts: config.allowedHosts,
+              timeoutMs: config.connectionConfig?.timeout,
+            }
+          : undefined;
+
+      const payload: Record<string, unknown> = {
+        integrationId: integration._id,
+        title: config.title,
+        description: config.description,
+        authMethod,
+        supportedAuthMethods,
+        connector,
+      };
+
+      if (isSqlUpdate && config.sqlConnectionConfig) {
+        payload.sqlConnectionConfig = config.sqlConnectionConfig;
+      }
+
+      if (isSqlUpdate) {
+        const sqlOps = config.operations
+          .filter((op) => op.query)
+          .map((op) => ({
+            name: op.name,
+            title: op.title,
+            description: op.description,
+            query: op.query,
+            parametersSchema: op.parametersSchema,
+            operationType: op.operationType,
+            requiresApproval: op.requiresApproval,
+          }));
+        if (sqlOps.length > 0) {
+          payload.sqlOperations = sqlOps;
+        }
+      }
+
+      // Upload icon if present in the update package
+      if (parsedUpdate.iconFile) {
+        const uploadUrl = await generateUploadUrl({});
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': parsedUpdate.iconFile.type || 'image/png',
+          },
+          body: parsedUpdate.iconFile,
+        });
+        if (!uploadResponse.ok) {
+          throw new Error(t('integrations.updateFailed'));
+        }
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
+        const { storageId } = (await uploadResponse.json()) as {
+          storageId: string;
+        };
+        await updateIcon({
+          integrationId: integration._id,
+          iconStorageId: toId<'_storage'>(storageId),
+        });
+      }
+
+      await updateIntegration(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic payload
+        payload as Parameters<typeof updateIntegration>[0],
+      );
+
+      toast({
+        title: t('integrations.manageDialog.updateSuccess'),
+        description: t('integrations.manageDialog.updateSuccessDescription'),
+        variant: 'success',
+      });
+      setParsedUpdate(null);
+      setUpdateParseError(null);
+    } catch (error) {
+      toast({
+        title: t('integrations.manageDialog.updateFailed'),
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsApplyingUpdate(false);
+    }
+  }, [
+    parsedUpdate,
+    integration,
+    updateIntegration,
+    generateUploadUrl,
+    updateIcon,
+    t,
+  ]);
 
   const buildCredentialPayload = useCallback(() => {
     const authMethod = selectedAuthMethod;
@@ -508,7 +693,7 @@ export function IntegrationManageDialog({
     }
   }, [updateIntegration, integration, t]);
 
-  const handleSaveAndAuthorize = useCallback(async () => {
+  const handleSaveOAuth2Only = useCallback(async () => {
     if (
       !oauth2Fields.authorizationUrl.trim() ||
       !oauth2Fields.tokenUrl.trim() ||
@@ -520,38 +705,37 @@ export function IntegrationManageDialog({
 
     setIsSavingOAuth2(true);
     try {
+      const parsedScopes = oauth2Fields.scopes
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
       await saveOAuth2Credentials({
         integrationId: integration._id,
         authorizationUrl: oauth2Fields.authorizationUrl.trim(),
         tokenUrl: oauth2Fields.tokenUrl.trim(),
-        scopes: integration.oauth2Config?.scopes,
+        scopes: parsedScopes.length > 0 ? parsedScopes : undefined,
         clientId: oauth2Fields.clientId.trim(),
         clientSecret: oauth2Fields.clientSecret.trim(),
       });
 
-      const authUrl = await generateOAuth2Url({
-        integrationId: integration._id,
-        organizationId: integration.organizationId,
-      });
+      setOAuth2Fields((prev) => ({ ...prev, clientSecret: '' }));
+      setIsEditingOAuth2(false);
+      setOAuth2SavedOptimistic(true);
 
-      window.location.href = authUrl;
+      toast({
+        title: t('integrations.manageDialog.credentialsSaved'),
+      });
     } catch (error) {
       toast({
-        title: t('integrations.manageDialog.oauth2AuthorizationFailed'),
+        title: t('integrations.manageDialog.credentialsSaveFailed'),
         description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       });
+    } finally {
       setIsSavingOAuth2(false);
     }
-  }, [
-    oauth2Fields,
-    integration._id,
-    integration.organizationId,
-    integration.oauth2Config?.scopes,
-    saveOAuth2Credentials,
-    generateOAuth2Url,
-    t,
-  ]);
+  }, [oauth2Fields, integration._id, saveOAuth2Credentials, t]);
 
   const handleReauthorize = useCallback(async () => {
     setIsSavingOAuth2(true);
@@ -576,6 +760,9 @@ export function IntegrationManageDialog({
     oauth2Fields.tokenUrl.trim().length > 0 &&
     oauth2Fields.clientId.trim().length > 0 &&
     oauth2Fields.clientSecret.trim().length > 0;
+
+  const hasOAuth2Credentials =
+    !!integration.oauth2Config?.clientId || oauth2SavedOptimistic;
 
   const handleDelete = useCallback(async () => {
     try {
@@ -669,8 +856,123 @@ export function IntegrationManageDialog({
           )}
         </HStack>
 
-        {/* Operations & connector details */}
-        <IntegrationDetails integration={integration} />
+        {/* Operations, connector details & update */}
+        <IntegrationDetails integration={integration}>
+          <details className="group">
+            <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium select-none">
+              <ChevronRight className="text-muted-foreground size-3.5 shrink-0 transition-transform duration-200 group-open:rotate-90" />
+              <Upload className="size-4 shrink-0" />
+              <span>{t('integrations.manageDialog.updateIntegration')}</span>
+            </summary>
+            <Stack gap={3} className="mt-2 ml-6">
+              <p className="text-muted-foreground text-xs">
+                {t('integrations.manageDialog.updateIntegrationDescription')}
+              </p>
+
+              <FileUpload.Root>
+                <FileUpload.DropZone
+                  onFilesSelected={handleUpdateFilesSelected}
+                  accept=".zip,.json,.js,.png,.svg,.jpg,.jpeg,.webp"
+                  multiple
+                  disabled={isParsingUpdate || isApplyingUpdate}
+                  inputId="integration-update-upload"
+                  aria-label={t('integrations.manageDialog.updateIntegration')}
+                  className={cn(
+                    'border-border hover:border-primary/50 flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 transition-colors',
+                    (isParsingUpdate || isApplyingUpdate) &&
+                      'pointer-events-none opacity-50',
+                  )}
+                >
+                  <Upload className="text-muted-foreground size-5" />
+                  <Stack gap={1} className="text-center">
+                    <p className="text-xs font-medium">
+                      {isParsingUpdate
+                        ? t('integrations.upload.parsing')
+                        : t('integrations.manageDialog.dropFilesToUpdate')}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {t('integrations.manageDialog.acceptedUpdateFormats')}
+                    </p>
+                  </Stack>
+                </FileUpload.DropZone>
+                <FileUpload.Overlay label={t('integrations.upload.dropHere')} />
+              </FileUpload.Root>
+
+              {updateParseError && (
+                <div
+                  className="bg-destructive/10 text-destructive flex items-start gap-2 rounded-md p-3 text-sm"
+                  role="alert"
+                >
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                  <pre className="font-sans whitespace-pre-wrap">
+                    {updateParseError}
+                  </pre>
+                </div>
+              )}
+
+              {parsedUpdate && (
+                <Stack gap={3}>
+                  <Stack gap={2} className="bg-muted/50 rounded-lg p-3">
+                    <p className="text-xs font-medium">
+                      {t('integrations.manageDialog.updatePreview')}
+                    </p>
+                    <HStack gap={3} className="text-muted-foreground text-xs">
+                      <HStack gap={1} className="items-center">
+                        <Zap className="size-3" />
+                        <span>
+                          {t('integrations.manageDialog.newOperations', {
+                            count: parsedUpdate.config.operations.length,
+                          })}
+                        </span>
+                      </HStack>
+                      {parsedUpdate.connectorCode.trim().length > 0 && (
+                        <HStack gap={1} className="items-center">
+                          <Code className="size-3" />
+                          <span>
+                            {t('integrations.manageDialog.newCodeLines', {
+                              count: parsedUpdate.connectorCode
+                                .trim()
+                                .split('\n').length,
+                            })}
+                          </span>
+                        </HStack>
+                      )}
+                    </HStack>
+                  </Stack>
+
+                  <HStack gap={2}>
+                    <Button
+                      onClick={handleApplyUpdate}
+                      disabled={busy}
+                      size="sm"
+                      className="flex-1"
+                    >
+                      {isApplyingUpdate ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          {t('integrations.manageDialog.applyingUpdate')}
+                        </>
+                      ) : (
+                        t('integrations.manageDialog.applyUpdate')
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setParsedUpdate(null);
+                        setUpdateParseError(null);
+                      }}
+                      disabled={busy}
+                    >
+                      {tCommon('actions.cancel')}
+                    </Button>
+                  </HStack>
+                </Stack>
+              )}
+            </Stack>
+          </details>
+        </IntegrationDetails>
 
         {/* Active: read-only credentials + Disconnect */}
         {isActive ? (
@@ -977,77 +1279,172 @@ export function IntegrationManageDialog({
               )}
 
               {/* OAuth2: authorization flow when oauth2Config exists */}
-              {selectedAuthMethod === 'oauth2' && hasOAuth2Config && (
-                <>
-                  <Input
-                    id="manage-oauth2-authorization-url"
-                    label={t('integrations.manageDialog.authorizationUrl')}
-                    value={oauth2Fields.authorizationUrl}
-                    onChange={(e) =>
-                      setOAuth2Fields((prev) => ({
-                        ...prev,
-                        authorizationUrl: e.target.value,
-                      }))
-                    }
-                    disabled={busy}
-                  />
-                  <Input
-                    id="manage-oauth2-token-url"
-                    label={t('integrations.manageDialog.tokenUrl')}
-                    value={oauth2Fields.tokenUrl}
-                    onChange={(e) =>
-                      setOAuth2Fields((prev) => ({
-                        ...prev,
-                        tokenUrl: e.target.value,
-                      }))
-                    }
-                    disabled={busy}
-                  />
-                  <Input
-                    id="manage-oauth2-client-id"
-                    label={t('integrations.manageDialog.clientId')}
-                    value={oauth2Fields.clientId}
-                    onChange={(e) =>
-                      setOAuth2Fields((prev) => ({
-                        ...prev,
-                        clientId: e.target.value,
-                      }))
-                    }
-                    disabled={busy}
-                  />
-                  <Input
-                    id="manage-oauth2-client-secret"
-                    label={t('integrations.manageDialog.clientSecret')}
-                    type="password"
-                    placeholder="••••••••"
-                    value={oauth2Fields.clientSecret}
-                    onChange={(e) =>
-                      setOAuth2Fields((prev) => ({
-                        ...prev,
-                        clientSecret: e.target.value,
-                      }))
-                    }
-                    disabled={busy}
-                  />
-                  <Button
-                    onClick={handleSaveAndAuthorize}
-                    disabled={busy || !oauth2FieldsComplete}
-                    className="w-full"
-                  >
-                    {isSavingOAuth2 ? (
-                      <>
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        {t('integrations.manageDialog.savingCredentials')}
-                      </>
-                    ) : (
-                      <>
-                        <ExternalLink className="mr-2 size-4" />
-                        {t('integrations.manageDialog.saveAndAuthorize')}
-                      </>
+              {selectedAuthMethod === 'oauth2' &&
+                hasOAuth2Config &&
+                (hasOAuth2Credentials && !isEditingOAuth2 ? (
+                  <>
+                    <Stack gap={2}>
+                      <HStack
+                        gap={2}
+                        className="text-muted-foreground items-center text-sm"
+                      >
+                        <span className="w-20 shrink-0 text-xs">
+                          {t('integrations.manageDialog.clientId')}
+                        </span>
+                        <span className="truncate font-mono text-xs">
+                          {maskValue(integration.oauth2Config?.clientId ?? '')}
+                        </span>
+                      </HStack>
+                      <HStack
+                        gap={2}
+                        className="text-muted-foreground items-center text-sm"
+                      >
+                        <span className="w-20 shrink-0 text-xs">
+                          {t('integrations.manageDialog.clientSecret')}
+                        </span>
+                        <span className="font-mono text-xs">
+                          {'×'.repeat(8)}
+                        </span>
+                      </HStack>
+                      {integration.oauth2Config?.scopes &&
+                        integration.oauth2Config.scopes.length > 0 && (
+                          <HStack
+                            gap={2}
+                            className="text-muted-foreground items-start text-sm"
+                          >
+                            <span className="w-20 shrink-0 text-xs">
+                              {t('integrations.manageDialog.scopes')}
+                            </span>
+                            <span className="font-mono text-xs break-all">
+                              {integration.oauth2Config.scopes.join(', ')}
+                            </span>
+                          </HStack>
+                        )}
+                    </Stack>
+                    <Button
+                      onClick={handleReauthorize}
+                      disabled={busy}
+                      className="w-full"
+                    >
+                      {isSavingOAuth2 ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          {t('integrations.manageDialog.savingCredentials')}
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink className="mr-2 size-4" />
+                          {t('integrations.authorize')}
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditingOAuth2(true)}
+                      disabled={busy}
+                      className="w-full"
+                    >
+                      <Pencil className="mr-2 size-3.5" />
+                      {t('integrations.manageDialog.updateCredentials')}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      id="manage-oauth2-authorization-url"
+                      label={t('integrations.manageDialog.authorizationUrl')}
+                      value={oauth2Fields.authorizationUrl}
+                      onChange={(e) =>
+                        setOAuth2Fields((prev) => ({
+                          ...prev,
+                          authorizationUrl: e.target.value,
+                        }))
+                      }
+                      disabled={busy}
+                    />
+                    <Input
+                      id="manage-oauth2-token-url"
+                      label={t('integrations.manageDialog.tokenUrl')}
+                      value={oauth2Fields.tokenUrl}
+                      onChange={(e) =>
+                        setOAuth2Fields((prev) => ({
+                          ...prev,
+                          tokenUrl: e.target.value,
+                        }))
+                      }
+                      disabled={busy}
+                    />
+                    <Input
+                      id="manage-oauth2-client-id"
+                      label={t('integrations.manageDialog.clientId')}
+                      value={oauth2Fields.clientId}
+                      onChange={(e) =>
+                        setOAuth2Fields((prev) => ({
+                          ...prev,
+                          clientId: e.target.value,
+                        }))
+                      }
+                      disabled={busy}
+                    />
+                    <Input
+                      id="manage-oauth2-client-secret"
+                      label={t('integrations.manageDialog.clientSecret')}
+                      type="password"
+                      placeholder="••••••••"
+                      value={oauth2Fields.clientSecret}
+                      onChange={(e) =>
+                        setOAuth2Fields((prev) => ({
+                          ...prev,
+                          clientSecret: e.target.value,
+                        }))
+                      }
+                      disabled={busy}
+                    />
+                    <Textarea
+                      id="manage-oauth2-scopes"
+                      label={t('integrations.manageDialog.scopes')}
+                      placeholder="channels:read, channels:history"
+                      rows={3}
+                      value={oauth2Fields.scopes}
+                      onChange={(e) =>
+                        setOAuth2Fields((prev) => ({
+                          ...prev,
+                          scopes: e.target.value,
+                        }))
+                      }
+                      disabled={busy}
+                    />
+                    <Button
+                      onClick={handleSaveOAuth2Only}
+                      disabled={busy || !oauth2FieldsComplete}
+                      className="w-full"
+                    >
+                      {isSavingOAuth2 ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          {t('integrations.manageDialog.savingCredentials')}
+                        </>
+                      ) : (
+                        <>
+                          <Save className="mr-2 size-4" />
+                          {t('integrations.manageDialog.saveCredentials')}
+                        </>
+                      )}
+                    </Button>
+                    {isEditingOAuth2 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditingOAuth2(false)}
+                        disabled={busy}
+                        className="w-full"
+                      >
+                        {tCommon('actions.cancel')}
+                      </Button>
                     )}
-                  </Button>
-                </>
-              )}
+                  </>
+                ))}
 
               {/* OAuth2: manual token input as fallback when no oauth2Config */}
               {selectedAuthMethod === 'oauth2' && !hasOAuth2Config && (

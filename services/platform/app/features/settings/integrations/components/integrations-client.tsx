@@ -43,7 +43,7 @@ export function IntegrationsClient({
     useState<Integration | null>(null);
 
   return (
-    <Stack>
+    <Stack className="pb-8">
       <Grid cols={1} md={2} lg={3}>
         <SSOCard organizationId={organizationId} ssoProvider={ssoProvider} />
 

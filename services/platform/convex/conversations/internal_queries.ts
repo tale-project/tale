@@ -21,6 +21,7 @@ const internalConversationRecordValidator = v.object({
   type: v.optional(v.string()),
   channel: v.optional(v.string()),
   direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
+  integrationName: v.optional(v.string()),
   lastMessageAt: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
 });
@@ -39,6 +40,7 @@ const internalMessageRecordValidator = v.object({
     v.literal('delivered'),
     v.literal('failed'),
   ),
+  integrationName: v.optional(v.string()),
   content: v.string(),
   sentAt: v.optional(v.number()),
   deliveredAt: v.optional(v.number()),
@@ -152,6 +154,7 @@ export const queryLatestMessageByDeliveryState = internalQuery({
       v.literal('delivered'),
       v.literal('failed'),
     ),
+    integrationName: v.optional(v.string()),
   },
   returns: v.object({
     message: v.union(internalMessageRecordValidator, v.null()),

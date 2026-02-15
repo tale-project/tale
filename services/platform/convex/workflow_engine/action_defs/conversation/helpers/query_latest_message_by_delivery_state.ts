@@ -9,6 +9,7 @@ export async function queryLatestMessageByDeliveryState(
     channel: string;
     direction: 'inbound' | 'outbound';
     deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
+    integrationName?: string;
   },
 ) {
   const result = await ctx.runQuery(
@@ -18,9 +19,12 @@ export async function queryLatestMessageByDeliveryState(
       channel: params.channel,
       direction: params.direction,
       deliveryState: params.deliveryState,
+      ...(params.integrationName
+        ? { integrationName: params.integrationName }
+        : {}),
     },
   );
 
   // Note: execute_action_node wraps the return value in: { type: 'action', data: <return value> }
-  return result.message;
+  return result;
 }

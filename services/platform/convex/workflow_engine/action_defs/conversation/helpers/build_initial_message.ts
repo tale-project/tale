@@ -9,6 +9,7 @@ export function buildInitialMessage(
   email: EmailType,
   isCustomer: boolean,
   status: 'delivered' | 'sent',
+  integrationName?: string,
 ) {
   const emailTimestamp = new Date(email.date).getTime();
 
@@ -22,5 +23,6 @@ export function buildInitialMessage(
     sentAt: emailTimestamp,
     deliveredAt: status === 'delivered' ? emailTimestamp : undefined,
     ...(email.attachments?.length ? { attachments: email.attachments } : {}),
+    ...(integrationName ? { integrationName } : {}),
   };
 }

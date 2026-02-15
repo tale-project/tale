@@ -30,6 +30,10 @@ WORKDIR /app
 
 COPY --from=workspace-deps /app/node_modules ./node_modules
 COPY --from=workspace-deps /app/services/platform/node_modules/ ./node_modules/
+# Workspace overlay may overwrite root deps with incompatible workspace versions.
+# lru-cache@11 (dev dep for jsdom) overwrites lru-cache@5 (needed by @babel). Restore it.
+RUN rm -rf node_modules/lru-cache
+COPY --from=workspace-deps /app/node_modules/lru-cache/ ./node_modules/lru-cache/
 
 COPY services/platform/vite.config.ts \
      services/platform/tsconfig.json \
