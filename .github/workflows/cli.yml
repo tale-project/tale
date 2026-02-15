@@ -57,7 +57,7 @@ jobs:
             platform: windows
             build_script: build:windows
             binary: tale.exe
-            artifact: blacksmith-4vcpu-windows-2025
+            artifact: tale_windows.exe
 
     steps:
       - name: Checkout
