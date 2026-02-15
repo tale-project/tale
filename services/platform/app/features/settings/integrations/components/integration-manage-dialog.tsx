@@ -460,16 +460,17 @@ export function IntegrationManageDialog({
           },
           body: parsedUpdate.iconFile,
         });
-        if (uploadResponse.ok) {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
-          const { storageId } = (await uploadResponse.json()) as {
-            storageId: string;
-          };
-          await updateIcon({
-            integrationId: integration._id,
-            iconStorageId: toId<'_storage'>(storageId),
-          });
+        if (!uploadResponse.ok) {
+          throw new Error(t('integrations.updateFailed'));
         }
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
+        const { storageId } = (await uploadResponse.json()) as {
+          storageId: string;
+        };
+        await updateIcon({
+          integrationId: integration._id,
+          iconStorageId: toId<'_storage'>(storageId),
+        });
       }
 
       await updateIntegration(
