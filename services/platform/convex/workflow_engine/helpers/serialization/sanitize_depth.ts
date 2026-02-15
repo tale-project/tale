@@ -15,6 +15,12 @@
  */
 export const MAX_SAFE_DEPTH = 6;
 
+/**
+ * Maximum length for stringified truncation previews.
+ * Prevents bloated truncation markers when truncated values are large.
+ */
+const MAX_STRINGIFIED_LENGTH = 1000;
+
 export interface TruncationMarker {
   _truncated: true;
   _originalType: 'array' | 'object';
@@ -44,7 +50,11 @@ export function sanitizeDepth(
   if (currentDepth >= maxDepth) {
     let stringified: string | undefined;
     try {
-      stringified = JSON.stringify(value);
+      const json = JSON.stringify(value);
+      stringified =
+        json.length > MAX_STRINGIFIED_LENGTH
+          ? json.slice(0, MAX_STRINGIFIED_LENGTH) + '...'
+          : json;
     } catch {
       // Circular references or other serialization failures — skip
     }

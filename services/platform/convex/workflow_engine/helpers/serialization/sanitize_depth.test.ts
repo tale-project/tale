@@ -172,6 +172,38 @@ describe('sanitizeDepth', () => {
     });
   });
 
+  describe('stringified size capping', () => {
+    it('should cap _stringified when the serialized value is very large', () => {
+      const largeArray = Array.from({ length: 500 }, (_, i) => ({
+        key: `item-${i}`,
+        value: 'x'.repeat(20),
+      }));
+      const input = { wrapper: largeArray };
+      const result = sanitizeDepth(input, 0, 1) as Record<
+        string,
+        TruncationMarker
+      >;
+
+      expect(result.wrapper._truncated).toBe(true);
+      expect(result.wrapper._stringified).toBeDefined();
+      expect(result.wrapper._stringified!.length).toBeLessThanOrEqual(1003); // 1000 + '...'
+      expect(result.wrapper._stringified!.endsWith('...')).toBe(true);
+    });
+
+    it('should not cap _stringified when the serialized value is small', () => {
+      const small = { b: 'small' };
+      const input = { a: small };
+      const result = sanitizeDepth(input, 0, 1) as Record<
+        string,
+        TruncationMarker
+      >;
+
+      expect(result.a._truncated).toBe(true);
+      expect(result.a._stringified).toBe(JSON.stringify(small));
+      expect(result.a._stringified!.endsWith('...')).toBe(false);
+    });
+  });
+
   describe('default MAX_SAFE_DEPTH', () => {
     it('should be 6', () => {
       expect(MAX_SAFE_DEPTH).toBe(6);
