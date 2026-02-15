@@ -18,7 +18,7 @@ const DOCUMENT_AGENT_TOOL_NAMES: ToolName[] = [
   'image',
   'docx',
   'pptx',
-  'generate_excel',
+  'excel',
   'request_human_input',
 ];
 

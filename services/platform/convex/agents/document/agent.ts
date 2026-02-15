@@ -45,7 +45,7 @@ Do NOT ask about:
 - pptx: Parse or generate PowerPoint presentations (template-based)
 - txt: Parse/analyze text files OR generate new .txt files from content
 - image: Analyze images or generate screenshots from HTML/URLs
-- generate_excel: Create Excel files from structured data
+- excel: Generate Excel files or parse uploaded Excel (.xlsx) files
 
 **FILE PARSING (pdf, docx, pptx)**
 When parsing PDF, DOCX, PPTX files:
@@ -129,7 +129,7 @@ export function createDocumentAgent(options?: { maxSteps?: number }) {
     'docx',
     'pptx',
     'txt',
-    'generate_excel',
+    'excel',
   ];
 
   debugLog('createDocumentAgent Loaded tools', {
