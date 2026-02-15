@@ -735,13 +735,7 @@ export function IntegrationManageDialog({
     } finally {
       setIsSavingOAuth2(false);
     }
-  }, [
-    oauth2Fields,
-    integration._id,
-    integration.oauth2Config?.scopes,
-    saveOAuth2Credentials,
-    t,
-  ]);
+  }, [oauth2Fields, integration._id, saveOAuth2Credentials, t]);
 
   const handleReauthorize = useCallback(async () => {
     setIsSavingOAuth2(true);

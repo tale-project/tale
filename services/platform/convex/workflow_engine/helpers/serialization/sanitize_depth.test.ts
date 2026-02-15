@@ -186,8 +186,8 @@ describe('sanitizeDepth', () => {
 
       expect(result.wrapper._truncated).toBe(true);
       expect(result.wrapper._stringified).toBeDefined();
-      expect(result.wrapper._stringified!.length).toBeLessThanOrEqual(1003); // 1000 + '...'
-      expect(result.wrapper._stringified!.endsWith('...')).toBe(true);
+      expect(result.wrapper._stringified?.length).toBeLessThanOrEqual(1003); // 1000 + '...'
+      expect(result.wrapper._stringified?.endsWith('...')).toBe(true);
     });
 
     it('should not cap _stringified when the serialized value is small', () => {
@@ -200,7 +200,7 @@ describe('sanitizeDepth', () => {
 
       expect(result.a._truncated).toBe(true);
       expect(result.a._stringified).toBe(JSON.stringify(small));
-      expect(result.a._stringified!.endsWith('...')).toBe(false);
+      expect(result.a._stringified?.endsWith('...')).toBe(false);
     });
   });
 
