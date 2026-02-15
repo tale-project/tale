@@ -31,8 +31,11 @@ import { getIntrospectionOperations } from '../../workflow_engine/action_defs/in
 import { isIntrospectionOperation } from '../../workflow_engine/action_defs/integration/helpers/is_introspection_operation';
 import { validateRequiredParameters } from '../../workflow_engine/action_defs/integration/helpers/validate_required_parameters';
 import { integrationAction } from '../../workflow_engine/action_defs/integration/integration_action';
+import { sanitizeDepth } from '../../workflow_engine/helpers/serialization/sanitize_depth';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
+
+const INTEGRATION_MAX_DEPTH = 8;
 
 // =============================================================================
 // EXECUTE INTEGRATION
@@ -83,7 +86,7 @@ export const executeIntegration = internalAction({
       },
     );
 
-    return toConvexJsonValue(result);
+    return toConvexJsonValue(sanitizeDepth(result, 0, INTEGRATION_MAX_DEPTH));
   },
 });
 
@@ -490,14 +493,20 @@ async function executeSqlBatch(
           id: op.id,
           operation: op.operation,
           success: true,
-          data: toConvexJsonValue({
-            name: integration.name,
-            operation: op.operation,
-            engine: sqlConnectionConfig.engine,
-            data: result.data,
-            rowCount: result.rowCount,
-            duration: result.duration,
-          }),
+          data: toConvexJsonValue(
+            sanitizeDepth(
+              {
+                name: integration.name,
+                operation: op.operation,
+                engine: sqlConnectionConfig.engine,
+                data: result.data,
+                rowCount: result.rowCount,
+                duration: result.duration,
+              },
+              0,
+              INTEGRATION_MAX_DEPTH,
+            ),
+          ),
           duration: Date.now() - opStartTime,
           rowCount: result.rowCount,
         };
@@ -615,7 +624,9 @@ async function executeRestApiBatch(
           id: op.id,
           operation: op.operation,
           success: true,
-          data: toConvexJsonValue(result),
+          data: toConvexJsonValue(
+            sanitizeDepth(result, 0, INTEGRATION_MAX_DEPTH),
+          ),
           duration,
           rowCount,
         };

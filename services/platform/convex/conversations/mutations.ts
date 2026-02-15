@@ -160,10 +160,7 @@ export const downloadAttachments = mutationWithRLS({
       throw new Error('Message has no external ID for attachment download');
     }
 
-    const integrationName =
-      typeof conversation.metadata?.integrationName === 'string'
-        ? conversation.metadata.integrationName
-        : 'outlook';
+    const integrationName = conversation.integrationName ?? 'outlook';
 
     await ctx.scheduler.runAfter(
       0,

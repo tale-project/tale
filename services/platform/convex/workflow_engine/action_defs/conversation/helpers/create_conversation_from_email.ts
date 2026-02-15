@@ -62,6 +62,7 @@ export async function createConversationFromEmail(
     priority?: ConversationPriority;
     type?: string;
     accountEmail?: string; // Fallback when emails lack direction field
+    integrationName?: string;
   },
 ) {
   // Handle both single email and array of emails
@@ -172,6 +173,7 @@ export async function createConversationFromEmail(
               email,
               isCustomer,
               'delivered',
+              params.integrationName,
             );
           }
 
@@ -273,12 +275,19 @@ export async function createConversationFromEmail(
         metadata: buildConversationMetadata(rootEmail, {
           isThreaded: emailsArray.length > 1,
           threadMessageCount: emailsArray.length,
+          ...(params.integrationName
+            ? { integrationName: params.integrationName }
+            : {}),
         }),
         initialMessage: buildInitialMessage(
           rootEmail,
           rootIsFromCustomer,
           'delivered',
+          params.integrationName,
         ),
+        ...(params.integrationName
+          ? { integrationName: params.integrationName }
+          : {}),
       },
     );
 
@@ -331,6 +340,7 @@ export async function createConversationFromEmail(
         email,
         isCustomer,
         'delivered',
+        params.integrationName,
       );
 
       debugLog('create_from_email Created message:', email.messageId);

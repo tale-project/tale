@@ -12,7 +12,6 @@ import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { serializeOutput } from '../serialization/serialize_output';
 import { serializeVariables } from '../serialization/serialize_variables';
-import { stripTransientVariables } from '../serialization/strip_transient_variables';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -55,19 +54,17 @@ export async function handleSerializeAndCompleteExecution(
   // Parse the serialized output back to JSON for the mutation
   const outputParsed = JSON.parse(outputSerialized);
 
-  // Strip transient keys (lastOutput, steps) from variables before persisting
   const parsedVars: Record<string, unknown> =
     typeof output === 'object' && output !== null && !Array.isArray(output)
       ? Object.fromEntries(Object.entries(output))
       : {};
-  const strippedVars = stripTransientVariables(parsedVars);
   const { serialized: varsSerialized, storageId: varsStorageId } =
-    await serializeVariables(ctx, strippedVars, execution.variablesStorageId);
+    await serializeVariables(ctx, parsedVars, execution.variablesStorageId);
 
   debugLog('serializeAndCompleteExecution Serialized output', {
     hasStorageId: !!outputStorageId,
     outputSize: outputSerialized.length,
-    strippedVarsSize: varsSerialized.length,
+    varsSize: varsSerialized.length,
   });
 
   // Call the mutation with pre-serialized data

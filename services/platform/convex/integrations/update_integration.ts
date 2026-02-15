@@ -17,12 +17,17 @@ import {
   OAuth2Auth,
   ConnectionConfig,
   SqlConnectionConfig,
+  SqlOperation,
+  ConnectorConfig,
   Capabilities,
 } from './types';
 
 export interface UpdateIntegrationArgs {
   integrationId: Id<'integrations'>;
+  title?: string;
+  description?: string;
   authMethod?: AuthMethod;
+  supportedAuthMethods?: AuthMethod[];
   status?: Status;
   isActive?: boolean;
   apiKeyAuth?: ApiKeyAuth;
@@ -30,6 +35,8 @@ export interface UpdateIntegrationArgs {
   oauth2Auth?: OAuth2Auth;
   connectionConfig?: ConnectionConfig;
   sqlConnectionConfig?: SqlConnectionConfig;
+  connector?: ConnectorConfig;
+  sqlOperations?: SqlOperation[];
   capabilities?: Capabilities;
   errorMessage?: string;
   metadata?: ConvexJsonRecord;
@@ -59,7 +66,7 @@ async function runHealthCheckIfNeeded(
   await runHealthCheck(ctx, {
     name: integration.name,
     type: integration.type ?? undefined,
-    connector: integration.connector ?? undefined,
+    connector: args.connector ?? integration.connector ?? undefined,
     connectionConfig: domain ? { domain } : undefined,
     apiKeyAuth: args.apiKeyAuth,
     basicAuth: args.basicAuth,
@@ -96,7 +103,10 @@ export async function updateIntegration(
     internal.integrations.internal_mutations.updateIntegration,
     {
       integrationId: args.integrationId,
+      title: args.title,
+      description: args.description,
       authMethod: args.authMethod,
+      supportedAuthMethods: args.supportedAuthMethods,
       status: args.status,
       isActive: args.isActive,
       apiKeyAuth,
@@ -104,6 +114,8 @@ export async function updateIntegration(
       oauth2Auth,
       connectionConfig: args.connectionConfig,
       sqlConnectionConfig: args.sqlConnectionConfig,
+      connector: args.connector,
+      sqlOperations: args.sqlOperations,
       capabilities: args.capabilities,
       errorMessage: args.errorMessage,
       metadata: args.metadata,

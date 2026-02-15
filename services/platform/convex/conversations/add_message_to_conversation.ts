@@ -47,6 +47,7 @@ export async function addMessageToConversation(
     metadata?: unknown;
     sentAt?: number;
     deliveredAt?: number;
+    integrationName?: string;
   },
 ): Promise<Id<'conversations'>> {
   const parentConversation = await ctx.db.get(args.conversationId);
@@ -81,6 +82,7 @@ export async function addMessageToConversation(
     direction,
     externalMessageId: args.externalMessageId,
     deliveryState,
+    integrationName: args.integrationName,
     content: args.content,
     sentAt: args.sentAt,
     deliveredAt,

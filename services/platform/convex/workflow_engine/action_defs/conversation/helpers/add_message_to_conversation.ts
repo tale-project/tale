@@ -15,6 +15,7 @@ export async function addMessageToConversation(
   email: EmailType,
   isCustomer: boolean,
   status: 'delivered' | 'sent',
+  integrationName?: string,
 ) {
   const emailTimestamp = new Date(email.date).getTime();
 
@@ -32,6 +33,7 @@ export async function addMessageToConversation(
       sentAt: emailTimestamp,
       deliveredAt: status === 'delivered' ? emailTimestamp : undefined,
       ...(email.attachments?.length ? { attachments: email.attachments } : {}),
+      ...(integrationName ? { integrationName } : {}),
     },
   );
 }

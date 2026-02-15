@@ -84,7 +84,10 @@ export const createIntegration = internalMutation({
 export const updateIntegration = internalMutation({
   args: {
     integrationId: v.id('integrations'),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
     authMethod: v.optional(authMethodValidator),
+    supportedAuthMethods: v.optional(v.array(authMethodValidator)),
     status: v.optional(statusValidator),
     isActive: v.optional(v.boolean()),
     apiKeyAuth: v.optional(apiKeyAuthEncryptedValidator),
@@ -92,7 +95,9 @@ export const updateIntegration = internalMutation({
     oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
     oauth2Config: v.optional(oauth2ConfigStoredValidator),
     connectionConfig: v.optional(connectionConfigValidator),
+    connector: v.optional(connectorConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
+    sqlOperations: v.optional(v.array(sqlOperationValidator)),
     capabilities: v.optional(capabilitiesValidator),
     errorMessage: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),

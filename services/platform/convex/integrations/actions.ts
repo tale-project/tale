@@ -63,7 +63,10 @@ export const create = action({
 export const update = action({
   args: {
     integrationId: v.id('integrations'),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
     authMethod: v.optional(authMethodValidator),
+    supportedAuthMethods: v.optional(v.array(authMethodValidator)),
     status: v.optional(statusValidator),
     isActive: v.optional(v.boolean()),
     apiKeyAuth: v.optional(apiKeyAuthValidator),
@@ -71,7 +74,9 @@ export const update = action({
     oauth2Auth: v.optional(oauth2AuthValidator),
     connectionConfig: v.optional(connectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
+    connector: v.optional(connectorConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
+    sqlOperations: v.optional(v.array(sqlOperationValidator)),
     errorMessage: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
   },

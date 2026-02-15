@@ -5,7 +5,7 @@
  * It's the single entry point for executing any integration operation.
  *
  * - Loads credentials from the integrations table by name
- * - Loads connector code from the integration record (or predefined fallback)
+ * - Loads connector code from the integration record
  * - Executes the connector operation in sandbox (via Node.js action)
  */
 
@@ -18,13 +18,13 @@ import { internal } from '../../../_generated/api';
 import { isSqlIntegration } from '../../../integrations/helpers';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
-import { getPredefinedIntegration } from '../../../predefined_integrations';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
 import {
   requiresApproval,
   getOperationType,
 } from './helpers/detect_write_operation';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
+import { validateOperationScopes } from './helpers/validate_operation_scopes';
 import { validateRequiredParameters } from './helpers/validate_required_parameters';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
@@ -100,17 +100,9 @@ export const integrationAction: ActionDefinition<{
       );
     }
 
-    // Handle REST API integrations (existing logic)
-    // 3. Get connector config (from integration record or predefined fallback)
-    let connectorConfig = integration.connector;
-
-    if (!connectorConfig) {
-      // Fallback to predefined integration
-      const predefined = getPredefinedIntegration(name);
-      if (predefined) {
-        connectorConfig = predefined.connector;
-      }
-    }
+    // Handle REST API integrations
+    // 3. Get connector config from integration record
+    const connectorConfig = integration.connector;
 
     if (!connectorConfig) {
       throw new Error(
@@ -135,6 +127,9 @@ export const integrationAction: ActionDefinition<{
 
     // 5. Validate required parameters before creating approval or executing
     validateRequiredParameters(operationConfig, opParams, operation);
+
+    // 5b. Validate operation scopes against integration's configured scopes
+    validateOperationScopes(operationConfig, integration, operation);
 
     // 6. Check if this operation requires approval
     if (!skipApprovalCheck && requiresApproval(operationConfig)) {
