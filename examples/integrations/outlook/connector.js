@@ -157,12 +157,16 @@ function mapGraphToEmailType(msg, accountEmail) {
         return att['@odata.type'] === '#microsoft.graph.fileAttachment';
       })
       .map(function (att) {
-        return {
+        var mapped = {
           id: att.id,
           filename: att.name || 'attachment',
           contentType: att.contentType || 'application/octet-stream',
           size: att.size || 0,
         };
+        if (att.contentId) {
+          mapped.contentId = att.contentId.replace(/^<|>$/g, '');
+        }
+        return mapped;
       }),
     hasAttachments: !!msg.hasAttachments,
     conversationId: msg.conversationId || '',
@@ -815,20 +819,28 @@ function getAttachments(http, headers, files, params) {
     var fileName = att.name || 'attachment';
     var contentType = att.contentType || 'application/octet-stream';
 
+    var inlineContentId = att.contentId
+      ? att.contentId.replace(/^<|>$/g, '')
+      : undefined;
+
     if (att.contentBytes) {
       var storedFile = files.store(att.contentBytes, {
         encoding: 'base64',
         contentType: contentType,
         fileName: fileName,
       });
-      attachments.push({
+      var entry = {
         id: att.id,
         name: fileName,
         contentType: contentType,
         size: att.size,
         fileId: storedFile.fileId,
         url: storedFile.url,
-      });
+      };
+      if (inlineContentId) {
+        entry.contentId = inlineContentId;
+      }
+      attachments.push(entry);
     } else {
       var downloadUrl =
         GRAPH_BASE_URL +
@@ -841,14 +853,18 @@ function getAttachments(http, headers, files, params) {
         headers: { Authorization: headers.Authorization },
         fileName: fileName,
       });
-      attachments.push({
+      var dlEntry = {
         id: att.id,
         name: fileName,
         contentType: contentType,
         size: att.size,
         fileId: downloadedFile.fileId,
         url: downloadedFile.url,
-      });
+      };
+      if (inlineContentId) {
+        dlEntry.contentId = inlineContentId;
+      }
+      attachments.push(dlEntry);
     }
   }
 

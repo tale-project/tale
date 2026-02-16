@@ -1,7 +1,7 @@
 'use client';
 
 import { Clock, AlertCircle, Paperclip, Download, Loader2 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
 import { Image } from '@/app/components/ui/data-display/image';
@@ -192,6 +192,49 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
 
   const isDownloading = downloadingMessageId === message.id;
 
+  // Build CID→URL map for inline images that have been downloaded
+  const cidMap = useMemo(() => {
+    const normalizeCid = (cid: string) => cid.trim().replace(/^<|>$/g, '');
+    const map: Record<string, string> = {};
+    for (const att of message.attachments ?? []) {
+      if (att.contentId && att.url) {
+        map[normalizeCid(att.contentId)] = att.url;
+      }
+    }
+    return map;
+  }, [message.attachments]);
+
+  // Filter out resolved inline attachments from the displayed attachment list.
+  // Unresolved inline attachments (contentId but no url) remain visible as a
+  // fallback so users can still see and manually download them if auto-download fails.
+  const displayAttachments = useMemo(
+    () =>
+      (message.attachments ?? []).filter((att) => !(att.contentId && att.url)),
+    [message.attachments],
+  );
+
+  // Auto-trigger download for inline images that don't have URLs yet.
+  // This handles two cases:
+  // 1. Attachments with contentId metadata but no URL (new syncs)
+  // 2. HTML with cid: refs but attachments lack contentId (legacy syncs) —
+  //    downloading populates contentId from the connector's return data
+  const inlineDownloadTriggered = useRef(false);
+  useEffect(() => {
+    if (inlineDownloadTriggered.current || !onDownloadAttachments) return;
+    const attachments = message.attachments ?? [];
+    const hasUnresolvedInline = attachments.some(
+      (att) => att.contentId && !att.url,
+    );
+    const hasCidInHtml =
+      !hasUnresolvedInline &&
+      /src=["']cid:/i.test(message.content) &&
+      attachments.some((att) => !att.url && !att.contentId);
+    if (hasUnresolvedInline || hasCidInHtml) {
+      inlineDownloadTriggered.current = true;
+      onDownloadAttachments(message.id);
+    }
+  }, [message.attachments, message.content, message.id, onDownloadAttachments]);
+
   return (
     <div className="flex flex-col">
       <div
@@ -240,20 +283,20 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
               return null;
             })()}
             <div className="text-xs leading-5">
-              <EmailPreview html={message.content} />
+              <EmailPreview html={message.content} cidMap={cidMap} />
             </div>
-            {message.attachments && message.attachments.length > 0 && (
+            {displayAttachments.length > 0 && (
               <div className="flex flex-col gap-1.5 px-3 pb-3">
                 <div className="text-muted-foreground flex items-center gap-1 text-[10px]">
                   <Paperclip className="size-3" />
                   <span>
                     {t('attachment.attachments', {
-                      count: message.attachments.length,
+                      count: displayAttachments.length,
                     })}
                   </span>
                 </div>
                 <div className="flex flex-col gap-1">
-                  {message.attachments.map((att) => (
+                  {displayAttachments.map((att) => (
                     <AttachmentCard
                       key={att.id}
                       attachment={att}

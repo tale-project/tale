@@ -26,6 +26,7 @@ export type EmailType = {
     filename: string;
     contentType: string;
     size: number;
+    contentId?: string;
   }>;
   direction?: 'inbound' | 'outbound';
 };

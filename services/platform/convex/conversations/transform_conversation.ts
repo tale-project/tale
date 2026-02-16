@@ -139,6 +139,8 @@ export async function transformConversation(
               storageId:
                 typeof a.storageId === 'string' ? a.storageId : undefined,
               url: typeof a.url === 'string' ? a.url : undefined,
+              contentId:
+                typeof a.contentId === 'string' ? a.contentId : undefined,
             }))
         : undefined;
 

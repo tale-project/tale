@@ -278,12 +278,20 @@ function mapGmailToEmailType(msg, accountEmail, base64Decode) {
       references: getGmailHeader(hdrs, 'References') || '',
     },
     attachments: attachmentParts.map(function (part) {
-      return {
+      var contentIdHeader = getGmailHeader(part.headers, 'Content-ID');
+      var contentId = contentIdHeader
+        ? contentIdHeader.replace(/^<|>$/g, '')
+        : '';
+      var att = {
         id: part.body ? part.body.attachmentId : '',
         filename: part.filename || 'attachment',
         contentType: part.mimeType || 'application/octet-stream',
         size: part.body ? part.body.size || 0 : 0,
       };
+      if (contentId) {
+        att.contentId = contentId;
+      }
+      return att;
     }),
     hasAttachments: attachmentParts.length > 0,
     conversationId: msg.threadId || '',
@@ -928,6 +936,10 @@ function getAttachments(http, headers, params, files) {
         part.mimeType || 'application/octet-stream',
         part.body.size || 0,
       );
+      var cidHeader = getGmailHeader(part.headers, 'Content-ID');
+      if (cidHeader) {
+        file.contentId = cidHeader.replace(/^<|>$/g, '');
+      }
       attachments.push(file);
     }
   }

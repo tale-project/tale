@@ -9,6 +9,7 @@ export interface EmailPreviewProps {
   html: string;
   className?: string;
   style?: CSSProperties;
+  cidMap?: Record<string, string>;
 }
 
 const ALLOWED_TAGS = [
@@ -217,6 +218,17 @@ function sanitizeCssStyle(styleString: string): string {
   return sanitizedParts.join('; ');
 }
 
+export function replaceCidReferences(
+  html: string,
+  cidMap: Record<string, string>,
+): string {
+  if (Object.keys(cidMap).length === 0) return html;
+  return html.replace(/src=["']cid:([^"']+)["']/gi, (_match, cid: string) => {
+    const url = cidMap[cid];
+    return url ? `src="${url}"` : _match;
+  });
+}
+
 function sanitizePreviewHtml(html: string): string {
   // First, remove plain text quote markers (> at start of lines)
   const processed = html
@@ -281,16 +293,27 @@ function splitQuotedContent(html: string): { main: string; quoted: string } {
   return { main: html, quoted: '' };
 }
 
-export function EmailPreview({ html, className, style }: EmailPreviewProps) {
+export function EmailPreview({
+  html,
+  className,
+  style,
+  cidMap,
+}: EmailPreviewProps) {
   const [showQuoted, setShowQuoted] = useState(false);
 
   const { sanitizedMain, sanitizedQuoted } = useMemo(() => {
     const { main, quoted } = splitQuotedContent(html);
+    const resolvedMain = cidMap ? replaceCidReferences(main, cidMap) : main;
+    const resolvedQuoted = cidMap
+      ? replaceCidReferences(quoted, cidMap)
+      : quoted;
     return {
-      sanitizedMain: sanitizePreviewHtml(main),
-      sanitizedQuoted: quoted ? sanitizePreviewHtml(quoted) : '',
+      sanitizedMain: sanitizePreviewHtml(resolvedMain),
+      sanitizedQuoted: resolvedQuoted
+        ? sanitizePreviewHtml(resolvedQuoted)
+        : '',
     };
-  }, [html]);
+  }, [html, cidMap]);
 
   const hasQuotedContent = sanitizedQuoted.length > 0;
 
