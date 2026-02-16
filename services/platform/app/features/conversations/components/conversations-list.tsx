@@ -225,6 +225,13 @@ const ConversationRow = memo(function ConversationRow({
     onSelect?.(conversation);
   };
 
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onSelect?.(conversation);
+    }
+  };
+
   const handleCheckboxChange = (checked: boolean | 'indeterminate') => {
     if (typeof checked === 'boolean') {
       onCheck?.(conversation.id, checked);
@@ -232,13 +239,15 @@ const ConversationRow = memo(function ConversationRow({
   };
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       className={cn(
         'w-full text-left p-4 hover:bg-secondary/20 cursor-pointer transition-colors relative',
         isSelected && 'bg-muted',
       )}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       aria-pressed={isSelected}
     >
       {isSelected && (
@@ -310,7 +319,7 @@ const ConversationRow = memo(function ConversationRow({
           </HStack>
         </div>
       </div>
-    </button>
+    </div>
   );
 });
 
