@@ -12,16 +12,9 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { FilterButton } from '@/app/components/ui/filters/filter-button';
 import { FilterSection } from '@/app/components/ui/filters/filter-section';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from '@/app/components/ui/forms/radio-group';
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/app/components/ui/overlays/popover';
+import { Popover } from '@/app/components/ui/overlays/popover';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -177,105 +170,94 @@ export function DataTableFilters({
               open={isFilterOpen}
               onOpenChange={setIsFilterOpen}
               modal={false}
-            >
-              <PopoverTrigger asChild>
+              align="start"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              trigger={
                 <div>
                   <FilterButton
                     hasActiveFilters={totalActiveFilters > 0}
                     isLoading={isLoading}
                   />
                 </div>
-              </PopoverTrigger>
-              <PopoverContent
-                className="space-y-0"
-                align="start"
-                onOpenAutoFocus={(e) => e.preventDefault()}
-              >
-                <div className="flex items-center justify-between p-2">
-                  <h4 className="text-foreground text-sm font-semibold">
-                    {t('labels.filters')}
-                  </h4>
-                  {totalActiveFilters > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleClearAll}
-                      className="text-primary hover:text-primary/80 text-xs font-medium"
-                    >
-                      {t('actions.clearAll')}
-                    </button>
-                  )}
-                </div>
+              }
+            >
+              <div className="flex items-center justify-between p-2">
+                <h4 className="text-foreground text-sm font-semibold">
+                  {t('labels.filters')}
+                </h4>
+                {totalActiveFilters > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAll}
+                    className="text-primary hover:text-primary/80 text-xs font-medium"
+                  >
+                    {t('actions.clearAll')}
+                  </button>
+                )}
+              </div>
 
-                {filters.map((filter) => {
-                  const isMultiSelect = filter.multiSelect !== false;
-                  return (
-                    <FilterSection
-                      key={filter.key}
-                      title={filter.title}
-                      isExpanded={expandedSections[filter.key] ?? false}
-                      onToggle={() =>
-                        setExpandedSections((prev) => ({
-                          ...prev,
-                          [filter.key]: !prev[filter.key],
-                        }))
-                      }
-                      active={filter.selectedValues.length > 0}
-                    >
-                      {isMultiSelect ? (
-                        <div
-                          className={
-                            filter.grid ? 'grid grid-cols-2 gap-2' : 'space-y-2'
-                          }
-                        >
-                          {filter.options.map((option) => {
-                            const checkboxId = `filter-${filter.key}-${option.value}`;
-                            return (
-                              <label
-                                key={option.value}
-                                htmlFor={checkboxId}
-                                className="flex cursor-pointer items-center gap-2"
-                              >
-                                <Checkbox
-                                  id={checkboxId}
-                                  checked={filter.selectedValues.includes(
-                                    option.value,
-                                  )}
-                                  onCheckedChange={(checked) =>
-                                    handleFilterChange(
-                                      filter,
-                                      option.value,
-                                      !!checked,
-                                    )
-                                  }
-                                />
-                                <span className="text-muted-foreground text-sm">
-                                  {option.label}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <RadioGroup
-                          value={filter.selectedValues[0] ?? ''}
-                          onValueChange={(value) =>
-                            filter.onChange(value ? [value] : [])
-                          }
-                          className="space-y-2"
-                        >
-                          {filter.options.map((option) => (
-                            <RadioGroupItem
+              {filters.map((filter) => {
+                const isMultiSelect = filter.multiSelect !== false;
+                return (
+                  <FilterSection
+                    key={filter.key}
+                    title={filter.title}
+                    isExpanded={expandedSections[filter.key] ?? false}
+                    onToggle={() =>
+                      setExpandedSections((prev) => ({
+                        ...prev,
+                        [filter.key]: !prev[filter.key],
+                      }))
+                    }
+                    active={filter.selectedValues.length > 0}
+                  >
+                    {isMultiSelect ? (
+                      <div
+                        className={
+                          filter.grid ? 'grid grid-cols-2 gap-2' : 'space-y-2'
+                        }
+                      >
+                        {filter.options.map((option) => {
+                          const checkboxId = `filter-${filter.key}-${option.value}`;
+                          return (
+                            <label
                               key={option.value}
-                              value={option.value}
-                              label={option.label}
-                            />
-                          ))}
-                        </RadioGroup>
-                      )}
-                    </FilterSection>
-                  );
-                })}
-              </PopoverContent>
+                              htmlFor={checkboxId}
+                              className="flex cursor-pointer items-center gap-2"
+                            >
+                              <Checkbox
+                                id={checkboxId}
+                                checked={filter.selectedValues.includes(
+                                  option.value,
+                                )}
+                                onCheckedChange={(checked) =>
+                                  handleFilterChange(
+                                    filter,
+                                    option.value,
+                                    !!checked,
+                                  )
+                                }
+                              />
+                              <span className="text-muted-foreground text-sm">
+                                {option.label}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <RadioGroup
+                        value={filter.selectedValues[0] ?? ''}
+                        onValueChange={(value) =>
+                          filter.onChange(value ? [value] : [])
+                        }
+                        options={filter.options}
+                        className="space-y-2"
+                      />
+                    )}
+                  </FilterSection>
+                );
+              })}
             </Popover>
           )}
         </div>

@@ -23,9 +23,7 @@ import { DateRange } from 'react-day-picker';
 
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
@@ -214,8 +212,8 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
           </span>
         )}
       </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <DropdownMenu
+        trigger={
           <Button
             type="button"
             variant="outline"
@@ -227,19 +225,18 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
             </span>
             <ChevronDown className="text-muted-foreground size-4" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-0">
-          {presetOptions.map((option) => (
-            <DropdownMenuItem
-              key={option.key}
-              onClick={() => onPresetSelect(option.key)}
-              className="py-2 text-xs"
-            >
-              {option.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        }
+        items={[
+          presetOptions.map<DropdownMenuItem>((option) => ({
+            type: 'item',
+            label: option.label,
+            onClick: () => onPresetSelect(option.key),
+            className: 'py-2 text-xs',
+          })),
+        ]}
+        align="end"
+        contentClassName="min-w-0"
+      />
     </div>
   ),
 );

@@ -16,7 +16,13 @@ import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { cn } from '@/lib/utils/cn';
 
 /** Skeleton type for different cell content patterns */
-type SkeletonType = 'text' | 'badge' | 'id-copy' | 'avatar-text' | 'action';
+type SkeletonType =
+  | 'text'
+  | 'badge'
+  | 'id-copy'
+  | 'avatar-text'
+  | 'action'
+  | 'switch';
 
 interface DataTableSkeletonColumn {
   /** Header label (optional) */
@@ -196,6 +202,10 @@ export function DataTableSkeleton<TData = unknown, TValue = unknown>({
                 );
               } else if (skeletonType === 'badge') {
                 cellContent = <Skeleton className="h-5 w-20 rounded-full" />;
+              } else if (skeletonType === 'switch') {
+                cellContent = (
+                  <Skeleton className="h-[1.15rem] w-8 rounded-full" />
+                );
               } else if (skeletonType === 'id-copy') {
                 cellContent = (
                   <HStack gap={2}>

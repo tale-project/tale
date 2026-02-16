@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { AlertCircle, CheckCircle2, Info, AlertTriangle } from 'lucide-react';
 
-import { Alert, AlertTitle, AlertDescription } from './alert';
+import { Alert } from './alert';
 
 const meta: Meta<typeof Alert> = {
   title: 'Feedback/Alert',
@@ -13,23 +13,24 @@ const meta: Meta<typeof Alert> = {
     docs: {
       description: {
         component: `
-An alert component for displaying important messages.
+A single-piece alert component for displaying important messages.
 
 ## Usage
 \`\`\`tsx
-import { Alert, AlertTitle, AlertDescription } from '@/app/components/ui/feedback';
+import { Alert } from '@/app/components/ui/feedback/alert';
 
-<Alert variant="destructive">
-  <AlertCircle className="size-4" />
-  <AlertTitle>Error</AlertTitle>
-  <AlertDescription>Something went wrong.</AlertDescription>
-</Alert>
+<Alert
+  variant="destructive"
+  icon={AlertCircle}
+  title="Error"
+  description="Something went wrong."
+/>
 \`\`\`
 
 ## Accessibility
 - Uses \`role="alert"\` for screen reader announcement
 - Supports \`aria-live\` for dynamic updates
-- Icons should have \`aria-hidden="true"\`
+- Icons are automatically \`aria-hidden="true"\`
         `,
       },
     },
@@ -60,49 +61,44 @@ type Story = StoryObj<typeof Alert>;
 
 export const Default: Story = {
   render: () => (
-    <Alert>
-      <Info className="size-4" aria-hidden="true" />
-      <AlertTitle>Information</AlertTitle>
-      <AlertDescription>
-        This is a default alert with helpful information.
-      </AlertDescription>
-    </Alert>
+    <Alert
+      icon={Info}
+      title="Information"
+      description="This is a default alert with helpful information."
+    />
   ),
 };
 
 export const Destructive: Story = {
   render: () => (
-    <Alert variant="destructive">
-      <AlertCircle className="size-4" aria-hidden="true" />
-      <AlertTitle>Error</AlertTitle>
-      <AlertDescription>
-        Your session has expired. Please log in again.
-      </AlertDescription>
-    </Alert>
+    <Alert
+      variant="destructive"
+      icon={AlertCircle}
+      title="Error"
+      description="Your session has expired. Please log in again."
+    />
   ),
 };
 
 export const Warning: Story = {
   render: () => (
-    <Alert variant="warning">
-      <AlertTriangle className="size-4" aria-hidden="true" />
-      <AlertTitle>Warning</AlertTitle>
-      <AlertDescription>
-        Your account will be deleted in 7 days.
-      </AlertDescription>
-    </Alert>
+    <Alert
+      variant="warning"
+      icon={AlertTriangle}
+      title="Warning"
+      description="Your account will be deleted in 7 days."
+    />
   ),
 };
 
 export const Success: Story = {
   render: () => (
-    <Alert className="border-green-500/50 text-green-600 [&>svg]:text-green-600">
-      <CheckCircle2 className="size-4" aria-hidden="true" />
-      <AlertTitle>Success</AlertTitle>
-      <AlertDescription>
-        Your changes have been saved successfully.
-      </AlertDescription>
-    </Alert>
+    <Alert
+      icon={CheckCircle2}
+      title="Success"
+      description="Your changes have been saved successfully."
+      className="border-green-500/50 text-green-600 [&>svg]:text-green-600"
+    />
   ),
   parameters: {
     docs: {
@@ -114,34 +110,27 @@ export const Success: Story = {
 };
 
 export const TitleOnly: Story = {
-  render: () => (
-    <Alert>
-      <Info className="size-4" aria-hidden="true" />
-      <AlertTitle>Heads up!</AlertTitle>
-    </Alert>
-  ),
+  render: () => <Alert icon={Info} title="Heads up!" />,
 };
 
 export const DescriptionOnly: Story = {
   render: () => (
-    <Alert>
-      <Info className="size-4" aria-hidden="true" />
-      <AlertDescription>
-        You can add components to your app using the CLI.
-      </AlertDescription>
-    </Alert>
+    <Alert
+      icon={Info}
+      description="You can add components to your app using the CLI."
+    />
   ),
 };
 
 export const Assertive: Story = {
   render: () => (
-    <Alert variant="destructive" live="assertive">
-      <AlertCircle className="size-4" aria-hidden="true" />
-      <AlertTitle>Critical Error</AlertTitle>
-      <AlertDescription>
-        This alert will be announced immediately by screen readers.
-      </AlertDescription>
-    </Alert>
+    <Alert
+      variant="destructive"
+      live="assertive"
+      icon={AlertCircle}
+      title="Critical Error"
+      description="This alert will be announced immediately by screen readers."
+    />
   ),
   parameters: {
     docs: {

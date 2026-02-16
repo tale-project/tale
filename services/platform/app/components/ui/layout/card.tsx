@@ -1,81 +1,59 @@
-import { forwardRef, type HTMLAttributes } from 'react';
+import { type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
-const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
+interface CardProps {
+  title?: ReactNode;
+  description?: ReactNode;
+  children?: ReactNode;
+  footer?: ReactNode;
+  className?: string;
+  contentClassName?: string;
+  headerClassName?: string;
+  footerClassName?: string;
+}
+
+export function Card({
+  title,
+  description,
+  children,
+  footer,
+  className,
+  contentClassName,
+  headerClassName,
+  footerClassName,
+}: CardProps) {
+  const hasHeader = !!(title || description);
+
+  return (
     <div
-      ref={ref}
       className={cn(
         'rounded-xl border bg-card text-card-foreground shadow-sm',
         className,
       )}
-      {...props}
-    />
-  ),
-);
-Card.displayName = 'Card';
-
-const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn('flex flex-col space-y-1.5 p-6', className)}
-      {...props}
-    />
-  ),
-);
-CardHeader.displayName = 'CardHeader';
-
-const CardTitle = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'text-xl font-semibold leading-none tracking-tight',
-        className,
+    >
+      {hasHeader && (
+        <div className={cn('flex flex-col space-y-1.5 p-6', headerClassName)}>
+          {title && (
+            <div className="text-xl leading-none font-semibold tracking-tight">
+              {title}
+            </div>
+          )}
+          {description && (
+            <div className="text-muted-foreground text-sm">{description}</div>
+          )}
+        </div>
       )}
-      {...props}
-    />
-  ),
-);
-CardTitle.displayName = 'CardTitle';
-
-const CardDescription = forwardRef<
-  HTMLDivElement,
-  HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn('text-sm text-muted-foreground', className)}
-    {...props}
-  />
-));
-CardDescription.displayName = 'CardDescription';
-
-const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('p-6 pt-0', className)} {...props} />
-  ),
-);
-CardContent.displayName = 'CardContent';
-
-const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn('flex items-center p-6 pt-0', className)}
-      {...props}
-    />
-  ),
-);
-CardFooter.displayName = 'CardFooter';
-
-export {
-  Card,
-  CardHeader,
-  CardFooter,
-  CardTitle,
-  CardDescription,
-  CardContent,
-};
+      {children && (
+        <div className={cn(hasHeader ? 'p-6 pt-0' : 'p-6', contentClassName)}>
+          {children}
+        </div>
+      )}
+      {footer && (
+        <div className={cn('flex items-center p-6 pt-0', footerClassName)}>
+          {footer}
+        </div>
+      )}
+    </div>
+  );
+}

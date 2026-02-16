@@ -11,12 +11,7 @@ import {
 import { memo, useState } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/app/components/ui/overlays/tooltip';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useExecuteApprovedIntegrationOperation } from '@/app/features/approvals/hooks/actions';
 import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
@@ -238,47 +233,39 @@ function IntegrationApprovalCardComponent({
       {/* Action Buttons */}
       {isPending && (
         <div className="flex items-center gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="success"
-                  onClick={handleApprove}
-                  disabled={isProcessing}
-                  className="flex-1"
-                >
-                  {isApproving ? (
-                    <Loader2 className="mr-1 size-4 animate-spin" />
-                  ) : (
-                    <CheckCircle className="mr-1 size-4" />
-                  )}
-                  {t('approve')}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('approveTooltip')}</TooltipContent>
-            </Tooltip>
+          <Tooltip content={t('approveTooltip')}>
+            <Button
+              size="sm"
+              variant="success"
+              onClick={handleApprove}
+              disabled={isProcessing}
+              className="flex-1"
+            >
+              {isApproving ? (
+                <Loader2 className="mr-1 size-4 animate-spin" />
+              ) : (
+                <CheckCircle className="mr-1 size-4" />
+              )}
+              {t('approve')}
+            </Button>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={handleReject}
-                  disabled={isProcessing}
-                  className="flex-1"
-                >
-                  {isRejecting ? (
-                    <Loader2 className="mr-1 size-4 animate-spin" />
-                  ) : (
-                    <XCircle className="mr-1 size-4" />
-                  )}
-                  {t('reject')}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('rejectTooltip')}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip content={t('rejectTooltip')}>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleReject}
+              disabled={isProcessing}
+              className="flex-1"
+            >
+              {isRejecting ? (
+                <Loader2 className="mr-1 size-4 animate-spin" />
+              ) : (
+                <XCircle className="mr-1 size-4" />
+              )}
+              {t('reject')}
+            </Button>
+          </Tooltip>
         </div>
       )}
 

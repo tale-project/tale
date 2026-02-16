@@ -26,12 +26,7 @@ import {
   TableRow,
 } from '@/app/components/ui/data-display/table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/app/components/ui/overlays/tooltip';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -800,42 +795,33 @@ function MessageBubbleComponent({
         )}
         {!isUser && !isAssistantStreaming && (
           <div className="flex items-center pt-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="p-1"
-                    onClick={handleCopy}
-                  >
-                    {isCopied ? (
-                      <CheckIcon className="text-success size-4" />
-                    ) : (
-                      <CopyIcon className="size-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  {isCopied ? t('actions.copied') : t('actions.copy')}
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="p-1"
-                    onClick={handleInfoClick}
-                  >
-                    <Info className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  {t('actions.showInfo')}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip
+              content={isCopied ? t('actions.copied') : t('actions.copy')}
+              side="bottom"
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                className="p-1"
+                onClick={handleCopy}
+              >
+                {isCopied ? (
+                  <CheckIcon className="text-success size-4" />
+                ) : (
+                  <CopyIcon className="size-4" />
+                )}
+              </Button>
+            </Tooltip>
+            <Tooltip content={t('actions.showInfo')} side="bottom">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="p-1"
+                onClick={handleInfoClick}
+              >
+                <Info className="size-4" />
+              </Button>
+            </Tooltip>
           </div>
         )}
 

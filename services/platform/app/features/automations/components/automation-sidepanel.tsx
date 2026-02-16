@@ -12,12 +12,7 @@ import {
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 import { JsonInput } from '@/app/components/ui/forms/json-input';
-import {
-  Tooltip,
-  TooltipProvider,
-  TooltipTrigger,
-  TooltipContent,
-} from '@/app/components/ui/overlays/tooltip';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc, Id } from '@/convex/_generated/dataModel';
@@ -278,30 +273,27 @@ export function AutomationSidePanel({
             </>
           ) : step ? (
             <>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div
-                      className={cn(
-                        'p-2 rounded-lg border',
-                        getStepTypeColor(step.stepType),
-                      )}
-                    >
-                      {getStepIcon(
-                        step.stepType,
-                        'type' in step.config
-                          ? String(step.config.type)
-                          : undefined,
-                      )}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>
-                      {t('sidePanel.stepTooltip', { stepType: step.stepType })}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip
+                content={
+                  <p>
+                    {t('sidePanel.stepTooltip', { stepType: step.stepType })}
+                  </p>
+                }
+              >
+                <div
+                  className={cn(
+                    'p-2 rounded-lg border',
+                    getStepTypeColor(step.stepType),
+                  )}
+                >
+                  {getStepIcon(
+                    step.stepType,
+                    'type' in step.config
+                      ? String(step.config.type)
+                      : undefined,
+                  )}
+                </div>
+              </Tooltip>
               <div className="flex-1">
                 <h2 className="text-foreground text-sm font-semibold">
                   {step.name}

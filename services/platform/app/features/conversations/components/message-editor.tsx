@@ -29,12 +29,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import {
-  TooltipProvider,
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from '@/app/components/ui/overlays/tooltip';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 
@@ -410,25 +405,18 @@ function MilkdownEditorInner({
         >
           {isImproveMode && !isImproving && (
             <div className="flex items-start gap-2 p-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={() => {
-                        setIsImproveMode(false);
-                        setImproveInstruction('');
-                      }}
-                      variant="ghost"
-                      size="icon"
-                    >
-                      <ChevronLeft className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {tConversations('editor.backToEditor')}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip content={tConversations('editor.backToEditor')}>
+                <Button
+                  onClick={() => {
+                    setIsImproveMode(false);
+                    setImproveInstruction('');
+                  }}
+                  variant="ghost"
+                  size="icon"
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+              </Tooltip>
               <Textarea
                 ref={improveInputRef}
                 value={improveInstruction}
@@ -579,33 +567,26 @@ function MilkdownEditorInner({
               >
                 <PaperclipIcon className="size-4" />
               </Button>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={handleOpenInstructionTextarea}
-                      disabled={
-                        disabled ||
-                        isLoading ||
-                        !hasContent ||
-                        isImproving ||
-                        isSending
-                      }
-                      variant="ghost"
-                      size="icon"
-                    >
-                      {isImproving ? (
-                        <LoaderCircleIcon className="text-muted-foreground size-4 animate-spin" />
-                      ) : (
-                        <WandSparklesIcon className="size-4" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {tConversations('editor.improveWithAi')}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip content={tConversations('editor.improveWithAi')}>
+                <Button
+                  onClick={handleOpenInstructionTextarea}
+                  disabled={
+                    disabled ||
+                    isLoading ||
+                    !hasContent ||
+                    isImproving ||
+                    isSending
+                  }
+                  variant="ghost"
+                  size="icon"
+                >
+                  {isImproving ? (
+                    <LoaderCircleIcon className="text-muted-foreground size-4 animate-spin" />
+                  ) : (
+                    <WandSparklesIcon className="size-4" />
+                  )}
+                </Button>
+              </Tooltip>
             </div>
           )}
           {isImproveMode && <div />}
@@ -631,29 +612,26 @@ function MilkdownEditorInner({
             </Button>
           )}
           {isImproveMode && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={handleImproveSubmit}
-                    size="icon"
-                    disabled={isImproving}
-                    className="rounded-full"
-                  >
-                    {isImproving ? (
-                      <LoaderCircleIcon className="size-4 animate-spin" />
-                    ) : (
-                      <WandSparklesIcon className="size-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isImproving
-                    ? tConversations('editor.improving')
-                    : tConversations('editor.generateImprovement')}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip
+              content={
+                isImproving
+                  ? tConversations('editor.improving')
+                  : tConversations('editor.generateImprovement')
+              }
+            >
+              <Button
+                onClick={handleImproveSubmit}
+                size="icon"
+                disabled={isImproving}
+                className="rounded-full"
+              >
+                {isImproving ? (
+                  <LoaderCircleIcon className="size-4 animate-spin" />
+                ) : (
+                  <WandSparklesIcon className="size-4" />
+                )}
+              </Button>
+            </Tooltip>
           )}
         </div>
       </div>

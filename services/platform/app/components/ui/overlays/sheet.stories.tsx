@@ -4,15 +4,7 @@ import { useState } from 'react';
 
 import { Input } from '../forms/input';
 import { Button } from '../primitives/button';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-  SheetFooter,
-} from './sheet';
+import { Sheet } from './sheet';
 
 const meta: Meta<typeof Sheet> = {
   title: 'Overlays/Sheet',
@@ -27,23 +19,21 @@ A sheet component that slides in from the edge of the screen.
 
 ## Usage
 \`\`\`tsx
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/app/components/ui/overlays/sheet';
+import { Sheet } from '@/app/components/ui/overlays/sheet';
 
-<Sheet>
-  <SheetTrigger asChild>
-    <Button>Open Sheet</Button>
-  </SheetTrigger>
-  <SheetContent>
-    <SheetHeader>
-      <SheetTitle>Sheet Title</SheetTitle>
-    </SheetHeader>
-    Content here
-  </SheetContent>
+<Sheet
+  open={isOpen}
+  onOpenChange={setIsOpen}
+  title="Edit Profile"
+  description="Make changes to your profile."
+>
+  Content here
 </Sheet>
 \`\`\`
 
 ## Accessibility
 - Built on Radix UI Dialog for full ARIA support
+- Title and description are rendered as screen-reader only text
 - Focus is trapped within the sheet
 - Closes on Escape key
 - Close button has proper aria-label
@@ -57,28 +47,30 @@ export default meta;
 type Story = StoryObj<typeof Sheet>;
 
 export const Default: Story = {
-  render: () => (
-    <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="outline">Open Sheet</Button>
-      </SheetTrigger>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Edit Profile</SheetTitle>
-          <SheetDescription>
-            Make changes to your profile here. Click save when you&apos;re done.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="space-y-4 py-4">
-          <Input label="Name" defaultValue="John Doe" />
-          <Input label="Email" type="email" defaultValue="john@example.com" />
-        </div>
-        <SheetFooter>
-          <Button type="submit">Save changes</Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
-  ),
+  render: function Render() {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <Button variant="outline" onClick={() => setOpen(true)}>
+          Open Sheet
+        </Button>
+        <Sheet
+          open={open}
+          onOpenChange={setOpen}
+          title="Edit Profile"
+          description="Make changes to your profile here. Click save when you're done."
+        >
+          <div className="space-y-4 py-4">
+            <Input label="Name" defaultValue="John Doe" />
+            <Input label="Email" type="email" defaultValue="john@example.com" />
+          </div>
+          <div className="flex justify-end">
+            <Button type="submit">Save changes</Button>
+          </div>
+        </Sheet>
+      </>
+    );
+  },
 };
 
 export const Sides: Story = {
@@ -102,15 +94,16 @@ export const Sides: Story = {
             {s}
           </Button>
         ))}
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side={side}>
-            <SheetHeader>
-              <SheetTitle>Sheet from {side}</SheetTitle>
-              <SheetDescription>
-                This sheet slides in from the {side}.
-              </SheetDescription>
-            </SheetHeader>
-          </SheetContent>
+        <Sheet
+          open={open}
+          onOpenChange={setOpen}
+          side={side}
+          title={`Sheet from ${side}`}
+          description={`This sheet slides in from the ${side}.`}
+        >
+          <p className="text-muted-foreground text-sm">
+            Content slides in from the {side}.
+          </p>
         </Sheet>
       </div>
     );
@@ -125,26 +118,27 @@ export const Sides: Story = {
 };
 
 export const HideClose: Story = {
-  render: () => (
-    <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="outline">Open Sheet</Button>
-      </SheetTrigger>
-      <SheetContent hideClose>
-        <SheetHeader>
-          <SheetTitle>Custom Close Handling</SheetTitle>
-          <SheetDescription>
-            This sheet has no default close button. Use your own close logic.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="py-4">
+  render: function Render() {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <Button variant="outline" onClick={() => setOpen(true)}>
+          Open Sheet
+        </Button>
+        <Sheet
+          open={open}
+          onOpenChange={setOpen}
+          title="Custom Close Handling"
+          description="This sheet has no default close button. Use your own close logic."
+          hideClose
+        >
           <p className="text-muted-foreground text-sm">
             Press Escape or click outside to close.
           </p>
-        </div>
-      </SheetContent>
-    </Sheet>
-  ),
+        </Sheet>
+      </>
+    );
+  },
 };
 
 export const WithForm: Story = {
@@ -152,17 +146,14 @@ export const WithForm: Story = {
     const [open, setOpen] = useState(false);
 
     return (
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
-          <Button>Add New Item</Button>
-        </SheetTrigger>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Add New Item</SheetTitle>
-            <SheetDescription>
-              Fill in the details below to create a new item.
-            </SheetDescription>
-          </SheetHeader>
+      <>
+        <Button onClick={() => setOpen(true)}>Add New Item</Button>
+        <Sheet
+          open={open}
+          onOpenChange={setOpen}
+          title="Add New Item"
+          description="Fill in the details below to create a new item."
+        >
           <form
             className="space-y-4 py-4"
             onSubmit={(e) => {
@@ -172,7 +163,7 @@ export const WithForm: Story = {
           >
             <Input label="Title" required />
             <Input label="Description" />
-            <SheetFooter className="pt-4">
+            <div className="flex justify-end gap-2 pt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -181,10 +172,10 @@ export const WithForm: Story = {
                 Cancel
               </Button>
               <Button type="submit">Create</Button>
-            </SheetFooter>
+            </div>
           </form>
-        </SheetContent>
-      </Sheet>
+        </Sheet>
+      </>
     );
   },
 };

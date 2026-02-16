@@ -7,11 +7,7 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-} from '@/app/components/ui/navigation/tabs';
+import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
@@ -73,17 +69,13 @@ export function CustomerImportForm({
           value={dataSource}
           onValueChange={(value) => setValue('dataSource', value)}
           className="w-full"
-        >
-          <TabsList className="grid w-auto grid-cols-3">
-            <TabsTrigger value="circuly">{t('importForm.circuly')}</TabsTrigger>
-            <TabsTrigger value="manual_import">
-              {t('importForm.manualEntry')}
-            </TabsTrigger>
-            <TabsTrigger value="file_upload">
-              {t('importForm.upload')}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+          listClassName="grid w-auto grid-cols-3"
+          items={[
+            { value: 'circuly', label: t('importForm.circuly') },
+            { value: 'manual_import', label: t('importForm.manualEntry') },
+            { value: 'file_upload', label: t('importForm.upload') },
+          ]}
+        />
       )}
       {dataSource === 'circuly' && (
         <Link

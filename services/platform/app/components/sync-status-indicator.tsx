@@ -1,10 +1,6 @@
 import { Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/app/components/ui/overlays/tooltip';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useMutationQueue } from '@/app/hooks/use-mutation-queue';
 import { useSyncStatus } from '@/app/hooks/use-sync-status';
@@ -73,38 +69,33 @@ export function SyncStatusIndicator({
   };
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn('gap-2', className)}
-          onClick={handleSync}
-          disabled={isSyncing || !isOnline}
-        >
-          {getStatusIcon()}
-          {showLabel && (
-            <span className="text-muted-foreground text-sm">
-              {getStatusText()}
-            </span>
-          )}
-          {(hasPending || hasIssues) && (
-            <span
-              className={cn(
-                'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-medium',
-                hasIssues
-                  ? 'bg-destructive text-destructive-foreground'
-                  : 'bg-warning text-warning-foreground',
-              )}
-            >
-              {hasIssues ? failedCount : pendingCount}
-            </span>
-          )}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>{getTooltipText()}</p>
-      </TooltipContent>
+    <Tooltip content={<p>{getTooltipText()}</p>}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn('gap-2', className)}
+        onClick={handleSync}
+        disabled={isSyncing || !isOnline}
+      >
+        {getStatusIcon()}
+        {showLabel && (
+          <span className="text-muted-foreground text-sm">
+            {getStatusText()}
+          </span>
+        )}
+        {(hasPending || hasIssues) && (
+          <span
+            className={cn(
+              'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-medium',
+              hasIssues
+                ? 'bg-destructive text-destructive-foreground'
+                : 'bg-warning text-warning-foreground',
+            )}
+          >
+            {hasIssues ? failedCount : pendingCount}
+          </span>
+        )}
+      </Button>
     </Tooltip>
   );
 }

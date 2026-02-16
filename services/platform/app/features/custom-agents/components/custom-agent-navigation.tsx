@@ -11,9 +11,7 @@ import {
 } from '@/app/components/ui/navigation/tab-navigation';
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
@@ -218,23 +216,17 @@ export function CustomAgentNavigation({
         <div id={AUTO_SAVE_PORTAL_ID} />
 
         {sortedVersions.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <DropdownMenu
+            trigger={
               <Button variant="outline" size="sm" className="h-8 text-sm">
                 v{agent.versionNumber}
                 <ChevronDown className="ml-1 size-3" aria-hidden="true" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 space-y-1">
-              {sortedVersions.map((version) => (
-                <DropdownMenuItem
-                  key={version._id}
-                  onClick={() => navigateToVersion(version.versionNumber)}
-                  className={cn(
-                    version.versionNumber === agent.versionNumber &&
-                      'bg-accent/50',
-                  )}
-                >
+            }
+            items={[
+              sortedVersions.map<DropdownMenuItem>((version) => ({
+                type: 'item',
+                label: (
                   <div className="flex w-full items-center gap-2">
                     <span>
                       {t('customAgents.versions.version', {
@@ -266,10 +258,17 @@ export function CustomAgentNavigation({
                       </Badge>
                     )}
                   </div>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                ),
+                onClick: () => navigateToVersion(version.versionNumber),
+                className: cn(
+                  version.versionNumber === agent.versionNumber &&
+                    'bg-accent/50',
+                ),
+              })),
+            ]}
+            align="end"
+            contentClassName="w-56"
+          />
         )}
 
         <Button onClick={onTestClick} variant="outline" size="sm">

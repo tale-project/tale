@@ -21,9 +21,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Center } from '@/app/components/ui/layout/layout';
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
@@ -262,8 +260,8 @@ function AutomationDetailLayout() {
           )}
 
           {automation && versions && versions.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <DropdownMenu
+              trigger={
                 <Button
                   variant="ghost"
                   size="sm"
@@ -272,24 +270,31 @@ function AutomationDetailLayout() {
                   {`v${automation.versionNumber}`}
                   <ChevronDown className="ml-1 size-3" aria-hidden="true" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                {versions.map((version: Doc<'wfDefinitions'>) => (
-                  <DropdownMenuItem
-                    key={version._id}
-                    onClick={() => navigateToVersion(version._id)}
-                  >
-                    <span>{`v${version.versionNumber}`}</span>
-                    <span className="text-muted-foreground ml-1 text-xs">
-                      {version.status === 'draft' && tCommon('status.draft')}
-                      {version.status === 'active' && tCommon('status.active')}
-                      {version.status === 'archived' &&
-                        tCommon('status.archived')}
-                    </span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              }
+              items={[
+                versions.map(
+                  (version: Doc<'wfDefinitions'>): DropdownMenuItem => ({
+                    type: 'item' as const,
+                    label: (
+                      <>
+                        <span>{`v${version.versionNumber}`}</span>
+                        <span className="text-muted-foreground ml-1 text-xs">
+                          {version.status === 'draft' &&
+                            tCommon('status.draft')}
+                          {version.status === 'active' &&
+                            tCommon('status.active')}
+                          {version.status === 'archived' &&
+                            tCommon('status.archived')}
+                        </span>
+                      </>
+                    ),
+                    onClick: () => navigateToVersion(version._id),
+                  }),
+                ),
+              ]}
+              align="end"
+              contentClassName="w-40"
+            />
           )}
         </AdaptiveHeaderRoot>
         <AutomationNavigation

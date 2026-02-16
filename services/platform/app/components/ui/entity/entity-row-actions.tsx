@@ -8,14 +8,11 @@ import { useState, useCallback, useMemo } from 'react';
 
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
+  type DropdownMenuItem,
+  type DropdownMenuGroup,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 interface EntityRowAction {
   /** Unique key for the action */
@@ -90,37 +87,41 @@ export const EntityRowActions = React.memo(function EntityRowActions({
     return null;
   }
 
+  const menuItems: DropdownMenuGroup[] = [];
+  let currentGroup: DropdownMenuItem[] = [];
+  for (const action of visibleActions) {
+    if (action.separator && currentGroup.length > 0) {
+      menuItems.push(currentGroup);
+      currentGroup = [];
+    }
+    currentGroup.push({
+      type: 'item',
+      label: action.label,
+      icon: action.icon,
+      onClick: () => handleActionClick(action),
+      disabled: action.disabled,
+      destructive: action.destructive,
+    });
+  }
+  if (currentGroup.length > 0) {
+    menuItems.push(currentGroup);
+  }
+
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger asChild>
+    <DropdownMenu
+      trigger={
         <IconButton
           icon={MoreVertical}
           aria-label={ariaLabel || tCommon('actions.openMenu')}
           className={triggerClassName}
-          onClick={(e) => e.stopPropagation()}
         />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} className={contentWidth}>
-        {visibleActions.map((action) => (
-          <React.Fragment key={action.key}>
-            {action.separator && <DropdownMenuSeparator />}
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                handleActionClick(action);
-              }}
-              disabled={action.disabled}
-              className={cn(
-                action.destructive && 'text-destructive focus:text-destructive',
-              )}
-            >
-              <action.icon className="mr-2 size-4" aria-hidden="true" />
-              {action.label}
-            </DropdownMenuItem>
-          </React.Fragment>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      }
+      items={menuItems}
+      align={align}
+      contentClassName={contentWidth}
+      open={isOpen}
+      onOpenChange={setIsOpen}
+    />
   );
 });
 

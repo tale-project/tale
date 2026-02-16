@@ -3,11 +3,7 @@
 import { Bot, ChevronDown, Check, Search } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/app/components/ui/overlays/popover';
+import { Popover } from '@/app/components/ui/overlays/popover';
 import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
@@ -129,8 +125,18 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
     filteredBuiltin.length === 0 && filteredCustom.length === 0;
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
+    <Popover
+      open={open}
+      onOpenChange={handleOpenChange}
+      align="start"
+      side="top"
+      sideOffset={8}
+      contentClassName="w-[20rem] p-0"
+      onOpenAutoFocus={(e) => {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }}
+      trigger={
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs transition-colors"
@@ -140,69 +146,59 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
           <span>{currentLabel}</span>
           <ChevronDown className="size-3" aria-hidden="true" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="top"
-        sideOffset={8}
-        className="w-[20rem] p-0"
-        onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          searchRef.current?.focus();
-        }}
-      >
-        <div className="border-border flex items-center gap-2 border-b px-3 py-2">
-          <Search
-            className="text-muted-foreground size-3.5 shrink-0"
-            aria-hidden="true"
+      }
+    >
+      <div className="border-border flex items-center gap-2 border-b px-3 py-2">
+        <Search
+          className="text-muted-foreground size-3.5 shrink-0"
+          aria-hidden="true"
+        />
+        <input
+          ref={searchRef}
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('agentSelector.searchPlaceholder')}
+          className="placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
+          aria-label={t('agentSelector.searchPlaceholder')}
+        />
+      </div>
+
+      <div className="max-h-[20rem] overflow-y-auto p-1" role="listbox">
+        {filteredBuiltin.map((option) => (
+          <OptionButton
+            key={option.value}
+            option={option}
+            isSelected={currentValue === option.value}
+            onSelect={handleSelect}
           />
-          <input
-            ref={searchRef}
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('agentSelector.searchPlaceholder')}
-            className="placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
-            aria-label={t('agentSelector.searchPlaceholder')}
-          />
-        </div>
+        ))}
 
-        <div className="max-h-[20rem] overflow-y-auto p-1" role="listbox">
-          {filteredBuiltin.map((option) => (
-            <OptionButton
-              key={option.value}
-              option={option}
-              isSelected={currentValue === option.value}
-              onSelect={handleSelect}
-            />
-          ))}
-
-          {hasCustomAgents && (
-            <>
-              {filteredBuiltin.length > 0 && (
-                <hr className="border-border mx-2 my-1 border-t" />
-              )}
-              <div className="text-muted-foreground px-2 py-1 text-[10px] font-medium tracking-wider uppercase">
-                {t('agentSelector.customSection')}
-              </div>
-              {filteredCustom.map((option) => (
-                <OptionButton
-                  key={option.value}
-                  option={option}
-                  isSelected={currentValue === option.value}
-                  onSelect={handleSelect}
-                />
-              ))}
-            </>
-          )}
-
-          {hasNoResults && (
-            <div className="text-muted-foreground px-3 py-4 text-center text-sm">
-              {t('agentSelector.noResults')}
+        {hasCustomAgents && (
+          <>
+            {filteredBuiltin.length > 0 && (
+              <hr className="border-border mx-2 my-1 border-t" />
+            )}
+            <div className="text-muted-foreground px-2 py-1 text-[10px] font-medium tracking-wider uppercase">
+              {t('agentSelector.customSection')}
             </div>
-          )}
-        </div>
-      </PopoverContent>
+            {filteredCustom.map((option) => (
+              <OptionButton
+                key={option.value}
+                option={option}
+                isSelected={currentValue === option.value}
+                onSelect={handleSelect}
+              />
+            ))}
+          </>
+        )}
+
+        {hasNoResults && (
+          <div className="text-muted-foreground px-3 py-4 text-center text-sm">
+            {t('agentSelector.noResults')}
+          </div>
+        )}
+      </div>
     </Popover>
   );
 }

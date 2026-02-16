@@ -15,53 +15,38 @@ import {
 import { useState } from 'react';
 
 import { Button } from '../primitives/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuPortal,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-  DropdownMenuCheckboxItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-} from './dropdown-menu';
+import { DropdownMenu } from './dropdown-menu';
 
 const meta: Meta<typeof DropdownMenu> = {
   title: 'Overlays/DropdownMenu',
   component: DropdownMenu,
   tags: ['autodocs'],
+  args: {
+    contentClassName: 'w-56',
+  },
   parameters: {
     layout: 'centered',
     docs: {
       description: {
         component: `
-A dropdown menu component with full keyboard navigation support.
+A config-driven dropdown menu component with full keyboard navigation support.
+
+Items are organized into groups (array of arrays). Separators are rendered automatically between groups.
 
 ## Usage
 \`\`\`tsx
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/app/components/ui/overlays/dropdown-menu';
+import { DropdownMenu, type DropdownMenuGroup } from '@/app/components/ui/overlays/dropdown-menu';
 
-<DropdownMenu>
-  <DropdownMenuTrigger asChild>
-    <Button>Open Menu</Button>
-  </DropdownMenuTrigger>
-  <DropdownMenuContent>
-    <DropdownMenuItem>Item 1</DropdownMenuItem>
-    <DropdownMenuItem>Item 2</DropdownMenuItem>
-  </DropdownMenuContent>
-</DropdownMenu>
+const items: DropdownMenuGroup[] = [
+  [{ type: 'label', content: 'My Account' }],
+  [
+    { type: 'item', label: 'Profile', icon: User, onClick: () => {} },
+    { type: 'item', label: 'Settings', icon: Settings, onClick: () => {} },
+  ],
+  [{ type: 'item', label: 'Log out', icon: LogOut, onClick: () => {} }],
+];
+
+<DropdownMenu trigger={<Button>Open Menu</Button>} items={items} />
 \`\`\`
 
 ## Accessibility
@@ -79,125 +64,90 @@ type Story = StoryObj<typeof DropdownMenu>;
 
 export const Default: Story = {
   render: () => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline">Open Menu</Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>My Account</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <User className="mr-2 size-4" />
-            Profile
-            <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <CreditCard className="mr-2 size-4" />
-            Billing
-            <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Settings className="mr-2 size-4" />
-            Settings
-            <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Keyboard className="mr-2 size-4" />
-            Keyboard shortcuts
-            <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <LogOut className="mr-2 size-4" />
-          Log out
-          <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DropdownMenu
+      trigger={<Button variant="outline">Open Menu</Button>}
+      items={[
+        [{ type: 'label', content: 'My Account' }],
+        [
+          { type: 'item', label: 'Profile', icon: User, onClick: () => {} },
+          {
+            type: 'item',
+            label: 'Billing',
+            icon: CreditCard,
+            onClick: () => {},
+          },
+          {
+            type: 'item',
+            label: 'Settings',
+            icon: Settings,
+            onClick: () => {},
+          },
+          {
+            type: 'item',
+            label: 'Keyboard shortcuts',
+            icon: Keyboard,
+            onClick: () => {},
+          },
+        ],
+        [
+          {
+            type: 'item',
+            label: 'Log out',
+            icon: LogOut,
+            onClick: () => {},
+          },
+        ],
+      ]}
+    />
   ),
 };
 
 export const WithSubMenu: Story = {
   render: () => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline">Open Menu</Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <Plus className="mr-2 size-4" />
-            New Item
-          </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <UserPlus className="mr-2 size-4" />
-              Invite users
-            </DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem>
-                  <Mail className="mr-2 size-4" />
-                  Email
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <MessageSquare className="mr-2 size-4" />
-                  Message
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <PlusCircle className="mr-2 size-4" />
-                  More...
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-          </DropdownMenuSub>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DropdownMenu
+      trigger={<Button variant="outline">Open Menu</Button>}
+      items={[
+        [{ type: 'label', content: 'Actions' }],
+        [
+          {
+            type: 'item',
+            label: 'New Item',
+            icon: Plus,
+            onClick: () => {},
+          },
+          {
+            type: 'sub',
+            label: 'Invite users',
+            icon: UserPlus,
+            items: [
+              [
+                {
+                  type: 'item',
+                  label: 'Email',
+                  icon: Mail,
+                  onClick: () => {},
+                },
+                {
+                  type: 'item',
+                  label: 'Message',
+                  icon: MessageSquare,
+                  onClick: () => {},
+                },
+              ],
+              [
+                {
+                  type: 'item',
+                  label: 'More...',
+                  icon: PlusCircle,
+                  onClick: () => {},
+                },
+              ],
+            ],
+          },
+        ],
+      ]}
+    />
   ),
-};
-
-export const WithCheckboxItems: Story = {
-  render: function Render() {
-    const [showStatusBar, setShowStatusBar] = useState(true);
-    const [showActivityBar, setShowActivityBar] = useState(false);
-    const [showPanel, setShowPanel] = useState(false);
-
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline">View Options</Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56">
-          <DropdownMenuLabel>Appearance</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuCheckboxItem
-            checked={showStatusBar}
-            onCheckedChange={setShowStatusBar}
-          >
-            Status Bar
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem
-            checked={showActivityBar}
-            onCheckedChange={setShowActivityBar}
-          >
-            Activity Bar
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem
-            checked={showPanel}
-            onCheckedChange={setShowPanel}
-          >
-            Panel
-          </DropdownMenuCheckboxItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  },
 };
 
 export const WithRadioItems: Story = {
@@ -205,35 +155,78 @@ export const WithRadioItems: Story = {
     const [position, setPosition] = useState('bottom');
 
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline">Panel Position</Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56">
-          <DropdownMenuLabel>Panel Position</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuRadioGroup value={position} onValueChange={setPosition}>
-            <DropdownMenuRadioItem value="top">Top</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="bottom">Bottom</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="right">Right</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <DropdownMenu
+        trigger={<Button variant="outline">Panel Position</Button>}
+        items={[
+          [{ type: 'label', content: 'Panel Position' }],
+          [
+            {
+              type: 'radio-group',
+              value: position,
+              onValueChange: setPosition,
+              options: [
+                { value: 'top', label: 'Top' },
+                { value: 'bottom', label: 'Bottom' },
+                { value: 'right', label: 'Right' },
+              ],
+            },
+          ],
+        ]}
+      />
     );
   },
 };
 
 export const DisabledItems: Story = {
   render: () => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline">Open Menu</Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
-        <DropdownMenuItem>Available Action</DropdownMenuItem>
-        <DropdownMenuItem disabled>Disabled Action</DropdownMenuItem>
-        <DropdownMenuItem>Another Action</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DropdownMenu
+      trigger={<Button variant="outline">Open Menu</Button>}
+      items={[
+        [
+          { type: 'item', label: 'Available Action', onClick: () => {} },
+          {
+            type: 'item',
+            label: 'Disabled Action',
+            onClick: () => {},
+            disabled: true,
+          },
+          { type: 'item', label: 'Another Action', onClick: () => {} },
+        ],
+      ]}
+    />
   ),
+};
+
+export const DestructiveItem: Story = {
+  render: () => (
+    <DropdownMenu
+      trigger={<Button variant="outline">Open Menu</Button>}
+      items={[
+        [
+          {
+            type: 'item',
+            label: 'Edit',
+            icon: Settings,
+            onClick: () => {},
+          },
+        ],
+        [
+          {
+            type: 'item',
+            label: 'Delete',
+            icon: LogOut,
+            onClick: () => {},
+            destructive: true,
+          },
+        ],
+      ]}
+    />
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Items can be marked as destructive to show a red color.',
+      },
+    },
+  },
 };

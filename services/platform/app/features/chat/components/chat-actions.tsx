@@ -6,12 +6,7 @@ import { useCallback, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { HStack } from '@/app/components/ui/layout/layout';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/app/components/ui/overlays/tooltip';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -78,43 +73,31 @@ export function ChatActions({
 
   return (
     <>
-      <TooltipProvider>
-        <HStack gap={1}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                className="hidden p-1 md:inline-flex"
-                size="icon"
-                onClick={onRename}
-                aria-label={tCommon('actions.rename')}
-              >
-                <Pencil className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {tCommon('actions.rename')}
-            </TooltipContent>
-          </Tooltip>
+      <HStack gap={1}>
+        <Tooltip content={tCommon('actions.rename')} side="bottom">
+          <Button
+            variant="ghost"
+            className="hidden p-1 md:inline-flex"
+            size="icon"
+            onClick={onRename}
+            aria-label={tCommon('actions.rename')}
+          >
+            <Pencil className="size-4" />
+          </Button>
+        </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                className="p-1"
-                size="icon"
-                onClick={() => setIsDeleteDialogOpen(true)}
-                aria-label={tCommon('actions.delete')}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {tCommon('actions.delete')}
-            </TooltipContent>
-          </Tooltip>
-        </HStack>
-      </TooltipProvider>
+        <Tooltip content={tCommon('actions.delete')} side="bottom">
+          <Button
+            variant="ghost"
+            className="p-1"
+            size="icon"
+            onClick={() => setIsDeleteDialogOpen(true)}
+            aria-label={tCommon('actions.delete')}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </Tooltip>
+      </HStack>
 
       <DeleteDialog
         open={isDeleteDialogOpen}
