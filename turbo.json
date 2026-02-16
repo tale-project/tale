@@ -1,5 +1,11 @@
 {
   "$schema": "https://turbo.build/schema.v2.json",
+  "globalPassThroughEnv": [
+    "DO_NOT_TRACK",
+    "TURBO_TELEMETRY_DISABLED",
+    "STORYBOOK_DISABLE_TELEMETRY",
+    "TELEMETRY_DISABLED"
+  ],
   "tasks": {
     "setup": {
       "cache": false,
@@ -81,6 +87,9 @@
     "knip": {
       "cache": false,
       "outputs": []
+    },
+    "storybook:build": {
+      "outputs": ["storybook-static/**"]
     },
     "docker:build": {
       "cache": false,

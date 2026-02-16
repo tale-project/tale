@@ -162,7 +162,7 @@ export const ArchiveItem: Story = {
     const [open, setOpen] = useState(false);
     return (
       <>
-        <Button variant="outline" onClick={() => setOpen(true)}>
+        <Button variant="secondary" onClick={() => setOpen(true)}>
           <Archive className="mr-2 size-4" />
           Archive
         </Button>

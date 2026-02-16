@@ -51,7 +51,7 @@ export const Default: Story = {
     const [open, setOpen] = useState(false);
     return (
       <>
-        <Button variant="outline" onClick={() => setOpen(true)}>
+        <Button variant="secondary" onClick={() => setOpen(true)}>
           Open Sheet
         </Button>
         <Sheet
@@ -85,7 +85,7 @@ export const Sides: Story = {
         {(['top', 'right', 'bottom', 'left'] as const).map((s) => (
           <Button
             key={s}
-            variant="outline"
+            variant="secondary"
             onClick={() => {
               setSide(s);
               setOpen(true);
@@ -122,7 +122,7 @@ export const HideClose: Story = {
     const [open, setOpen] = useState(false);
     return (
       <>
-        <Button variant="outline" onClick={() => setOpen(true)}>
+        <Button variant="secondary" onClick={() => setOpen(true)}>
           Open Sheet
         </Button>
         <Sheet
@@ -166,7 +166,7 @@ export const WithForm: Story = {
             <div className="flex justify-end gap-2 pt-4">
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 onClick={() => setOpen(false)}
               >
                 Cancel

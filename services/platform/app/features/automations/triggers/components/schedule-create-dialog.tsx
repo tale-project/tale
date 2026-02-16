@@ -193,7 +193,7 @@ export function ScheduleCreateDialog({
             />
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="default"
               onClick={handleGenerate}
               disabled={!naturalLanguage.trim() || isGenerating}
@@ -233,7 +233,7 @@ export function ScheduleCreateDialog({
               <Button
                 key={preset.value}
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setValue('cronExpression', preset.value)}
               >

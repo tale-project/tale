@@ -124,12 +124,17 @@ export const RadioGroupItem = forwardRef<
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <label
+      className={cn(
+        'flex items-center gap-2',
+        props.disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+      )}
+    >
       {radio}
-      <Label htmlFor={id} className="cursor-pointer font-normal">
+      <span className="text-xs leading-none font-normal md:text-sm">
         {label}
-      </Label>
-    </div>
+      </span>
+    </label>
   );
 });
 RadioGroupItem.displayName = RadioGroupPrimitive.Item.displayName;

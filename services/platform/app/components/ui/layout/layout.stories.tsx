@@ -55,7 +55,7 @@ const Box = ({
   className?: string;
 }) => (
   <div
-    className={`bg-primary/10 border-primary/20 rounded-md border p-3 text-sm ${className}`}
+    className={`bg-primary/10 border-primary/20 flex items-center justify-center rounded-md border p-3 text-sm ${className}`}
   >
     {children || 'Box'}
   </div>
@@ -274,31 +274,70 @@ export const NarrowContainerComponent: StoryObj = {
 
 export const CombinedExample: StoryObj = {
   render: () => (
-    <Stack gap={6}>
-      <HStack justify="between">
+    <Stack gap={6} className="w-[640px]">
+      <HStack gap={4}>
         <h2 className="text-lg font-semibold">Dashboard</h2>
+        <Spacer />
         <HStack gap={2}>
-          <Box className="h-9 w-20">Filter</Box>
-          <Box className="h-9 w-24">+ Add New</Box>
+          <Box className="h-9 px-4">Filter</Box>
+          <Box className="h-9 px-4">+ Add</Box>
         </HStack>
       </HStack>
-      <Grid cols={1} sm={2} lg={3} gap={4}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Box key={i} className="p-4">
-            <Stack gap={2}>
-              <div className="bg-primary/20 h-4 w-3/4 rounded" />
-              <div className="bg-primary/10 h-3 w-1/2 rounded" />
-            </Stack>
-          </Box>
+
+      <Grid cols={3} gap={4}>
+        {['Revenue', 'Users', 'Orders'].map((label, i) => (
+          <VStack
+            key={label}
+            gap={1}
+            align="start"
+            className="bg-primary/10 border-primary/20 rounded-md border p-4"
+          >
+            <span className="text-muted-foreground text-xs">{label}</span>
+            <span className="text-xl font-semibold">
+              {['$12,400', '1,240', '342'][i]}
+            </span>
+          </VStack>
         ))}
       </Grid>
+
+      <HStack gap={4} align="start">
+        <VStack gap={3} align="stretch" className="flex-1">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <HStack
+              key={i}
+              gap={3}
+              className="bg-primary/10 border-primary/20 rounded-md border p-3"
+            >
+              <Center className="bg-primary/20 size-10 shrink-0 rounded">
+                <span className="text-xs font-medium">{i + 1}</span>
+              </Center>
+              <VStack gap={1} align="start" className="flex-1">
+                <div className="bg-primary/20 h-3 w-3/4 rounded" />
+                <div className="bg-primary/10 h-2.5 w-1/2 rounded" />
+              </VStack>
+            </HStack>
+          ))}
+        </VStack>
+
+        <VStack
+          gap={2}
+          align="stretch"
+          className="bg-primary/10 border-primary/20 w-40 rounded-md border p-3"
+        >
+          <span className="text-xs font-medium">Activity</span>
+          <div className="bg-primary/20 h-2.5 w-full rounded" />
+          <div className="bg-primary/20 h-2.5 w-4/5 rounded" />
+          <div className="bg-primary/20 h-2.5 w-3/5 rounded" />
+          <div className="bg-primary/20 h-2.5 w-2/5 rounded" />
+        </VStack>
+      </HStack>
     </Stack>
   ),
   parameters: {
     docs: {
       description: {
         story:
-          'Example combining Stack, HStack, and Grid for a typical dashboard layout.',
+          'Dashboard layout combining Stack, HStack, VStack, Grid, Center, and Spacer.',
       },
     },
   },

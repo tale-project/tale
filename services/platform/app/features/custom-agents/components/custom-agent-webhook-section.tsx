@@ -321,7 +321,7 @@ export function CustomAgentWebhookSection({
           }}
           actionMenu={
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={handleCreate}
               disabled={isCreating}

@@ -51,14 +51,12 @@ describe('Button', () => {
 
   describe('variants', () => {
     it.each([
-      'default',
+      'primary',
       'destructive',
       'success',
-      'outline',
       'secondary',
       'ghost',
       'link',
-      'primary',
     ] as const)('renders %s variant', (variant) => {
       render(<Button variant={variant}>Button</Button>);
       expect(screen.getByRole('button')).toBeInTheDocument();

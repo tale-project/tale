@@ -56,7 +56,7 @@ export const WithFooter: Story = {
       description="Deploy your new project in one-click."
       footer={
         <div className="flex gap-2">
-          <Button variant="outline">Cancel</Button>
+          <Button variant="secondary">Cancel</Button>
           <Button>Deploy</Button>
         </div>
       }

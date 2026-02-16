@@ -221,3 +221,73 @@ export const FullWidth: Story = {
     },
   },
 };
+
+export const ManyTabs: Story = {
+  render: () => (
+    <Tabs
+      defaultValue="overview"
+      className="w-[400px]"
+      items={[
+        {
+          value: 'overview',
+          label: 'Overview',
+          content: (
+            <p className="text-muted-foreground text-sm">Overview content.</p>
+          ),
+        },
+        {
+          value: 'analytics',
+          label: 'Analytics',
+          content: (
+            <p className="text-muted-foreground text-sm">Analytics content.</p>
+          ),
+        },
+        {
+          value: 'reports',
+          label: 'Reports',
+          content: (
+            <p className="text-muted-foreground text-sm">Reports content.</p>
+          ),
+        },
+        {
+          value: 'users',
+          label: 'Users',
+          content: (
+            <p className="text-muted-foreground text-sm">Users content.</p>
+          ),
+        },
+        {
+          value: 'billing',
+          label: 'Billing',
+          content: (
+            <p className="text-muted-foreground text-sm">Billing content.</p>
+          ),
+        },
+        {
+          value: 'integrations',
+          label: 'Integrations',
+          content: (
+            <p className="text-muted-foreground text-sm">
+              Integrations content.
+            </p>
+          ),
+        },
+        {
+          value: 'settings',
+          label: 'Settings',
+          content: (
+            <p className="text-muted-foreground text-sm">Settings content.</p>
+          ),
+        },
+      ]}
+    />
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Many tabs in a narrow container scroll horizontally without wrapping.',
+      },
+    },
+  },
+};

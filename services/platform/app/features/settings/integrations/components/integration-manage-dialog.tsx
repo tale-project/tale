@@ -957,7 +957,7 @@ export function IntegrationManageDialog({
                       )}
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       onClick={() => {
                         setParsedUpdate(null);
@@ -1082,7 +1082,7 @@ export function IntegrationManageDialog({
             </Stack>
 
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={handleTestConnection}
               disabled={busy}
               className="w-full"
@@ -1102,7 +1102,7 @@ export function IntegrationManageDialog({
                 integration.authMethod === 'oauth2' &&
                 integration.oauth2Config?.clientId && (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     onClick={handleReauthorize}
                     disabled={busy}
                     className="flex-1"
@@ -1121,7 +1121,7 @@ export function IntegrationManageDialog({
                   </Button>
                 )}
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={handleDisconnect}
                 disabled={busy}
                 className="flex-1"
@@ -1339,7 +1339,7 @@ export function IntegrationManageDialog({
                       )}
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       onClick={() => setIsEditingOAuth2(true)}
                       disabled={busy}
@@ -1434,7 +1434,7 @@ export function IntegrationManageDialog({
                     </Button>
                     {isEditingOAuth2 && (
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         onClick={() => setIsEditingOAuth2(false)}
                         disabled={busy}
@@ -1552,7 +1552,7 @@ export function IntegrationManageDialog({
                 {t('integrations.manageDialog.confirmDelete')}
               </Button>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setConfirmDelete(false)}
                 disabled={busy}
@@ -1563,7 +1563,7 @@ export function IntegrationManageDialog({
             </HStack>
           ) : (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => setConfirmDelete(true)}
               disabled={busy}

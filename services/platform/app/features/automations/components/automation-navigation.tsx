@@ -236,7 +236,7 @@ export function AutomationNavigation({
           <DropdownMenu
             trigger={
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="hidden h-8 text-sm md:flex"
               >
@@ -288,7 +288,7 @@ export function AutomationNavigation({
                   onClick={handleUnpublish}
                   disabled={isUnpublishing}
                   size="sm"
-                  variant="outline"
+                  variant="secondary"
                 >
                   <CircleStop className="mr-1.5 size-3.5" aria-hidden="true" />
                   {isUnpublishing
@@ -299,7 +299,7 @@ export function AutomationNavigation({
                   onClick={handleCreateDraft}
                   disabled={isCreatingDraft}
                   size="sm"
-                  variant="outline"
+                  variant="secondary"
                 >
                   {tCommon('actions.edit')}
                 </Button>

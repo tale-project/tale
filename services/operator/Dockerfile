@@ -103,7 +103,8 @@ ENV TALE_VERSION=${VERSION} \
     OPERATOR_CLEANUP_INTERVAL=60 \
     OPERATOR_WORKSPACE_BASE_DIR=/tmp/operator-sessions \
     OPERATOR_WORKSPACE_MAX_SIZE_MB=500 \
-    HOME=/home/pwuser
+    HOME=/home/pwuser \
+    DO_NOT_TRACK=1
 
 # Switch to non-root user
 USER pwuser

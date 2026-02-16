@@ -17,25 +17,21 @@ export const buttonVariants = cva(
         icon: 'p-2',
       },
       variant: {
-        default:
+        primary:
           'text-primary-foreground hover:from-primary/80 hover:to-primary/90 bg-gradient-to-b from-primary/90 from-0% to-primary to-100% outline outline-border/50 -outline-offset-1',
         destructive:
           'bg-destructive text-destructive-foreground -outline-offset-1 outline-destructive shadow-sm hover:bg-destructive/90',
         success:
           'bg-success text-success-foreground -outline-offset-1 outline-success shadow-sm hover:bg-success/90',
-        outline:
-          'ring-1 ring-border shadow-sm hover:bg-accent hover:text-accent-foreground bg-transparent ring-inset',
         secondary:
-          'bg-muted text-secondary-foreground shadow-sm ring-1 ring-border hover:ring-muted-foreground',
+          'ring-1 ring-border shadow-sm hover:bg-accent hover:text-accent-foreground bg-transparent ring-inset',
         ghost:
           'text-secondary-foreground hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary px-0 py-1 relative after:content-[""] after:block after:w-full after:h-[1px] after:transition-all after:duration-300 after:ease-in-out after:absolute after:bottom-0 after:left-0 hover:after:bg-primary',
-        primary:
-          'outline outline-white/20 bg-gradient-to-b from-[rgba(255,255,255,0.16)0%] from-0% to-white/0 to-100% bg-[#0561E6] shadow-[0_0_0_1px_#023173,0_1px_2px_0_#023173] text-white',
       },
     },
     defaultVariants: {
-      variant: 'default',
+      variant: 'primary',
       size: 'default',
     },
   },

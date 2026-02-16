@@ -4,6 +4,7 @@ import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Field } from '@/app/components/ui/forms/field';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
@@ -74,10 +75,7 @@ export function SecretRevealDialog({
           </p>
         </div>
         {secrets.map((secret, index) => (
-          <Stack key={secret.label} gap={1}>
-            <span className="text-foreground text-sm font-medium">
-              {secret.label}
-            </span>
+          <Field key={secret.label} label={secret.label}>
             <div className="relative">
               <code className="bg-muted block w-full rounded-md p-3 pr-12 font-mono text-sm break-all">
                 {secret.value}
@@ -97,7 +95,7 @@ export function SecretRevealDialog({
                 )}
               </Button>
             </div>
-          </Stack>
+          </Field>
         ))}
       </Stack>
     </FormDialog>

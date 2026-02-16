@@ -179,7 +179,7 @@ export function CustomerImportForm({
                   </VStack>
                 </HStack>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="icon"
                   onClick={() => setValue('file', null)}
                   aria-label={tCommon('actions.remove')}

@@ -259,7 +259,7 @@ export function EventsSection({
         }}
         actionMenu={
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => setIsCreateOpen(true)}
           >

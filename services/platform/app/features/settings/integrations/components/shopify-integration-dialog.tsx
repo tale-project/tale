@@ -130,7 +130,7 @@ export function ShopifyIntegrationDialog({
     ) : (
       <>
         <Button
-          variant="outline"
+          variant="secondary"
           className="flex-1"
           onClick={() => onOpenChange?.(false)}
         >

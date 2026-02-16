@@ -81,7 +81,7 @@ export function ApprovalDetailDialog({
         <Button
           onClick={() => onReject?.(approvalDetail._id)}
           disabled={isApproving || isRejecting}
-          variant="outline"
+          variant="secondary"
           className="flex-1"
         >
           {t('detail.reject')}

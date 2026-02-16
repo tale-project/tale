@@ -18,7 +18,7 @@ export function FilterButton({
 }: FilterButtonProps) {
   return (
     <Button
-      variant="outline"
+      variant="secondary"
       size="icon"
       className={cn(
         'hover:bg-muted relative p-2.5',

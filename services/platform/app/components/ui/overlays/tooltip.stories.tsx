@@ -43,7 +43,7 @@ type Story = StoryObj<typeof Tooltip>;
 export const Default: Story = {
   render: () => (
     <Tooltip content="This is a tooltip">
-      <Button variant="outline">Hover me</Button>
+      <Button variant="secondary">Hover me</Button>
     </Tooltip>
   ),
 };
@@ -60,16 +60,16 @@ export const Positions: Story = {
   render: () => (
     <div className="flex gap-4">
       <Tooltip content="Tooltip on top" side="top">
-        <Button variant="outline">Top</Button>
+        <Button variant="secondary">Top</Button>
       </Tooltip>
       <Tooltip content="Tooltip on right" side="right">
-        <Button variant="outline">Right</Button>
+        <Button variant="secondary">Right</Button>
       </Tooltip>
       <Tooltip content="Tooltip on bottom" side="bottom">
-        <Button variant="outline">Bottom</Button>
+        <Button variant="secondary">Bottom</Button>
       </Tooltip>
       <Tooltip content="Tooltip on left" side="left">
-        <Button variant="outline">Left</Button>
+        <Button variant="secondary">Left</Button>
       </Tooltip>
     </div>
   ),
@@ -92,7 +92,7 @@ export const LongContent: Story = {
       content="This is a longer tooltip with more detailed information. It wraps to multiple lines when the content is too long."
       contentClassName="max-w-xs"
     >
-      <Button variant="outline">Hover for details</Button>
+      <Button variant="secondary">Hover for details</Button>
     </Tooltip>
   ),
 };
@@ -101,7 +101,7 @@ export const DisabledTrigger: Story = {
   render: () => (
     <Tooltip content="This button is disabled because you need to fill out the form first.">
       <span tabIndex={0}>
-        <Button variant="outline" disabled>
+        <Button variant="secondary" disabled>
           Disabled Button
         </Button>
       </span>

@@ -16,6 +16,8 @@ export default {
         'deps',
         'convex',
         'workflow',
+        'ui',
+        'storybook',
       ],
     ],
     'scope-empty': [0],

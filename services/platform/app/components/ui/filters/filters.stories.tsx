@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 
 import { FilterButton } from './filter-button';
 import { FilterSection } from './filter-section';
@@ -160,6 +161,42 @@ export const MultipleFilterSections: StoryObj = {
   },
 };
 
+export const FilterSectionWithRadioGroup: StoryObj = {
+  render: function Render() {
+    const [expanded, setExpanded] = useState(true);
+    const [value, setValue] = useState('newest');
+
+    return (
+      <div className="w-64 rounded-lg border p-2">
+        <FilterSection
+          title="Sort by"
+          isExpanded={expanded}
+          onToggle={() => setExpanded(!expanded)}
+          active={value !== 'newest'}
+        >
+          <RadioGroup
+            value={value}
+            onValueChange={setValue}
+            options={[
+              { value: 'newest', label: 'Newest first' },
+              { value: 'oldest', label: 'Oldest first' },
+              { value: 'name-asc', label: 'Name A–Z' },
+              { value: 'name-desc', label: 'Name Z–A' },
+            ]}
+          />
+        </FilterSection>
+      </div>
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Filter section with a radio group for single-select options.',
+      },
+    },
+  },
+};
+
 export const FilterPanelExample: StoryObj = {
   render: function Render() {
     const [showFilters, setShowFilters] = useState(false);
@@ -167,7 +204,7 @@ export const FilterPanelExample: StoryObj = {
     const hasActiveFilters = true;
 
     return (
-      <div className="flex gap-4">
+      <div className="flex items-start gap-4">
         <FilterButton
           hasActiveFilters={hasActiveFilters}
           onClick={() => setShowFilters(!showFilters)}

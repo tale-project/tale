@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { fn } from '@storybook/test';
+import { useState } from 'react';
+import { fn } from 'storybook/test';
 
 import { Checkbox } from './checkbox';
 
@@ -83,9 +84,17 @@ export const Checked: Story = {
 };
 
 export const Indeterminate: Story = {
-  args: {
-    label: 'Select all items',
-    checked: 'indeterminate',
+  render: function IndeterminateStory() {
+    const [checked, setChecked] = useState<boolean | 'indeterminate'>(
+      'indeterminate',
+    );
+    return (
+      <Checkbox
+        label="Select all items"
+        checked={checked}
+        onCheckedChange={setChecked}
+      />
+    );
   },
   parameters: {
     docs: {

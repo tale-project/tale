@@ -597,7 +597,7 @@ export function ApprovalsClient({
           </Button>
           <Button
             size="icon"
-            variant="outline"
+            variant="secondary"
             onClick={(e) => {
               e.stopPropagation();
               void handleReject(row.original._id);

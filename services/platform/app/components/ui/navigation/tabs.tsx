@@ -38,7 +38,7 @@ export function Tabs({
     >
       <TabsPrimitive.List
         className={cn(
-          'inline-flex items-center bg-muted p-1 text-muted-foreground rounded-lg',
+          'scrollbar-hide inline-flex items-center overflow-x-auto bg-muted p-1 text-muted-foreground rounded-lg',
           listClassName,
         )}
       >

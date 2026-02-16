@@ -46,14 +46,7 @@ import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-a
   argTypes: {
     variant: {
       control: 'select',
-      options: [
-        'default',
-        'destructive',
-        'outline',
-        'secondary',
-        'ghost',
-        'link',
-      ],
+      options: ['primary', 'destructive', 'secondary', 'ghost', 'link'],
     },
     align: {
       control: 'select',
@@ -119,11 +112,11 @@ export const DestructiveVariant: Story = {
   },
 };
 
-export const OutlineVariant: Story = {
+export const SecondaryVariant: Story = {
   args: {
     label: 'Export',
     icon: Download,
-    variant: 'outline',
+    variant: 'secondary',
     onClick: () => {},
   },
 };
@@ -156,16 +149,10 @@ export const WithoutIcon: Story = {
 export const AllVariants: Story = {
   render: () => (
     <div className="flex flex-wrap items-center gap-4">
-      <DataTableActionMenu label="Default" icon={Plus} onClick={() => {}} />
-      <DataTableActionMenu
-        label="Outline"
-        icon={Download}
-        variant="outline"
-        onClick={() => {}}
-      />
+      <DataTableActionMenu label="Primary" icon={Plus} onClick={() => {}} />
       <DataTableActionMenu
         label="Secondary"
-        icon={Edit}
+        icon={Download}
         variant="secondary"
         onClick={() => {}}
       />

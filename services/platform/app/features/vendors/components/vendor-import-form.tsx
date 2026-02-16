@@ -138,7 +138,7 @@ export function VendorImportForm({
                   </VStack>
                 </HStack>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="icon"
                   onClick={() => setValue('file', null)}
                 >

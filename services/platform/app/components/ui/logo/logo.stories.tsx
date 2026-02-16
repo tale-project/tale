@@ -45,23 +45,10 @@ export const TextLogo: Story = {
   name: 'Text Logo',
 };
 
-export const Combined: Story = {
-  render: () => (
-    <div className="flex items-center gap-2">
-      <TaleLogo />
-      <TaleLogoText />
-    </div>
-  ),
-  name: 'Combined Logo',
-};
-
 export const InNavigation: Story = {
   render: () => (
     <nav className="flex w-96 items-center justify-between rounded-lg border p-4">
-      <div className="flex items-center gap-2">
-        <TaleLogo />
-        <TaleLogoText />
-      </div>
+      <TaleLogoText />
       <div className="flex items-center gap-4 text-sm">
         <span className="text-muted-foreground">Dashboard</span>
         <span className="text-muted-foreground">Settings</span>
@@ -87,23 +74,6 @@ export const LogoOnly: Story = {
     docs: {
       description: {
         story: 'Icon logo for compact spaces like favicons or mobile headers.',
-      },
-    },
-  },
-};
-
-export const OnDarkBackground: Story = {
-  render: () => (
-    <div className="dark flex items-center gap-4 rounded-lg bg-gray-900 p-6">
-      <TaleLogo />
-      <TaleLogoText />
-    </div>
-  ),
-  parameters: {
-    docs: {
-      description: {
-        story:
-          'Logo automatically switches to light version on dark backgrounds.',
       },
     },
   },

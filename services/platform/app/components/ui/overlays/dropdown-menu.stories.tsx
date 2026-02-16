@@ -65,7 +65,7 @@ type Story = StoryObj<typeof DropdownMenu>;
 export const Default: Story = {
   render: () => (
     <DropdownMenu
-      trigger={<Button variant="outline">Open Menu</Button>}
+      trigger={<Button variant="secondary">Open Menu</Button>}
       items={[
         [{ type: 'label', content: 'My Account' }],
         [
@@ -105,7 +105,7 @@ export const Default: Story = {
 export const WithSubMenu: Story = {
   render: () => (
     <DropdownMenu
-      trigger={<Button variant="outline">Open Menu</Button>}
+      trigger={<Button variant="secondary">Open Menu</Button>}
       items={[
         [{ type: 'label', content: 'Actions' }],
         [
@@ -156,7 +156,7 @@ export const WithRadioItems: Story = {
 
     return (
       <DropdownMenu
-        trigger={<Button variant="outline">Panel Position</Button>}
+        trigger={<Button variant="secondary">Panel Position</Button>}
         items={[
           [{ type: 'label', content: 'Panel Position' }],
           [
@@ -180,7 +180,7 @@ export const WithRadioItems: Story = {
 export const DisabledItems: Story = {
   render: () => (
     <DropdownMenu
-      trigger={<Button variant="outline">Open Menu</Button>}
+      trigger={<Button variant="secondary">Open Menu</Button>}
       items={[
         [
           { type: 'item', label: 'Available Action', onClick: () => {} },
@@ -200,7 +200,7 @@ export const DisabledItems: Story = {
 export const DestructiveItem: Story = {
   render: () => (
     <DropdownMenu
-      trigger={<Button variant="outline">Open Menu</Button>}
+      trigger={<Button variant="secondary">Open Menu</Button>}
       items={[
         [
           {

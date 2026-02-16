@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { fn } from '@storybook/test';
 import {
   Trash2,
   Edit,
@@ -11,6 +10,7 @@ import {
   Copy,
   Download,
 } from 'lucide-react';
+import { fn } from 'storybook/test';
 
 import { IconButton } from './icon-button';
 
@@ -45,14 +45,12 @@ import { IconButton } from '@/app/components/ui/primitives';
     variant: {
       control: 'select',
       options: [
-        'default',
+        'primary',
+        'secondary',
         'destructive',
         'success',
-        'outline',
-        'secondary',
         'ghost',
         'link',
-        'primary',
       ],
       description: 'Visual style variant',
       table: {
@@ -94,10 +92,8 @@ export const Default: Story = {
 export const AllVariants: Story = {
   render: () => (
     <div className="flex flex-wrap gap-4">
-      <IconButton icon={Settings} aria-label="Settings" variant="default" />
-      <IconButton icon={Plus} aria-label="Add" variant="primary" />
-      <IconButton icon={Copy} aria-label="Copy" variant="secondary" />
-      <IconButton icon={Download} aria-label="Download" variant="outline" />
+      <IconButton icon={Settings} aria-label="Settings" variant="primary" />
+      <IconButton icon={Plus} aria-label="Add" variant="secondary" />
       <IconButton icon={MoreHorizontal} aria-label="More" variant="ghost" />
       <IconButton icon={Trash2} aria-label="Delete" variant="destructive" />
       <IconButton icon={Edit} aria-label="Edit" variant="success" />

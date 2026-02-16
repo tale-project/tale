@@ -79,7 +79,7 @@ function SidebarShell({
           </div>
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-y-auto py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-4">
         <NavigationMenuList className="block space-y-2 space-x-0">
           {items.map((item) => (
             <NavigationItemVisual key={item.label} item={item} />

@@ -233,7 +233,7 @@ export function ToneOfVoiceFormClient({
         />
         <HStack gap={2} justify="end">
           <Button
-            variant="outline"
+            variant="secondary"
             onClick={handleGenerateTone}
             disabled={isGenerating}
           >

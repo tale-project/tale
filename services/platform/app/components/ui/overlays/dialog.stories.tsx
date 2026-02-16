@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { fn } from '@storybook/test';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
+import { fn } from 'storybook/test';
 
 import { ConfirmDialog } from '../dialog/confirm-dialog';
 import { Dialog } from '../dialog/dialog';
@@ -78,7 +78,7 @@ export const Default: Story = {
           description="Make changes to your profile here."
           footer={
             <>
-              <Button variant="outline" onClick={() => setOpen(false)}>
+              <Button variant="secondary" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
               <Button onClick={() => setOpen(false)}>Save</Button>
@@ -106,7 +106,7 @@ export const Sizes: Story = {
         {(['sm', 'default', 'md', 'lg', 'xl'] as const).map((s) => (
           <Button
             key={s}
-            variant="outline"
+            variant="secondary"
             onClick={() => {
               setSize(s);
               setOpen(true);
@@ -150,7 +150,7 @@ export const WithIcon: Story = {
           }
           footer={
             <>
-              <Button variant="outline" onClick={() => setOpen(false)}>
+              <Button variant="secondary" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
               <Button variant="destructive" onClick={() => setOpen(false)}>

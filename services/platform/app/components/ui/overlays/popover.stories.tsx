@@ -40,7 +40,7 @@ type Story = StoryObj<typeof Popover>;
 export const Default: Story = {
   render: () => (
     <Popover
-      trigger={<Button variant="outline">Open Popover</Button>}
+      trigger={<Button variant="secondary">Open Popover</Button>}
       contentClassName="w-80"
     >
       <div className="grid gap-4">
@@ -62,7 +62,7 @@ export const Default: Story = {
 export const AlignStart: Story = {
   render: () => (
     <Popover
-      trigger={<Button variant="outline">Align Start</Button>}
+      trigger={<Button variant="secondary">Align Start</Button>}
       align="start"
     >
       <p className="text-sm">This popover is aligned to the start.</p>
@@ -72,7 +72,10 @@ export const AlignStart: Story = {
 
 export const AlignEnd: Story = {
   render: () => (
-    <Popover trigger={<Button variant="outline">Align End</Button>} align="end">
+    <Popover
+      trigger={<Button variant="secondary">Align End</Button>}
+      align="end"
+    >
       <p className="text-sm">This popover is aligned to the end.</p>
     </Popover>
   ),

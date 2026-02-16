@@ -218,7 +218,7 @@ export function CustomAgentNavigation({
         {sortedVersions.length > 0 && (
           <DropdownMenu
             trigger={
-              <Button variant="outline" size="sm" className="h-8 text-sm">
+              <Button variant="secondary" size="sm" className="h-8 text-sm">
                 v{agent.versionNumber}
                 <ChevronDown className="ml-1 size-3" aria-hidden="true" />
               </Button>
@@ -271,7 +271,7 @@ export function CustomAgentNavigation({
           />
         )}
 
-        <Button onClick={onTestClick} variant="outline" size="sm">
+        <Button onClick={onTestClick} variant="secondary" size="sm">
           <FlaskConical className="mr-1.5 size-3.5" aria-hidden="true" />
           {t('customAgents.navigation.test')}
         </Button>
@@ -290,7 +290,7 @@ export function CustomAgentNavigation({
               onClick={handleUnpublish}
               disabled={isUnpublishing}
               size="sm"
-              variant="outline"
+              variant="secondary"
             >
               <CircleStop className="mr-1.5 size-3.5" aria-hidden="true" />
               {isUnpublishing
@@ -301,7 +301,7 @@ export function CustomAgentNavigation({
               onClick={handleCreateDraft}
               disabled={isCreatingDraft}
               size="sm"
-              variant="outline"
+              variant="secondary"
             >
               <Pencil className="mr-1.5 size-3.5" aria-hidden="true" />
               {hasDraft
@@ -322,7 +322,7 @@ export function CustomAgentNavigation({
               onClick={handleCreateDraft}
               disabled={isCreatingDraft}
               size="sm"
-              variant="outline"
+              variant="secondary"
             >
               <Pencil className="mr-1.5 size-3.5" aria-hidden="true" />
               {hasDraft

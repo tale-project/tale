@@ -190,7 +190,7 @@ function SignUpPage() {
 
             <Button
               onClick={handleSsoLogin}
-              variant="outline"
+              variant="secondary"
               size="lg"
               fullWidth
               disabled={isSubmitting}

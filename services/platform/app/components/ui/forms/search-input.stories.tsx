@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { fn } from '@storybook/test';
+import { useState } from 'react';
+import { fn } from 'storybook/test';
 
 import { SearchInput } from './search-input';
 
@@ -62,10 +63,6 @@ import { SearchInput } from './search-input';
       description: 'Additional classes for the wrapper div',
     },
   },
-  args: {
-    onChange: fn(),
-    value: '',
-  },
   decorators: [
     (Story) => (
       <div className="w-80">
@@ -79,15 +76,28 @@ export default meta;
 type Story = StoryObj<typeof SearchInput>;
 
 export const Default: Story = {
-  args: {
-    placeholder: 'Search...',
+  render: function Render() {
+    const [value, setValue] = useState('');
+    return (
+      <SearchInput
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search..."
+      />
+    );
   },
 };
 
 export const WithValue: Story = {
-  args: {
-    placeholder: 'Search...',
-    value: 'Example search query',
+  render: function Render() {
+    const [value, setValue] = useState('Example search query');
+    return (
+      <SearchInput
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search..."
+      />
+    );
   },
   parameters: {
     docs: {
@@ -99,8 +109,15 @@ export const WithValue: Story = {
 };
 
 export const CustomPlaceholder: Story = {
-  args: {
-    placeholder: 'Search products...',
+  render: function Render() {
+    const [value, setValue] = useState('');
+    return (
+      <SearchInput
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search products..."
+      />
+    );
   },
   parameters: {
     docs: {
@@ -112,11 +129,14 @@ export const CustomPlaceholder: Story = {
 };
 
 export const Disabled: Story = {
-  args: {
-    placeholder: 'Search...',
-    value: 'Cannot edit',
-    disabled: true,
-  },
+  render: () => (
+    <SearchInput
+      value="Cannot edit"
+      onChange={fn()}
+      placeholder="Search..."
+      disabled
+    />
+  ),
   parameters: {
     docs: {
       description: {
@@ -127,17 +147,24 @@ export const Disabled: Story = {
 };
 
 export const InFilterBar: Story = {
-  render: () => (
-    <div className="flex items-center gap-3">
-      <SearchInput value="" onChange={fn()} placeholder="Search customers..." />
-      <button
-        type="button"
-        className="border-border hover:bg-accent rounded-lg border px-3 py-2 text-sm"
-      >
-        Filters
-      </button>
-    </div>
-  ),
+  render: function Render() {
+    const [value, setValue] = useState('');
+    return (
+      <div className="flex items-center gap-3">
+        <SearchInput
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Search customers..."
+        />
+        <button
+          type="button"
+          className="border-border hover:bg-accent rounded-lg border px-3 py-2 text-sm"
+        >
+          Filters
+        </button>
+      </div>
+    );
+  },
   parameters: {
     docs: {
       description: {
@@ -148,13 +175,30 @@ export const InFilterBar: Story = {
 };
 
 export const Multiple: Story = {
-  render: () => (
-    <div className="flex flex-col gap-4">
-      <SearchInput value="" onChange={fn()} placeholder="Search customers..." />
-      <SearchInput value="" onChange={fn()} placeholder="Search products..." />
-      <SearchInput value="" onChange={fn()} placeholder="Search orders..." />
-    </div>
-  ),
+  render: function Render() {
+    const [v1, setV1] = useState('');
+    const [v2, setV2] = useState('');
+    const [v3, setV3] = useState('');
+    return (
+      <div className="flex flex-col gap-4">
+        <SearchInput
+          value={v1}
+          onChange={(e) => setV1(e.target.value)}
+          placeholder="Search customers..."
+        />
+        <SearchInput
+          value={v2}
+          onChange={(e) => setV2(e.target.value)}
+          placeholder="Search products..."
+        />
+        <SearchInput
+          value={v3}
+          onChange={(e) => setV3(e.target.value)}
+          placeholder="Search orders..."
+        />
+      </div>
+    );
+  },
   parameters: {
     docs: {
       description: {
@@ -165,9 +209,16 @@ export const Multiple: Story = {
 };
 
 export const CustomStyling: Story = {
-  args: {
-    placeholder: 'Search conversations...',
-    className: 'bg-transparent shadow-none',
+  render: function Render() {
+    const [value, setValue] = useState('');
+    return (
+      <SearchInput
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search conversations..."
+        className="bg-transparent shadow-none"
+      />
+    );
   },
   parameters: {
     docs: {

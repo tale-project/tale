@@ -24,13 +24,11 @@ describe('IconButton', () => {
 
   describe('variants', () => {
     it.each([
-      'default',
+      'primary',
       'destructive',
       'success',
-      'outline',
       'secondary',
       'ghost',
-      'primary',
     ] as const)('renders %s variant', (variant) => {
       render(<IconButton icon={Edit} aria-label="Edit" variant={variant} />);
       expect(screen.getByRole('button')).toBeInTheDocument();
