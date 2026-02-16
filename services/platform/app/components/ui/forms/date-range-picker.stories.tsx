@@ -32,6 +32,7 @@ import { DatePickerWithRange } from '@/app/components/ui/forms/date-range-picker
 - Preset options (Today, Last 14 days, Month to date, etc.)
 - Loading state support
 - Automatic preset detection from selected range
+- Supports label, description, and errorMessage props
         `,
       },
     },
@@ -40,6 +41,22 @@ import { DatePickerWithRange } from '@/app/components/ui/forms/date-range-picker
     isLoading: {
       control: 'boolean',
       description: 'Shows loading state',
+    },
+    label: {
+      control: 'text',
+      description: 'Label text displayed above the picker',
+    },
+    description: {
+      control: 'text',
+      description: 'Description text displayed below the picker',
+    },
+    errorMessage: {
+      control: 'text',
+      description: 'Error message displayed below the picker',
+    },
+    required: {
+      control: 'boolean',
+      description: 'Shows required indicator on label',
     },
   },
   args: {
@@ -124,6 +141,65 @@ export const PresetToday: Story = {
     docs: {
       description: {
         story: 'Today preset auto-detected.',
+      },
+    },
+  },
+};
+
+export const WithLabel: Story = {
+  args: {
+    label: 'Date range',
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Date picker with a label.',
+      },
+    },
+  },
+};
+
+export const WithDescription: Story = {
+  args: {
+    label: 'Date range',
+    description: 'Select the reporting period for your dashboard',
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Date picker with label and description.',
+      },
+    },
+  },
+};
+
+export const WithError: Story = {
+  args: {
+    label: 'Date range',
+    errorMessage: 'Please select a date range',
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Date picker displaying an error message.',
+      },
+    },
+  },
+};
+
+export const Required: Story = {
+  args: {
+    label: 'Date range',
+    required: true,
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Date picker with required indicator.',
       },
     },
   },

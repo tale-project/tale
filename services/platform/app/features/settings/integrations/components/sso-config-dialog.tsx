@@ -1,33 +1,23 @@
 'use client';
 
-import { CheckCircle, XCircle, Loader2, Plus, Trash2 } from 'lucide-react';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 import type {
   PlatformRole,
-  RoleMappingRule,
   SsoProvider,
 } from '@/lib/shared/schemas/sso_providers';
 
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
-import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
-import { toast } from '@/app/hooks/use-toast';
-import { useT } from '@/lib/i18n/client';
 
-import {
-  useRemoveSsoProvider,
-  useSsoFullConfig,
-  useTestExistingSsoConfig,
-  useTestSsoConfig,
-  useUpsertSsoProvider,
-} from '../hooks/actions';
+import { useSsoConfigForm } from '../hooks/use-sso-config-form';
+import { RoleMappingSection } from './sso-config/role-mapping-section';
 
 interface SSOConfigDialogProps {
   open?: boolean;
@@ -36,341 +26,51 @@ interface SSOConfigDialogProps {
   existingProvider?: SsoProvider | null;
 }
 
-const DEFAULT_SCOPES = [
-  'openid',
-  'email',
-  'profile',
-  'offline_access',
-  'https://graph.microsoft.com/GroupMember.Read.All',
-  'https://graph.microsoft.com/Files.Read',
-];
-
-const DEFAULT_MAPPING_RULES: RoleMappingRule[] = [
-  { source: 'jobTitle', pattern: '*admin*', targetRole: 'admin' },
-  { source: 'jobTitle', pattern: '*manager*', targetRole: 'admin' },
-  { source: 'jobTitle', pattern: '*developer*', targetRole: 'developer' },
-  { source: 'jobTitle', pattern: '*engineer*', targetRole: 'developer' },
-  { source: 'jobTitle', pattern: '*editor*', targetRole: 'editor' },
-];
-
 export function SSOConfigDialog({
   open,
   onOpenChange,
   organizationId,
   existingProvider,
 }: SSOConfigDialogProps) {
-  const { t } = useT('settings');
-  const { t: tCommon } = useT('common');
-
-  const platformRoles: { value: PlatformRole; label: string }[] = useMemo(
-    () => [
-      { value: 'admin', label: t('integrations.sso.roleAdmin') },
-      { value: 'developer', label: t('integrations.sso.roleDeveloper') },
-      { value: 'editor', label: t('integrations.sso.roleEditor') },
-      { value: 'member', label: t('integrations.sso.roleMember') },
-      { value: 'disabled', label: t('integrations.sso.roleDisabled') },
-    ],
-    [t],
-  );
-
-  const [issuer, setIssuer] = useState('');
-  const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
-  const [autoProvisionTeam, setAutoProvisionTeam] = useState(true);
-  const [excludeGroups, setExcludeGroups] = useState('');
-  const [autoProvisionRole, setAutoProvisionRole] = useState(true);
-  const [roleMappingRules, setRoleMappingRules] = useState<RoleMappingRule[]>(
-    DEFAULT_MAPPING_RULES,
-  );
-  const [defaultRole, setDefaultRole] = useState<PlatformRole>('member');
-  const [enableOneDriveAccess, setEnableOneDriveAccess] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    valid: boolean;
-    error?: string;
-  } | null>(null);
-
-  const originalConfigRef = useRef<{
-    issuer: string;
-    clientId: string;
-    autoProvisionTeam: boolean;
-    excludeGroups: string;
-    autoProvisionRole: boolean;
-    roleMappingRules: RoleMappingRule[];
-    defaultRole: PlatformRole;
-    enableOneDriveAccess: boolean;
-  } | null>(null);
-
-  const { mutateAsync: upsertSSOProvider, isPending: isUpserting } =
-    useUpsertSsoProvider();
-  const { mutateAsync: removeSSOProvider, isPending: isRemoving } =
-    useRemoveSsoProvider();
-  const { mutateAsync: getFullConfig, isPending: isLoadingConfig } =
-    useSsoFullConfig();
-  const { mutateAsync: testSSOConfig, isPending: isTestingNew } =
-    useTestSsoConfig();
-  const { mutateAsync: testExistingSSOConfig, isPending: isTestingExisting } =
-    useTestExistingSsoConfig();
-
-  const isSubmitting = isUpserting || isRemoving;
-  const isTesting = isTestingNew || isTestingExisting;
-
-  const isConnected = !!existingProvider;
-
-  const hasChanges = useMemo(() => {
-    if (clientSecret) return true;
-    if (!originalConfigRef.current) return false;
-
-    const orig = originalConfigRef.current;
-    const basicFieldsChanged =
-      issuer !== orig.issuer ||
-      clientId !== orig.clientId ||
-      autoProvisionTeam !== orig.autoProvisionTeam ||
-      excludeGroups !== orig.excludeGroups ||
-      autoProvisionRole !== orig.autoProvisionRole ||
-      defaultRole !== orig.defaultRole ||
-      enableOneDriveAccess !== orig.enableOneDriveAccess;
-
-    if (basicFieldsChanged) return true;
-    if (roleMappingRules.length !== orig.roleMappingRules.length) return true;
-
-    return roleMappingRules.some((curr, i) => {
-      const origRule = orig.roleMappingRules[i];
-      return (
-        curr.source !== origRule.source ||
-        curr.pattern !== origRule.pattern ||
-        curr.targetRole !== origRule.targetRole
-      );
-    });
-  }, [
+  const {
+    t,
+    tCommon,
+    platformRoles,
     issuer,
+    setIssuer,
     clientId,
+    setClientId,
     clientSecret,
+    setClientSecret,
     autoProvisionTeam,
+    setAutoProvisionTeam,
     excludeGroups,
+    setExcludeGroups,
     autoProvisionRole,
+    setAutoProvisionRole,
     roleMappingRules,
     defaultRole,
+    setDefaultRole,
     enableOneDriveAccess,
-  ]);
-
-  useEffect(() => {
-    if (open && existingProvider) {
-      getFullConfig({})
-        .then((config) => {
-          if (config) {
-            const entraFeatures = config.providerFeatures?.entraId;
-            const excludeGroupsStr = (entraFeatures?.excludeGroups || []).join(
-              ', ',
-            );
-            const rules =
-              config.roleMappingRules.length > 0
-                ? config.roleMappingRules.filter(
-                    (r: RoleMappingRule) =>
-                      r.source === 'jobTitle' || r.source === 'appRole',
-                  )
-                : DEFAULT_MAPPING_RULES;
-            setIssuer(config.issuer);
-            setClientId(config.clientId);
-            setAutoProvisionTeam(entraFeatures?.autoProvisionTeam ?? false);
-            setExcludeGroups(excludeGroupsStr);
-            setAutoProvisionRole(config.autoProvisionRole);
-            setRoleMappingRules(rules);
-            setDefaultRole(config.defaultRole);
-            setEnableOneDriveAccess(
-              entraFeatures?.enableOneDriveAccess ?? false,
-            );
-            originalConfigRef.current = {
-              issuer: config.issuer,
-              clientId: config.clientId,
-              autoProvisionTeam: entraFeatures?.autoProvisionTeam ?? false,
-              excludeGroups: excludeGroupsStr,
-              autoProvisionRole: config.autoProvisionRole,
-              roleMappingRules: rules,
-              defaultRole: config.defaultRole,
-              enableOneDriveAccess:
-                entraFeatures?.enableOneDriveAccess ?? false,
-            };
-          }
-          setClientSecret('');
-        })
-        .catch((error) => {
-          console.error('Failed to load SSO config:', error);
-          toast({
-            title: t('integrations.sso.configureFailed'),
-            description: t('integrations.sso.configureError'),
-            variant: 'destructive',
-          });
-        });
-    } else if (!existingProvider) {
-      setIssuer('');
-      setClientId('');
-      setClientSecret('');
-      setAutoProvisionTeam(true);
-      setExcludeGroups('');
-      setAutoProvisionRole(true);
-      setRoleMappingRules(DEFAULT_MAPPING_RULES);
-      setDefaultRole('member');
-      setEnableOneDriveAccess(false);
-    }
-    setTestResult(null);
-  }, [existingProvider, open, getFullConfig, t]);
-
-  const handleSave = async () => {
-    const requiresSecret = !isConnected;
-    if (!issuer || !clientId || (requiresSecret && !clientSecret)) {
-      toast({
-        title: t('integrations.sso.validationError'),
-        description: t('integrations.sso.allFieldsRequired'),
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      await upsertSSOProvider({
-        organizationId,
-        providerId: 'entra-id',
-        issuer,
-        clientId,
-        clientSecret,
-        scopes: DEFAULT_SCOPES,
-        autoProvisionRole,
-        roleMappingRules,
-        defaultRole,
-        providerFeatures: {
-          entraId: {
-            enableOneDriveAccess,
-            autoProvisionTeam,
-            excludeGroups: excludeGroups
-              .split(',')
-              .map((g) => g.trim())
-              .filter(Boolean),
-          },
-        },
-      });
-
-      toast({
-        title: isConnected
-          ? t('integrations.sso.updateSuccessful')
-          : t('integrations.sso.configureSuccessful'),
-        description: t('integrations.sso.ssoConfigured'),
-        variant: 'success',
-      });
-
-      onOpenChange?.(false);
-    } catch (error) {
-      toast({
-        title: t('integrations.sso.configureFailed'),
-        description:
-          error instanceof Error
-            ? error.message
-            : t('integrations.sso.configureError'),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleDisconnect = async () => {
-    try {
-      await removeSSOProvider({ organizationId });
-
-      toast({
-        title: t('integrations.sso.disconnected'),
-        description: t('integrations.sso.ssoDisconnected'),
-      });
-
-      onOpenChange?.(false);
-    } catch (error) {
-      toast({
-        title: t('integrations.sso.disconnectFailed'),
-        description:
-          error instanceof Error
-            ? error.message
-            : t('integrations.sso.disconnectError'),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleTest = async () => {
-    const useExistingConfig = isConnected && !clientSecret;
-
-    if (!useExistingConfig && (!issuer || !clientId || !clientSecret)) {
-      toast({
-        title: t('integrations.sso.validationError'),
-        description: t('integrations.sso.allFieldsRequired'),
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setTestResult(null);
-
-    try {
-      const result = useExistingConfig
-        ? await testExistingSSOConfig({})
-        : await testSSOConfig({
-            issuer,
-            clientId,
-            clientSecret,
-          });
-
-      setTestResult(result);
-
-      if (result.valid) {
-        toast({
-          title: t('integrations.sso.testSuccessful'),
-          description: t('integrations.sso.testSuccessfulDescription'),
-          variant: 'success',
-        });
-      } else {
-        toast({
-          title: t('integrations.sso.testFailed'),
-          description:
-            result.error || t('integrations.sso.testFailedDescription'),
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      setTestResult({
-        valid: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : t('integrations.sso.testError'),
-      });
-      toast({
-        title: t('integrations.sso.testFailed'),
-        description:
-          error instanceof Error
-            ? error.message
-            : t('integrations.sso.testError'),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const addMappingRule = () => {
-    setRoleMappingRules([
-      ...roleMappingRules,
-      { source: 'jobTitle', pattern: '', targetRole: 'member' },
-    ]);
-  };
-
-  const removeMappingRule = (index: number) => {
-    setRoleMappingRules(roleMappingRules.filter((_, i) => i !== index));
-  };
-
-  const updateMappingRule = (
-    index: number,
-    updates: Partial<RoleMappingRule>,
-  ) => {
-    setRoleMappingRules(
-      roleMappingRules.map((rule, i) =>
-        i === index ? { ...rule, ...updates } : rule,
-      ),
-    );
-  };
+    setEnableOneDriveAccess,
+    testResult,
+    isSubmitting,
+    isTesting,
+    isLoadingConfig,
+    isConnected,
+    hasChanges,
+    handleSave,
+    handleDisconnect,
+    handleTest,
+    addMappingRule,
+    removeMappingRule,
+    updateMappingRule,
+  } = useSsoConfigForm({
+    open,
+    onOpenChange,
+    organizationId,
+    existingProvider,
+  });
 
   const footer = isConnected ? (
     <>
@@ -553,88 +253,14 @@ export function SSOConfigDialog({
         />
 
         {autoProvisionRole && (
-          <FormSection
-            label={t('integrations.sso.roleMappingRulesLabel')}
-            description={t('integrations.sso.roleMappingRulesHelp')}
-          >
-            <Stack gap={0} className="divide-border divide-y">
-              {roleMappingRules.map((rule, index) => (
-                <HStack
-                  key={index}
-                  gap={2}
-                  align="center"
-                  className="flex-wrap py-3 first:pt-0 last:pb-0"
-                >
-                  <Select
-                    value={rule.source}
-                    onValueChange={(value) =>
-                      updateMappingRule(index, {
-                        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
-                        source: value as 'jobTitle' | 'appRole',
-                      })
-                    }
-                    disabled={isSubmitting || isLoadingConfig}
-                    className="w-28 shrink-0"
-                    options={[
-                      {
-                        value: 'jobTitle',
-                        label: t('integrations.sso.sourceJobTitle'),
-                      },
-                      {
-                        value: 'appRole',
-                        label: t('integrations.sso.sourceAppRole'),
-                      },
-                    ]}
-                  />
-
-                  <Input
-                    placeholder="*developer*"
-                    value={rule.pattern}
-                    onChange={(e) =>
-                      updateMappingRule(index, { pattern: e.target.value })
-                    }
-                    disabled={isSubmitting || isLoadingConfig}
-                    className="min-w-32 flex-1"
-                  />
-
-                  <Select
-                    value={rule.targetRole}
-                    onValueChange={(value) =>
-                      updateMappingRule(index, {
-                        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
-                        targetRole: value as PlatformRole,
-                      })
-                    }
-                    disabled={isSubmitting || isLoadingConfig}
-                    className="w-28 shrink-0"
-                    options={platformRoles}
-                  />
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeMappingRule(index)}
-                    disabled={isSubmitting || isLoadingConfig}
-                    className="shrink-0"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </HStack>
-              ))}
-
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={addMappingRule}
-                disabled={isSubmitting || isLoadingConfig}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                {t('integrations.sso.addRule')}
-              </Button>
-            </Stack>
-          </FormSection>
+          <RoleMappingSection
+            rules={roleMappingRules}
+            platformRoles={platformRoles}
+            disabled={isSubmitting || isLoadingConfig}
+            onAdd={addMappingRule}
+            onRemove={removeMappingRule}
+            onUpdate={updateMappingRule}
+          />
         )}
 
         <Select

@@ -134,7 +134,13 @@ export function CustomerImportForm({
       )}
       {dataSource === 'file_upload' && (
         <Stack gap={4}>
-          <FileUpload.Root>
+          <FileUpload.Root
+            errorMessage={
+              typeof errors.file?.message === 'string'
+                ? errors.file.message
+                : undefined
+            }
+          >
             <FileUpload.DropZone
               onFilesSelected={handleFilesSelected}
               accept={SPREADSHEET_IMPORT_ACCEPT}
@@ -161,9 +167,6 @@ export function CustomerImportForm({
               <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
             </ul>
           </div>
-          {typeof errors.file?.message === 'string' && (
-            <p className="text-destructive text-sm">{errors.file.message}</p>
-          )}
           {fileValue && (
             <VStack
               gap={2}

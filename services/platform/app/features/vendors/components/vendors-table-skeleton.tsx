@@ -24,6 +24,7 @@ export function VendorsTableSkeleton({
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
+      showFilters
       actionMenu={<VendorsActionMenu organizationId={organizationId} />}
       infiniteScroll={infiniteScroll}
     />

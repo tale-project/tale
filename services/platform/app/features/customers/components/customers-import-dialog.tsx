@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -105,6 +105,12 @@ export function ImportCustomersDialog({
   } = formMethods;
 
   const { mutateAsync: bulkCreateCustomers } = useBulkCreateCustomers();
+
+  useEffect(() => {
+    formMethods.reset({
+      dataSource: mode === 'manual' ? 'manual_import' : 'file_upload',
+    });
+  }, [mode, formMethods]);
 
   const handleClose = useCallback(() => {
     formMethods.reset();
