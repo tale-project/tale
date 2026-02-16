@@ -217,7 +217,6 @@ export function IntegrationUploadDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title={t('integrations.upload.title')}
-      description={t('integrations.upload.description')}
       size="xl"
       footer={footer}
       className="max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden"

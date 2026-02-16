@@ -1,5 +1,6 @@
 'use client';
 
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import {
   LogOut,
@@ -249,23 +250,38 @@ export function UserButton({
     </div>
   );
 
-  const trigger = label ? (
-    triggerContent
-  ) : (
-    <Tooltip
-      content={tooltipText ?? t('userButton.manageAccount')}
-      side="right"
-    >
-      {triggerContent}
-    </Tooltip>
-  );
+  if (label) {
+    return (
+      <DropdownMenu
+        trigger={triggerContent}
+        items={menuItems}
+        align={align}
+        contentClassName="w-64"
+      />
+    );
+  }
 
   return (
-    <DropdownMenu
-      trigger={trigger}
-      items={menuItems}
-      align={align}
-      contentClassName="w-64"
-    />
+    <TooltipPrimitive.Provider delayDuration={300}>
+      <TooltipPrimitive.Root>
+        <DropdownMenu
+          trigger={
+            <TooltipPrimitive.Trigger asChild>
+              {triggerContent}
+            </TooltipPrimitive.Trigger>
+          }
+          items={menuItems}
+          align={align}
+          contentClassName="w-64"
+        />
+        <TooltipPrimitive.Content
+          side="right"
+          sideOffset={4}
+          className="bg-foreground text-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
+        >
+          {tooltipText ?? t('userButton.manageAccount')}
+        </TooltipPrimitive.Content>
+      </TooltipPrimitive.Root>
+    </TooltipPrimitive.Provider>
   );
 }
