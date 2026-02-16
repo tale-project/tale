@@ -33,7 +33,6 @@ const productRelationshipAnalysisWorkflow = {
       timeout: 1800000, // 30 minutes for full analysis
       retryPolicy: { maxRetries: 2, backoffMs: 5000 },
       variables: {
-        organizationId: 'org_demo',
         workflowId: 'product-relationship-analysis',
         backoffHours: 168, // Process each product once per week (7 days * 24 hours)
         analysisVersion: '2.0',

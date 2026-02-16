@@ -27,7 +27,6 @@ const circulySyncSubscriptionsWorkflow = {
       timeout: 600000, // 10 minutes for full sync
       retryPolicy: { maxRetries: 3, backoffMs: 2000 },
       variables: {
-        organizationId: 'org_demo',
         pageSize: 50, // Fetch 50 customers per page
         currentCursor: null, // Track current pagination cursor
         totalProcessed: 0, // Track total customers processed

@@ -14,6 +14,7 @@ import onedriveSync from './onedrive_sync';
 import productRagSync from './product_rag_sync';
 import productRecommendationEmail from './product_recommendation_email';
 import productRelationshipAnalysis from './product_relationship_analysis';
+import protelGuestWelcomeEmail from './protel_guest_welcome_email';
 import shopifySyncCustomers from './shopify_sync_customers';
 import shopifySyncProducts from './shopify_sync_products';
 import websitePagesRagSync from './website_pages_rag_sync';
@@ -45,4 +46,5 @@ export const workflows = {
   conversationAutoArchive,
   loopiCustomerStatusAssessment,
   productRelationshipAnalysis,
+  protelGuestWelcomeEmail,
 } as const;

@@ -28,7 +28,6 @@ const onedriveSyncWorkflow: PredefinedWorkflowDefinition = {
       timeout: 120000, // 2 minutes for single file sync
       retryPolicy: { maxRetries: 3, backoffMs: 2000 },
       variables: {
-        organizationId: 'org_demo',
         backoffHours: 1, // Only process configs not synced in last 1 hour
         workflowId: 'onedrive_sync',
       },

@@ -22,7 +22,6 @@ const customerRagSyncWorkflow = {
       timeout: 120000, // 2 minutes for single customer upload
       retryPolicy: { maxRetries: 3, backoffMs: 2000 },
       variables: {
-        organizationId: 'org_demo',
         backoffHours: 72, // Only process customers not processed in last 72 hours (3 days)
         workflowId: 'customer_rag_sync',
       },

@@ -24,7 +24,6 @@ const circulySyncCustomersWorkflow = {
       timeout: 300000, // 5 minutes for full sync
       retryPolicy: { maxRetries: 3, backoffMs: 2000 },
       variables: {
-        organizationId: 'org_demo',
         pageSize: 50, // Fetch 50 customers per page (Circuly max is 100)
         maxPages: 20, // Safety limit to prevent infinite loops
         currentPage: 1, // Track current page number (Circuly uses 1-based pagination)

@@ -44,7 +44,6 @@ const loopiCustomerStatusAssessmentWorkflow = {
       timeout: 120000, // 2 minutes for single customer analysis
       retryPolicy: { maxRetries: 2, backoffMs: 1000 },
       variables: {
-        organizationId: 'org_demo',
         workflowId: 'assess-customer-status',
         backoffHours: 72, // Only process customers not processed in last 72 hours (3 days)
       },
