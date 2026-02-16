@@ -15,12 +15,7 @@ import {
 import { memo, useMemo, useState } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/app/components/ui/overlays/tooltip';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useExecuteApprovedWorkflowCreation } from '@/app/features/approvals/hooks/actions';
 import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
@@ -352,27 +347,20 @@ function WorkflowCreationApprovalCardComponent({
             )}
             {metadata.stepsConfig.length} steps
           </button>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Copy workflow configuration"
-                >
-                  {copied ? (
-                    <Check className="size-3" />
-                  ) : (
-                    <Copy className="size-3" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {copied ? 'Copied!' : 'Copy configuration'}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip content={copied ? 'Copied!' : 'Copy configuration'}>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Copy workflow configuration"
+            >
+              {copied ? (
+                <Check className="size-3" />
+              ) : (
+                <Copy className="size-3" />
+              )}
+            </button>
+          </Tooltip>
         </div>
 
         {showSteps && (
@@ -493,47 +481,39 @@ function WorkflowCreationApprovalCardComponent({
       {/* Action Buttons */}
       {isPending && (
         <div className="flex items-center gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="success"
-                  onClick={handleApprove}
-                  disabled={isProcessing}
-                  className="flex-1"
-                >
-                  {isApproving ? (
-                    <Loader2 className="mr-1 size-4 animate-spin" />
-                  ) : (
-                    <CheckCircle className="mr-1 size-4" />
-                  )}
-                  Create Workflow
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Approve and create this workflow</TooltipContent>
-            </Tooltip>
+          <Tooltip content="Approve and create this workflow">
+            <Button
+              size="sm"
+              variant="success"
+              onClick={handleApprove}
+              disabled={isProcessing}
+              className="flex-1"
+            >
+              {isApproving ? (
+                <Loader2 className="mr-1 size-4 animate-spin" />
+              ) : (
+                <CheckCircle className="mr-1 size-4" />
+              )}
+              Create Workflow
+            </Button>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={handleReject}
-                  disabled={isProcessing}
-                  className="flex-1"
-                >
-                  {isRejecting ? (
-                    <Loader2 className="mr-1 size-4 animate-spin" />
-                  ) : (
-                    <XCircle className="mr-1 size-4" />
-                  )}
-                  Cancel
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Cancel workflow creation</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip content="Cancel workflow creation">
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleReject}
+              disabled={isProcessing}
+              className="flex-1"
+            >
+              {isRejecting ? (
+                <Loader2 className="mr-1 size-4 animate-spin" />
+              ) : (
+                <XCircle className="mr-1 size-4" />
+              )}
+              Cancel
+            </Button>
+          </Tooltip>
         </div>
       )}
 

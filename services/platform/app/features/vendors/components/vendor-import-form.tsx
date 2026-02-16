@@ -5,11 +5,7 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-} from '@/app/components/ui/navigation/tabs';
+import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
@@ -71,16 +67,12 @@ export function VendorImportForm({
           value={dataSource}
           onValueChange={(value) => setValue('dataSource', value)}
           className="w-full"
-        >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="manual_import">
-              {t('importForm.manualEntry')}
-            </TabsTrigger>
-            <TabsTrigger value="file_upload">
-              {t('importForm.upload')}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+          listClassName="grid w-full grid-cols-2"
+          items={[
+            { value: 'manual_import', label: t('importForm.manualEntry') },
+            { value: 'file_upload', label: t('importForm.upload') },
+          ]}
+        />
       )}
       {dataSource === 'manual_import' && (
         <Stack gap={4}>

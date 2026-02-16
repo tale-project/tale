@@ -7,9 +7,7 @@ import { ChevronDown } from 'lucide-react';
 
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button, buttonVariants } from '@/app/components/ui/primitives/button';
 import { cn } from '@/lib/utils/cn';
@@ -82,31 +80,26 @@ export function DataTableActionMenu({
 
   // Render dropdown menu if menuItems provided
   if (menuItems && menuItems.length > 0) {
+    const items: DropdownMenuItem[] = menuItems.map((item) => ({
+      type: 'item' as const,
+      label: item.label,
+      icon: item.icon,
+      onClick: item.onClick,
+      disabled: item.disabled,
+    }));
+
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <DropdownMenu
+        trigger={
           <Button variant={variant} className={cn('gap-2', className)}>
             {Icon && <Icon className="size-4" />}
             {label}
             <ChevronDown className="size-4" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align={align}>
-          {menuItems.map((item) => {
-            const ItemIcon = item.icon;
-            return (
-              <DropdownMenuItem
-                key={item.label}
-                onClick={item.onClick}
-                disabled={item.disabled}
-              >
-                {ItemIcon && <ItemIcon className="mr-2 size-4" />}
-                {item.label}
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        }
+        items={[items]}
+        align={align}
+      />
     );
   }
 

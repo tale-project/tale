@@ -8,14 +8,12 @@ import {
   ShieldX,
   UserIcon,
 } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
@@ -133,6 +131,64 @@ export function ConversationHeader({
     );
   }, [markAsSpamMutation, conversation.id, t, onResolve]);
 
+  const menuItems = useMemo<DropdownMenuItem[]>(() => {
+    const items: DropdownMenuItem[] = [
+      {
+        type: 'item',
+        label: t('header.customerInfo'),
+        icon: UserIcon,
+        onClick: () => setIsCustomerInfoOpen(true),
+        disabled: isLoading,
+      },
+    ];
+
+    if (conversation.status === 'open') {
+      items.push({
+        type: 'item',
+        label: isClosing ? t('header.closing') : t('header.closeConversation'),
+        icon: MessageSquareOff,
+        onClick: handleResolveConversation,
+        disabled: isLoading,
+      });
+    }
+
+    if (conversation.status !== 'open') {
+      items.push({
+        type: 'item',
+        label: isReopening
+          ? t('header.reopening')
+          : t('header.reopenConversation'),
+        icon: MessageSquare,
+        onClick: handleReopenConversation,
+        disabled: isLoading,
+      });
+    }
+
+    if (conversation.status === 'open') {
+      items.push({
+        type: 'item',
+        label: isMarkingSpam
+          ? t('header.markingAsSpam')
+          : t('header.markAsSpam'),
+        icon: ShieldX,
+        onClick: handleMarkAsSpam,
+        disabled: isLoading,
+      });
+    }
+
+    return items;
+  }, [
+    t,
+    isLoading,
+    isClosing,
+    isReopening,
+    isMarkingSpam,
+    conversation.status,
+    handleResolveConversation,
+    handleReopenConversation,
+    handleMarkAsSpam,
+  ]);
+
   return (
     <>
       <HStack gap={4} justify="between" className="mx-4 w-full min-w-0">
@@ -189,8 +245,8 @@ export function ConversationHeader({
 
         {/* Options Menu */}
         <div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <DropdownMenu
+            trigger={
               <Button
                 variant="ghost"
                 size="icon"
@@ -198,65 +254,10 @@ export function ConversationHeader({
               >
                 <MoreVertical className="text-muted-foreground size-5" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="border-border w-[14rem] rounded-xl border p-2 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-            >
-              <DropdownMenuItem
-                onClick={() => setIsCustomerInfoOpen(true)}
-                disabled={isLoading}
-                className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-lg p-2"
-              >
-                <UserIcon className="text-muted-foreground size-5" />
-                <span className="text-muted-foreground text-sm font-medium">
-                  {t('header.customerInfo')}
-                </span>
-              </DropdownMenuItem>
-              {conversation.status === 'open' && (
-                <DropdownMenuItem
-                  onClick={handleResolveConversation}
-                  disabled={isLoading}
-                  className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-lg p-2"
-                >
-                  <MessageSquareOff className="text-muted-foreground size-5" />
-                  <span className="text-muted-foreground text-sm font-medium">
-                    {isClosing
-                      ? t('header.closing')
-                      : t('header.closeConversation')}
-                  </span>
-                </DropdownMenuItem>
-              )}
-              {conversation.status !== 'open' && (
-                <DropdownMenuItem
-                  onClick={handleReopenConversation}
-                  disabled={isLoading}
-                  className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-lg p-2"
-                >
-                  <MessageSquare className="text-muted-foreground size-5" />
-                  <span className="text-muted-foreground text-sm font-medium">
-                    {isReopening
-                      ? t('header.reopening')
-                      : t('header.reopenConversation')}
-                  </span>
-                </DropdownMenuItem>
-              )}
-              {conversation.status === 'open' && (
-                <DropdownMenuItem
-                  onClick={handleMarkAsSpam}
-                  disabled={isLoading}
-                  className="hover:bg-muted flex cursor-pointer items-center gap-2 rounded-lg p-2"
-                >
-                  <ShieldX className="text-muted-foreground size-5" />
-                  <span className="text-muted-foreground text-sm font-medium">
-                    {isMarkingSpam
-                      ? t('header.markingAsSpam')
-                      : t('header.markAsSpam')}
-                  </span>
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }
+            items={[menuItems]}
+            align="end"
+          />
         </div>
       </HStack>
 

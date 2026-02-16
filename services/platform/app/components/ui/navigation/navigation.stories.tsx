@@ -8,12 +8,7 @@ import {
   Network,
 } from 'lucide-react';
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/app/components/ui/overlays/tooltip';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { cn } from '@/lib/utils/cn';
 
 import {
@@ -46,33 +41,24 @@ function NavigationItemVisual({ item }: { item: NavItemData }) {
 
   return (
     <NavigationMenuItem className="relative">
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="block w-full"
-              aria-label={item.label}
-            >
-              <div
-                className={cn(
-                  'relative flex items-center justify-center p-2 rounded-lg transition-colors',
-                  item.isActive ? 'bg-muted' : 'hover:bg-muted',
-                )}
-                data-active={item.isActive}
-              >
-                <Icon
-                  className={cn(
-                    'size-5 shrink-0 text-muted-foreground',
-                    item.isActive && 'text-foreground',
-                  )}
-                />
-              </div>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="right">{item.label}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip content={item.label} side="right">
+        <button type="button" className="block w-full" aria-label={item.label}>
+          <div
+            className={cn(
+              'relative flex items-center justify-center p-2 rounded-lg transition-colors',
+              item.isActive ? 'bg-muted' : 'hover:bg-muted',
+            )}
+            data-active={item.isActive}
+          >
+            <Icon
+              className={cn(
+                'size-5 shrink-0 text-muted-foreground',
+                item.isActive && 'text-foreground',
+              )}
+            />
+          </div>
+        </button>
+      </Tooltip>
     </NavigationMenuItem>
   );
 }

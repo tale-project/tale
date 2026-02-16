@@ -18,12 +18,7 @@ import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-a
 import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Pagination } from '@/app/components/ui/navigation/pagination';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/app/components/ui/overlays/dropdown-menu';
+import { DropdownMenu } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { useT } from '@/lib/i18n/client';
@@ -105,32 +100,39 @@ export function ExampleMessagesTable({
         size: 60,
         cell: ({ row }) => (
           <HStack justify="end">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <DropdownMenu
+              trigger={
                 <IconButton
                   icon={MoreVertical}
                   aria-label={tTables('headers.actions')}
                   className="size-8"
                 />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onViewExample(row.original)}>
-                  <Eye className="mr-2 size-4" />
-                  {tCommon('actions.view')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onEditExample(row.original)}>
-                  <Pencil className="mr-2 size-4" />
-                  {tCommon('actions.edit')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onDeleteExample(row.original.id)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="mr-2 size-4" />
-                  {tCommon('actions.delete')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              }
+              items={[
+                [
+                  {
+                    type: 'item',
+                    label: tCommon('actions.view'),
+                    icon: Eye,
+                    onClick: () => onViewExample(row.original),
+                  },
+                  {
+                    type: 'item',
+                    label: tCommon('actions.edit'),
+                    icon: Pencil,
+                    onClick: () => onEditExample(row.original),
+                  },
+                  {
+                    type: 'item',
+                    label: tCommon('actions.delete'),
+                    icon: Trash2,
+                    destructive: true,
+                    onClick: () => onDeleteExample(row.original.id),
+                  },
+                ],
+              ]}
+              align="end"
+            />
           </HStack>
         ),
       },

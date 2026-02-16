@@ -14,6 +14,22 @@ const meta: Meta<typeof RadioGroup> = {
 A radio group component for selecting one option from a set.
 
 ## Usage
+
+### Simple (options prop)
+\`\`\`tsx
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
+
+<RadioGroup
+  defaultValue="comfortable"
+  options={[
+    { value: 'default', label: 'Default' },
+    { value: 'comfortable', label: 'Comfortable' },
+    { value: 'compact', label: 'Compact' },
+  ]}
+/>
+\`\`\`
+
+### Custom layout (children)
 \`\`\`tsx
 import { RadioGroup, RadioGroupItem } from '@/app/components/ui/forms/radio-group';
 
@@ -38,30 +54,31 @@ type Story = StoryObj<typeof RadioGroup>;
 
 export const Default: Story = {
   render: () => (
-    <RadioGroup defaultValue="comfortable">
-      <RadioGroupItem value="default" label="Default" />
-      <RadioGroupItem value="comfortable" label="Comfortable" />
-      <RadioGroupItem value="compact" label="Compact" />
-    </RadioGroup>
+    <RadioGroup
+      defaultValue="comfortable"
+      options={[
+        { value: 'default', label: 'Default' },
+        { value: 'comfortable', label: 'Comfortable' },
+        { value: 'compact', label: 'Compact' },
+      ]}
+    />
   ),
 };
 
 export const WithLabel: Story = {
   render: () => (
-    <RadioGroup defaultValue="email" label="Notification preferences" required>
-      <RadioGroupItem value="email" label="Email notifications" />
-      <RadioGroupItem value="sms" label="SMS notifications" />
-      <RadioGroupItem value="push" label="Push notifications" />
-      <RadioGroupItem value="none" label="No notifications" />
-    </RadioGroup>
+    <RadioGroup
+      defaultValue="email"
+      label="Notification preferences"
+      required
+      options={[
+        { value: 'email', label: 'Email notifications' },
+        { value: 'sms', label: 'SMS notifications' },
+        { value: 'push', label: 'Push notifications' },
+        { value: 'none', label: 'No notifications' },
+      ]}
+    />
   ),
-  parameters: {
-    docs: {
-      description: {
-        story: 'RadioGroup can have a label that describes the entire group.',
-      },
-    },
-  },
 };
 
 export const WithDescription: Story = {
@@ -70,43 +87,45 @@ export const WithDescription: Story = {
       defaultValue="email"
       label="Notification preferences"
       description="Choose how you want to receive notifications."
-    >
-      <RadioGroupItem value="email" label="Email notifications" />
-      <RadioGroupItem value="sms" label="SMS notifications" />
-      <RadioGroupItem value="push" label="Push notifications" />
-    </RadioGroup>
+      options={[
+        { value: 'email', label: 'Email notifications' },
+        { value: 'sms', label: 'SMS notifications' },
+        { value: 'push', label: 'Push notifications' },
+      ]}
+    />
+  ),
+};
+
+export const WithDisabledOption: Story = {
+  render: () => (
+    <RadioGroup
+      defaultValue="free"
+      label="Select a plan"
+      options={[
+        { value: 'free', label: 'Free' },
+        { value: 'pro', label: 'Pro' },
+        { value: 'enterprise', label: 'Enterprise', disabled: true },
+      ]}
+    />
   ),
 };
 
 export const Horizontal: Story = {
   render: () => (
-    <RadioGroup defaultValue="medium" className="flex gap-4">
-      <RadioGroupItem value="small" label="Small" />
-      <RadioGroupItem value="medium" label="Medium" />
-      <RadioGroupItem value="large" label="Large" />
-    </RadioGroup>
+    <RadioGroup
+      defaultValue="medium"
+      className="flex gap-4"
+      options={[
+        { value: 'small', label: 'Small' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'large', label: 'Large' },
+      ]}
+    />
   ),
   parameters: {
     docs: {
       description: {
         story: 'Radio items can be arranged horizontally with flex.',
-      },
-    },
-  },
-};
-
-export const WithDisabledOption: Story = {
-  render: () => (
-    <RadioGroup defaultValue="free" label="Select a plan">
-      <RadioGroupItem value="free" label="Free" />
-      <RadioGroupItem value="pro" label="Pro" />
-      <RadioGroupItem value="enterprise" label="Enterprise" disabled />
-    </RadioGroup>
-  ),
-  parameters: {
-    docs: {
-      description: {
-        story: 'Individual radio items can be disabled.',
       },
     },
   },
@@ -136,7 +155,7 @@ export const WithoutLabels: Story = {
     docs: {
       description: {
         story:
-          'Radio items without visible labels should have aria-label for accessibility.',
+          'Radio items without visible labels should have aria-label for accessibility. Use children with RadioGroupItem for custom styling.',
       },
     },
   },
@@ -164,7 +183,8 @@ export const FormExample: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Radio groups styled as selection cards for forms.',
+        story:
+          'Use children with RadioGroupItem for custom layouts like selection cards.',
       },
     },
   },

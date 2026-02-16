@@ -23,11 +23,27 @@ export function CustomAgentsTableSkeleton({
       className="px-4 py-6"
       columns={[
         { header: t('customAgents.columns.displayName'), size: 250 },
-        { header: tTables('headers.status'), size: 140 },
-        { header: t('customAgents.columns.active'), size: 80 },
-        { header: t('customAgents.columns.modelPreset'), size: 200 },
+        {
+          header: tTables('headers.status'),
+          size: 140,
+          skeleton: { type: 'badge' },
+        },
+        {
+          header: t('customAgents.columns.active'),
+          size: 80,
+          skeleton: { type: 'switch' },
+        },
+        {
+          header: t('customAgents.columns.modelPreset'),
+          size: 200,
+          skeleton: { type: 'badge' },
+        },
         { header: t('customAgents.columns.tools'), size: 100 },
-        { header: t('customAgents.columns.team'), size: 140 },
+        {
+          header: t('customAgents.columns.team'),
+          size: 140,
+          skeleton: { type: 'badge' },
+        },
         { isAction: true, size: 80 },
       ]}
       noFirstColumnAvatar

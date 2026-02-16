@@ -1,7 +1,7 @@
 'use client';
 
 import { cva, type VariantProps } from 'class-variance-authority';
-import { forwardRef, HTMLAttributes } from 'react';
+import { type ComponentType, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
@@ -22,47 +22,42 @@ const alertVariants = cva(
   },
 );
 
-interface AlertProps
-  extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof alertVariants> {
+interface AlertProps extends VariantProps<typeof alertVariants> {
+  icon?: ComponentType<{ className?: string }>;
+  title?: string;
+  description?: ReactNode;
+  children?: ReactNode;
   /** Urgency level for screen reader announcement */
   live?: 'polite' | 'assertive' | 'off';
+  className?: string;
 }
 
-export const Alert = forwardRef<HTMLDivElement, AlertProps>(
-  ({ className, variant, live = 'polite', ...props }, ref) => (
+export function Alert({
+  variant,
+  icon: Icon,
+  title,
+  description,
+  children,
+  live = 'polite',
+  className,
+}: AlertProps) {
+  return (
     <div
-      ref={ref}
       role="alert"
       aria-live={live}
       aria-atomic="true"
       className={cn(alertVariants({ variant }), className)}
-      {...props}
-    />
-  ),
-);
-Alert.displayName = 'Alert';
-
-export const AlertTitle = forwardRef<
-  HTMLParagraphElement,
-  HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  // oxlint-disable-next-line jsx-a11y/heading-has-content -- content is passed via props spread
-  <h5
-    ref={ref}
-    className={cn('mb-1 font-medium leading-none tracking-tight', className)}
-    {...props}
-  />
-));
-AlertTitle.displayName = 'AlertTitle';
-
-export const AlertDescription = forwardRef<
-  HTMLParagraphElement,
-  HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn('text-sm [&_p]:leading-relaxed', className)}
-    {...props}
-  />
-));
-AlertDescription.displayName = 'AlertDescription';
+    >
+      {Icon && <Icon className="size-4" aria-hidden="true" />}
+      {title && (
+        <h5 className="mb-1 leading-none font-medium tracking-tight">
+          {title}
+        </h5>
+      )}
+      {description && (
+        <div className="text-sm [&_p]:leading-relaxed">{description}</div>
+      )}
+      {children}
+    </div>
+  );
+}

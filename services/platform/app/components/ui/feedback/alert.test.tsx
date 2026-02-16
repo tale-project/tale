@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
-import { Alert, AlertTitle, AlertDescription } from './alert';
+import { Alert } from './alert';
 
 describe('Alert', () => {
   describe('rendering', () => {
@@ -14,12 +14,7 @@ describe('Alert', () => {
     });
 
     it('renders with title and description', () => {
-      render(
-        <Alert>
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>Something went wrong</AlertDescription>
-        </Alert>,
-      );
+      render(<Alert title="Error" description="Something went wrong" />);
       expect(screen.getByRole('alert')).toHaveTextContent('Error');
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Something went wrong',
@@ -27,15 +22,16 @@ describe('Alert', () => {
     });
 
     it('renders with icon', () => {
-      render(
-        <Alert>
-          <AlertCircle className="size-4" aria-hidden="true" />
-          <AlertTitle>Error</AlertTitle>
-        </Alert>,
-      );
+      render(<Alert icon={AlertCircle} title="Error" />);
       expect(
         screen.getByRole('alert').querySelector('svg'),
       ).toBeInTheDocument();
+    });
+
+    it('renders icon with aria-hidden', () => {
+      render(<Alert icon={AlertCircle} title="Error" />);
+      const svg = screen.getByRole('alert').querySelector('svg');
+      expect(svg).toHaveAttribute('aria-hidden', 'true');
     });
   });
 
@@ -64,10 +60,7 @@ describe('Alert', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(
-        <Alert>
-          <AlertTitle>Title</AlertTitle>
-          <AlertDescription>Description</AlertDescription>
-        </Alert>,
+        <Alert title="Title" description="Description" />,
       );
       await checkAccessibility(container);
     });
@@ -102,30 +95,20 @@ describe('Alert', () => {
       expect(screen.getByRole('alert')).toHaveClass('custom-class');
     });
   });
-});
 
-describe('AlertTitle', () => {
-  it('renders as h5', () => {
-    render(<AlertTitle>Title</AlertTitle>);
-    expect(screen.getByRole('heading', { level: 5 })).toHaveTextContent(
-      'Title',
-    );
+  describe('title rendering', () => {
+    it('renders title as h5', () => {
+      render(<Alert title="Title" />);
+      expect(screen.getByRole('heading', { level: 5 })).toHaveTextContent(
+        'Title',
+      );
+    });
   });
 
-  it('applies custom className', () => {
-    render(<AlertTitle className="custom">Title</AlertTitle>);
-    expect(screen.getByRole('heading')).toHaveClass('custom');
-  });
-});
-
-describe('AlertDescription', () => {
-  it('renders content', () => {
-    render(<AlertDescription>Description text</AlertDescription>);
-    expect(screen.getByText('Description text')).toBeInTheDocument();
-  });
-
-  it('applies custom className', () => {
-    render(<AlertDescription className="custom">Text</AlertDescription>);
-    expect(screen.getByText('Text')).toHaveClass('custom');
+  describe('description rendering', () => {
+    it('renders description', () => {
+      render(<Alert description="Description text" />);
+      expect(screen.getByText('Description text')).toBeInTheDocument();
+    });
   });
 });

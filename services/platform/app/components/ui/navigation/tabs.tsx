@@ -1,53 +1,70 @@
 'use client';
 
 import * as TabsPrimitive from '@radix-ui/react-tabs';
-import { ComponentPropsWithoutRef, ComponentRef, forwardRef } from 'react';
+import { type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
-export const Tabs = TabsPrimitive.Root;
+export interface TabItem {
+  value: string;
+  label: ReactNode;
+  content?: ReactNode;
+  disabled?: boolean;
+}
 
-export const TabsList = forwardRef<
-  ComponentRef<typeof TabsPrimitive.List>,
-  ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.List
-    ref={ref}
-    className={cn(
-      'inline-flex items-center bg-muted p-1 text-muted-foreground rounded-lg',
-      className,
-    )}
-    {...props}
-  />
-));
-TabsList.displayName = TabsPrimitive.List.displayName;
+interface TabsProps {
+  items: TabItem[];
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  className?: string;
+  listClassName?: string;
+}
 
-export const TabsTrigger = forwardRef<
-  ComponentRef<typeof TabsPrimitive.Trigger>,
-  ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
-      className,
-    )}
-    {...props}
-  />
-));
-TabsTrigger.displayName = TabsPrimitive.Trigger.displayName;
-
-export const TabsContent = forwardRef<
-  ComponentRef<typeof TabsPrimitive.Content>,
-  ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content
-    ref={ref}
-    className={cn(
-      'mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-      className,
-    )}
-    {...props}
-  />
-));
-TabsContent.displayName = TabsPrimitive.Content.displayName;
+export function Tabs({
+  items,
+  value,
+  defaultValue,
+  onValueChange,
+  className,
+  listClassName,
+}: TabsProps) {
+  return (
+    <TabsPrimitive.Root
+      value={value}
+      defaultValue={defaultValue}
+      onValueChange={onValueChange}
+      className={className}
+    >
+      <TabsPrimitive.List
+        className={cn(
+          'inline-flex items-center bg-muted p-1 text-muted-foreground rounded-lg',
+          listClassName,
+        )}
+      >
+        {items.map((item) => (
+          <TabsPrimitive.Trigger
+            key={item.value}
+            value={item.value}
+            disabled={item.disabled}
+            className="ring-offset-background focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm"
+          >
+            {item.label}
+          </TabsPrimitive.Trigger>
+        ))}
+      </TabsPrimitive.List>
+      {items.map(
+        (item) =>
+          item.content && (
+            <TabsPrimitive.Content
+              key={item.value}
+              value={item.value}
+              className="ring-offset-background focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+            >
+              {item.content}
+            </TabsPrimitive.Content>
+          ),
+      )}
+    </TabsPrimitive.Root>
+  );
+}
