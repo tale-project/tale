@@ -130,7 +130,7 @@ export function CustomAgentVersionHistoryDialog({
               {version.status === 'archived' && (
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="secondary"
                   onClick={() => handleActivate(version.versionNumber)}
                   disabled={isActivating || hasActiveVersion}
                 >

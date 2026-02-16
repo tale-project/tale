@@ -181,7 +181,7 @@ export function IntegrationUploadDialog({
       {state.step === 'upload' && (
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={() => handleOpenChange(false)}
         >
           {tCommon('actions.cancel')}
@@ -192,7 +192,7 @@ export function IntegrationUploadDialog({
         <>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={state.goBack}
             disabled={state.isCreating}
           >

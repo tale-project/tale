@@ -123,7 +123,9 @@ ENV NODE_ENV=production \
     INSTANCE_NAME=tale_platform \
     # CA cert path for self-signed mode - entrypoint script checks if file exists
     # With Let's Encrypt, this file doesn't exist and is safely ignored
-    CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt
+    CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt \
+    DO_NOT_TRACK=1 \
+    TURBO_TELEMETRY_DISABLED=1
 
 COPY --from=convex-dashboard --chown=app:app /app /dashboard
 

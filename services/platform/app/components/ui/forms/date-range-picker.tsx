@@ -137,7 +137,7 @@ const DateInputHeader = memo(function DateInputHeader({
     <div className="mb-2 flex items-center justify-between px-1">
       <Button
         type="button"
-        variant="outline"
+        variant="secondary"
         size="sm"
         disabled={prevMonthButtonDisabled}
         onClick={decreaseMonth}
@@ -148,7 +148,7 @@ const DateInputHeader = memo(function DateInputHeader({
       <p className="text-foreground text-sm">{format(date, 'MMMM yyyy')}</p>
       <Button
         type="button"
-        variant="outline"
+        variant="secondary"
         size="sm"
         disabled={nextMonthButtonDisabled}
         onClick={increaseMonth}
@@ -187,7 +187,7 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
       <Button
         ref={ref}
         type="button"
-        variant="outline"
+        variant="secondary"
         disabled={isLoading}
         onClick={onClick}
         className={cn(
@@ -216,7 +216,7 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
         trigger={
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             disabled={isLoading}
             className="w-[8.25rem] justify-between gap-1.5 rounded-l-none px-2.5 ring-0"
           >

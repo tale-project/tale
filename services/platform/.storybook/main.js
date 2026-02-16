@@ -1,25 +1,30 @@
+process.env.SITE_URL ??= 'http://localhost:6006';
+
 /** @type {import('@storybook/react-vite').StorybookConfig} */
 const config = {
   stories: [
     '../app/components/ui/**/*.stories.@(ts|tsx)',
-    '../app/components/ui/**/*.mdx',
     '../app/components/icons/**/*.stories.@(ts|tsx)',
-    '../app/components/skeletons/**/*.stories.@(ts|tsx)',
-    '../app/components/layout/**/*.stories.@(ts|tsx)',
     '../app/components/theme/**/*.stories.@(ts|tsx)',
   ],
   addons: [
-    '@storybook/addon-essentials',
     '@storybook/addon-a11y',
-    '@storybook/addon-interactions',
-    '@storybook/addon-links',
+    '@storybook/addon-docs',
     '@storybook/addon-themes',
+    '@storybook/addon-vitest',
   ],
   framework: {
     name: '@storybook/react-vite',
     options: {},
   },
   staticDirs: ['../public'],
+  core: {
+    disableTelemetry: true,
+    disableWhatsNewNotifications: true,
+  },
+  features: {
+    sidebarOnboardingChecklist: false,
+  },
   docs: {
     autodocs: 'tag',
   },
@@ -29,7 +34,7 @@ const config = {
     return mergeConfig(config, {
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '..'),
+          '@': path.resolve(import.meta.dirname, '..'),
         },
       },
       define: {

@@ -174,9 +174,8 @@ export function Dialog({
             <div
               className={cn(
                 'flex flex-col space-y-2 text-left',
-                !hideClose && !headerActions && 'pr-8',
-                headerActions &&
-                  'flex-row items-start justify-between pr-8 gap-4',
+                !hideClose && 'pr-8',
+                headerActions && 'flex-row items-start justify-between gap-4',
                 headerClassName,
               )}
             >
@@ -205,7 +204,9 @@ export function Dialog({
                 </div>
               </div>
               {headerActions && (
-                <div className="flex items-center">{headerActions}</div>
+                <div className="-mt-1 flex items-center gap-1">
+                  {headerActions}
+                </div>
               )}
             </div>
           )}

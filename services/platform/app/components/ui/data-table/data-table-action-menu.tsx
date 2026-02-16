@@ -37,13 +37,7 @@ export interface DataTableActionMenuProps {
   /** Link href for navigation (renders as Link instead of Button) */
   href?: string;
   /** Button variant */
-  variant?:
-    | 'default'
-    | 'destructive'
-    | 'outline'
-    | 'secondary'
-    | 'ghost'
-    | 'link';
+  variant?: 'primary' | 'destructive' | 'secondary' | 'ghost' | 'link';
   /** Menu items for dropdown (renders dropdown menu instead of simple button) */
   menuItems?: DataTableActionMenuItem[];
   /** Dropdown menu alignment */

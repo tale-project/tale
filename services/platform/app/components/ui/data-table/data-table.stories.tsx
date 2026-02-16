@@ -232,10 +232,10 @@ export const WithActionMenu: Story = {
     caption: 'User list with actions',
     actionMenu: (
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" icon={Filter}>
+        <Button variant="secondary" size="sm" icon={Filter}>
           Filter
         </Button>
-        <Button variant="outline" size="sm" icon={Download}>
+        <Button variant="secondary" size="sm" icon={Download}>
           Export
         </Button>
         <Button size="sm" icon={Plus}>
@@ -473,7 +473,7 @@ export const FullFeatured: Story = {
           }}
           actionMenu={
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" icon={Download}>
+              <Button variant="secondary" size="sm" icon={Download}>
                 Export
               </Button>
               <Button size="sm" icon={Plus}>

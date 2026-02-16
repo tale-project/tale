@@ -140,11 +140,11 @@ export const WithFooter: Story = {
           title="Order #12345"
           customFooter={
             <div className="flex w-full justify-between">
-              <Button variant="outline" onClick={() => setOpen(false)}>
+              <Button variant="secondary" onClick={() => setOpen(false)}>
                 Close
               </Button>
               <div className="flex gap-2">
-                <Button variant="outline">Download Invoice</Button>
+                <Button variant="secondary">Download Invoice</Button>
                 <Button>Track Shipment</Button>
               </div>
             </div>

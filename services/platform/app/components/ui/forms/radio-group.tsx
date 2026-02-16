@@ -124,12 +124,12 @@ export const RadioGroupItem = forwardRef<
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <label className="flex cursor-pointer items-center gap-2">
       {radio}
-      <Label htmlFor={id} className="cursor-pointer font-normal">
+      <span className="text-xs leading-none font-normal md:text-sm">
         {label}
-      </Label>
-    </div>
+      </span>
+    </label>
   );
 });
 RadioGroupItem.displayName = RadioGroupPrimitive.Item.displayName;

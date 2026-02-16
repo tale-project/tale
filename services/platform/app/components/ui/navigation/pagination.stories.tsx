@@ -1,6 +1,37 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
+import { useSearch } from '@tanstack/react-router';
+
 import { Pagination } from './pagination';
+
+function PaginationWrapper({
+  initialPage = 1,
+  total = 100,
+  pageSize = 10,
+  totalPages,
+  hasNextPage,
+}: {
+  initialPage?: number;
+  total?: number;
+  pageSize?: number;
+  totalPages?: number;
+  hasNextPage?: boolean;
+}) {
+  const search: Record<string, string | undefined> = useSearch({
+    strict: false,
+  });
+  const currentPage = search.page ? parseInt(search.page) : initialPage;
+
+  return (
+    <Pagination
+      currentPage={currentPage}
+      total={total}
+      pageSize={pageSize}
+      totalPages={totalPages}
+      hasNextPage={hasNextPage}
+    />
+  );
+}
 
 const meta: Meta<typeof Pagination> = {
   title: 'Navigation/Pagination',
@@ -34,62 +65,30 @@ import { Pagination } from '@/app/components/ui/navigation/pagination';
       },
     },
   },
-  argTypes: {
-    currentPage: {
-      control: { type: 'number', min: 1 },
-      description: 'Current page number (1-based)',
-    },
-    total: {
-      control: { type: 'number', min: 0 },
-      description: 'Total number of items',
-    },
-    pageSize: {
-      control: { type: 'number', min: 1 },
-      description: 'Number of items per page',
-    },
-    totalPages: {
-      control: { type: 'number', min: 1 },
-      description: 'Total number of pages (optional)',
-    },
-    hasNextPage: {
-      control: 'boolean',
-      description: 'Whether there is a next page',
-    },
-  },
 };
 
 export default meta;
 type Story = StoryObj<typeof Pagination>;
 
 export const Default: Story = {
-  args: {
-    currentPage: 1,
-    total: 100,
-    pageSize: 10,
-  },
+  render: () => <PaginationWrapper total={100} pageSize={10} />,
 };
 
 export const MiddlePage: Story = {
-  args: {
-    currentPage: 5,
-    total: 100,
-    pageSize: 10,
-  },
+  render: () => <PaginationWrapper initialPage={5} total={100} pageSize={10} />,
   parameters: {
     docs: {
       description: {
-        story: 'Pagination on a middle page.',
+        story: 'Pagination starting on a middle page.',
       },
     },
   },
 };
 
 export const LastPage: Story = {
-  args: {
-    currentPage: 10,
-    total: 100,
-    pageSize: 10,
-  },
+  render: () => (
+    <PaginationWrapper initialPage={10} total={100} pageSize={10} />
+  ),
   parameters: {
     docs: {
       description: {
@@ -100,11 +99,7 @@ export const LastPage: Story = {
 };
 
 export const SmallDataset: Story = {
-  args: {
-    currentPage: 1,
-    total: 25,
-    pageSize: 10,
-  },
+  render: () => <PaginationWrapper total={25} pageSize={10} />,
   parameters: {
     docs: {
       description: {
@@ -115,11 +110,7 @@ export const SmallDataset: Story = {
 };
 
 export const LargeDataset: Story = {
-  args: {
-    currentPage: 1,
-    total: 1000,
-    pageSize: 10,
-  },
+  render: () => <PaginationWrapper total={1000} pageSize={10} />,
   parameters: {
     docs: {
       description: {
@@ -130,11 +121,7 @@ export const LargeDataset: Story = {
 };
 
 export const SinglePage: Story = {
-  args: {
-    currentPage: 1,
-    total: 5,
-    pageSize: 10,
-  },
+  render: () => <PaginationWrapper total={5} pageSize={10} />,
   parameters: {
     docs: {
       description: {
@@ -145,27 +132,25 @@ export const SinglePage: Story = {
 };
 
 export const EmptyState: Story = {
-  args: {
-    currentPage: 1,
-    total: 0,
-    pageSize: 10,
-  },
+  render: () => <PaginationWrapper total={0} pageSize={10} />,
   parameters: {
     docs: {
       description: {
-        story: 'Empty state with no items.',
+        story: 'Empty state with no items - all controls disabled.',
       },
     },
   },
 };
 
 export const WithTotalPages: Story = {
-  args: {
-    currentPage: 3,
-    total: 50,
-    pageSize: 10,
-    totalPages: 5,
-  },
+  render: () => (
+    <PaginationWrapper
+      initialPage={3}
+      total={50}
+      pageSize={10}
+      totalPages={5}
+    />
+  ),
   parameters: {
     docs: {
       description: {
@@ -176,12 +161,9 @@ export const WithTotalPages: Story = {
 };
 
 export const WithHasNextPage: Story = {
-  args: {
-    currentPage: 1,
-    total: 50,
-    pageSize: 10,
-    hasNextPage: true,
-  },
+  render: () => (
+    <PaginationWrapper total={50} pageSize={10} hasNextPage={true} />
+  ),
   parameters: {
     docs: {
       description: {
@@ -192,11 +174,7 @@ export const WithHasNextPage: Story = {
 };
 
 export const CustomPageSize: Story = {
-  args: {
-    currentPage: 1,
-    total: 100,
-    pageSize: 25,
-  },
+  render: () => <PaginationWrapper total={100} pageSize={25} />,
   parameters: {
     docs: {
       description: {

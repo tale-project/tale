@@ -216,7 +216,7 @@ export function TeamMembersDialog({
         </Stack>
 
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={() => onOpenChange(false)}
           className="w-full"
         >

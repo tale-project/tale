@@ -542,7 +542,7 @@ function ConversationsClientInner({
               {status === 'open' && (
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="secondary"
                   onClick={handleBulkResolveConversations}
                   disabled={isBulkProcessing}
                   className="flex-1"
@@ -556,7 +556,7 @@ function ConversationsClientInner({
               {status !== 'open' && (
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="secondary"
                   onClick={handleReopenConversations}
                   disabled={isBulkProcessing}
                   className="flex-1"
@@ -622,7 +622,7 @@ function ConversationsClientInner({
             </p>
             <div className="flex justify-end gap-3">
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() =>
                   setBulkSendMessagesDialog({ isOpen: false, isSending: false })
                 }

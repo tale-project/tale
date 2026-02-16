@@ -148,17 +148,20 @@ export const WithWarning: Story = {
 
 export const Deleting: Story = {
   render: function DeletingStory() {
-    const [open, setOpen] = useState(true);
+    const [open, setOpen] = useState(false);
 
     return (
-      <DeleteDialog
-        open={open}
-        onOpenChange={setOpen}
-        title="Delete Item"
-        description="Are you sure?"
-        isDeleting={true}
-        onDelete={() => {}}
-      />
+      <>
+        <Button onClick={() => setOpen(true)}>Open Deleting Dialog</Button>
+        <DeleteDialog
+          open={open}
+          onOpenChange={setOpen}
+          title="Delete Item"
+          description="Are you sure?"
+          isDeleting={true}
+          onDelete={() => {}}
+        />
+      </>
     );
   },
   parameters: {

@@ -2,6 +2,7 @@
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Field } from '@/app/components/ui/forms/field';
 import { Stack, HStack, Grid } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -78,69 +79,40 @@ export function ProductViewDialog({
 
         {/* Product Details Grid */}
         <Grid cols={2} gap={4}>
-          {/* Price */}
           {product.price !== undefined && (
-            <div>
-              <label className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                {tProducts('view.labels.price')}
-              </label>
-              <p className="text-foreground mt-1 text-sm">
-                {formatCurrency(
-                  product.price,
-                  product.currency || 'USD',
-                  locale,
-                )}
-              </p>
-            </div>
+            <Field label={tProducts('view.labels.price')}>
+              {formatCurrency(product.price, product.currency || 'USD', locale)}
+            </Field>
           )}
 
-          {/* Stock */}
           {product.stock !== undefined && (
-            <div>
-              <label className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                {tProducts('view.labels.stock')}
-              </label>
-              <p
-                className={`mt-1 text-sm ${
-                  product.stock === 0
-                    ? 'font-medium text-red-600'
-                    : 'text-foreground'
-                }`}
+            <Field label={tProducts('view.labels.stock')}>
+              <span
+                className={
+                  product.stock === 0 ? 'font-medium text-red-600' : undefined
+                }
               >
                 {tCommon('units.stock', { count: product.stock })}
-              </p>
-            </div>
+              </span>
+            </Field>
           )}
 
-          {/* Category */}
           {product.category && (
-            <div>
-              <label className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                {tProducts('view.labels.category')}
-              </label>
-              <p className="text-foreground mt-1 text-sm">{product.category}</p>
-            </div>
+            <Field label={tProducts('view.labels.category')}>
+              {product.category}
+            </Field>
           )}
 
-          {/* Last Updated */}
           {product.lastUpdated !== undefined && (
-            <div>
-              <label className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                {tProducts('view.labels.lastUpdated')}
-              </label>
-              <p className="text-foreground mt-1 text-sm">
-                {formatDate(new Date(product.lastUpdated), 'long')}
-              </p>
-            </div>
+            <Field label={tProducts('view.labels.lastUpdated')}>
+              {formatDate(new Date(product.lastUpdated), 'long')}
+            </Field>
           )}
         </Grid>
 
         {/* Tags */}
         {product.tags && product.tags.length > 0 && (
-          <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wide uppercase">
-              {tProducts('view.labels.tags')}
-            </label>
+          <Field label={tProducts('view.labels.tags')}>
             <HStack gap={2} className="flex-wrap">
               {product.tags.map((tag, index) => (
                 <Badge key={index} variant="outline">
@@ -148,27 +120,19 @@ export function ProductViewDialog({
                 </Badge>
               ))}
             </HStack>
-          </div>
+          </Field>
         )}
 
         {/* Full Description */}
         {product.description && (
-          <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wide uppercase">
-              {tProducts('view.labels.fullDescription')}
-            </label>
-            <p className="text-foreground text-sm leading-relaxed">
-              {product.description}
-            </p>
-          </div>
+          <Field label={tProducts('view.labels.fullDescription')}>
+            <p className="leading-relaxed">{product.description}</p>
+          </Field>
         )}
 
         {/* Product Source URL */}
         {typeof product.metadata?.url === 'string' && (
-          <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wide uppercase">
-              {tProducts('view.labels.source')}
-            </label>
+          <Field label={tProducts('view.labels.source')}>
             <a
               href={product.metadata.url}
               target="_blank"
@@ -177,18 +141,15 @@ export function ProductViewDialog({
             >
               {product.metadata.url}
             </a>
-          </div>
+          </Field>
         )}
 
         {/* Product ID */}
-        <div>
-          <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wide uppercase">
-            {tProducts('view.labels.productId')}
-          </label>
+        <Field label={tProducts('view.labels.productId')}>
           <code className="bg-muted rounded px-2 py-1 text-xs">
             {product._id}
           </code>
-        </div>
+        </Field>
       </Stack>
     </ViewDialog>
   );
