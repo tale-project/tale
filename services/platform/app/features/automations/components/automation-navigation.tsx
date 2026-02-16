@@ -18,9 +18,7 @@ import {
 } from '@/app/components/ui/navigation/tab-navigation';
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -235,8 +233,8 @@ export function AutomationNavigation({
 
         {/* Version select - hidden on mobile (shown in first header row instead) */}
         {!isLoading && automation && versions && versions.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <DropdownMenu
+            trigger={
               <Button
                 variant="outline"
                 size="sm"
@@ -245,25 +243,31 @@ export function AutomationNavigation({
                 {`v${automation.versionNumber}`}
                 <ChevronDown className="ml-1 size-3" aria-hidden="true" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40 space-y-1">
-              {versions.map((version: Doc<'wfDefinitions'>) => (
-                <DropdownMenuItem
-                  key={version._id}
-                  onClick={() => navigateToVersion(version._id)}
-                  className={cn(version._id === automationId && 'bg-accent/50')}
-                >
-                  <span>{`v${version.versionNumber}`}</span>
-                  <span className="text-muted-foreground ml-1 text-xs">
-                    {version.status === 'draft' && tCommon('status.draft')}
-                    {version.status === 'active' && tCommon('status.active')}
-                    {version.status === 'archived' &&
-                      tCommon('status.archived')}
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }
+            items={[
+              versions.map(
+                (version: Doc<'wfDefinitions'>): DropdownMenuItem => ({
+                  type: 'item' as const,
+                  label: (
+                    <>
+                      <span>{`v${version.versionNumber}`}</span>
+                      <span className="text-muted-foreground ml-1 text-xs">
+                        {version.status === 'draft' && tCommon('status.draft')}
+                        {version.status === 'active' &&
+                          tCommon('status.active')}
+                        {version.status === 'archived' &&
+                          tCommon('status.archived')}
+                      </span>
+                    </>
+                  ),
+                  onClick: () => navigateToVersion(version._id),
+                  className: cn(version._id === automationId && 'bg-accent/50'),
+                }),
+              ),
+            ]}
+            align="end"
+            contentClassName="w-40"
+          />
         )}
 
         {/* Desktop: Show buttons directly */}
@@ -309,8 +313,8 @@ export function AutomationNavigation({
           (automation?.status === 'draft' ||
             automation?.status === 'active' ||
             automation?.status === 'archived') && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <DropdownMenu
+              trigger={
                 <Button
                   variant="ghost"
                   size="icon"
@@ -319,42 +323,48 @@ export function AutomationNavigation({
                 >
                   <MoreVertical className="size-5" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                {(automation?.status === 'draft' ||
-                  automation?.status === 'archived') && (
-                  <DropdownMenuItem
-                    onClick={handlePublish}
-                    disabled={isPublishing}
-                  >
-                    <Upload className="mr-2 size-4" />
-                    {isPublishing
-                      ? t('navigation.publishing')
-                      : t('navigation.publish')}
-                  </DropdownMenuItem>
-                )}
-                {automation?.status === 'active' && (
-                  <>
-                    <DropdownMenuItem
-                      onClick={handleUnpublish}
-                      disabled={isUnpublishing}
-                    >
-                      <CircleStop className="mr-2 size-4" />
-                      {isUnpublishing
-                        ? tCommon('actions.deactivating')
-                        : tCommon('actions.deactivate')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={handleCreateDraft}
-                      disabled={isCreatingDraft}
-                    >
-                      <Pencil className="mr-2 size-4" />
-                      {tCommon('actions.edit')}
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              }
+              items={[
+                [
+                  ...(automation?.status === 'draft' ||
+                  automation?.status === 'archived'
+                    ? [
+                        {
+                          type: 'item' as const,
+                          label: isPublishing
+                            ? t('navigation.publishing')
+                            : t('navigation.publish'),
+                          icon: Upload,
+                          onClick: handlePublish,
+                          disabled: isPublishing,
+                        },
+                      ]
+                    : []),
+                  ...(automation?.status === 'active'
+                    ? [
+                        {
+                          type: 'item' as const,
+                          label: isUnpublishing
+                            ? tCommon('actions.deactivating')
+                            : tCommon('actions.deactivate'),
+                          icon: CircleStop,
+                          onClick: handleUnpublish,
+                          disabled: isUnpublishing,
+                        },
+                        {
+                          type: 'item' as const,
+                          label: tCommon('actions.edit'),
+                          icon: Pencil,
+                          onClick: handleCreateDraft,
+                          disabled: isCreatingDraft,
+                        },
+                      ]
+                    : []),
+                ] satisfies DropdownMenuItem[],
+              ]}
+              align="end"
+              contentClassName="w-40"
+            />
           )}
       </div>
     </TabNavigation>

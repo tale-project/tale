@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Card, CardContent, CardFooter } from '@/app/components/ui/layout/card';
+import { Card } from '@/app/components/ui/layout/card';
 import { Stack, Grid, HStack } from '@/app/components/ui/layout/layout';
 import { IntegrationsClient } from '@/app/features/settings/integrations/components/integrations-client';
 import {
@@ -40,29 +40,31 @@ export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
 
 function IntegrationCardSkeleton() {
   return (
-    <Card className="flex flex-col justify-between">
-      <CardContent className="p-5">
-        <Stack gap={3}>
-          <div className="border-border flex h-11 w-11 items-center justify-center rounded-md border">
-            <Skeleton className="size-6 rounded-sm" />
-          </div>
-          <Stack gap={1}>
-            <HStack gap={2}>
-              <Skeleton className="h-5 w-24" />
-            </HStack>
-            <div className="space-y-1">
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-5 w-4/5" />
-            </div>
-          </Stack>
-        </Stack>
-      </CardContent>
-      <CardFooter className="border-border border-t px-5 py-4">
+    <Card
+      className="flex flex-col justify-between"
+      contentClassName="p-5"
+      footer={
         <HStack justify="between" className="w-full">
           <Skeleton className="h-6 w-20" />
           <Skeleton className="h-5 w-9 rounded-full" />
         </HStack>
-      </CardFooter>
+      }
+      footerClassName="border-border border-t px-5 py-4"
+    >
+      <Stack gap={3}>
+        <div className="border-border flex h-11 w-11 items-center justify-center rounded-md border">
+          <Skeleton className="size-6 rounded-sm" />
+        </div>
+        <Stack gap={1}>
+          <HStack gap={2}>
+            <Skeleton className="h-5 w-24" />
+          </HStack>
+          <div className="space-y-1">
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-4/5" />
+          </div>
+        </Stack>
+      </Stack>
     </Card>
   );
 }

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
-import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import {
   MessageCircle,
   Inbox,
@@ -11,12 +10,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-  SheetDescription,
-} from '@/app/components/ui/overlays/sheet';
+import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
 import { cn } from '@/lib/utils/cn';
 
@@ -138,37 +132,39 @@ function MobileNavigationVisual({
         <Menu className="size-5" />
       </Button>
 
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetContent side="left" className="w-72 p-0" hideClose>
-          <VisuallyHidden.Root>
-            <SheetTitle>Menu</SheetTitle>
-            <SheetDescription>Navigation menu</SheetDescription>
-          </VisuallyHidden.Root>
-          <NavigationMenu className="bg-background flex h-full w-full max-w-none flex-col">
-            <div className="border-border flex h-14 flex-shrink-0 items-center border-b px-4 py-2">
-              <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded text-xs font-bold">
-                T
-              </div>
+      <Sheet
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        side="left"
+        title="Menu"
+        description="Navigation menu"
+        className="w-72 p-0"
+        hideClose
+      >
+        <NavigationMenu className="bg-background flex h-full w-full max-w-none flex-col">
+          <div className="border-border flex h-14 shrink-0 items-center border-b px-4 py-2">
+            <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded text-xs font-bold">
+              T
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              <NavigationMenuList className="flex w-full flex-col space-y-2">
-                {items.map((item) => (
-                  <MobileNavItemVisual
-                    key={item.label}
-                    item={item}
-                    onClose={() => setIsOpen(false)}
-                  />
-                ))}
-              </NavigationMenuList>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <NavigationMenuList className="flex w-full flex-col space-y-2">
+              {items.map((item) => (
+                <MobileNavItemVisual
+                  key={item.label}
+                  item={item}
+                  onClose={() => setIsOpen(false)}
+                />
+              ))}
+            </NavigationMenuList>
+          </div>
+          <div className="border-border flex h-14 shrink-0 items-center border-t px-4 py-2">
+            <div className="flex items-center gap-2">
+              <div className="bg-muted size-8 rounded-full" />
+              <span className="text-muted-foreground text-sm">Settings</span>
             </div>
-            <div className="border-border flex h-14 flex-shrink-0 items-center border-t px-4 py-2">
-              <div className="flex items-center gap-2">
-                <div className="bg-muted size-8 rounded-full" />
-                <span className="text-muted-foreground text-sm">Settings</span>
-              </div>
-            </div>
-          </NavigationMenu>
-        </SheetContent>
+          </div>
+        </NavigationMenu>
       </Sheet>
     </>
   );

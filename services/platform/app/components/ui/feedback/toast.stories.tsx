@@ -1,18 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
-import {
-  Toast,
-  ToastProvider,
-  ToastViewport,
-  ToastTitle,
-  ToastDescription,
-  ToastClose,
-  ToastAction,
-} from './toast';
+import { toast } from '@/app/hooks/use-toast';
 
-const meta: Meta<typeof Toast> = {
+import { Toaster } from './toaster';
+
+const meta: Meta<typeof Toaster> = {
   title: 'Feedback/Toast',
-  component: Toast,
+  component: Toaster,
   tags: ['autodocs'],
   parameters: {
     layout: 'centered',
@@ -23,9 +17,7 @@ Toast notifications for displaying brief messages.
 
 ## Usage
 \`\`\`tsx
-import { useToast } from '@/app/hooks/use-toast';
-
-const { toast } = useToast();
+import { toast } from '@/app/hooks/use-toast';
 
 toast({
   title: 'Success',
@@ -44,109 +36,83 @@ toast({
   },
   decorators: [
     (Story) => (
-      <ToastProvider>
+      <>
         <Story />
-        <ToastViewport />
-      </ToastProvider>
+        <Toaster />
+      </>
     ),
   ],
 };
 
 export default meta;
-type Story = StoryObj<typeof Toast>;
+type Story = StoryObj<typeof Toaster>;
 
 export const Default: Story = {
   render: () => (
-    <Toast open>
-      <div className="grid gap-1">
-        <ToastTitle>Notification</ToastTitle>
-        <ToastDescription>This is a default toast message.</ToastDescription>
-      </div>
-      <ToastClose />
-    </Toast>
+    <button
+      type="button"
+      className="rounded-md border px-4 py-2 text-sm"
+      onClick={() =>
+        toast({
+          title: 'Notification',
+          description: 'This is a default toast message.',
+        })
+      }
+    >
+      Show Default Toast
+    </button>
   ),
 };
 
 export const Success: Story = {
   render: () => (
-    <Toast variant="success" open>
-      <div className="grid gap-1">
-        <ToastTitle>Success!</ToastTitle>
-        <ToastDescription>Your changes have been saved.</ToastDescription>
-      </div>
-      <ToastClose />
-    </Toast>
+    <button
+      type="button"
+      className="rounded-md border px-4 py-2 text-sm"
+      onClick={() =>
+        toast({
+          title: 'Success!',
+          description: 'Your changes have been saved.',
+          variant: 'success',
+        })
+      }
+    >
+      Show Success Toast
+    </button>
   ),
 };
 
 export const Destructive: Story = {
   render: () => (
-    <Toast variant="destructive" open>
-      <div className="grid gap-1">
-        <ToastTitle>Error</ToastTitle>
-        <ToastDescription>
-          Something went wrong. Please try again.
-        </ToastDescription>
-      </div>
-      <ToastClose />
-    </Toast>
-  ),
-};
-
-export const WithAction: Story = {
-  render: () => (
-    <Toast open>
-      <div className="grid gap-1">
-        <ToastTitle>Undo action</ToastTitle>
-        <ToastDescription>The item has been deleted.</ToastDescription>
-      </div>
-      <ToastAction altText="Undo">Undo</ToastAction>
-      <ToastClose />
-    </Toast>
-  ),
-  parameters: {
-    docs: {
-      description: {
-        story: 'Toasts can include action buttons for quick interactions.',
-      },
-    },
-  },
-};
-
-export const AllVariants: Story = {
-  render: () => (
-    <div className="flex flex-col gap-3">
-      <Toast open className="relative">
-        <div className="grid gap-1">
-          <ToastTitle>Default Toast</ToastTitle>
-          <ToastDescription>This is a default notification.</ToastDescription>
-        </div>
-        <ToastClose />
-      </Toast>
-      <Toast variant="success" open className="relative">
-        <div className="grid gap-1">
-          <ToastTitle>Success Toast</ToastTitle>
-          <ToastDescription>Operation completed successfully.</ToastDescription>
-        </div>
-        <ToastClose />
-      </Toast>
-      <Toast variant="destructive" open className="relative">
-        <div className="grid gap-1">
-          <ToastTitle>Error Toast</ToastTitle>
-          <ToastDescription>An error occurred.</ToastDescription>
-        </div>
-        <ToastClose />
-      </Toast>
-    </div>
+    <button
+      type="button"
+      className="rounded-md border px-4 py-2 text-sm"
+      onClick={() =>
+        toast({
+          title: 'Error',
+          description: 'Something went wrong. Please try again.',
+          variant: 'destructive',
+        })
+      }
+    >
+      Show Error Toast
+    </button>
   ),
 };
 
 export const SimpleMessage: Story = {
   render: () => (
-    <Toast open>
-      <ToastDescription>Copied to clipboard!</ToastDescription>
-      <ToastClose />
-    </Toast>
+    <button
+      type="button"
+      className="rounded-md border px-4 py-2 text-sm"
+      onClick={() =>
+        toast({
+          description: 'Copied to clipboard!',
+        })
+      }
+    >
+      Show Simple Toast
+    </button>
   ),
   parameters: {
     docs: {
@@ -157,25 +123,44 @@ export const SimpleMessage: Story = {
   },
 };
 
-export const LongContent: Story = {
+export const AllVariants: Story = {
   render: () => (
-    <Toast open>
-      <div className="grid gap-1">
-        <ToastTitle>Update Available</ToastTitle>
-        <ToastDescription>
-          A new version of the application is available. Please refresh the page
-          to get the latest features and improvements.
-        </ToastDescription>
-      </div>
-      <ToastAction altText="Refresh">Refresh</ToastAction>
-      <ToastClose />
-    </Toast>
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        className="rounded-md border px-4 py-2 text-sm"
+        onClick={() =>
+          toast({ title: 'Default', description: 'Default notification.' })
+        }
+      >
+        Default
+      </button>
+      <button
+        type="button"
+        className="rounded-md border px-4 py-2 text-sm"
+        onClick={() =>
+          toast({
+            title: 'Success',
+            description: 'Operation completed.',
+            variant: 'success',
+          })
+        }
+      >
+        Success
+      </button>
+      <button
+        type="button"
+        className="rounded-md border px-4 py-2 text-sm"
+        onClick={() =>
+          toast({
+            title: 'Error',
+            description: 'An error occurred.',
+            variant: 'destructive',
+          })
+        }
+      >
+        Destructive
+      </button>
+    </div>
   ),
-  parameters: {
-    docs: {
-      description: {
-        story: 'Toasts can handle longer content gracefully.',
-      },
-    },
-  },
 };

@@ -15,11 +15,18 @@ import { cn } from '@/lib/utils/cn';
 import { Description } from './description';
 import { Label } from './label';
 
+export interface RadioGroupOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
 interface RadioGroupProps extends ComponentPropsWithoutRef<
   typeof RadioGroupPrimitive.Root
 > {
   label?: string;
   description?: ReactNode;
+  options?: RadioGroupOption[];
 }
 
 export const RadioGroup = forwardRef<
@@ -27,7 +34,16 @@ export const RadioGroup = forwardRef<
   RadioGroupProps
 >(
   (
-    { className, label, description, required, id: providedId, ...props },
+    {
+      className,
+      label,
+      description,
+      required,
+      id: providedId,
+      options,
+      children,
+      ...props
+    },
     ref,
   ) => {
     const generatedId = useId();
@@ -53,7 +69,18 @@ export const RadioGroup = forwardRef<
           required={required}
           aria-labelledby={label ? `${id}-label` : undefined}
           aria-describedby={description ? descriptionId : undefined}
-        />
+        >
+          {options
+            ? options.map((option) => (
+                <RadioGroupItem
+                  key={option.value}
+                  value={option.value}
+                  label={option.label}
+                  disabled={option.disabled}
+                />
+              ))
+            : children}
+        </RadioGroupPrimitive.Root>
       </div>
     );
   },

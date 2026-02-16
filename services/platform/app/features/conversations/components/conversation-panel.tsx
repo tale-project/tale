@@ -5,7 +5,6 @@ import { useEffect, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
-import { CardContent } from '@/app/components/ui/layout/card';
 import { Stack, VStack, Center } from '@/app/components/ui/layout/layout';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { toast } from '@/app/hooks/use-toast';
@@ -237,9 +236,9 @@ export function ConversationPanel({
 
   if (isLoading) {
     return (
-      <CardContent
+      <div
         ref={containerRef}
-        className="relative flex flex-[1_1_0] flex-col overflow-y-auto p-0"
+        className="relative flex flex-[1_1_0] flex-col overflow-y-auto"
       >
         {/* Skeleton Header */}
         <div className="bg-background/50 border-border sticky top-0 z-50 flex h-16 flex-[0_0_auto] border-b px-4 py-3 backdrop-blur-sm">
@@ -298,7 +297,7 @@ export function ConversationPanel({
             <div className="bg-muted/40 border-border h-32 w-full animate-pulse rounded-lg border" />
           </div>
         </div>
-      </CardContent>
+      </div>
     );
   }
 
@@ -332,9 +331,9 @@ export function ConversationPanel({
   const messageGroups = groupMessagesByDate(displayMessages);
 
   return (
-    <CardContent
+    <div
       ref={containerRef}
-      className="relative flex flex-[1_1_0] flex-col overflow-y-auto p-0"
+      className="relative flex flex-[1_1_0] flex-col overflow-y-auto"
     >
       <div className="bg-background/50 border-border sticky top-0 z-50 flex h-16 flex-[0_0_auto] border-b px-4 py-3 backdrop-blur-sm">
         <ConversationHeader
@@ -431,6 +430,6 @@ export function ConversationPanel({
           </div>
         )}
       </div>
-    </CardContent>
+    </div>
   );
 }
