@@ -1,17 +1,22 @@
 'use client';
 
-import { ImagePlus } from 'lucide-react';
+import { ImagePlus, Info } from 'lucide-react';
 import {
   createContext,
   useContext,
   useState,
   useCallback,
+  useEffect,
+  useId,
   useMemo,
   type ReactNode,
 } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+import { Description } from './description';
+import { Label } from './label';
 
 interface FileUploadContextValue {
   isDragOver: boolean;
@@ -32,10 +37,38 @@ function useFileUploadContext() {
 
 interface RootProps {
   children: ReactNode;
+  label?: string;
+  description?: ReactNode;
+  errorMessage?: string;
+  required?: boolean;
+  id?: string;
+  className?: string;
 }
 
-function Root({ children }: RootProps) {
+function Root({
+  children,
+  label,
+  description,
+  errorMessage,
+  required,
+  id: providedId,
+  className,
+}: RootProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const generatedId = useId();
+  const id = providedId ?? generatedId;
+  const errorId = `${id}-error`;
+  const descriptionId = `${id}-description`;
+  const hasError = !!errorMessage;
+  const [showShake, setShowShake] = useState(false);
+
+  useEffect(() => {
+    if (hasError) {
+      setShowShake(true);
+      const timer = setTimeout(() => setShowShake(false), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [hasError, errorMessage]);
 
   const value = useMemo(
     () => ({
@@ -45,10 +78,41 @@ function Root({ children }: RootProps) {
     [isDragOver],
   );
 
-  return (
+  const content = (
     <FileUploadContext.Provider value={value}>
       {children}
     </FileUploadContext.Provider>
+  );
+
+  if (!label && !description && !errorMessage) {
+    return content;
+  }
+
+  return (
+    <div className={cn('flex flex-col gap-1.5', className)}>
+      {label && (
+        <Label htmlFor={id} required={required} error={hasError}>
+          {label}
+        </Label>
+      )}
+      <div className={cn(showShake && 'animate-shake')}>{content}</div>
+      {errorMessage && (
+        <p
+          id={errorId}
+          role="alert"
+          aria-live="polite"
+          className="text-destructive flex items-center gap-1.5 text-sm"
+        >
+          <Info className="size-4" aria-hidden="true" />
+          {errorMessage}
+        </p>
+      )}
+      {description && (
+        <Description id={descriptionId} className="text-xs">
+          {description}
+        </Description>
+      )}
+    </div>
   );
 }
 
@@ -192,7 +256,7 @@ function Overlay({ className, label }: OverlayProps) {
   return (
     <div
       className={cn(
-        'absolute inset-0 border-2 border-dashed border-info-foreground flex flex-col items-center justify-center z-50 gap-2 bg-info',
+        'absolute -inset-px flex flex-col items-center justify-center z-50 gap-2 bg-info border-2 border-dashed border-info-foreground',
         className,
       )}
     >

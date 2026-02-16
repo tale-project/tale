@@ -24,6 +24,7 @@ export function ProductTableSkeleton({
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
+      showFilters
       actionMenu={<ProductsActionMenu organizationId={organizationId} />}
       infiniteScroll={infiniteScroll}
     />

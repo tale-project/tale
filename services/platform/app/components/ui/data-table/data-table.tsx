@@ -42,12 +42,7 @@ import {
 } from '@/app/components/ui/data-display/table';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
-import {
-  Center,
-  HStack,
-  Stack,
-  VStack,
-} from '@/app/components/ui/layout/layout';
+import { HStack, Stack, VStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useInfiniteScroll } from '@/app/hooks/use-infinite-scroll';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -330,7 +325,6 @@ export function DataTable<TData, TValue = unknown>({
   const isInitialLoading = infiniteScroll?.isInitialLoading;
   const showEmptyState = data.length === 0 && emptyState && !isInitialLoading;
   const showInitialEmptyState = showEmptyState && !hasActiveFilters;
-  const showFilteredEmptyState = showEmptyState && hasActiveFilters;
 
   // Initial empty state (no data, no filters) - early return since no header needed
   if (showInitialEmptyState) {
@@ -417,9 +411,16 @@ export function DataTable<TData, TValue = unknown>({
           <TableRow>
             <TableCell
               colSpan={columns.length + (enableExpanding ? 1 : 0)}
-              className="text-muted-foreground py-10 text-center"
+              className="py-16 text-center"
             >
-              {t('search.noResults')}
+              <VStack align="center" className="text-center">
+                <h4 className="text-foreground mb-1 text-base font-semibold">
+                  {t('search.noResults')}
+                </h4>
+                <p className="text-muted-foreground text-sm">
+                  {t('search.tryAdjusting')}
+                </p>
+              </VStack>
             </TableCell>
           </TableRow>
         ) : rows.length === 0 ? null : (
@@ -561,25 +562,6 @@ export function DataTable<TData, TValue = unknown>({
     </div>
   );
 
-  // Filtered empty state content (rendered inline to preserve filter popover state)
-  const filteredEmptyContent = (
-    <Center
-      className={cn(
-        'rounded-xl border border-border',
-        stickyLayout ? 'flex-1 min-h-0' : 'py-16',
-      )}
-    >
-      <VStack align="center" className="text-center">
-        <h4 className="text-foreground mb-1 text-base font-semibold">
-          {t('search.noResults')}
-        </h4>
-        <p className="text-muted-foreground text-sm">
-          {t('search.tryAdjusting')}
-        </p>
-      </VStack>
-    </Center>
-  );
-
   // Non-sticky layout: simple stacked layout with gaps
   if (!stickyLayout) {
     return (
@@ -595,15 +577,11 @@ export function DataTable<TData, TValue = unknown>({
       >
         <div className={cn('space-y-4', className)}>
           {headerContent}
-          {showFilteredEmptyState ? (
-            filteredEmptyContent
-          ) : (
-            <div className="border-border overflow-hidden rounded-xl border">
-              {tableContent}
-              {infiniteScrollContent}
-            </div>
-          )}
-          {!showFilteredEmptyState && paginationContent}
+          <div className="border-border overflow-hidden rounded-xl border">
+            {tableContent}
+            {infiniteScrollContent}
+          </div>
+          {paginationContent}
           {footer}
         </div>
       </ErrorBoundaryBase>
@@ -626,18 +604,14 @@ export function DataTable<TData, TValue = unknown>({
         {headerContent && (
           <div className="flex-shrink-0 pb-4">{headerContent}</div>
         )}
-        {showFilteredEmptyState ? (
-          filteredEmptyContent
-        ) : (
-          <div
-            ref={scrollContainerRef}
-            className="border-border min-h-0 overflow-auto rounded-xl border"
-          >
-            {tableContent}
-            {infiniteScrollContent}
-          </div>
-        )}
-        {!showFilteredEmptyState && paginationContent && (
+        <div
+          ref={scrollContainerRef}
+          className="border-border min-h-0 overflow-auto rounded-xl border"
+        >
+          {tableContent}
+          {infiniteScrollContent}
+        </div>
+        {paginationContent && (
           <div className="flex-shrink-0 pt-6">{paginationContent}</div>
         )}
         {footer}

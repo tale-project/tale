@@ -60,6 +60,9 @@ compose.override.yml
 !.claude/settings.json
 !.claude/hooks/
 
+# Agent rules
+.agent/
+
 # Python
 __pycache__/
 *.pyc

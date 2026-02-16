@@ -21,12 +21,14 @@ export interface ProductTableProps {
   organizationId: string;
   paginatedResult: UsePaginatedQueryResult<Product>;
   status?: string;
+  hasActiveFilters?: boolean;
 }
 
 export function ProductTable({
   organizationId,
   paginatedResult,
   status,
+  hasActiveFilters = false,
 }: ProductTableProps) {
   const navigate = useNavigate();
   const { t: tProducts } = useT('products');
@@ -96,16 +98,24 @@ export function ProductTable({
     },
   });
 
+  const emptyStateConfig = hasActiveFilters
+    ? {
+        icon: Package,
+        title: tTables('emptyState.noResults.title'),
+        description: tTables('emptyState.noResults.description'),
+      }
+    : {
+        icon: Package,
+        title: tProducts('emptyState.title'),
+        description: tProducts('emptyState.description'),
+      };
+
   return (
     <DataTable
       columns={columns}
       stickyLayout={stickyLayout}
       actionMenu={<ProductsActionMenu organizationId={organizationId} />}
-      emptyState={{
-        icon: Package,
-        title: tProducts('emptyState.title'),
-        description: tProducts('emptyState.description'),
-      }}
+      emptyState={emptyStateConfig}
       {...list.tableProps}
     />
   );

@@ -13,7 +13,7 @@ import {
 import { EntityRowActions } from './entity-row-actions';
 
 const meta: Meta<typeof EntityRowActions> = {
-  title: 'Entity/EntityRowActions',
+  title: 'Data Display/DataTable/RowActions',
   component: EntityRowActions,
   tags: ['autodocs'],
   parameters: {

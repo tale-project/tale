@@ -34,6 +34,7 @@ import { JsonInput } from '@/app/components/ui/forms/json-input';
 - Schema validation with Zod
 - Inline editing in tree view
 - Keyboard shortcuts (Ctrl+Enter to save, Escape to cancel)
+- Supports label, description, errorMessage, and required props
         `,
       },
     },
@@ -50,6 +51,14 @@ import { JsonInput } from '@/app/components/ui/forms/json-input';
     description: {
       control: 'text',
       description: 'Help text below the input',
+    },
+    errorMessage: {
+      control: 'text',
+      description: 'Error message displayed below the input',
+    },
+    required: {
+      control: 'boolean',
+      description: 'Shows required indicator on label',
     },
     indentWidth: {
       control: { type: 'number', min: 1, max: 8 },
@@ -244,6 +253,52 @@ export const ArrayData: Story = {
       </div>
     ),
   ],
+};
+
+export const WithError: Story = {
+  args: {
+    value: sampleJson,
+    label: 'Configuration',
+    errorMessage: 'Configuration is invalid',
+    onChange: fn(),
+  },
+  decorators: [
+    (Story) => (
+      <div className="w-96">
+        <Story />
+      </div>
+    ),
+  ],
+  parameters: {
+    docs: {
+      description: {
+        story: 'JSON input displaying an external error message.',
+      },
+    },
+  },
+};
+
+export const Required: Story = {
+  args: {
+    value: sampleJson,
+    label: 'Configuration',
+    required: true,
+    onChange: fn(),
+  },
+  decorators: [
+    (Story) => (
+      <div className="w-96">
+        <Story />
+      </div>
+    ),
+  ],
+  parameters: {
+    docs: {
+      description: {
+        story: 'JSON input with required indicator.',
+      },
+    },
+  },
 };
 
 export const CustomIndent: Story = {

@@ -338,6 +338,12 @@
       "noEmail": "No email",
       "unknown": "Unknown",
       "empty": "-"
+    },
+    "emptyState": {
+      "noResults": {
+        "title": "No results found",
+        "description": "Try adjusting your search criteria"
+      }
     }
   },
   "toast": {

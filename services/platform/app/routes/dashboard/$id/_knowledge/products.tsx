@@ -50,10 +50,10 @@ function ProductsPage() {
     return <ProductsEmptyState organizationId={organizationId} />;
   }
 
-  const hasServerFilters = !!(search.status || search.category);
+  const hasActiveFilters = !!(search.status || search.category);
 
   const isInitialLoading =
-    paginatedResult.status === 'LoadingFirstPage' && !hasServerFilters;
+    paginatedResult.status === 'LoadingFirstPage' && !paginatedResult.results;
 
   if (isInitialLoading) {
     return (
@@ -69,6 +69,7 @@ function ProductsPage() {
       organizationId={organizationId}
       paginatedResult={paginatedResult}
       status={search.status}
+      hasActiveFilters={hasActiveFilters}
     />
   );
 }

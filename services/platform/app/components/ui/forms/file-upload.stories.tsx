@@ -28,7 +28,7 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 \`\`\`
 
 ## Compound components
-- **FileUpload.Root** - Context provider for drag state
+- **FileUpload.Root** - Context provider for drag state, supports label/description/errorMessage
 - **FileUpload.DropZone** - Drop target area with click-to-upload support
 - **FileUpload.Overlay** - Visual overlay shown during drag-over
 
@@ -37,6 +37,7 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 - Keyboard accessible (Enter/Space to trigger file dialog)
 - aria-disabled on disabled state
 - aria-label support for screen readers
+- Label, description, and error message on Root follow standard form field pattern
         `,
       },
     },
@@ -257,6 +258,112 @@ export const CustomOverlayLabel: Story = {
     docs: {
       description: {
         story: 'Overlay with a custom label displayed during drag-over.',
+      },
+    },
+  },
+};
+
+export const WithLabel: Story = {
+  render: function Render() {
+    const [files, setFiles] = useState<string[]>([]);
+
+    return (
+      <div className="w-96">
+        <FileUpload.Root label="Profile image">
+          <FileUpload.DropZone
+            onFilesSelected={(selected) =>
+              setFiles(selected.map((f) => f.name))
+            }
+            accept="image/*"
+            aria-label="Upload profile image"
+            className="border-muted-foreground/25 hover:border-muted-foreground/50 relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 transition-colors"
+          >
+            <ImagePlus className="text-muted-foreground size-8" />
+            <p className="text-muted-foreground text-sm">
+              Drag and drop or click to browse
+            </p>
+            <FileUpload.Overlay className="rounded-lg" />
+          </FileUpload.DropZone>
+        </FileUpload.Root>
+        {files.length > 0 && (
+          <ul className="mt-4 space-y-1">
+            {files.map((name) => (
+              <li key={name} className="text-foreground text-sm">
+                {name}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'File upload with a label on the Root component.',
+      },
+    },
+  },
+};
+
+export const WithDescription: Story = {
+  render: () => (
+    <div className="w-96">
+      <FileUpload.Root
+        label="Document upload"
+        description="Upload PDF, DOC, or DOCX files up to 10MB"
+      >
+        <FileUpload.DropZone
+          onFilesSelected={() => {}}
+          accept=".pdf,.doc,.docx"
+          aria-label="Upload documents"
+          className="border-muted-foreground/25 hover:border-muted-foreground/50 relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 transition-colors"
+        >
+          <Upload className="text-muted-foreground size-8" />
+          <p className="text-muted-foreground text-sm">
+            Drag and drop or click to browse
+          </p>
+          <FileUpload.Overlay className="rounded-lg" />
+        </FileUpload.DropZone>
+      </FileUpload.Root>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'File upload with label and description.',
+      },
+    },
+  },
+};
+
+export const WithError: Story = {
+  render: () => (
+    <div className="w-96">
+      <FileUpload.Root
+        label="Invoice upload"
+        errorMessage="Please upload a valid invoice file"
+        required
+      >
+        <FileUpload.DropZone
+          onFilesSelected={() => {}}
+          aria-label="Upload invoice"
+          className="border-muted-foreground/25 hover:border-muted-foreground/50 relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 transition-colors"
+        >
+          <Upload className="text-muted-foreground size-8" />
+          <p className="text-muted-foreground text-sm">
+            Drag and drop or click to browse
+          </p>
+          <FileUpload.Overlay className="rounded-lg" />
+        </FileUpload.DropZone>
+      </FileUpload.Root>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'File upload displaying an error message with required indicator.',
       },
     },
   },

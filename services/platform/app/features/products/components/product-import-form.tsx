@@ -54,7 +54,13 @@ export function ProductImportForm({
   return (
     <div className="space-y-5">
       <Stack gap={4}>
-        <FileUpload.Root>
+        <FileUpload.Root
+          errorMessage={
+            typeof errors.file?.message === 'string'
+              ? errors.file.message
+              : undefined
+          }
+        >
           <FileUpload.DropZone
             onFilesSelected={handleFilesSelected}
             accept={SPREADSHEET_IMPORT_ACCEPT}
@@ -79,9 +85,6 @@ export function ProductImportForm({
             <li className="text-blue-600">{t('import.draftStatusNote')}</li>
           </ul>
         </div>
-        {typeof errors.file?.message === 'string' && (
-          <p className="text-destructive text-sm">{errors.file.message}</p>
-        )}
         {fileValue && (
           <VStack gap={2} className="border-border rounded-xl border p-3">
             <HStack gap={3} className="w-full">

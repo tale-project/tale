@@ -24,6 +24,7 @@ export function WebsitesTableSkeleton({
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
+      showFilters
       actionMenu={<WebsitesActionMenu organizationId={organizationId} />}
       infiniteScroll={infiniteScroll}
     />

@@ -23,6 +23,7 @@ export interface CustomersTableProps {
   status?: string;
   source?: string;
   locale?: string;
+  hasActiveFilters?: boolean;
 }
 
 export function CustomersTable({
@@ -31,6 +32,7 @@ export function CustomersTable({
   status,
   source,
   locale,
+  hasActiveFilters = false,
 }: CustomersTableProps) {
   const navigate = useNavigate();
   const { t: tTables } = useT('tables');
@@ -168,16 +170,24 @@ export function CustomersTable({
     },
   });
 
+  const emptyStateConfig = hasActiveFilters
+    ? {
+        icon: Users,
+        title: tTables('emptyState.noResults.title'),
+        description: tTables('emptyState.noResults.description'),
+      }
+    : {
+        icon: Users,
+        title: tEmpty('customers.title'),
+        description: tEmpty('customers.description'),
+      };
+
   return (
     <DataTable
       columns={columns}
       stickyLayout={stickyLayout}
       actionMenu={<CustomersActionMenu organizationId={organizationId} />}
-      emptyState={{
-        icon: Users,
-        title: tEmpty('customers.title'),
-        description: tEmpty('customers.description'),
-      }}
+      emptyState={emptyStateConfig}
       {...list.tableProps}
     />
   );

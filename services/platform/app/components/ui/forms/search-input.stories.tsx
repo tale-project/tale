@@ -30,12 +30,13 @@ import { SearchInput } from './search-input';
 ## Features
 - Consistent size (sm / h-8) for compact design
 - Search icon positioned at left with proper spacing
+- Supports label, description, and errorMessage props
 - Accepts all standard input props
 - Accessible with proper ARIA attributes
 
 ## Accessibility
 - Search icon has \`aria-hidden="true"\` to avoid screen reader duplication
-- Standard input accessibility features inherited from Input component
+- Label, description, and error message follow the same pattern as Input/Textarea/Select
 - Keyboard accessible with proper focus states
         `,
       },
@@ -61,6 +62,22 @@ import { SearchInput } from './search-input';
     wrapperClassName: {
       control: 'text',
       description: 'Additional classes for the wrapper div',
+    },
+    label: {
+      control: 'text',
+      description: 'Label text displayed above the input',
+    },
+    description: {
+      control: 'text',
+      description: 'Description text displayed below the input',
+    },
+    errorMessage: {
+      control: 'text',
+      description: 'Error message displayed below the input',
+    },
+    required: {
+      control: 'boolean',
+      description: 'Shows required indicator on label',
     },
   },
   decorators: [
@@ -203,6 +220,90 @@ export const Multiple: Story = {
     docs: {
       description: {
         story: 'Multiple search inputs showing visual consistency.',
+      },
+    },
+  },
+};
+
+export const WithLabel: Story = {
+  render: function Render() {
+    const [value, setValue] = useState('');
+    return (
+      <SearchInput
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search..."
+        label="Search"
+      />
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Search input with a label.',
+      },
+    },
+  },
+};
+
+export const WithDescription: Story = {
+  render: function Render() {
+    const [value, setValue] = useState('');
+    return (
+      <SearchInput
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search..."
+        label="Search"
+        description="Search by name, email, or ID"
+      />
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Search input with label and description.',
+      },
+    },
+  },
+};
+
+export const WithError: Story = {
+  render: () => (
+    <SearchInput
+      value=""
+      onChange={fn()}
+      placeholder="Search..."
+      label="Search"
+      errorMessage="Please enter a search term"
+    />
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Search input displaying an error message.',
+      },
+    },
+  },
+};
+
+export const Required: Story = {
+  render: function Render() {
+    const [value, setValue] = useState('');
+    return (
+      <SearchInput
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search..."
+        label="Search"
+        required
+      />
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Search input with required indicator.',
       },
     },
   },

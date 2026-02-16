@@ -15,9 +15,19 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Info,
   Loader2,
 } from 'lucide-react';
-import { HTMLAttributes, useState, forwardRef, memo, useCallback } from 'react';
+import {
+  HTMLAttributes,
+  useState,
+  forwardRef,
+  memo,
+  useCallback,
+  useId,
+  useEffect,
+  type ReactNode,
+} from 'react';
 import ReactDatePicker from 'react-datepicker';
 import { DateRange } from 'react-day-picker';
 
@@ -30,6 +40,8 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import styles from './date-range-picker.module.css';
+import { Description } from './description';
+import { Label } from './label';
 
 export type DatePreset =
   | 'today'
@@ -116,6 +128,10 @@ export interface DatePickerWithRangeProps extends Omit<
   defaultDate?: DateRange;
   isLoading?: boolean;
   presets?: DatePreset[];
+  label?: string;
+  description?: ReactNode;
+  errorMessage?: string;
+  required?: boolean;
 }
 
 interface DateInputHeaderProps {
@@ -248,8 +264,27 @@ export function DatePickerWithRange({
   defaultDate,
   isLoading = false,
   presets = DEFAULT_PRESETS,
+  label,
+  description,
+  errorMessage,
+  required,
+  id: providedId,
 }: DatePickerWithRangeProps) {
   const { t } = useT('common');
+  const generatedId = useId();
+  const id = providedId ?? generatedId;
+  const errorId = `${id}-error`;
+  const descriptionId = `${id}-description`;
+  const hasError = !!errorMessage;
+  const [showShake, setShowShake] = useState(false);
+
+  useEffect(() => {
+    if (hasError) {
+      setShowShake(true);
+      const timer = setTimeout(() => setShowShake(false), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [hasError, errorMessage]);
 
   const [startDate, setStartDate] = useState<Date | null>(() =>
     defaultDate?.from ? startOfDay(defaultDate.from) : null,
@@ -304,8 +339,14 @@ export function DatePickerWithRange({
     onChange(undefined);
   }, [onChange]);
 
-  return (
-    <div className={cn(styles.wrapper, className)}>
+  const picker = (
+    <div
+      className={cn(
+        styles.wrapper,
+        hasError && showShake && 'animate-shake',
+        className,
+      )}
+    >
       <ReactDatePicker
         selectsRange
         startDate={startDate}
@@ -356,6 +397,37 @@ export function DatePickerWithRange({
           </div>
         )}
       </ReactDatePicker>
+    </div>
+  );
+
+  if (!label && !description && !errorMessage) {
+    return picker;
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {label && (
+        <Label htmlFor={id} required={required} error={hasError}>
+          {label}
+        </Label>
+      )}
+      {picker}
+      {errorMessage && (
+        <p
+          id={errorId}
+          role="alert"
+          aria-live="polite"
+          className="text-destructive flex items-center gap-1.5 text-sm"
+        >
+          <Info className="size-4" aria-hidden="true" />
+          {errorMessage}
+        </p>
+      )}
+      {description && (
+        <Description id={descriptionId} className="text-xs">
+          {description}
+        </Description>
+      )}
     </div>
   );
 }
