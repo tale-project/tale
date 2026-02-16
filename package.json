@@ -35,6 +35,7 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "commit": "cz",
+    "storybook": "npm run storybook --workspace=@tale/platform",
     "prepare": "husky"
   },
   "config": {
