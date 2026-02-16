@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+
+import { render, screen } from '@/test/utils/render';
 
 import { OfflineIndicator } from '../offline-indicator';
 
-// Mock i18n
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => {

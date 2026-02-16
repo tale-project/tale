@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+
+import { render, screen } from '@/test/utils/render';
 
 import { UserButton } from '../user-button';
 
-// Mock i18n
 vi.mock('@/lib/i18n/client', () => ({
   useT: (_ns: string) => ({
     t: (key: string) => {

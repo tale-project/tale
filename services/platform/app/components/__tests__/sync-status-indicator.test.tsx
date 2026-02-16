@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+
+import { render, screen } from '@/test/utils/render';
 
 import { SyncStatusIndicator } from '../sync-status-indicator';
 
-// Mock i18n (unused directly but Tooltip may use it)
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
