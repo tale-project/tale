@@ -24,9 +24,9 @@ type MetadataPage = {
  * within the platform (e.g. Slack unfurls in internal channels).
  */
 export function seo(key: MetadataPage) {
-  const suffix = i18n.t('metadata.suffix');
-  const title = i18n.t(`metadata.${key}.title`);
-  const description = i18n.t(`metadata.${key}.description`);
+  const suffix = i18n.t('suffix', { ns: 'metadata' });
+  const title = i18n.t(`${key}.title`, { ns: 'metadata' });
+  const description = i18n.t(`${key}.description`, { ns: 'metadata' });
   const fullTitle = `${title} - ${suffix}`;
 
   const tags: Array<Record<string, string>> = [
