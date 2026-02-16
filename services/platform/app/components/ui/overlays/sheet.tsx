@@ -3,7 +3,11 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
-import { type ReactNode } from 'react';
+import {
+  forwardRef,
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+} from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -41,10 +45,22 @@ interface SheetProps extends VariantProps<typeof sheetVariants> {
   hideClose?: boolean;
 }
 
-function SheetCloseButton() {
+const SheetCloseButton = forwardRef<
+  HTMLButtonElement,
+  ComponentPropsWithoutRef<'button'>
+>(({ className, ...props }, ref) => {
   const { t } = useT('common');
-  return <IconButton icon={X} aria-label={t('aria.close')} />;
-}
+  return (
+    <IconButton
+      ref={ref}
+      icon={X}
+      aria-label={t('aria.close')}
+      className={cn(className)}
+      {...props}
+    />
+  );
+});
+SheetCloseButton.displayName = 'SheetCloseButton';
 
 export function Sheet({
   open,

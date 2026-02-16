@@ -114,7 +114,8 @@ ENV TALE_VERSION=${VERSION} \
     DATA_ROOT_DIRECTORY=/app/data/.data_storage \
     SYSTEM_ROOT_DIRECTORY=/app/data/.cognee_system \
     # Disable telemetry to prevent SSL errors to external telemetry endpoint
-    TELEMETRY_DISABLED=true
+    TELEMETRY_DISABLED=true \
+    DO_NOT_TRACK=1
 
 # Expose port
 EXPOSE 8001

@@ -1180,7 +1180,7 @@ export function OneDriveImportDialog({
     const settingsFooter = (
       <HStack gap={4} className="w-full justify-stretch">
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={() => setStage('picker')}
           className="flex-1"
           disabled={isImporting}

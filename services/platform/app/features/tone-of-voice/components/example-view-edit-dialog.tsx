@@ -96,7 +96,7 @@ export function ViewEditExampleDialog({
       <HStack gap={3}>
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={handleClose}
           className="flex-1"
         >
@@ -110,7 +110,7 @@ export function ViewEditExampleDialog({
       <HStack gap={3}>
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={handleCancelEdit}
           className="flex-1"
         >

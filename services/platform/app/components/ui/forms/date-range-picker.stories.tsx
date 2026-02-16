@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import type { DateRange } from 'react-day-picker';
 
-import { fn } from '@storybook/test';
 import { useState } from 'react';
+import { fn } from 'storybook/test';
 
 import { DatePickerWithRange } from './date-range-picker';
 

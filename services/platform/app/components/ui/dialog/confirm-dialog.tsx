@@ -78,7 +78,7 @@ export function ConfirmDialog({
     <>
       <Button
         type="button"
-        variant="outline"
+        variant="secondary"
         onClick={(e) => {
           e.stopPropagation();
           handleClose();
@@ -89,7 +89,7 @@ export function ConfirmDialog({
       </Button>
       <Button
         type="button"
-        variant={variant === 'destructive' ? 'destructive' : 'default'}
+        variant={variant === 'destructive' ? 'destructive' : 'primary'}
         onClick={(e) => {
           e.stopPropagation();
           onConfirm();

@@ -111,7 +111,8 @@ export function Pagination({
   };
 
   // Calculate range
-  const startIdx = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const isEmpty = total === 0;
+  const startIdx = isEmpty ? 0 : (currentPage - 1) * pageSize + 1;
   const endIdx = Math.min(currentPage * pageSize, total);
   // Use provided totalPages or calculate from total and pageSize
   const totalPageCount = totalPages ?? Math.ceil(total / pageSize);
@@ -124,7 +125,12 @@ export function Pagination({
         variant="ghost"
         size="icon"
         onClick={() => handlePageChange('prev')}
-        disabled={currentPage === 1 || loadingStates.prev || loadingStates.next}
+        disabled={
+          isEmpty ||
+          currentPage === 1 ||
+          loadingStates.prev ||
+          loadingStates.next
+        }
         className="p-1.5"
       >
         {loadingStates.prev ? (
@@ -137,7 +143,9 @@ export function Pagination({
       <Select
         value={currentPage.toString()}
         onValueChange={handlePageSelect}
+        disabled={isEmpty}
         className="h-8 w-auto min-w-16"
+        placeholder="-"
         options={Array.from({ length: totalPageCount }, (_, i) => ({
           value: (i + 1).toString(),
           label: (i + 1).toString(),
@@ -148,7 +156,9 @@ export function Pagination({
         variant="ghost"
         size="icon"
         onClick={() => handlePageChange('next')}
-        disabled={isNextDisabled || loadingStates.prev || loadingStates.next}
+        disabled={
+          isEmpty || isNextDisabled || loadingStates.prev || loadingStates.next
+        }
         className="p-1.5"
       >
         {loadingStates.next ? (
@@ -159,7 +169,7 @@ export function Pagination({
       </Button>
 
       <span className="text-muted-foreground text-xs font-semibold whitespace-nowrap">
-        {`${startIdx}-${endIdx} of ${total}`}
+        {isEmpty ? 'No items' : `${startIdx}-${endIdx} of ${total}`}
       </span>
     </div>
   );

@@ -1188,7 +1188,7 @@ function AutomationStepsInner({
                 {/* Action Tools */}
                 <div className="flex items-center gap-2">
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="icon"
                     title={t('steps.toolbar.focus')}
                     onClick={() => {
@@ -1213,7 +1213,7 @@ function AutomationStepsInner({
 
                   <Button
                     size="icon"
-                    variant="outline"
+                    variant="secondary"
                     title={t('steps.toolbar.addStep')}
                     onClick={() => setIsCreateStepDialogOpen(true)}
                     disabled={isActive}
@@ -1222,7 +1222,7 @@ function AutomationStepsInner({
                   </Button>
 
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="icon"
                     title={t('steps.toolbar.testAutomation')}
                     onClick={handleOpenTestPanel}

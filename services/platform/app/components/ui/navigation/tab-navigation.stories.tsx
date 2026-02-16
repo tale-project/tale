@@ -74,20 +74,6 @@ export const Default: Story = {
   },
 };
 
-export const WithActiveTab: Story = {
-  args: {
-    items: defaultItems,
-    ariaLabel: 'Dashboard navigation',
-  },
-  parameters: {
-    docs: {
-      description: {
-        story: 'The indicator animates to the active tab.',
-      },
-    },
-  },
-};
-
 export const ExactMatch: Story = {
   args: {
     items: [
@@ -169,24 +155,29 @@ export const WithActions: Story = {
 };
 
 export const ManyTabs: Story = {
-  args: {
-    items: [
-      { label: 'Overview', href: '/dashboard/overview' },
-      { label: 'Analytics', href: '/dashboard/analytics' },
-      { label: 'Reports', href: '/dashboard/reports' },
-      { label: 'Users', href: '/dashboard/users' },
-      { label: 'Teams', href: '/dashboard/teams' },
-      { label: 'Billing', href: '/dashboard/billing' },
-      { label: 'Integrations', href: '/dashboard/integrations' },
-      { label: 'API Keys', href: '/dashboard/api-keys' },
-      { label: 'Settings', href: '/dashboard/settings' },
-    ],
-    ariaLabel: 'Navigation with many tabs',
-  },
+  render: () => (
+    <div className="w-[500px]">
+      <TabNavigation
+        items={[
+          { label: 'Overview', href: '/dashboard/overview' },
+          { label: 'Analytics', href: '/dashboard/analytics' },
+          { label: 'Reports', href: '/dashboard/reports' },
+          { label: 'Users', href: '/dashboard/users' },
+          { label: 'Teams', href: '/dashboard/teams' },
+          { label: 'Billing', href: '/dashboard/billing' },
+          { label: 'Integrations', href: '/dashboard/integrations' },
+          { label: 'API Keys', href: '/dashboard/api-keys' },
+          { label: 'Settings', href: '/dashboard/settings' },
+        ]}
+        ariaLabel="Navigation with many tabs"
+      />
+    </div>
+  ),
   parameters: {
     docs: {
       description: {
-        story: 'Horizontal scroll for many tabs.',
+        story:
+          'Many tabs in a narrow container scroll horizontally without wrapping.',
       },
     },
   },

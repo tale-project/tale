@@ -356,6 +356,16 @@ export function EmailPreview({ html, className, style }: EmailPreviewProps) {
               margin-bottom: 1rem;
               margin-top: 1rem;
             }
+
+            [data-preview-sandbox] blockquote {
+              margin: 0.5rem 0;
+              padding: 0.25rem 0.75rem;
+              border-left: 3px solid #d1d5db;
+            }
+
+            .dark [data-preview-sandbox] blockquote {
+              border-left-color: #4b5563;
+            }
           `,
         }}
       />

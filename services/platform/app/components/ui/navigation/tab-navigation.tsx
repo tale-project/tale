@@ -149,7 +149,7 @@ export function TabNavigation({
     <nav
       ref={navRef}
       className={cn(
-        'relative border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 shrink-0',
+        'scrollbar-hide relative border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 shrink-0 overflow-x-auto',
         standalone && 'bg-background z-10',
         className,
       )}

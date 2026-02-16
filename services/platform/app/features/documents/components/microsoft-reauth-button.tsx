@@ -44,7 +44,7 @@ export function MicrosoftReauthButton({
       onClick={handleReauth}
       disabled={isLoading}
       className={className}
-      variant={error ? 'destructive' : 'default'}
+      variant={error ? 'destructive' : 'primary'}
     >
       <RefreshCw className={`mr-2 size-4 ${isLoading ? 'animate-spin' : ''}`} />
       {isLoading ? t('microsoft.redirecting') : getButtonText()}

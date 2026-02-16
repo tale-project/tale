@@ -254,7 +254,7 @@ export function AutomationTester({
 
       <div className="border-border flex gap-2 border-t p-3">
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={handleDryRun}
           disabled={isExecuting || isDryRunning}
           className="flex-1"

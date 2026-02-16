@@ -1,7 +1,8 @@
 'use client';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Stack, HStack, Grid } from '@/app/components/ui/layout/layout';
+import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import { HStack, Grid } from '@/app/components/ui/layout/layout';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -37,87 +38,50 @@ export function ViewWebsiteDialog({
       title={t('viewDialog.title')}
       className="max-w-2xl"
     >
-      <Stack gap={4}>
+      <FieldGroup gap={4}>
         <Grid cols={2} gap={4}>
-          <div>
-            <Label>{t('viewDialog.domain')}</Label>
-            <Value>{website.domain}</Value>
-          </div>
+          <Field label={t('viewDialog.domain')}>{website.domain}</Field>
 
-          <div>
-            <Label>{t('viewDialog.status')}</Label>
-            <Value>
-              <HStack gap={2}>
-                <div
-                  className={`h-2 w-2 rounded-full ${
-                    website.status === 'active'
-                      ? 'bg-green-500'
-                      : website.status === 'error'
-                        ? 'bg-red-500'
-                        : 'bg-gray-500'
-                  }`}
-                />
-                {website.status || t('viewDialog.unknown')}
-              </HStack>
-            </Value>
-          </div>
+          <Field label={t('viewDialog.status')}>
+            <HStack gap={2}>
+              <div
+                className={`h-2 w-2 rounded-full ${
+                  website.status === 'active'
+                    ? 'bg-green-500'
+                    : website.status === 'error'
+                      ? 'bg-red-500'
+                      : 'bg-gray-500'
+                }`}
+              />
+              {website.status || t('viewDialog.unknown')}
+            </HStack>
+          </Field>
 
-          <div>
-            <Label>{t('viewDialog.scanInterval')}</Label>
-            <Value>
-              {SCAN_INTERVALS[website.scanInterval] || website.scanInterval}
-            </Value>
-          </div>
+          <Field label={t('viewDialog.scanInterval')}>
+            {SCAN_INTERVALS[website.scanInterval] || website.scanInterval}
+          </Field>
 
-          <div>
-            <Label>{t('viewDialog.lastScanned')}</Label>
-            <Value>
-              {website.lastScannedAt
-                ? formatDate(new Date(website.lastScannedAt), 'long')
-                : t('viewDialog.notScannedYet')}
-            </Value>
-          </div>
+          <Field label={t('viewDialog.lastScanned')}>
+            {website.lastScannedAt
+              ? formatDate(new Date(website.lastScannedAt), 'long')
+              : t('viewDialog.notScannedYet')}
+          </Field>
 
-          <div className="col-span-2">
-            <Label>{t('viewDialog.titleField')}</Label>
-            <Value>{website.title || '-'}</Value>
-          </div>
+          <Field label={t('viewDialog.titleField')} className="col-span-2">
+            {website.title || '-'}
+          </Field>
 
-          <div className="col-span-2">
-            <Label>{t('viewDialog.description')}</Label>
-            <Value className="whitespace-pre-wrap">
+          <Field label={t('viewDialog.description')} className="col-span-2">
+            <span className="whitespace-pre-wrap">
               {website.description || '-'}
-            </Value>
-          </div>
+            </span>
+          </Field>
 
-          <div>
-            <Label>{t('viewDialog.created')}</Label>
-            <Value>{formatDate(new Date(website._creationTime), 'long')}</Value>
-          </div>
+          <Field label={t('viewDialog.created')}>
+            {formatDate(new Date(website._creationTime), 'long')}
+          </Field>
         </Grid>
-      </Stack>
+      </FieldGroup>
     </ViewDialog>
-  );
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-muted-foreground mb-1 text-xs font-medium">
-      {children}
-    </div>
-  );
-}
-
-function Value({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`text-foreground text-sm ${className || ''}`}>
-      {children}
-    </div>
   );
 }

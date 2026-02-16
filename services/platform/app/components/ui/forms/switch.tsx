@@ -62,7 +62,7 @@ export const Switch = forwardRef<
     if (description) {
       return (
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             {label && (
               <Label
                 htmlFor={id}
@@ -82,7 +82,7 @@ export const Switch = forwardRef<
     }
 
     return (
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <Label htmlFor={id} required={required} className="cursor-pointer">
           {label}
         </Label>

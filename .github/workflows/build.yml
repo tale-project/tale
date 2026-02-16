@@ -22,6 +22,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
+env:
+  TURBO_API: 'http://127.0.0.1:9080'
+  TURBO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TURBO_TEAM: 'tale'
+
 jobs:
   changes:
     name: Detect changes
@@ -99,3 +104,23 @@ jobs:
 
       - name: Build summary
         run: echo "## ${{ matrix.service }} Docker image built successfully" >> $GITHUB_STEP_SUMMARY
+
+  storybook:
+    name: Storybook
+    needs: changes
+    if: contains(fromJson(needs.changes.outputs.services), 'platform')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Turbo
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Storybook
+        run: npx turbo run storybook:build

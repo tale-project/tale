@@ -116,7 +116,7 @@ function DocumentTeamTagsDialogContent({
         <>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={handleClose}
             disabled={isSubmitting}
           >

@@ -397,7 +397,7 @@ export function SSOConfigDialog({
   ) : (
     <>
       <Button
-        variant="outline"
+        variant="secondary"
         className="flex-1"
         onClick={() => onOpenChange?.(false)}
       >
@@ -474,7 +474,7 @@ export function SSOConfigDialog({
         <HStack gap={3} align="center">
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={handleTest}
             disabled={
               isTesting ||
@@ -625,7 +625,7 @@ export function SSOConfigDialog({
 
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={addMappingRule}
                 disabled={isSubmitting || isLoadingConfig}

@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
 import { Description } from '@/app/components/ui/forms/description';
+import { Field } from '@/app/components/ui/forms/field';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -178,7 +179,7 @@ export function CirculyIntegrationDialog({
     ) : (
       <>
         <Button
-          variant="outline"
+          variant="secondary"
           className="flex-1"
           onClick={() => onOpenChange?.(false)}
         >
@@ -211,14 +212,11 @@ export function CirculyIntegrationDialog({
             {t('integrations.circuly.connectedToCirculy')}
           </StatusIndicator>
 
-          <Stack gap={2}>
-            <span className="text-foreground/80 text-sm font-medium">
-              {t('integrations.circuly.connectedUsername')}
-            </span>
+          <Field label={t('integrations.circuly.connectedUsername')}>
             <div className="bg-muted rounded-md p-3 text-sm">
               {existingUsername || t('integrations.circuly.connected')}
             </div>
-          </Stack>
+          </Field>
 
           <Description>{t('integrations.circuly.syncingData')}</Description>
         </Stack>

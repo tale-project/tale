@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { fn } from '@storybook/test';
 import { Mail, Trash2, Check, ArrowRight, Plus } from 'lucide-react';
+import { fn } from 'storybook/test';
 
 import { Button, LinkButton } from './button';
 
@@ -20,7 +20,7 @@ A versatile button component with multiple variants and sizes.
 \`\`\`tsx
 import { Button } from '@/app/components/ui/primitives';
 
-<Button variant="default">Click me</Button>
+<Button variant="primary">Click me</Button>
 <Button variant="destructive" isLoading>Deleting...</Button>
 \`\`\`
 
@@ -37,19 +37,17 @@ import { Button } from '@/app/components/ui/primitives';
     variant: {
       control: 'select',
       options: [
-        'default',
+        'primary',
+        'secondary',
         'destructive',
         'success',
-        'outline',
-        'secondary',
         'ghost',
         'link',
-        'primary',
       ],
       description: 'Visual style variant',
       table: {
         type: { summary: 'string' },
-        defaultValue: { summary: 'default' },
+        defaultValue: { summary: 'primary' },
       },
     },
     size: {
@@ -85,10 +83,8 @@ export const Default: Story = {
 export const AllVariants: Story = {
   render: () => (
     <div className="flex flex-wrap gap-4">
-      <Button variant="default">Default</Button>
       <Button variant="primary">Primary</Button>
       <Button variant="secondary">Secondary</Button>
-      <Button variant="outline">Outline</Button>
       <Button variant="ghost">Ghost</Button>
       <Button variant="destructive">Destructive</Button>
       <Button variant="success">Success</Button>
