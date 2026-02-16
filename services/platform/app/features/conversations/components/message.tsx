@@ -224,7 +224,7 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
     const hasCidInHtml =
       !hasUnresolvedInline &&
       /src=["']cid:/i.test(message.content) &&
-      attachments.some((att) => !att.url);
+      attachments.some((att) => !att.url && !att.contentId);
     if (hasUnresolvedInline || hasCidInHtml) {
       inlineDownloadTriggered.current = true;
       onDownloadAttachments(message.id);
