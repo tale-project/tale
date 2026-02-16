@@ -47,7 +47,7 @@ function WithProviders({
   Story: Parameters<DecoratorFunction<ReactRenderer>>[0];
   context: Parameters<DecoratorFunction<ReactRenderer>>[1];
 }) {
-  const router = createStoryRouter();
+  const [router] = useState(createStoryRouter);
   const currentTheme = context.globals.theme === 'dark' ? 'dark' : 'light';
 
   const themeValue = useMemo(

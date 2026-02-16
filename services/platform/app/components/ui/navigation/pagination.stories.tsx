@@ -20,7 +20,8 @@ function PaginationWrapper({
   const search: Record<string, string | undefined> = useSearch({
     strict: false,
   });
-  const currentPage = search.page ? parseInt(search.page) : initialPage;
+  const parsed = search.page ? parseInt(search.page, 10) : NaN;
+  const currentPage = Number.isNaN(parsed) ? initialPage : parsed;
 
   return (
     <Pagination

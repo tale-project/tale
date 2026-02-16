@@ -121,9 +121,9 @@
   },
   "devDependencies": {
     "@storybook/addon-a11y": "10.2.5",
-    "@storybook/addon-docs": "^10.2.5",
+    "@storybook/addon-docs": "10.2.5",
     "@storybook/addon-themes": "10.2.5",
-    "@storybook/addon-vitest": "^10.2.5",
+    "@storybook/addon-vitest": "10.2.5",
     "@storybook/react": "10.2.5",
     "@storybook/react-vite": "10.2.5",
     "@tanstack/router-plugin": "^1.158.0",

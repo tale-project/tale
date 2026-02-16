@@ -19,6 +19,11 @@ interface ThemeContextValue {
   setTheme: (theme: Theme) => void;
 }
 
+/**
+ * Exported for Storybook decorators and test harnesses only.
+ * In application code, use {@link ThemeProvider} and {@link useTheme} instead
+ * to avoid bypassing DOM class-list and localStorage side effects.
+ */
 export const ThemeContext = createContext<ThemeContextValue | undefined>(
   undefined,
 );

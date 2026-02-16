@@ -124,7 +124,12 @@ export const RadioGroupItem = forwardRef<
   }
 
   return (
-    <label className="flex cursor-pointer items-center gap-2">
+    <label
+      className={cn(
+        'flex items-center gap-2',
+        props.disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+      )}
+    >
       {radio}
       <span className="text-xs leading-none font-normal md:text-sm">
         {label}
