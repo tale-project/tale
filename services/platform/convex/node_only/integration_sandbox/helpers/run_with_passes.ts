@@ -20,7 +20,7 @@ import { createHttpApi } from './create_http_api';
 import { executeFileOperation } from './execute_file_operation';
 import { executeHttpRequest } from './execute_http_request';
 
-const MAX_PASSES = 10;
+const MAX_PASSES = 50;
 
 export interface RunWithPassesParams {
   httpApiState: HttpApiState;

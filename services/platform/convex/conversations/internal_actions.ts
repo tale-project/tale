@@ -370,6 +370,31 @@ export const downloadAttachmentsAction = internalAction({
         return null;
       }
 
+      // Build an index-based contentId lookup from the connector's return data.
+      // fileReferences and result.data are produced in the same loop order by
+      // the connector, so we correlate by array index rather than filename
+      // (filenames can be duplicated, e.g. multiple "image.png").
+      const connectorData =
+        result.result &&
+        typeof result.result === 'object' &&
+        'data' in result.result &&
+        Array.isArray(result.result.data)
+          ? result.result.data
+          : [];
+
+      function getContentIdForRef(refIndex: number): string | undefined {
+        const item = connectorData[refIndex];
+        if (
+          typeof item === 'object' &&
+          item !== null &&
+          'contentId' in item &&
+          typeof item.contentId === 'string'
+        ) {
+          return item.contentId;
+        }
+        return undefined;
+      }
+
       const message = await ctx.runQuery(
         internal.conversations.internal_queries.getMessageById,
         { messageId: args.messageId, organizationId: args.organizationId },
@@ -385,21 +410,26 @@ export const downloadAttachmentsAction = internalAction({
         ? existingMeta.attachments
         : [];
 
-      const unmatchedRefs = [...fileRefs];
+      // Track which fileRefs have been consumed so duplicate filenames get
+      // matched to distinct refs in order.
+      const usedRefIndices = new Set<number>();
       const updatedAttachments = existingAttachments.map((att) => {
         if (typeof att !== 'object' || att === null) return att;
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic metadata
         const a = att as Record<string, unknown>;
-        const matchIdx = unmatchedRefs.findIndex(
-          (ref) => ref.fileName === String(a.filename),
+        const matchIdx = fileRefs.findIndex(
+          (ref, idx) =>
+            !usedRefIndices.has(idx) && ref.fileName === String(a.filename),
         );
         if (matchIdx !== -1) {
-          const matchingRef = unmatchedRefs[matchIdx];
-          unmatchedRefs.splice(matchIdx, 1);
+          const matchingRef = fileRefs[matchIdx];
+          usedRefIndices.add(matchIdx);
+          const contentId = getContentIdForRef(matchIdx);
           return {
             ...a,
             storageId: matchingRef.fileId,
             url: matchingRef.url,
+            ...(contentId && !a.contentId ? { contentId } : {}),
           };
         }
         return att;
