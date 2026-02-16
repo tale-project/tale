@@ -1,6 +1,6 @@
 'use client';
 
-import { Code2, Save, X } from 'lucide-react';
+import { Code2, Info, Save, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { z } from 'zod';
 
@@ -38,6 +38,8 @@ interface JsonInputProps {
   indentWidth?: number;
   schema?: z.ZodSchema;
   description?: React.ReactNode;
+  errorMessage?: string;
+  required?: boolean;
   className?: string;
   rows?: number;
   fontSize?: number;
@@ -52,6 +54,8 @@ export function JsonInput({
   label,
   schema,
   description,
+  errorMessage,
+  required,
   className,
   rows = 4,
   fontSize = 12,
@@ -60,6 +64,7 @@ export function JsonInput({
   const { t } = useT('common');
   const generatedId = useId();
   const resolvedId = id ?? generatedId;
+  const errorId = `${resolvedId}-error`;
   const descriptionId = `${resolvedId}-description`;
   const [isEditing, setIsEditing] = useState(false);
   const [textValue, setTextValue] = useState(value);
@@ -98,12 +103,14 @@ export function JsonInput({
           } catch (err) {
             if (err instanceof z.ZodError) {
               const zodError = err;
-              const errorMessage = zodError.issues
+              const validationError = zodError.issues
                 .map((e) => `${e.path.join('.')}: ${e.message}`)
                 .join(', ');
               setIsValid(false);
               setError(
-                t('validation.schemaValidationFailed', { error: errorMessage }),
+                t('validation.schemaValidationFailed', {
+                  error: validationError,
+                }),
               );
             } else {
               setIsValid(false);
@@ -246,10 +253,31 @@ export function JsonInput({
     }
   }, [value]);
 
+  const hasExternalError = !!errorMessage;
+  const hasAnyError = hasExternalError || (!isValid && !!error);
+  const displayError = errorMessage ?? (!isValid && error ? error : undefined);
+  const [showShake, setShowShake] = React.useState(false);
+  const describedBy =
+    [description && descriptionId, hasAnyError && errorId]
+      .filter(Boolean)
+      .join(' ') || undefined;
+
+  React.useEffect(() => {
+    if (hasAnyError) {
+      setShowShake(true);
+      const timer = setTimeout(() => setShowShake(false), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [hasAnyError, displayError]);
+
   return (
-    <div className={cn('space-y-2', className)}>
+    <div className={cn('flex flex-col gap-1.5', className)}>
       <div className="flex items-center justify-between">
-        {label && <Label htmlFor={id}>{label}</Label>}
+        {label && (
+          <Label htmlFor={resolvedId} required={required} error={hasAnyError}>
+            {label}
+          </Label>
+        )}
         {!disabled && (
           <div className="flex gap-1">
             {isEditing ? (
@@ -295,9 +323,12 @@ export function JsonInput({
       <div
         className={cn(
           'border rounded-md overflow-hidden bg-card',
-          !isValid && 'border-destructive',
+          hasAnyError && 'border-destructive',
+          showShake && 'animate-shake',
           disabled && 'opacity-50 cursor-not-allowed',
         )}
+        role="group"
+        aria-describedby={describedBy}
       >
         {isEditing ? (
           <Textarea
@@ -308,7 +339,7 @@ export function JsonInput({
             disabled={disabled}
             rows={rows}
             id={resolvedId}
-            aria-describedby={description ? descriptionId : undefined}
+            aria-describedby={describedBy}
             className={cn(
               'w-full resize-none border-0 bg-transparent p-3 text-xs focus:outline-none focus:ring-0 h-[12.5rem] overflow-y-auto',
               'font-mono leading-relaxed',
@@ -327,11 +358,7 @@ export function JsonInput({
             placeholder={JSON.stringify({ key: 'value' }, null, 2)}
           />
         ) : (
-          <div
-            className="p-3"
-            role="region"
-            aria-describedby={description ? descriptionId : undefined}
-          >
+          <div className="p-3" role="region" aria-describedby={describedBy}>
             <ReactJsonView
               name={false}
               quotesOnKeys
@@ -374,7 +401,17 @@ export function JsonInput({
         )}
       </div>
 
-      {!isValid && error && <p className="text-destructive text-xs">{error}</p>}
+      {displayError && (
+        <p
+          id={errorId}
+          role="alert"
+          aria-live="polite"
+          className="text-destructive flex items-center gap-1.5 text-sm"
+        >
+          <Info className="size-4 shrink-0" aria-hidden="true" />
+          {displayError}
+        </p>
+      )}
 
       {isEditing && (
         <div className="text-muted-foreground flex items-center justify-between text-xs">
