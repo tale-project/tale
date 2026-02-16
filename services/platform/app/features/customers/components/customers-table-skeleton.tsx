@@ -24,6 +24,7 @@ export function CustomersTableSkeleton({
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
+      showFilters
       actionMenu={<CustomersActionMenu organizationId={organizationId} />}
       infiniteScroll={infiniteScroll}
     />

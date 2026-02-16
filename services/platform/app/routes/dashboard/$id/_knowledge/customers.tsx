@@ -52,10 +52,10 @@ function CustomersPage() {
     return <CustomersEmptyState organizationId={organizationId} />;
   }
 
-  const hasServerFilters = !!(search.status || search.source || search.locale);
+  const hasActiveFilters = !!(search.status || search.source || search.locale);
 
   const isInitialLoading =
-    paginatedResult.status === 'LoadingFirstPage' && !hasServerFilters;
+    paginatedResult.status === 'LoadingFirstPage' && !paginatedResult.results;
 
   if (isInitialLoading) {
     return (
@@ -73,6 +73,7 @@ function CustomersPage() {
       status={search.status}
       source={search.source}
       locale={search.locale}
+      hasActiveFilters={hasActiveFilters}
     />
   );
 }
