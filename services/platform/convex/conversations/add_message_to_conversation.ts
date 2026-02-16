@@ -42,6 +42,7 @@ export async function addMessageToConversation(
       size: number;
       storageId?: string;
       url?: string;
+      contentId?: string;
     }>;
     externalMessageId?: string;
     metadata?: unknown;

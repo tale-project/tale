@@ -43,6 +43,7 @@ export const emailAttachmentMetaSchema = z.object({
   size: z.number(),
   storageId: z.string().optional(),
   url: z.string().optional(),
+  contentId: z.string().optional(),
 });
 type EmailAttachmentMeta = z.infer<typeof emailAttachmentMetaSchema>;
 
