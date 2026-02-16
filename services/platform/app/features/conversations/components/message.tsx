@@ -204,9 +204,12 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
     return map;
   }, [message.attachments]);
 
-  // Filter out inline attachments from the displayed attachment list
+  // Filter out resolved inline attachments from the displayed attachment list.
+  // Unresolved inline attachments (contentId but no url) remain visible as a
+  // fallback so users can still see and manually download them if auto-download fails.
   const displayAttachments = useMemo(
-    () => (message.attachments ?? []).filter((att) => !att.contentId),
+    () =>
+      (message.attachments ?? []).filter((att) => !(att.contentId && att.url)),
     [message.attachments],
   );
 
