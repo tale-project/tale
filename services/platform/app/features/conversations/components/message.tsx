@@ -194,10 +194,11 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
 
   // Build CID→URL map for inline images that have been downloaded
   const cidMap = useMemo(() => {
+    const normalizeCid = (cid: string) => cid.trim().replace(/^<|>$/g, '');
     const map: Record<string, string> = {};
     for (const att of message.attachments ?? []) {
       if (att.contentId && att.url) {
-        map[att.contentId] = att.url;
+        map[normalizeCid(att.contentId)] = att.url;
       }
     }
     return map;
