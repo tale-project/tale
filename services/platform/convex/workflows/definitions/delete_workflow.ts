@@ -1,14 +1,17 @@
 /**
  * Delete workflow
  *
- * Uses scheduled mutations to delete executions, audit logs, steps, and the
- * definition in batches across separate mutation contexts. Each phase runs
- * in its own batch loop to stay under Convex's 16MB byte-read limit.
+ * Immediately deletes all wfDefinition records so they vanish from queries,
+ * then schedules batched cleanup of related data (executions, audit logs,
+ * step definitions) across separate mutation contexts to stay under Convex's
+ * 16MB byte-read limit.
  *
- * Flow per definition:
- * 1. Cancel & delete executions (batch size: 10, cancel is expensive)
- * 2. Delete step audit logs (batch size: 500, delete-only)
- * 3. Delete step definitions + workflow definition (inline)
+ * Flow:
+ * 1. Delete all wfDefinition records synchronously (small set)
+ * 2. Schedule async cleanup per definition:
+ *    a. Cancel & delete executions (batch size: 10, cancel is expensive)
+ *    b. Delete step audit logs (batch size: 500, delete-only)
+ *    c. Delete step definitions (inline)
  *
  * Cleanup of component workflows is scheduled asynchronously to avoid
  * hitting read/operation limits.
@@ -54,7 +57,12 @@ export async function deleteWorkflow(
     versionIds.push(wfDefinitionId);
   }
 
-  // Schedule the first batch of execution deletions
+  // Delete all wfDefinition records immediately so they vanish from queries
+  for (const id of versionIds) {
+    await ctx.db.delete(id);
+  }
+
+  // Schedule async cleanup of related data (executions, audit logs, steps)
   await ctx.scheduler.runAfter(
     0,
     internal.wf_definitions.internal_mutations.batchDeleteWorkflowExecutions,
@@ -149,7 +157,7 @@ export async function deleteAuditLogsBatch(
   return { hasMore: false };
 }
 
-export async function deleteStepsAndDefinition(
+export async function deleteSteps(
   ctx: MutationCtx,
   wfDefinitionId: Id<'wfDefinitions'>,
 ): Promise<void> {
@@ -160,6 +168,4 @@ export async function deleteStepsAndDefinition(
     )) {
     await ctx.db.delete(step._id);
   }
-
-  await ctx.db.delete(wfDefinitionId);
 }
