@@ -126,12 +126,12 @@ describe('deleteChatThread', () => {
     });
   });
 
-  it('should not schedule cleanup when thread is not found', async () => {
+  it('should skip archiving and cleanup when thread is not found', async () => {
     const { ctx } = createMockCtx();
 
     await deleteChatThread(ctx, 'missing_thread');
 
-    expect(ctx.runMutation).toHaveBeenCalled();
+    expect(ctx.runMutation).not.toHaveBeenCalled();
     expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
   });
 });

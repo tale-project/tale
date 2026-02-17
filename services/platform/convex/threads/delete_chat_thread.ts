@@ -11,12 +11,16 @@ export async function deleteChatThread(
     threadId,
   });
 
+  if (!thread) {
+    return;
+  }
+
   await ctx.runMutation(components.agent.threads.updateThread, {
     threadId,
     patch: { status: 'archived' },
   });
 
-  const subThreadIds = parseSubThreadIds(thread?.summary);
+  const subThreadIds = parseSubThreadIds(thread.summary);
   if (subThreadIds.length > 0) {
     await ctx.scheduler.runAfter(
       0,
