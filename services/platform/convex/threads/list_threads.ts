@@ -79,7 +79,7 @@ export async function listThreads(
   }
 
   return {
-    page: threads,
+    page: threads.slice(0, limit),
     isDone,
     continueCursor: cursor ?? '',
   };
