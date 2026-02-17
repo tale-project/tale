@@ -302,12 +302,25 @@ export async function generateAgentResponse(
           integrationsInfo: hookData?.integrationsInfo,
         });
 
-        const retryAgent = createAgent({ ...agentOptions, tools: undefined });
+        // Find the original user message so we can link the retry response
+        // to it without creating a duplicate user message in the thread
+        const recentMessages = await listMessages(ctx, components.agent, {
+          threadId,
+          paginationOpts: { cursor: null, numItems: 10 },
+          excludeToolMessages: true,
+        });
+        const originalUserMessage = recentMessages.page.find(
+          (m: MessageDoc) => m.message?.role === 'user',
+        );
+
+        const retryAgent = createAgent({ ...agentOptions, withTools: false });
 
         const retrySystemPrompt = instructions
           ? `${instructions}\n\n${retryContext.threadContext}`
           : retryContext.threadContext;
 
+        // Save messages normally so the UI can display the retry response.
+        // Pass promptMessageId to avoid creating a duplicate user message.
         const retryResult = await retryAgent.generateText(
           contextWithOrg,
           { threadId, userId },
@@ -316,6 +329,9 @@ export async function generateAgentResponse(
             prompt: promptMessage
               ? `Based on the tool results, complete this task: ${promptMessage}`
               : 'Based on the conversation and tool results above, provide a summary response.',
+            ...(originalUserMessage
+              ? { promptMessageId: originalUserMessage._id }
+              : {}),
           },
           {
             contextOptions: {
@@ -323,7 +339,6 @@ export async function generateAgentResponse(
               excludeToolMessages: false,
               searchOtherThreads: false,
             },
-            storageOptions: { saveMessages: 'none' },
           },
         );
 
@@ -414,7 +429,7 @@ export async function generateAgentResponse(
         });
 
         // Create agent without tools for the retry
-        const retryAgent = createAgent({ ...agentOptions, tools: undefined });
+        const retryAgent = createAgent({ ...agentOptions, withTools: false });
 
         const retrySystemPrompt = instructions
           ? `${instructions}\n\n${retryContext.threadContext}`
@@ -474,7 +489,7 @@ export async function generateAgentResponse(
           messageCount: retryContext.stats.messageCount,
         });
 
-        const retryAgent = createAgent({ ...agentOptions, tools: undefined });
+        const retryAgent = createAgent({ ...agentOptions, withTools: false });
 
         const emptyRetrySystemPrompt = instructions
           ? `${instructions}\n\n${retryContext.threadContext}`

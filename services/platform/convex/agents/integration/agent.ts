@@ -114,8 +114,12 @@ CRITICAL RULES:
 **STYLE**
 Be concise. Format data clearly. Never expose credentials.`;
 
-export function createIntegrationAgent(options?: { maxSteps?: number }) {
+export function createIntegrationAgent(options?: {
+  maxSteps?: number;
+  withTools?: boolean;
+}) {
   const maxSteps = options?.maxSteps ?? 20;
+  const withTools = options?.withTools ?? true;
 
   const convexToolNames: ToolName[] = [
     'integration',
@@ -132,7 +136,7 @@ export function createIntegrationAgent(options?: { maxSteps?: number }) {
   const agentConfig = createAgentConfig({
     name: 'integration-assistant',
     instructions: INTEGRATION_AGENT_INSTRUCTIONS,
-    convexToolNames,
+    ...(withTools ? { convexToolNames } : {}),
     maxSteps,
   });
 
