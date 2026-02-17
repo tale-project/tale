@@ -36,8 +36,8 @@ cat > ~/.config/opencode/opencode.json << EOF
         "apiKey": "{env:OPENAI_API_KEY}"
       },
       "models": {
-        "${OPENAI_MODEL}": {
-          "name": "${OPENAI_MODEL}",
+        "${OPENAI_CODING_MODEL}": {
+          "name": "${OPENAI_CODING_MODEL}",
           "limit": {
             "context": 200000,
             "output": 65536
@@ -68,7 +68,7 @@ EOF
 
 echo "OpenCode configured with:"
 echo "  - Provider: custom (${OPENAI_BASE_URL})"
-echo "  - Model: ${OPENAI_MODEL}"
+echo "  - Model: ${OPENAI_CODING_MODEL}"
 echo "  - MCP: Playwright + Vision"
 echo "  - Vision model: ${VISION_MODEL}"
 
