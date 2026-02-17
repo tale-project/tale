@@ -1,7 +1,6 @@
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import { VitePWA } from 'vite-plugin-pwa';
 import tsConfigPaths from 'vite-tsconfig-paths';
 
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
@@ -114,19 +113,5 @@ export default defineConfig({
     stubSSRImports(),
     tsConfigPaths(),
     viteReact(),
-    VitePWA({
-      strategies: 'injectManifest',
-      srcDir: 'public',
-      filename: 'sw.js',
-      registerType: 'prompt',
-      injectRegister: false,
-      manifest: false,
-      injectManifest: {
-        injectionPoint: undefined,
-      },
-      devOptions: {
-        enabled: false,
-      },
-    }),
   ],
 });

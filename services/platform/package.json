@@ -80,7 +80,6 @@
     "dagre": "0.8.5",
     "date-fns": "4.1.0",
     "dayjs": "1.11.19",
-    "dexie": "^4.2.1",
     "dompurify": "3.3.1",
     "express": "^5.0.0",
     "framer-motion": "12.34.0",
@@ -150,14 +149,8 @@
     "postcss-load-config": "6.0.1",
     "storybook": "10.2.5",
     "tree-kill": "1.2.2",
-    "vite-plugin-pwa": "^1.2.0",
     "vite-tsconfig-paths": "6.1.1",
-    "vitest-axe": "1.0.0-pre.5",
-    "workbox-cacheable-response": "^7.4.0",
-    "workbox-expiration": "^7.4.0",
-    "workbox-precaching": "^7.4.0",
-    "workbox-routing": "^7.4.0",
-    "workbox-strategies": "^7.4.0"
+    "vitest-axe": "1.0.0-pre.5"
   },
   "optionalDependencies": {
     "@parcel/watcher-linux-arm64-glibc": "^2.5.4",
