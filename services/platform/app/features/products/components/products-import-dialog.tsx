@@ -183,16 +183,23 @@ export function ProductsImportDialog({
           .filter((error): error is string => error !== null);
 
         if (successCount > 0) {
-          toast({
-            title: t('import.success'),
-            description: t('import.successDescription', {
-              count: successCount,
-              failed: failedCount,
-            }),
-          });
-
           if (importErrors.length > 0) {
-            console.warn('Import errors:', importErrors);
+            toast({
+              title: t('import.success'),
+              description: t('import.successDescription', {
+                count: successCount,
+                failed: failedCount,
+              }),
+              variant: 'destructive',
+            });
+          } else {
+            toast({
+              title: t('import.success'),
+              description: t('import.successDescription', {
+                count: successCount,
+                failed: failedCount,
+              }),
+            });
           }
 
           onSuccess?.();
