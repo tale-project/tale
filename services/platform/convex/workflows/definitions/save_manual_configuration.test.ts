@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MutationCtx } from '../../_generated/server';
+import type { StepConfig } from '../../workflow_engine/types/nodes';
 
 import {
   saveManualConfiguration,
@@ -45,7 +46,7 @@ const baseArgs: SaveManualConfigurationArgs = {
       name: 'First Step',
       stepType: 'trigger',
       order: 0,
-      config: {} as never,
+      config: {} satisfies StepConfig,
       nextSteps: { default: 'step-2' },
     },
     {
@@ -53,7 +54,7 @@ const baseArgs: SaveManualConfigurationArgs = {
       name: 'Second Step',
       stepType: 'action',
       order: 1,
-      config: {} as never,
+      config: {} satisfies StepConfig,
       nextSteps: {},
     },
   ],
