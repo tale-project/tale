@@ -57,7 +57,10 @@ export async function deleteWorkflow(
     versionIds.push(wfDefinitionId);
   }
 
-  // Delete all wfDefinition records immediately so they vanish from queries
+  // Delete all wfDefinition records immediately so they vanish from queries.
+  // Safe before execution cleanup: in-flight executions store stepsConfig and
+  // workflowConfig in the wfExecution record at start time and never re-query
+  // wfDefinitions during step execution (see loadAndValidateExecution).
   for (const id of versionIds) {
     await ctx.db.delete(id);
   }
