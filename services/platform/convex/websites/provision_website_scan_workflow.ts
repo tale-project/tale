@@ -114,6 +114,18 @@ export async function provisionWebsiteScanWorkflow(
     },
   );
 
+  // Register the schedule so the cron scanner picks up this workflow
+  await ctx.runMutation(
+    internal.workflows.triggers.internal_mutations.provisionSchedule,
+    {
+      organizationId: args.organizationId,
+      workflowRootId: saved.workflowId,
+      cronExpression: schedule,
+      timezone,
+      createdBy: 'system',
+    },
+  );
+
   const current = await ctx.runQuery(
     internal.websites.internal_queries.getWebsite,
     {

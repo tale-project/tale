@@ -1,7 +1,7 @@
 'use client';
 
 import { decode } from 'he';
-import { ClipboardList, Loader2, Mail, Sparkles } from 'lucide-react';
+import { ClipboardList, Inbox, Loader2, Mail, Sparkles } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import striptags from 'striptags';
 
@@ -367,6 +367,15 @@ export function ConversationsList({
 
   if (conversations === undefined) {
     return <ConversationsListSkeleton />;
+  }
+
+  if (conversations.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-16">
+        <Inbox className="text-muted-foreground mb-3 size-8" />
+        <p className="text-muted-foreground text-sm">{t('list.empty')}</p>
+      </div>
+    );
   }
 
   return (
