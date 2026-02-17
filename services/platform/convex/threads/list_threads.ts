@@ -71,11 +71,11 @@ export async function listThreads(
       });
     }
 
+    cursor = result.continueCursor;
     if (result.isDone) {
       isDone = true;
       break;
     }
-    cursor = result.continueCursor;
   }
 
   return {
