@@ -1,10 +1,13 @@
 """Browser automation service using OpenCode CLI with Playwright MCP."""
 
 import asyncio
+import contextlib
 import json
 import os
 import re
+import signal
 import time
+from dataclasses import dataclass, field
 from typing import Any
 
 from loguru import logger
@@ -13,6 +16,9 @@ from app.config import settings
 from app.services.workspace_manager import get_workspace_manager
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"\'`\]\)}\|]+', re.IGNORECASE)
+
+GRACEFUL_SHUTDOWN_SECONDS = 10
+HARD_KILL_SECONDS = 5
 
 
 def _extract_urls_from_value(value: Any) -> list[str]:
@@ -77,9 +83,106 @@ SYSTEM_PROMPT = """You are an autonomous browser automation agent with access to
    Format as markdown: [title](URL).
    Generic category links are not acceptable - each recommendation needs its own direct link.
 
-9. **Complete Before Responding**: Finish ALL research and browsing before providing your final response.
-   Do not respond with partial results or "I will search for..." -
-   only respond after you have the complete answer."""
+9. **Time Management**: You have a LIMITED time budget. Work efficiently:
+   - Prioritize the most important information first.
+   - Do NOT spend excessive time on a single source — if a page is slow or unhelpful, move on.
+   - For complex tasks, focus on gathering the key findings rather than exhaustive coverage.
+   - If a task has multiple parts, address the most critical parts first.
+   - Provide the best answer you can with the information you have gathered."""
+
+
+@dataclass
+class _OutputAccumulator:
+    """Progressively accumulates parsed JSONL output from OpenCode."""
+
+    text_parts: list[str] = field(default_factory=list)
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_reasoning_tokens: int = 0
+    total_cache_read_tokens: int = 0
+    total_cost: float = 0.0
+    seen_urls: dict[str, None] = field(default_factory=dict)
+    event_types_seen: set[str] = field(default_factory=set)
+
+    def process_line(self, line: str) -> None:
+        """Parse and accumulate a single JSONL line."""
+        line = line.strip()
+        if not line:
+            return
+
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            logger.debug(f"Failed to parse JSON line: {line[:100]}...")
+            return
+
+        event_type = event.get("type")
+        self.event_types_seen.add(event_type)
+
+        if event_type == "text":
+            part = event.get("part", {})
+            text = part.get("text", "")
+            if text:
+                self.text_parts.append(text)
+
+        elif event_type == "step_finish":
+            part = event.get("part", {})
+            self.total_cost += part.get("cost", 0)
+            tokens = part.get("tokens", {})
+            self.total_input_tokens += tokens.get("input", 0)
+            self.total_output_tokens += tokens.get("output", 0)
+            self.total_reasoning_tokens += tokens.get("reasoning", 0)
+            cache = tokens.get("cache", {})
+            self.total_cache_read_tokens += cache.get("read", 0)
+
+        elif event_type in ("tool_result", "tool-output-available"):
+            for url in _extract_urls_from_value(event):
+                if url not in self.seen_urls:
+                    self.seen_urls[url] = None
+
+        urls_in_event = _extract_urls_from_value(event)
+        if urls_in_event:
+            logger.debug(f"[sources-debug] Event '{event_type}' contains URLs: {urls_in_event[:3]}")
+
+    def to_response(self, duration: float, *, timed_out: bool) -> dict[str, Any]:
+        """Build the final response dict from accumulated data."""
+        logger.info(f"[sources-debug] Event types seen: {sorted(self.event_types_seen)}")
+        logger.info(f"[sources-debug] URLs extracted from tool events: {len(self.seen_urls)}")
+
+        response_text = "".join(self.text_parts)
+
+        if timed_out and not response_text:
+            response_text = (
+                "The task could not be completed within the time limit. "
+                "No results were gathered. Please try a simpler or more specific request."
+            )
+        elif timed_out and response_text:
+            response_text += (
+                "\n\n---\n*Note: This response may be incomplete as the task "
+                "reached its time limit.*"
+            )
+
+        result: dict[str, Any] = {
+            "success": not timed_out or bool(self.text_parts),
+            "partial": timed_out and bool(self.text_parts),
+            "response": response_text,
+            "duration_seconds": round(duration, 2),
+            "sources": list(self.seen_urls.keys()),
+        }
+
+        total_out = self.total_output_tokens + self.total_reasoning_tokens
+        if self.total_input_tokens > 0 or total_out > 0:
+            result["token_usage"] = {
+                "input_tokens": self.total_input_tokens,
+                "output_tokens": total_out,
+                "total_tokens": self.total_input_tokens + total_out,
+                "cache_read_tokens": self.total_cache_read_tokens,
+            }
+
+        if self.total_cost > 0:
+            result["cost_usd"] = round(self.total_cost, 6)
+
+        return result
 
 
 class BrowserService:
@@ -130,12 +233,18 @@ class BrowserService:
         self._initialized = False
         logger.info("Browser service cleaned up")
 
-    async def chat(self, message: str) -> dict[str, Any]:
+    async def chat(
+        self,
+        message: str,
+        timeout_seconds: int | None = None,
+    ) -> dict[str, Any]:
         """
         Send a message to OpenCode with Playwright MCP.
 
         Args:
             message: The user's message/task
+            timeout_seconds: Client-requested timeout (seconds). Falls back to
+                             settings.request_timeout_seconds if not provided.
 
         Returns:
             Dict with success status, response, cost, and turns
@@ -144,12 +253,18 @@ class BrowserService:
             await self.initialize()
 
         workspace_dir = await self._workspace_manager.create_workspace()
-        logger.info(f"Running OpenCode with workspace={os.path.basename(workspace_dir)}, message: {message[:100]}...")
+        logger.info(
+            f"Running OpenCode with workspace={os.path.basename(workspace_dir)}, "
+            f"timeout={timeout_seconds or settings.request_timeout_seconds}s, "
+            f"message: {message[:100]}..."
+        )
 
         start_time = time.perf_counter()
 
         try:
-            return await self._execute_opencode(message, workspace_dir, start_time)
+            return await self._execute_opencode(
+                message, workspace_dir, start_time, timeout_seconds
+            )
         finally:
             await self._workspace_manager.release_workspace(workspace_dir)
 
@@ -158,8 +273,14 @@ class BrowserService:
         message: str,
         workspace_dir: str,
         start_time: float,
+        timeout_seconds: int | None = None,
     ) -> dict[str, Any]:
-        """Execute OpenCode in the given workspace directory."""
+        """
+        Execute OpenCode with streaming output parsing and graceful timeout.
+
+        Reads stdout line-by-line so partial results are preserved on timeout.
+        On timeout: SIGTERM → wait → SIGKILL → return accumulated results.
+        """
         full_prompt = f"{SYSTEM_PROMPT}\n\n---\n\nUser request: {message}"
 
         cmd = [
@@ -171,6 +292,13 @@ class BrowserService:
             "json",
             full_prompt,
         ]
+
+        effective_timeout = min(
+            timeout_seconds or settings.request_timeout_seconds,
+            settings.request_timeout_seconds,
+        )
+
+        accumulator = _OutputAccumulator()
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -184,138 +312,70 @@ class BrowserService:
                 },
             )
 
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(),
-                timeout=settings.request_timeout_seconds,
-            )
+            stderr_parts: list[bytes] = []
 
-            duration = time.perf_counter() - start_time
+            async def _drain_stderr() -> None:
+                assert proc.stderr is not None
+                async for line in proc.stderr:
+                    stderr_parts.append(line)
 
-            stdout_text = stdout.decode()
-            stderr_text = stderr.decode()
+            stderr_task = asyncio.create_task(_drain_stderr())
 
+            timed_out = False
+            try:
+                assert proc.stdout is not None
+                async with asyncio.timeout(effective_timeout):
+                    async for raw_line in proc.stdout:
+                        accumulator.process_line(raw_line.decode())
+            except TimeoutError:
+                timed_out = True
+                logger.warning(
+                    f"Timeout ({effective_timeout}s) reached in workspace "
+                    f"{os.path.basename(workspace_dir)}, terminating OpenCode "
+                    f"(accumulated {len(accumulator.text_parts)} text parts)"
+                )
+                await self._terminate_process(proc)
+
+            stderr_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await stderr_task
+
+            stderr_text = b"".join(stderr_parts).decode()
             if stderr_text:
                 logger.debug(f"OpenCode stderr: {stderr_text[:500]}...")
 
-            result = self._parse_json_output(stdout_text)
-
-            return {
-                "success": proc.returncode == 0,
-                "response": result.get("response", stdout_text.strip()),
-                "duration_seconds": round(duration, 2),
-                "token_usage": result.get("token_usage"),
-                "cost_usd": result.get("cost_usd"),
-                "sources": result.get("sources", []),
-            }
-
-        except TimeoutError:
             duration = time.perf_counter() - start_time
-            logger.error(f"OpenCode execution timed out in workspace {os.path.basename(workspace_dir)}")
-            return {
-                "success": False,
-                "response": "Task timed out",
-                "duration_seconds": round(duration, 2),
-            }
+            return accumulator.to_response(duration, timed_out=timed_out)
+
         except Exception as e:
             duration = time.perf_counter() - start_time
-            logger.error(f"OpenCode execution failed in workspace {os.path.basename(workspace_dir)}: {e}")
+            logger.error(
+                f"OpenCode execution failed in workspace "
+                f"{os.path.basename(workspace_dir)}: {e}"
+            )
             return {
                 "success": False,
+                "partial": False,
                 "response": str(e),
                 "duration_seconds": round(duration, 2),
             }
 
-    def _parse_json_output(self, stdout_text: str) -> dict[str, Any]:
-        """
-        Parse JSON output from OpenCode CLI.
-
-        OpenCode outputs JSONL (one JSON object per line) with event types:
-        - step_start: Agent step started
-        - text: Text output from the model
-        - tool_call/tool_result: Tool invocations
-        - step_finish: Step completed with token usage and cost
-
-        Returns dict with response, token_usage, cost_usd, and sources.
-        """
-        result: dict[str, Any] = {
-            "response": "",
-            "token_usage": None,
-            "cost_usd": None,
-            "sources": [],
-        }
-
-        if not stdout_text:
-            return result
-
-        text_parts: list[str] = []
-        total_input_tokens = 0
-        total_output_tokens = 0
-        total_reasoning_tokens = 0
-        total_cache_read_tokens = 0
-        total_cost = 0.0
-        seen_urls: dict[str, None] = {}
-        event_types_seen: set[str] = set()
-
-        for line in stdout_text.strip().split("\n"):
-            if not line.strip():
-                continue
-
+    @staticmethod
+    async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
+        """Gracefully terminate a subprocess: SIGTERM → wait → SIGKILL."""
+        try:
+            proc.send_signal(signal.SIGTERM)
+            await asyncio.wait_for(proc.wait(), timeout=GRACEFUL_SHUTDOWN_SECONDS)
+            logger.debug("OpenCode exited after SIGTERM")
+        except TimeoutError:
+            logger.warning("OpenCode did not exit after SIGTERM, sending SIGKILL")
+            proc.kill()
             try:
-                event = json.loads(line)
-                event_type = event.get("type")
-                event_types_seen.add(event_type)
-
-                if event_type == "text":
-                    part = event.get("part", {})
-                    text = part.get("text", "")
-                    if text:
-                        text_parts.append(text)
-
-                elif event_type == "step_finish":
-                    part = event.get("part", {})
-                    cost = part.get("cost", 0)
-                    tokens = part.get("tokens", {})
-
-                    total_cost += cost
-                    total_input_tokens += tokens.get("input", 0)
-                    total_output_tokens += tokens.get("output", 0)
-                    total_reasoning_tokens += tokens.get("reasoning", 0)
-
-                    cache = tokens.get("cache", {})
-                    total_cache_read_tokens += cache.get("read", 0)
-
-                elif event_type in ("tool_result", "tool-output-available"):
-                    urls = _extract_urls_from_value(event)
-                    for url in urls:
-                        if url not in seen_urls:
-                            seen_urls[url] = None
-
-                urls_in_event = _extract_urls_from_value(event)
-                if urls_in_event:
-                    logger.debug(f"[sources-debug] Event '{event_type}' contains URLs: {urls_in_event[:3]}")
-
-            except json.JSONDecodeError:
-                logger.debug(f"Failed to parse JSON line: {line[:100]}...")
-                continue
-
-        logger.info(f"[sources-debug] Event types seen: {sorted(event_types_seen)}")
-        logger.info(f"[sources-debug] URLs extracted from tool events: {len(seen_urls)}")
-
-        result["response"] = "".join(text_parts)
-        result["sources"] = list(seen_urls.keys())
-
-        if total_input_tokens > 0 or total_output_tokens > 0:
-            result["token_usage"] = {
-                "input_tokens": total_input_tokens,
-                "output_tokens": total_output_tokens + total_reasoning_tokens,
-                "total_tokens": total_input_tokens + total_output_tokens + total_reasoning_tokens,
-                "cache_read_tokens": total_cache_read_tokens,
-            }
-
-        if total_cost > 0:
-            result["cost_usd"] = round(total_cost, 6)
-
-        return result
+                await asyncio.wait_for(proc.wait(), timeout=HARD_KILL_SECONDS)
+            except TimeoutError:
+                logger.error("OpenCode process did not exit after SIGKILL")
+        except ProcessLookupError:
+            pass
 
 
 _browser_service: BrowserService | None = None

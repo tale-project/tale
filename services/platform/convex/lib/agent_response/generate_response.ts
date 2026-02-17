@@ -279,6 +279,67 @@ export async function generateAgentResponse(
         finishReason: streamFinishReason,
         response: streamResponse,
       };
+
+      // If the LLM called tools but didn't generate a substantive follow-up response,
+      // retry without tools. This handles cases where the LLM outputs preamble text
+      // (e.g., "Let me check...") before tool calls but stops without summarizing results.
+      if (needsToolResultRetry(result.text, result.steps)) {
+        debugLog(
+          'Stream: empty text with tool results, retrying without tools',
+          {
+            stepsCount: result.steps?.length ?? 0,
+            finishReason: result.finishReason,
+          },
+        );
+
+        const retryContext = await buildStructuredContext({
+          ctx,
+          threadId,
+          additionalContext,
+          parentThreadId,
+          maxMessages: agentConfig.recentMessages,
+          ragContext: hookData?.ragContext,
+          integrationsInfo: hookData?.integrationsInfo,
+        });
+
+        const retryAgent = createAgent({ ...agentOptions, tools: undefined });
+
+        const retrySystemPrompt = instructions
+          ? `${instructions}\n\n${retryContext.threadContext}`
+          : retryContext.threadContext;
+
+        const retryResult = await retryAgent.generateText(
+          contextWithOrg,
+          { threadId, userId },
+          {
+            system: retrySystemPrompt,
+            prompt: promptMessage
+              ? `Based on the tool results, complete this task: ${promptMessage}`
+              : 'Based on the conversation and tool results above, provide a summary response.',
+          },
+          {
+            contextOptions: {
+              recentMessages: 0,
+              excludeToolMessages: false,
+              searchOtherThreads: false,
+            },
+            storageOptions: { saveMessages: 'none' },
+          },
+        );
+
+        result = {
+          text: retryResult.text,
+          steps: [...(result.steps || []), ...retryResult.steps],
+          usage: mergeUsage(result.usage, retryResult.usage),
+          finishReason: retryResult.finishReason,
+          response: result.response,
+        };
+
+        debugLog('Stream retry completed', {
+          textLength: result.text?.length ?? 0,
+          finishReason: result.finishReason,
+        });
+      }
     } else {
       // Non-streaming mode (sub-agents)
       // Extend context with all fields from contextWithOrg for consistency
@@ -327,12 +388,12 @@ export async function generateAgentResponse(
         response: generateResult.response,
       };
 
-      // If text is empty but we have tool results, retry without tools
-      // This handles cases where the LLM stopped after tool calls without generating text
-      // (e.g., DeepSeek returning finishReason: "stop" with tool calls)
-      if (!result.text?.trim() && result.steps && result.steps.length > 0) {
+      // If the LLM called tools but didn't generate a substantive follow-up response,
+      // retry without tools. Handles both completely empty text (e.g., DeepSeek with
+      // finishReason: "stop") and preamble-only text before tool calls.
+      if (needsToolResultRetry(result.text, result.steps)) {
         debugLog('Empty text with tool results, retrying without tools', {
-          stepsCount: result.steps.length,
+          stepsCount: result.steps?.length ?? 0,
           finishReason: result.finishReason,
         });
 
@@ -449,6 +510,20 @@ export async function generateAgentResponse(
           finishReason: result.finishReason,
         });
       }
+    }
+
+    // Fallback: if text is still missing after all retries, provide a minimal response
+    // so the user always sees something rather than an empty message
+    if (needsToolResultRetry(result.text, result.steps)) {
+      const toolNames = extractToolNamesFromSteps(result.steps ?? []);
+      debugLog('All retries exhausted, using fallback message', {
+        toolNames,
+        finishReason: result.finishReason,
+      });
+      result.text =
+        toolNames.length > 0
+          ? `I attempted to process your request using ${toolNames.join(', ')}, but was unable to generate a complete response. Please try again.`
+          : 'I was unable to generate a response. Please try again.';
     }
 
     const durationMs = Date.now() - startTime;
@@ -581,14 +656,16 @@ export async function generateAgentResponse(
     }
 
     // Complete stream if streamId provided
-    if (streamId && responseResult.text) {
-      await ctx.runMutation(
-        internal.streaming.internal_mutations.appendToStream,
-        {
-          streamId,
-          text: responseResult.text,
-        },
-      );
+    if (streamId) {
+      if (responseResult.text) {
+        await ctx.runMutation(
+          internal.streaming.internal_mutations.appendToStream,
+          {
+            streamId,
+            text: responseResult.text,
+          },
+        );
+      }
       await ctx.runMutation(
         internal.streaming.internal_mutations.completeStream,
         { streamId },
@@ -772,6 +849,56 @@ function mergeUsage(
     cachedInputTokens:
       (usage1.cachedInputTokens ?? 0) + (usage2.cachedInputTokens ?? 0),
   };
+}
+
+/**
+ * Determine if a retry is needed because tools were called but no
+ * substantive follow-up text was generated.
+ *
+ * Catches two scenarios:
+ * 1. Text is completely empty (LLM stopped right after tool calls)
+ * 2. Text exists but is only a preamble before tool calls (e.g., "Let me check...")
+ *    with no actual response incorporating the tool results
+ */
+function needsToolResultRetry(
+  text: string | undefined,
+  steps: unknown[] | undefined,
+): boolean {
+  if (!steps || steps.length === 0) return false;
+
+  // Completely empty text always needs retry if there were steps
+  if (!text?.trim()) return true;
+
+  type StepLike = { toolCalls?: Array<{ toolName: string }>; text?: string };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data from AI SDK
+  const typedSteps = steps as StepLike[];
+  const hasToolSteps = typedSteps.some((s) => (s.toolCalls?.length ?? 0) > 0);
+  if (!hasToolSteps) return false;
+
+  const lastStep = typedSteps[typedSteps.length - 1];
+  const lastStepHasToolCalls = (lastStep?.toolCalls?.length ?? 0) > 0;
+  const lastStepText = lastStep?.text?.trim() ?? '';
+
+  // Retry if:
+  // - The last step itself has tool calls (response ended mid-tool-execution,
+  //   LLM output like "Let me check..." is just preamble before tool calls)
+  // - The last step (follow-up after tool results) has no text
+  return lastStepHasToolCalls || !lastStepText;
+}
+
+/**
+ * Extract unique tool names from AI SDK steps for fallback messages.
+ */
+function extractToolNamesFromSteps(steps: unknown[]): string[] {
+  type StepWithToolCalls = { toolCalls?: Array<{ toolName: string }> };
+  const names = new Set<string>();
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data from AI SDK
+  for (const step of steps as StepWithToolCalls[]) {
+    for (const tc of step.toolCalls ?? []) {
+      names.add(tc.toolName);
+    }
+  }
+  return [...names];
 }
 
 function capitalize(str: string): string {
