@@ -40,7 +40,8 @@ function ConversationsStatusPage() {
 
   const mappedStatus = conversationStatusMap[status] ?? 'open';
 
-  const { hasConversations } = useHasConversations(organizationId);
+  const { hasConversations, isLoading: isLoadingHasConversations } =
+    useHasConversations(organizationId);
 
   const paginatedResult = useListConversationsPaginated({
     organizationId,
@@ -57,6 +58,7 @@ function ConversationsStatusPage() {
       search={search && search.length > 0 ? search : undefined}
       paginatedResult={paginatedResult}
       hasConversations={hasConversations}
+      isLoadingHasConversations={isLoadingHasConversations}
     />
   );
 }
