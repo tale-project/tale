@@ -224,6 +224,7 @@ export function ChatHistorySidebar({
                   ) : (
                     <>
                       <button
+                        type="button"
                         onClick={() => {
                           if (clickTimeoutRef.current) {
                             clearTimeout(clickTimeoutRef.current);
@@ -257,6 +258,7 @@ export function ChatHistorySidebar({
             })}
             {canLoadMore && (
               <button
+                type="button"
                 onClick={loadMore}
                 disabled={isLoadingMore}
                 className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-sm transition-colors disabled:opacity-50"
