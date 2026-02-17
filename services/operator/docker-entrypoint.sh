@@ -14,6 +14,12 @@ fi
 # OpenCode directly supports OpenAI-compatible APIs without needing a proxy
 echo "Configuring OpenCode..."
 
+# Validate required environment variables
+if [ -z "${OPENAI_CODING_MODEL}" ]; then
+    echo "Error: OPENAI_CODING_MODEL environment variable is required but not set" >&2
+    exit 1
+fi
+
 # Set up Vision model config (falls back to main model config if not set)
 VISION_BASE_URL="${OPENAI_VISION_BASE_URL:-${OPENAI_BASE_URL}}"
 VISION_API_KEY="${OPENAI_VISION_API_KEY:-${OPENAI_API_KEY}}"
