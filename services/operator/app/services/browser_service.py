@@ -166,7 +166,7 @@ class BrowserService:
             "opencode",
             "run",
             "--model",
-            f"custom/{settings.openai_model}",
+            f"custom/{settings.openai_coding_model}",
             "--format",
             "json",
             full_prompt,
