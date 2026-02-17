@@ -55,7 +55,7 @@ export function useMessageProcessing(
     // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
-    { initialNumItems: 100, stream: true },
+    { initialNumItems: 30, stream: true },
   ) as unknown as {
     results: UIMessage[] | undefined;
     loadMore: (numItems: number) => void;

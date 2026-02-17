@@ -43,7 +43,7 @@ function ProductsPage() {
     organizationId,
     status: search.status,
     category: search.category,
-    initialNumItems: 20,
+    initialNumItems: 10,
   });
 
   if (count === 0) {

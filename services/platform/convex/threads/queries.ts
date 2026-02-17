@@ -1,30 +1,28 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
 import { listThreads as listThreadsHelper } from './list_threads';
-import { threadStatusValidator } from './validators';
 
 export const listThreads = query({
-  args: {},
-  returns: v.array(
-    v.object({
-      _id: v.string(),
-      _creationTime: v.number(),
-      title: v.optional(v.string()),
-      status: threadStatusValidator,
-      userId: v.optional(v.string()),
-    }),
-  ),
-  handler: async (ctx) => {
+  args: {
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      return [];
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: '',
+      };
     }
 
     return await listThreadsHelper(ctx, {
       userId: authUser.userId,
+      paginationOpts: args.paginationOpts,
     });
   },
 });

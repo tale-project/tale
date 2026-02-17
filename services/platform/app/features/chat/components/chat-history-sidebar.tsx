@@ -57,7 +57,12 @@ export function ChatHistorySidebar({
   const isMounted = useIsMounted();
   const { toast } = useToast();
 
-  const { threads: threadsData } = useThreads();
+  const {
+    threads: threadsData,
+    canLoadMore,
+    isLoadingMore,
+    loadMore,
+  } = useThreads();
 
   const { mutateAsync: updateThread } = useUpdateThread();
 
@@ -182,71 +187,88 @@ export function ChatHistorySidebar({
             {t('history.empty')}
           </div>
         ) : (
-          chats.map((chat) => {
-            const isEditing = editingChatId === chat._id;
+          <>
+            {chats.map((chat) => {
+              const isEditing = editingChatId === chat._id;
 
-            return (
-              <div
-                key={chat._id}
-                className={cn(
-                  'group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
-                  !isEditing &&
-                    'cursor-pointer hover:bg-accent hover:text-accent-foreground',
-                  currentThreadId === chat._id &&
+              return (
+                <div
+                  key={chat._id}
+                  className={cn(
+                    'group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
                     !isEditing &&
-                    'bg-accent text-accent-foreground',
-                )}
-              >
-                {isEditing ? (
-                  <input
-                    ref={inputRef}
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        void handleSaveRename(chat._id);
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        handleCancelRename();
-                      }
-                    }}
-                    onBlur={() => handleInputBlur(chat._id)}
-                    aria-label={t('history.renameChat')}
-                    className="ring-primary focus-visible:ring-primary min-h-[20px] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
-                  />
-                ) : (
-                  <>
-                    <button
-                      onClick={() => {
-                        if (clickTimeoutRef.current) {
-                          clearTimeout(clickTimeoutRef.current);
-                          clickTimeoutRef.current = null;
-                          handleStartRename(chat._id, chat.title);
-                        } else {
-                          clickTimeoutRef.current = setTimeout(() => {
-                            clickTimeoutRef.current = null;
-                            handleChatClick(chat._id);
-                          }, 250);
+                      'cursor-pointer hover:bg-accent hover:text-accent-foreground',
+                    currentThreadId === chat._id &&
+                      !isEditing &&
+                      'bg-accent text-accent-foreground',
+                  )}
+                >
+                  {isEditing ? (
+                    <input
+                      ref={inputRef}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void handleSaveRename(chat._id);
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          handleCancelRename();
                         }
                       }}
-                      className="min-h-[20px] flex-1 truncate text-left text-sm leading-snug"
-                    >
-                      {chat.title}
-                    </button>
-                    <div className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-                      <ChatActions
-                        chat={{ id: chat._id, title: chat.title }}
-                        currentChatId={currentThreadId}
-                        organizationId={organizationId}
-                        onRename={() => handleStartRename(chat._id, chat.title)}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })
+                      onBlur={() => handleInputBlur(chat._id)}
+                      aria-label={t('history.renameChat')}
+                      className="ring-primary focus-visible:ring-primary min-h-[20px] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
+                    />
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (clickTimeoutRef.current) {
+                            clearTimeout(clickTimeoutRef.current);
+                            clickTimeoutRef.current = null;
+                            handleStartRename(chat._id, chat.title);
+                          } else {
+                            clickTimeoutRef.current = setTimeout(() => {
+                              clickTimeoutRef.current = null;
+                              handleChatClick(chat._id);
+                            }, 250);
+                          }
+                        }}
+                        className="min-h-[20px] flex-1 truncate text-left text-sm leading-snug"
+                      >
+                        {chat.title}
+                      </button>
+                      <div className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                        <ChatActions
+                          chat={{ id: chat._id, title: chat.title }}
+                          currentChatId={currentThreadId}
+                          organizationId={organizationId}
+                          onRename={() =>
+                            handleStartRename(chat._id, chat.title)
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            {canLoadMore && (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={isLoadingMore}
+                className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-sm transition-colors disabled:opacity-50"
+              >
+                {isLoadingMore
+                  ? t('history.loadingMore')
+                  : t('history.loadMore')}
+              </button>
+            )}
+          </>
         )}
       </Stack>
     </Stack>
