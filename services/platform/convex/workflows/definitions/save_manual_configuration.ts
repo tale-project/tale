@@ -9,6 +9,7 @@ import type { WorkflowConfig } from './types';
 
 export interface SaveManualConfigurationArgs {
   organizationId: string;
+  createdBy: string;
   workflowConfig: {
     name: string;
     description?: string;
@@ -47,7 +48,7 @@ export async function saveManualConfiguration(
     config: args.workflowConfig.config ?? {},
     metadata: {
       createdAt: Date.now(),
-      createdBy: 'user', // TODO: get from auth context
+      createdBy: args.createdBy,
     },
   });
 

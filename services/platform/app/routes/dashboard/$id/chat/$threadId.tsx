@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense } from 'react';
 
+import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
 
@@ -64,8 +65,10 @@ function ChatThreadPage() {
   const { id: organizationId, threadId } = Route.useParams();
 
   return (
-    <Suspense fallback={<ChatSkeleton />}>
-      <ChatInterface organizationId={organizationId} threadId={threadId} />
-    </Suspense>
+    <LayoutErrorBoundary organizationId={organizationId}>
+      <Suspense fallback={<ChatSkeleton />}>
+        <ChatInterface organizationId={organizationId} threadId={threadId} />
+      </Suspense>
+    </LayoutErrorBoundary>
   );
 }

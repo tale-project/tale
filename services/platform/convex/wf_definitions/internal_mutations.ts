@@ -7,7 +7,7 @@ import { createWorkflowWithSteps as createWorkflowWithStepsHelper } from '../wor
 import {
   cancelAndDeleteExecutionsBatch,
   deleteAuditLogsBatch,
-  deleteStepsAndDefinition,
+  deleteSteps,
 } from '../workflows/definitions/delete_workflow';
 import { publishDraft as publishDraftHandler } from '../workflows/definitions/publish_draft';
 import { saveWorkflowWithSteps as saveWorkflowWithStepsHelper } from '../workflows/definitions/save_workflow_with_steps';
@@ -161,7 +161,7 @@ export const batchDeleteWorkflowAuditLogs = internalMutation({
         },
       );
     } else {
-      await deleteStepsAndDefinition(ctx, currentDefinitionId);
+      await deleteSteps(ctx, currentDefinitionId);
 
       if (currentIndex + 1 < wfDefinitionIds.length) {
         await ctx.scheduler.runAfter(

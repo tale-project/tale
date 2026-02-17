@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 type FormData = {
@@ -67,8 +68,15 @@ export function AutomationRenameDialog({
       return;
     }
 
-    await onRename(trimmedName);
-    onOpenChange(false);
+    try {
+      await onRename(trimmedName);
+      onOpenChange(false);
+    } catch {
+      toast({
+        title: tCommon('errors.somethingWentWrong'),
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
