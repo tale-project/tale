@@ -41,7 +41,7 @@ function WebsitesPage() {
   const paginatedResult = useListWebsitesPaginated({
     organizationId,
     status: search.status,
-    initialNumItems: 20,
+    initialNumItems: 10,
   });
 
   const hasServerFilters = !!search.status;
