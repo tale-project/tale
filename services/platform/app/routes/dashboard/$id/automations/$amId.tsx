@@ -34,6 +34,7 @@ import {
 import { useAutomationVersionNavigation } from '@/app/features/automations/hooks/use-automation-version-navigation';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
@@ -180,12 +181,20 @@ function AutomationDetailLayout() {
       return;
     }
     const values = getValues();
-    await updateWorkflow({
-      wfDefinitionId: automationId,
-      updates: { name: values.name },
-      updatedBy: user.userId,
-    });
-    setEditMode(false);
+    try {
+      await updateWorkflow({
+        wfDefinitionId: automationId,
+        updates: { name: values.name },
+        updatedBy: user.userId,
+      });
+      setEditMode(false);
+    } catch {
+      toast({
+        title: tCommon('errors.somethingWentWrong'),
+        variant: 'destructive',
+      });
+      setEditMode(false);
+    }
   };
 
   const validStatuses = ['draft', 'active', 'inactive', 'archived'] as const;

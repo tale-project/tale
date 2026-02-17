@@ -225,9 +225,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
 
   return {
     baseURL: siteUrl,
-    // TEMPORARY: Allow requests from any host on port 3000
-    // TODO: Replace with proper origin validation in production
-    trustedOrigins: ['http://*', 'https://*'],
+    trustedOrigins: [new URL(siteUrl).origin],
     database: authComponent.adapter(ctx),
     // Configure simple, non-verified email/password to get started
     emailAndPassword: {
