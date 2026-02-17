@@ -193,7 +193,6 @@ function AutomationDetailLayout() {
         title: tCommon('errors.somethingWentWrong'),
         variant: 'destructive',
       });
-      setEditMode(false);
     }
   };
 
