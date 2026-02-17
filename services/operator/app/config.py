@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # LLM configuration (from OPENAI_* env vars - used by OpenCode)
     openai_base_url: str = ""
     openai_api_key: str = ""
-    openai_model: str = "gpt-4o"
+    openai_coding_model: str = ""
     openai_vision_model: str = ""
 
     model_config = SettingsConfigDict(
@@ -70,6 +70,13 @@ class Settings(BaseSettings):
             raise ValueError("OPENAI_API_KEY is required but not set")
         return v
 
+    @field_validator("openai_coding_model")
+    @classmethod
+    def validate_coding_model(cls, v: str) -> str:
+        if not v:
+            raise ValueError("OPENAI_CODING_MODEL is required but not set")
+        return v
+
     @property
     def llm_base_url(self) -> str:
         return self.openai_base_url
@@ -80,7 +87,7 @@ class Settings(BaseSettings):
 
     @property
     def llm_model(self) -> str:
-        return self.openai_model
+        return self.openai_coding_model
 
     @property
     def llm_vision_model(self) -> str | None:
