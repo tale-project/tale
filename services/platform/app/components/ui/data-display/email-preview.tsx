@@ -333,7 +333,6 @@ export function EmailPreview({
               background-color: white;
               color: black;
               padding: 1rem;
-              border-radius: 0.375rem;
               overflow-x: auto;
               max-width: 100%;
             }
@@ -404,7 +403,7 @@ export function EmailPreview({
         <>
           <button
             onClick={() => setShowQuoted(!showQuoted)}
-            className="text-muted-foreground hover:text-foreground mt-2 flex items-center gap-1 text-xs transition-colors"
+            className="text-muted-foreground flex items-center gap-1 rounded-md px-4 py-2 text-xs transition-colors"
             type="button"
           >
             <span>{showQuoted ? '▼' : '▶'}</span>

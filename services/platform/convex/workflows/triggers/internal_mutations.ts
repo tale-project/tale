@@ -65,6 +65,28 @@ export const createTriggerLog = internalMutation({
   },
 });
 
+export const provisionSchedule = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowRootId: v.id('wfDefinitions'),
+    cronExpression: v.string(),
+    timezone: v.string(),
+    createdBy: v.string(),
+  },
+  returns: v.id('wfSchedules'),
+  handler: async (ctx, args): Promise<Id<'wfSchedules'>> => {
+    return await ctx.db.insert('wfSchedules', {
+      organizationId: args.organizationId,
+      workflowRootId: args.workflowRootId,
+      cronExpression: args.cronExpression,
+      timezone: args.timezone,
+      isActive: true,
+      createdAt: Date.now(),
+      createdBy: args.createdBy,
+    });
+  },
+});
+
 export const processEvent = internalMutation({
   args: {
     organizationId: v.string(),

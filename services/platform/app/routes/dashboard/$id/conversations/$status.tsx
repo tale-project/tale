@@ -4,7 +4,10 @@ import { z } from 'zod';
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { ConversationsClient } from '@/app/features/conversations/components/conversations-client';
-import { useListConversationsPaginated } from '@/app/features/conversations/hooks/queries';
+import {
+  useHasConversations,
+  useListConversationsPaginated,
+} from '@/app/features/conversations/hooks/queries';
 
 const VALID_STATUSES = ['open', 'closed', 'archived', 'spam'] as const;
 type ConversationStatus = Doc<'conversations'>['status'];
@@ -37,6 +40,8 @@ function ConversationsStatusPage() {
 
   const mappedStatus = conversationStatusMap[status] ?? 'open';
 
+  const { hasConversations } = useHasConversations(organizationId);
+
   const paginatedResult = useListConversationsPaginated({
     organizationId,
     status: mappedStatus,
@@ -51,6 +56,7 @@ function ConversationsStatusPage() {
       organizationId={organizationId}
       search={search && search.length > 0 ? search : undefined}
       paginatedResult={paginatedResult}
+      hasConversations={hasConversations}
     />
   );
 }
