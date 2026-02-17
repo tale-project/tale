@@ -60,9 +60,9 @@ RUN npm install -g @playwright/mcp opencode-ai@latest
 RUN groupadd -r pwuser \
     && useradd -r -g pwuser -G audio,video -m pwuser
 
-# Install Playwright Chromium browser for MCP Server as root first
-# Using Chromium instead of Chrome for cross-platform compatibility (amd64 + arm64)
-RUN npx playwright install chromium \
+# Install Playwright Chromium browser using the playwright CLI bundled with @playwright/mcp
+# to ensure the installed browser version matches what @playwright/mcp expects at runtime
+RUN "$(npm root -g)/@playwright/mcp/node_modules/.bin/playwright" install chromium \
     && mkdir -p /home/pwuser/.cache \
     && cp -r /root/.cache/ms-playwright /home/pwuser/.cache/ \
     && chown -R pwuser:pwuser /home/pwuser/.cache

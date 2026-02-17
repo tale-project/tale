@@ -55,7 +55,7 @@ cat > ~/.config/opencode/opencode.json << EOF
   "mcp": {
     "playwright": {
       "type": "local",
-      "command": ["npx", "@playwright/mcp@latest", "--headless"],
+      "command": ["npx", "@playwright/mcp", "--headless"],
       "enabled": true
     },
     "vision": {
