@@ -29,6 +29,8 @@ interface ConversationsClientProps {
   organizationId: string;
   search?: string;
   paginatedResult: UsePaginatedQueryResult<ConversationItem>;
+  hasConversations: boolean;
+  isLoadingHasConversations: boolean;
 }
 
 export function ConversationsClient({
@@ -36,6 +38,8 @@ export function ConversationsClient({
   organizationId,
   search: initialSearch,
   paginatedResult,
+  hasConversations,
+  isLoadingHasConversations,
 }: ConversationsClientProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
@@ -96,7 +100,7 @@ export function ConversationsClient({
     return <ConversationsClientSkeleton />;
   }
 
-  if (filteredConversations.length === 0 && !searchQuery && !initialSearch) {
+  if (!isLoadingHasConversations && !hasConversations) {
     return <ActivateConversationsEmptyState organizationId={organizationId} />;
   }
 

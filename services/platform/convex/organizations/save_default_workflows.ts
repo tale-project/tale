@@ -116,6 +116,24 @@ export async function saveDefaultWorkflows(
     ),
   );
 
+  // Register schedules so the cron scanner picks up these workflows
+  await Promise.all(
+    DEFAULT_WORKFLOWS.map(({ schedule, timezone }, i) => {
+      const workflowId = workflowIds[i];
+      if (!workflowId) return Promise.resolve();
+      return ctx.runMutation(
+        internal.workflows.triggers.internal_mutations.provisionSchedule,
+        {
+          organizationId: args.organizationId,
+          workflowRootId: workflowId,
+          cronExpression: schedule,
+          timezone,
+          createdBy: 'system',
+        },
+      );
+    }),
+  );
+
   for (let i = 0; i < payloads.length; i++) {
     debugLog(
       `Organization Setup Saved workflow: ${payloads[i].workflowConfig.name} (${workflowIds[i]})`,

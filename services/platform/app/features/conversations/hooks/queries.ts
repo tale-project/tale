@@ -40,6 +40,18 @@ export function useListConversationsPaginated(
   );
 }
 
+export function useHasConversations(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.conversations.queries.hasConversations,
+    { organizationId },
+  );
+
+  return {
+    hasConversations: data ?? false,
+    isLoading,
+  };
+}
+
 export function useConversationWithMessages(conversationId: string | null) {
   return useConvexQuery(
     api.conversations.queries.getConversationWithMessages,

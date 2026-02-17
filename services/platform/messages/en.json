@@ -1912,6 +1912,9 @@
         "highPriority": "High priority"
       }
     },
+    "list": {
+      "empty": "No conversations in this tab"
+    },
     "activate": {
       "title": "Activate conversations",
       "description": "Connect your email to get started with conversations",

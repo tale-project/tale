@@ -49,6 +49,21 @@ export const listConversations = queryWithRLS({
   },
 });
 
+export const hasConversations = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const first = await ctx.db
+      .query('conversations')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    return first !== null;
+  },
+});
+
 export const getConversationWithMessages = queryWithRLS({
   args: {
     conversationId: v.id('conversations'),
