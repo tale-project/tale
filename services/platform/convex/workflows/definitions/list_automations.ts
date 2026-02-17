@@ -78,6 +78,7 @@ export async function listAutomations(
       status,
       version: activeVersion?.version ?? item.version,
       versionNumber: activeVersion?.versionNumber ?? item.versionNumber,
+      activeVersionId: activeVersion?._id ?? null,
     };
   });
 }
