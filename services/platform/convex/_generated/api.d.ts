@@ -518,6 +518,7 @@ import type * as streaming_internal_mutations from "../streaming/internal_mutati
 import type * as streaming_validators from "../streaming/validators.js";
 import type * as team_members_mutations from "../team_members/mutations.js";
 import type * as team_members_queries from "../team_members/queries.js";
+import type * as threads_cleanup_orphaned_sub_threads from "../threads/cleanup_orphaned_sub_threads.js";
 import type * as threads_create_chat_thread from "../threads/create_chat_thread.js";
 import type * as threads_delete_chat_thread from "../threads/delete_chat_thread.js";
 import type * as threads_get_latest_thread_with_message_count from "../threads/get_latest_thread_with_message_count.js";
@@ -1384,6 +1385,7 @@ declare const fullApi: ApiFromModules<{
   "streaming/validators": typeof streaming_validators;
   "team_members/mutations": typeof team_members_mutations;
   "team_members/queries": typeof team_members_queries;
+  "threads/cleanup_orphaned_sub_threads": typeof threads_cleanup_orphaned_sub_threads;
   "threads/create_chat_thread": typeof threads_create_chat_thread;
   "threads/delete_chat_thread": typeof threads_delete_chat_thread;
   "threads/get_latest_thread_with_message_count": typeof threads_get_latest_thread_with_message_count;
