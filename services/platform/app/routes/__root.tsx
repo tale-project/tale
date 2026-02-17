@@ -8,8 +8,6 @@ import {
 
 import type { RouterContext } from '@/app/router';
 
-import { OfflineProvider } from '@/app/components/offline-provider';
-import { ServiceWorkerManager } from '@/app/components/service-worker-manager';
 import { ThemeColorMeta } from '@/app/components/theme/theme-color-meta';
 import { ThemeProvider } from '@/app/components/theme/theme-provider';
 import { Toaster } from '@/app/components/ui/feedback/toaster';
@@ -39,11 +37,8 @@ function RootComponent() {
           <ThemeProvider defaultTheme="system">
             <ThemeColorMeta />
             <QueryClientProvider client={queryClient}>
-              <OfflineProvider>
-                <Outlet />
-              </OfflineProvider>
+              <Outlet />
             </QueryClientProvider>
-            <ServiceWorkerManager />
             <Toaster />
           </ThemeProvider>
         </I18nProvider>
