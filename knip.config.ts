@@ -9,7 +9,6 @@ export default {
         'app/hooks/**/*.{ts,tsx}',
         'app/features/**/*.{ts,tsx}',
         'app/components/**/*.{ts,tsx}',
-        'lib/offline/index.ts',
         'lib/utils/client-utils.ts',
         'convex/http.ts',
         'convex/auth.ts',
@@ -35,7 +34,7 @@ export default {
         '*.gen.ts',
         '*.gen.tsx',
       ],
-      ignoreDependencies: ['workbox-*', 'convex-test', 'yaml'],
+      ignoreDependencies: ['convex-test', 'yaml'],
     },
     'tools/cli': {
       project: ['**/*.ts'],
