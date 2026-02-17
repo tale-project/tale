@@ -1,3 +1,5 @@
+import type { PaginationOptions } from 'convex/server';
+
 import type { QueryCtx } from '../_generated/server';
 import type { Thread, ListThreadsArgs } from './types';
 
@@ -19,19 +21,31 @@ function isGeneralThread(summary?: string): boolean {
   }
 }
 
+interface ListThreadsPaginatedResult {
+  page: Thread[];
+  isDone: boolean;
+  continueCursor: string;
+}
+
+const MAX_AGENT_PAGES = 5;
+
 export async function listThreads(
   ctx: QueryCtx,
-  args: Pick<ListThreadsArgs, 'userId'>,
-): Promise<Thread[]> {
+  args: Pick<ListThreadsArgs, 'userId'> & {
+    paginationOpts: PaginationOptions;
+  },
+): Promise<ListThreadsPaginatedResult> {
   const threads: Thread[] = [];
-  let cursor: string | null = null;
+  let cursor = args.paginationOpts.cursor;
+  const limit = args.paginationOpts.numItems;
+  let isDone = false;
 
-  // Paginate through all pages to collect every general thread.
-  // Sub-threads consume pagination slots but are filtered out, so a
-  // single page of 100 can miss general threads for active users.
-  for (;;) {
+  // Fetch agent pages until we have enough matching general threads.
+  // Non-general/inactive threads are filtered out, so we may need
+  // multiple agent pages to fill a single frontend page.
+  for (let i = 0; i < MAX_AGENT_PAGES && threads.length < limit; i++) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex pagination cursor type
-    const paginationOpts = { cursor, numItems: 100 } as {
+    const paginationOpts = { cursor, numItems: Math.max(limit, 50) } as {
       cursor: string | null;
       numItems: number;
     };
@@ -57,9 +71,16 @@ export async function listThreads(
       });
     }
 
-    if (result.isDone) break;
+    if (result.isDone) {
+      isDone = true;
+      break;
+    }
     cursor = result.continueCursor;
   }
 
-  return threads;
+  return {
+    page: threads,
+    isDone,
+    continueCursor: cursor ?? '',
+  };
 }

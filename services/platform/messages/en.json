@@ -2153,6 +2153,8 @@
       "empty": "No chats yet",
       "untitled": "Untitled chat",
       "renameChat": "Rename chat",
+      "loadMore": "Load more",
+      "loadingMore": "Loading...",
       "toast": {
         "titleEmpty": "Chat title cannot be empty",
         "renameFailed": "Failed to rename chat"

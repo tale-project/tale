@@ -45,7 +45,7 @@ function CustomersPage() {
     status: search.status,
     source: search.source,
     locale: search.locale,
-    initialNumItems: 20,
+    initialNumItems: 10,
   });
 
   if (count === 0) {

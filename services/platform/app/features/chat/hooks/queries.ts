@@ -7,24 +7,40 @@ import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useApprovals } from '@/app/features/approvals/hooks/queries';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/lib/utils/type-guards';
 
-export type Thread = ConvexItemOf<typeof api.threads.queries.listThreads>;
+export interface Thread {
+  _id: string;
+  _creationTime: number;
+  title?: string;
+  status: 'active' | 'archived';
+  userId?: string;
+}
+
+const THREADS_PAGE_SIZE = 20;
 
 export function useThreads() {
-  const { data, isLoading } = useConvexQuery(api.threads.queries.listThreads);
+  const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
+    api.threads.queries.listThreads,
+    {},
+    { initialNumItems: THREADS_PAGE_SIZE },
+  );
 
   const threads = useMemo(
-    () => data?.slice().sort((a, b) => b._creationTime - a._creationTime),
-    [data],
+    () => results?.slice().sort((a, b) => b._creationTime - a._creationTime),
+    [results],
   );
 
   return {
     threads,
     isLoading,
+    canLoadMore: status === 'CanLoadMore',
+    isLoadingMore: status === 'LoadingMore',
+    loadMore: () => loadMore(THREADS_PAGE_SIZE),
   };
 }
 
@@ -68,7 +84,7 @@ export function useThreadMessages(threadId: string | null) {
     // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
-    { initialNumItems: 100, stream: true },
+    { initialNumItems: 30, stream: true },
   ) as unknown as { results: UIMessage[] | undefined };
 
   return results;
