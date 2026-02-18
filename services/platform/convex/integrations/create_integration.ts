@@ -16,11 +16,6 @@ import { api, internal } from '../_generated/api';
 import { Id } from '../_generated/dataModel';
 import { createDebugLog } from '../lib/debug_log';
 import { encryptCredentials } from './encrypt_credentials';
-import {
-  hasMessageListOperation,
-  hasThreadOperation,
-  inferChannel,
-} from './provision_conversation_sync_workflow';
 import { runHealthCheck } from './run_health_check';
 import {
   AuthMethod,
@@ -171,36 +166,6 @@ export async function createIntegration(
       `Failed to create audit log for integration ${integrationId}:`,
       error,
     );
-  }
-
-  // Auto-provision conversation sync workflow for integrations with message operations.
-  // Capability is inferred from connector operations — if it has list_messages, it can sync.
-  const operations = args.connector?.operations;
-  if (operations && hasMessageListOperation(operations)) {
-    try {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.integrations.internal_actions.provisionConversationSync,
-        {
-          organizationId: args.organizationId,
-          integrationId,
-          integrationName: args.name,
-          integrationTitle: args.title,
-          channel: inferChannel(args.name),
-          hasGetThread: hasThreadOperation(operations),
-          syncFrequency: args.capabilities?.syncFrequency ?? '5m',
-        },
-      );
-
-      debugLog(
-        `Scheduled conversation sync workflow provisioning for ${args.name}`,
-      );
-    } catch (error) {
-      debugLog(
-        `Failed to schedule conversation sync workflow for ${args.name}:`,
-        error,
-      );
-    }
   }
 
   return integrationId;
