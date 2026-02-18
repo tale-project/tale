@@ -4,8 +4,8 @@ import { useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { toId } from '@/lib/utils/type-guards';
 
 import { useDeleteCustomAgent } from '../hooks/mutations';
 

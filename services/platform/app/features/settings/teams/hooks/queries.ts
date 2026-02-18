@@ -6,6 +6,12 @@ import { api } from '@/convex/_generated/api';
 
 export type Team = ConvexItemOf<typeof api.members.queries.getMyTeams>;
 
+export function useApproxTeamCount(organizationId: string) {
+  return useConvexQuery(api.members.queries.approxCountMyTeams, {
+    organizationId,
+  });
+}
+
 export function useTeams() {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
@@ -14,7 +20,7 @@ export function useTeams() {
   );
 
   return {
-    teams: data ?? null,
+    teams: data ?? undefined,
     isLoading,
   };
 }

@@ -9,7 +9,7 @@ import type {
   BetterAuthSession,
 } from '../../members/types';
 
-import { getString } from '../../../lib/utils/type-guards';
+import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 
 export interface CreateSessionForTrustedUserArgs {
@@ -72,21 +72,9 @@ export async function createSessionForTrustedUser(
       } else if (existingSession.expiresAt > now) {
         // Same user, session still valid - extend it and update trusted fields
         // Check if trusted headers values have changed
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-        const sessionRecord = existingSession as unknown as Record<
-          string,
-          unknown
-        >;
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-        const existingRole = sessionRecord.trustedRole as
-          | string
-          | null
-          | undefined;
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-        const existingTeams = sessionRecord.trustedTeams as
-          | string
-          | null
-          | undefined;
+        const sessionRecord = isRecord(existingSession) ? existingSession : {};
+        const existingRole = getString(sessionRecord, 'trustedRole');
+        const existingTeams = getString(sessionRecord, 'trustedTeams');
         const trustedHeadersChanged =
           (existingRole ?? null) !== (args.trustedRole ?? null) ||
           (existingTeams ?? null) !== (args.trustedTeams ?? null);
@@ -140,8 +128,7 @@ export async function createSessionForTrustedUser(
     const session = userSessionResult.page[0];
     if (session.expiresAt > now) {
       // Check if trusted headers values have changed
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-      const sessionRecord = session as unknown as Record<string, unknown>;
+      const sessionRecord = isRecord(session) ? session : {};
       const existingRole = getString(sessionRecord, 'trustedRole');
       const existingTeams = getString(sessionRecord, 'trustedTeams');
       const trustedHeadersChanged =

@@ -33,8 +33,11 @@ async function limitRate(
   name: RateLimitName,
   opts: { key: string; count: number },
 ): Promise<RateLimitResult> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- rate limiter conditional type can't resolve for RateLimitName union
-  return rateLimiter.limit(ctx, name as 'ai:chat', { ...opts, throws: false });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RateLimitName union is too wide for @convex-dev/rate-limiter's per-name conditional type; narrowing to a single literal satisfies the constraint while all configs share the same result shape
+  return rateLimiter.limit(ctx, name as 'ai:chat', {
+    ...opts,
+    throws: false,
+  });
 }
 
 async function checkRate(
@@ -42,7 +45,7 @@ async function checkRate(
   name: RateLimitName,
   opts: { key: string; count: number },
 ): Promise<RateLimitResult> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- rate limiter conditional type can't resolve for RateLimitName union
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same as limitRate above
   return rateLimiter.check(ctx, name as 'ai:chat', opts);
 }
 

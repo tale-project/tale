@@ -6,6 +6,8 @@ import { useState, useMemo } from 'react';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { PageSection } from '@/app/components/ui/layout/page-section';
+import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
 import {
@@ -108,9 +110,7 @@ export function ApprovalDetailDialog({
         footerClassName="p-4 border-t border-border bg-background"
         customHeader={
           <div className="border-border border-b px-4 py-6">
-            <h2 className="text-foreground text-base leading-none font-semibold tracking-tight">
-              {t('detail.title')}
-            </h2>
+            <SectionHeader title={t('detail.title')} />
           </div>
         }
       >
@@ -124,14 +124,12 @@ export function ApprovalDetailDialog({
         >
           {/* Customer Info */}
           <Stack gap={8}>
-            <Stack gap={1}>
-              <h3 className="text-foreground text-base font-medium">
-                {approvalDetail.customer.name}
-              </h3>
-              <p className="text-muted-foreground text-sm">
-                {approvalDetail.customer.email}
-              </p>
-            </Stack>
+            <SectionHeader
+              as="h3"
+              weight="medium"
+              title={approvalDetail.customer.name}
+              description={approvalDetail.customer.email}
+            />
 
             {/* Approval Details */}
             <Stack gap={3}>
@@ -193,10 +191,11 @@ export function ApprovalDetailDialog({
 
           {/* Recommended Products */}
           {visibleProducts.length > 0 && (
-            <Stack gap={4}>
-              <h4 className="text-foreground text-lg font-semibold">
-                {t('detail.recommendedProducts')}
-              </h4>
+            <PageSection
+              as="h3"
+              titleSize="lg"
+              title={t('detail.recommendedProducts')}
+            >
               <div className="border-border overflow-hidden rounded-[10px] border">
                 {visibleProducts.map((product) => (
                   <ProductCard
@@ -209,15 +208,16 @@ export function ApprovalDetailDialog({
                   />
                 ))}
               </div>
-            </Stack>
+            </PageSection>
           )}
 
           {/* Previous Purchases */}
           {approvalDetail.previousPurchases.length > 0 && (
-            <Stack gap={4}>
-              <h4 className="text-foreground text-lg font-semibold">
-                {t('detail.userPurchased')}
-              </h4>
+            <PageSection
+              as="h3"
+              titleSize="lg"
+              title={t('detail.userPurchased')}
+            >
               <div className="border-border overflow-hidden rounded-[10px] border">
                 {approvalDetail.previousPurchases.map((purchase) => (
                   <ProductCard
@@ -227,7 +227,7 @@ export function ApprovalDetailDialog({
                   />
                 ))}
               </div>
-            </Stack>
+            </PageSection>
           )}
         </Stack>
       </Dialog>

@@ -69,10 +69,30 @@ export function getRecord(
 }
 
 /**
- * Converts a route-param string to a typed Convex document Id.
- * Convex validates the Id server-side via `v.id()`; this bridges the type gap.
+ * Runtime-validate that a string belongs to a known set of values.
+ * Returns `undefined` if the value is not in the set.
  */
-export function toId<T extends string>(id: string) {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Route params are string-typed Convex document Ids; validated server-side by v.id()
-  return id as import('convex/values').GenericId<T>;
+export function narrowStringUnion<T extends string>(
+  value: string,
+  validValues: readonly T[],
+): T | undefined {
+  return validValues.find((v) => v === value);
+}
+
+/**
+ * Build a `Record<K, V>` from an array of keys and a value factory.
+ *
+ * Replaces the common `keys.reduce((acc, k) => ({ ...acc, [k]: fn(k) }), {} as Record<K, V>)`
+ * pattern which requires an unsafe type assertion on the empty initial value.
+ */
+export function buildRecord<K extends string, V>(
+  keys: readonly K[],
+  valueFn: (key: K) => V,
+): Record<K, V> {
+  const result: Partial<Record<K, V>> = {};
+  for (const k of keys) {
+    result[k] = valueFn(k);
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Partial→full is safe since every key is assigned in the loop above
+  return result as Record<K, V>;
 }

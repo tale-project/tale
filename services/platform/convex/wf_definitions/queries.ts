@@ -47,7 +47,7 @@ export const listVersions = queryWithRLS({
 
 const COUNT_CAP = 20;
 
-export const countAutomations = queryWithRLS({
+export const approxCountAutomations = queryWithRLS({
   args: {
     organizationId: v.string(),
   },

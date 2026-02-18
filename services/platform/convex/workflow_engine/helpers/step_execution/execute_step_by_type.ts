@@ -39,7 +39,7 @@ export async function executeStepByType(
           stepDef: {
             stepSlug: stepDef.stepSlug,
             stepType: 'llm' as const,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- step config shape validated at runtime by Convex validators
             config: stepDef.config as Infer<typeof llmStepConfigValidator>,
             organizationId: stepDef.organizationId,
           },
@@ -56,7 +56,7 @@ export async function executeStepByType(
           stepDef: {
             stepSlug: stepDef.stepSlug,
             stepType: 'condition' as const,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- step config shape validated at runtime by Convex validators
             config: stepDef.config as { expression: string },
           },
           variables,
@@ -72,7 +72,7 @@ export async function executeStepByType(
             stepSlug: stepDef.stepSlug,
             stepType: 'action' as const,
             // Dynamic config shape validated at runtime by action executor
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- step config shape validated at runtime by action executor; double cast needed because Record<string, unknown> doesn't overlap with ActionNodeConfig
             config: stepDef.config as unknown as ActionNodeConfig,
           },
           variables,
@@ -88,7 +88,7 @@ export async function executeStepByType(
           stepDef: {
             stepSlug: stepDef.stepSlug,
             stepType: 'loop' as const,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- step config shape validated at runtime by Convex validators
             config: stepDef.config as {
               collection: string;
               itemVariable: string;

@@ -107,13 +107,13 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
 
           // Handle arrays by recursively repairing each element
           if (Array.isArray(obj)) {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic return, array structure preserved
-            return obj.map((item) => repairObject(item)) as unknown as T;
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic T preserves structural shape through array repair
+            return obj.map((item) => repairObject(item)) as T;
           }
 
           const repaired: Record<string, unknown> = {};
           for (const [key, value] of Object.entries(
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic object iteration
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- iterating Convex document fields; structural shape is Record<string, unknown>
             obj as Record<string, unknown>,
           )) {
             let repairedKey = key;
@@ -150,8 +150,8 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
                 ? repairObject(value)
                 : value;
           }
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic return, object structure preserved
-          return repaired as unknown as T;
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic T preserves structural shape through key repair
+          return repaired as T;
         };
 
         sanitizedUpdates = repairObject(sanitizedUpdates);

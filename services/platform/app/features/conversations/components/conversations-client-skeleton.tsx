@@ -1,18 +1,27 @@
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 
-export function ConversationsClientSkeleton() {
+import { ConversationListPanel } from './conversation-list-panel';
+import { ConversationListToolbar } from './conversation-list-toolbar';
+
+interface ConversationsClientSkeletonProps {
+  rows?: number;
+}
+
+export function ConversationsClientSkeleton({
+  rows = 8,
+}: ConversationsClientSkeletonProps) {
   return (
     <>
-      <div className="border-border relative flex w-full flex-col overflow-y-auto border-r md:max-w-[24.75rem] md:flex-[0_0_24.75rem]">
-        <div className="bg-background/50 border-border sticky top-0 z-10 flex h-16 items-center gap-2.5 border-b p-4 backdrop-blur-sm">
+      <ConversationListPanel>
+        <ConversationListToolbar>
           <div className="border-muted bg-background size-4 rounded border-2" />
           <div className="relative flex-1">
             <Skeleton className="h-9 w-full rounded-md" />
           </div>
-        </div>
+        </ConversationListToolbar>
 
         <div className="divide-border divide-y">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: rows }).map((_, i) => (
             <div key={i} className="p-4">
               <div className="flex items-start gap-3">
                 <div className="mt-1 flex items-center">
@@ -39,7 +48,7 @@ export function ConversationsClientSkeleton() {
             </div>
           ))}
         </div>
-      </div>
+      </ConversationListPanel>
 
       <div className="hidden min-w-0 flex-1 flex-col md:flex">
         <div className="bg-background/50 border-border sticky top-0 z-50 flex h-16 flex-[0_0_auto] border-b px-4 py-3 backdrop-blur-sm">

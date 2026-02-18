@@ -8,6 +8,7 @@
 
 import type { QueryCtx } from '../_generated/server';
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 
 /**
@@ -41,13 +42,11 @@ export async function getUserNamesBatch(
       where: [{ field: '_id', value: userId, operator: 'eq' }],
     });
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const user = userRes?.page?.[0] as
-      | { _id?: string; name?: string; email?: string }
-      | undefined;
+    const userRaw = userRes?.page?.[0];
+    const user = isRecord(userRaw) ? userRaw : undefined;
 
     if (user) {
-      const displayName = user.name ?? user.email;
+      const displayName = getString(user, 'name') ?? getString(user, 'email');
       if (displayName) {
         return { userId, displayName };
       }

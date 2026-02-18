@@ -4,8 +4,12 @@ import { Users, Upload, X, FileText } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
+import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Description } from '@/app/components/ui/forms/description';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -212,33 +216,24 @@ export function DocumentUploadDialog({
         )}
 
         {/* Team selection */}
-        <div>
-          <p className="mb-2 text-sm font-medium">
-            {tDocuments('upload.selectTeams')}
-          </p>
-          <p className="text-muted-foreground mb-3 text-xs">
-            {tDocuments('upload.selectTeamsDescription')}
-          </p>
-
+        <FormSection
+          label={tDocuments('upload.selectTeams')}
+          description={tDocuments('upload.selectTeamsDescription')}
+        >
           {isLoadingTeams ? (
             <div className="flex items-center justify-center py-4">
-              <span className="text-muted-foreground text-sm">
-                {tCommon('actions.loading')}
-              </span>
+              <Spinner size="sm" label={tCommon('actions.loading')} />
             </div>
           ) : !teams || teams.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-4 text-center">
-              <Users className="text-muted-foreground/50 mb-2 size-6" />
-              <p className="text-muted-foreground text-sm">
-                {tDocuments('upload.noTeamsAvailable')}
-              </p>
-            </div>
+            <EmptyPlaceholder icon={Users}>
+              {tDocuments('upload.noTeamsAvailable')}
+            </EmptyPlaceholder>
           ) : (
             <Stack gap={2}>
               {teams.map((team: { id: string; name: string }) => (
                 <div
                   key={team.id}
-                  className="bg-card hover:bg-accent/50 flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
+                  className="bg-card hover:bg-accent/50 rounded-lg border p-3 transition-colors"
                 >
                   <Checkbox
                     id={`upload-team-${team.id}`}
@@ -252,10 +247,8 @@ export function DocumentUploadDialog({
             </Stack>
           )}
 
-          <p className="text-muted-foreground mt-3 text-xs">
-            {tDocuments('upload.allMembersHint')}
-          </p>
-        </div>
+          <Description>{tDocuments('upload.allMembersHint')}</Description>
+        </FormSection>
       </Stack>
     </FormDialog>
   );

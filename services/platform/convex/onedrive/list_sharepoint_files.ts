@@ -1,3 +1,5 @@
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
+
 export interface SharePointItem {
   id: string;
   name: string;
@@ -70,8 +72,7 @@ export async function listSharePointFiles(
       };
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const data = (await response.json()) as {
+    const data = await fetchJson<{
       value: Array<{
         id: string;
         name: string;
@@ -85,7 +86,7 @@ export async function listSharePointFiles(
         lastModifiedDateTime?: string;
         webUrl?: string;
       }>;
-    };
+    }>(response);
 
     const items: SharePointItem[] = data.value.map((item) => ({
       id: item.id,

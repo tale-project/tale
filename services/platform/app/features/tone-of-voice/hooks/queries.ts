@@ -7,8 +7,8 @@ export function useToneOfVoiceWithExamples(organizationId: string) {
   });
 }
 
-export function useHasExampleMessages(organizationId: string) {
-  return useConvexQuery(api.tone_of_voice.queries.hasExampleMessages, {
+export function useApproxExampleMessageCount(organizationId: string) {
+  return useConvexQuery(api.tone_of_voice.queries.approxCountExampleMessages, {
     organizationId,
   });
 }

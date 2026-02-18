@@ -3,19 +3,22 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
+import { PageSection } from '@/app/components/ui/layout/page-section';
+import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { CustomAgentActiveToggle } from '@/app/features/custom-agents/components/custom-agent-active-toggle';
 import { useUpdateCustomAgentMetadata } from '@/app/features/custom-agents/hooks/mutations';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
-import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId/')({
   head: () => ({
@@ -131,28 +134,18 @@ function GeneralTab() {
   return (
     <NarrowContainer className="py-4">
       <Stack gap={6}>
-        <div className="bg-background sticky top-[49px] z-40 -mx-4 flex items-center justify-between px-4 md:top-[97px]">
-          <Stack gap={1}>
-            <h2 className="text-foreground text-base font-semibold">
-              {t('customAgents.form.sectionGeneral')}
-            </h2>
-            <p className="text-muted-foreground text-sm">
-              {t('customAgents.form.sectionGeneralDescription')}
-            </p>
-          </Stack>
-          <AutoSaveIndicator status={status} />
-        </div>
+        <StickySectionHeader
+          title={t('customAgents.form.sectionGeneral')}
+          description={t('customAgents.form.sectionGeneralDescription')}
+          action={<AutoSaveIndicator status={status} />}
+        />
 
         {agent && (
-          <Stack gap={2}>
-            <CustomAgentActiveToggle
-              agent={agent}
-              label={t('customAgents.general.active')}
-            />
-            <p className="text-muted-foreground text-xs">
-              {t('customAgents.general.activeHelp')}
-            </p>
-          </Stack>
+          <CustomAgentActiveToggle
+            agent={agent}
+            label={t('customAgents.general.active')}
+            description={t('customAgents.general.activeHelp')}
+          />
         )}
 
         <Stack gap={3}>
@@ -160,14 +153,12 @@ function GeneralTab() {
             id="name"
             label={t('customAgents.form.name')}
             placeholder={t('customAgents.form.namePlaceholder')}
+            description={t('customAgents.form.nameHelp')}
             {...form.register('name', { required: true })}
             required
             disabled={isReadOnly}
             errorMessage={form.formState.errors.name?.message}
           />
-          <p className="text-muted-foreground -mt-2 text-xs">
-            {t('customAgents.form.nameHelp')}
-          </p>
 
           <Input
             id="displayName"
@@ -191,51 +182,40 @@ function GeneralTab() {
       </Stack>
 
       {teams && teams.length > 0 && (
-        <Stack gap={6} className="mt-8 border-t pt-8">
-          <Stack gap={1}>
-            <h2 className="text-foreground text-base font-semibold">
-              {t('customAgents.form.sectionAccess')}
-            </h2>
-            <p className="text-muted-foreground text-sm">
-              {t('customAgents.form.sectionAccessDescription')}
-            </p>
-          </Stack>
-
+        <PageSection
+          title={t('customAgents.form.sectionAccess')}
+          description={t('customAgents.form.sectionAccessDescription')}
+          gap={6}
+          className="mt-8 border-t pt-8"
+        >
           <Stack gap={3}>
             <Select
               options={teamOptions}
               label={t('customAgents.form.team')}
+              description={t('customAgents.form.teamHelp')}
               value={teamId || NO_TEAM_VALUE}
               onValueChange={handleTeamChange}
               disabled={isReadOnly}
             />
-            <p className="text-muted-foreground -mt-2 text-xs">
-              {t('customAgents.form.teamHelp')}
-            </p>
 
             {teamId && shareableTeams.length > 0 && (
-              <div>
-                <p className="mb-2 text-sm font-medium">
-                  {t('customAgents.form.sharedWithTeams')}
-                </p>
-                <p className="text-muted-foreground mb-2 text-xs">
-                  {t('customAgents.form.sharedWithTeamsHelp')}
-                </p>
-                <div className="space-y-2">
-                  {shareableTeams.map((team) => (
-                    <Checkbox
-                      key={team.id}
-                      label={team.name}
-                      checked={sharedWithTeamIds.includes(team.id)}
-                      onCheckedChange={() => handleToggleSharedTeam(team.id)}
-                      disabled={isReadOnly}
-                    />
-                  ))}
-                </div>
-              </div>
+              <FormSection
+                label={t('customAgents.form.sharedWithTeams')}
+                description={t('customAgents.form.sharedWithTeamsHelp')}
+              >
+                {shareableTeams.map((team) => (
+                  <Checkbox
+                    key={team.id}
+                    label={team.name}
+                    checked={sharedWithTeamIds.includes(team.id)}
+                    onCheckedChange={() => handleToggleSharedTeam(team.id)}
+                    disabled={isReadOnly}
+                  />
+                ))}
+              </FormSection>
             )}
           </Stack>
-        </Stack>
+        </PageSection>
       )}
     </NarrowContainer>
   );

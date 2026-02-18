@@ -148,7 +148,6 @@
     "bcryptjs": "3.0.3",
     "convex-test": "0.0.40",
     "jsdom": "28.1.0",
-    "playwright": "^1.58.2",
     "postcss-load-config": "6.0.1",
     "storybook": "10.2.5",
     "tree-kill": "1.2.2",

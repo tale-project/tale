@@ -24,7 +24,10 @@ import { useT } from '@/lib/i18n/client';
 import { filterByTextSearch } from '@/lib/utils/filtering';
 import { formatBytes } from '@/lib/utils/format/number';
 
-import { useListDocumentsPaginated } from '../hooks/queries';
+import {
+  useApproxDocumentCount,
+  useListDocumentsPaginated,
+} from '../hooks/queries';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { DocumentPreviewDialog } from './document-preview-dialog';
 import { DocumentRowActions } from './document-row-actions';
@@ -44,16 +47,18 @@ const PAGE_SIZE = 20;
 function DocumentsSkeleton({
   organizationId,
   hasMicrosoftAccount,
+  rows,
 }: {
   organizationId: string;
   hasMicrosoftAccount: boolean;
+  rows?: number;
 }) {
   const { t } = useT('tables');
   const { t: tDocuments } = useT('documents');
 
   return (
     <DataTableSkeleton
-      rows={10}
+      rows={rows}
       columns={[
         { header: t('headers.document') },
         { header: t('headers.size'), size: 128, align: 'right' },
@@ -88,6 +93,7 @@ export function DocumentsClient({
   const { t: tDocuments } = useT('documents');
   const { t: tTables } = useT('tables');
 
+  const { data: docCount } = useApproxDocumentCount(organizationId);
   const [query, setQuery] = useState(searchQuery ?? '');
   const debouncedQuery = useDebounce(query, 300);
 
@@ -108,7 +114,7 @@ export function DocumentsClient({
   });
 
   const filteredResults = useMemo(() => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Backend returns DocumentItemResponse; cast to DocumentItem for table
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape
     let filtered = paginatedResult.results as DocumentItem[];
     if (selectedTeamId) {
       filtered = filtered.filter((doc) =>
@@ -438,6 +444,7 @@ export function DocumentsClient({
       <DocumentsSkeleton
         organizationId={organizationId}
         hasMicrosoftAccount={hasMicrosoftAccount}
+        rows={Math.max(1, Math.min(docCount ?? 10, 10))}
       />
     );
   }

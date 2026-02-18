@@ -12,6 +12,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
+import { useApproxProductCount } from '../hooks/queries';
 import { useProductsTableConfig } from '../hooks/use-products-table-config';
 import { ProductsActionMenu } from './products-action-menu';
 
@@ -21,20 +22,19 @@ export interface ProductTableProps {
   organizationId: string;
   paginatedResult: UsePaginatedQueryResult<Product>;
   status?: string;
-  hasActiveFilters?: boolean;
 }
 
 export function ProductTable({
   organizationId,
   paginatedResult,
   status,
-  hasActiveFilters = false,
 }: ProductTableProps) {
   const navigate = useNavigate();
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
 
+  const { data: count } = useApproxProductCount(organizationId);
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useProductsTableConfig();
 
@@ -96,26 +96,19 @@ export function ProductTable({
       configs: filterConfigs,
       onClear: handleClearFilters,
     },
+    skeletonRows: Math.min(count ?? 10, 10),
   });
-
-  const emptyStateConfig = hasActiveFilters
-    ? {
-        icon: Package,
-        title: tTables('emptyState.noResults.title'),
-        description: tTables('emptyState.noResults.description'),
-      }
-    : {
-        icon: Package,
-        title: tProducts('emptyState.title'),
-        description: tProducts('emptyState.description'),
-      };
 
   return (
     <DataTable
       columns={columns}
       stickyLayout={stickyLayout}
       actionMenu={<ProductsActionMenu organizationId={organizationId} />}
-      emptyState={emptyStateConfig}
+      emptyState={{
+        icon: Package,
+        title: tProducts('emptyState.title'),
+        description: tProducts('emptyState.description'),
+      }}
       {...list.tableProps}
     />
   );

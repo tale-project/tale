@@ -36,6 +36,7 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { QueryResult } from '../conversation/helpers/types';
 
 import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { narrowStringUnion } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import {
   customerStatusValidator,
@@ -156,6 +157,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
 
     switch (params.operation) {
       case 'create': {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- createCustomer mutation returns CreateCustomerResult shape
         const result = (await ctx.runMutation(
           internal.customers.internal_mutations.createCustomer,
           {
@@ -171,7 +173,6 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
               ? toConvexJsonRecord(params.metadata)
               : undefined,
           },
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
         )) as CreateCustomerResult;
 
         // Fetch and return the full created entity
@@ -196,7 +197,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
         // Note: organizationId is already validated at the start of execute()
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- filterCustomers returns { customers, count } shape
         const result = (await ctx.runQuery(
           internal.customers.internal_queries.filterCustomers,
           {
@@ -210,21 +211,22 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
 
       case 'query': {
         // Note: organizationId is already validated at the start of execute()
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- queryCustomers returns QueryResult shape (paginated response)
         const result = (await ctx.runQuery(
           internal.customers.internal_queries.queryCustomers,
           {
             organizationId,
             externalId: params.externalId,
             status: params.status,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
-            source: params.source as
-              | 'manual_import'
-              | 'file_upload'
-              | 'circuly'
-              | undefined,
+            source: params.source
+              ? narrowStringUnion(params.source, [
+                  'manual_import',
+                  'file_upload',
+                  'circuly',
+                ] as const)
+              : undefined,
             paginationOpts: params.paginationOpts,
           },
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
         )) as QueryResult;
 
         return {

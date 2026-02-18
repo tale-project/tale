@@ -4,7 +4,7 @@
 
 import type { Role } from './types';
 
-import { getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { createAuth, authComponent } from '../auth';
@@ -56,11 +56,13 @@ export async function createMember(
       ],
     },
   );
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  const currentMember = currentMemberRes?.page?.[0] as
-    | { role?: string }
-    | undefined;
-  const callerRole = (currentMember?.role ?? '').toLowerCase();
+  const currentMemberRaw = currentMemberRes?.page?.[0];
+  const currentMemberRec = isRecord(currentMemberRaw)
+    ? currentMemberRaw
+    : undefined;
+  const callerRole = (
+    currentMemberRec ? (getString(currentMemberRec, 'role') ?? '') : ''
+  ).toLowerCase();
   if (callerRole !== 'admin') {
     throw new Error('Only Admins can create members');
   }
@@ -84,12 +86,15 @@ export async function createMember(
     },
   );
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  const existingUser = existingUserResult?.page?.[0] as
-    | { _id: string }
-    | undefined;
+  const existingUserRaw = existingUserResult?.page?.[0];
+  const existingUserRec = isRecord(existingUserRaw)
+    ? existingUserRaw
+    : undefined;
+  const existingUserId = existingUserRec
+    ? getString(existingUserRec, '_id')
+    : undefined;
 
-  if (existingUser) {
+  if (existingUserId) {
     // User exists — check if they're already a member of this organization
     const existingMemberResult = await ctx.runQuery(
       components.betterAuth.adapter.findMany,
@@ -102,7 +107,7 @@ export async function createMember(
             value: args.organizationId,
             operator: 'eq',
           },
-          { field: 'userId', value: existingUser._id, operator: 'eq' },
+          { field: 'userId', value: existingUserId, operator: 'eq' },
         ],
       },
     );
@@ -119,22 +124,21 @@ export async function createMember(
           model: 'member',
           data: {
             organizationId: args.organizationId,
-            userId: existingUser._id,
+            userId: existingUserId,
             role: (args.role ?? 'member').toLowerCase(),
             createdAt: Date.now(),
           },
         },
       },
     );
+    const createdRec = isRecord(created) ? created : undefined;
     const memberId: string =
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-      (created as Record<string, string>)?._id ??
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-      (created as Record<string, string>)?.id ??
+      (createdRec ? getString(createdRec, '_id') : undefined) ??
+      (createdRec ? getString(createdRec, 'id') : undefined) ??
       String(created);
 
     return {
-      userId: existingUser._id,
+      userId: existingUserId,
       memberId,
       isExistingUser: true,
     };
@@ -199,10 +203,7 @@ export async function createMember(
       },
     },
   });
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  const createdRecord = created as unknown as
-    | Record<string, unknown>
-    | undefined;
+  const createdRecord = isRecord(created) ? created : undefined;
   const memberId: string =
     (createdRecord ? getString(createdRecord, '_id') : undefined) ??
     (createdRecord ? getString(createdRecord, 'id') : undefined) ??

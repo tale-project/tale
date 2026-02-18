@@ -31,32 +31,76 @@ interface ApprovalsClientProps {
   organizationId: string;
   search?: string;
   paginatedResult: UsePaginatedQueryResult<ApprovalItem>;
+  approxCount?: number;
 }
 
-function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
+function ApprovalsSkeleton({
+  status,
+  rows,
+}: {
+  status?: 'pending' | 'resolved';
+  rows?: number;
+}) {
   const { t } = useT('approvals');
   const columns =
     status === 'resolved'
       ? [
-          { header: t('columns.approvalRecipient'), size: 256 },
-          { header: t('columns.event'), size: 256 },
-          { header: t('columns.action'), size: 256 },
+          {
+            header: t('columns.approvalRecipient'),
+            size: 256,
+            skeleton: { type: 'avatar-text' as const },
+          },
+          {
+            header: t('columns.event'),
+            size: 256,
+            skeleton: { type: 'avatar-text' as const },
+          },
+          {
+            header: t('columns.action'),
+            size: 256,
+            skeleton: { type: 'avatar-text' as const },
+          },
           { header: t('columns.reviewer') },
-          { header: t('columns.reviewedAt') },
-          { header: t('columns.approved'), size: 100 },
+          { header: t('columns.reviewedAt'), align: 'right' as const },
+          {
+            header: t('columns.approved'),
+            size: 100,
+            align: 'center' as const,
+          },
         ]
       : [
-          { header: t('columns.approvalRecipient'), size: 256 },
-          { header: t('columns.event'), size: 256 },
-          { header: t('columns.action'), size: 256 },
-          { header: t('columns.confidence'), size: 100 },
-          { header: t('columns.approved'), size: 100 },
+          {
+            header: t('columns.approvalRecipient'),
+            size: 256,
+            skeleton: { type: 'avatar-text' as const },
+          },
+          {
+            header: t('columns.event'),
+            size: 256,
+            skeleton: { type: 'avatar-text' as const },
+          },
+          {
+            header: t('columns.action'),
+            size: 256,
+            skeleton: { type: 'avatar-text' as const },
+          },
+          {
+            header: t('columns.confidence'),
+            size: 100,
+            align: 'right' as const,
+          },
+          {
+            header: t('columns.approved'),
+            size: 100,
+            skeleton: { type: 'action' as const },
+          },
         ];
 
   return (
     <DataTableSkeleton
-      rows={8}
+      rows={rows}
       columns={columns}
+      noFirstColumnAvatar
       showHeader
       stickyLayout
       infiniteScroll
@@ -69,6 +113,7 @@ export function ApprovalsClient({
   organizationId,
   search,
   paginatedResult,
+  approxCount,
 }: ApprovalsClientProps) {
   const { t } = useT('approvals');
 
@@ -239,24 +284,35 @@ export function ApprovalsClient({
     return getApprovalDetail(approval);
   }, [selectedApprovalId, allApprovals]);
 
+  const emptyStateElement = (
+    <DataTableEmptyState
+      icon={GitCompare}
+      title={
+        status === 'pending'
+          ? t('emptyState.pending.title')
+          : t('emptyState.resolved.title')
+      }
+      description={
+        status === 'pending' ? t('emptyState.pending.description') : undefined
+      }
+    />
+  );
+
+  if (approxCount === 0) {
+    return emptyStateElement;
+  }
+
   if (paginatedResult.status === 'LoadingFirstPage') {
-    return <ApprovalsSkeleton status={status} />;
+    return (
+      <ApprovalsSkeleton
+        status={status}
+        rows={Math.min(approxCount ?? 10, 10)}
+      />
+    );
   }
 
   if (allApprovals.length === 0) {
-    return (
-      <DataTableEmptyState
-        icon={GitCompare}
-        title={
-          status === 'pending'
-            ? t('emptyState.pending.title')
-            : t('emptyState.resolved.title')
-        }
-        description={
-          status === 'pending' ? t('emptyState.pending.description') : undefined
-        }
-      />
-    );
+    return emptyStateElement;
   }
 
   const columns = status === 'pending' ? pendingColumns : resolvedColumns;

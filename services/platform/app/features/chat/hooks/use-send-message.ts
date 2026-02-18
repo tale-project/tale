@@ -2,9 +2,9 @@ import { useNavigate } from '@tanstack/react-router';
 import { useCallback, startTransition } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
-import { toId } from '@/lib/utils/type-guards';
 
 import type {
   PendingMessage,

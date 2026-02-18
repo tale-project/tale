@@ -52,7 +52,7 @@ export const submitHumanInputResponse = mutation({
 
     await getOrganizationMember(ctx, organizationId);
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex approval metadata
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is stored as v.any() but always matches HumanInputRequestMetadata for human_input_request approvals
     const existingMetadata = (approval.metadata ||
       {}) as HumanInputRequestMetadata;
     const respondedBy = identity.email ?? identity.subject;

@@ -22,7 +22,7 @@ export const listVendors = queryWithRLS({
   },
 });
 
-export const countVendors = queryWithRLS({
+export const approxCountVendors = queryWithRLS({
   args: {
     organizationId: v.string(),
   },

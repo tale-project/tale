@@ -8,8 +8,10 @@ import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-a
 import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
 import { AutomationsClient } from '@/app/features/automations/components/automations-client';
 import { AutomationsTableSkeleton } from '@/app/features/automations/components/automations-table-skeleton';
-import { useAutomations } from '@/app/features/automations/hooks/queries';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import {
+  useAutomations,
+  useApproxAutomationCount,
+} from '@/app/features/automations/hooks/queries';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -22,7 +24,7 @@ export const Route = createFileRoute('/dashboard/$id/automations/')({
       }),
     );
     await context.queryClient.ensureQueryData(
-      convexQuery(api.wf_definitions.queries.countAutomations, {
+      convexQuery(api.wf_definitions.queries.approxCountAutomations, {
         organizationId: params.id,
       }),
     );
@@ -58,18 +60,11 @@ function AutomationsPage() {
 
   const { data: memberContext, isLoading: isMemberLoading } =
     useCurrentMemberContext(organizationId);
+  const { data: count } = useApproxAutomationCount(organizationId);
   const { automations, isLoading: isAutomationsLoading } =
     useAutomations(organizationId);
 
-  const { data: count } = useConvexQuery(
-    api.wf_definitions.queries.countAutomations,
-    { organizationId },
-  );
-
   if (isMemberLoading || isAutomationsLoading) {
-    if (count === 0) {
-      return <AutomationsEmptyState organizationId={organizationId} />;
-    }
     return (
       <ContentWrapper>
         <AutomationsTableSkeleton
@@ -83,6 +78,10 @@ function AutomationsPage() {
   const userRole = (memberContext?.role ?? '').toLowerCase();
   if (userRole !== 'admin' && userRole !== 'developer') {
     return <AccessDenied message={t('automations')} />;
+  }
+
+  if (count === 0) {
+    return <AutomationsEmptyState organizationId={organizationId} />;
   }
 
   if (!automations || automations.length === 0) {

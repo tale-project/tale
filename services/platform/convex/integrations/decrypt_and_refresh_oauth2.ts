@@ -8,6 +8,7 @@
 import type { Doc } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
 import { internal } from '../_generated/api';
 import { encryptString } from '../lib/crypto/encrypt_string';
 import { createDebugLog } from '../lib/debug_log';
@@ -121,8 +122,7 @@ export async function decryptAndRefreshIntegrationOAuth2(
     );
   }
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- OAuth2 token response
-  const tokens = (await response.json()) as TokenRefreshResponse;
+  const tokens = await fetchJson<TokenRefreshResponse>(response);
 
   if (!tokens.access_token) {
     console.error(

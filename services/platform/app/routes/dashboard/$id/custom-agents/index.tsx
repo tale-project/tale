@@ -1,12 +1,12 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { CustomAgentTable } from '@/app/features/custom-agents/components/custom-agent-table';
 import { CustomAgentsEmptyState } from '@/app/features/custom-agents/components/custom-agents-empty-state';
-import { CustomAgentsTableSkeleton } from '@/app/features/custom-agents/components/custom-agents-table-skeleton';
-import { useCustomAgents } from '@/app/features/custom-agents/hooks/queries';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import {
+  useApproxCustomAgentCount,
+  useCustomAgents,
+} from '@/app/features/custom-agents/hooks/queries';
 import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/')({
@@ -17,56 +17,24 @@ export const Route = createFileRoute('/dashboard/$id/custom-agents/')({
       }),
     );
     await context.queryClient.ensureQueryData(
-      convexQuery(api.custom_agents.queries.countCustomAgents, {
+      convexQuery(api.custom_agents.queries.approxCountCustomAgents, {
         organizationId: params.id,
       }),
     );
   },
-  component: CustomAgentsIndexPage,
+  component: CustomAgentsPage,
 });
 
-function CustomAgentsIndexPage() {
+function CustomAgentsPage() {
   const { id: organizationId } = Route.useParams();
-  const { agents, isLoading } = useCustomAgents(organizationId);
 
-  const { data: count } = useConvexQuery(
-    api.custom_agents.queries.countCustomAgents,
-    { organizationId },
-  );
+  const { data: count } = useApproxCustomAgentCount(organizationId);
 
-  if (isLoading) {
-    if (count === 0) {
-      return (
-        <ContentWrapper className="p-4">
-          <CustomAgentsEmptyState organizationId={organizationId} />
-        </ContentWrapper>
-      );
-    }
-    return (
-      <ContentWrapper>
-        <CustomAgentsTableSkeleton
-          organizationId={organizationId}
-          rows={Math.min(count ?? 10, 10)}
-        />
-      </ContentWrapper>
-    );
+  const { agents } = useCustomAgents(organizationId);
+
+  if (count === 0) {
+    return <CustomAgentsEmptyState organizationId={organizationId} />;
   }
 
-  if (agents && agents.length === 0) {
-    return (
-      <ContentWrapper className="p-4">
-        <CustomAgentsEmptyState organizationId={organizationId} />
-      </ContentWrapper>
-    );
-  }
-
-  return (
-    <ContentWrapper>
-      <CustomAgentTable
-        organizationId={organizationId}
-        agents={agents ?? null}
-        isLoading={isLoading}
-      />
-    </ContentWrapper>
-  );
+  return <CustomAgentTable organizationId={organizationId} agents={agents} />;
 }

@@ -15,7 +15,7 @@ import { Agent } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { ActionCtx } from '../../../../_generated/server';
-import type { ToolName } from '../../../../agent_tools/tool_registry';
+import type { ToolName } from '../../../../agent_tools/tool_names';
 import type {
   NormalizedConfig,
   ProcessedPrompts,
@@ -23,6 +23,7 @@ import type {
   ToolDiagnostics,
 } from './types';
 
+import { isRecord } from '../../../../../lib/utils/type-guards';
 import { components } from '../../../../_generated/api';
 import { createAgentConfig } from '../../../../lib/create_agent_config';
 import { createDebugLog } from '../../../../lib/debug_log';
@@ -186,8 +187,7 @@ async function executeJsonOutputWithoutTools(
 
   const finalOutput = result.object;
   debugLog('executeJsonOutputWithoutTools COMPLETE', {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    outputKeys: Object.keys(finalOutput as Record<string, unknown>),
+    outputKeys: isRecord(finalOutput) ? Object.keys(finalOutput) : [],
     finalOutput,
   });
 
@@ -249,8 +249,8 @@ This is critical because these exact values will be extracted for structured out
       model: config.model,
       outputFormat: 'text',
       instructions: enhancedSystemPrompt,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
-      convexToolNames: config.tools as ToolName[],
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config.tools contains valid ToolName strings from workflow step configuration
+      convexToolNames: (config.tools ?? []) as ToolName[],
     }),
   );
 
@@ -262,8 +262,10 @@ This is critical because these exact values will be extracted for structured out
   );
 
   const { agentSteps, toolDiagnostics } = processAgentResult(textResult);
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-  const textOutput = (textResult as { text?: string }).text ?? '';
+  const textOutput =
+    isRecord(textResult) && typeof textResult.text === 'string'
+      ? textResult.text
+      : '';
 
   debugLog('executeJsonOutputWithTools STEP 1 COMPLETE (generateText)', {
     textOutputLength: textOutput.length,
@@ -310,8 +312,7 @@ This is critical because these exact values will be extracted for structured out
 
   const finalOutput = objectResult.object;
   debugLog('executeJsonOutputWithTools STEP 2 COMPLETE', {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    outputKeys: Object.keys(finalOutput as Record<string, unknown>),
+    outputKeys: isRecord(finalOutput) ? Object.keys(finalOutput) : [],
     finalOutput,
   });
 
@@ -349,7 +350,7 @@ async function executeTextOutput(
       model: config.model,
       outputFormat: config.outputFormat,
       instructions: prompts.systemPrompt,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config.tools contains valid ToolName strings from workflow step configuration
       convexToolNames: (config.tools ?? []) as ToolName[],
     }),
   );
@@ -362,8 +363,8 @@ async function executeTextOutput(
   );
 
   const { agentSteps, toolDiagnostics } = processAgentResult(result);
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-  const outputText = (result as { text?: string }).text ?? '';
+  const outputText =
+    isRecord(result) && typeof result.text === 'string' ? result.text : '';
 
   if (!outputText || !outputText.trim()) {
     const stepsCount = Array.isArray(agentSteps) ? agentSteps.length : 0;

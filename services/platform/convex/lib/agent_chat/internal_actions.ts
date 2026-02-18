@@ -5,19 +5,22 @@ import type { FunctionHandle } from 'convex/server';
 import { Agent } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import type { ToolName } from '../../agent_tools/tool_registry';
 import type {
   GenerateResponseHooks,
   BeforeContextResult,
   BeforeGenerateResult,
 } from '../agent_response/types';
-import type { AgentType } from '../context_management/constants';
 
-import { isRecord, getString } from '../../../lib/utils/type-guards';
+import {
+  isRecord,
+  getString,
+  narrowStringUnion,
+} from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
 import { fetchOperationsSummary } from '../../agent_tools/integrations/fetch_operations_summary';
+import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
 import { generateAgentResponse } from '../agent_response';
 import { processAttachments } from '../attachments';
@@ -28,6 +31,10 @@ import {
   SYSTEM_INSTRUCTIONS_TOKENS,
   OUTPUT_RESERVE,
 } from '../context_management';
+import {
+  AGENT_CONTEXT_CONFIGS,
+  type AgentType,
+} from '../context_management/constants';
 import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
 import { classifyError, NonRetryableError } from '../error_classification';
@@ -113,8 +120,14 @@ export const runAgentGeneration = internalAction({
       userTeamIds,
     } = args;
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const agentType = agentTypeStr as AgentType;
+    const agentType = narrowStringUnion(
+      agentTypeStr,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.keys loses literal types; keys are known AgentType values
+      Object.keys(AGENT_CONTEXT_CONFIGS) as AgentType[],
+    );
+    if (!agentType) {
+      throw new Error(`Invalid agent type: ${agentTypeStr}`);
+    }
 
     // Build bound integration tools eagerly (before synchronous createAgent closure)
     let integrationExtraTools: Record<string, unknown> | undefined;
@@ -135,14 +148,18 @@ export const runAgentGeneration = internalAction({
       const config = createAgentConfig({
         name: agentConfig.name,
         instructions: agentConfig.instructions,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-        convexToolNames: agentConfig.convexToolNames as ToolName[] | undefined,
+        convexToolNames: agentConfig.convexToolNames
+          ? agentConfig.convexToolNames.filter((n): n is ToolName =>
+              (TOOL_NAMES as readonly string[]).includes(n),
+            )
+          : undefined,
         extraTools: integrationExtraTools,
         useFastModel: agentConfig.useFastModel,
         model: agentConfig.model,
         maxSteps:
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-          (options?.maxSteps as number | undefined) ?? agentConfig.maxSteps,
+          (typeof options?.maxSteps === 'number'
+            ? options.maxSteps
+            : undefined) ?? agentConfig.maxSteps,
         outputFormat: agentConfig.outputFormat,
         enableVectorSearch: agentConfig.enableVectorSearch,
       });
@@ -251,9 +268,9 @@ function buildHooksFromConfig(
   const hooks: GenerateResponseHooks = {};
 
   if (hooksConfig.beforeContext) {
-    // Cast the FunctionHandle string back to a FunctionHandle type for ctx.runAction
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const handle = hooksConfig.beforeContext as FunctionHandle<'action'>;
+    const handle =
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex stores FunctionHandle as string; branded type requires assertion
+      hooksConfig.beforeContext as unknown as FunctionHandle<'action'>;
     hooks.beforeContext = async (ctx, args) => {
       const result = await ctx.runAction(handle, {
         threadId: args.threadId,
@@ -263,14 +280,16 @@ function buildHooksFromConfig(
         userTeamIds: args.userTeamIds,
         contextFeatures,
       });
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+      // runAction returns unknown; we trust the hook contract
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- hook return type guaranteed by contract
       return result as BeforeContextResult;
     };
   }
 
   if (hooksConfig.beforeGenerate) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const handle = hooksConfig.beforeGenerate as FunctionHandle<'action'>;
+    const handle =
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex stores FunctionHandle as string; branded type requires assertion
+      hooksConfig.beforeGenerate as unknown as FunctionHandle<'action'>;
     hooks.beforeGenerate = async (ctx, args, context, _hookData) => {
       const result = await ctx.runAction(handle, {
         threadId: args.threadId,
@@ -278,14 +297,15 @@ function buildHooksFromConfig(
         attachments: args.attachments,
         contextMessagesTokens: context.stats.totalTokens,
       });
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- hook return type guaranteed by contract
       return result as BeforeGenerateResult;
     };
   }
 
   if (hooksConfig.afterGenerate) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const handle = hooksConfig.afterGenerate as FunctionHandle<'action'>;
+    const handle =
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex stores FunctionHandle as string; branded type requires assertion
+      hooksConfig.afterGenerate as unknown as FunctionHandle<'action'>;
     hooks.afterGenerate = async (ctx, args, result, _hookData) => {
       await ctx.runAction(handle, {
         threadId: args.threadId,
@@ -325,8 +345,8 @@ function buildToolsSummary(
   if (convexToolNames?.length) {
     const registry = getToolRegistryMap();
     for (const name of convexToolNames) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic lookup
-      const toolDef = registry[name as keyof typeof registry];
+      const validName = narrowStringUnion(name, TOOL_NAMES);
+      const toolDef = validName ? registry[validName] : undefined;
       if (toolDef) {
         const description = getToolDescription(toolDef.tool);
         entries.push(

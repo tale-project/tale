@@ -12,6 +12,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
+import { useApproxVendorCount } from '../hooks/queries';
 import { useVendorsTableConfig } from '../hooks/use-vendors-table-config';
 import { VendorsActionMenu } from './vendors-action-menu';
 
@@ -35,6 +36,7 @@ export function VendorsTable({
   const { t: tTables } = useT('tables');
   const { t: tGlobal } = useT('global');
 
+  const { data: count } = useApproxVendorCount(organizationId);
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useVendorsTableConfig();
 
@@ -135,6 +137,7 @@ export function VendorsTable({
       configs: filterConfigs,
       onClear: handleClearFilters,
     },
+    skeletonRows: Math.min(count ?? 10, 10),
   });
 
   return (

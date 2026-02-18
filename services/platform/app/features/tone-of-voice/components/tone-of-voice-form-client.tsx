@@ -9,6 +9,7 @@ import type { ExampleMessageUI } from '@/types/tone-of-voice';
 import { Form } from '@/app/components/ui/forms/form';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -210,26 +211,26 @@ export function ToneOfVoiceFormClient({
       />
 
       <Form onSubmit={handleSubmit(onSubmit)}>
-        <HStack align="end" justify="between">
-          <Stack gap={1}>
-            <h3 className="text-foreground text-lg font-semibold tracking-[-0.096px]">
+        <SectionHeader
+          as="h3"
+          size="lg"
+          title={
+            <>
               {tTone('form.title')}
-              <span className="text-muted-foreground ml-2 text-xs">
+              <span className="text-muted-foreground ml-2 text-xs font-normal">
                 {tTone('form.optional')}
               </span>
-            </h3>
-            <p className="text-muted-foreground text-sm tracking-[-0.084px]">
-              {tTone('form.description')}
-            </p>
-          </Stack>
-        </HStack>
+            </>
+          }
+          description={tTone('form.description')}
+        />
 
         <Textarea
           {...register('tone')}
           defaultValue={toneOfVoiceData?.toneOfVoice?.generatedTone || ''}
           disabled={isSubmitting}
           placeholder={tTone('form.placeholder')}
-          className="bg-background border-border text-foreground min-h-[10rem] resize-none rounded-lg border px-4 py-3 text-base shadow-sm"
+          rows={6}
         />
         <HStack gap={2} justify="end">
           <Button

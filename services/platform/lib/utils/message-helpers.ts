@@ -53,9 +53,8 @@ export function stripWorkflowContext(content: string): string {
   }
 
   // Verify it's actually workflow context by checking for the pattern
-  // oxlint-disable-next-line unicorn/prefer-set-has -- string.includes() for substring search, not array membership
   const afterMarker = content.slice(contextStart);
-  const hasWorkflowId = afterMarker.includes('- **Workflow ID:**');
+  const hasWorkflowId = /- \*\*Workflow ID:\*\*/.test(afterMarker);
   const hasStepDetails = afterMarker.includes(
     '**Step Details (Toon Format):**',
   );

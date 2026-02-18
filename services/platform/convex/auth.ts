@@ -8,6 +8,7 @@ import {
   adminAc,
 } from 'better-auth/plugins/organization/access';
 
+import { isRecord, getString } from '../lib/utils/type-guards';
 import { components } from './_generated/api';
 import { DataModel } from './_generated/dataModel';
 import authConfig from './auth.config';
@@ -257,16 +258,15 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
         authConfig,
         jwksRotateOnTokenGenerationError: true,
         jwt: {
-          definePayload: ({ user, session }) => ({
-            email: user.email,
-            name: user.name,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-            trustedRole: (session as unknown as Record<string, unknown>)
-              .trustedRole,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-            trustedTeams: (session as unknown as Record<string, unknown>)
-              .trustedTeams,
-          }),
+          definePayload: ({ user, session }) => {
+            const sessionRecord = isRecord(session) ? session : {};
+            return {
+              email: user.email,
+              name: user.name,
+              trustedRole: getString(sessionRecord, 'trustedRole'),
+              trustedTeams: getString(sessionRecord, 'trustedTeams'),
+            };
+          },
         },
       }),
       organization({

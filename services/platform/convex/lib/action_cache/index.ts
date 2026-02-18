@@ -66,7 +66,7 @@ export const imageAnalysisCache: ActionCache<
  */
 // Note: The internal_actions module needs to be regenerated (run `npx convex dev`)
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex internal module reference
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal.tone_of_voice is auto-generated; TypeScript cannot resolve the shape until `npx convex dev` regenerates the API module
 const toneOfVoiceModule = internal.tone_of_voice as unknown as {
   internal_actions: {
     generateToneOfVoiceUncached: FunctionReference<'action', 'internal'>;

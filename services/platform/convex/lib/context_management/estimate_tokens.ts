@@ -12,6 +12,8 @@
 
 import type { ModelMessage } from '@ai-sdk/provider-utils';
 
+import { isRecord, getString } from '../../../lib/utils/type-guards';
+
 /**
  * Approximate characters per token for different content types.
  * - English/Latin text: ~4 chars/token
@@ -156,13 +158,14 @@ export function estimateMessageDocTokens(messageDoc: {
         if ('text' in part && typeof part.text === 'string') {
           tokens += estimateTokens(part.text);
         } else if ('type' in part && part.type === 'tool-result') {
-          // Tool results can be large - properly serialize
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-          const resultPart = part as { toolName?: string; result?: unknown };
+          const partRecord = isRecord(part) ? part : undefined;
+          const toolName = partRecord
+            ? getString(partRecord, 'toolName')
+            : undefined;
           tokens += 10;
-          tokens += estimateTokens(resultPart.toolName || '');
-          if (resultPart.result) {
-            tokens += estimateJsonTokens(resultPart.result);
+          tokens += estimateTokens(toolName || '');
+          if (partRecord?.result) {
+            tokens += estimateJsonTokens(partRecord.result);
           }
         } else {
           // Unknown part - serialize

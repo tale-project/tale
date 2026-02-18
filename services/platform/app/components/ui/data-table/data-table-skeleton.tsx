@@ -93,17 +93,13 @@ function normalizeColumns<TData, TValue>(
       return col;
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table ColumnDef union type; narrowed after type guard above
-    const tanstackCol = col as ColumnDef<TData, TValue>;
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table meta is Record<string, unknown>; narrowed to ColumnMeta
-    const meta = tanstackCol.meta as ColumnMeta | undefined;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+    const meta = (col as ColumnDef<TData, TValue>).meta as
+      | ColumnMeta
+      | undefined;
     return {
-      header:
-        typeof tanstackCol.header === 'string'
-          ? tanstackCol.header
-          : meta?.headerLabel,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table ColumnDef.size is number | undefined; narrowed by 'in' check
-      size: 'size' in tanstackCol ? (tanstackCol.size as number) : undefined,
+      header: typeof col.header === 'string' ? col.header : meta?.headerLabel,
+      size: col.size,
       isAction: meta?.isAction,
       hasAvatar: meta?.hasAvatar,
       skeleton: meta?.skeleton,

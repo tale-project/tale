@@ -7,6 +7,7 @@
 
 import type { ActionCtx } from '../../_generated/server';
 
+import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { isSqlIntegration } from '../../integrations/helpers';
 
@@ -51,20 +52,23 @@ export async function fetchOperationsSummary(
   } else {
     const connectorConfig = integration.connector;
 
-    if (connectorConfig?.operations) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic connector schema
-      const ops = connectorConfig.operations as Array<{
-        name: string;
-        title?: string;
-        operationType?: 'read' | 'write';
-        parametersSchema?: Record<string, unknown>;
-      }>;
-      for (const op of ops) {
+    if (
+      connectorConfig?.operations &&
+      Array.isArray(connectorConfig.operations)
+    ) {
+      for (const rawOp of connectorConfig.operations) {
+        const op = isRecord(rawOp) ? rawOp : undefined;
+        if (!op) continue;
+        const name = getString(op, 'name');
+        if (!name) continue;
         operations.push({
-          name: op.name,
-          title: op.title,
-          operationType: op.operationType,
-          parametersSchema: op.parametersSchema,
+          name,
+          title: getString(op, 'title'),
+          operationType:
+            getString(op, 'operationType') === 'write' ? 'write' : 'read',
+          parametersSchema: isRecord(op.parametersSchema)
+            ? op.parametersSchema
+            : undefined,
         });
       }
     }

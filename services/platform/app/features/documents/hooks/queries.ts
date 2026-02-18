@@ -8,6 +8,12 @@ import { api } from '@/convex/_generated/api';
 
 export type Document = ConvexItemOf<typeof api.documents.queries.listDocuments>;
 
+export function useApproxDocumentCount(organizationId: string) {
+  return useConvexQuery(api.documents.queries.approxCountDocuments, {
+    organizationId,
+  });
+}
+
 export function useDocuments(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.documents.queries.listDocuments,

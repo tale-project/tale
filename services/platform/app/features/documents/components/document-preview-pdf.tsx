@@ -63,11 +63,13 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
         script.src =
           'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
         script.addEventListener('load', () => {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- CDN script injects pdfjsLib on window, no typed global available
-          const lib = (window as unknown as { pdfjsLib: PdfJsLib }).pdfjsLib;
-          lib.GlobalWorkerOptions.workerSrc =
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-          setPdfjsLib(lib);
+          if ('pdfjsLib' in window) {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pdfjsLib is injected by the CDN script loaded above
+            const lib = (window as unknown as { pdfjsLib: PdfJsLib }).pdfjsLib;
+            lib.GlobalWorkerOptions.workerSrc =
+              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            setPdfjsLib(lib);
+          }
         });
         document.head.appendChild(script);
       } catch (error) {
@@ -94,8 +96,11 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
     };
   }, []);
 
-  // Render page function
-  const renderPage = async (num: number) => {
+  // Render page function stored in a ref so queueRenderPage stays stable
+  const renderPageRef = useRef<((num: number) => Promise<void>) | undefined>(
+    undefined,
+  );
+  renderPageRef.current = async (num: number) => {
     if (!pdfDoc || !canvasRef.current) return;
 
     setPageRendering(true);
@@ -160,7 +165,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
 
       // Handle pending page render
       if (pageNumPending !== null) {
-        void renderPage(pageNumPending);
+        void renderPageRef.current?.(pageNumPending);
         setPageNumPending(null);
       }
     } catch (error) {
@@ -176,10 +181,9 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
       if (pageRendering) {
         setPageNumPending(num);
       } else {
-        void renderPage(num);
+        void renderPageRef.current?.(num);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- renderPage uses refs and is not easily memoizable
     [pageRendering],
   );
 

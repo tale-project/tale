@@ -7,6 +7,7 @@ import type { ToolName } from '@/convex/agent_tools/tool_names';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { useT } from '@/lib/i18n/client';
 
 import { useAvailableIntegrations, useAvailableTools } from '../hooks/queries';
@@ -204,23 +205,17 @@ function IntegrationBindingsSection({
 }) {
   if (isLoading) {
     return (
-      <div>
-        <p className="text-muted-foreground mb-1.5 text-xs font-medium">
-          {t('customAgents.form.sectionIntegrationBindings')}
-        </p>
+      <FormSection label={t('customAgents.form.sectionIntegrationBindings')}>
         <Skeleton className="h-6 w-full" />
-      </div>
+      </FormSection>
     );
   }
 
   return (
-    <div>
-      <p className="text-muted-foreground mb-0.5 text-xs font-medium">
-        {t('customAgents.form.sectionIntegrationBindings')}
-      </p>
-      <p className="text-muted-foreground mb-1.5 text-xs">
-        {t('customAgents.form.sectionIntegrationBindingsDescription')}
-      </p>
+    <FormSection
+      label={t('customAgents.form.sectionIntegrationBindings')}
+      description={t('customAgents.form.sectionIntegrationBindingsDescription')}
+    >
       {!integrations || integrations.length === 0 ? (
         <p className="text-muted-foreground text-xs italic">
           {t('customAgents.form.noIntegrationsAvailable')}
@@ -241,6 +236,6 @@ function IntegrationBindingsSection({
           ))}
         </div>
       )}
-    </div>
+    </FormSection>
   );
 }

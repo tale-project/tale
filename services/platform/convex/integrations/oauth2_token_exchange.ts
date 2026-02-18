@@ -9,6 +9,7 @@
 
 import { v } from 'convex/values';
 
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { encryptString } from '../lib/crypto/encrypt_string';
@@ -73,8 +74,7 @@ export const handleOAuth2Callback = internalAction({
       );
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- OAuth2 token response
-    const tokens = (await response.json()) as TokenResponse;
+    const tokens = await fetchJson<TokenResponse>(response);
 
     if (!tokens.access_token) {
       console.error(

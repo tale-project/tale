@@ -13,6 +13,7 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 import { NextStepsEditor } from './next-steps-editor';
 
@@ -197,8 +198,16 @@ export function CreateStepDialog({
   };
 
   const handleTypeChange = (value: string) => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
-    setValue('stepType', value as FormData['stepType']);
+    const narrowed = narrowStringUnion<FormData['stepType']>(value, [
+      'start',
+      'llm',
+      'condition',
+      'action',
+      'loop',
+    ] as const);
+    if (narrowed) {
+      setValue('stepType', narrowed);
+    }
   };
 
   return (

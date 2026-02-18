@@ -72,15 +72,15 @@ export function useDataTable<T extends FilterDefinitions>(
     }
 
     const filters = urlFilters.filters;
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- search filter value is always string
-    const value = filters[searchKey] as string;
+    const rawValue = filters[searchKey];
+    const value = typeof rawValue === 'string' ? rawValue : '';
 
     return {
       value,
       onChange: (newValue: string) =>
         urlFilters.setFilter(
           searchKey,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic filter type requires cast
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Search filter is always a string value
           newValue as ParsedFilters<T>[typeof searchKey],
         ),
       placeholder: search?.placeholder,

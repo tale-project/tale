@@ -1,5 +1,6 @@
 import type { QueryCtx } from '../_generated/server';
 
+import { isRecord, getString, getNumber } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { authComponent } from '../auth';
 import { validateOrganizationAccess } from '../lib/rls';
@@ -37,6 +38,28 @@ export async function getOrganization(
     return null;
   }
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  return organization as BAOrganization;
+  const org = isRecord(organization) ? organization : undefined;
+  const orgId = org ? getString(org, '_id') : undefined;
+  const orgName = org ? getString(org, 'name') : undefined;
+  const createdAt = org ? getNumber(org, 'createdAt') : undefined;
+  const creationTime = org ? getNumber(org, '_creationTime') : undefined;
+
+  if (
+    !orgId ||
+    !orgName ||
+    createdAt === undefined ||
+    creationTime === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    _id: orgId,
+    _creationTime: creationTime,
+    name: orgName,
+    slug: org ? getString(org, 'slug') : undefined,
+    logo: org ? getString(org, 'logo') : undefined,
+    createdAt,
+    metadata: org ? org.metadata : undefined,
+  };
 }

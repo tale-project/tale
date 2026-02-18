@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { memo, useCallback } from 'react';
+import { useCallback } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
@@ -61,7 +61,7 @@ interface EntityDeleteDialogProps<TEntity> {
  * />
  * ```
  */
-function EntityDeleteDialogInner<TEntity>({
+export function EntityDeleteDialog<TEntity>({
   isOpen,
   onClose,
   entity,
@@ -140,8 +140,3 @@ function EntityDeleteDialogInner<TEntity>({
     />
   );
 }
-
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- React.memo loses generic type; cast restores original generic signature
-export const EntityDeleteDialog = memo(
-  EntityDeleteDialogInner,
-) as typeof EntityDeleteDialogInner;

@@ -40,8 +40,7 @@ export function transformToDocumentItem(
   document: Doc<'documents'>,
   options?: TransformOptions,
 ): DocumentItemResponse {
-  // Type the metadata field for safer access
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata is ConvexJsonRecord; shape is DocumentMetadata written by our code
   const metadata = document.metadata as DocumentMetadata | undefined;
 
   // Normalize source mode value

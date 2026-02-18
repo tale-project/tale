@@ -5,6 +5,8 @@
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
+import { toId } from '../lib/type_cast_helpers';
 import { deleteWorkflow as deleteWorkflowModel } from '../workflows/definitions/delete_workflow';
 
 /**
@@ -19,14 +21,13 @@ export async function deleteWebsite(
     throw new Error('Website not found');
   }
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-  const metadata = (website.metadata || {}) as {
-    workflowId?: Id<'wfDefinitions'>;
-  };
-  const workflowId = metadata.workflowId;
+  const metadata = isRecord(website.metadata) ? website.metadata : undefined;
+  const workflowIdStr = metadata
+    ? getString(metadata, 'workflowId')
+    : undefined;
 
-  if (workflowId) {
-    await deleteWorkflowModel(ctx, workflowId);
+  if (workflowIdStr) {
+    await deleteWorkflowModel(ctx, toId<'wfDefinitions'>(workflowIdStr));
   }
 
   await ctx.db.delete(websiteId);

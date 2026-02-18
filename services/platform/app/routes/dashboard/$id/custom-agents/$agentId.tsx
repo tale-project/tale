@@ -17,10 +17,10 @@ import {
 } from '@/app/features/custom-agents/hooks/queries';
 import { CustomAgentVersionProvider } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
-import { toId } from '@/lib/utils/type-guards';
 
 interface SearchParams {
   v?: number;

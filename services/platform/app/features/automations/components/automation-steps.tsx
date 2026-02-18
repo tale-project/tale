@@ -116,7 +116,7 @@ function AutomationStepsInner({
   const isActive = status === 'active';
   const hasSteps = steps && steps.length > 0;
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- TS infers never[] from empty array without explicit type arg
+  // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- without explicit Edge, TS infers never[]
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [isCreateStepDialogOpen, setIsCreateStepDialogOpen] = useState(false);
 

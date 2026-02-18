@@ -44,11 +44,7 @@ export async function listThreads(
   // Non-general/inactive threads are filtered out, so we may need
   // multiple agent pages to fill a single frontend page.
   for (let i = 0; i < MAX_AGENT_PAGES && threads.length < limit; i++) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex pagination cursor type
-    const paginationOpts = { cursor, numItems: Math.max(limit, 50) } as {
-      cursor: string | null;
-      numItems: number;
-    };
+    const paginationOpts = { cursor, numItems: Math.max(limit, 50) };
     const result = await ctx.runQuery(
       components.agent.threads.listThreadsByUserId,
       {

@@ -145,8 +145,8 @@ export const executeApprovedOperation = internalAction({
       );
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex approval metadata
-    const metadata = approval.metadata as unknown as
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata stored via v.any(); shape is IntegrationOperationMetadataLocal written by our approval creation code
+    const metadata = approval.metadata as
       | IntegrationOperationMetadataLocal
       | undefined;
 
@@ -392,17 +392,18 @@ async function executeSqlBatch(
             query = getIntrospectTablesQuery(sqlConnectionConfig.engine);
             queryParams = {};
           } else if (op.operation === 'introspect_columns') {
-            if (!params.schemaName || !params.tableName) {
+            if (
+              typeof params.schemaName !== 'string' ||
+              typeof params.tableName !== 'string'
+            ) {
               throw new Error(
-                'introspect_columns requires schemaName and tableName parameters',
+                'introspect_columns requires schemaName and tableName string parameters',
               );
             }
             const introspectionQuery = getIntrospectColumnsQuery(
               sqlConnectionConfig.engine,
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-              params.schemaName as string,
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-              params.tableName as string,
+              params.schemaName,
+              params.tableName,
             );
             query = introspectionQuery.query;
             queryParams = introspectionQuery.params;
@@ -616,8 +617,9 @@ async function executeRestApiBatch(
 
         const rowCount =
           result && typeof result === 'object' && 'rowCount' in result
-            ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by type guard above
-              (result.rowCount as number | undefined)
+            ? typeof result.rowCount === 'number'
+              ? result.rowCount
+              : undefined
             : undefined;
 
         return {

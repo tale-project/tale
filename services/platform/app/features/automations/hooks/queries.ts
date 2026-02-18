@@ -7,7 +7,7 @@ import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query'
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { api } from '@/convex/_generated/api';
-import { toId } from '@/lib/utils/type-guards';
+import { toId } from '@/convex/lib/type_cast_helpers';
 
 export type AutomationRoot = ConvexItemOf<
   typeof api.wf_definitions.queries.listAutomationRoots
@@ -20,6 +20,12 @@ export type WfAutomation = ConvexItemOf<
 export type WfStep = ConvexItemOf<
   typeof api.wf_step_defs.queries.getWorkflowSteps
 >;
+
+export function useApproxAutomationCount(organizationId: string) {
+  return useConvexQuery(api.wf_definitions.queries.approxCountAutomations, {
+    organizationId,
+  });
+}
 
 export function useAutomationRoots(organizationId: string) {
   const { data, isLoading } = useConvexQuery(

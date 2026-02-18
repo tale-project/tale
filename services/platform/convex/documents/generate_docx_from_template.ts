@@ -11,6 +11,7 @@ import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import type { DocxContent } from './generate_docx';
 
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../lib/debug_log';
 import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
 
@@ -114,10 +115,9 @@ export async function generateDocxFromTemplate(
     throw new Error(`Failed to upload DOCX: ${uploadResponse.status}`);
   }
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-  const { storageId } = (await uploadResponse.json()) as {
-    storageId: Id<'_storage'>;
-  };
+  const { storageId } = await fetchJson<{ storageId: Id<'_storage'> }>(
+    uploadResponse,
+  );
 
   const finalFileName = args.fileName.toLowerCase().endsWith('.docx')
     ? args.fileName

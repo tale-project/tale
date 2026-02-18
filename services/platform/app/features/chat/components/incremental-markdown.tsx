@@ -45,11 +45,18 @@
  * change structure as more text arrives.
  */
 
-import { memo, useMemo, type ComponentType } from 'react';
+import type { Components } from 'react-markdown';
+
+import { memo, useMemo, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
+
+import type {
+  MarkdownComponentMap,
+  MarkdownComponentType,
+} from '@/lib/utils/markdown-types';
 
 // ============================================================================
 // TYPES
@@ -65,8 +72,7 @@ interface IncrementalMarkdownProps {
   /** Whether content is still streaming */
   isStreaming: boolean;
   /** Custom markdown components */
-  // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
-  components?: Record<string, ComponentType<any>>;
+  components?: MarkdownComponentMap;
   /** Additional CSS class */
   className?: string;
   /** Whether to show the typing cursor */
@@ -87,8 +93,7 @@ const StableMarkdown = memo(
     components,
   }: {
     content: string;
-    // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
-    components?: Record<string, ComponentType<any>>;
+    components?: MarkdownComponentMap;
   }) {
     if (!content) return null;
 
@@ -138,11 +143,11 @@ const StreamingMarkdown = memo(
   }: {
     content: string;
     revealedLength: number;
-    // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
-    components?: Record<string, ComponentType<any>>;
+    components?: MarkdownComponentMap;
     showCursor?: boolean;
   }) {
     const revealedContent = content ? content.slice(0, revealedLength) : '';
+    const revealedContentLength = revealedContent.length;
 
     // Create components that inject cursor at the end of the last element
     // We track render order and append cursor to the last rendered block element
@@ -160,14 +165,19 @@ const StreamingMarkdown = memo(
       // Create wrapper components for block elements that might be last
       const createCursorWrapper = (
         Tag: 'p' | 'li' | 'td' | 'th' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
-        // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
-        CustomComponent?: ComponentType<any>,
+        CustomComponent?: MarkdownComponentType,
       ) => {
-        // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
-        return function CursorWrapper({ node, children, ...props }: any) {
+        return function CursorWrapper({
+          node,
+          children,
+          ...props
+        }: Record<string, unknown> & {
+          node?: { position?: { end?: { offset?: number } } };
+          children?: ReactNode;
+        }) {
           // Check if this is the last element by looking at node position
           const isLastElement =
-            node?.position?.end?.offset === revealedContent.length ||
+            node?.position?.end?.offset === revealedContentLength ||
             // Fallback: check if we're near the end (within whitespace)
             (node?.position?.end?.offset &&
               revealedContent.slice(node.position.end.offset).trim() === '');
@@ -202,8 +212,7 @@ const StreamingMarkdown = memo(
         h5: createCursorWrapper('h5', components?.h5),
         h6: createCursorWrapper('h6', components?.h6),
       };
-      // oxlint-disable-next-line react-hooks/exhaustive-deps -- Only need length for cursor position; using full revealedContent would recompute on every streaming chunk
-    }, [components, showCursor, revealedContent.length]);
+    }, [components, showCursor, revealedContentLength, revealedContent]);
 
     if (!content) return null;
 
@@ -225,7 +234,8 @@ const StreamingMarkdown = memo(
           <Markdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeRaw, rehypeSanitize]}
-            components={componentsWithCursor}
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
+            components={componentsWithCursor as Components}
           >
             {revealedContent}
           </Markdown>

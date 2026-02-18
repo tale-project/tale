@@ -7,6 +7,8 @@ import type { GenerateDocxFromTemplateResult } from './generate_docx_from_templa
 import type { GeneratePptxResult } from './generate_pptx';
 import type { GenerateDocumentResult } from './types';
 
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { isRecord, getBoolean } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
@@ -243,13 +245,12 @@ export const checkRagJobStatus = internalAction({
         return null;
       }
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      const job = (await response.json()) as {
+      const job = await fetchJson<{
         state: 'queued' | 'running' | 'completed' | 'failed';
         updated_at?: number;
         error?: string;
         message?: string;
-      };
+      }>(response);
 
       // Terminate: job reached terminal state
       if (job.state === 'completed' || job.state === 'failed') {
@@ -374,14 +375,17 @@ export const reindexDocumentRag = internalAction({
     }
 
     // Step 2: Re-upload document with new team_ids
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const result = (await ragAction.execute(
+    const rawResult = await ragAction.execute(
       ctx,
       { operation: 'upload_document', recordId: args.documentId },
       {},
-    )) as { success: boolean; jobId?: string };
+    );
+    const resultRec = isRecord(rawResult) ? rawResult : undefined;
+    const success = resultRec
+      ? (getBoolean(resultRec, 'success') ?? false)
+      : false;
 
-    if (!result.success) {
+    if (!success) {
       console.error(
         `[reindexDocumentRag] Failed to re-upload document ${args.documentId} to RAG`,
       );

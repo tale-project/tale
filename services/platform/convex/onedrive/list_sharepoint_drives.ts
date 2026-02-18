@@ -1,3 +1,5 @@
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
+
 export interface SharePointDrive {
   id: string;
   name: string;
@@ -59,8 +61,7 @@ export async function listSharePointDrives(
       };
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const data = (await response.json()) as {
+    const data = await fetchJson<{
       value: Array<{
         id: string;
         name: string;
@@ -68,7 +69,7 @@ export async function listSharePointDrives(
         webUrl?: string;
         description?: string;
       }>;
-    };
+    }>(response);
 
     const drives: SharePointDrive[] = data.value.map((drive) => ({
       id: drive.id,

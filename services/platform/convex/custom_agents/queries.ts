@@ -20,7 +20,7 @@ const STATUS_PRIORITY: Record<string, number> = {
   archived: 2,
 };
 
-export const countCustomAgents = query({
+export const approxCountCustomAgents = query({
   args: {
     organizationId: v.string(),
   },

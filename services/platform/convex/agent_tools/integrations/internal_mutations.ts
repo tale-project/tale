@@ -37,9 +37,9 @@ export const updateApprovalWithResult = internalMutation({
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) return;
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex approval metadata
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches IntegrationOperationMetadataLocal for integration_operation approvals
     const metadata = (approval.metadata ||
-      {}) as unknown as IntegrationOperationMetadataLocal;
+      {}) as IntegrationOperationMetadataLocal;
     const executedAt = Date.now();
 
     await ctx.db.patch(args.approvalId, {

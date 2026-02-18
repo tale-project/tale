@@ -3,7 +3,7 @@ import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
-import { toId } from '@/lib/utils/type-guards';
+import { toId } from '@/convex/lib/type_cast_helpers';
 
 export type Conversation = ConvexItemOf<
   typeof api.conversations.queries.listConversations
@@ -40,16 +40,17 @@ export function useListConversationsPaginated(
   );
 }
 
-export function useHasConversations(organizationId: string) {
-  const { data, isLoading } = useConvexQuery(
-    api.conversations.queries.hasConversations,
-    { organizationId },
+export function useApproxConversationCountByStatus(
+  organizationId: string,
+  status: 'open' | 'closed' | 'spam' | 'archived',
+) {
+  return useConvexQuery(
+    api.conversations.queries.approxCountConversationsByStatus,
+    {
+      organizationId,
+      status,
+    },
   );
-
-  return {
-    hasConversations: data ?? false,
-    isLoading,
-  };
 }
 
 export function useConversationWithMessages(conversationId: string | null) {

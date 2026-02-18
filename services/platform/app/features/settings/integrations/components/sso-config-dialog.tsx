@@ -15,6 +15,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 import { useSsoConfigForm } from '../hooks/use-sso-config-form';
 import { RoleMappingSection } from './sso-config/role-mapping-section';
@@ -265,10 +266,18 @@ export function SSOConfigDialog({
 
         <Select
           value={defaultRole}
-          onValueChange={(value) =>
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
-            setDefaultRole(value as PlatformRole)
-          }
+          onValueChange={(value) => {
+            const narrowed = narrowStringUnion<PlatformRole>(value, [
+              'admin',
+              'developer',
+              'editor',
+              'member',
+              'disabled',
+            ] as const);
+            if (narrowed) {
+              setDefaultRole(narrowed);
+            }
+          }}
           disabled={isSubmitting || isLoadingConfig}
           id="default-role-select"
           label={t('integrations.sso.defaultRoleLabel')}

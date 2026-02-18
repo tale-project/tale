@@ -1,3 +1,5 @@
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
+
 export interface OneDriveItem {
   id: string;
   name: string;
@@ -47,8 +49,7 @@ export async function listFiles(
       };
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const data = (await response.json()) as {
+    const data = await fetchJson<{
       value: Array<{
         id: string;
         name: string;
@@ -58,7 +59,7 @@ export async function listFiles(
         lastModifiedDateTime?: string;
         webUrl?: string;
       }>;
-    };
+    }>(response);
 
     const items = data.value.map((item) => ({
       id: item.id,

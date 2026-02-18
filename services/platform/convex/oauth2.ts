@@ -9,6 +9,7 @@
 
 import { v } from 'convex/values';
 
+import { fetchJson } from '../lib/utils/type-cast-helpers';
 import { internalAction } from './_generated/server';
 
 interface RefreshTokenResult {
@@ -91,14 +92,13 @@ export const refreshToken = internalAction({
       );
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const data = (await response.json()) as {
+    const data = await fetchJson<{
       access_token: string;
       refresh_token?: string;
       token_type: string;
       expires_in?: number;
       scope?: string;
-    };
+    }>(response);
 
     return {
       accessToken: data.access_token,
@@ -133,8 +133,7 @@ export const getUserEmail = internalAction({
         throw new Error(`Failed to get Google user info: ${response.status}`);
       }
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      const data = (await response.json()) as { email?: string };
+      const data = await fetchJson<{ email?: string }>(response);
       email = data.email;
     } else if (
       args.provider === 'microsoft' ||
@@ -154,11 +153,10 @@ export const getUserEmail = internalAction({
         );
       }
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      const data = (await response.json()) as {
+      const data = await fetchJson<{
         mail?: string;
         userPrincipalName?: string;
-      };
+      }>(response);
       email = data.mail || data.userPrincipalName;
     } else {
       throw new Error(`Unsupported OAuth2 provider: ${args.provider}`);

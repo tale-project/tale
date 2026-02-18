@@ -9,6 +9,7 @@
 import type { ActionCtx } from '../_generated/server';
 import type { SubThreadSummary } from '../agent_tools/sub_agents/helpers/types';
 
+import { parseJson } from '../../lib/utils/type-cast-helpers';
 import { components } from '../_generated/api';
 
 /**
@@ -32,8 +33,7 @@ export async function getParentThreadId(
   }
 
   try {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const summary = JSON.parse(thread.summary) as Partial<SubThreadSummary>;
+    const summary = parseJson<Partial<SubThreadSummary>>(thread.summary);
     return typeof summary.parentThreadId === 'string'
       ? summary.parentThreadId
       : null;

@@ -95,6 +95,8 @@ export interface DataTableProps<TData, TValue = unknown> {
     /** Distance from bottom to trigger load in px (default: 1000) */
     threshold?: number;
   };
+  /** Number of skeleton rows during initial loading (default: 10) */
+  skeletonRows?: number;
   /** Sorting configuration from useDataTable hook */
   sorting?: DataTableSortingConfig;
   /** Enable row selection */
@@ -190,6 +192,7 @@ export function DataTable<TData, TValue = unknown>({
   footer,
   stickyLayout = false,
   infiniteScroll,
+  skeletonRows = 10,
   error,
   onRetry,
 }: DataTableProps<TData, TValue>) {
@@ -378,7 +381,7 @@ export function DataTable<TData, TValue = unknown>({
       <TableBody>
         {isInitialLoading ? (
           // Show skeleton rows during initial loading (matching DataTableSkeleton style)
-          Array.from({ length: 10 }).map((_, rowIndex) => (
+          Array.from({ length: skeletonRows }).map((_, rowIndex) => (
             <TableRow key={`skeleton-${rowIndex}`}>
               {enableExpanding && <TableCell className="w-[3rem]" />}
               {columns.map((col, colIndex) => {

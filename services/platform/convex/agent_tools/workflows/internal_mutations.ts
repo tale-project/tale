@@ -21,14 +21,14 @@ export const updateWorkflowApprovalWithResult = internalMutation({
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) return;
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex approval metadata
-    const metadata = (approval.metadata ||
-      {}) as unknown as WorkflowCreationMetadata;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowCreationMetadata for workflow_creation approvals
+    const metadata = (approval.metadata || {}) as WorkflowCreationMetadata;
 
     const now = Date.now();
     await ctx.db.patch(args.approvalId, {
       executedAt: now,
       executionError: args.executionError ?? undefined,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- constructing approval metadata from known WorkflowCreationMetadata fields
       metadata: {
         ...metadata,
         executedAt: now,
@@ -36,8 +36,7 @@ export const updateWorkflowApprovalWithResult = internalMutation({
           ? { createdWorkflowId: args.createdWorkflowId }
           : {}),
         ...(args.executionError ? { executionError: args.executionError } : {}),
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex approval metadata for storage
-      } as unknown as ApprovalMetadata,
+      } as ApprovalMetadata,
     });
   },
 });
@@ -96,7 +95,7 @@ export const createWorkflowCreationApproval = internalMutation({
         description: args.workflowConfig.description,
         version: args.workflowConfig.version,
         workflowType: args.workflowConfig.workflowType,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; config is always Record<string, unknown>
         config: args.workflowConfig.config as
           | Record<string, unknown>
           | undefined,
@@ -106,7 +105,7 @@ export const createWorkflowCreationApproval = internalMutation({
         name: step.name,
         stepType: step.stepType,
         order: step.order,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; config is always Record<string, unknown>
         config: step.config as Record<string, unknown>,
         nextSteps: step.nextSteps,
       })),

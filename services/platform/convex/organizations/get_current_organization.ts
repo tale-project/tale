@@ -4,6 +4,7 @@
 
 import type { QueryCtx } from '../_generated/server';
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { authComponent } from '../auth';
 
@@ -42,7 +43,11 @@ export async function getCurrentOrganization(
   );
 
   if (sessionResult && sessionResult.page.length > 0) {
-    const activeOrgId = sessionResult.page[0].activeOrganizationId;
+    const sessionRaw = sessionResult.page[0];
+    const sessionRec = isRecord(sessionRaw) ? sessionRaw : undefined;
+    const activeOrgId = sessionRec
+      ? getString(sessionRec, 'activeOrganizationId')
+      : undefined;
     if (activeOrgId) {
       return activeOrgId;
     }
@@ -69,6 +74,7 @@ export async function getCurrentOrganization(
     return null;
   }
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  return memberResult.page[0].organizationId as string;
+  const memberRaw = memberResult.page[0];
+  const memberRec = isRecord(memberRaw) ? memberRaw : undefined;
+  return memberRec ? (getString(memberRec, 'organizationId') ?? null) : null;
 }

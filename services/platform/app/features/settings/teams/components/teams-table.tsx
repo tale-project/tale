@@ -12,7 +12,7 @@ import { useTeamsTableConfig } from '../hooks/use-teams-table-config';
 import { TeamsActionMenu } from './teams-action-menu';
 
 interface TeamsTableProps {
-  teams: Team[];
+  teams: Team[] | undefined;
   organizationId: string;
 }
 

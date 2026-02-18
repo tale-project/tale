@@ -47,8 +47,11 @@ export function DocumentIcon({
   }
 
   const ext = extractExtension(fileName) ?? '';
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ext may not be a valid DefaultExtensionType key, fallback handles it
-  const styles = defaultStyles[ext as DefaultExtensionType] || {};
+  const styles =
+    ext in defaultStyles
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Guarded by `in` check above
+        (defaultStyles[ext as DefaultExtensionType] ?? {})
+      : {};
 
   return (
     <div className={cn('w-6 px-0.5', className)}>

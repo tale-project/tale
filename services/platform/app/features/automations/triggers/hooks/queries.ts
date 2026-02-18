@@ -2,7 +2,7 @@ import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
-import { toId } from '@/lib/utils/type-guards';
+import { toId } from '@/convex/lib/type_cast_helpers';
 
 export type WfSchedule = ConvexItemOf<
   typeof api.workflows.triggers.queries.getSchedules

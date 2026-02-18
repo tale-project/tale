@@ -40,13 +40,9 @@
  * />
  */
 
-import {
-  memo,
-  useRef,
-  useEffect,
-  useCallback,
-  type ComponentType,
-} from 'react';
+import { memo, useRef, useEffect, useCallback } from 'react';
+
+import type { MarkdownComponentMap } from '@/lib/utils/markdown-types';
 
 import { cn } from '@/lib/utils/cn';
 
@@ -65,8 +61,7 @@ interface TypewriterTextProps {
   /** Callback when typing animation completes */
   onComplete?: () => void;
   /** Custom markdown components (passed to react-markdown) */
-  // oxlint-disable-next-line typescript/no-explicit-any -- Required for react-markdown component types
-  components?: Record<string, ComponentType<any>>;
+  components?: MarkdownComponentMap;
   /** Additional CSS classes */
   className?: string;
 }

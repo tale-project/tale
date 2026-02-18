@@ -2,6 +2,8 @@
  * Refresh Token - Business logic for refreshing Microsoft OAuth tokens
  */
 
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
+
 export interface RefreshTokenResult {
   success: boolean;
   accessToken?: string;
@@ -52,13 +54,12 @@ export async function refreshToken(args: {
       };
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const data = (await response.json()) as {
+    const data = await fetchJson<{
       access_token: string;
       expires_in: number;
       refresh_token?: string;
       refresh_token_expires_in?: number;
-    };
+    }>(response);
 
     return {
       success: true,

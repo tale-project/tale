@@ -30,30 +30,28 @@ function LogsSkeleton() {
 
   return (
     <Stack gap={4}>
-      <div className="space-y-4">
-        <div className="bg-muted inline-flex h-10 items-center gap-1 rounded-lg p-1">
-          <Skeleton className="h-8 w-24 rounded-md" />
-          <Skeleton className="h-8 w-28 rounded-md" />
-          <Skeleton className="h-8 w-24 rounded-md" />
-        </div>
-
-        <Card title={<Skeleton className="h-6 w-32" />}>
-          <DataTableSkeleton
-            rows={10}
-            columns={[
-              { header: t('logs.audit.columns.timestamp'), size: 140 },
-              { header: t('logs.audit.columns.action'), size: 160 },
-              { header: t('logs.audit.columns.actor'), size: 200 },
-              { header: t('logs.audit.columns.resource'), size: 120 },
-              { header: t('logs.audit.columns.target'), size: 200 },
-              { header: t('logs.audit.columns.category'), size: 100 },
-              { header: t('logs.audit.columns.status'), size: 100 },
-            ]}
-            showHeader
-            noFirstColumnAvatar
-          />
-        </Card>
+      <div className="bg-muted inline-flex h-10 items-center gap-1 rounded-lg p-1">
+        <Skeleton className="h-8 w-24 rounded-md" />
+        <Skeleton className="h-8 w-28 rounded-md" />
+        <Skeleton className="h-8 w-24 rounded-md" />
       </div>
+
+      <Card title={<Skeleton className="h-6 w-32" />}>
+        <DataTableSkeleton
+          rows={10}
+          columns={[
+            { header: t('logs.audit.columns.timestamp'), size: 140 },
+            { header: t('logs.audit.columns.action'), size: 160 },
+            { header: t('logs.audit.columns.actor'), size: 200 },
+            { header: t('logs.audit.columns.resource'), size: 120 },
+            { header: t('logs.audit.columns.target'), size: 200 },
+            { header: t('logs.audit.columns.category'), size: 100 },
+            { header: t('logs.audit.columns.status'), size: 100 },
+          ]}
+          showHeader
+          noFirstColumnAvatar
+        />
+      </Card>
     </Stack>
   );
 }
@@ -74,10 +72,6 @@ function LogsPage() {
   });
 
   if (isMemberLoading) {
-    return <LogsSkeleton />;
-  }
-
-  if (paginatedResult.status === 'LoadingFirstPage' && !search.category) {
     return <LogsSkeleton />;
   }
 

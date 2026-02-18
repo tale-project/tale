@@ -44,8 +44,7 @@ export function validateWorkflowDefinition(
   // Validate each step
   for (let i = 0; i < stepsConfig.length; i++) {
     const step = stepsConfig[i];
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const stepSlug = (step as { stepSlug?: string }).stepSlug || 'unknown';
+    const stepSlug = getString(step, 'stepSlug') || 'unknown';
     const stepPrefix = `Step ${i + 1} (${stepSlug}):`;
 
     // Validate basic step structure
@@ -55,40 +54,24 @@ export function validateWorkflowDefinition(
     }
 
     // Validate fields that are not covered by validateStepConfig
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    if (typeof (step as { order?: unknown }).order !== 'number') {
+    if (typeof step.order !== 'number') {
       errors.push(
         `${stepPrefix} Missing or invalid "order" field (must be number)`,
       );
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    if (
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      !(step as { nextSteps?: unknown }).nextSteps ||
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      typeof (step as { nextSteps?: unknown }).nextSteps !== 'object'
-    ) {
+    if (!step.nextSteps || typeof step.nextSteps !== 'object') {
       errors.push(
         `${stepPrefix} Missing or invalid "nextSteps" field (must be object)`,
       );
     }
 
     // Delegate step-level validation
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const typedStep = step as {
-      stepSlug?: unknown;
-      name?: unknown;
-      stepType?: unknown;
-      config?: unknown;
-    };
     const stepValidation = validateStepConfig({
-      stepSlug:
-        typeof typedStep.stepSlug === 'string' ? typedStep.stepSlug : undefined,
-      name: typeof typedStep.name === 'string' ? typedStep.name : undefined,
-      stepType:
-        typeof typedStep.stepType === 'string' ? typedStep.stepType : undefined,
-      config: typedStep.config,
+      stepSlug: typeof step.stepSlug === 'string' ? step.stepSlug : undefined,
+      name: typeof step.name === 'string' ? step.name : undefined,
+      stepType: typeof step.stepType === 'string' ? step.stepType : undefined,
+      config: step.config,
     });
 
     if (!stepValidation.valid) {
@@ -104,8 +87,8 @@ export function validateWorkflowDefinition(
     }
 
     // Additional warnings for action type matching stepType
-    const config = isRecord(typedStep.config) ? typedStep.config : undefined;
-    if (typedStep.stepType === 'action' && config && 'type' in config) {
+    const config = isRecord(step.config) ? step.config : undefined;
+    if (step.stepType === 'action' && config && 'type' in config) {
       const actionType = getString(config, 'type');
       if (actionType && isValidStepType(actionType)) {
         warnings.push(
@@ -118,7 +101,7 @@ export function validateWorkflowDefinition(
   // Validate nextSteps references
   try {
     validateWorkflowSteps(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stepsConfig elements match the expected shape; validated above
       stepsConfig as Array<{
         stepSlug: string;
         name: string;
@@ -136,7 +119,7 @@ export function validateWorkflowDefinition(
     (step): step is { stepSlug: string; nextSteps?: Record<string, string> } =>
       step !== null &&
       typeof step === 'object' &&
-      typeof (step as { stepSlug?: unknown }).stepSlug === 'string',
+      typeof step.stepSlug === 'string',
   );
   const circularDepResult = validateCircularDependencies(
     validStepsForCircularCheck,

@@ -79,7 +79,6 @@ describe('responseType base64 support in HTTP methods', () => {
     });
 
     expect(result.success).toBe(true);
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test assertion
     const data = result.result as { body: string; status: number };
     expect(data.status).toBe(200);
     expect(Buffer.from(data.body, 'base64')).toEqual(
@@ -186,7 +185,6 @@ describe('binaryBody support in HTTP methods', () => {
 
     // Verify the decoded bytes match "Hello World"
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test mock access
     const body = (fetchCall[1] as RequestInit).body as Blob;
     const decoded = new TextDecoder().decode(await body.arrayBuffer());
     expect(decoded).toBe('Hello World');
@@ -219,9 +217,7 @@ describe('binaryBody support in HTTP methods', () => {
     expect(result.success).toBe(true);
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test mock access
     const options = fetchCall[1] as RequestInit;
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test mock access
     const headers = options.headers as Record<string, string>;
     expect(headers['Content-Type']).toBeUndefined();
   });
@@ -254,9 +250,7 @@ describe('binaryBody support in HTTP methods', () => {
     expect(result.success).toBe(true);
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test mock access
     const options = fetchCall[1] as RequestInit;
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test mock access
     const headers = options.headers as Record<string, string>;
     expect(headers['Content-Type']).toBe('image/png');
   });

@@ -16,7 +16,8 @@ import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell'
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { HStack } from '@/app/components/ui/layout/layout';
+import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Pagination } from '@/app/components/ui/navigation/pagination';
 import { DropdownMenu } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -141,31 +142,15 @@ export function ExampleMessagesTable({
     [tTables, tCommon, onViewExample, onEditExample, onDeleteExample],
   );
 
-  // Header component
-  const header = (
-    <HStack justify="between">
-      <Stack gap={1}>
-        <h3 className="text-foreground text-lg font-semibold tracking-[-0.096px]">
-          {tTone('exampleMessages.title')}
-        </h3>
-        <p className="text-muted-foreground text-sm tracking-[-0.084px]">
-          {tTone('exampleMessages.description')}
-        </p>
-      </Stack>
-      {examples.length > 0 && (
-        <Button onClick={onAddExample}>
-          <Plus className="mr-2 size-4" />
-          {tTone('exampleMessages.addButton')}
-        </Button>
-      )}
-    </HStack>
-  );
-
-  // Empty state
   if (examples.length === 0) {
     return (
-      <Stack gap={5}>
-        {header}
+      <PageSection
+        as="h3"
+        titleSize="lg"
+        title={tTone('exampleMessages.title')}
+        description={tTone('exampleMessages.description')}
+        gap={5}
+      >
         <DataTableEmptyState
           icon={Sparkles}
           title={tEmpty('examples.title')}
@@ -178,13 +163,26 @@ export function ExampleMessagesTable({
             />
           }
         />
-      </Stack>
+      </PageSection>
     );
   }
 
+  const action = (
+    <Button onClick={onAddExample}>
+      <Plus className="mr-2 size-4" />
+      {tTone('exampleMessages.addButton')}
+    </Button>
+  );
+
   return (
-    <Stack gap={5}>
-      {header}
+    <PageSection
+      as="h3"
+      titleSize="lg"
+      title={tTone('exampleMessages.title')}
+      description={tTone('exampleMessages.description')}
+      action={action}
+      gap={5}
+    >
       <DataTable
         columns={columns}
         data={paginatedExamples}
@@ -201,6 +199,6 @@ export function ExampleMessagesTable({
           ) : undefined
         }
       />
-    </Stack>
+    </PageSection>
   );
 }
