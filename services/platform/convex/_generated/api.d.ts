@@ -261,7 +261,6 @@ import type * as integrations_get_integration_by_name from "../integrations/get_
 import type * as integrations_guards_is_rest_api_integration from "../integrations/guards/is_rest_api_integration.js";
 import type * as integrations_guards_is_sql_integration from "../integrations/guards/is_sql_integration.js";
 import type * as integrations_helpers from "../integrations/helpers.js";
-import type * as integrations_internal_actions from "../integrations/internal_actions.js";
 import type * as integrations_internal_mutations from "../integrations/internal_mutations.js";
 import type * as integrations_internal_queries from "../integrations/internal_queries.js";
 import type * as integrations_list_integrations from "../integrations/list_integrations.js";
@@ -1132,7 +1131,6 @@ declare const fullApi: ApiFromModules<{
   "integrations/guards/is_rest_api_integration": typeof integrations_guards_is_rest_api_integration;
   "integrations/guards/is_sql_integration": typeof integrations_guards_is_sql_integration;
   "integrations/helpers": typeof integrations_helpers;
-  "integrations/internal_actions": typeof integrations_internal_actions;
   "integrations/internal_mutations": typeof integrations_internal_mutations;
   "integrations/internal_queries": typeof integrations_internal_queries;
   "integrations/list_integrations": typeof integrations_list_integrations;
