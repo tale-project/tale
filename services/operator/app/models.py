@@ -17,6 +17,12 @@ class ChatRequest(BaseModel):
     """Chat request - send a message to OpenCode with Playwright MCP."""
 
     message: str = Field(..., description="The message/task for OpenCode")
+    timeout_seconds: int | None = Field(
+        None,
+        ge=30,
+        le=1800,
+        description="Client-requested timeout in seconds. Server uses the minimum of this and its own limit.",
+    )
 
 
 class TokenUsage(BaseModel):
@@ -35,6 +41,10 @@ class ChatResponse(BaseModel):
     message: str
     response: str | None = None
     error: str | None = None
+    partial: bool = Field(
+        False,
+        description="True when the task timed out but partial results were returned",
+    )
     duration_seconds: float | None = Field(None, description="Execution time in seconds")
     token_usage: TokenUsage | None = Field(None, description="Token consumption statistics")
     cost_usd: float | None = None

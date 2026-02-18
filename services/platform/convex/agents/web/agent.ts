@@ -62,8 +62,12 @@ Use for searching the web or interacting with websites:
 - If content cannot be fetched, explain why and suggest alternatives
 - Summarize lengthy content while preserving key information`;
 
-export function createWebAgent(options?: { maxSteps?: number }) {
+export function createWebAgent(options?: {
+  maxSteps?: number;
+  withTools?: boolean;
+}) {
   const maxSteps = options?.maxSteps ?? 5;
+  const withTools = options?.withTools ?? true;
 
   const convexToolNames: ToolName[] = ['web'];
 
@@ -75,7 +79,7 @@ export function createWebAgent(options?: { maxSteps?: number }) {
   const agentConfig = createAgentConfig({
     name: 'web-assistant',
     instructions: WEB_AGENT_INSTRUCTIONS,
-    convexToolNames,
+    ...(withTools ? { convexToolNames } : {}),
     maxSteps,
   });
 

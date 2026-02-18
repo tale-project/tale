@@ -120,8 +120,12 @@ When analyzing images:
 - If parsing fails, explain the error and suggest alternatives
 - For large documents, summarize key sections while noting omissions`;
 
-export function createDocumentAgent(options?: { maxSteps?: number }) {
+export function createDocumentAgent(options?: {
+  maxSteps?: number;
+  withTools?: boolean;
+}) {
   const maxSteps = options?.maxSteps ?? 15;
+  const withTools = options?.withTools ?? true;
 
   const convexToolNames: ToolName[] = [
     'pdf',
@@ -140,7 +144,7 @@ export function createDocumentAgent(options?: { maxSteps?: number }) {
   const agentConfig = createAgentConfig({
     name: 'document-assistant',
     instructions: DOCUMENT_AGENT_INSTRUCTIONS,
-    convexToolNames,
+    ...(withTools ? { convexToolNames } : {}),
     maxSteps,
   });
 

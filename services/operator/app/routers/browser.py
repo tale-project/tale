@@ -19,7 +19,10 @@ async def chat(request: ChatRequest) -> ChatResponse:
     """
     try:
         service = get_browser_service()
-        result = await service.chat(message=request.message)
+        result = await service.chat(
+            message=request.message,
+            timeout_seconds=request.timeout_seconds,
+        )
 
         token_usage = None
         if result.get("token_usage"):
@@ -29,6 +32,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             success=result["success"],
             message=request.message,
             response=result.get("response"),
+            partial=result.get("partial", False),
             duration_seconds=result.get("duration_seconds"),
             token_usage=token_usage,
             cost_usd=result.get("cost_usd"),

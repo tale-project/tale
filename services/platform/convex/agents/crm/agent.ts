@@ -74,8 +74,12 @@ Heavy fields (avoid unless needed):
 This tool ONLY accesses the INTERNAL CRM database.
 For data from external systems (Shopify, PMS, etc.), use integration_assistant instead.`;
 
-export function createCrmAgent(options?: { maxSteps?: number }) {
+export function createCrmAgent(options?: {
+  maxSteps?: number;
+  withTools?: boolean;
+}) {
   const maxSteps = options?.maxSteps ?? 10;
+  const withTools = options?.withTools ?? true;
 
   const convexToolNames: ToolName[] = ['customer_read', 'product_read'];
 
@@ -87,7 +91,7 @@ export function createCrmAgent(options?: { maxSteps?: number }) {
   const agentConfig = createAgentConfig({
     name: 'crm-assistant',
     instructions: CRM_AGENT_INSTRUCTIONS,
-    convexToolNames,
+    ...(withTools ? { convexToolNames } : {}),
     maxSteps,
   });
 
