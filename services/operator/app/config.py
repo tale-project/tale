@@ -27,10 +27,11 @@ class Settings(BaseSettings):
         description="Maximum number of concurrent requests",
     )
     request_timeout_seconds: int = Field(
-        default=1800,
+        default=270,
         ge=60,
         validation_alias="OPERATOR_REQUEST_TIMEOUT",
-        description="Maximum timeout for a single request (30 minutes default)",
+        description="Maximum timeout for a single request in seconds (default 270s = 4.5min, "
+        "leaves buffer before client's 5-min abort)",
     )
     cleanup_interval_seconds: int = Field(
         default=60,

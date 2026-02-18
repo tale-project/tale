@@ -3,6 +3,11 @@
  *
  * Delegates browser automation to the Operator service.
  * Uses Playwright for browser control with AI-driven navigation.
+ *
+ * Timeout strategy:
+ * - CLIENT_TIMEOUT_MS (300s): hard abort for the HTTP request
+ * - OPERATOR_TIMEOUT_S (270s): sent to operator so it can gracefully
+ *   terminate and return partial results before the client aborts
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -13,6 +18,9 @@ import { createDebugLog } from '../../../lib/debug_log';
 import { getOperatorServiceUrl } from './get_operator_service_url';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
+const CLIENT_TIMEOUT_MS = 300_000;
+const OPERATOR_TIMEOUT_S = 270;
 
 export async function browserOperate(
   ctx: ToolCtx,
@@ -29,12 +37,15 @@ export async function browserOperate(
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300_000);
+    const timeoutId = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
 
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: args.instruction }),
+      body: JSON.stringify({
+        message: args.instruction,
+        timeout_seconds: OPERATOR_TIMEOUT_S,
+      }),
       signal: controller.signal,
     });
 
@@ -53,17 +64,20 @@ export async function browserOperate(
     if (!result.success) {
       debugLog('tool:web:browser_operate failed', {
         error: result.error,
+        partial: result.partial,
       });
       return {
         operation: 'browser_operate',
         success: false,
-        response: '',
+        response: result.response || '',
         error: result.error || 'Operator request failed',
+        sources: result.sources,
       };
     }
 
     debugLog('tool:web:browser_operate success', {
       hasResponse: !!result.response,
+      partial: result.partial,
       sourcesCount: result.sources?.length ?? 0,
     });
 
@@ -84,7 +98,7 @@ export async function browserOperate(
   } catch (error) {
     const isAborted = error instanceof Error && error.name === 'AbortError';
     const errorMessage = isAborted
-      ? 'Request timed out after 5 minutes'
+      ? 'Request timed out after 5 minutes. The operator did not respond in time.'
       : error instanceof Error
         ? error.message
         : 'Unknown error';

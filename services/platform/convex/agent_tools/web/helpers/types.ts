@@ -56,6 +56,7 @@ export interface OperatorChatResponse {
   success: boolean;
   response?: string;
   error?: string;
+  partial?: boolean;
   sources?: string[];
   duration_seconds?: number;
   token_usage?: {
