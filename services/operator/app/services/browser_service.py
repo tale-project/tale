@@ -17,6 +17,11 @@ from app.services.workspace_manager import get_workspace_manager
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"\'`\]\)}\|]+', re.IGNORECASE)
 
+_ASSET_URL_PATTERN = re.compile(
+    r'\.(png|jpe?g|gif|svg|webp|ico|css|js|woff2?|ttf|eot|mp[34]|avi|mov)([?#&]|$)',
+    re.IGNORECASE,
+)
+
 GRACEFUL_SHUTDOWN_SECONDS = 10
 HARD_KILL_SECONDS = 5
 
@@ -83,11 +88,14 @@ SYSTEM_PROMPT = """You are an autonomous browser automation agent with access to
    Format as markdown: [title](URL).
    Generic category links are not acceptable - each recommendation needs its own direct link.
 
-9. **Time Management**: You have a LIMITED time budget. Work efficiently:
+9. **Time Management**: You have a LIMITED time budget of about 4 minutes. Work efficiently:
    - Prioritize the most important information first.
    - Do NOT spend excessive time on a single source — if a page is slow or unhelpful, move on.
    - For complex tasks, focus on gathering the key findings rather than exhaustive coverage.
    - If a task has multiple parts, address the most critical parts first.
+   - **CRITICAL**: After visiting 2-3 key sources, START writing your response immediately.
+     Continue researching and append to your response as you find more information.
+     Do NOT wait until all research is complete to begin writing.
    - Provide the best answer you can with the information you have gathered."""
 
 
@@ -135,27 +143,42 @@ class _OutputAccumulator:
             cache = tokens.get("cache", {})
             self.total_cache_read_tokens += cache.get("read", 0)
 
-        elif event_type in ("tool_result", "tool-output-available"):
+        if event_type in ("tool_use", "tool_result", "tool-output-available"):
             for url in _extract_urls_from_value(event):
-                if url not in self.seen_urls:
+                if url not in self.seen_urls and not _ASSET_URL_PATTERN.search(url):
                     self.seen_urls[url] = None
-
-        urls_in_event = _extract_urls_from_value(event)
-        if urls_in_event:
-            logger.debug(f"[sources-debug] Event '{event_type}' contains URLs: {urls_in_event[:3]}")
 
     def to_response(self, duration: float, *, timed_out: bool) -> dict[str, Any]:
         """Build the final response dict from accumulated data."""
-        logger.info(f"[sources-debug] Event types seen: {sorted(self.event_types_seen)}")
-        logger.info(f"[sources-debug] URLs extracted from tool events: {len(self.seen_urls)}")
+        logger.info(
+            f"Event types seen: {sorted(self.event_types_seen)}, "
+            f"text_parts={len(self.text_parts)}, "
+            f"urls_collected={len(self.seen_urls)}"
+        )
 
         response_text = "".join(self.text_parts)
+        has_partial_data = bool(self.text_parts) or bool(self.seen_urls)
 
         if timed_out and not response_text:
-            response_text = (
-                "The task could not be completed within the time limit. "
-                "No results were gathered. Please try a simpler or more specific request."
-            )
+            if self.seen_urls:
+                source_list = list(self.seen_urls.keys())[:25]
+                lines = [
+                    "The research task reached its time limit before generating "
+                    "a full summary. The following sources were visited during "
+                    "research:",
+                    "",
+                ]
+                lines.extend(f"- {url}" for url in source_list)
+                remaining = len(self.seen_urls) - 25
+                if remaining > 0:
+                    lines.append(f"- ... and {remaining} more")
+                response_text = "\n".join(lines)
+            else:
+                response_text = (
+                    "The task could not be completed within the time limit. "
+                    "No results were gathered. "
+                    "Please try a simpler or more specific request."
+                )
         elif timed_out and response_text:
             response_text += (
                 "\n\n---\n*Note: This response may be incomplete as the task "
@@ -163,8 +186,8 @@ class _OutputAccumulator:
             )
 
         result: dict[str, Any] = {
-            "success": not timed_out or bool(self.text_parts),
-            "partial": timed_out and bool(self.text_parts),
+            "success": not timed_out or has_partial_data,
+            "partial": timed_out and has_partial_data,
             "response": response_text,
             "duration_seconds": round(duration, 2),
             "sources": list(self.seen_urls.keys()),
