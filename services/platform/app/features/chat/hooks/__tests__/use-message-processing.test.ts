@@ -28,9 +28,10 @@ function createUIMessage(
     text: '',
     _creationTime: Date.now(),
     status: 'success',
+    stepOrder: 0,
     parts: [],
     ...overrides,
-  } as UIMessage;
+  } satisfies UIMessage;
 }
 
 describe('useMessageProcessing', () => {
