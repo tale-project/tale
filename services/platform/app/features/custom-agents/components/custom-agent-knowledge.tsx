@@ -5,8 +5,11 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import type { RagStatus } from '@/types/documents';
 
+import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
+import { PageSection } from '@/app/components/ui/layout/page-section';
+import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
 import { useDocuments } from '@/app/features/documents/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
@@ -139,29 +142,19 @@ export function CustomAgentKnowledge({
   return (
     <NarrowContainer className="py-4">
       <Stack gap={6}>
-        <div className="flex items-center justify-between">
-          <Stack gap={1}>
-            <h2 className="text-foreground text-base font-semibold">
-              {t('customAgents.form.sectionKnowledge')}
-            </h2>
-            <p className="text-muted-foreground text-sm">
-              {t('customAgents.form.sectionKnowledgeDescription')}
-            </p>
-          </Stack>
-          <AutoSaveIndicator status={status} />
-        </div>
+        <SectionHeader
+          title={t('customAgents.form.sectionKnowledge')}
+          description={t('customAgents.form.sectionKnowledgeDescription')}
+          action={<AutoSaveIndicator status={status} />}
+        />
 
-        <div>
-          <Switch
-            checked={knowledgeEnabled ?? false}
-            onCheckedChange={(checked) => setKnowledgeEnabled(checked)}
-            label={t('customAgents.knowledge.enableKnowledge')}
-            disabled={isReadOnly}
-          />
-          <p className="text-muted-foreground mt-1.5 ml-10 text-xs">
-            {t('customAgents.knowledge.enableKnowledgeHelp')}
-          </p>
-        </div>
+        <Switch
+          checked={knowledgeEnabled ?? false}
+          onCheckedChange={(checked) => setKnowledgeEnabled(checked)}
+          label={t('customAgents.knowledge.enableKnowledge')}
+          description={t('customAgents.knowledge.enableKnowledgeHelp')}
+          disabled={isReadOnly}
+        />
 
         {knowledgeEnabled && (
           <>
@@ -177,70 +170,60 @@ export function CustomAgentKnowledge({
               </p>
             )}
 
-            <div>
-              <Switch
-                checked={includeOrgKnowledge ?? false}
-                onCheckedChange={(checked) => setIncludeOrgKnowledge(checked)}
-                label={t('customAgents.knowledge.includeOrgKnowledge')}
-                disabled={isReadOnly}
-              />
-              <p className="text-muted-foreground mt-1.5 ml-10 text-xs">
-                {t('customAgents.knowledge.includeOrgKnowledgeHelp')}
-              </p>
-            </div>
+            <Switch
+              checked={includeOrgKnowledge ?? false}
+              onCheckedChange={(checked) => setIncludeOrgKnowledge(checked)}
+              label={t('customAgents.knowledge.includeOrgKnowledge')}
+              description={t('customAgents.knowledge.includeOrgKnowledgeHelp')}
+              disabled={isReadOnly}
+            />
 
             {agent.teamId && teamDocuments.length > 0 && (
-              <section>
-                <h3 className="text-foreground mb-3 text-sm font-medium">
-                  {t('customAgents.knowledge.teamDocuments')}
-                </h3>
+              <PageSection
+                as="h3"
+                titleSize="sm"
+                titleWeight="medium"
+                title={t('customAgents.knowledge.teamDocuments')}
+                gap={3}
+              >
                 <div className="divide-y rounded-lg border">
                   {teamDocuments.map((doc) => (
                     <DocumentRow key={doc.id} doc={doc} />
                   ))}
                 </div>
-              </section>
+              </PageSection>
             )}
 
             {agent.teamId &&
               teamDocuments.length === 0 &&
               !isDocumentsLoading && (
-                <div className="rounded-lg border border-dashed p-8 text-center">
-                  <FileText
-                    className="text-muted-foreground/50 mx-auto mb-2 size-8"
-                    aria-hidden="true"
-                  />
-                  <p className="text-muted-foreground text-sm">
-                    {t('customAgents.knowledge.emptyState')}
-                  </p>
-                </div>
+                <EmptyPlaceholder icon={FileText}>
+                  {t('customAgents.knowledge.emptyState')}
+                </EmptyPlaceholder>
               )}
 
             {includeOrgKnowledge && orgDocuments.length > 0 && (
-              <section>
-                <h3 className="text-foreground mb-3 text-sm font-medium">
-                  {t('customAgents.knowledge.orgDocuments')}
-                </h3>
+              <PageSection
+                as="h3"
+                titleSize="sm"
+                titleWeight="medium"
+                title={t('customAgents.knowledge.orgDocuments')}
+                gap={3}
+              >
                 <div className="divide-y rounded-lg border">
                   {orgDocuments.map((doc) => (
                     <DocumentRow key={doc.id} doc={doc} />
                   ))}
                 </div>
-              </section>
+              </PageSection>
             )}
 
             {includeOrgKnowledge &&
               orgDocuments.length === 0 &&
               !isDocumentsLoading && (
-                <div className="rounded-lg border border-dashed p-8 text-center">
-                  <FileText
-                    className="text-muted-foreground/50 mx-auto mb-2 size-8"
-                    aria-hidden="true"
-                  />
-                  <p className="text-muted-foreground text-sm">
-                    {t('customAgents.knowledge.orgDocumentsEmptyState')}
-                  </p>
-                </div>
+                <EmptyPlaceholder icon={FileText}>
+                  {t('customAgents.knowledge.orgDocumentsEmptyState')}
+                </EmptyPlaceholder>
               )}
           </>
         )}

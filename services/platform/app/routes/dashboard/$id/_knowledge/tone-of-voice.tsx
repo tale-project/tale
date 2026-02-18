@@ -7,8 +7,8 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { ToneOfVoiceFormClient } from '@/app/features/tone-of-voice/components/tone-of-voice-form-client';
 import {
+  useApproxExampleMessageCount,
   useToneOfVoiceWithExamples,
-  useHasExampleMessages,
 } from '@/app/features/tone-of-voice/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -24,14 +24,14 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')(
       meta: seo('toneOfVoice'),
     }),
     validateSearch: searchSchema,
-    loader: ({ context, params }) => {
+    loader: async ({ context, params }) => {
       void context.queryClient.prefetchQuery(
         convexQuery(api.tone_of_voice.queries.getToneOfVoiceWithExamples, {
           organizationId: params.id,
         }),
       );
-      void context.queryClient.prefetchQuery(
-        convexQuery(api.tone_of_voice.queries.hasExampleMessages, {
+      await context.queryClient.ensureQueryData(
+        convexQuery(api.tone_of_voice.queries.approxCountExampleMessages, {
           organizationId: params.id,
         }),
       );
@@ -40,7 +40,7 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')(
   },
 );
 
-function ExampleMessagesSkeleton() {
+function ExampleMessagesSkeleton({ rows }: { rows?: number }) {
   const { t } = useT('tables');
 
   return (
@@ -53,7 +53,7 @@ function ExampleMessagesSkeleton() {
         <Skeleton className="h-9 w-32" />
       </HStack>
       <DataTableSkeleton
-        rows={5}
+        rows={rows ?? 5}
         columns={[
           { header: t('headers.message') },
           { header: t('headers.updated'), size: 140 },
@@ -86,15 +86,16 @@ function ToneFormSkeleton() {
 function ToneOfVoicePage() {
   const { id: organizationId } = Route.useParams();
 
-  const { isLoading: isExamplesLoading } =
-    useHasExampleMessages(organizationId);
+  const { data: exampleCount } = useApproxExampleMessageCount(organizationId);
   const { data: toneOfVoice, isLoading: isToneLoading } =
     useToneOfVoiceWithExamples(organizationId);
 
-  if (isExamplesLoading || isToneLoading) {
+  if (isToneLoading) {
     return (
       <Stack gap={8}>
-        <ExampleMessagesSkeleton />
+        {(exampleCount ?? 0) > 0 && (
+          <ExampleMessagesSkeleton rows={Math.min(exampleCount ?? 5, 5)} />
+        )}
         <ToneFormSkeleton />
       </Stack>
     );

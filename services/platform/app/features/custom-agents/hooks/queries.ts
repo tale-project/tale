@@ -12,6 +12,12 @@ export type CustomAgent = ConvexItemOf<
   typeof api.custom_agents.queries.listCustomAgents
 >;
 
+export function useApproxCustomAgentCount(organizationId: string) {
+  return useConvexQuery(api.custom_agents.queries.approxCountCustomAgents, {
+    organizationId,
+  });
+}
+
 export function useCustomAgents(organizationId: string) {
   const { selectedTeamId } = useTeamFilter();
 

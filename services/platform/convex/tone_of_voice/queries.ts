@@ -7,7 +7,6 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { getToneOfVoiceWithExamples as getToneOfVoiceWithExamplesHelper } from './get_tone_of_voice_with_examples';
-import { hasExampleMessages as hasExampleMessagesHelper } from './has_example_messages';
 import { toneOfVoiceWithExamplesValidator } from './validators';
 
 export const getToneOfVoiceWithExamples = query({
@@ -31,23 +30,34 @@ export const getToneOfVoiceWithExamples = query({
   },
 });
 
-export const hasExampleMessages = query({
+const EXAMPLE_MESSAGES_COUNT_CAP = 20;
+
+export const approxCountExampleMessages = query({
   args: {
     organizationId: v.string(),
   },
-  returns: v.boolean(),
+  returns: v.number(),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      return false;
+      return 0;
     }
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
     } catch {
-      return false;
+      return 0;
     }
 
-    return await hasExampleMessagesHelper(ctx, args);
+    let count = 0;
+    for await (const _ of ctx.db
+      .query('exampleMessages')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      count++;
+      if (count >= EXAMPLE_MESSAGES_COUNT_CAP) break;
+    }
+    return count;
   },
 });

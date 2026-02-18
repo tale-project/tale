@@ -49,18 +49,24 @@ export const listConversations = queryWithRLS({
   },
 });
 
-export const hasConversations = queryWithRLS({
+const CONVERSATIONS_COUNT_CAP = 20;
+
+export const approxCountConversations = queryWithRLS({
   args: {
     organizationId: v.string(),
   },
+  returns: v.number(),
   handler: async (ctx, args) => {
-    const first = await ctx.db
+    let count = 0;
+    for await (const _ of ctx.db
       .query('conversations')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
-      )
-      .first();
-    return first !== null;
+      )) {
+      count++;
+      if (count >= CONVERSATIONS_COUNT_CAP) break;
+    }
+    return count;
   },
 });
 

@@ -1,6 +1,12 @@
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 
-export function ConversationsClientSkeleton() {
+interface ConversationsClientSkeletonProps {
+  rows?: number;
+}
+
+export function ConversationsClientSkeleton({
+  rows = 8,
+}: ConversationsClientSkeletonProps) {
   return (
     <>
       <div className="border-border relative flex w-full flex-col overflow-y-auto border-r md:max-w-[24.75rem] md:flex-[0_0_24.75rem]">
@@ -12,7 +18,7 @@ export function ConversationsClientSkeleton() {
         </div>
 
         <div className="divide-border divide-y">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: rows }).map((_, i) => (
             <div key={i} className="p-4">
               <div className="flex items-start gap-3">
                 <div className="mt-1 flex items-center">

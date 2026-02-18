@@ -14,7 +14,7 @@ import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { isKeyOf } from '@/lib/utils/type-guards';
 
-import { useModelPresets } from '../hooks/queries';
+import { useApproxCustomAgentCount, useModelPresets } from '../hooks/queries';
 import { CustomAgentActiveToggle } from './custom-agent-active-toggle';
 import { CustomAgentRowActions } from './custom-agent-row-actions';
 import { CustomAgentsActionMenu } from './custom-agents-action-menu';
@@ -41,20 +41,19 @@ export interface CustomAgentRow {
 
 interface CustomAgentTableProps {
   organizationId: string;
-  agents: CustomAgentRow[] | null;
-  isLoading: boolean;
+  agents: CustomAgentRow[] | undefined;
 }
 
 export function CustomAgentTable({
   organizationId,
   agents,
-  isLoading,
 }: CustomAgentTableProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
+  const { data: count } = useApproxCustomAgentCount(organizationId);
   const { data: modelPresets } = useModelPresets();
 
   const handleRowClick = useCallback(
@@ -126,12 +125,14 @@ export function CustomAgentTable({
               ? modelPresets[preset]
               : undefined;
           return (
-            <span className="bg-muted text-muted-foreground inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium">
+            <Badge variant="outline">
               {presetLabel}
               {modelName && (
-                <span className="text-muted-foreground/60">{modelName}</span>
+                <span className="text-muted-foreground/60 ml-1">
+                  {modelName}
+                </span>
               )}
-            </span>
+            </Badge>
           );
         },
         size: 200,
@@ -159,11 +160,7 @@ export function CustomAgentTable({
             );
           }
           const teamName = teamNameMap.get(rowTeamId) ?? rowTeamId;
-          return (
-            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-              {teamName}
-            </span>
-          );
+          return <Badge variant="blue">{teamName}</Badge>;
         },
         size: 140,
       },
@@ -182,12 +179,13 @@ export function CustomAgentTable({
   );
 
   const list = useListPage({
-    dataSource: { type: 'query', data: agents ?? undefined },
+    dataSource: { type: 'query', data: agents },
     pageSize: 25,
     search: {
       fields: ['displayName', 'name'],
       placeholder: t('customAgents.searchAgent'),
     },
+    skeletonRows: Math.min(count ?? 10, 10),
   });
 
   return (
@@ -201,10 +199,6 @@ export function CustomAgentTable({
         icon: Bot,
         title: t('customAgents.noAgents'),
         description: t('customAgents.noAgentsDescription'),
-      }}
-      infiniteScroll={{
-        ...list.tableProps.infiniteScroll,
-        isInitialLoading: isLoading,
       }}
     />
   );

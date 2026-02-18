@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form';
 
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
+import { NarrowContainer } from '@/app/components/ui/layout/layout';
+import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
@@ -57,10 +58,11 @@ export function AccountFormClient({
   if (hasCredential) {
     return (
       <NarrowContainer className="p-0!">
-        <Stack>
-          <h2 className="mb-6 text-lg font-semibold">
-            {tAuth('changePassword.title')}
-          </h2>
+        <PageSection
+          title={tAuth('changePassword.title')}
+          titleSize="lg"
+          gap={6}
+        >
           <ChangePasswordForm
             updatePassword={updatePassword}
             toast={toast}
@@ -68,20 +70,19 @@ export function AccountFormClient({
             tCommon={tCommon}
             tToast={tToast}
           />
-        </Stack>
+        </PageSection>
       </NarrowContainer>
     );
   }
 
   return (
     <NarrowContainer className="p-0!">
-      <Stack>
-        <h2 className="mb-6 text-lg font-semibold">
-          {tAuth('setPassword.title')}
-        </h2>
-        <p className="text-muted-foreground text-sm">
-          {tAuth('setPassword.description')}
-        </p>
+      <PageSection
+        title={tAuth('setPassword.title')}
+        description={tAuth('setPassword.description')}
+        titleSize="lg"
+        gap={6}
+      >
         <SetPasswordForm
           updatePassword={updatePassword}
           toast={toast}
@@ -89,7 +90,7 @@ export function AccountFormClient({
           tCommon={tCommon}
           tToast={tToast}
         />
-      </Stack>
+      </PageSection>
     </NarrowContainer>
   );
 }

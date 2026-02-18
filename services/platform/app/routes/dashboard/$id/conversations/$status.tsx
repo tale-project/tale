@@ -5,7 +5,7 @@ import type { Doc } from '@/convex/_generated/dataModel';
 
 import { ConversationsClient } from '@/app/features/conversations/components/conversations-client';
 import {
-  useHasConversations,
+  useApproxConversationCount,
   useListConversationsPaginated,
 } from '@/app/features/conversations/hooks/queries';
 
@@ -40,8 +40,8 @@ function ConversationsStatusPage() {
 
   const mappedStatus = conversationStatusMap[status] ?? 'open';
 
-  const { hasConversations, isLoading: isLoadingHasConversations } =
-    useHasConversations(organizationId);
+  const { data: conversationCount } =
+    useApproxConversationCount(organizationId);
 
   const paginatedResult = useListConversationsPaginated({
     organizationId,
@@ -57,8 +57,7 @@ function ConversationsStatusPage() {
       organizationId={organizationId}
       search={search && search.length > 0 ? search : undefined}
       paginatedResult={paginatedResult}
-      hasConversations={hasConversations}
-      isLoadingHasConversations={isLoadingHasConversations}
+      conversationCount={conversationCount}
     />
   );
 }

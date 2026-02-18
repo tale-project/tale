@@ -8,6 +8,12 @@ import { api } from '@/convex/_generated/api';
 
 export type Customer = ConvexItemOf<typeof api.customers.queries.listCustomers>;
 
+export function useApproxCustomerCount(organizationId: string) {
+  return useConvexQuery(api.customers.queries.approxCountCustomers, {
+    organizationId,
+  });
+}
+
 export function useCustomers(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.customers.queries.listCustomers,

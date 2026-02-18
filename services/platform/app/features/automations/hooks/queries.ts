@@ -21,6 +21,12 @@ export type WfStep = ConvexItemOf<
   typeof api.wf_step_defs.queries.getWorkflowSteps
 >;
 
+export function useApproxAutomationCount(organizationId: string) {
+  return useConvexQuery(api.wf_definitions.queries.approxCountAutomations, {
+    organizationId,
+  });
+}
+
 export function useAutomationRoots(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.wf_definitions.queries.listAutomationRoots,

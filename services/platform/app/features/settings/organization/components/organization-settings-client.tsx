@@ -9,6 +9,7 @@ import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useToast } from '@/app/hooks/use-toast';
@@ -119,11 +120,7 @@ export function OrganizationSettingsClient({
             {...register('name')}
             wrapperClassName="max-w-sm flex-1"
           />
-          <Button
-            type="submit"
-            disabled={!isDirty || isSubmitting}
-            className="bg-foreground text-background hover:bg-foreground/90"
-          >
+          <Button type="submit" disabled={!isDirty || isSubmitting}>
             {isSubmitting
               ? tCommon('actions.saving')
               : tCommon('actions.saveChanges')}
@@ -147,16 +144,11 @@ export function OrganizationSettingsClient({
         </HStack>
       )}
 
-      <Stack className="pt-4">
-        <Stack gap={1}>
-          <h2 className="text-foreground text-base font-semibold">
-            {tSettings('organization.membersTitle')}
-          </h2>
-          <p className="text-muted-foreground text-sm tracking-[-0.084px]">
-            {tSettings('organization.manageAccess')}
-          </p>
-        </Stack>
-
+      <PageSection
+        title={tSettings('organization.membersTitle')}
+        description={tSettings('organization.manageAccess')}
+        className="pt-4"
+      >
         <HStack justify="between">
           <SearchInput
             placeholder={tSettings('organization.searchMember')}
@@ -166,11 +158,7 @@ export function OrganizationSettingsClient({
             wrapperClassName="flex-1 max-w-sm"
           />
           {memberContext?.isAdmin && (
-            <Button
-              size="sm"
-              onClick={() => setIsAddMemberDialogOpen(true)}
-              className="bg-foreground text-background hover:bg-foreground/90"
-            >
+            <Button size="sm" onClick={() => setIsAddMemberDialogOpen(true)}>
               <Plus className="mr-2 size-4" />
               {tSettings('organization.addMember')}
             </Button>
@@ -206,7 +194,7 @@ export function OrganizationSettingsClient({
             setSortOrder(newSortOrder);
           }}
         />
-      </Stack>
+      </PageSection>
 
       {organization && (
         <AddMemberDialog

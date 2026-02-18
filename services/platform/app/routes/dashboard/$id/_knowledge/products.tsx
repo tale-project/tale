@@ -3,10 +3,11 @@ import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { ProductTable } from '@/app/features/products/components/product-table';
-import { ProductTableSkeleton } from '@/app/features/products/components/product-table-skeleton';
 import { ProductsEmptyState } from '@/app/features/products/components/products-empty-state';
-import { useListProductsPaginated } from '@/app/features/products/hooks/queries';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import {
+  useApproxProductCount,
+  useListProductsPaginated,
+} from '@/app/features/products/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -22,8 +23,13 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/products')({
   }),
   validateSearch: searchSchema,
   loader: async ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.products.queries.listProducts, {
+        organizationId: params.id,
+      }),
+    );
     await context.queryClient.ensureQueryData(
-      convexQuery(api.products.queries.countProducts, {
+      convexQuery(api.products.queries.approxCountProducts, {
         organizationId: params.id,
       }),
     );
@@ -35,9 +41,7 @@ function ProductsPage() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
 
-  const { data: count } = useConvexQuery(api.products.queries.countProducts, {
-    organizationId,
-  });
+  const { data: count } = useApproxProductCount(organizationId);
 
   const paginatedResult = useListProductsPaginated({
     organizationId,
@@ -50,26 +54,11 @@ function ProductsPage() {
     return <ProductsEmptyState organizationId={organizationId} />;
   }
 
-  const hasActiveFilters = !!(search.status || search.category);
-
-  const isInitialLoading =
-    paginatedResult.status === 'LoadingFirstPage' && !paginatedResult.results;
-
-  if (isInitialLoading) {
-    return (
-      <ProductTableSkeleton
-        organizationId={organizationId}
-        rows={Math.min(count ?? 10, 10)}
-      />
-    );
-  }
-
   return (
     <ProductTable
       organizationId={organizationId}
       paginatedResult={paginatedResult}
       status={search.status}
-      hasActiveFilters={hasActiveFilters}
     />
   );
 }

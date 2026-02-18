@@ -9,10 +9,21 @@ import type { Doc } from '../_generated/dataModel';
 
 import { query } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { hasTeamAccess } from '../lib/team_access';
 import { listDocumentsPaginated as listDocumentsPaginatedHelper } from './list_documents_paginated';
 import { transformDocumentsBatch } from './transform_to_document_item';
+
+export const approxCountDocuments = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    return await countItemsInOrg(ctx.db, 'documents', args.organizationId);
+  },
+});
 
 export const listDocuments = query({
   args: {

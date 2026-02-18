@@ -24,7 +24,7 @@ export const listCustomers = queryWithRLS({
   },
 });
 
-export const countCustomers = queryWithRLS({
+export const approxCountCustomers = queryWithRLS({
   args: {
     organizationId: v.string(),
   },

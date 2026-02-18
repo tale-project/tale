@@ -1,6 +1,6 @@
 import type { DatabaseReader } from '../../_generated/server';
 
-type OrgTable = 'customers' | 'products' | 'vendors' | 'websites';
+type OrgTable = 'customers' | 'documents' | 'products' | 'vendors' | 'websites';
 
 const DEFAULT_CAP = 20;
 

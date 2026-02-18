@@ -8,6 +8,12 @@ export type Approval = ConvexItemOf<
   typeof api.approvals.queries.listApprovalsByOrganization
 >;
 
+export function useApproxApprovalCount(organizationId: string) {
+  return useConvexQuery(api.approvals.queries.approxCountApprovals, {
+    organizationId,
+  });
+}
+
 export function useApprovals(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.approvals.queries.listApprovalsByOrganization,

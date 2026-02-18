@@ -12,7 +12,7 @@ import { useApiKeysTableConfig } from '../hooks/use-api-keys-table-config';
 import { ApiKeysActionMenu } from './api-keys-action-menu';
 
 interface ApiKeysTableProps {
-  apiKeys: ApiKey[];
+  apiKeys: ApiKey[] | undefined;
   organizationId: string;
 }
 

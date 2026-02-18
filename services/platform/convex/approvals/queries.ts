@@ -11,6 +11,38 @@ import {
   approvalResourceTypeValidator,
 } from './validators';
 
+const APPROVALS_COUNT_CAP = 20;
+
+export const approxCountApprovals = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return 0;
+    }
+
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch {
+      return 0;
+    }
+
+    let count = 0;
+    for await (const _ of ctx.db
+      .query('approvals')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      count++;
+      if (count >= APPROVALS_COUNT_CAP) break;
+    }
+    return count;
+  },
+});
+
 export const listApprovalsPaginated = query({
   args: {
     paginationOpts: paginationOptsValidator,

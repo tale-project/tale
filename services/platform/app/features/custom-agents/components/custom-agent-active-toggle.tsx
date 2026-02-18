@@ -22,11 +22,13 @@ interface CustomAgentActiveToggleProps {
     '_id' | 'displayName' | 'rootVersionId' | 'status' | 'versionNumber'
   >;
   label?: string;
+  description?: string;
 }
 
 export function CustomAgentActiveToggle({
   agent,
   label,
+  description,
 }: CustomAgentActiveToggleProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -126,6 +128,7 @@ export function CustomAgentActiveToggle({
         onKeyDown={(e) => e.stopPropagation()}
         disabled={isUnpublishedDraft || isToggling}
         label={label}
+        description={description}
         aria-label={t('customAgents.activeToggle.ariaLabel')}
       />
 

@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
@@ -8,6 +9,7 @@ import {
 import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { ApprovalsNavigation } from '@/app/features/approvals/components/approvals-navigation';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -22,6 +24,13 @@ export const Route = createFileRoute('/dashboard/$id/approvals')({
         params: { id: params.id, status: 'pending' },
       });
     }
+  },
+  loader: async ({ context, params }) => {
+    await context.queryClient.ensureQueryData(
+      convexQuery(api.approvals.queries.approxCountApprovals, {
+        organizationId: params.id,
+      }),
+    );
   },
   component: ApprovalsLayout,
 });

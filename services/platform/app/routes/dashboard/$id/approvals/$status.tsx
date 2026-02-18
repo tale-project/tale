@@ -2,7 +2,10 @@ import { createFileRoute, notFound } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { ApprovalsClient } from '@/app/features/approvals/components/approvals-client';
-import { useListApprovalsPaginated } from '@/app/features/approvals/hooks/queries';
+import {
+  useApproxApprovalCount,
+  useListApprovalsPaginated,
+} from '@/app/features/approvals/hooks/queries';
 
 const VALID_STATUSES = ['pending', 'resolved'] as const;
 
@@ -25,6 +28,8 @@ function ApprovalsStatusPage() {
   const { search } = Route.useSearch();
   const isPending = status === 'pending';
 
+  const { data: approxCount } = useApproxApprovalCount(organizationId);
+
   const paginatedResult = useListApprovalsPaginated({
     organizationId,
     ...(isPending
@@ -40,6 +45,7 @@ function ApprovalsStatusPage() {
       organizationId={organizationId}
       search={search}
       paginatedResult={paginatedResult}
+      approxCount={approxCount}
     />
   );
 }
