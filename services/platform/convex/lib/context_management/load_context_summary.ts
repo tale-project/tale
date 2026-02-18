@@ -7,6 +7,7 @@
 
 import type { ActionCtx } from '../../_generated/server';
 
+import { parseJson } from '../../../lib/utils/type-cast-helpers';
 import { components } from '../../_generated/api';
 
 export async function loadContextSummary(
@@ -22,11 +23,11 @@ export async function loadContextSummary(
       return undefined;
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const summaryData = JSON.parse(thread.summary) as {
-      contextSummary?: string;
-    };
-    return typeof summaryData.contextSummary === 'string'
+    const summaryData = parseJson<{ contextSummary?: string }>(thread.summary);
+    return typeof summaryData === 'object' &&
+      summaryData !== null &&
+      'contextSummary' in summaryData &&
+      typeof summaryData.contextSummary === 'string'
       ? summaryData.contextSummary
       : undefined;
   } catch (error) {

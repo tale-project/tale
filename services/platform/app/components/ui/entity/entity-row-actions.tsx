@@ -13,6 +13,7 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { useT } from '@/lib/i18n/client';
+import { buildRecord } from '@/lib/utils/type-guards';
 
 interface EntityRowAction {
   /** Unique key for the action */
@@ -152,48 +153,30 @@ export function useEntityRowDialogs<T extends string>(dialogKeys: T[]) {
   const keysRef = React.useRef(dialogKeys);
 
   const [openStates, setOpenStates] = useState<Record<T, boolean>>(() =>
-    keysRef.current.reduce(
-      (acc, key) => ({ ...acc, [key]: false }),
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reduce initial value; progressively populated by accumulator
-      {} as Record<T, boolean>,
-    ),
+    buildRecord(keysRef.current, () => false),
   );
 
   const open = useMemo(
     () =>
-      keysRef.current.reduce(
-        (acc, key) => ({
-          ...acc,
-          [key]: () => setOpenStates((prev) => ({ ...prev, [key]: true })),
-        }),
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reduce initial value; progressively populated by accumulator
-        {} as Record<T, () => void>,
+      buildRecord(
+        keysRef.current,
+        (key) => () => setOpenStates((prev) => ({ ...prev, [key]: true })),
       ),
     [],
   );
 
   const setOpen = useMemo(
     () =>
-      keysRef.current.reduce(
-        (acc, key) => ({
-          ...acc,
-          [key]: (isOpen: boolean) =>
-            setOpenStates((prev) => ({ ...prev, [key]: isOpen })),
-        }),
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reduce initial value; progressively populated by accumulator
-        {} as Record<T, (isOpen: boolean) => void>,
+      buildRecord(
+        keysRef.current,
+        (key) => (isOpen: boolean) =>
+          setOpenStates((prev) => ({ ...prev, [key]: isOpen })),
       ),
     [],
   );
 
   const closeAll = useCallback(() => {
-    setOpenStates(
-      keysRef.current.reduce(
-        (acc, key) => ({ ...acc, [key]: false }),
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reduce initial value; progressively populated by accumulator
-        {} as Record<T, boolean>,
-      ),
-    );
+    setOpenStates(buildRecord(keysRef.current, () => false));
   }, []);
 
   return {

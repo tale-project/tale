@@ -1,3 +1,5 @@
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
+
 export interface FileMetadataResult {
   success: boolean;
   data?: {
@@ -37,8 +39,7 @@ export async function getFileMetadata(
       };
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const data = (await response.json()) as {
+    const data = await fetchJson<{
       id: string;
       name: string;
       size?: number;
@@ -50,7 +51,7 @@ export async function getFileMetadata(
           quickXorHash?: string;
         };
       };
-    };
+    }>(response);
 
     const hash =
       data.file?.hashes?.sha256Hash ||

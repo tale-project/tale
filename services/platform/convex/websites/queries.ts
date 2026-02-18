@@ -24,7 +24,7 @@ export const listWebsites = queryWithRLS({
   },
 });
 
-export const countWebsites = queryWithRLS({
+export const approxCountWebsites = queryWithRLS({
   args: {
     organizationId: v.string(),
   },

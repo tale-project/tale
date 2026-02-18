@@ -6,6 +6,12 @@ import { api } from '@/convex/_generated/api';
 
 export type Website = ConvexItemOf<typeof api.websites.queries.listWebsites>;
 
+export function useApproxWebsiteCount(organizationId: string) {
+  return useConvexQuery(api.websites.queries.approxCountWebsites, {
+    organizationId,
+  });
+}
+
 export function useWebsites(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.websites.queries.listWebsites,

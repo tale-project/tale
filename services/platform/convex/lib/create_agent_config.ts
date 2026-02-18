@@ -155,28 +155,25 @@ Example: User asks for "John's email" and you find 3 Johns:
     );
   }
 
-  const hasMaxTokens = typeof opts.maxTokens === 'number';
-
   // Default maxSteps to 40 when tools are configured but maxSteps is not set.
   // Without maxSteps, AI SDK defaults to stepCountIs(1), which prevents tool call loops
   // and can cause models to "simulate" tool calls as XML text output.
   const effectiveMaxSteps =
     hasAnyTools && typeof opts.maxSteps !== 'number' ? 40 : opts.maxSteps;
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Agent config is dynamically assembled from heterogeneous tool sources (createTool results, integration-bound tools); the ToolSet branded type cannot be satisfied statically
   return {
     name: opts.name,
     instructions: finalInstructions,
     languageModel: openai.chat(model),
     callSettings,
-    ...(hasMaxTokens
+    ...(typeof opts.maxTokens === 'number'
       ? { providerOptions: { openai: { maxOutputTokens: opts.maxTokens } } }
       : {}),
     ...(hasAnyTools ? { tools: mergedTools } : {}),
     ...(typeof effectiveMaxSteps === 'number'
       ? { maxSteps: effectiveMaxSteps }
       : {}),
-    // Add text embedding model for vector search
     ...(embeddingModel
       ? { textEmbeddingModel: openai.embedding(embeddingModel) }
       : {}),

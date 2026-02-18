@@ -4,9 +4,10 @@ import { z } from 'zod';
 
 import { CustomersEmptyState } from '@/app/features/customers/components/customers-empty-state';
 import { CustomersTable } from '@/app/features/customers/components/customers-table';
-import { CustomersTableSkeleton } from '@/app/features/customers/components/customers-table-skeleton';
-import { useListCustomersPaginated } from '@/app/features/customers/hooks/queries';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import {
+  useApproxCustomerCount,
+  useListCustomersPaginated,
+} from '@/app/features/customers/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -23,8 +24,13 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/customers')({
   }),
   validateSearch: searchSchema,
   loader: async ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.customers.queries.listCustomers, {
+        organizationId: params.id,
+      }),
+    );
     await context.queryClient.ensureQueryData(
-      convexQuery(api.customers.queries.countCustomers, {
+      convexQuery(api.customers.queries.approxCountCustomers, {
         organizationId: params.id,
       }),
     );
@@ -36,9 +42,7 @@ function CustomersPage() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
 
-  const { data: count } = useConvexQuery(api.customers.queries.countCustomers, {
-    organizationId,
-  });
+  const { data: count } = useApproxCustomerCount(organizationId);
 
   const paginatedResult = useListCustomersPaginated({
     organizationId,
@@ -52,20 +56,6 @@ function CustomersPage() {
     return <CustomersEmptyState organizationId={organizationId} />;
   }
 
-  const hasActiveFilters = !!(search.status || search.source || search.locale);
-
-  const isInitialLoading =
-    paginatedResult.status === 'LoadingFirstPage' && !paginatedResult.results;
-
-  if (isInitialLoading) {
-    return (
-      <CustomersTableSkeleton
-        organizationId={organizationId}
-        rows={Math.min(count ?? 10, 10)}
-      />
-    );
-  }
-
   return (
     <CustomersTable
       organizationId={organizationId}
@@ -73,7 +63,6 @@ function CustomersPage() {
       status={search.status}
       source={search.source}
       locale={search.locale}
-      hasActiveFilters={hasActiveFilters}
     />
   );
 }

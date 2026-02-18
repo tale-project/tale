@@ -1,3 +1,5 @@
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
+
 export interface SharePointSite {
   id: string;
   name: string;
@@ -45,8 +47,7 @@ export async function listSharePointSites(
     const sitesMap = new Map<string, SharePointSite>();
 
     if (searchResult.status === 'fulfilled' && searchResult.value.ok) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      const data = (await searchResult.value.json()) as {
+      const data = await fetchJson<{
         value: Array<{
           id: string;
           name?: string;
@@ -54,7 +55,7 @@ export async function listSharePointSites(
           webUrl: string;
           description?: string;
         }>;
-      };
+      }>(searchResult.value);
       for (const site of data.value) {
         const siteName = site.name || site.displayName || 'Unnamed Site';
         sitesMap.set(site.id, {
@@ -68,8 +69,7 @@ export async function listSharePointSites(
     }
 
     if (followedResult.status === 'fulfilled' && followedResult.value.ok) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      const data = (await followedResult.value.json()) as {
+      const data = await fetchJson<{
         value: Array<{
           id: string;
           name?: string;
@@ -77,7 +77,7 @@ export async function listSharePointSites(
           webUrl: string;
           description?: string;
         }>;
-      };
+      }>(followedResult.value);
       for (const site of data.value) {
         if (!sitesMap.has(site.id)) {
           const siteName = site.name || site.displayName || 'Unnamed Site';
@@ -93,14 +93,13 @@ export async function listSharePointSites(
     }
 
     if (groupsResult.status === 'fulfilled' && groupsResult.value.ok) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      const groupsData = (await groupsResult.value.json()) as {
+      const groupsData = await fetchJson<{
         value: Array<{
           id: string;
           displayName: string;
           description?: string;
         }>;
-      };
+      }>(groupsResult.value);
 
       const groupSitePromises = groupsData.value
         .slice(0, 20)
@@ -111,14 +110,13 @@ export async function listSharePointSites(
               { headers },
             );
             if (siteResponse.ok) {
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-              const site = (await siteResponse.json()) as {
+              const site = await fetchJson<{
                 id: string;
                 name?: string;
                 displayName?: string;
                 webUrl: string;
                 description?: string;
-              };
+              }>(siteResponse);
               const siteName =
                 site.name || site.displayName || group.displayName;
               return {

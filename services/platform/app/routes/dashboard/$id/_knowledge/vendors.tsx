@@ -4,9 +4,10 @@ import { z } from 'zod';
 
 import { VendorsEmptyState } from '@/app/features/vendors/components/vendors-empty-state';
 import { VendorsTable } from '@/app/features/vendors/components/vendors-table';
-import { VendorsTableSkeleton } from '@/app/features/vendors/components/vendors-table-skeleton';
-import { useListVendorsPaginated } from '@/app/features/vendors/hooks/queries';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import {
+  useApproxVendorCount,
+  useListVendorsPaginated,
+} from '@/app/features/vendors/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -22,8 +23,13 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/vendors')({
   }),
   validateSearch: searchSchema,
   loader: async ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.vendors.queries.listVendors, {
+        organizationId: params.id,
+      }),
+    );
     await context.queryClient.ensureQueryData(
-      convexQuery(api.vendors.queries.countVendors, {
+      convexQuery(api.vendors.queries.approxCountVendors, {
         organizationId: params.id,
       }),
     );
@@ -35,9 +41,7 @@ function VendorsPage() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
 
-  const { data: count } = useConvexQuery(api.vendors.queries.countVendors, {
-    organizationId,
-  });
+  const { data: count } = useApproxVendorCount(organizationId);
 
   const paginatedResult = useListVendorsPaginated({
     organizationId,
@@ -48,20 +52,6 @@ function VendorsPage() {
 
   if (count === 0) {
     return <VendorsEmptyState organizationId={organizationId} />;
-  }
-
-  const hasServerFilters = !!(search.source || search.locale);
-
-  const isInitialLoading =
-    paginatedResult.status === 'LoadingFirstPage' && !hasServerFilters;
-
-  if (isInitialLoading) {
-    return (
-      <VendorsTableSkeleton
-        organizationId={organizationId}
-        rows={Math.min(count ?? 10, 10)}
-      />
-    );
   }
 
   return (

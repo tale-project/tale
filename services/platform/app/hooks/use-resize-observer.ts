@@ -48,6 +48,9 @@ export function useResizeObserver(
     return () => window.removeEventListener('resize', handler);
   }, [listenToWindow]);
 
+  // Serialize deps to a stable string key so the effect re-runs when deps change
+  const depsKey = JSON.stringify(deps);
+
   // ResizeObserver
   useEffect(() => {
     let validElements: HTMLElement[] = [];
@@ -86,6 +89,5 @@ export function useResizeObserver(
     return () => {
       resizeObserver.disconnect();
     };
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- deps is spread to allow dynamic dependency tracking; refs are stable objects
-  }, [...deps]);
+  }, [refs, depsKey]);
 }

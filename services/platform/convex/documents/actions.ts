@@ -2,6 +2,7 @@
 
 import { v } from 'convex/values';
 
+import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
@@ -32,14 +33,16 @@ export const retryRagIndexing = action({
         return { success: false, error: 'Document not found' };
       }
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      const result = (await ragAction.execute(
+      const rawResult = await ragAction.execute(
         ctx,
         { operation: 'upload_document', recordId: args.documentId },
         {},
-      )) as { success: boolean; jobId?: string };
+      );
+      const result = isRecord(rawResult) ? rawResult : undefined;
+      const success = result ? (getBoolean(result, 'success') ?? false) : false;
+      const jobId = result ? getString(result, 'jobId') : undefined;
 
-      return { success: result.success, jobId: result.jobId };
+      return { success, jobId };
     } catch (error) {
       console.error('[retryRagIndexing] Error:', error);
       return {

@@ -15,6 +15,7 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 import { useCreateMember } from '../hooks/mutations';
 
@@ -220,13 +221,20 @@ export function AddMemberDialog({
 
         <Select
           value={selectedRole}
-          onValueChange={(value) =>
-            setValue(
-              'role',
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
-              value as 'disabled' | 'admin' | 'developer' | 'editor' | 'member',
-            )
-          }
+          onValueChange={(value) => {
+            const narrowed = narrowStringUnion<
+              'disabled' | 'admin' | 'developer' | 'editor' | 'member'
+            >(value, [
+              'disabled',
+              'admin',
+              'developer',
+              'editor',
+              'member',
+            ] as const);
+            if (narrowed) {
+              setValue('role', narrowed);
+            }
+          }}
           label={tSettings('form.role')}
           options={[
             { value: 'admin', label: tSettings('roles.admin') },

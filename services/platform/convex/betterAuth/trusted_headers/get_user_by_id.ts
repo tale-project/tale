@@ -4,6 +4,12 @@
 
 import type { QueryCtx } from '../../_generated/server';
 
+import {
+  isRecord,
+  getString,
+  getNumber,
+  getBoolean,
+} from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 
 export interface BetterAuthUser {
@@ -37,8 +43,18 @@ export async function getUserById(
   });
 
   if (result && result.page.length > 0) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-    return result.page[0] as BetterAuthUser;
+    const raw = result.page[0];
+    if (!isRecord(raw)) return null;
+    return {
+      _id: getString(raw, '_id') ?? '',
+      _creationTime: getNumber(raw, '_creationTime') ?? 0,
+      name: getString(raw, 'name') ?? '',
+      email: getString(raw, 'email') ?? '',
+      emailVerified: getBoolean(raw, 'emailVerified') ?? false,
+      image: getString(raw, 'image'),
+      createdAt: getNumber(raw, 'createdAt') ?? 0,
+      updatedAt: getNumber(raw, 'updatedAt') ?? 0,
+    };
   }
 
   return null;

@@ -322,7 +322,7 @@ export function ConversationPanel({
       ? {
           id: conversation.pendingApproval._id,
           content:
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any()
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata shape verified by 'emailBody' in check above
             (conversation.pendingApproval.metadata as { emailBody: string })
               .emailBody,
         }

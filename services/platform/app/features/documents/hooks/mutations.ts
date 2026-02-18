@@ -10,6 +10,7 @@ import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { DOCUMENT_MAX_FILE_SIZE } from '@/lib/shared/file-types';
+import { fetchJson } from '@/lib/utils/type-cast-helpers';
 
 /**
  * Calculate SHA-256 hash of a file using Web Crypto API
@@ -136,10 +137,9 @@ export function useDocumentUpload(options: UploadOptions) {
           throw new Error(`Upload failed: ${uploadResponse.statusText}`);
         }
 
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
-        const { storageId } = (await uploadResponse.json()) as {
-          storageId: string;
-        };
+        const { storageId } = await fetchJson<{ storageId: string }>(
+          uploadResponse,
+        );
 
         // Step 4: Create document record in database
         const result = await createDocumentFromUpload({
@@ -159,10 +159,7 @@ export function useDocumentUpload(options: UploadOptions) {
         return result;
       });
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Promise.all widens the return type
-      const results = (await Promise.all(
-        uploadPromises,
-      )) as CreateDocumentResult[];
+      const results = await Promise.all(uploadPromises);
 
       // Check if all uploads were successful
       const failedUploads = results.filter(

@@ -35,19 +35,21 @@ function getOpenAIProvider() {
 
 type OpenAIProvider = ReturnType<typeof createOpenAI>;
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-export const openai: OpenAIProvider = new Proxy(
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  Object.assign(function () {}, {}) as unknown as OpenAIProvider,
-  {
-    apply(_target, _thisArg, args) {
-      const provider = getOpenAIProvider();
-      return (provider as Function).apply(null, args);
-    },
-    get(_target, prop) {
-      const provider = getOpenAIProvider();
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-      return provider[prop as keyof typeof provider];
-    },
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Proxy target must match OpenAIProvider shape; actual calls are forwarded to the real lazily-initialized provider
+const proxyTarget = Object.assign(
+  function () {},
+  {},
+) as unknown as OpenAIProvider;
+
+export const openai: OpenAIProvider = new Proxy(proxyTarget, {
+  apply(_target, _thisArg, args) {
+    const provider = getOpenAIProvider();
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- provider is callable (OpenAI factory); Function type required for .apply()
+    return (provider as unknown as Function).apply(null, args);
   },
-);
+  get(_target, prop) {
+    const provider = getOpenAIProvider();
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Proxy get trap receives string|symbol; narrow to known provider keys
+    return provider[prop as keyof typeof provider];
+  },
+});

@@ -199,6 +199,50 @@ export const getUserOrganizationsList = query({
   },
 });
 
+export const approxCountMyTeams = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return 0;
+    }
+
+    const membershipsResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'teamMember',
+        paginationOpts: { cursor: null, numItems: 100 },
+        where: [{ field: 'userId', operator: 'eq', value: authUser.userId }],
+      });
+
+    if (!membershipsResult || membershipsResult.page.length === 0) {
+      return 0;
+    }
+
+    const teamResults: BetterAuthFindManyResult<BetterAuthTeam>[] =
+      await Promise.all(
+        membershipsResult.page.map((membership) =>
+          ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'team',
+            paginationOpts: { cursor: null, numItems: 1 },
+            where: [
+              { field: '_id', operator: 'eq', value: membership.teamId },
+              {
+                field: 'organizationId',
+                operator: 'eq',
+                value: args.organizationId,
+              },
+            ],
+          }),
+        ),
+      );
+
+    return teamResults.filter((r) => r && r.page.length > 0).length;
+  },
+});
+
 export const getMyTeams = query({
   args: {
     organizationId: v.string(),

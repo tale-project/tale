@@ -19,6 +19,7 @@ import type {
   ThreadSummaryWithSubThreads,
 } from '../agent_tools/sub_agents/helpers/types';
 
+import { parseJson } from '../../lib/utils/type-cast-helpers';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 
@@ -57,8 +58,7 @@ export async function getOrCreateSubThread(
   let summary: ThreadSummaryWithSubThreads = {};
   if (parentThread.summary) {
     try {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      summary = JSON.parse(parentThread.summary) as ThreadSummaryWithSubThreads;
+      summary = parseJson<ThreadSummaryWithSubThreads>(parentThread.summary);
     } catch {
       // Invalid JSON, start fresh
       console.warn(

@@ -2,6 +2,7 @@
  * Load and validate execution data
  */
 
+import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
@@ -62,15 +63,17 @@ export async function loadAndValidateExecution(
   const workflowConfig = execution.workflowConfig || {};
 
   return {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- execution with resolved variables matches LoadExecutionResult['execution']
     execution: {
       ...execution,
       variables,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
     } as LoadExecutionResult['execution'],
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    stepConfig: stepConfigRaw as { [key: string]: unknown },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    workflowConfig: workflowConfig as {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stepConfig from execution.stepsConfig is always Record<string, unknown>
+    stepConfig: (isRecord(stepConfigRaw) ? stepConfigRaw : {}) as {
+      [key: string]: unknown;
+    },
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- workflowConfig from execution is always a workflow config object
+    workflowConfig: (isRecord(workflowConfig) ? workflowConfig : {}) as {
       name?: string;
       description?: string;
       version?: string;

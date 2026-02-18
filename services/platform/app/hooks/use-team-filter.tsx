@@ -22,7 +22,7 @@ interface Team {
 }
 
 interface TeamFilterContextType {
-  teams: Team[] | null;
+  teams: Team[] | undefined;
   isLoadingTeams: boolean;
   selectedTeamId: string | null;
   setSelectedTeamId: (teamId: string | null) => void;

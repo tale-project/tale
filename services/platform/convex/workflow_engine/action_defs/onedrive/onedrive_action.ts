@@ -25,7 +25,7 @@ import {
   jsonValueValidator,
 } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
-import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
+import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 
 // Common field validators
 const filesValidator = v.array(
@@ -287,7 +287,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             },
           );
           for (const doc of res.page) {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata stored via v.any(); shape is DocumentMetadata written by our sync code
             const meta = (doc.metadata ?? {}) as DocumentMetadata;
             const key =
               doc.externalItemId ?? meta.oneDriveItemId ?? meta.oneDriveId;
@@ -308,7 +308,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             const existing = existingByItemId.get(f.id);
             const lastModified = f.lastModified;
             const existingMeta = existing
-              ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+              ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata stored via v.any(); shape is DocumentMetadata written by our sync code
                 ((existing.metadata ?? {}) as DocumentMetadata)
               : undefined;
             const prevModified = existingMeta?.sourceModifiedAt;
@@ -360,10 +360,9 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
                 contentType:
                   fileMimeType || f.mimeType || 'application/octet-stream',
                 metadata,
-                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
-                documentIdToUpdate: existing?._id as
-                  | Id<'documents'>
-                  | undefined,
+                documentIdToUpdate: existing?._id
+                  ? toId<'documents'>(existing._id)
+                  : undefined,
                 createdBy: params.createdBy,
               },
             );

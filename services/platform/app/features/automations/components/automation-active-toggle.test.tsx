@@ -3,6 +3,8 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
+import type { Doc } from '@/convex/_generated/dataModel';
+
 import { render, screen, waitFor } from '@/test/utils/render';
 
 import { AutomationActiveToggle } from './automation-active-toggle';
@@ -46,14 +48,10 @@ vi.mock('@/app/hooks/use-toast', () => ({
 }));
 
 function createAutomation(
-  overrides: Partial<{
-    _id: string;
-    status: string;
-    name: string;
-  }> = {},
-) {
+  overrides: Partial<Doc<'wfDefinitions'>> = {},
+): Doc<'wfDefinitions'> {
   return {
-    _id: 'wf-1',
+    _id: 'wf-1' as Doc<'wfDefinitions'>['_id'],
     _creationTime: Date.now(),
     organizationId: 'org-1',
     name: 'Test Automation',
@@ -61,8 +59,7 @@ function createAutomation(
     version: 'v1.0',
     versionNumber: 1,
     ...overrides,
-    // oxlint-disable-next-line typescript/no-explicit-any -- Test fixture
-  } as any;
+  } as Doc<'wfDefinitions'>;
 }
 
 describe('AutomationActiveToggle', () => {

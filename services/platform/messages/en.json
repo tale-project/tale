@@ -737,7 +737,8 @@
         "sectionFilePreprocessingDescription": "Configure how file attachments are processed",
         "filePreprocessingEnabled": "Pre-analyze file attachments",
         "filePreprocessingEnabledHelp": "When enabled, uploaded files (documents, images, text) are automatically analyzed before the AI responds. This provides faster and more accurate responses. When disabled, the AI uses tools to read files on demand.",
-        "filePreprocessingInjectedPrompt": "The following instructions will be automatically appended to the system prompt:"
+        "filePreprocessingInjectedPrompt": "The following instructions will be automatically appended to the system prompt:",
+        "copyPrompt": "Copy prompt"
       },
       "knowledge": {
         "enableKnowledge": "Enable knowledge base",
@@ -773,6 +774,7 @@
         "urlWarning": "Copy this URL now. It will only be shown once.",
         "webhookUrl": "Webhook URL",
         "copyUrl": "Copy webhook URL",
+        "copyExample": "Copy example",
         "deleteWebhook": "Delete webhook",
         "emptyTitle": "No webhooks yet",
         "emptyDescription": "Create a webhook to allow external systems to chat with this agent.",

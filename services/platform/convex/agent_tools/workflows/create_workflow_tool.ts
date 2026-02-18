@@ -183,7 +183,7 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
             workflowDescription: args.workflowConfig.description,
             workflowConfig: {
               ...args.workflowConfig,
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Zod-validated config is Record<string, unknown> but TS infers broader z.object type
               config: args.workflowConfig.config as
                 | Record<string, unknown>
                 | undefined,

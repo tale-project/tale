@@ -87,7 +87,7 @@ export async function handleSsoLogin(
     if (entraFeatures?.autoProvisionTeam && adapter.getGroups) {
       try {
         const syncResult = await syncTeamsFromGroups({
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex context type
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- GenericActionCtx shares the required runQuery/runMutation surface with MutationCtx
           ctx: ctx as unknown as SyncTeamsFromGroupsArgs['ctx'],
           userId: result.userId,
           accessToken: args.accessToken,

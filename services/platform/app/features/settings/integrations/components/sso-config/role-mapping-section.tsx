@@ -13,6 +13,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
+import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 interface RoleMappingSectionProps {
   rules: RoleMappingRule[];
@@ -48,12 +49,15 @@ export function RoleMappingSection({
           >
             <Select
               value={rule.source}
-              onValueChange={(value) =>
-                onUpdate(index, {
-                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
-                  source: value as 'jobTitle' | 'appRole',
-                })
-              }
+              onValueChange={(value) => {
+                const narrowed = narrowStringUnion<'jobTitle' | 'appRole'>(
+                  value,
+                  ['jobTitle', 'appRole'] as const,
+                );
+                if (narrowed) {
+                  onUpdate(index, { source: narrowed });
+                }
+              }}
               disabled={disabled}
               className="w-28 shrink-0"
               options={[
@@ -78,12 +82,18 @@ export function RoleMappingSection({
 
             <Select
               value={rule.targetRole}
-              onValueChange={(value) =>
-                onUpdate(index, {
-                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix Select onValueChange returns string
-                  targetRole: value as PlatformRole,
-                })
-              }
+              onValueChange={(value) => {
+                const narrowed = narrowStringUnion<PlatformRole>(value, [
+                  'admin',
+                  'developer',
+                  'editor',
+                  'member',
+                  'disabled',
+                ] as const);
+                if (narrowed) {
+                  onUpdate(index, { targetRole: narrowed });
+                }
+              }}
               disabled={disabled}
               className="w-28 shrink-0"
               options={platformRoles}

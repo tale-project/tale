@@ -7,6 +7,7 @@
 import type { ActionCtx } from '../../../_generated/server';
 
 import { getParseEndpoint } from '../../../../lib/shared/file-types';
+import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
 import { getCrawlerServiceUrl } from '../../web/helpers/get_crawler_service_url';
@@ -97,7 +98,7 @@ export async function parseFile(
       throw new Error(`Crawler service error: ${response.status} ${errorText}`);
     }
 
-    const result = await response.json();
+    const result = await fetchJson<ParseFileResult>(response);
 
     debugLog(`tool:${toolName} parse success`, {
       filename: result.filename,
@@ -105,8 +106,7 @@ export async function parseFile(
       textLength: result.full_text?.length ?? 0,
     });
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response.json() returns unknown
-    return result as ParseFileResult;
+    return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[tool:${toolName} parse] error`, {

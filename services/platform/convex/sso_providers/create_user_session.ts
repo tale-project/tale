@@ -4,6 +4,7 @@
 
 import { generateId } from 'better-auth';
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 
@@ -42,11 +43,10 @@ export async function createUserSession(
     },
   );
 
+  const createResultRec = isRecord(createResult) ? createResult : undefined;
   const sessionId =
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-    (createResult as { _id?: string; id?: string })?._id ??
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-    (createResult as { _id?: string; id?: string })?.id ??
+    (createResultRec ? getString(createResultRec, '_id') : undefined) ??
+    (createResultRec ? getString(createResultRec, 'id') : undefined) ??
     null;
 
   console.log('[createUserSession] Session created:', {

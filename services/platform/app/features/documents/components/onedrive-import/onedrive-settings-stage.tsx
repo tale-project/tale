@@ -2,14 +2,21 @@
 
 import { Database, Loader2, Users } from 'lucide-react';
 
+import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
+import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Description } from '@/app/components/ui/forms/description';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import {
   RadioGroup,
   RadioGroupItem,
 } from '@/app/components/ui/forms/radio-group';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { SectionHeader } from '@/app/components/ui/layout/section-header';
+import { Separator } from '@/app/components/ui/layout/separator';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
+import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 import type { ImportType } from './types';
 
@@ -80,26 +87,27 @@ export function OneDriveSettingsStage({
     footerClassName: 'border-t border-border p-4',
     customHeader: (
       <div className="border-border flex items-start justify-between border-b px-6 py-5">
-        <div className="space-y-1">
-          <h2 className="text-foreground text-base leading-none font-semibold tracking-tight">
-            {t('onedrive.importSettings')}
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            {t('onedrive.settingsDescription', {
-              count: selectedItemCount,
-            })}
-          </p>
-        </div>
+        <SectionHeader
+          title={t('onedrive.importSettings')}
+          description={t('onedrive.settingsDescription', {
+            count: selectedItemCount,
+          })}
+        />
       </div>
     ),
     content: (
-      <div className="px-6 py-2">
+      <Stack gap={4} className="px-6 py-2">
         <RadioGroup
           value={importType}
-          onValueChange={(value: string) =>
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix RadioGroup onValueChange returns string
-            onImportTypeChange(value as ImportType)
-          }
+          onValueChange={(value: string) => {
+            const narrowed = narrowStringUnion<ImportType>(value, [
+              'one-time',
+              'sync',
+            ] as const);
+            if (narrowed) {
+              onImportTypeChange(narrowed);
+            }
+          }}
           className="space-y-2"
         >
           <div className="border-border hover:bg-muted rounded-lg border p-3">
@@ -112,9 +120,7 @@ export function OneDriveSettingsStage({
                 >
                   {t('onedrive.oneTimeImport')}
                 </label>
-                <div className="text-muted-foreground text-sm">
-                  {t('onedrive.oneTimeDescription')}
-                </div>
+                <Description>{t('onedrive.oneTimeDescription')}</Description>
               </div>
             </div>
           </div>
@@ -129,39 +135,32 @@ export function OneDriveSettingsStage({
                 >
                   {t('onedrive.syncImport')}
                 </label>
-                <div className="text-muted-foreground text-sm">
-                  {t('onedrive.syncDescription')}
-                </div>
+                <Description>{t('onedrive.syncDescription')}</Description>
               </div>
             </div>
           </div>
         </RadioGroup>
 
-        <div className="border-border mt-4 border-t pt-4">
-          <p className="mb-2 text-sm font-medium">{t('upload.selectTeams')}</p>
-          <p className="text-muted-foreground mb-3 text-xs">
-            {t('upload.selectTeamsDescription')}
-          </p>
+        <Separator />
 
+        <FormSection
+          label={t('upload.selectTeams')}
+          description={t('upload.selectTeamsDescription')}
+        >
           {isLoadingTeams ? (
             <div className="flex items-center justify-center py-4">
-              <span className="text-muted-foreground text-sm">
-                {tCommon('actions.loading')}
-              </span>
+              <Spinner size="sm" label={tCommon('actions.loading')} />
             </div>
           ) : !teams || teams.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-4 text-center">
-              <Users className="text-muted-foreground/50 mb-2 size-6" />
-              <p className="text-muted-foreground text-sm">
-                {t('upload.noTeamsAvailable')}
-              </p>
-            </div>
+            <EmptyPlaceholder icon={Users}>
+              {t('upload.noTeamsAvailable')}
+            </EmptyPlaceholder>
           ) : (
             <Stack gap={2}>
               {teams.map((team) => (
                 <div
                   key={team.id}
-                  className="bg-card hover:bg-accent/50 flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
+                  className="bg-card hover:bg-accent/50 rounded-lg border p-3 transition-colors"
                 >
                   <Checkbox
                     id={`onedrive-team-${team.id}`}
@@ -175,11 +174,9 @@ export function OneDriveSettingsStage({
             </Stack>
           )}
 
-          <p className="text-muted-foreground mt-3 text-xs">
-            {t('upload.allMembersHint')}
-          </p>
-        </div>
-      </div>
+          <Description>{t('upload.allMembersHint')}</Description>
+        </FormSection>
+      </Stack>
     ),
   };
 }

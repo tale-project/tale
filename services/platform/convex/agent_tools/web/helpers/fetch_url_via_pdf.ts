@@ -9,6 +9,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import type { WebFetchUrlResult, WebFetchExtractApiResponse } from './types';
 
+import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../../lib/debug_log';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 
@@ -53,8 +54,7 @@ export async function fetchUrlViaPdf(
       throw new Error(`Crawler service error: ${response.status} ${errorText}`);
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response.json() returns unknown
-    const result = (await response.json()) as WebFetchExtractApiResponse;
+    const result = await fetchJson<WebFetchExtractApiResponse>(response);
 
     if (!result.success) {
       debugLog('tool:web:fetch_url failed', {

@@ -18,6 +18,7 @@ import type {
   OperationDetailResult,
 } from './types';
 
+import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { isSqlIntegration } from '../../integrations/helpers';
 import { getIntrospectionOperations } from '../../workflow_engine/action_defs/integration/helpers/get_introspection_operations';
@@ -153,10 +154,9 @@ Returns operation names and types. Use 'operation' param to get parameter detail
           title: op.title,
           description: op.description,
           operationType: op.operationType,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-          parametersSchema: op.parametersSchema as
-            | Record<string, unknown>
-            | undefined,
+          parametersSchema: isRecord(op.parametersSchema)
+            ? op.parametersSchema
+            : undefined,
         };
       }
 

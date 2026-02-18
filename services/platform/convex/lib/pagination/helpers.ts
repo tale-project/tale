@@ -50,8 +50,7 @@ export async function paginateWithFilter<T extends GenericDocument>(
   return {
     page: items,
     isDone: !hasMore,
-    continueCursor:
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- GenericDocument._id is Value; always string at runtime
-      items.length > 0 ? (items[items.length - 1]._id as string) : '',
+    // oxlint-disable-next-line typescript/no-base-to-string -- GenericId<string> extends string, String() is safe
+    continueCursor: items.length > 0 ? String(items[items.length - 1]._id) : '',
   };
 }

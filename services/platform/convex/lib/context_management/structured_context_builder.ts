@@ -51,6 +51,17 @@ interface HumanInputRequestMetadata {
   };
 }
 
+function isHumanInputRequestMetadata(
+  val: unknown,
+): val is HumanInputRequestMetadata {
+  if (!isRecord(val)) return false;
+  return (
+    typeof val.question === 'string' &&
+    typeof val.format === 'string' &&
+    typeof val.requestedAt === 'number'
+  );
+}
+
 /**
  * Tool call extracted from message content
  */
@@ -281,10 +292,9 @@ function formatMessagesWithApprovals(
       if (linkedApprovals) {
         for (const approval of linkedApprovals) {
           if (approval.resourceType === 'human_input_request') {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
-            const metadata = approval.metadata as
-              | HumanInputRequestMetadata
-              | undefined;
+            const metadata = isHumanInputRequestMetadata(approval.metadata)
+              ? approval.metadata
+              : undefined;
             if (metadata) {
               result.push(
                 fmt.formatHumanInputRequest(

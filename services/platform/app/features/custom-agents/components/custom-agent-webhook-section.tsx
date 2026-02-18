@@ -2,21 +2,24 @@
 
 import type { ColumnDef } from '@tanstack/react-table';
 
-import { Plus, Webhook, Copy, Check, Trash2, Code } from 'lucide-react';
+import { Check, Code, Copy, Plus, Trash2, Webhook } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
+import { CodeBlock } from '@/app/components/ui/data-display/code-block';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { Alert } from '@/app/components/ui/feedback/alert';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack } from '@/app/components/ui/layout/layout';
+import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
-import { toId } from '@/lib/utils/type-guards';
 
 import { SecretRevealDialog } from '../../automations/triggers/components/secret-reveal-dialog';
 import {
@@ -57,7 +60,6 @@ export function CustomAgentWebhookSection({
   const [deleteTarget, setDeleteTarget] = useState<WebhookRow | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [usageTarget, setUsageTarget] = useState<WebhookRow | null>(null);
-  const [copiedExample, setCopiedExample] = useState<string | null>(null);
 
   const siteUrl = useSiteUrl();
   const isPublished = versions?.some((v) => v.status === 'active') ?? false;
@@ -276,37 +278,19 @@ export function CustomAgentWebhookSection({
     ];
   }, [usageUrl, t]);
 
-  const handleCopyExample = useCallback(async (key: string, code: string) => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopiedExample(key);
-      setTimeout(() => setCopiedExample(null), 2000);
-    } catch {
-      // Clipboard API not available
-    }
-  }, []);
-
   return (
     <div className="w-full px-6 py-4">
       <Stack gap={6}>
-        <Stack gap={1}>
-          <h2 className="text-base font-semibold">
-            {t('customAgents.webhook.title')}
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            {t('customAgents.webhook.description')}
-          </p>
-        </Stack>
+        <SectionHeader
+          title={t('customAgents.webhook.title')}
+          description={t('customAgents.webhook.description')}
+        />
 
         {!isPublished && (
-          <div
-            className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20"
-            role="alert"
-          >
-            <p className="text-sm text-amber-800 dark:text-amber-200">
-              {t('customAgents.webhook.notPublished')}
-            </p>
-          </div>
+          <Alert
+            variant="warning"
+            description={t('customAgents.webhook.notPublished')}
+          />
         )}
 
         <DataTable
@@ -350,10 +334,7 @@ export function CustomAgentWebhookSection({
         <Dialog
           open={!!usageTarget}
           onOpenChange={(open) => {
-            if (!open) {
-              setUsageTarget(null);
-              setCopiedExample(null);
-            }
+            if (!open) setUsageTarget(null);
           }}
           title={t('customAgents.webhook.usageExamples')}
           description={t('customAgents.webhook.usageExamplesDescription')}
@@ -361,29 +342,14 @@ export function CustomAgentWebhookSection({
         >
           <div className="max-h-[60vh] space-y-4 overflow-y-auto">
             {usageExamples.map((example) => (
-              <div key={example.key}>
-                <p className="text-muted-foreground mb-1.5 text-xs font-medium">
-                  {example.label}
-                </p>
-                <div className="group relative">
-                  <pre className="bg-muted rounded-md p-3 pr-10 font-mono text-xs break-all whitespace-pre-wrap">
-                    {example.code}
-                  </pre>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute top-1.5 right-1.5 opacity-0 transition-opacity group-hover:opacity-100"
-                    onClick={() => handleCopyExample(example.key, example.code)}
-                    aria-label={t('customAgents.webhook.copyUrl')}
-                  >
-                    {copiedExample === example.key ? (
-                      <Check className="size-3.5 text-green-500" />
-                    ) : (
-                      <Copy className="size-3.5" />
-                    )}
-                  </Button>
-                </div>
-              </div>
+              <CodeBlock
+                key={example.key}
+                label={example.label}
+                copyValue={example.code}
+                copyLabel={t('customAgents.webhook.copyExample')}
+              >
+                {example.code}
+              </CodeBlock>
             ))}
           </div>
         </Dialog>

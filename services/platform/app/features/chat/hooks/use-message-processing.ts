@@ -47,21 +47,20 @@ interface UseMessageProcessingResult {
 export function useMessageProcessing(
   threadId: string | undefined,
 ): UseMessageProcessingResult {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex agent SDK useUIMessages expects UIMessagesQuery which doesn't match generated API types
+  const query = api.threads.queries
+    .getThreadMessagesStreaming as unknown as Parameters<
+    typeof useUIMessages
+  >[0];
   const {
     results: uiMessages,
     loadMore,
     status: paginationStatus,
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SDK type mismatch: return type narrowed to usable shape
-  } = useUIMessages(
-    // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
-    api.threads.queries.getThreadMessagesStreaming as any,
-    threadId ? { threadId } : 'skip',
-    { initialNumItems: 30, stream: true },
-  ) as unknown as {
-    results: UIMessage[] | undefined;
-    loadMore: (numItems: number) => void;
-    status: string;
-  };
+  } = useUIMessages(query, threadId ? { threadId } : 'skip', {
+    initialNumItems: 30,
+    // @ts-expect-error -- Convex agent SDK StreamQuery conditional type doesn't resolve correctly with generated API types; stream: true is valid at runtime
+    stream: true,
+  });
 
   const isLoadingMore = paginationStatus === 'LoadingMore';
 
@@ -99,17 +98,16 @@ export function useMessageProcessing(
         return false;
       })
       .map((m) => {
-        // UIMessage.parts is loosely typed — cast required to access file-specific fields
-        const fileParts = (
-          (m.parts || []) as {
-            type: string;
-            mediaType?: string;
-            filename?: string;
-            url?: string;
-          }[]
-        )
-          .filter((p): p is FilePart => p.type === 'file')
-          .map((p: FilePart) => ({
+        const parts: unknown[] = Array.isArray(m.parts) ? m.parts : [];
+        const fileParts = parts
+          .filter(
+            (p): p is FilePart =>
+              typeof p === 'object' &&
+              p !== null &&
+              'type' in p &&
+              p.type === 'file',
+          )
+          .map((p) => ({
             type: 'file' as const,
             mediaType: p.mediaType,
             filename: p.filename,
@@ -175,6 +173,7 @@ export function useMessageProcessing(
     if (lastToolIndex === -1) return false;
 
     // UIMessage.parts is loosely typed — cast required to access tool-specific fields
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex agent SDK returns loosely typed UIMessage.parts
     const lastToolPart = lastAssistant.parts[lastToolIndex] as {
       type: string;
       state?: string;

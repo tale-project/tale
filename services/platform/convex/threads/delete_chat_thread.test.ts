@@ -50,7 +50,6 @@ describe('parseSubThreadIds', () => {
   });
 });
 
-// oxlint-disable typescript/unbound-method -- vitest mock assertions require method references
 describe('deleteChatThread', () => {
   function createMockCtx(threadSummary?: string) {
     const scheduledJobs: Array<{
@@ -58,38 +57,37 @@ describe('deleteChatThread', () => {
       args: Record<string, unknown>;
     }> = [];
 
-    const ctx = {
-      runQuery: vi
-        .fn()
-        .mockResolvedValue(
-          threadSummary !== undefined
-            ? { status: 'active', summary: threadSummary }
-            : null,
-        ),
-      runMutation: vi.fn().mockResolvedValue(undefined),
-      scheduler: {
-        runAfter: vi.fn(
-          async (
-            delay: number,
-            _ref: unknown,
-            args: Record<string, unknown>,
-          ) => {
-            scheduledJobs.push({ delay, args });
-          },
-        ),
+    const mockRunQuery = vi
+      .fn()
+      .mockResolvedValue(
+        threadSummary !== undefined
+          ? { status: 'active', summary: threadSummary }
+          : null,
+      );
+    const mockRunMutation = vi.fn().mockResolvedValue(undefined);
+    const mockRunAfter = vi.fn(
+      async (delay: number, _ref: unknown, args: Record<string, unknown>) => {
+        scheduledJobs.push({ delay, args });
       },
-    };
+    );
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test mock
-    return { ctx: ctx as unknown as MutationCtx, scheduledJobs };
+    const ctx = {
+      runQuery: mockRunQuery,
+      runMutation: mockRunMutation,
+      scheduler: { runAfter: mockRunAfter },
+    } as unknown as MutationCtx;
+
+    return { ctx, mockRunQuery, mockRunMutation, mockRunAfter, scheduledJobs };
   }
 
   it('should archive the parent thread', async () => {
-    const { ctx } = createMockCtx(JSON.stringify({ chatType: 'general' }));
+    const { ctx, mockRunMutation } = createMockCtx(
+      JSON.stringify({ chatType: 'general' }),
+    );
 
     await deleteChatThread(ctx, 'parent_1');
 
-    expect(ctx.runMutation).toHaveBeenCalledWith(
+    expect(mockRunMutation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         threadId: 'parent_1',
@@ -99,11 +97,13 @@ describe('deleteChatThread', () => {
   });
 
   it('should not schedule cleanup when no sub-threads exist', async () => {
-    const { ctx } = createMockCtx(JSON.stringify({ chatType: 'general' }));
+    const { ctx, mockRunAfter } = createMockCtx(
+      JSON.stringify({ chatType: 'general' }),
+    );
 
     await deleteChatThread(ctx, 'parent_1');
 
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+    expect(mockRunAfter).not.toHaveBeenCalled();
   });
 
   it('should schedule async cleanup when sub-threads exist', async () => {
@@ -114,11 +114,11 @@ describe('deleteChatThread', () => {
         document_assistant: 'sub_2',
       },
     });
-    const { ctx, scheduledJobs } = createMockCtx(summary);
+    const { ctx, mockRunAfter, scheduledJobs } = createMockCtx(summary);
 
     await deleteChatThread(ctx, 'parent_1');
 
-    expect(ctx.scheduler.runAfter).toHaveBeenCalledOnce();
+    expect(mockRunAfter).toHaveBeenCalledOnce();
     expect(scheduledJobs[0].delay).toBe(0);
     expect(scheduledJobs[0].args).toEqual({
       parentThreadId: 'parent_1',
@@ -127,11 +127,11 @@ describe('deleteChatThread', () => {
   });
 
   it('should skip archiving and cleanup when thread is not found', async () => {
-    const { ctx } = createMockCtx();
+    const { ctx, mockRunMutation, mockRunAfter } = createMockCtx();
 
     await deleteChatThread(ctx, 'missing_thread');
 
-    expect(ctx.runMutation).not.toHaveBeenCalled();
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+    expect(mockRunMutation).not.toHaveBeenCalled();
+    expect(mockRunAfter).not.toHaveBeenCalled();
   });
 });

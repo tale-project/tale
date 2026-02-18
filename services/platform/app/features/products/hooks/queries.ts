@@ -6,6 +6,12 @@ import { api } from '@/convex/_generated/api';
 
 export type Product = ConvexItemOf<typeof api.products.queries.listProducts>;
 
+export function useApproxProductCount(organizationId: string) {
+  return useConvexQuery(api.products.queries.approxCountProducts, {
+    organizationId,
+  });
+}
+
 export function useProducts(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.products.queries.listProducts,

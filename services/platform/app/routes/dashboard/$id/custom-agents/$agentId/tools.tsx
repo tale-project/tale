@@ -2,14 +2,15 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useState, useCallback, useMemo } from 'react';
 
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
+import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { ToolSelector } from '@/app/features/custom-agents/components/tool-selector';
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { toast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
-import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute(
   '/dashboard/$id/custom-agents/$agentId/tools',
@@ -88,17 +89,11 @@ function ToolsTab() {
   return (
     <NarrowContainer className="py-4">
       <Stack gap={6}>
-        <div className="bg-background sticky top-[49px] z-40 -mx-4 flex items-center justify-between px-4 md:top-[97px]">
-          <Stack gap={1}>
-            <h2 className="text-foreground text-base font-semibold">
-              {t('customAgents.form.sectionTools')}
-            </h2>
-            <p className="text-muted-foreground text-sm">
-              {t('customAgents.form.sectionToolsDescription')}
-            </p>
-          </Stack>
-          <AutoSaveIndicator status={saveStatus} />
-        </div>
+        <StickySectionHeader
+          title={t('customAgents.form.sectionTools')}
+          description={t('customAgents.form.sectionToolsDescription')}
+          action={<AutoSaveIndicator status={saveStatus} />}
+        />
 
         <ToolSelector
           value={agent.toolNames}

@@ -6,6 +6,12 @@ import { api } from '@/convex/_generated/api';
 
 export type Vendor = ConvexItemOf<typeof api.vendors.queries.listVendors>;
 
+export function useApproxVendorCount(organizationId: string) {
+  return useConvexQuery(api.vendors.queries.approxCountVendors, {
+    organizationId,
+  });
+}
+
 export function useVendors(organizationId: string) {
   const { data, isLoading } = useConvexQuery(api.vendors.queries.listVendors, {
     organizationId,

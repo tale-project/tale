@@ -84,7 +84,7 @@ Write operations create approval cards. Use integration_batch for multiple paral
             organizationId,
             integrationName: args.integrationName,
             operation: args.operation,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Zod-validated params is Record<string, unknown>; narrowing to primitive values for Convex serialization
             params: (args.params || {}) as Record<
               string,
               string | number | boolean | null

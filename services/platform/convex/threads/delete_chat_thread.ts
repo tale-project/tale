@@ -1,6 +1,7 @@
 import type { MutationCtx } from '../_generated/server';
 import type { ThreadSummaryWithSubThreads } from '../agent_tools/sub_agents/helpers/types';
 
+import { parseJson } from '../../lib/utils/type-cast-helpers';
 import { components, internal } from '../_generated/api';
 
 export async function deleteChatThread(
@@ -34,8 +35,7 @@ export function parseSubThreadIds(summary: string | undefined): string[] {
   if (!summary) return [];
 
   try {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const parsed = JSON.parse(summary) as ThreadSummaryWithSubThreads;
+    const parsed = parseJson<ThreadSummaryWithSubThreads>(summary);
     if (!parsed.subThreads) return [];
     return Object.values(parsed.subThreads).filter(
       (id): id is string => typeof id === 'string',
