@@ -18,7 +18,7 @@ from app.services.workspace_manager import get_workspace_manager
 URL_PATTERN = re.compile(r'https?://[^\s<>"\'`\]\)}\|]+', re.IGNORECASE)
 
 _ASSET_URL_PATTERN = re.compile(
-    r'\.(png|jpe?g|gif|svg|webp|ico|css|js|woff2?|ttf|eot|mp[34]|avi|mov)([?#&]|$)',
+    r"\.(png|jpe?g|gif|svg|webp|ico|css|js|woff2?|ttf|eot|mp[34]|avi|mov)([?#&]|$)",
     re.IGNORECASE,
 )
 
@@ -180,10 +180,7 @@ class _OutputAccumulator:
                     "Please try a simpler or more specific request."
                 )
         elif timed_out and response_text:
-            response_text += (
-                "\n\n---\n*Note: This response may be incomplete as the task "
-                "reached its time limit.*"
-            )
+            response_text += "\n\n---\n*Note: This response may be incomplete as the task reached its time limit.*"
 
         result: dict[str, Any] = {
             "success": not timed_out or has_partial_data,
@@ -285,9 +282,7 @@ class BrowserService:
         start_time = time.perf_counter()
 
         try:
-            return await self._execute_opencode(
-                message, workspace_dir, start_time, timeout_seconds
-            )
+            return await self._execute_opencode(message, workspace_dir, start_time, timeout_seconds)
         finally:
             await self._workspace_manager.release_workspace(workspace_dir)
 
@@ -372,10 +367,7 @@ class BrowserService:
 
         except Exception as e:
             duration = time.perf_counter() - start_time
-            logger.error(
-                f"OpenCode execution failed in workspace "
-                f"{os.path.basename(workspace_dir)}: {e}"
-            )
+            logger.error(f"OpenCode execution failed in workspace {os.path.basename(workspace_dir)}: {e}")
             return {
                 "success": False,
                 "partial": False,
