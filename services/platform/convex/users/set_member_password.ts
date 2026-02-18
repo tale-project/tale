@@ -7,6 +7,7 @@
 
 import { hashPassword } from 'better-auth/crypto';
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { authComponent } from '../auth';
@@ -31,12 +32,19 @@ export async function setMemberPassword(
     paginationOpts: { cursor: null, numItems: 1 },
     where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
   });
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  const member = memberRes?.page?.[0] as
-    | { _id: string; organizationId: string; userId: string; role: string }
-    | undefined;
-  if (!member?.organizationId) {
+  const memberRaw = memberRes?.page?.[0];
+  const member = isRecord(memberRaw) ? memberRaw : undefined;
+  const memberOrgId = member ? getString(member, 'organizationId') : undefined;
+  if (!memberOrgId) {
     throw new Error('Member not found');
+  }
+
+  if (!member) {
+    throw new Error('Member not found');
+  }
+  const memberUserId = getString(member, 'userId');
+  if (!memberUserId) {
+    throw new Error('Member missing userId');
   }
 
   // Verify caller is an admin or owner of this organization
@@ -46,15 +54,19 @@ export async function setMemberPassword(
     where: [
       {
         field: 'organizationId',
-        value: member.organizationId,
+        value: memberOrgId,
         operator: 'eq',
       },
       { field: 'userId', value: String(authUser._id), operator: 'eq' },
     ],
   });
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  const callerMember = callerRes?.page?.[0] as { role: string } | undefined;
-  const callerRole = callerMember?.role?.toLowerCase();
+  const callerMemberRaw = callerRes?.page?.[0];
+  const callerMemberRec = isRecord(callerMemberRaw)
+    ? callerMemberRaw
+    : undefined;
+  const callerRole = callerMemberRec
+    ? getString(callerMemberRec, 'role')?.toLowerCase()
+    : undefined;
   if (callerRole !== 'admin' && callerRole !== 'owner') {
     throw new Error('Only admins and owners can set member passwords');
   }
@@ -66,26 +78,26 @@ export async function setMemberPassword(
       model: 'account',
       paginationOpts: { cursor: null, numItems: 1 },
       where: [
-        { field: 'userId', value: member.userId, operator: 'eq' },
+        { field: 'userId', value: memberUserId, operator: 'eq' },
         { field: 'providerId', value: 'credential', operator: 'eq' },
       ],
     },
   );
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  const existingCredential = accountRes?.page?.[0] as
-    | { _id: string }
-    | undefined;
+  const credentialRaw = accountRes?.page?.[0];
+  const existingCredential = isRecord(credentialRaw)
+    ? credentialRaw
+    : undefined;
 
   const passwordHash = await hashPassword(args.newPassword);
 
   if (existingCredential) {
+    const credentialId = getString(existingCredential, '_id');
+    if (!credentialId) throw new Error('Credential account missing _id');
     // Update existing credential account password
     await ctx.runMutation(components.betterAuth.adapter.updateMany, {
       input: {
         model: 'account',
-        where: [
-          { field: '_id', value: existingCredential._id, operator: 'eq' },
-        ],
+        where: [{ field: '_id', value: credentialId, operator: 'eq' }],
         update: {
           password: passwordHash,
           updatedAt: Date.now(),
@@ -99,9 +111,9 @@ export async function setMemberPassword(
       input: {
         model: 'account',
         data: {
-          userId: member.userId,
+          userId: memberUserId,
           providerId: 'credential',
-          accountId: member.userId,
+          accountId: memberUserId,
           password: passwordHash,
           createdAt: Date.now(),
           updatedAt: Date.now(),

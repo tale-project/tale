@@ -5,6 +5,7 @@
 import type { QueryCtx } from '../_generated/server';
 import type { CheckMembershipArgs, MembershipResult } from './types';
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 
 export async function checkMembership(
@@ -25,18 +26,21 @@ export async function checkMembership(
     return null;
   }
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-  const member = result.page[0] as {
-    _id: string;
-    organizationId: string;
-    userId: string;
-    role: string;
-  };
+  const memberRaw = result.page[0];
+  const member = isRecord(memberRaw) ? memberRaw : undefined;
+  const memberId = member ? getString(member, '_id') : undefined;
+  const memberOrgId = member ? getString(member, 'organizationId') : undefined;
+  const memberUserId = member ? getString(member, 'userId') : undefined;
+  const memberRole = member ? getString(member, 'role') : undefined;
+
+  if (!memberId || !memberOrgId || !memberUserId || !memberRole) {
+    return null;
+  }
 
   return {
-    _id: member._id,
-    organizationId: member.organizationId,
-    identityId: member.userId,
-    role: member.role,
+    _id: memberId,
+    organizationId: memberOrgId,
+    identityId: memberUserId,
+    role: memberRole,
   };
 }

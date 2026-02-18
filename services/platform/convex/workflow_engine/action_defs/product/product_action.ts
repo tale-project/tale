@@ -173,7 +173,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
           );
         }
 
-        const result = (await ctx.runMutation(
+        const rawResult = await ctx.runMutation(
           internal.products.internal_mutations.ingestProduct,
           {
             organizationId,
@@ -193,8 +193,9 @@ export const productAction: ActionDefinition<ProductActionParams> = {
               ? toConvexJsonRecord(params.metadata)
               : undefined,
           },
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex document field
-        )) as CreateProductResult;
+        );
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ingestProduct mutation returns CreateProductResult shape
+        const result = rawResult as CreateProductResult;
 
         // Fetch and return the full created entity
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
@@ -225,7 +226,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
           );
         }
 
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- queryProducts returns QueryResult shape (paginated response)
         const result = (await ctx.runQuery(
           internal.products.internal_queries.queryProducts,
           {
@@ -273,7 +274,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
         }
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- filterProducts returns { products, count } shape
         const result = (await ctx.runQuery(
           internal.products.internal_queries.filterProducts,
           {
@@ -311,10 +312,11 @@ export const productAction: ActionDefinition<ProductActionParams> = {
             const out: Record<string, unknown> = { ...item };
             for (const [targetKey, sourceKey] of Object.entries(mappings)) {
               const currentVal = out?.[targetKey];
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-              const sourceVal = (doc as Record<string, unknown> | null)?.[
-                sourceKey
-              ];
+              const docAsUnknown: unknown = doc;
+              const docRecord = isRecord(docAsUnknown)
+                ? docAsUnknown
+                : undefined;
+              const sourceVal = docRecord ? docRecord[sourceKey] : undefined;
               if (preserveExisting) {
                 const isEmpty =
                   currentVal === undefined ||

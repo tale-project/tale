@@ -18,6 +18,7 @@ import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
 import type { ActionCtx } from '../../_generated/server';
 
+import { narrowStringUnion } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 import { createDebugLog } from '../debug_log';
 import {
@@ -189,8 +190,13 @@ export async function autoSummarizeIfNeededModel(
     .filter((m) => m.message?.content)
     .map((m) => {
       const message = m.message;
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      const role = message?.role as 'user' | 'assistant' | 'tool' | 'system';
+      const role =
+        narrowStringUnion(message?.role ?? '', [
+          'user',
+          'assistant',
+          'tool',
+          'system',
+        ] as const) ?? 'user';
       const content =
         typeof message?.content === 'string'
           ? message.content

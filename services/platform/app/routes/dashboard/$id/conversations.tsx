@@ -26,11 +26,18 @@ export const Route = createFileRoute('/dashboard/$id/conversations')({
     }
   },
   loader: async ({ context, params }) => {
-    await context.queryClient.ensureQueryData(
-      convexQuery(api.conversations.queries.approxCountConversations, {
-        organizationId: params.id,
-      }),
-    );
+    const statuses = ['open', 'closed', 'spam', 'archived'] as const;
+    for (const status of statuses) {
+      void context.queryClient.prefetchQuery(
+        convexQuery(
+          api.conversations.queries.approxCountConversationsByStatus,
+          {
+            organizationId: params.id,
+            status,
+          },
+        ),
+      );
+    }
   },
   component: ConversationsLayout,
 });

@@ -8,6 +8,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { fetchJson } from '@/lib/utils/type-cast-helpers';
 
 import { useCreateIntegration } from '../../hooks/actions';
 import { useGenerateUploadUrl } from '../../hooks/mutations';
@@ -69,10 +70,9 @@ export function IntegrationUploadDialog({
         if (!uploadResponse.ok) {
           throw new Error(t('integrations.upload.iconUploadFailed'));
         }
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
-        const { storageId } = (await uploadResponse.json()) as {
-          storageId: string;
-        };
+        const { storageId } = await fetchJson<{ storageId: string }>(
+          uploadResponse,
+        );
         iconStorageId = storageId;
       }
 
@@ -137,7 +137,7 @@ export function IntegrationUploadDialog({
       }
 
       await createIntegration(
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic payload for create action
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Payload is dynamically built to match the mutation's expected shape
         payload as Parameters<typeof createIntegration>[0],
       );
 

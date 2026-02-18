@@ -231,7 +231,7 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
         nodeConfig.position = { x: 0, y: 0 };
       }
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ReactFlow Node requires all fields, but we build incrementally with conditional properties
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- All required Node fields (id, position, type, data) are set above
       return nodeConfig as Node;
     });
 

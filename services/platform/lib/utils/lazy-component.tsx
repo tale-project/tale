@@ -1,5 +1,7 @@
 'use client';
 
+// oxlint-disable typescript/no-explicit-any -- React.lazy uses ComponentType<any> internally; we need the same flexibility for dynamic imports with named exports
+
 import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 
 interface LazyComponentOptions {
@@ -13,11 +15,7 @@ interface LazyComponentOptions {
  * @param options - Configuration options including loading fallback
  * @returns A wrapped component that lazy loads the actual component
  */
-
-export function lazyComponent<
-  P extends Record<string, unknown> = Record<string, unknown>,
->(
-  // oxlint-disable-next-line typescript/no-explicit-any -- Generic component wrapper requires flexible prop types for lazy loading arbitrary components
+export function lazyComponent<P extends Record<string, any>>(
   importFn: () => Promise<{ default: ComponentType<any> }>,
   options: LazyComponentOptions = {},
 ): ComponentType<P> {
@@ -25,8 +23,7 @@ export function lazyComponent<
 
   const WrappedComponent = (props: P) => (
     <Suspense fallback={options.loading?.() ?? null}>
-      {/* Generic P doesn't extend object — cast required for JSX spread */}
-      <LazyComponent {...(props as object)} />
+      <LazyComponent {...props} />
     </Suspense>
   );
 

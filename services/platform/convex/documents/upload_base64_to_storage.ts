@@ -8,6 +8,7 @@
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
 import { base64ToBytes } from '../lib/crypto/base64_to_bytes';
 import { createDebugLog } from '../lib/debug_log';
 import { buildDownloadUrl } from './generate_document_helpers';
@@ -48,9 +49,7 @@ export async function uploadBase64ToStorage(
   const uploadResponse = await fetch(uploadUrl, {
     method: 'POST',
     headers: { 'Content-Type': contentType },
-    // Cast to unknown first to avoid SharedArrayBuffer incompatibility in TS
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-    body: new Blob([bytes as unknown as ArrayBuffer], { type: contentType }),
+    body: new Blob([new Uint8Array(bytes)], { type: contentType }),
   });
 
   if (!uploadResponse.ok) {
@@ -65,10 +64,9 @@ export async function uploadBase64ToStorage(
     );
   }
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-  const { storageId } = (await uploadResponse.json()) as {
-    storageId: Id<'_storage'>;
-  };
+  const { storageId } = await fetchJson<{ storageId: Id<'_storage'> }>(
+    uploadResponse,
+  );
 
   // Build download URL using our custom HTTP endpoint that sets Content-Disposition
   // This ensures the downloaded file has the correct filename instead of the storage ID

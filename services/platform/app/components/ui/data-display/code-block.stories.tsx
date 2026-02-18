@@ -95,8 +95,9 @@ export const MultipleSections: Story = {
         copyValue="curl -X POST https://api.example.com/webhook -H 'Content-Type: application/json'"
         copyLabel="Copy request"
       >
-        curl -X POST https://api.example.com/webhook -H &apos;Content-Type:
-        application/json&apos;
+        {
+          "curl -X POST https://api.example.com/webhook -H 'Content-Type: application/json'"
+        }
       </CodeBlock>
       <CodeBlock
         label="Response"

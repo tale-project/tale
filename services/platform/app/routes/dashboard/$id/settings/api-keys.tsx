@@ -33,7 +33,7 @@ function ApiKeysSettingsPage() {
     useCurrentMemberContext(organizationId);
   const { data: apiKeys, isLoading } = useApiKeys(organizationId);
 
-  if (isMemberLoading) {
+  if (isMemberLoading || isLoading) {
     return <ApiKeysTableSkeleton organizationId={organizationId} />;
   }
 

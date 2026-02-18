@@ -142,14 +142,6 @@ export function ExampleMessagesTable({
     [tTables, tCommon, onViewExample, onEditExample, onDeleteExample],
   );
 
-  const action =
-    examples.length > 0 ? (
-      <Button onClick={onAddExample}>
-        <Plus className="mr-2 size-4" />
-        {tTone('exampleMessages.addButton')}
-      </Button>
-    ) : undefined;
-
   if (examples.length === 0) {
     return (
       <PageSection
@@ -174,6 +166,13 @@ export function ExampleMessagesTable({
       </PageSection>
     );
   }
+
+  const action = (
+    <Button onClick={onAddExample}>
+      <Plus className="mr-2 size-4" />
+      {tTone('exampleMessages.addButton')}
+    </Button>
+  );
 
   return (
     <PageSection

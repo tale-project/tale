@@ -109,33 +109,27 @@ export function useAssistantChat({
     if (!uiMessages || uiMessages.length === 0) return [];
 
     return uiMessages
-      .filter(
-        (m): m is typeof m & { role: 'user' | 'assistant' } =>
-          m.role === 'user' || m.role === 'assistant',
-      )
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
       .map((m) => {
-        const fileParts =
-          // UIMessage.parts is loosely typed — cast required to access file-specific fields
-          (
-            (m.parts || []) as Array<{
-              type: string;
-              mediaType?: string;
-              filename?: string;
-              url?: string;
-            }>
+        const parts: unknown[] = Array.isArray(m.parts) ? m.parts : [];
+        const fileParts = parts
+          .filter(
+            (p): p is FilePart =>
+              typeof p === 'object' &&
+              p !== null &&
+              'type' in p &&
+              p.type === 'file' &&
+              'url' in p &&
+              typeof p.url === 'string' &&
+              'mediaType' in p &&
+              typeof p.mediaType === 'string',
           )
-            .filter(
-              (p): p is FilePart =>
-                p.type === 'file' &&
-                typeof p.url === 'string' &&
-                typeof p.mediaType === 'string',
-            )
-            .map((p) => ({
-              type: 'file' as const,
-              mediaType: p.mediaType,
-              filename: p.filename,
-              url: p.url,
-            }));
+          .map((p) => ({
+            type: 'file' as const,
+            mediaType: p.mediaType,
+            filename: p.filename,
+            url: p.url,
+          }));
 
         return {
           id: m.key,
@@ -158,16 +152,22 @@ export function useAssistantChat({
   const [pendingUserMessage, setPendingUserMessage] = useState<Message | null>(
     null,
   );
+  const pendingUserMessageRef = useRef(pendingUserMessage);
+  pendingUserMessageRef.current = pendingUserMessage;
+  const transformedMessagesRef = useRef(transformedMessages);
+  transformedMessagesRef.current = transformedMessages;
 
   // Sync messages from thread
   useEffect(() => {
-    if (transformedMessages.length > 0) {
-      setMessages(transformedMessages);
-      if (pendingUserMessage) {
-        const pendingTimestamp = pendingUserMessage.timestamp.getTime();
+    const currentTransformed = transformedMessagesRef.current;
+    const currentPending = pendingUserMessageRef.current;
+    if (currentTransformed.length > 0) {
+      setMessages(currentTransformed);
+      if (currentPending) {
+        const pendingTimestamp = currentPending.timestamp.getTime();
         const toleranceMs = 60000;
-        const pendingContent = pendingUserMessage.content.trim().toLowerCase();
-        const hasMatchingServerMessage = transformedMessages.some(
+        const pendingContent = currentPending.content.trim().toLowerCase();
+        const hasMatchingServerMessage = currentTransformed.some(
           (m) =>
             m.role === 'user' &&
             (Math.abs(m.timestamp.getTime() - pendingTimestamp) < toleranceMs ||
@@ -178,7 +178,6 @@ export function useAssistantChat({
         }
       }
     }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- Only re-run when messagesKey changes; adding pendingUserMessage would cause infinite update loops
   }, [messagesKey]);
 
   const displayMessages = useMemo(() => {

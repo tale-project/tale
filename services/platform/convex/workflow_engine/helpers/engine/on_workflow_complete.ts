@@ -5,10 +5,11 @@
  * Mirrors final status to wfExecutions table.
  */
 
-import type { Id, Doc } from '../../../_generated/dataModel';
+import type { Doc } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
 import type { ComponentRunResult } from '../../types';
 
+import { isRecord, getString } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { toConvexJsonValue, toId } from '../../../lib/type_cast_helpers';
 import { emitEvent } from '../../../workflows/triggers/emit_event';
@@ -21,11 +22,13 @@ export async function handleWorkflowComplete(
     result: unknown;
   },
 ): Promise<void> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-  const ctxAny = args.context as { executionId?: Id<'wfExecutions'> } | null;
+  const ctxRecord = isRecord(args.context) ? args.context : null;
+  const executionIdStr = ctxRecord
+    ? getString(ctxRecord, 'executionId')
+    : undefined;
   let exec: Doc<'wfExecutions'> | null = null;
-  if (ctxAny?.executionId) {
-    exec = await ctx.db.get(ctxAny.executionId);
+  if (executionIdStr) {
+    exec = await ctx.db.get(toId<'wfExecutions'>(executionIdStr));
   }
   if (!exec) {
     exec = await ctx.db
@@ -37,7 +40,7 @@ export async function handleWorkflowComplete(
   }
   if (!exec) return;
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- args.result comes from @convex-dev/workflow component callback; shape is ComponentRunResult at runtime
   const result = args.result as ComponentRunResult;
   const kind = result?.kind;
   if (kind === 'success') {

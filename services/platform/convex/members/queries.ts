@@ -221,28 +221,25 @@ export const approxCountMyTeams = query({
       return 0;
     }
 
-    let count = 0;
-    for (const membership of membershipsResult.page) {
-      const teamResult: BetterAuthFindManyResult<BetterAuthTeam> =
-        await ctx.runQuery(components.betterAuth.adapter.findMany, {
-          model: 'team',
-          paginationOpts: { cursor: null, numItems: 1 },
-          where: [
-            { field: '_id', operator: 'eq', value: membership.teamId },
-            {
-              field: 'organizationId',
-              operator: 'eq',
-              value: args.organizationId,
-            },
-          ],
-        });
+    const teamResults: BetterAuthFindManyResult<BetterAuthTeam>[] =
+      await Promise.all(
+        membershipsResult.page.map((membership) =>
+          ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'team',
+            paginationOpts: { cursor: null, numItems: 1 },
+            where: [
+              { field: '_id', operator: 'eq', value: membership.teamId },
+              {
+                field: 'organizationId',
+                operator: 'eq',
+                value: args.organizationId,
+              },
+            ],
+          }),
+        ),
+      );
 
-      if (teamResult && teamResult.page.length > 0) {
-        count++;
-      }
-    }
-
-    return count;
+    return teamResults.filter((r) => r && r.page.length > 0).length;
   },
 });
 

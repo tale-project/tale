@@ -114,7 +114,7 @@ export function DocumentsClient({
   });
 
   const filteredResults = useMemo(() => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Backend returns DocumentItemResponse; cast to DocumentItem for table
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape
     let filtered = paginatedResult.results as DocumentItem[];
     if (selectedTeamId) {
       filtered = filtered.filter((doc) =>
@@ -444,7 +444,7 @@ export function DocumentsClient({
       <DocumentsSkeleton
         organizationId={organizationId}
         hasMicrosoftAccount={hasMicrosoftAccount}
-        rows={Math.min(docCount ?? 10, 10)}
+        rows={Math.max(1, Math.min(docCount ?? 10, 10))}
       />
     );
   }

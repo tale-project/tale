@@ -14,6 +14,7 @@ import type { Doc } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
 import type { WorkflowType } from '../../types/workflow';
 
+import { narrowStringUnion } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import {
@@ -125,8 +126,8 @@ export async function executeWorkflowStart(
 
   // Step 3: Determine workflow type for logging (defaults to 'predefined')
   const workflowType: WorkflowType =
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
-    (definition.workflowType as WorkflowType | undefined) || 'predefined';
+    narrowStringUnion(definition.workflowType, ['predefined'] as const) ||
+    'predefined';
 
   // Step 4: Start workflow via WorkflowManager
   debugLog('executeWorkflowStart Starting workflow via WorkflowManager', {
@@ -148,11 +149,9 @@ export async function executeWorkflowStart(
       triggerData: toConvexJsonValue(args.triggerData || {}),
     },
     {
-      // Type assertion: our onComplete handler accepts jsonValueValidator which is compatible
-      // with the workflow component's OnCompleteArgs at runtime, but not at compile time
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex function handle
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- our onComplete handler accepts jsonValueValidator which is compatible with the workflow component's OnCompleteArgs at runtime, but not at compile time
       onComplete: internal.workflow_engine.internal_mutations
-        .onWorkflowComplete as unknown as NonNullable<
+        .onWorkflowComplete as NonNullable<
         Parameters<typeof args.workflowManager.start>[3]
       >['onComplete'],
       context: { executionId: args.executionId },

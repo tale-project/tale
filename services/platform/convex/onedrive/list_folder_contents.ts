@@ -2,6 +2,8 @@
  * List Folder Contents - Business logic for listing OneDrive folder contents
  */
 
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
+
 export interface FileItem {
   id: string;
   name: string;
@@ -43,8 +45,7 @@ export async function listFolderContents(args: {
       };
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    const data = (await response.json()) as {
+    const data = await fetchJson<{
       value: Array<{
         id: string;
         name: string;
@@ -54,7 +55,7 @@ export async function listFolderContents(args: {
         lastModifiedDateTime?: string;
         fileSystemInfo?: { lastModifiedDateTime?: string };
       }>;
-    };
+    }>(response);
 
     const files = data.value
       .filter((item) => item.file !== undefined)

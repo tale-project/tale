@@ -97,9 +97,14 @@ export function ThinkingAnimation({
       if (part.type.startsWith('tool-')) {
         const toolName = part.type.slice(5);
         if (toolName && toolName !== 'invocation') {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- UIMessage.parts is loosely typed, need to access tool input field
-          const toolPart = part as { input?: Record<string, unknown> };
-          const detail = formatToolDetail(toolName, toolPart.input);
+          const input =
+            'input' in part &&
+            typeof part.input === 'object' &&
+            part.input !== null
+              ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- part.input verified as non-null object above
+                (part.input as Record<string, unknown>)
+              : undefined;
+          const detail = formatToolDetail(toolName, input);
           toolDetails.push(detail);
         }
       }

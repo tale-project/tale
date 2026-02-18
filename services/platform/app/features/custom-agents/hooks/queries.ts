@@ -6,7 +6,7 @@ import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
-import { toId } from '@/lib/utils/type-guards';
+import { toId } from '@/convex/lib/type_cast_helpers';
 
 export type CustomAgent = ConvexItemOf<
   typeof api.custom_agents.queries.listCustomAgents

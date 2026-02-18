@@ -12,6 +12,7 @@ import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
 
+import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -130,8 +131,7 @@ Returns a generated response based on the most relevant documents.`,
           throw new Error(`RAG service error: ${response.status} ${errorText}`);
         }
 
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response.json() returns unknown
-        const result = (await response.json()) as RagServiceResponse;
+        const result = await fetchJson<RagServiceResponse>(response);
 
         debugLog('tool:rag_search success', {
           query: args.query,

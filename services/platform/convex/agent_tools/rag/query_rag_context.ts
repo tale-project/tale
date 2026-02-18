@@ -9,6 +9,7 @@
  *   to resolve pronouns and maintain topic continuity
  */
 
+import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_RAG_QUERY', '[RAGQuery]');
@@ -222,8 +223,7 @@ export async function queryRagContext(
         return undefined; // Gracefully degrade if RAG is unavailable
       }
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response.json() returns unknown
-      const result = (await response.json()) as QueryResponse;
+      const result = await fetchJson<QueryResponse>(response);
 
       if (!result.success || result.total_results === 0) {
         debugLog('No relevant RAG context found', {

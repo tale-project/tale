@@ -18,10 +18,10 @@ import { useModelPresets } from '@/app/features/custom-agents/hooks/queries';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { FILE_PREPROCESSING_INSTRUCTIONS } from '@/lib/shared/constants/custom-agents';
 import { seo } from '@/lib/utils/seo';
-import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute(
   '/dashboard/$id/custom-agents/$agentId/instructions',
@@ -126,7 +126,7 @@ function InstructionsTab() {
             <Select
               options={modelOptions}
               label={t('customAgents.form.modelPreset')}
-              value={form.watch('modelPreset')}
+              value={formValues.modelPreset}
               onValueChange={(val) =>
                 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select value is constrained to MODEL_PRESET_OPTIONS
                 form.setValue('modelPreset', val as ModelPreset)
@@ -144,7 +144,7 @@ function InstructionsTab() {
           )}
         >
           <Switch
-            checked={form.watch('filePreprocessingEnabled')}
+            checked={formValues.filePreprocessingEnabled}
             onCheckedChange={(checked) =>
               form.setValue('filePreprocessingEnabled', checked)
             }
@@ -152,9 +152,11 @@ function InstructionsTab() {
             description={t('customAgents.form.filePreprocessingEnabledHelp')}
             disabled={isReadOnly}
           />
-          {form.watch('filePreprocessingEnabled') && (
+          {formValues.filePreprocessingEnabled && (
             <CodeBlock
               label={t('customAgents.form.filePreprocessingInjectedPrompt')}
+              copyValue={FILE_PREPROCESSING_INSTRUCTIONS}
+              copyLabel={t('customAgents.form.copyPrompt')}
             >
               {FILE_PREPROCESSING_INSTRUCTIONS}
             </CodeBlock>

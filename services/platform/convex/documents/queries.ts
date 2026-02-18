@@ -21,6 +21,13 @@ export const approxCountDocuments = query({
   },
   returns: v.number(),
   handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return 0;
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch {
+      return 0;
+    }
     return await countItemsInOrg(ctx.db, 'documents', args.organizationId);
   },
 });

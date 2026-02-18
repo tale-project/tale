@@ -38,6 +38,9 @@ function SourceTabButton({
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={active}
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
       className={cn(
         'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
@@ -134,7 +137,7 @@ export function OneDrivePickerStage({
             description={t('microsoft365.selectDescription')}
           />
         </div>
-        <HStack gap={0} className="px-6">
+        <HStack gap={0} className="px-6" role="tablist">
           <SourceTabButton
             active={sourceTab === 'onedrive'}
             onClick={() => onTabChange('onedrive')}

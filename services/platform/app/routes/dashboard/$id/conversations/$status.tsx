@@ -1,3 +1,4 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { z } from 'zod';
 
@@ -5,14 +6,20 @@ import type { Doc } from '@/convex/_generated/dataModel';
 
 import { ConversationsClient } from '@/app/features/conversations/components/conversations-client';
 import {
-  useApproxConversationCount,
+  useApproxConversationCountByStatus,
   useListConversationsPaginated,
 } from '@/app/features/conversations/hooks/queries';
+import { api } from '@/convex/_generated/api';
 
 const VALID_STATUSES = ['open', 'closed', 'archived', 'spam'] as const;
+type ValidStatus = (typeof VALID_STATUSES)[number];
 type ConversationStatus = Doc<'conversations'>['status'];
 
-const conversationStatusMap: Record<string, ConversationStatus> = {
+function isValidStatus(value: string): value is ValidStatus {
+  return VALID_STATUSES.some((s) => s === value);
+}
+
+const conversationStatusMap: Record<ValidStatus, ConversationStatus> = {
   open: 'open',
   closed: 'closed',
   archived: 'archived',
@@ -27,8 +34,21 @@ const searchSchema = z.object({
 export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
   validateSearch: searchSchema,
   beforeLoad: ({ params }) => {
-    if (!VALID_STATUSES.some((s) => s === params.status)) {
+    if (!isValidStatus(params.status)) {
       throw notFound();
+    }
+  },
+  loader: async ({ context, params }) => {
+    if (isValidStatus(params.status)) {
+      void context.queryClient.prefetchQuery(
+        convexQuery(
+          api.conversations.queries.approxCountConversationsByStatus,
+          {
+            organizationId: params.id,
+            status: params.status,
+          },
+        ),
+      );
     }
   },
   component: ConversationsStatusPage,
@@ -38,10 +58,14 @@ function ConversationsStatusPage() {
   const { id: organizationId, status } = Route.useParams();
   const { priority, search } = Route.useSearch();
 
-  const mappedStatus = conversationStatusMap[status] ?? 'open';
+  const mappedStatus =
+    (isValidStatus(status) ? conversationStatusMap[status] : undefined) ??
+    'open';
 
-  const { data: conversationCount } =
-    useApproxConversationCount(organizationId);
+  const { data: conversationCount } = useApproxConversationCountByStatus(
+    organizationId,
+    mappedStatus,
+  );
 
   const paginatedResult = useListConversationsPaginated({
     organizationId,

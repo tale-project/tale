@@ -11,8 +11,8 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { toId } from '@/lib/utils/type-guards';
 
 import { useActivateCustomAgentVersion } from '../hooks/mutations';
 import { useCustomAgentVersions } from '../hooks/queries';

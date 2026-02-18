@@ -98,7 +98,7 @@ export function createActionsColumn<TData, TPropName extends string>(
     size: options?.size ?? 140,
     meta: { isAction: true },
     cell: ({ row }) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- computed prop [entityPropName] loses type; cast required for generic component prop
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Computed property key loses type narrowing
       const props = { [entityPropName]: row.original } as {
         [K in TPropName]: TData;
       };
@@ -160,8 +160,8 @@ export function createDateColumn<TData, K extends keyof TData>(
   const alignRight = options?.alignRight ?? true;
 
   return {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table accessorKey expects string; keyof TData is always string here
-    accessorKey: accessorKey as string,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef requires string accessorKey; K is already keyof TData
+    accessorKey: accessorKey as string & keyof TData,
     header: alignRight
       ? () => (
           <span className="block w-full text-right">{tTables(headerKey)}</span>
@@ -170,11 +170,8 @@ export function createDateColumn<TData, K extends keyof TData>(
     size: options?.size ?? 140,
     meta: { headerLabel: tTables(headerKey) },
     cell: ({ row }) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TData[K] is date-like but generic prevents narrowing
-      const date = row.original[accessorKey] as unknown as
-        | number
-        | Date
-        | string;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- date column accessor value is always a date-compatible type
+      const date = row.original[accessorKey] as number | Date | string;
       return (
         <TableDateCell
           date={date}
@@ -250,8 +247,8 @@ export function createTextColumn<TData, K extends keyof TData>(
   options?: TextColumnOptions,
 ): ColumnDef<TData> {
   return {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack Table accessorKey expects string; keyof TData is always string here
-    accessorKey: accessorKey as string,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef requires string accessorKey; K is already keyof TData
+    accessorKey: accessorKey as string & keyof TData,
     header: tTables(headerKey),
     size: options?.size,
     cell: ({ row }) => {

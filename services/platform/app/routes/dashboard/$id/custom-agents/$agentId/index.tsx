@@ -16,9 +16,9 @@ import { useUpdateCustomAgentMetadata } from '@/app/features/custom-agents/hooks
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
-import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId/')({
   head: () => ({

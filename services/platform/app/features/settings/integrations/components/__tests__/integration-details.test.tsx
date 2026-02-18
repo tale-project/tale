@@ -26,7 +26,6 @@ afterEach(cleanup);
 function makeIntegration(
   overrides: Record<string, unknown> = {},
 ): Parameters<typeof IntegrationDetails>[0]['integration'] {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test fixture
   return {
     _id: 'test-id' as never,
     _creationTime: 0,

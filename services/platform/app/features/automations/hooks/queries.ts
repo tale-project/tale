@@ -7,7 +7,7 @@ import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query'
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { api } from '@/convex/_generated/api';
-import { toId } from '@/lib/utils/type-guards';
+import { toId } from '@/convex/lib/type_cast_helpers';
 
 export type AutomationRoot = ConvexItemOf<
   typeof api.wf_definitions.queries.listAutomationRoots

@@ -17,9 +17,9 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useToast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
-import { toId } from '@/lib/utils/type-guards';
 
 import { SecretRevealDialog } from '../../automations/triggers/components/secret-reveal-dialog';
 import {
@@ -346,7 +346,7 @@ export function CustomAgentWebhookSection({
                 key={example.key}
                 label={example.label}
                 copyValue={example.code}
-                copyLabel={t('customAgents.webhook.copyUrl')}
+                copyLabel={t('customAgents.webhook.copyExample')}
               >
                 {example.code}
               </CodeBlock>

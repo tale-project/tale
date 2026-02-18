@@ -13,9 +13,10 @@ import {
 
 const APPROVALS_COUNT_CAP = 20;
 
-export const approxCountApprovals = query({
+export const approxCountApprovalsByStatus = query({
   args: {
     organizationId: v.string(),
+    status: v.union(v.literal('pending'), v.literal('resolved')),
   },
   returns: v.number(),
   handler: async (ctx, args) => {
@@ -30,11 +31,32 @@ export const approxCountApprovals = query({
       return 0;
     }
 
+    if (args.status === 'pending') {
+      let count = 0;
+      for await (const _ of ctx.db
+        .query('approvals')
+        .withIndex('by_org_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', 'pending'),
+        )) {
+        count++;
+        if (count >= APPROVALS_COUNT_CAP) break;
+      }
+      return count;
+    }
+
     let count = 0;
     for await (const _ of ctx.db
       .query('approvals')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
+      .withIndex('by_org_status', (q) =>
+        q.eq('organizationId', args.organizationId).eq('status', 'approved'),
+      )) {
+      count++;
+      if (count >= APPROVALS_COUNT_CAP) break;
+    }
+    for await (const _ of ctx.db
+      .query('approvals')
+      .withIndex('by_org_status', (q) =>
+        q.eq('organizationId', args.organizationId).eq('status', 'rejected'),
       )) {
       count++;
       if (count >= APPROVALS_COUNT_CAP) break;

@@ -8,9 +8,9 @@ import { ToolSelector } from '@/app/features/custom-agents/components/tool-selec
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { toast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
-import { toId } from '@/lib/utils/type-guards';
 
 export const Route = createFileRoute(
   '/dashboard/$id/custom-agents/$agentId/tools',

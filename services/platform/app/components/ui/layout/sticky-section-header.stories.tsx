@@ -79,3 +79,30 @@ export const LargeSize: Story = {
     size: 'lg',
   },
 };
+
+export const Scrollable: Story = {
+  args: {
+    title: 'Instructions',
+    description: 'Scroll down to see the sticky behavior.',
+    action: <Button size="sm">Save</Button>,
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-[300px] overflow-y-auto rounded-lg border">
+        <div className="h-[800px] p-4">
+          <Story />
+          <p className="text-muted-foreground mt-4 text-sm">
+            Scroll to see the header stick to the top.
+          </p>
+        </div>
+      </div>
+    ),
+  ],
+  parameters: {
+    docs: {
+      description: {
+        story: 'Demonstrates sticky behavior inside a scrollable container.',
+      },
+    },
+  },
+};

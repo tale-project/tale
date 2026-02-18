@@ -38,6 +38,11 @@ describe('CodeBlock', () => {
       expect(screen.queryByRole('button')).not.toBeInTheDocument();
     });
 
+    it('renders copy button with default aria-label when copyLabel is omitted', () => {
+      render(<CodeBlock copyValue="code">code</CodeBlock>);
+      expect(screen.getByRole('button', { name: /copy/i })).toBeInTheDocument();
+    });
+
     it('applies custom className', () => {
       const { container } = render(
         <CodeBlock className="custom">code</CodeBlock>,

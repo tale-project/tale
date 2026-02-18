@@ -4,7 +4,7 @@
 
 import type { Role } from './types';
 
-import { getString } from '../../lib/utils/type-guards';
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { createAuth } from '../auth';
@@ -122,10 +122,7 @@ export async function createUserWithoutSession(
       },
     },
   });
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  const createdRecord = created as unknown as
-    | Record<string, unknown>
-    | undefined;
+  const createdRecord = isRecord(created) ? created : undefined;
   const memberId: string =
     (createdRecord ? getString(createdRecord, '_id') : undefined) ??
     (createdRecord ? getString(createdRecord, 'id') : undefined) ??

@@ -50,12 +50,10 @@ export async function handleDynamicWorkflow(
   step: WorkflowCtx,
   args: DynamicWorkflowArgs,
 ): Promise<void> {
-  const workflowDefinition =
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    args.workflowDefinition as unknown as Doc<'wfDefinitions'>;
-  const stepDefinitions =
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    args.steps as unknown as Array<Doc<'wfStepDefs'>>;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexJsonValue from Convex scheduler; workflowDefinition is always serialized Doc<'wfDefinitions'>
+  const workflowDefinition = args.workflowDefinition as Doc<'wfDefinitions'>;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexJsonValue from Convex scheduler; steps is always serialized Array<Doc<'wfStepDefs'>>
+  const stepDefinitions = args.steps as Array<Doc<'wfStepDefs'>>;
 
   debugLog('dynamicWorkflow Starting workflow execution', {
     executionId: args.executionId,

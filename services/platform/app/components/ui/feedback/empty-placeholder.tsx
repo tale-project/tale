@@ -28,7 +28,7 @@ export function EmptyPlaceholder({
           aria-hidden="true"
         />
       )}
-      <p className="text-muted-foreground text-sm">{children}</p>
+      <div className="text-muted-foreground text-sm">{children}</div>
     </div>
   );
 }

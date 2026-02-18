@@ -7,6 +7,7 @@ import type { Doc } from '@/convex/_generated/dataModel';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
+import { fetchJson } from '@/lib/utils/type-cast-helpers';
 
 import type { ParsedPackage } from '../components/integration-upload/utils/parse-integration-package';
 
@@ -248,10 +249,9 @@ export function useIntegrationManage(
           throw new Error('Upload failed');
         }
 
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
-        const { storageId } = (await uploadResponse.json()) as {
-          storageId: string;
-        };
+        const { storageId } = await fetchJson<{ storageId: string }>(
+          uploadResponse,
+        );
 
         await updateIcon({
           integrationId: integration._id,
@@ -392,10 +392,9 @@ export function useIntegrationManage(
         if (!uploadResponse.ok) {
           throw new Error(t('integrations.updateFailed'));
         }
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fetch response.json() returns unknown
-        const { storageId } = (await uploadResponse.json()) as {
-          storageId: string;
-        };
+        const { storageId } = await fetchJson<{ storageId: string }>(
+          uploadResponse,
+        );
         await updateIcon({
           integrationId: integration._id,
           iconStorageId: toId<'_storage'>(storageId),
@@ -403,7 +402,7 @@ export function useIntegrationManage(
       }
 
       await updateIntegration(
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic payload
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Payload is dynamically built to match the mutation's expected shape
         payload as Parameters<typeof updateIntegration>[0],
       );
 
@@ -542,7 +541,7 @@ export function useIntegrationManage(
       if (result.success && hasChanges) {
         const updateArgs = buildUpdateArgs();
         await updateIntegration(
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic payload
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Payload is dynamically built to match the mutation's expected shape
           updateArgs as Parameters<typeof updateIntegration>[0],
         );
         setOptimisticActive(true);

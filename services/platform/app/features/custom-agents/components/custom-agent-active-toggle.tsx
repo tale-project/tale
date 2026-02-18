@@ -5,8 +5,8 @@ import { useCallback, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { toast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { toId } from '@/lib/utils/type-guards';
 
 import type { CustomAgentRow } from './custom-agent-table';
 

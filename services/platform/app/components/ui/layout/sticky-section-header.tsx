@@ -23,7 +23,7 @@ export const StickySectionHeader = forwardRef<
   <div
     ref={ref}
     className={cn(
-      'bg-background sticky top-[49px] z-40 -mx-4 flex items-center justify-between px-4 md:top-[97px]',
+      'bg-background sticky top-[49px] z-40 -mx-4 flex items-center px-4 md:top-[97px]',
       className,
     )}
   >

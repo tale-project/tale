@@ -16,6 +16,7 @@ import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Separator } from '@/app/components/ui/layout/separator';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
+import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 import type { ImportType } from './types';
 
@@ -98,10 +99,15 @@ export function OneDriveSettingsStage({
       <Stack gap={4} className="px-6 py-2">
         <RadioGroup
           value={importType}
-          onValueChange={(value: string) =>
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Radix RadioGroup onValueChange returns string
-            onImportTypeChange(value as ImportType)
-          }
+          onValueChange={(value: string) => {
+            const narrowed = narrowStringUnion<ImportType>(value, [
+              'one-time',
+              'sync',
+            ] as const);
+            if (narrowed) {
+              onImportTypeChange(narrowed);
+            }
+          }}
           className="space-y-2"
         >
           <div className="border-border hover:bg-muted rounded-lg border p-3">

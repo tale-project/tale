@@ -284,20 +284,22 @@ export function ApprovalsClient({
     return getApprovalDetail(approval);
   }, [selectedApprovalId, allApprovals]);
 
+  const emptyStateElement = (
+    <DataTableEmptyState
+      icon={GitCompare}
+      title={
+        status === 'pending'
+          ? t('emptyState.pending.title')
+          : t('emptyState.resolved.title')
+      }
+      description={
+        status === 'pending' ? t('emptyState.pending.description') : undefined
+      }
+    />
+  );
+
   if (approxCount === 0) {
-    return (
-      <DataTableEmptyState
-        icon={GitCompare}
-        title={
-          status === 'pending'
-            ? t('emptyState.pending.title')
-            : t('emptyState.resolved.title')
-        }
-        description={
-          status === 'pending' ? t('emptyState.pending.description') : undefined
-        }
-      />
-    );
+    return emptyStateElement;
   }
 
   if (paginatedResult.status === 'LoadingFirstPage') {
@@ -310,19 +312,7 @@ export function ApprovalsClient({
   }
 
   if (allApprovals.length === 0) {
-    return (
-      <DataTableEmptyState
-        icon={GitCompare}
-        title={
-          status === 'pending'
-            ? t('emptyState.pending.title')
-            : t('emptyState.resolved.title')
-        }
-        description={
-          status === 'pending' ? t('emptyState.pending.description') : undefined
-        }
-      />
-    );
+    return emptyStateElement;
   }
 
   const columns = status === 'pending' ? pendingColumns : resolvedColumns;

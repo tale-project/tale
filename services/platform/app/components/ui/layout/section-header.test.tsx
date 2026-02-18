@@ -65,13 +65,15 @@ describe('SectionHeader', () => {
   });
 
   describe('variants', () => {
-    it.each(['sm', 'base', 'lg'] as const)(
-      'applies %s size variant',
-      (size) => {
-        render(<SectionHeader title="Title" size={size} />);
-        expect(screen.getByRole('heading', { level: 2 })).toBeInTheDocument();
-      },
-    );
+    it.each([
+      ['sm', 'text-sm'],
+      ['base', 'text-base'],
+      ['lg', 'text-lg'],
+    ] as const)('applies %s size variant with %s class', (size, expected) => {
+      render(<SectionHeader title="Title" size={size} />);
+      const heading = screen.getByRole('heading', { level: 2 });
+      expect(heading).toHaveClass(expected);
+    });
 
     it('applies medium weight variant', () => {
       render(<SectionHeader title="Title" weight="medium" />);

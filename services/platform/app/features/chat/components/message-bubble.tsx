@@ -126,7 +126,7 @@ function MessageBubbleComponent({
                 <Markdown
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- react-markdown Components type requires ExtraProps on forwardRef components
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- markdownComponents satisfies Components but object literal type is not identical
                   components={markdownComponents as Components}
                 >
                   {sanitizedContent}

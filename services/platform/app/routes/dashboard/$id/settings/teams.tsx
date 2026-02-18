@@ -24,11 +24,15 @@ export const Route = createFileRoute('/dashboard/$id/settings/teams')({
         organizationId: params.id,
       }),
     );
-    await context.queryClient.ensureQueryData(
-      convexQuery(api.members.queries.approxCountMyTeams, {
-        organizationId: params.id,
-      }),
-    );
+    try {
+      await context.queryClient.ensureQueryData(
+        convexQuery(api.members.queries.approxCountMyTeams, {
+          organizationId: params.id,
+        }),
+      );
+    } catch {
+      // Fall through — count will be undefined, handled in component
+    }
   },
   component: TeamsSettingsPage,
 });
@@ -53,6 +57,10 @@ function TeamsSettingsPage() {
 
   if (!memberContext || !memberContext.isAdmin) {
     return <AccessDenied message={t('teams')} />;
+  }
+
+  if (count === undefined) {
+    return <TeamsTableSkeleton organizationId={organizationId} rows={10} />;
   }
 
   if (count === 0) {

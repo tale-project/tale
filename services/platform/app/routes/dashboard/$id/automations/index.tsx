@@ -64,10 +64,6 @@ function AutomationsPage() {
   const { automations, isLoading: isAutomationsLoading } =
     useAutomations(organizationId);
 
-  if (count === 0) {
-    return <AutomationsEmptyState organizationId={organizationId} />;
-  }
-
   if (isMemberLoading || isAutomationsLoading) {
     return (
       <ContentWrapper>
@@ -82,6 +78,10 @@ function AutomationsPage() {
   const userRole = (memberContext?.role ?? '').toLowerCase();
   if (userRole !== 'admin' && userRole !== 'developer') {
     return <AccessDenied message={t('automations')} />;
+  }
+
+  if (count === 0) {
+    return <AutomationsEmptyState organizationId={organizationId} />;
   }
 
   if (!automations || automations.length === 0) {

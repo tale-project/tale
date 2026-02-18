@@ -1,4 +1,4 @@
-import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
+import { useUIMessages } from '@convex-dev/agent/react';
 import { useMemo } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -11,7 +11,7 @@ import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query'
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
-import { toId } from '@/lib/utils/type-guards';
+import { toId } from '@/convex/lib/type_cast_helpers';
 
 export interface Thread {
   _id: string;
@@ -79,13 +79,16 @@ export function useFileUrl(fileId: Id<'_storage'> | undefined, skip = false) {
 }
 
 export function useThreadMessages(threadId: string | null) {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SDK type mismatch: return type narrowed to usable shape
-  const { results } = useUIMessages(
-    // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- SDK type mismatch: streaming query return type incompatible with useUIMessages expectations
-    api.threads.queries.getThreadMessagesStreaming as any,
-    threadId ? { threadId } : 'skip',
-    { initialNumItems: 30, stream: true },
-  ) as unknown as { results: UIMessage[] | undefined };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex agent SDK useUIMessages expects UIMessagesQuery which doesn't match generated API types
+  const query = api.threads.queries
+    .getThreadMessagesStreaming as unknown as Parameters<
+    typeof useUIMessages
+  >[0];
+  const { results } = useUIMessages(query, threadId ? { threadId } : 'skip', {
+    initialNumItems: 30,
+    // @ts-expect-error -- Convex agent SDK StreamQuery conditional type doesn't resolve correctly with generated API types; stream: true is valid at runtime
+    stream: true,
+  });
 
   return results;
 }
@@ -116,7 +119,7 @@ export function useHumanInputRequests(
       .map((a) => ({
         _id: toId<'approvals'>(a._id),
         status: a.status,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any(); cast to specific schema type
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Metadata shape is guaranteed by resourceType filter above
         metadata: a.metadata as unknown as HumanInputRequestMetadata,
         _creationTime: a._creationTime,
         messageId: a.messageId,
@@ -172,8 +175,8 @@ export function useIntegrationApprovals(
       .map((a) => ({
         _id: toId<'approvals'>(a._id),
         status: a.status,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any(); cast to specific metadata shape
-        metadata: a.metadata as IntegrationOperationMetadata,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Metadata shape is guaranteed by resourceType filter above
+        metadata: a.metadata as unknown as IntegrationOperationMetadata,
         executedAt: a.executedAt,
         executionError: a.executionError,
         _creationTime: a._creationTime,
@@ -215,8 +218,8 @@ export function useWorkflowCreationApprovals(
       .map((a) => ({
         _id: toId<'approvals'>(a._id),
         status: a.status,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any(); cast to specific metadata shape
-        metadata: a.metadata as WorkflowCreationMetadata,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Metadata shape is guaranteed by resourceType filter above
+        metadata: a.metadata as unknown as WorkflowCreationMetadata,
         executedAt: a.executedAt,
         executionError: a.executionError,
         _creationTime: a._creationTime,

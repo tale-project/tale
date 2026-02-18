@@ -26,9 +26,16 @@ export const Route = createFileRoute('/dashboard/$id/approvals')({
     }
   },
   loader: async ({ context, params }) => {
-    await context.queryClient.ensureQueryData(
-      convexQuery(api.approvals.queries.approxCountApprovals, {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.approvals.queries.approxCountApprovalsByStatus, {
         organizationId: params.id,
+        status: 'pending',
+      }),
+    );
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.approvals.queries.approxCountApprovalsByStatus, {
+        organizationId: params.id,
+        status: 'resolved',
       }),
     );
   },

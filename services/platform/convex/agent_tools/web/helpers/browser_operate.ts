@@ -9,6 +9,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import type { WebBrowserOperateResult, OperatorChatResponse } from './types';
 
+import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../../lib/debug_log';
 import { getOperatorServiceUrl } from './get_operator_service_url';
 
@@ -47,8 +48,7 @@ export async function browserOperate(
       );
     }
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- response.json() returns unknown
-    const result = (await response.json()) as OperatorChatResponse;
+    const result = await fetchJson<OperatorChatResponse>(response);
 
     if (!result.success) {
       debugLog('tool:web:browser_operate failed', {

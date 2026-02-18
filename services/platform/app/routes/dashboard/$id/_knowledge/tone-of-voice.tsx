@@ -93,8 +93,8 @@ function ToneOfVoicePage() {
   if (isToneLoading) {
     return (
       <Stack gap={8}>
-        {(exampleCount ?? 0) > 0 && (
-          <ExampleMessagesSkeleton rows={Math.min(exampleCount ?? 5, 5)} />
+        {exampleCount && exampleCount > 0 && (
+          <ExampleMessagesSkeleton rows={Math.min(exampleCount, 5)} />
         )}
         <ToneFormSkeleton />
       </Stack>

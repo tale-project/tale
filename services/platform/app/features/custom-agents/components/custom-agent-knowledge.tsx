@@ -13,8 +13,8 @@ import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
 import { useDocuments } from '@/app/features/documents/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { toId } from '@/lib/utils/type-guards';
 
 import { useUpdateCustomAgent } from '../hooks/mutations';
 import { useAutoSave } from '../hooks/use-auto-save';
@@ -80,7 +80,7 @@ export function CustomAgentKnowledge({
     useDocuments(organizationId);
 
   const documents = useMemo(
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Collection returns DocumentItemResponse; cast to DocumentEntry for display
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex query result matches DocumentEntry shape
     () => (allDocuments ?? []) as DocumentEntry[],
     [allDocuments],
   );

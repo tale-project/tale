@@ -20,7 +20,7 @@ export function useTeams() {
   );
 
   return {
-    teams: data,
+    teams: data ?? undefined,
     isLoading,
   };
 }

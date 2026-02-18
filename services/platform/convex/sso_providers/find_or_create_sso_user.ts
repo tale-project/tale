@@ -2,6 +2,7 @@ import { GenericMutationCtx } from 'convex/server';
 
 import type { PlatformRole } from './types';
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { DataModel } from '../_generated/dataModel';
 
@@ -35,11 +36,13 @@ export async function findOrCreateSsoUser(
     },
   );
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-  const existingUser = existingUserRes?.page?.[0] as
-    | { _id?: string; id?: string }
-    | undefined;
-  const existingUserId = existingUser?._id ?? existingUser?.id;
+  const existingUserRaw = existingUserRes?.page?.[0];
+  const existingUserRec = isRecord(existingUserRaw)
+    ? existingUserRaw
+    : undefined;
+  const existingUserId = existingUserRec
+    ? (getString(existingUserRec, '_id') ?? getString(existingUserRec, 'id'))
+    : undefined;
 
   if (existingUserId) {
     const existingAccountRes = await ctx.runQuery(
@@ -54,10 +57,10 @@ export async function findOrCreateSsoUser(
       },
     );
 
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-    const existingAccount = existingAccountRes?.page?.[0] as
-      | { _id?: string }
-      | undefined;
+    const existingAccountRaw = existingAccountRes?.page?.[0];
+    const existingAccount = isRecord(existingAccountRaw)
+      ? existingAccountRaw
+      : undefined;
 
     if (!existingAccount) {
       const now = Date.now();
@@ -76,11 +79,13 @@ export async function findOrCreateSsoUser(
           },
         },
       });
-    } else if (existingAccount._id) {
+    } else {
+      const accountId = getString(existingAccount, '_id');
+      if (!accountId) throw new Error('Account missing _id');
       await ctx.runMutation(components.betterAuth.adapter.updateMany, {
         input: {
           model: 'account' as const,
-          where: [{ field: '_id', value: existingAccount._id, operator: 'eq' }],
+          where: [{ field: '_id', value: accountId, operator: 'eq' }],
           update: {
             accessToken: args.accessToken,
             refreshToken: args.refreshToken ?? null,
@@ -144,11 +149,10 @@ export async function findOrCreateSsoUser(
     },
   );
 
-  const userId: string | undefined =
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-    (createResult as { _id?: string; id?: string })?._id ??
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- third-party type
-    (createResult as { _id?: string; id?: string })?.id;
+  const createResultRec = isRecord(createResult) ? createResult : undefined;
+  const userId =
+    (createResultRec ? getString(createResultRec, '_id') : undefined) ??
+    (createResultRec ? getString(createResultRec, 'id') : undefined);
   if (!userId) {
     throw new Error('Failed to extract userId from user creation result');
   }

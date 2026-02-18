@@ -6,6 +6,7 @@ import type {
   ConversationPriority,
 } from './types';
 
+import { isRecord, getString } from '../../../../../lib/utils/type-guards';
 import { internal } from '../../../../_generated/api';
 import { createDebugLog } from '../../../../lib/debug_log';
 import { addMessageToConversation } from './add_message_to_conversation';
@@ -67,9 +68,9 @@ export async function createConversationFromEmail(
 ) {
   // Handle both single email and array of emails
   const emailsArray: EmailType[] = Array.isArray(params.emails)
-    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- emails come from workflow action params; always EmailType or EmailType[]
       (params.emails as EmailType[])
-    : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
+    : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- email type narrowing from external data
       [params.emails as EmailType];
 
   // Sort emails by date (chronological order - oldest first)
@@ -152,16 +153,19 @@ export async function createConversationFromEmail(
               isCustomer = direction === 'inbound';
             } else {
               // Fallback: use the conversation's stored root sender as customer
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-              const convMetadata = existingConvForRoot.metadata as
-                | Record<string, unknown>
-                | undefined;
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-              const convRootFrom = convMetadata?.from as
-                | Array<{ address?: string; name?: string }>
-                | undefined;
-              const convCustomerAddress =
-                convRootFrom?.[0]?.address?.toLowerCase();
+              const convMetadata = isRecord(existingConvForRoot.metadata)
+                ? existingConvForRoot.metadata
+                : undefined;
+              const convRootFromRaw = convMetadata
+                ? convMetadata.from
+                : undefined;
+              const convRootFrom = Array.isArray(convRootFromRaw)
+                ? convRootFromRaw
+                : undefined;
+              const firstFrom = convRootFrom?.[0];
+              const convCustomerAddress = isRecord(firstFrom)
+                ? getString(firstFrom, 'address')?.toLowerCase()
+                : undefined;
               isCustomer =
                 email.from[0]?.address?.toLowerCase() === convCustomerAddress;
             }

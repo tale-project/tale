@@ -7,6 +7,7 @@ import { useState, useMemo, useCallback } from 'react';
 
 import type { ConversationItem } from '@/convex/conversations/types';
 
+import { LoadingOverlay } from '@/app/components/ui/feedback/loading-overlay';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -20,6 +21,8 @@ import { useBulkActions } from '../hooks/use-bulk-actions';
 import { useConversationSelection } from '../hooks/use-conversation-selection';
 import { ActivateConversationsEmptyState } from './activate-conversations-empty-state';
 import { BulkSendDialog } from './bulk-send-dialog';
+import { ConversationListPanel } from './conversation-list-panel';
+import { ConversationListToolbar } from './conversation-list-toolbar';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationsClientSkeleton } from './conversations-client-skeleton';
 import { ConversationsList } from './conversations-list';
@@ -110,14 +113,8 @@ export function ConversationsClient({
 
   return (
     <>
-      <div
-        className={cn(
-          'flex flex-col border-r border-border overflow-y-auto relative',
-          'w-full md:flex-[0_0_24.75rem] md:max-w-[24.75rem]',
-          selectedConversationId ? 'hidden md:flex' : 'flex',
-        )}
-      >
-        <div className="bg-background/50 border-border sticky top-0 z-10 flex h-16 items-center gap-2.5 border-b p-4 backdrop-blur-sm">
+      <ConversationListPanel hidden={!!selectedConversationId}>
+        <ConversationListToolbar>
           <div className="flex items-center">
             <Checkbox
               id="select-all"
@@ -177,7 +174,7 @@ export function ConversationsClient({
               className="bg-transparent pr-3 text-sm shadow-none"
             />
           )}
-        </div>
+        </ConversationListToolbar>
 
         <ConversationsList
           conversations={filteredConversations}
@@ -189,14 +186,9 @@ export function ConversationsClient({
           loadMore={paginatedResult.loadMore}
         />
         {isBulkProcessing && (
-          <div className="bg-background/50 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-sm">
-            <div className="text-muted-foreground flex items-center">
-              <Loader2Icon className="mr-2 size-4 animate-spin" />
-              <span className="text-sm">{tConversations('updating')}</span>
-            </div>
-          </div>
+          <LoadingOverlay message={tConversations('updating')} />
         )}
-      </div>
+      </ConversationListPanel>
 
       <div
         className={cn(

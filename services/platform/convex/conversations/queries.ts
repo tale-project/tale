@@ -51,17 +51,23 @@ export const listConversations = queryWithRLS({
 
 const CONVERSATIONS_COUNT_CAP = 20;
 
-export const approxCountConversations = queryWithRLS({
+export const approxCountConversationsByStatus = queryWithRLS({
   args: {
     organizationId: v.string(),
+    status: v.union(
+      v.literal('open'),
+      v.literal('closed'),
+      v.literal('spam'),
+      v.literal('archived'),
+    ),
   },
   returns: v.number(),
   handler: async (ctx, args) => {
     let count = 0;
     for await (const _ of ctx.db
       .query('conversations')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
+      .withIndex('by_organizationId_and_status', (q) =>
+        q.eq('organizationId', args.organizationId).eq('status', args.status),
       )) {
       count++;
       if (count >= CONVERSATIONS_COUNT_CAP) break;

@@ -673,22 +673,37 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     output?: string;
   }> = [];
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-  for (const step of steps as StepWithTools[]) {
-    const stepToolCalls = step.toolCalls ?? [];
-    const stepToolResults = step.toolResults ?? [];
+  for (const rawStep of steps) {
+    // Steps from AI SDK are structurally StepWithTools but typed as unknown[]
+    if (!isRecord(rawStep)) continue;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- AI SDK step arrays are typed as unknown[]; structure is verified by isRecord guard above
+    const stepToolCalls = (
+      Array.isArray(rawStep.toolCalls) ? rawStep.toolCalls : []
+    ) as StepWithTools['toolCalls'];
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same as stepToolCalls above
+    const stepToolResults = (
+      Array.isArray(rawStep.toolResults) ? rawStep.toolResults : []
+    ) as StepWithTools['toolResults'];
 
     // Extract tool call statuses
-    for (const toolCall of stepToolCalls) {
-      const matchingResult = stepToolResults.find(
+    for (const toolCall of stepToolCalls ?? []) {
+      const matchingResult = stepToolResults?.find(
         (r) => r.toolName === toolCall.toolName,
       );
+      const resultRecord = isRecord(matchingResult?.result)
+        ? matchingResult.result
+        : undefined;
+      const outputRecord = isRecord(matchingResult?.output)
+        ? matchingResult.output
+        : undefined;
       const directSuccess =
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-        (matchingResult?.result as { success?: boolean } | undefined)?.success;
+        typeof resultRecord?.success === 'boolean'
+          ? resultRecord.success
+          : undefined;
       const outputSuccess =
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-        (matchingResult?.output as { success?: boolean } | undefined)?.success;
+        typeof outputRecord?.success === 'boolean'
+          ? outputRecord.success
+          : undefined;
       const isSuccess = directSuccess ?? outputSuccess ?? true;
       toolCalls.push({
         toolName: toolCall.toolName,
@@ -697,7 +712,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     }
 
     // Extract sub-agent usage
-    for (const toolResult of stepToolResults) {
+    for (const toolResult of stepToolResults ?? []) {
       if (subAgentToolNames.has(toolResult.toolName)) {
         type SubAgentResultData = {
           model?: string;
@@ -711,18 +726,47 @@ function extractToolCallsFromSteps(steps: unknown[]): {
           input?: string;
           output?: string;
         };
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-        const directResult = toolResult.result as
-          | SubAgentResultData
-          | undefined;
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-        const outputDirect = toolResult.output as
-          | SubAgentResultData
-          | undefined;
-        const outputValue =
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-          (toolResult.output as { value?: SubAgentResultData } | undefined)
-            ?.value;
+
+        const extractSubAgentData = (
+          val: unknown,
+        ): SubAgentResultData | undefined => {
+          if (!isRecord(val)) return undefined;
+          return {
+            model: typeof val.model === 'string' ? val.model : undefined,
+            provider:
+              typeof val.provider === 'string' ? val.provider : undefined,
+            usage: isRecord(val.usage)
+              ? {
+                  inputTokens:
+                    typeof val.usage.inputTokens === 'number'
+                      ? val.usage.inputTokens
+                      : undefined,
+                  outputTokens:
+                    typeof val.usage.outputTokens === 'number'
+                      ? val.usage.outputTokens
+                      : undefined,
+                  totalTokens:
+                    typeof val.usage.totalTokens === 'number'
+                      ? val.usage.totalTokens
+                      : undefined,
+                  durationSeconds:
+                    typeof val.usage.durationSeconds === 'number'
+                      ? val.usage.durationSeconds
+                      : undefined,
+                }
+              : undefined,
+            input: typeof val.input === 'string' ? val.input : undefined,
+            output: typeof val.output === 'string' ? val.output : undefined,
+          };
+        };
+
+        const directResult = extractSubAgentData(toolResult.result);
+        const outputDirect = extractSubAgentData(toolResult.output);
+        const outputValueRaw = isRecord(toolResult.output)
+          ? toolResult.output.value
+          : undefined;
+        const outputValue = extractSubAgentData(outputValueRaw);
+
         const hasRelevantData = (d: SubAgentResultData | undefined) =>
           d?.model !== undefined || d?.usage !== undefined;
         const subAgentData = hasRelevantData(directResult)

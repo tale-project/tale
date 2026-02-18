@@ -9,7 +9,7 @@ import { useT } from '@/lib/i18n/client';
 interface SettingsNavigationProps {
   organizationId: string;
   userRole?: string | null;
-  canChangePassword?: boolean;
+  showAccountTab?: boolean;
 }
 
 type SettingsLabelKey =
@@ -22,7 +22,7 @@ type SettingsLabelKey =
 export function SettingsNavigation({
   organizationId,
   userRole,
-  canChangePassword = true,
+  showAccountTab = true,
 }: SettingsNavigationProps) {
   const { t } = useT('navigation');
   const { t: tCommon } = useT('common');
@@ -60,7 +60,7 @@ export function SettingsNavigation({
   ];
 
   const navigationItems = allItems.filter(
-    (item) => canChangePassword || item.labelKey !== 'account',
+    (item) => showAccountTab || item.labelKey !== 'account',
   );
 
   return (

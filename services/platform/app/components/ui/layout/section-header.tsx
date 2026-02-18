@@ -25,7 +25,7 @@ const titleVariants = cva('text-foreground', {
   },
 });
 
-interface SectionHeaderProps
+export interface SectionHeaderProps
   extends
     Omit<HTMLAttributes<HTMLDivElement>, 'title'>,
     VariantProps<typeof titleVariants> {
