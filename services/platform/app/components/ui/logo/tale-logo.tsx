@@ -1,9 +1,26 @@
+import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { Image } from '@/app/components/ui/data-display/image';
 
 export const TaleLogo = () => {
+  const { logoUrl } = useBrandingContext();
+
+  if (logoUrl) {
+    return (
+      <div className="flex size-8 items-center justify-center">
+        <Image
+          priority
+          src={logoUrl}
+          className="size-5 object-contain"
+          alt="logo"
+          width={20}
+          height={20}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex size-8 items-center justify-center">
-      {/* Light theme logo - hidden in dark mode via CSS */}
       <Image
         priority
         src="/assets/logo-black.svg"
@@ -12,7 +29,6 @@ export const TaleLogo = () => {
         width={20}
         height={20}
       />
-      {/* Dark theme logo - hidden in light mode via CSS */}
       <Image
         priority
         src="/assets/logo-white.svg"

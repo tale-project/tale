@@ -2,6 +2,7 @@ import { defineSchema } from 'convex/server';
 
 import { approvalsTable } from './approvals/schema';
 import { auditLogsTable } from './audit_logs/schema';
+import { brandingSettingsTable } from './branding/schema';
 import {
   conversationsTable,
   conversationMessagesTable,
@@ -36,6 +37,7 @@ import {
 export default defineSchema({
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
+  brandingSettings: brandingSettingsTable,
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
   customAgents: customAgentsTable,

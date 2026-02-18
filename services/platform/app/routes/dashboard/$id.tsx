@@ -1,6 +1,7 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 
+import { BrandingProvider } from '@/app/components/branding/branding-provider';
 import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
@@ -33,29 +34,31 @@ function DashboardLayout() {
   );
 
   return (
-    <TeamFilterProvider organizationId={organizationId}>
-      <AdaptiveHeaderProvider>
-        <div className="flex size-full flex-col overflow-hidden md:flex-row">
-          <div className="bg-background flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
-            <MobileNavigation
-              organizationId={organizationId}
-              role={memberContext?.role}
-            />
-            <AdaptiveHeaderSlot />
-          </div>
+    <BrandingProvider organizationId={organizationId}>
+      <TeamFilterProvider organizationId={organizationId}>
+        <AdaptiveHeaderProvider>
+          <div className="flex size-full flex-col overflow-hidden md:flex-row">
+            <div className="bg-background flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
+              <MobileNavigation
+                organizationId={organizationId}
+                role={memberContext?.role}
+              />
+              <AdaptiveHeaderSlot />
+            </div>
 
-          <div className="hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-            <Navigation
-              organizationId={organizationId}
-              role={memberContext?.role}
-            />
-          </div>
+            <div className="hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
+              <Navigation
+                organizationId={organizationId}
+                role={memberContext?.role}
+              />
+            </div>
 
-          <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
-            {isAuthLoading ? null : <Outlet />}
+            <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
+              {isAuthLoading ? null : <Outlet />}
+            </div>
           </div>
-        </div>
-      </AdaptiveHeaderProvider>
-    </TeamFilterProvider>
+        </AdaptiveHeaderProvider>
+      </TeamFilterProvider>
+    </BrandingProvider>
   );
 }
