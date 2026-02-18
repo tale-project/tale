@@ -60,6 +60,7 @@ export function ChatInterface({
     pendingToolResponse,
     hasActiveTools,
     isProcessingToolResult,
+    hasIncompleteAssistantMessage,
   } = useMessageProcessing(threadId);
 
   // Merge with pending messages from context for optimistic UI
@@ -99,8 +100,10 @@ export function ChatInterface({
     uiMessages,
   });
 
-  // Loading state
-  const isLoading = isPending || !!streamingMessage;
+  // Loading state — includes incomplete assistant messages to avoid flickering
+  // when status transitions between 'streaming' and 'pending' (e.g., tool calls)
+  const isLoading =
+    isPending || !!streamingMessage || hasIncompleteAssistantMessage;
 
   // Auto-scroll
   const { containerRef, contentRef, scrollToBottom, isAtBottom } =
