@@ -37,6 +37,7 @@ interface UseMessageProcessingResult {
   pendingToolResponse: UIMessage | undefined;
   hasActiveTools: boolean;
   isProcessingToolResult: boolean;
+  hasIncompleteAssistantMessage: boolean;
 }
 
 /**
@@ -189,6 +190,18 @@ export function useMessageProcessing(
     return !hasTextAfterTool;
   }, [uiMessages]);
 
+  // Check if the last assistant message is still in a non-terminal state.
+  // Covers gaps where status transitions between 'streaming' and 'pending'
+  // would otherwise cause loading to flicker off.
+  const hasIncompleteAssistantMessage = useMemo(() => {
+    if (!uiMessages?.length) return false;
+    const lastAssistant = uiMessages.findLast((m) => m.role === 'assistant');
+    if (!lastAssistant) return false;
+    return (
+      lastAssistant.status !== 'success' && lastAssistant.status !== 'failed'
+    );
+  }, [uiMessages]);
+
   return {
     messages,
     uiMessages,
@@ -199,5 +212,6 @@ export function useMessageProcessing(
     pendingToolResponse,
     hasActiveTools,
     isProcessingToolResult,
+    hasIncompleteAssistantMessage,
   };
 }
