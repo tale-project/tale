@@ -49,6 +49,10 @@ function markdownToHtml(md: string): string {
   return DOMPurify.sanitize(raw);
 }
 
+interface MilkdownEditorInnerProps extends MessageEditorProps {
+  onMessageSent?: () => void;
+}
+
 function MilkdownEditorInner({
   placeholder,
   disabled = false,
@@ -58,7 +62,8 @@ function MilkdownEditorInner({
   onConversationResolved: _onConversationResolved,
   pendingMessage,
   hasMessageHistory = false,
-}: MessageEditorProps) {
+  onMessageSent,
+}: MilkdownEditorInnerProps) {
   const { t: tConversations } = useT('conversations');
 
   const { mutateAsync: improveMessage } = useImproveMessage();
@@ -138,6 +143,7 @@ function MilkdownEditorInner({
     const pending = pendingMessage?.content ?? '';
     if (!message.trim() && pending.trim()) {
       setMessage(pending);
+      setProgrammaticContent(pending);
       setHasContent(true);
     }
   }, [pendingMessage, message, setMessage]);
@@ -216,10 +222,16 @@ function MilkdownEditorInner({
           await onSave(html, attachedFiles);
 
           setAttachedFiles([]);
-          setMessage('');
-          setProgrammaticContent('');
           setIsImproveMode(false);
           setImproveInstruction('');
+          setHasContent(false);
+
+          const storageKey = messageId
+            ? `conversation-${messageId}`
+            : 'new-conversation';
+          window.localStorage.removeItem(storageKey);
+
+          onMessageSent?.();
         } catch (error) {
           console.error('Failed to send message:', error);
           toast({
@@ -233,7 +245,8 @@ function MilkdownEditorInner({
     message,
     attachedFiles,
     onSave,
-    setMessage,
+    messageId,
+    onMessageSent,
     setImproveInstruction,
     tConversations,
   ]);
@@ -389,9 +402,15 @@ function MilkdownEditorInner({
 }
 
 export function MessageEditor(props: MessageEditorProps) {
+  const [editorKey, setEditorKey] = useState(0);
+
+  const handleMessageSent = useCallback(() => {
+    setEditorKey((k) => k + 1);
+  }, []);
+
   return (
-    <MilkdownProvider>
-      <MilkdownEditorInner {...props} />
+    <MilkdownProvider key={editorKey}>
+      <MilkdownEditorInner {...props} onMessageSent={handleMessageSent} />
     </MilkdownProvider>
   );
 }
