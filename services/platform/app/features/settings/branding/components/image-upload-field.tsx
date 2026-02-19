@@ -11,12 +11,13 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 import { cn } from '@/lib/utils/cn';
 
-const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp';
+const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp,.ico';
 
 interface ImageUploadFieldProps {
   currentUrl?: string | null;
   onUpload: (storageId: Id<'_storage'>) => void;
   onRemove?: () => void;
+  onPreviewUrlChange?: (url: string | null) => void;
   size?: 'sm' | 'md';
   label?: string;
   ariaLabel: string;
@@ -26,6 +27,7 @@ export function ImageUploadField({
   currentUrl,
   onUpload,
   onRemove,
+  onPreviewUrlChange,
   size = 'sm',
   label,
   ariaLabel,
@@ -69,6 +71,7 @@ export function ImageUploadField({
       const objectUrl = URL.createObjectURL(file);
       objectUrlRef.current = objectUrl;
       setPreviewUrl(objectUrl);
+      onPreviewUrlChange?.(objectUrl);
       setIsRemoved(false);
       setIsUploading(true);
 
@@ -86,6 +89,7 @@ export function ImageUploadField({
         onUpload(storageId);
       } catch {
         setPreviewUrl(null);
+        onPreviewUrlChange?.(null);
         if (objectUrlRef.current) {
           URL.revokeObjectURL(objectUrlRef.current);
           objectUrlRef.current = null;
@@ -97,18 +101,19 @@ export function ImageUploadField({
         }
       }
     },
-    [generateUploadUrl, onUpload],
+    [generateUploadUrl, onUpload, onPreviewUrlChange],
   );
 
   const handleRemove = useCallback(() => {
     setPreviewUrl(null);
+    onPreviewUrlChange?.(null);
     setIsRemoved(true);
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;
     }
     onRemove?.();
-  }, [onRemove]);
+  }, [onRemove, onPreviewUrlChange]);
 
   const sizeClasses = size === 'sm' ? 'size-10' : 'size-12';
 
@@ -120,7 +125,7 @@ export function ImageUploadField({
           onClick={handleClick}
           disabled={isUploading}
           className={cn(
-            'border-input flex items-center justify-center overflow-clip rounded-lg border bg-white shadow-sm',
+            'border-input flex items-center justify-center overflow-clip rounded-lg border bg-background shadow-sm',
             sizeClasses,
             isUploading && 'cursor-wait opacity-60',
           )}
@@ -132,12 +137,12 @@ export function ImageUploadField({
             <Image
               src={displayUrl}
               alt=""
-              className="size-full object-contain p-1"
+              className="size-full object-contain"
               width={48}
               height={48}
             />
           ) : (
-            <Plus className="text-muted-foreground size-3.5" />
+            <Plus className="text-muted-foreground size-4 shrink-0" />
           )}
         </button>
         {displayUrl && !isUploading && onRemove && (

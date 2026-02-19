@@ -27,10 +27,13 @@ describe('BrandingPreview', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders default app name "Tale" when none provided', () => {
+  it('renders placeholder bar when no app name provided', () => {
     render(<BrandingPreview data={{}} />);
 
-    expect(screen.getByText('Tale')).toBeInTheDocument();
+    const chrome = screen.getByTestId('browser-chrome');
+    const placeholder = chrome.querySelector('.bg-border.h-2');
+    expect(placeholder).toBeInTheDocument();
+    expect(screen.queryByText('Tale')).not.toBeInTheDocument();
   });
 
   it('renders custom app name', () => {
@@ -69,8 +72,8 @@ describe('BrandingPreview', () => {
     expect(screen.queryByText('ACME')).not.toBeInTheDocument();
   });
 
-  it('applies brand color to tab border', () => {
-    render(<BrandingPreview data={{ brandColor: '#FF5500' }} />);
+  it('applies accent color to tab border', () => {
+    render(<BrandingPreview data={{ accentColor: '#FF5500' }} />);
 
     const openTab = screen.getByText('Open');
     expect(openTab).toHaveStyle({ borderColor: '#FF5500' });
@@ -109,7 +112,7 @@ describe('BrandingPreview', () => {
     const { container } = render(<BrandingPreview data={{}} />);
 
     // 4 placeholder avatar circles
-    const avatars = container.querySelectorAll('.rounded-full.bg-gray-100');
+    const avatars = container.querySelectorAll('.rounded-full.bg-muted');
     expect(avatars.length).toBe(4);
   });
 
