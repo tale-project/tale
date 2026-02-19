@@ -17,6 +17,7 @@ type SettingsLabelKey =
   | 'teams'
   | 'integrations'
   | 'apiKeys'
+  | 'branding'
   | 'account';
 
 export function SettingsNavigation({
@@ -56,6 +57,12 @@ export function SettingsNavigation({
       label: t('apiKeys'),
       href: `/dashboard/${organizationId}/settings/api-keys`,
       roles: ['admin', 'developer'],
+    },
+    {
+      labelKey: 'branding',
+      label: t('branding'),
+      href: `/dashboard/${organizationId}/settings/branding`,
+      roles: ['admin'],
     },
   ];
 

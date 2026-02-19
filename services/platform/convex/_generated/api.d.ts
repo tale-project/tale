@@ -134,6 +134,8 @@ import type * as audit_logs_queries from "../audit_logs/queries.js";
 import type * as audit_logs_types from "../audit_logs/types.js";
 import type * as audit_logs_validators from "../audit_logs/validators.js";
 import type * as auth from "../auth.js";
+import type * as branding_mutations from "../branding/mutations.js";
+import type * as branding_queries from "../branding/queries.js";
 import type * as constants from "../constants.js";
 import type * as conversations_actions from "../conversations/actions.js";
 import type * as conversations_add_message_to_conversation from "../conversations/add_message_to_conversation.js";
@@ -1004,6 +1006,8 @@ declare const fullApi: ApiFromModules<{
   "audit_logs/types": typeof audit_logs_types;
   "audit_logs/validators": typeof audit_logs_validators;
   auth: typeof auth;
+  "branding/mutations": typeof branding_mutations;
+  "branding/queries": typeof branding_queries;
   constants: typeof constants;
   "conversations/actions": typeof conversations_actions;
   "conversations/add_message_to_conversation": typeof conversations_add_message_to_conversation;

@@ -224,6 +224,7 @@
     "teams": "Teams",
     "integrations": "Integrations",
     "apiKeys": "API keys",
+    "branding": "Branding",
     "apiDocs": "API docs",
     "account": "Account",
     "logs": "Logs",
@@ -366,7 +367,8 @@
       "exampleAdded": "Example added successfully",
       "exampleUpdated": "Example updated successfully",
       "toneGenerated": "Tone of voice generated successfully",
-      "toneSaved": "Tone of voice saved successfully"
+      "toneSaved": "Tone of voice saved successfully",
+      "brandingUpdated": "Branding updated successfully"
     },
     "error": {
       "generic": "Something went wrong. Please try again.",
@@ -376,6 +378,7 @@
       "duplicateFailed": "Failed to duplicate",
       "passwordChangeFailed": "Failed to change password. Please check your current password and try again.",
       "organizationUpdateFailed": "Failed to update organization",
+      "brandingUpdateFailed": "Failed to update branding",
       "addMemberFailed": "Failed to add member",
       "automationCreateFailed": "Failed to create automation",
       "automationDuplicateFailed": "Failed to duplicate automation",
@@ -1325,6 +1328,27 @@
           "admin": "Admin"
         }
       }
+    },
+    "branding": {
+      "appName": "App name",
+      "appNamePlaceholder": "e.g, Acme corp",
+      "textLogo": "Text logo",
+      "textLogoOptional": "(optional)",
+      "textLogoPlaceholder": "e.g, Acme",
+      "logo": "Logo",
+      "logoDescription": "Upload your organization logo",
+      "favicon": "Favicon",
+      "faviconDescription": "64 x 64 pixels",
+      "light": "Light",
+      "dark": "Dark",
+      "brandColor": "Brand color",
+      "accentColor": "Accent color",
+      "preview": "Preview",
+      "uploadLogo": "Upload logo",
+      "uploadFavicon": "Upload favicon",
+      "invalidHexColor": "Enter a valid hex color (e.g., #FF5733)",
+      "brandingSaved": "Branding updated successfully",
+      "brandingSaveFailed": "Failed to update branding"
     }
   },
   "automations": {
@@ -2709,7 +2733,8 @@
     "apiDocs": "You need Admin or Developer permissions to access API documentation.",
     "organization": "You need Admin permissions to access organization settings.",
     "teams": "You need Admin permissions to access team settings.",
-    "customAgents": "You need Admin or Developer permissions to manage custom agents."
+    "customAgents": "You need Admin or Developer permissions to manage custom agents.",
+    "branding": "You need Admin permissions to access branding settings."
   },
   "metadata": {
     "suffix": "Tale",
@@ -2793,6 +2818,10 @@
     "logs": {
       "title": "Logs",
       "description": "View system logs and activity."
+    },
+    "branding": {
+      "title": "Branding",
+      "description": "Customize your organization branding."
     },
     "createOrganization": {
       "title": "Create organization",
