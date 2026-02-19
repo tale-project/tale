@@ -55,6 +55,12 @@ export const LARGE_MESSAGE_THRESHOLD = 2000;
 export const SUMMARIZATION_THRESHOLD = 0.65;
 
 /**
+ * Max time for the recovery generation when the main generation times out.
+ * The recovery runs without tools, so it should be fast.
+ */
+export const RECOVERY_TIMEOUT_MS = 60_000;
+
+/**
  * Agent-specific context configurations
  *
  * All agents are treated as equal and independent - they can be used as
@@ -71,6 +77,7 @@ export const AGENT_CONTEXT_CONFIGS = {
     recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: OUTPUT_RESERVE,
     enableSummarization: true,
+    timeoutMs: 420_000,
   },
   /** Web assistant - independent agent for web operations */
   web: {
@@ -78,6 +85,7 @@ export const AGENT_CONTEXT_CONFIGS = {
     recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 2048,
     enableSummarization: true,
+    timeoutMs: 300_000,
   },
   /** Document assistant - independent agent for document operations */
   document: {
@@ -85,6 +93,7 @@ export const AGENT_CONTEXT_CONFIGS = {
     recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 4096,
     enableSummarization: true,
+    timeoutMs: 180_000,
   },
   /** Integration assistant - independent agent for external system operations */
   integration: {
@@ -92,6 +101,7 @@ export const AGENT_CONTEXT_CONFIGS = {
     recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 2048,
     enableSummarization: true,
+    timeoutMs: 180_000,
   },
   /** Workflow assistant - independent agent for workflow operations */
   workflow: {
@@ -99,6 +109,7 @@ export const AGENT_CONTEXT_CONFIGS = {
     recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 2048,
     enableSummarization: true,
+    timeoutMs: 240_000,
   },
   /** CRM assistant - independent agent for CRM operations */
   crm: {
@@ -106,6 +117,7 @@ export const AGENT_CONTEXT_CONFIGS = {
     recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 2048,
     enableSummarization: true,
+    timeoutMs: 180_000,
   },
   /** Custom agent - user-configurable agent with DB-stored config */
   custom: {
@@ -113,6 +125,7 @@ export const AGENT_CONTEXT_CONFIGS = {
     recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 2048,
     enableSummarization: true,
+    timeoutMs: 420_000,
   },
 } as const;
 

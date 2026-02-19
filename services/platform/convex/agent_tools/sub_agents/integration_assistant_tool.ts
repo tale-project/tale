@@ -17,6 +17,7 @@ import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { buildAdditionalContext } from './helpers/build_additional_context';
+import { checkBudget } from './helpers/check_budget';
 import { checkRoleAccess } from './helpers/check_role_access';
 import { formatIntegrationsForContext } from './helpers/format_integrations';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
@@ -78,6 +79,9 @@ EXAMPLES:
       });
       if (!validation.valid) return validation.error;
 
+      const budget = checkBudget(ctx);
+      if (!budget.ok) return budget.error;
+
       const { organizationId, threadId, userId } = validation.context;
 
       if (!userId) {
@@ -135,6 +139,7 @@ EXAMPLES:
             ),
             parentThreadId: threadId,
             integrationsInfo,
+            deadlineMs: budget.deadlineMs,
           },
         );
 

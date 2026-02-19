@@ -203,6 +203,10 @@ export function ChatInterface({
     shouldScrollToAIRef.current = true;
   }, [setPendingWithCount]);
 
+  const handleSendFollowUp = useCallback((message: string) => {
+    setInputValue(message);
+  }, []);
+
   // Determine what to show in content area
   // Show welcome only when idle (no threadId, no messages, no pending message, not loading)
   const showWelcome =
@@ -240,6 +244,7 @@ export function ChatInterface({
             isProcessingToolResult={isProcessingToolResult}
             aiResponseAreaRef={aiResponseAreaRef}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
+            onSendFollowUp={handleSendFollowUp}
           />
         )}
       </div>

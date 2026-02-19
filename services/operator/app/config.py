@@ -27,11 +27,11 @@ class Settings(BaseSettings):
         description="Maximum number of concurrent requests",
     )
     request_timeout_seconds: int = Field(
-        default=270,
+        default=180,
         ge=60,
         validation_alias="OPERATOR_REQUEST_TIMEOUT",
-        description="Maximum timeout for a single request in seconds (default 270s = 4.5min, "
-        "leaves buffer before client's 5-min abort)",
+        description="Maximum timeout for a single request in seconds (default 180s = 3min, "
+        "leaves buffer before client's 4-min abort)",
     )
     cleanup_interval_seconds: int = Field(
         default=60,
@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_coding_model: str = ""
     openai_vision_model: str = ""
+    openai_fast_model: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -94,6 +95,11 @@ class Settings(BaseSettings):
     def llm_vision_model(self) -> str | None:
         """Return vision model if configured, None otherwise."""
         return self.openai_vision_model if self.openai_vision_model else None
+
+    @property
+    def llm_fast_model(self) -> str:
+        """Return fast model for summarization, falls back to coding model."""
+        return self.openai_fast_model if self.openai_fast_model else self.openai_coding_model
 
 
 # Global settings instance

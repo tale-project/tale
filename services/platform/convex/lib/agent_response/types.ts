@@ -105,6 +105,8 @@ export interface GenerateResponseArgs {
   promptMessageId?: string;
   maxSteps?: number;
   userTeamIds?: string[];
+  /** Absolute deadline (Date.now()-based) by which this generation must complete */
+  deadlineMs?: number;
 }
 
 /**

@@ -4,7 +4,15 @@ import json
 
 import pytest
 
-from app.services.browser_service import _OutputAccumulator, _ASSET_URL_PATTERN
+from app.services.browser_service import (
+    MAX_NAVIGATION_COUNT,
+    MAX_SINGLE_CONTENT_CHARS,
+    MAX_TOTAL_CONTENT_CHARS,
+    _ASSET_URL_PATTERN,
+    _OutputAccumulator,
+    _PageContent,
+    _prepare_content_for_summarization,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -250,3 +258,237 @@ class TestProcessLineEdgeCases:
         acc.process_line(_make_step_finish_line())
         acc.process_line(_make_tool_use_line(["https://example.com"]))
         assert acc.event_types_seen == {"text", "step_finish", "tool_use"}
+
+
+# ---------------------------------------------------------------------------
+# Helpers for page content tests
+# ---------------------------------------------------------------------------
+
+def _make_tool_result_line(content: str | list[dict]) -> str:
+    return json.dumps({
+        "type": "tool_result",
+        "part": {"content": content},
+    })
+
+
+def _make_navigate_tool_use_line(url: str) -> str:
+    return json.dumps({
+        "type": "tool_use",
+        "part": {
+            "toolName": "playwright_browser_navigate",
+            "args": {"url": url},
+        },
+    })
+
+
+# ---------------------------------------------------------------------------
+# Page content capture
+# ---------------------------------------------------------------------------
+
+class TestPageContentCapture:
+    def test_captures_string_content(self):
+        acc = _OutputAccumulator()
+        acc.process_line(_make_tool_result_line("A" * 100))
+        assert len(acc.page_contents) == 1
+        assert acc.page_contents[0].content == "A" * 100
+
+    def test_captures_list_of_blocks_content(self):
+        acc = _OutputAccumulator()
+        acc.process_line(_make_tool_result_line([
+            {"type": "text", "text": "Block one content " * 5},
+            {"type": "text", "text": "Block two content " * 5},
+        ]))
+        assert len(acc.page_contents) == 1
+        assert "Block one" in acc.page_contents[0].content
+        assert "Block two" in acc.page_contents[0].content
+
+    def test_ignores_short_content(self):
+        acc = _OutputAccumulator()
+        acc.process_line(_make_tool_result_line("OK"))
+        assert len(acc.page_contents) == 0
+
+    def test_associates_url_from_prior_navigate(self):
+        acc = _OutputAccumulator()
+        acc.process_line(_make_navigate_tool_use_line("https://example.com/article"))
+        acc.process_line(_make_tool_result_line("Page content here " * 10))
+        assert acc.page_contents[0].url == "https://example.com/article"
+
+    def test_unknown_url_when_no_navigate(self):
+        acc = _OutputAccumulator()
+        acc.process_line(_make_tool_result_line("Content without navigation " * 5))
+        assert acc.page_contents[0].url == "unknown"
+
+    def test_truncates_single_content(self):
+        acc = _OutputAccumulator()
+        acc.process_line(_make_tool_result_line("X" * 50_000))
+        assert len(acc.page_contents[0].content) == MAX_SINGLE_CONTENT_CHARS
+
+    def test_stops_accumulating_at_total_limit(self):
+        acc = _OutputAccumulator()
+        for i in range(15):
+            acc.process_line(_make_navigate_tool_use_line(f"https://example.com/page{i}"))
+            acc.process_line(_make_tool_result_line("Y" * 20_000))
+        total_chars = sum(len(pc.content) for pc in acc.page_contents)
+        assert total_chars <= MAX_TOTAL_CONTENT_CHARS + MAX_SINGLE_CONTENT_CHARS
+
+    def test_has_page_content_property(self):
+        acc = _OutputAccumulator()
+        assert not acc.has_page_content
+        acc.process_line(_make_tool_result_line("Substantial content " * 10))
+        assert acc.has_page_content
+
+
+# ---------------------------------------------------------------------------
+# Navigation budget
+# ---------------------------------------------------------------------------
+
+class TestNavigationBudget:
+    def test_counts_navigations(self):
+        acc = _OutputAccumulator()
+        for i in range(5):
+            acc.process_line(_make_navigate_tool_use_line(f"https://example.com/page{i}"))
+        assert acc.navigation_count == 5
+        assert not acc.should_terminate
+
+    def test_terminates_at_max(self):
+        acc = _OutputAccumulator()
+        for i in range(MAX_NAVIGATION_COUNT):
+            acc.process_line(_make_navigate_tool_use_line(f"https://example.com/page{i}"))
+        assert acc.navigation_count == MAX_NAVIGATION_COUNT
+        assert acc.should_terminate
+
+    def test_does_not_terminate_below_max(self):
+        acc = _OutputAccumulator()
+        for i in range(MAX_NAVIGATION_COUNT - 1):
+            acc.process_line(_make_navigate_tool_use_line(f"https://example.com/page{i}"))
+        assert not acc.should_terminate
+
+    def test_non_navigate_tools_not_counted(self):
+        acc = _OutputAccumulator()
+        snapshot_line = json.dumps({
+            "type": "tool_use",
+            "part": {
+                "toolName": "playwright_browser_snapshot",
+                "args": {},
+            },
+        })
+        click_line = json.dumps({
+            "type": "tool_use",
+            "part": {
+                "toolName": "playwright_browser_click",
+                "args": {"ref": "btn1"},
+            },
+        })
+        acc.process_line(snapshot_line)
+        acc.process_line(click_line)
+        assert acc.navigation_count == 0
+
+    def test_navigate_without_url_not_counted(self):
+        acc = _OutputAccumulator()
+        line = json.dumps({
+            "type": "tool_use",
+            "part": {
+                "toolName": "playwright_browser_navigate",
+                "args": {"url": ""},
+            },
+        })
+        acc.process_line(line)
+        assert acc.navigation_count == 0
+
+
+# ---------------------------------------------------------------------------
+# to_response: Phase 2 summarized note
+# ---------------------------------------------------------------------------
+
+class TestToResponsePhase2:
+    def test_phase2_summarized_has_distinct_note(self):
+        acc = _OutputAccumulator()
+        acc.text_parts.append("Summary from Phase 2.")
+        acc.phase2_summarized = True
+        result = acc.to_response(300.0, timed_out=True)
+        assert "auto-generated" in result["response"]
+        assert "may be incomplete" not in result["response"]
+
+    def test_non_phase2_timeout_has_standard_note(self):
+        acc = _OutputAccumulator()
+        acc.text_parts.append("Partial text from Phase 1.")
+        result = acc.to_response(270.0, timed_out=True)
+        assert "may be incomplete" in result["response"]
+        assert "auto-generated" not in result["response"]
+
+
+# ---------------------------------------------------------------------------
+# to_response: nav_terminated semantics
+# ---------------------------------------------------------------------------
+
+class TestToResponseNavTerminated:
+    def test_nav_terminated_no_data_mentions_navigation_limit(self):
+        acc = _OutputAccumulator()
+        result = acc.to_response(60.0, nav_terminated=True)
+        assert result["success"] is False
+        assert result["partial"] is False
+        assert "navigation limit" in result["response"]
+        assert "time limit" not in result["response"]
+
+    def test_nav_terminated_with_urls_mentions_navigation_limit(self):
+        acc = _OutputAccumulator()
+        acc.process_line(_make_tool_use_line(["https://example.com/page1"]))
+        result = acc.to_response(60.0, nav_terminated=True)
+        assert result["success"] is True
+        assert result["partial"] is True
+        assert "navigation limit" in result["response"]
+        assert "time limit" not in result["response"]
+
+    def test_nav_terminated_with_text_has_navigation_note(self):
+        acc = _OutputAccumulator()
+        acc.process_line(_make_text_line("Partial findings."))
+        result = acc.to_response(60.0, nav_terminated=True)
+        assert result["success"] is True
+        assert result["partial"] is True
+        assert "navigation limit" in result["response"]
+        assert "time limit" not in result["response"]
+
+    def test_nav_terminated_phase2_mentions_navigation_limit(self):
+        acc = _OutputAccumulator()
+        acc.text_parts.append("Summary from Phase 2.")
+        acc.phase2_summarized = True
+        result = acc.to_response(60.0, nav_terminated=True)
+        assert "navigation limit" in result["response"]
+        assert "auto-generated" in result["response"]
+
+    def test_timeout_messages_unchanged(self):
+        acc = _OutputAccumulator()
+        result = acc.to_response(270.0, timed_out=True)
+        assert "time limit" in result["response"]
+        assert "navigation limit" not in result["response"]
+
+
+# ---------------------------------------------------------------------------
+# _prepare_content_for_summarization
+# ---------------------------------------------------------------------------
+
+class TestPrepareContentForSummarization:
+    def test_deduplicates_by_url_keeps_latest(self):
+        contents = [
+            _PageContent(url="https://example.com", content="Old version " * 10),
+            _PageContent(url="https://example.com", content="New version " * 10),
+        ]
+        result = _prepare_content_for_summarization(contents)
+        assert "New version" in result
+        assert "Old version" not in result
+
+    def test_includes_url_headers(self):
+        contents = [
+            _PageContent(url="https://example.com/article", content="Article text " * 10),
+        ]
+        result = _prepare_content_for_summarization(contents)
+        assert "https://example.com/article" in result
+
+    def test_respects_budget(self):
+        contents = [
+            _PageContent(url=f"https://example.com/{i}", content="Z" * 50_000)
+            for i in range(10)
+        ]
+        result = _prepare_content_for_summarization(contents)
+        # Should be bounded (DIRECT_SUMMARIZE_THRESHOLD_CHARS * 2 + overhead)
+        assert len(result) < 100_000

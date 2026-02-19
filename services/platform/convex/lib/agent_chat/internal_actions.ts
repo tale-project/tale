@@ -90,6 +90,7 @@ export const runAgentGeneration = internalAction({
     promptMessageId: v.optional(v.string()),
     maxSteps: v.optional(v.number()),
     userTeamIds: v.optional(v.array(v.string())),
+    deadlineMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const actionStartTime = Date.now();
@@ -118,6 +119,7 @@ export const runAgentGeneration = internalAction({
       promptMessageId,
       maxSteps,
       userTeamIds,
+      deadlineMs,
     } = args;
 
     const agentType = narrowStringUnion(
@@ -205,6 +207,7 @@ export const runAgentGeneration = internalAction({
           promptMessageId,
           maxSteps,
           userTeamIds,
+          deadlineMs,
         },
       );
 
