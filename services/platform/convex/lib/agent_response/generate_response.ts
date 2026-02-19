@@ -626,6 +626,8 @@ export async function generateAgentResponse(
           ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
           : recoveryContext.threadContext;
 
+        const recoveryAbortController = new AbortController();
+
         const recoveryResult = await withTimeout(
           recoveryAgent.generateText(
             contextWithOrg,
@@ -635,6 +637,7 @@ export async function generateAgentResponse(
               prompt: promptMessage
                 ? `The previous attempt to respond timed out. Based on any available context and tool results, provide a helpful response to: ${promptMessage}`
                 : 'The previous attempt timed out. Based on the conversation and any available tool results, provide a summary response.',
+              abortSignal: recoveryAbortController.signal,
             },
             {
               contextOptions: {
@@ -646,6 +649,7 @@ export async function generateAgentResponse(
             },
           ),
           RECOVERY_TIMEOUT_MS,
+          recoveryAbortController,
         );
 
         result = {
