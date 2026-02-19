@@ -547,7 +547,6 @@ import type * as tone_of_voice_generate_tone_of_voice from "../tone_of_voice/gen
 import type * as tone_of_voice_get_example_messages from "../tone_of_voice/get_example_messages.js";
 import type * as tone_of_voice_get_tone_of_voice from "../tone_of_voice/get_tone_of_voice.js";
 import type * as tone_of_voice_get_tone_of_voice_with_examples from "../tone_of_voice/get_tone_of_voice_with_examples.js";
-import type * as tone_of_voice_has_example_messages from "../tone_of_voice/has_example_messages.js";
 import type * as tone_of_voice_helpers from "../tone_of_voice/helpers.js";
 import type * as tone_of_voice_internal_actions from "../tone_of_voice/internal_actions.js";
 import type * as tone_of_voice_internal_mutations from "../tone_of_voice/internal_mutations.js";
@@ -1419,7 +1418,6 @@ declare const fullApi: ApiFromModules<{
   "tone_of_voice/get_example_messages": typeof tone_of_voice_get_example_messages;
   "tone_of_voice/get_tone_of_voice": typeof tone_of_voice_get_tone_of_voice;
   "tone_of_voice/get_tone_of_voice_with_examples": typeof tone_of_voice_get_tone_of_voice_with_examples;
-  "tone_of_voice/has_example_messages": typeof tone_of_voice_has_example_messages;
   "tone_of_voice/helpers": typeof tone_of_voice_helpers;
   "tone_of_voice/internal_actions": typeof tone_of_voice_internal_actions;
   "tone_of_voice/internal_mutations": typeof tone_of_voice_internal_mutations;
