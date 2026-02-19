@@ -19,7 +19,12 @@ type BudgetResult =
 
 export function checkBudget(ctx: ToolCtx): BudgetResult {
   const raw = ctx.variables?.actionDeadlineMs;
-  const deadline = typeof raw === 'string' ? Number(raw) : undefined;
+  const deadline =
+    typeof raw === 'string'
+      ? Number(raw)
+      : typeof raw === 'number'
+        ? raw
+        : undefined;
   if (!deadline || !Number.isFinite(deadline)) {
     return { ok: true, deadlineMs: undefined };
   }
