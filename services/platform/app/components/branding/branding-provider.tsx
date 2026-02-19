@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -6,10 +6,10 @@ import {
   useEffect,
   useRef,
   type ReactNode,
-} from "react";
+} from 'react';
 
-import { useConvexQuery } from "@/app/hooks/use-convex-query";
-import { api } from "@/convex/_generated/api";
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 
 interface BrandingContextValue {
   appName?: string;
@@ -35,7 +35,7 @@ interface BrandingProviderProps {
   children: ReactNode;
 }
 
-const DEFAULT_TITLE_SUFFIX = "Tale";
+const DEFAULT_TITLE_SUFFIX = 'Tale';
 
 export function BrandingProvider({
   organizationId,
@@ -62,7 +62,7 @@ export function BrandingProvider({
     updateTitle();
 
     const observer = new MutationObserver(updateTitle);
-    const titleElement = document.querySelector("title");
+    const titleElement = document.querySelector('title');
     if (titleElement) {
       observer.observe(titleElement, { childList: true });
     }
@@ -84,8 +84,8 @@ export function BrandingProvider({
   useEffect(() => {
     const link =
       document.querySelector<HTMLLinkElement>('link[rel="icon"]') ??
-      document.createElement("link");
-    link.rel = "icon";
+      document.createElement('link');
+    link.rel = 'icon';
 
     if (originalFaviconHrefRef.current === null) {
       originalFaviconHrefRef.current = link.href;
@@ -96,7 +96,7 @@ export function BrandingProvider({
 
     if (!lightUrl && !darkUrl) return;
 
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
     const updateFavicon = () => {
       const url = mediaQuery.matches && darkUrl ? darkUrl : lightUrl;
@@ -111,10 +111,10 @@ export function BrandingProvider({
       document.head.appendChild(link);
     }
 
-    mediaQuery.addEventListener("change", updateFavicon);
+    mediaQuery.addEventListener('change', updateFavicon);
 
     return () => {
-      mediaQuery.removeEventListener("change", updateFavicon);
+      mediaQuery.removeEventListener('change', updateFavicon);
       if (originalFaviconHrefRef.current) {
         link.href = originalFaviconHrefRef.current;
       }

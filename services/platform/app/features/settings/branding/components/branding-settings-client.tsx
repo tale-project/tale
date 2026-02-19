@@ -37,7 +37,7 @@ export function BrandingSettingsClient({
   }, []);
 
   return (
-    <div className="flex gap-6 flex-1">
+    <div className="flex flex-1 gap-6">
       <BrandingForm
         organizationId={organizationId}
         branding={branding}

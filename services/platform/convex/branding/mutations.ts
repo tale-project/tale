@@ -1,20 +1,20 @@
-import { v } from "convex/values";
+import { v } from 'convex/values';
 
-import type { Id } from "../_generated/dataModel";
-import type { MutationCtx } from "../_generated/server";
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
-import { HEX_COLOR_REGEX } from "../../lib/shared/schemas/branding";
-import { mutation } from "../_generated/server";
-import * as AuditLogHelpers from "../audit_logs/helpers";
-import { ADMIN_ONLY, validateOrganizationAccess } from "../lib/rls";
+import { HEX_COLOR_REGEX } from '../../lib/shared/schemas/branding';
+import { mutation } from '../_generated/server';
+import * as AuditLogHelpers from '../audit_logs/helpers';
+import { ADMIN_ONLY, validateOrganizationAccess } from '../lib/rls';
 
 interface UpsertBrandingArgs {
   organizationId: string;
   appName?: string;
   textLogo?: string;
-  logoStorageId?: Id<"_storage">;
-  faviconLightStorageId?: Id<"_storage">;
-  faviconDarkStorageId?: Id<"_storage">;
+  logoStorageId?: Id<'_storage'>;
+  faviconLightStorageId?: Id<'_storage'>;
+  faviconDarkStorageId?: Id<'_storage'>;
   brandColor?: string;
   accentColor?: string;
 }
@@ -24,10 +24,10 @@ export async function upsertBrandingHandler(
   args: UpsertBrandingArgs,
 ): Promise<null> {
   if (args.brandColor && !HEX_COLOR_REGEX.test(args.brandColor)) {
-    throw new Error("Invalid brandColor: must be a hex color (e.g. #FF0000)");
+    throw new Error('Invalid brandColor: must be a hex color (e.g. #FF0000)');
   }
   if (args.accentColor && !HEX_COLOR_REGEX.test(args.accentColor)) {
-    throw new Error("Invalid accentColor: must be a hex color (e.g. #FF0000)");
+    throw new Error('Invalid accentColor: must be a hex color (e.g. #FF0000)');
   }
 
   const rlsContext = await validateOrganizationAccess(
@@ -37,9 +37,9 @@ export async function upsertBrandingHandler(
   );
 
   const existing = await ctx.db
-    .query("brandingSettings")
-    .withIndex("by_organizationId", (q) =>
-      q.eq("organizationId", args.organizationId),
+    .query('brandingSettings')
+    .withIndex('by_organizationId', (q) =>
+      q.eq('organizationId', args.organizationId),
     )
     .first();
 
@@ -74,7 +74,7 @@ export async function upsertBrandingHandler(
       updatedAt: now,
     });
   } else {
-    await ctx.db.insert("brandingSettings", {
+    await ctx.db.insert('brandingSettings', {
       organizationId: args.organizationId,
       ...brandingFields,
       updatedAt: now,
@@ -89,14 +89,14 @@ export async function upsertBrandingHandler(
         id: rlsContext.user.userId,
         email: rlsContext.user.email,
         role: rlsContext.role,
-        type: "user",
+        type: 'user',
       },
     },
-    existing ? "update_branding" : "create_branding",
-    "admin",
-    "branding",
+    existing ? 'update_branding' : 'create_branding',
+    'admin',
+    'branding',
     args.organizationId,
-    "Branding settings",
+    'Branding settings',
     existing
       ? {
           appName: existing.appName,
@@ -121,9 +121,9 @@ export const upsertBranding = mutation({
     organizationId: v.string(),
     appName: v.optional(v.string()),
     textLogo: v.optional(v.string()),
-    logoStorageId: v.optional(v.id("_storage")),
-    faviconLightStorageId: v.optional(v.id("_storage")),
-    faviconDarkStorageId: v.optional(v.id("_storage")),
+    logoStorageId: v.optional(v.id('_storage')),
+    faviconLightStorageId: v.optional(v.id('_storage')),
+    faviconDarkStorageId: v.optional(v.id('_storage')),
     brandColor: v.optional(v.string()),
     accentColor: v.optional(v.string()),
   },
