@@ -504,6 +504,7 @@ export async function generateAgentResponse(
             steps: [...(result.steps || []), ...retryResult.steps],
             usage: mergeUsage(result.usage, retryResult.usage),
             finishReason: retryResult.finishReason,
+            response: result.response,
           };
 
           debugLog('Retry completed', {
@@ -574,6 +575,7 @@ export async function generateAgentResponse(
             steps: result.steps,
             usage: mergeUsage(result.usage, retryResult.usage),
             finishReason: retryResult.finishReason,
+            response: result.response,
           };
 
           debugLog('Empty text retry completed', {
