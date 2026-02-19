@@ -348,25 +348,35 @@ export async function generateAgentResponse(
 
           // Save messages normally so the UI can display the retry response.
           // Pass promptMessageId to avoid creating a duplicate user message.
-          const retryResult = await retryAgent.generateText(
-            contextWithOrg,
-            { threadId, userId },
-            {
-              system: retrySystemPrompt,
-              prompt: promptMessage
-                ? `Based on the tool results, complete this task: ${promptMessage}`
-                : 'Based on the conversation and tool results above, provide a summary response.',
-              ...(originalUserMessage
-                ? { promptMessageId: originalUserMessage._id }
-                : {}),
-            },
-            {
-              contextOptions: {
-                recentMessages: 0,
-                excludeToolMessages: false,
-                searchOtherThreads: false,
+          const retryRemainingMs = Math.max(
+            actionDeadline - Date.now(),
+            10_000,
+          );
+          const retryAbortController = new AbortController();
+          const retryResult = await withTimeout(
+            retryAgent.generateText(
+              contextWithOrg,
+              { threadId, userId },
+              {
+                system: retrySystemPrompt,
+                prompt: promptMessage
+                  ? `Based on the tool results, complete this task: ${promptMessage}`
+                  : 'Based on the conversation and tool results above, provide a summary response.',
+                abortSignal: retryAbortController.signal,
+                ...(originalUserMessage
+                  ? { promptMessageId: originalUserMessage._id }
+                  : {}),
               },
-            },
+              {
+                contextOptions: {
+                  recentMessages: 0,
+                  excludeToolMessages: false,
+                  searchOtherThreads: false,
+                },
+              },
+            ),
+            retryRemainingMs,
+            retryAbortController,
           );
 
           result = {
@@ -461,22 +471,32 @@ export async function generateAgentResponse(
             ? `${agentInstructions}\n\n${retryContext.threadContext}`
             : retryContext.threadContext;
 
-          const retryResult = await retryAgent.generateText(
-            subAgentContext,
-            { threadId, userId },
-            {
-              system: retrySystemPrompt,
-              prompt: promptMessage
-                ? `Based on the tool results, complete this task: ${promptMessage}`
-                : 'Based on the conversation and tool results above, provide a summary response.',
-            },
-            {
-              contextOptions: {
-                recentMessages: 0,
-                excludeToolMessages: false,
+          const nonStreamRetryRemainingMs = Math.max(
+            actionDeadline - Date.now(),
+            10_000,
+          );
+          const nonStreamRetryAbort = new AbortController();
+          const retryResult = await withTimeout(
+            retryAgent.generateText(
+              subAgentContext,
+              { threadId, userId },
+              {
+                system: retrySystemPrompt,
+                prompt: promptMessage
+                  ? `Based on the tool results, complete this task: ${promptMessage}`
+                  : 'Based on the conversation and tool results above, provide a summary response.',
+                abortSignal: nonStreamRetryAbort.signal,
               },
-              storageOptions: { saveMessages: 'none' },
-            },
+              {
+                contextOptions: {
+                  recentMessages: 0,
+                  excludeToolMessages: false,
+                },
+                storageOptions: { saveMessages: 'none' },
+              },
+            ),
+            nonStreamRetryRemainingMs,
+            nonStreamRetryAbort,
           );
 
           result = {
@@ -521,22 +541,32 @@ export async function generateAgentResponse(
             ? `${agentInstructions}\n\n${retryContext.threadContext}`
             : retryContext.threadContext;
 
-          const retryResult = await retryAgent.generateText(
-            subAgentContext,
-            { threadId, userId },
-            {
-              system: emptyRetrySystemPrompt,
-              prompt: promptMessage
-                ? `Please complete this task: ${promptMessage}`
-                : 'Please provide a response based on the conversation above.',
-            },
-            {
-              contextOptions: {
-                recentMessages: 0,
-                excludeToolMessages: false,
+          const emptyRetryRemainingMs = Math.max(
+            actionDeadline - Date.now(),
+            10_000,
+          );
+          const emptyRetryAbort = new AbortController();
+          const retryResult = await withTimeout(
+            retryAgent.generateText(
+              subAgentContext,
+              { threadId, userId },
+              {
+                system: emptyRetrySystemPrompt,
+                prompt: promptMessage
+                  ? `Please complete this task: ${promptMessage}`
+                  : 'Please provide a response based on the conversation above.',
+                abortSignal: emptyRetryAbort.signal,
               },
-              storageOptions: { saveMessages: 'none' },
-            },
+              {
+                contextOptions: {
+                  recentMessages: 0,
+                  excludeToolMessages: false,
+                },
+                storageOptions: { saveMessages: 'none' },
+              },
+            ),
+            emptyRetryRemainingMs,
+            emptyRetryAbort,
           );
 
           result = {
