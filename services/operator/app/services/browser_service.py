@@ -329,7 +329,11 @@ async def _call_llm(prompt: str, *, timeout: int) -> str | None:
             return None
 
         result = response.json()
-        return result["choices"][0]["message"]["content"]
+        try:
+            return result["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as e:
+            logger.error(f"Phase 2 LLM response malformed: {e}, response: {str(result)[:200]}")
+            return None
     except httpx.TimeoutException:
         logger.warning(f"Phase 2 LLM call timed out ({timeout}s)")
         return None
