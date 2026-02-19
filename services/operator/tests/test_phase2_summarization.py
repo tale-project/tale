@@ -1,6 +1,5 @@
 """Tests for Phase 2 map-reduce summarization in browser_service."""
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
