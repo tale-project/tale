@@ -30,7 +30,8 @@ export function checkBudget(ctx: ToolCtx): BudgetResult {
   }
 
   const remainingMs = deadline - Date.now();
-  if (remainingMs < MIN_TOOL_BUDGET_MS) {
+  const effectiveRemainingMs = remainingMs - SUB_AGENT_BUFFER_MS;
+  if (effectiveRemainingMs < MIN_TOOL_BUDGET_MS) {
     return {
       ok: false,
       error: errorResponse(
