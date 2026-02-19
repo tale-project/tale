@@ -22,6 +22,7 @@ export interface GenerateCrmResponseArgs {
   promptMessage: string;
   additionalContext?: Record<string, string>;
   parentThreadId?: string;
+  deadlineMs?: number;
 }
 
 export type GenerateCrmResponseResult = GenerateResponseResult;

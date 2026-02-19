@@ -57,6 +57,7 @@ import type * as agent_tools_rag_rag_search_tool from "../agent_tools/rag/rag_se
 import type * as agent_tools_sub_agents_crm_assistant_tool from "../agent_tools/sub_agents/crm_assistant_tool.js";
 import type * as agent_tools_sub_agents_document_assistant_tool from "../agent_tools/sub_agents/document_assistant_tool.js";
 import type * as agent_tools_sub_agents_helpers_build_additional_context from "../agent_tools/sub_agents/helpers/build_additional_context.js";
+import type * as agent_tools_sub_agents_helpers_check_budget from "../agent_tools/sub_agents/helpers/check_budget.js";
 import type * as agent_tools_sub_agents_helpers_check_role_access from "../agent_tools/sub_agents/helpers/check_role_access.js";
 import type * as agent_tools_sub_agents_helpers_format_integrations from "../agent_tools/sub_agents/helpers/format_integrations.js";
 import type * as agent_tools_sub_agents_helpers_get_or_create_sub_thread from "../agent_tools/sub_agents/helpers/get_or_create_sub_thread.js";
@@ -289,8 +290,10 @@ import type * as lib_agent_completion_index from "../lib/agent_completion/index.
 import type * as lib_agent_completion_on_agent_complete from "../lib/agent_completion/on_agent_complete.js";
 import type * as lib_agent_response_generate_response from "../lib/agent_response/generate_response.js";
 import type * as lib_agent_response_index from "../lib/agent_response/index.js";
+import type * as lib_agent_response_structured_response_instructions from "../lib/agent_response/structured_response_instructions.js";
 import type * as lib_agent_response_types from "../lib/agent_response/types.js";
 import type * as lib_agent_response_validators from "../lib/agent_response/validators.js";
+import type * as lib_agent_response_with_timeout from "../lib/agent_response/with_timeout.js";
 import type * as lib_agent_runtime_config from "../lib/agent_runtime_config.js";
 import type * as lib_attachments_build_multi_modal_content from "../lib/attachments/build_multi_modal_content.js";
 import type * as lib_attachments_format_markdown from "../lib/attachments/format_markdown.js";
@@ -928,6 +931,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/sub_agents/crm_assistant_tool": typeof agent_tools_sub_agents_crm_assistant_tool;
   "agent_tools/sub_agents/document_assistant_tool": typeof agent_tools_sub_agents_document_assistant_tool;
   "agent_tools/sub_agents/helpers/build_additional_context": typeof agent_tools_sub_agents_helpers_build_additional_context;
+  "agent_tools/sub_agents/helpers/check_budget": typeof agent_tools_sub_agents_helpers_check_budget;
   "agent_tools/sub_agents/helpers/check_role_access": typeof agent_tools_sub_agents_helpers_check_role_access;
   "agent_tools/sub_agents/helpers/format_integrations": typeof agent_tools_sub_agents_helpers_format_integrations;
   "agent_tools/sub_agents/helpers/get_or_create_sub_thread": typeof agent_tools_sub_agents_helpers_get_or_create_sub_thread;
@@ -1160,8 +1164,10 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_completion/on_agent_complete": typeof lib_agent_completion_on_agent_complete;
   "lib/agent_response/generate_response": typeof lib_agent_response_generate_response;
   "lib/agent_response/index": typeof lib_agent_response_index;
+  "lib/agent_response/structured_response_instructions": typeof lib_agent_response_structured_response_instructions;
   "lib/agent_response/types": typeof lib_agent_response_types;
   "lib/agent_response/validators": typeof lib_agent_response_validators;
+  "lib/agent_response/with_timeout": typeof lib_agent_response_with_timeout;
   "lib/agent_runtime_config": typeof lib_agent_runtime_config;
   "lib/attachments/build_multi_modal_content": typeof lib_attachments_build_multi_modal_content;
   "lib/attachments/format_markdown": typeof lib_attachments_format_markdown;

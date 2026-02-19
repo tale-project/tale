@@ -2192,6 +2192,14 @@
     "aria": {
       "messageHistory": "Message history",
       "scrollToBottom": "Scroll to bottom"
+    },
+    "structured": {
+      "conclusion": "Summary",
+      "keyPoints": "Key points",
+      "showDetails": "Show details",
+      "hideDetails": "Hide details",
+      "questions": "Questions for you",
+      "nextSteps": "Suggested follow-ups"
     }
   },
   "toneOfVoice": {

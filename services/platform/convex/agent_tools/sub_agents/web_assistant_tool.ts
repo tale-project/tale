@@ -15,6 +15,7 @@ import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { buildAdditionalContext } from './helpers/build_additional_context';
+import { checkBudget } from './helpers/check_budget';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import {
   successResponse,
@@ -68,6 +69,9 @@ RIGHT: { userRequest: "What is the shipping policy on https://example.com" } ←
       const validation = validateToolContext(ctx, 'web_assistant');
       if (!validation.valid) return validation.error;
 
+      const budget = checkBudget(ctx);
+      if (!budget.ok) return budget.error;
+
       const { organizationId, threadId, userId } = validation.context;
 
       try {
@@ -98,6 +102,7 @@ RIGHT: { userRequest: "What is the shipping policy on https://example.com" } ←
               WEB_CONTEXT_MAPPING,
             ),
             parentThreadId: threadId,
+            deadlineMs: budget.deadlineMs,
           },
         );
 

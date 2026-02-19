@@ -22,6 +22,7 @@ export interface GenerateDocumentResponseArgs {
   promptMessage: string;
   additionalContext?: Record<string, string>;
   parentThreadId?: string;
+  deadlineMs?: number;
 }
 
 export type GenerateDocumentResponseResult = GenerateResponseResult;

@@ -17,6 +17,7 @@ import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { buildAdditionalContext } from './helpers/build_additional_context';
+import { checkBudget } from './helpers/check_budget';
 import { checkRoleAccess } from './helpers/check_role_access';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import {
@@ -64,6 +65,9 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
     handler: async (ctx: ToolCtx, args): Promise<ToolResponseWithApproval> => {
       const validation = validateToolContext(ctx, 'workflow_assistant');
       if (!validation.valid) return validation.error;
+
+      const budget = checkBudget(ctx);
+      if (!budget.ok) return budget.error;
 
       const { organizationId, threadId, userId } = validation.context;
 
@@ -113,6 +117,7 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
             ),
             parentThreadId: threadId,
             delegationMode: true,
+            deadlineMs: budget.deadlineMs,
           },
         );
 

@@ -22,6 +22,7 @@ export interface GenerateWebResponseArgs {
   promptMessage: string;
   additionalContext?: Record<string, string>;
   parentThreadId?: string;
+  deadlineMs?: number;
 }
 
 export type GenerateWebResponseResult = GenerateResponseResult;

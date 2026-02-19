@@ -26,6 +26,7 @@ export interface GenerateWorkflowResponseArgs {
   parentThreadId?: string;
   delegationMode?: boolean;
   promptMessageId?: string;
+  deadlineMs?: number;
 }
 
 export type GenerateWorkflowResponseResult = GenerateResponseResult;

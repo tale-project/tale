@@ -5,9 +5,13 @@
  * Uses Playwright for browser control with AI-driven navigation.
  *
  * Timeout strategy:
- * - CLIENT_TIMEOUT_MS (300s): hard abort for the HTTP request
- * - OPERATOR_TIMEOUT_S (270s): sent to operator so it can gracefully
- *   terminate and return partial results before the client aborts
+ * - CLIENT_TIMEOUT_MS (240s): hard abort for the HTTP request
+ * - OPERATOR_TIMEOUT_S (180s): sent to operator so it can gracefully
+ *   terminate and return partial results before the client aborts.
+ *   The extra 60s buffer allows the operator to run Phase 2
+ *   (map-reduce summarization) when Phase 1 times out without text.
+ *
+ * Budget chain: operator 180s → client 240s → web sub-agent 300s → chat 420s
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -20,8 +24,8 @@ import { getOperatorServiceUrl } from './get_operator_service_url';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
-const CLIENT_TIMEOUT_MS = 300_000;
-const OPERATOR_TIMEOUT_S = 270;
+const CLIENT_TIMEOUT_MS = 240_000;
+const OPERATOR_TIMEOUT_S = 180;
 
 export async function browserOperate(
   ctx: ToolCtx,
@@ -98,7 +102,7 @@ export async function browserOperate(
   } catch (error) {
     const isAborted = error instanceof Error && error.name === 'AbortError';
     const errorMessage = isAborted
-      ? 'Request timed out after 5 minutes. The operator did not respond in time.'
+      ? 'Request timed out after 4 minutes. The operator did not respond in time.'
       : error instanceof Error
         ? error.message
         : 'Unknown error';

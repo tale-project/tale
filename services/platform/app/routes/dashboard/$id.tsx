@@ -34,7 +34,10 @@ function DashboardLayout() {
   );
 
   return (
-    <BrandingProvider organizationId={organizationId}>
+    <BrandingProvider
+      organizationId={organizationId}
+      skip={isAuthLoading || !isAuthenticated}
+    >
       <TeamFilterProvider organizationId={organizationId}>
         <AdaptiveHeaderProvider>
           <div className="flex size-full flex-col overflow-hidden md:flex-row">
