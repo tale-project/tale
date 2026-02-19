@@ -177,7 +177,7 @@ export const NextStepsSection = memo(
 
     const items = useMemo(() => parseFollowUpItems(content), [content]);
 
-    if (items.length === 0) return null;
+    if (items.length === 0 || !onSendFollowUp) return null;
 
     return (
       <section aria-label={t('structured.nextSteps')}>
