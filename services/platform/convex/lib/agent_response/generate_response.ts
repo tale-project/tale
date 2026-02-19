@@ -568,8 +568,10 @@ export async function generateAgentResponse(
 
     // Build complete context window for metadata (uses <details> for collapsible display)
     const contextWindowParts = [];
-    if (instructions) {
-      contextWindowParts.push(wrapInDetails('📋 System Prompt', instructions));
+    if (agentInstructions) {
+      contextWindowParts.push(
+        wrapInDetails('📋 System Prompt', agentInstructions),
+      );
     }
     if (toolsSummary) {
       contextWindowParts.push(wrapInDetails('🔧 Tools', toolsSummary));

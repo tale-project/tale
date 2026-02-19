@@ -8,7 +8,7 @@
  * isStreaming={true}; completed sections render instantly.
  */
 
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
@@ -89,6 +89,14 @@ export const KeyPointsSection = memo(
 export const DetailsSection = memo(
   function DetailsSection({ content, isStreaming }: SectionProps) {
     const { t } = useT('chat');
+    const [isOpen, setIsOpen] = useState(true);
+
+    const handleToggle = useCallback(
+      (e: React.SyntheticEvent<HTMLDetailsElement>) => {
+        setIsOpen(e.currentTarget.open);
+      },
+      [],
+    );
 
     if (!content && !isStreaming) return null;
 
@@ -96,10 +104,13 @@ export const DetailsSection = memo(
       <details
         className="structured-details mb-3"
         open
-        aria-label={t('structured.details')}
+        onToggle={handleToggle}
+        aria-label={
+          isOpen ? t('structured.hideDetails') : t('structured.showDetails')
+        }
       >
         <summary className="text-muted-foreground cursor-pointer text-sm font-medium">
-          {t('structured.details')}
+          {isOpen ? t('structured.hideDetails') : t('structured.showDetails')}
         </summary>
         <div className="pt-2">
           <TypewriterText

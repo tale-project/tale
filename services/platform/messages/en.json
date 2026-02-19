@@ -2196,7 +2196,8 @@
     "structured": {
       "conclusion": "Summary",
       "keyPoints": "Key points",
-      "details": "Show details",
+      "showDetails": "Show details",
+      "hideDetails": "Hide details",
       "questions": "Questions for you",
       "nextSteps": "Suggested follow-ups"
     }
