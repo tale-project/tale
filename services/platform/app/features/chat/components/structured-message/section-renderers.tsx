@@ -104,7 +104,7 @@ export const DetailsSection = memo(
     return (
       <details
         className="structured-details mb-3"
-        open
+        open={isOpen}
         onToggle={handleToggle}
         aria-label={
           isOpen ? t('structured.hideDetails') : t('structured.showDetails')
