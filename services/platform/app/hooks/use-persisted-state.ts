@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 // Check if we're in a browser environment
 const isBrowser = typeof window !== 'undefined';
@@ -64,5 +64,16 @@ export function usePersistedState<T>(key: string, initialValue: T) {
     }
   }, [key, value, isHydrated]);
 
-  return [value, setValue] as const;
+  const clear = useCallback(() => {
+    setValue(initialValue);
+    if (isBrowser) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch (error) {
+        console.warn(`Failed to remove localStorage key "${key}":`, error);
+      }
+    }
+  }, [key, initialValue]);
+
+  return [value, setValue, clear] as const;
 }
