@@ -1,9 +1,8 @@
-import { z } from 'zod/v4';
+import { z } from "zod/v4";
 
-const hexColorSchema = z
-  .string()
-  .regex(/^#[0-9A-Fa-f]{6}$/)
-  .optional();
+export const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+
+const hexColorSchema = z.string().regex(HEX_COLOR_REGEX).optional();
 
 export const brandingFormSchema = z.object({
   appName: z.string().max(100).optional(),

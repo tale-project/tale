@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   MessageCircle,
@@ -8,10 +8,10 @@ import {
   Bot,
   Network,
   User,
-} from 'lucide-react';
-import { memo } from 'react';
+} from "lucide-react";
+import { memo } from "react";
 
-import { Image } from '@/app/components/ui/data-display/image';
+import { Image } from "@/app/components/ui/data-display/image";
 
 export interface BrandingPreviewData {
   appName?: string;
@@ -29,7 +29,10 @@ const NAV_ICONS = [MessageCircle, Inbox, Brain, CheckCircle, Bot, Network];
 
 function BrowserChrome() {
   return (
-    <div className="border-b-border flex h-9 items-center border-b px-6">
+    <div
+      className="border-b-border flex h-9 items-center border-b px-6"
+      data-testid="browser-chrome"
+    >
       <div className="flex gap-1">
         <div className="bg-border size-2 rounded-full" />
         <div className="bg-border size-2 rounded-full" />
@@ -82,7 +85,7 @@ export const BrandingPreview = memo(function BrandingPreview({
                 <div
                   className="size-5 rounded"
                   style={{
-                    backgroundColor: brandColor || '#030712',
+                    backgroundColor: brandColor || "#030712",
                   }}
                 />
               )}
@@ -107,7 +110,7 @@ export const BrandingPreview = memo(function BrandingPreview({
                   <Icon
                     className="size-4"
                     style={{
-                      color: i === 0 ? (accentColor ?? '#030712') : '#9ca3af',
+                      color: i === 0 ? (accentColor ?? "#030712") : "#9ca3af",
                     }}
                   />
                 </div>
@@ -124,7 +127,7 @@ export const BrandingPreview = memo(function BrandingPreview({
             {/* Header */}
             <div className="flex h-10 items-center border-b border-gray-100 px-4">
               <span className="text-xs font-medium text-gray-900">
-                {appName || 'Tale'}
+                {appName || "Tale"}
               </span>
             </div>
 
@@ -133,8 +136,8 @@ export const BrandingPreview = memo(function BrandingPreview({
               <span
                 className="border-b-2 pb-1 text-[10px] font-medium"
                 style={{
-                  borderColor: brandColor || '#030712',
-                  color: '#030712',
+                  borderColor: brandColor || "#030712",
+                  color: "#030712",
                 }}
               >
                 Open

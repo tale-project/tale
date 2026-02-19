@@ -1,9 +1,15 @@
-'use client';
+"use client";
 
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { useConvexQuery } from "@/app/hooks/use-convex-query";
+import { api } from "@/convex/_generated/api";
 
 interface BrandingContextValue {
   appName?: string;
@@ -29,6 +35,8 @@ interface BrandingProviderProps {
   children: ReactNode;
 }
 
+const DEFAULT_TITLE_SUFFIX = "Tale";
+
 export function BrandingProvider({
   organizationId,
   children,
@@ -37,53 +45,81 @@ export function BrandingProvider({
     organizationId,
   });
 
-  // Update document title suffix when app name changes
-  useEffect(() => {
-    if (!branding?.appName) return;
+  const originalFaviconHrefRef = useRef<string | null>(null);
 
-    const originalSuffix = 'Tale';
+  useEffect(() => {
+    const customName = branding?.appName;
+    const targetSuffix = customName || DEFAULT_TITLE_SUFFIX;
+
     const updateTitle = () => {
       const title = document.title;
-      if (title.endsWith(`- ${originalSuffix}`)) {
-        document.title = title.replace(
-          `- ${originalSuffix}`,
-          `- ${branding.appName}`,
-        );
+      const updated = title.replace(/- [^-]+$/, `- ${targetSuffix}`);
+      if (updated !== title) {
+        document.title = updated;
       }
     };
 
     updateTitle();
 
     const observer = new MutationObserver(updateTitle);
-    const titleElement = document.querySelector('title');
+    const titleElement = document.querySelector("title");
     if (titleElement) {
       observer.observe(titleElement, { childList: true });
     }
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (customName) {
+        const title = document.title;
+        if (title.includes(`- ${customName}`)) {
+          document.title = title.replace(
+            `- ${customName}`,
+            `- ${DEFAULT_TITLE_SUFFIX}`,
+          );
+        }
+      }
+    };
   }, [branding?.appName]);
 
-  // Update favicon when branding changes
   useEffect(() => {
-    const faviconUrl = branding?.faviconLightUrl;
-    if (!faviconUrl) return;
-
     const link =
       document.querySelector<HTMLLinkElement>('link[rel="icon"]') ??
-      document.createElement('link');
-    link.rel = 'icon';
+      document.createElement("link");
+    link.rel = "icon";
 
-    const originalHref = link.href;
-    link.href = faviconUrl;
+    if (originalFaviconHrefRef.current === null) {
+      originalFaviconHrefRef.current = link.href;
+    }
+
+    const lightUrl = branding?.faviconLightUrl;
+    const darkUrl = branding?.faviconDarkUrl;
+
+    if (!lightUrl && !darkUrl) return;
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const updateFavicon = () => {
+      const url = mediaQuery.matches && darkUrl ? darkUrl : lightUrl;
+      if (url) {
+        link.href = url;
+      }
+    };
+
+    updateFavicon();
 
     if (!link.parentNode) {
       document.head.appendChild(link);
     }
 
+    mediaQuery.addEventListener("change", updateFavicon);
+
     return () => {
-      link.href = originalHref;
+      mediaQuery.removeEventListener("change", updateFavicon);
+      if (originalFaviconHrefRef.current) {
+        link.href = originalFaviconHrefRef.current;
+      }
     };
-  }, [branding?.faviconLightUrl]);
+  }, [branding?.faviconLightUrl, branding?.faviconDarkUrl]);
 
   const value: BrandingContextValue = {
     appName: branding?.appName,

@@ -1,23 +1,23 @@
-'use client';
+"use client";
 
-import { Plus, X } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { Plus, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Id } from '@/convex/_generated/dataModel';
+import type { Id } from "@/convex/_generated/dataModel";
 
-import { Image } from '@/app/components/ui/data-display/image';
-import { Spinner } from '@/app/components/ui/feedback/spinner';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
-import { cn } from '@/lib/utils/cn';
+import { Image } from "@/app/components/ui/data-display/image";
+import { Spinner } from "@/app/components/ui/feedback/spinner";
+import { useConvexMutation } from "@/app/hooks/use-convex-mutation";
+import { api } from "@/convex/_generated/api";
+import { cn } from "@/lib/utils/cn";
 
-const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp';
+const ACCEPTED_IMAGE_TYPES = ".png,.svg,.jpg,.jpeg,.webp";
 
 interface ImageUploadFieldProps {
   currentUrl?: string | null;
-  onUpload: (storageId: Id<'_storage'>) => void;
+  onUpload: (storageId: Id<"_storage">) => void;
   onRemove?: () => void;
-  size?: 'sm' | 'md';
+  size?: "sm" | "md";
   label?: string;
   ariaLabel: string;
 }
@@ -26,18 +26,32 @@ export function ImageUploadField({
   currentUrl,
   onUpload,
   onRemove,
-  size = 'sm',
+  size = "sm",
   label,
   ariaLabel,
 }: ImageUploadFieldProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isRemoved, setIsRemoved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
   const generateUploadUrl = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
 
-  const displayUrl = previewUrl ?? currentUrl;
+  const displayUrl = isRemoved ? null : (previewUrl ?? currentUrl);
+
+  useEffect(() => {
+    setIsRemoved(false);
+  }, [currentUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+      }
+    };
+  }, []);
 
   const handleClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -48,42 +62,55 @@ export function ImageUploadField({
       const file = e.target.files?.[0];
       if (!file) return;
 
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+      }
+
       const objectUrl = URL.createObjectURL(file);
+      objectUrlRef.current = objectUrl;
       setPreviewUrl(objectUrl);
+      setIsRemoved(false);
       setIsUploading(true);
 
       try {
         const uploadUrl = await generateUploadUrl.mutateAsync({});
         const result = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': file.type },
+          method: "POST",
+          headers: { "Content-Type": file.type },
           body: file,
         });
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex storage upload response shape
         const { storageId } = (await result.json()) as {
-          storageId: Id<'_storage'>;
+          storageId: Id<"_storage">;
         };
         onUpload(storageId);
       } catch {
         setPreviewUrl(null);
+        if (objectUrlRef.current) {
+          URL.revokeObjectURL(objectUrlRef.current);
+          objectUrlRef.current = null;
+        }
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+          fileInputRef.current.value = "";
         }
       }
-
-      return () => URL.revokeObjectURL(objectUrl);
     },
     [generateUploadUrl, onUpload],
   );
 
   const handleRemove = useCallback(() => {
     setPreviewUrl(null);
+    setIsRemoved(true);
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
     onRemove?.();
   }, [onRemove]);
 
-  const sizeClasses = size === 'sm' ? 'size-12' : 'size-10';
+  const sizeClasses = size === "sm" ? "size-10" : "size-12";
 
   return (
     <div className="flex flex-col items-start gap-1">
@@ -93,9 +120,9 @@ export function ImageUploadField({
           onClick={handleClick}
           disabled={isUploading}
           className={cn(
-            'border-input flex items-center justify-center overflow-clip rounded-lg border bg-white shadow-sm',
+            "border-input flex items-center justify-center overflow-clip rounded-lg border bg-white shadow-sm",
             sizeClasses,
-            isUploading && 'cursor-wait opacity-60',
+            isUploading && "cursor-wait opacity-60",
           )}
           aria-label={ariaLabel}
         >
@@ -117,8 +144,8 @@ export function ImageUploadField({
           <button
             type="button"
             onClick={handleRemove}
-            className="bg-foreground text-background absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full"
-            aria-label={`Remove ${label ?? 'image'}`}
+            className="bg-foreground text-background absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full"
+            aria-label={`Remove ${label ?? "image"}`}
           >
             <X className="size-2.5" />
           </button>
