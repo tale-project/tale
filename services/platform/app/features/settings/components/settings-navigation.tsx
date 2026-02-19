@@ -48,11 +48,6 @@ export function SettingsNavigation({
       roles: ['admin', 'developer'],
     },
     {
-      labelKey: 'account',
-      label: t('account'),
-      href: `/dashboard/${organizationId}/settings/account`,
-    },
-    {
       labelKey: 'apiKeys',
       label: t('apiKeys'),
       href: `/dashboard/${organizationId}/settings/api-keys`,
@@ -63,6 +58,11 @@ export function SettingsNavigation({
       label: t('branding'),
       href: `/dashboard/${organizationId}/settings/branding`,
       roles: ['admin'],
+    },
+    {
+      labelKey: 'account',
+      label: t('account'),
+      href: `/dashboard/${organizationId}/settings/account`,
     },
   ];
 

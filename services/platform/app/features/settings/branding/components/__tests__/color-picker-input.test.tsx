@@ -70,7 +70,7 @@ describe('ColorPickerInput', () => {
     expect(onChange).toHaveBeenCalledWith('#00');
   });
 
-  it('truncates text input to 6 characters', () => {
+  it('accepts up to 8 character hex codes with alpha', () => {
     const onChange = vi.fn();
     render(
       <ColorPickerInput
@@ -84,7 +84,7 @@ describe('ColorPickerInput', () => {
     const input = screen.getByLabelText('Color hex value');
     fireEvent.change(input, { target: { value: 'AABBCCDD' } });
 
-    expect(onChange).toHaveBeenCalledWith('#AABBCC');
+    expect(onChange).toHaveBeenCalledWith('#AABBCCDD');
   });
 
   it('calls onChange with uppercased value from native color picker', () => {

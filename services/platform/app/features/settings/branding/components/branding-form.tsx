@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -22,6 +22,14 @@ import type { BrandingPreviewData } from './branding-preview';
 import { useUpsertBranding } from '../hooks/mutations';
 import { ColorPickerInput } from './color-picker-input';
 import { ImageUploadField } from './image-upload-field';
+
+// Convex Id<'_storage'> is a branded string; form stores raw strings from upload responses
+function toStorageId(value?: string): Id<'_storage'> | null | undefined {
+  if (value === '') return null;
+  if (!value) return undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex branded type requires cast from string
+  return value as Id<'_storage'>;
+}
 
 interface BrandingData {
   appName?: string;
@@ -67,18 +75,17 @@ export function BrandingForm({
 
   const watchedValues = watch();
 
-  const logoStorageIdRef = useRef<Id<'_storage'> | undefined>(undefined);
-  const faviconLightStorageIdRef = useRef<Id<'_storage'> | undefined>(
-    undefined,
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [faviconPreviewUrl, setFaviconPreviewUrl] = useState<string | null>(
+    null,
   );
-  const faviconDarkStorageIdRef = useRef<Id<'_storage'> | undefined>(undefined);
-  const logoPreviewUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     onPreviewChange({
       appName: watchedValues.appName || undefined,
       textLogo: watchedValues.textLogo || undefined,
-      logoUrl: logoPreviewUrlRef.current ?? branding?.logoUrl,
+      logoUrl: logoPreviewUrl ?? branding?.logoUrl,
+      faviconUrl: faviconPreviewUrl ?? branding?.faviconLightUrl,
       brandColor: watchedValues.brandColor || undefined,
       accentColor: watchedValues.accentColor || undefined,
     });
@@ -88,6 +95,9 @@ export function BrandingForm({
     watchedValues.brandColor,
     watchedValues.accentColor,
     branding?.logoUrl,
+    branding?.faviconLightUrl,
+    logoPreviewUrl,
+    faviconPreviewUrl,
     onPreviewChange,
   ]);
 
@@ -100,9 +110,9 @@ export function BrandingForm({
           textLogo: data.textLogo || undefined,
           brandColor: data.brandColor || undefined,
           accentColor: data.accentColor || undefined,
-          logoStorageId: logoStorageIdRef.current,
-          faviconLightStorageId: faviconLightStorageIdRef.current,
-          faviconDarkStorageId: faviconDarkStorageIdRef.current,
+          logoStorageId: toStorageId(data.logoStorageId),
+          faviconLightStorageId: toStorageId(data.faviconLightStorageId),
+          faviconDarkStorageId: toStorageId(data.faviconDarkStorageId),
         });
 
         form.reset(data);
@@ -180,11 +190,12 @@ export function BrandingForm({
             <ImageUploadField
               currentUrl={branding?.logoUrl}
               onUpload={(storageId) => {
-                logoStorageIdRef.current = storageId;
+                setValue('logoStorageId', storageId, { shouldDirty: true });
               }}
               onRemove={() => {
-                logoStorageIdRef.current = undefined;
+                setValue('logoStorageId', '', { shouldDirty: true });
               }}
+              onPreviewUrlChange={setLogoPreviewUrl}
               size="md"
               ariaLabel={t('branding.uploadLogo')}
             />
@@ -203,21 +214,30 @@ export function BrandingForm({
               <ImageUploadField
                 currentUrl={branding?.faviconLightUrl}
                 onUpload={(storageId) => {
-                  faviconLightStorageIdRef.current = storageId;
+                  setValue('faviconLightStorageId', storageId, {
+                    shouldDirty: true,
+                  });
                 }}
                 onRemove={() => {
-                  faviconLightStorageIdRef.current = undefined;
+                  setValue('faviconLightStorageId', '', {
+                    shouldDirty: true,
+                  });
                 }}
+                onPreviewUrlChange={setFaviconPreviewUrl}
                 label={t('branding.light')}
                 ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.light')})`}
               />
               <ImageUploadField
                 currentUrl={branding?.faviconDarkUrl}
                 onUpload={(storageId) => {
-                  faviconDarkStorageIdRef.current = storageId;
+                  setValue('faviconDarkStorageId', storageId, {
+                    shouldDirty: true,
+                  });
                 }}
                 onRemove={() => {
-                  faviconDarkStorageIdRef.current = undefined;
+                  setValue('faviconDarkStorageId', '', {
+                    shouldDirty: true,
+                  });
                 }}
                 label={t('branding.dark')}
                 ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.dark')})`}
