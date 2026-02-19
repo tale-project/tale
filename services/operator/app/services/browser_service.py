@@ -245,11 +245,7 @@ class _OutputAccumulator:
         if terminated_early and not response_text:
             if self.seen_urls:
                 source_list = list(self.seen_urls.keys())[:25]
-                reason = (
-                    "its navigation limit"
-                    if nav_terminated
-                    else "its time limit"
-                )
+                reason = "its navigation limit" if nav_terminated else "its time limit"
                 lines = [
                     f"The research task reached {reason} before generating "
                     "a full summary. The following sources were visited during "
@@ -262,11 +258,7 @@ class _OutputAccumulator:
                     lines.append(f"- ... and {remaining} more")
                 response_text = "\n".join(lines)
             else:
-                limit_desc = (
-                    "the navigation limit"
-                    if nav_terminated
-                    else "the time limit"
-                )
+                limit_desc = "the navigation limit" if nav_terminated else "the time limit"
                 response_text = (
                     f"The task could not be completed within {limit_desc}. "
                     "No results were gathered. "
@@ -274,11 +266,7 @@ class _OutputAccumulator:
                 )
         elif terminated_early and response_text:
             if self.phase2_summarized:
-                limit_desc = (
-                    "its navigation limit"
-                    if nav_terminated
-                    else "its time limit"
-                )
+                limit_desc = "its navigation limit" if nav_terminated else "its time limit"
                 response_text += (
                     "\n\n---\n*Note: This summary was auto-generated from "
                     "collected page content after the browsing phase reached "
@@ -286,8 +274,7 @@ class _OutputAccumulator:
                 )
             elif nav_terminated:
                 response_text += (
-                    "\n\n---\n*Note: This response may be incomplete as "
-                    "the task reached its navigation limit.*"
+                    "\n\n---\n*Note: This response may be incomplete as the task reached its navigation limit.*"
                 )
             else:
                 response_text += "\n\n---\n*Note: This response may be incomplete as the task reached its time limit.*"
@@ -670,9 +657,7 @@ class BrowserService:
                     logger.warning("Phase 2 summarization failed, falling back to URL list")
 
             duration = time.perf_counter() - start_time
-            return accumulator.to_response(
-                duration, timed_out=timed_out, nav_terminated=nav_terminated
-            )
+            return accumulator.to_response(duration, timed_out=timed_out, nav_terminated=nav_terminated)
 
         except Exception as e:
             duration = time.perf_counter() - start_time
