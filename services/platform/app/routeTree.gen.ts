@@ -36,6 +36,7 @@ import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/da
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs'
 import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations'
 import { Route as DashboardIdSettingsCustomAgentsRouteImport } from './routes/dashboard/$id/settings/custom-agents'
+import { Route as DashboardIdSettingsBrandingRouteImport } from './routes/dashboard/$id/settings/branding'
 import { Route as DashboardIdSettingsApiKeysRouteImport } from './routes/dashboard/$id/settings/api-keys'
 import { Route as DashboardIdSettingsAccountRouteImport } from './routes/dashboard/$id/settings/account'
 import { Route as DashboardIdCustomAgentsAgentIdRouteImport } from './routes/dashboard/$id/custom-agents/$agentId'
@@ -200,6 +201,12 @@ const DashboardIdSettingsCustomAgentsRoute =
     path: '/custom-agents',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any)
+const DashboardIdSettingsBrandingRoute =
+  DashboardIdSettingsBrandingRouteImport.update({
+    id: '/branding',
+    path: '/branding',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any)
 const DashboardIdSettingsApiKeysRoute =
   DashboardIdSettingsApiKeysRouteImport.update({
     id: '/api-keys',
@@ -356,6 +363,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/custom-agents/$agentId': typeof DashboardIdCustomAgentsAgentIdRouteWithChildren
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
+  '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
   '/dashboard/$id/settings/custom-agents': typeof DashboardIdSettingsCustomAgentsRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
@@ -397,6 +405,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
+  '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
   '/dashboard/$id/settings/custom-agents': typeof DashboardIdSettingsCustomAgentsRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
@@ -448,6 +457,7 @@ export interface FileRoutesById {
   '/dashboard/$id/custom-agents/$agentId': typeof DashboardIdCustomAgentsAgentIdRouteWithChildren
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
+  '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
   '/dashboard/$id/settings/custom-agents': typeof DashboardIdSettingsCustomAgentsRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
@@ -498,6 +508,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/custom-agents/$agentId'
     | '/dashboard/$id/settings/account'
     | '/dashboard/$id/settings/api-keys'
+    | '/dashboard/$id/settings/branding'
     | '/dashboard/$id/settings/custom-agents'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
@@ -539,6 +550,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/conversations/$status'
     | '/dashboard/$id/settings/account'
     | '/dashboard/$id/settings/api-keys'
+    | '/dashboard/$id/settings/branding'
     | '/dashboard/$id/settings/custom-agents'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
@@ -589,6 +601,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/custom-agents/$agentId'
     | '/dashboard/$id/settings/account'
     | '/dashboard/$id/settings/api-keys'
+    | '/dashboard/$id/settings/branding'
     | '/dashboard/$id/settings/custom-agents'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
@@ -805,6 +818,13 @@ declare module '@tanstack/react-router' {
       path: '/custom-agents'
       fullPath: '/dashboard/$id/settings/custom-agents'
       preLoaderRoute: typeof DashboardIdSettingsCustomAgentsRouteImport
+      parentRoute: typeof DashboardIdSettingsRoute
+    }
+    '/dashboard/$id/settings/branding': {
+      id: '/dashboard/$id/settings/branding'
+      path: '/branding'
+      fullPath: '/dashboard/$id/settings/branding'
+      preLoaderRoute: typeof DashboardIdSettingsBrandingRouteImport
       parentRoute: typeof DashboardIdSettingsRoute
     }
     '/dashboard/$id/settings/api-keys': {
@@ -1114,6 +1134,7 @@ const DashboardIdCustomAgentsRouteWithChildren =
 interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsAccountRoute: typeof DashboardIdSettingsAccountRoute
   DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute
+  DashboardIdSettingsBrandingRoute: typeof DashboardIdSettingsBrandingRoute
   DashboardIdSettingsCustomAgentsRoute: typeof DashboardIdSettingsCustomAgentsRoute
   DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute
@@ -1125,6 +1146,7 @@ interface DashboardIdSettingsRouteChildren {
 const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsAccountRoute: DashboardIdSettingsAccountRoute,
   DashboardIdSettingsApiKeysRoute: DashboardIdSettingsApiKeysRoute,
+  DashboardIdSettingsBrandingRoute: DashboardIdSettingsBrandingRoute,
   DashboardIdSettingsCustomAgentsRoute: DashboardIdSettingsCustomAgentsRoute,
   DashboardIdSettingsIntegrationsRoute: DashboardIdSettingsIntegrationsRoute,
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
