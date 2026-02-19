@@ -69,16 +69,17 @@ function MilkdownEditorInner({
   const { mutateAsync: improveMessage } = useImproveMessage();
 
   const editorPlaceholder = placeholder || tConversations('messagePlaceholder');
-  const [message, setMessage] = usePersistedState(
+  const [message, setMessage, clearMessage] = usePersistedState(
     messageId ? `conversation-${messageId}` : 'new-conversation',
     pendingMessage?.content || '',
   );
-  const [improveInstruction, setImproveInstruction] = usePersistedState(
-    messageId
-      ? `conversation-${messageId}-improve-instruction`
-      : 'new-conversation-improve-instruction',
-    '',
-  );
+  const [improveInstruction, setImproveInstruction, clearImproveInstruction] =
+    usePersistedState(
+      messageId
+        ? `conversation-${messageId}-improve-instruction`
+        : 'new-conversation-improve-instruction',
+      '',
+    );
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isImproveMode, setIsImproveMode] = useState(false);
@@ -223,13 +224,9 @@ function MilkdownEditorInner({
 
           setAttachedFiles([]);
           setIsImproveMode(false);
-          setImproveInstruction('');
           setHasContent(false);
-
-          const storageKey = messageId
-            ? `conversation-${messageId}`
-            : 'new-conversation';
-          window.localStorage.removeItem(storageKey);
+          clearMessage();
+          clearImproveInstruction();
 
           onMessageSent?.();
         } catch (error) {
@@ -245,9 +242,9 @@ function MilkdownEditorInner({
     message,
     attachedFiles,
     onSave,
-    messageId,
+    clearMessage,
+    clearImproveInstruction,
     onMessageSent,
-    setImproveInstruction,
     tConversations,
   ]);
 

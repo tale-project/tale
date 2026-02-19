@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup, act } from '@testing-library/react';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { render, screen } from '@/test/utils/render';
@@ -44,8 +44,13 @@ vi.mock('react-markdown', () => ({
 }));
 
 vi.mock('@/app/hooks/use-persisted-state', () => ({
-  usePersistedState: (_key: string, initial: string) => {
-    return useState(initial || 'some content');
+  usePersistedState: (key: string, initial: string) => {
+    const [value, setValue] = useState(initial || 'some content');
+    const clear = useCallback(() => {
+      setValue(initial);
+      window.localStorage.removeItem(key);
+    }, [key, initial]);
+    return [value, setValue, clear] as const;
   },
 }));
 
