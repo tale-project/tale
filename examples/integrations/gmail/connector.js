@@ -305,8 +305,13 @@ function listMessages(http, headers, params) {
   var maxResults = Math.min(params.maxResults || 25, 500);
   var queryParts = ['maxResults=' + maxResults];
 
-  if (params.q) {
-    queryParts.push('q=' + encodeURIComponent(params.q));
+  // Exclude draft messages — drafts should never enter the sync pipeline
+  var q = params.q || '';
+  if (q.indexOf('is:draft') === -1 && q.indexOf('label:draft') === -1) {
+    q = q ? q + ' -is:draft' : '-is:draft';
+  }
+  if (q) {
+    queryParts.push('q=' + encodeURIComponent(q));
   }
   if (params.pageToken) {
     queryParts.push('pageToken=' + encodeURIComponent(params.pageToken));
@@ -733,6 +738,13 @@ function getThread(http, headers, params, base64Decode) {
     var messages = thread.messages || [];
     var mapped = [];
     for (var i = 0; i < messages.length; i++) {
+      // Skip draft messages — they should not be synced into conversations
+      if (
+        messages[i].labelIds &&
+        messages[i].labelIds.indexOf('DRAFT') !== -1
+      ) {
+        continue;
+      }
       mapped.push(mapGmailToEmailType(messages[i], accountEmail, base64Decode));
     }
     return {
