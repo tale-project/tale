@@ -12,9 +12,9 @@ interface UpsertBrandingArgs {
   organizationId: string;
   appName?: string;
   textLogo?: string;
-  logoStorageId?: Id<'_storage'>;
-  faviconLightStorageId?: Id<'_storage'>;
-  faviconDarkStorageId?: Id<'_storage'>;
+  logoStorageId?: Id<'_storage'> | null;
+  faviconLightStorageId?: Id<'_storage'> | null;
+  faviconDarkStorageId?: Id<'_storage'> | null;
   brandColor?: string;
   accentColor?: string;
 }
@@ -43,40 +43,60 @@ export async function upsertBrandingHandler(
     )
     .first();
 
-  const { organizationId: _, ...brandingFields } = args;
+  const {
+    organizationId: _,
+    logoStorageId,
+    faviconLightStorageId,
+    faviconDarkStorageId,
+    ...restFields
+  } = args;
   const now = Date.now();
+
+  const storageFields = {
+    ...(logoStorageId !== undefined && {
+      logoStorageId: logoStorageId ?? undefined,
+    }),
+    ...(faviconLightStorageId !== undefined && {
+      faviconLightStorageId: faviconLightStorageId ?? undefined,
+    }),
+    ...(faviconDarkStorageId !== undefined && {
+      faviconDarkStorageId: faviconDarkStorageId ?? undefined,
+    }),
+  };
 
   if (existing) {
     if (
-      args.logoStorageId !== undefined &&
+      logoStorageId !== undefined &&
       existing.logoStorageId &&
-      args.logoStorageId !== existing.logoStorageId
+      logoStorageId !== existing.logoStorageId
     ) {
       await ctx.storage.delete(existing.logoStorageId);
     }
     if (
-      args.faviconLightStorageId !== undefined &&
+      faviconLightStorageId !== undefined &&
       existing.faviconLightStorageId &&
-      args.faviconLightStorageId !== existing.faviconLightStorageId
+      faviconLightStorageId !== existing.faviconLightStorageId
     ) {
       await ctx.storage.delete(existing.faviconLightStorageId);
     }
     if (
-      args.faviconDarkStorageId !== undefined &&
+      faviconDarkStorageId !== undefined &&
       existing.faviconDarkStorageId &&
-      args.faviconDarkStorageId !== existing.faviconDarkStorageId
+      faviconDarkStorageId !== existing.faviconDarkStorageId
     ) {
       await ctx.storage.delete(existing.faviconDarkStorageId);
     }
 
     await ctx.db.patch(existing._id, {
-      ...brandingFields,
+      ...restFields,
+      ...storageFields,
       updatedAt: now,
     });
   } else {
     await ctx.db.insert('brandingSettings', {
       organizationId: args.organizationId,
-      ...brandingFields,
+      ...restFields,
+      ...storageFields,
       updatedAt: now,
     });
   }
@@ -121,9 +141,9 @@ export const upsertBranding = mutation({
     organizationId: v.string(),
     appName: v.optional(v.string()),
     textLogo: v.optional(v.string()),
-    logoStorageId: v.optional(v.id('_storage')),
-    faviconLightStorageId: v.optional(v.id('_storage')),
-    faviconDarkStorageId: v.optional(v.id('_storage')),
+    logoStorageId: v.optional(v.union(v.id('_storage'), v.null())),
+    faviconLightStorageId: v.optional(v.union(v.id('_storage'), v.null())),
+    faviconDarkStorageId: v.optional(v.union(v.id('_storage'), v.null())),
     brandColor: v.optional(v.string()),
     accentColor: v.optional(v.string()),
   },

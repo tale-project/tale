@@ -11,7 +11,7 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 import { cn } from '@/lib/utils/cn';
 
-const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp';
+const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp,.ico';
 
 interface ImageUploadFieldProps {
   currentUrl?: string | null;
@@ -120,7 +120,7 @@ export function ImageUploadField({
           onClick={handleClick}
           disabled={isUploading}
           className={cn(
-            'border-input flex items-center justify-center overflow-clip rounded-lg border bg-white shadow-sm',
+            'border-input flex items-center justify-center overflow-clip rounded-lg border bg-background shadow-sm',
             sizeClasses,
             isUploading && 'cursor-wait opacity-60',
           )}
@@ -132,12 +132,12 @@ export function ImageUploadField({
             <Image
               src={displayUrl}
               alt=""
-              className="size-full object-contain p-1"
+              className="size-full object-contain"
               width={48}
               height={48}
             />
           ) : (
-            <Plus className="text-muted-foreground size-3.5" />
+            <Plus className="text-muted-foreground size-4 shrink-0" />
           )}
         </button>
         {displayUrl && !isUploading && onRemove && (
