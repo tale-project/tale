@@ -418,6 +418,52 @@ class TestToResponsePhase2:
 
 
 # ---------------------------------------------------------------------------
+# to_response: nav_terminated semantics
+# ---------------------------------------------------------------------------
+
+class TestToResponseNavTerminated:
+    def test_nav_terminated_no_data_mentions_navigation_limit(self):
+        acc = _OutputAccumulator()
+        result = acc.to_response(60.0, nav_terminated=True)
+        assert result["success"] is False
+        assert result["partial"] is False
+        assert "navigation limit" in result["response"]
+        assert "time limit" not in result["response"]
+
+    def test_nav_terminated_with_urls_mentions_navigation_limit(self):
+        acc = _OutputAccumulator()
+        acc.process_line(_make_tool_use_line(["https://example.com/page1"]))
+        result = acc.to_response(60.0, nav_terminated=True)
+        assert result["success"] is True
+        assert result["partial"] is True
+        assert "navigation limit" in result["response"]
+        assert "time limit" not in result["response"]
+
+    def test_nav_terminated_with_text_has_navigation_note(self):
+        acc = _OutputAccumulator()
+        acc.process_line(_make_text_line("Partial findings."))
+        result = acc.to_response(60.0, nav_terminated=True)
+        assert result["success"] is True
+        assert result["partial"] is True
+        assert "navigation limit" in result["response"]
+        assert "time limit" not in result["response"]
+
+    def test_nav_terminated_phase2_mentions_navigation_limit(self):
+        acc = _OutputAccumulator()
+        acc.text_parts.append("Summary from Phase 2.")
+        acc.phase2_summarized = True
+        result = acc.to_response(60.0, nav_terminated=True)
+        assert "navigation limit" in result["response"]
+        assert "auto-generated" in result["response"]
+
+    def test_timeout_messages_unchanged(self):
+        acc = _OutputAccumulator()
+        result = acc.to_response(270.0, timed_out=True)
+        assert "time limit" in result["response"]
+        assert "navigation limit" not in result["response"]
+
+
+# ---------------------------------------------------------------------------
 # _prepare_content_for_summarization
 # ---------------------------------------------------------------------------
 

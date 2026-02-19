@@ -222,8 +222,16 @@ class _OutputAccumulator:
             else:
                 logger.debug(f"Unparsed tool_result: keys={list(part.keys())}, preview={str(part)[:200]}")
 
-    def to_response(self, duration: float, *, timed_out: bool) -> dict[str, Any]:
+    def to_response(
+        self,
+        duration: float,
+        *,
+        timed_out: bool = False,
+        nav_terminated: bool = False,
+    ) -> dict[str, Any]:
         """Build the final response dict from accumulated data."""
+        terminated_early = timed_out or nav_terminated
+
         logger.info(
             f"Event types seen: {sorted(self.event_types_seen)}, "
             f"text_parts={len(self.text_parts)}, "
@@ -234,11 +242,16 @@ class _OutputAccumulator:
         response_text = "".join(self.text_parts)
         has_partial_data = bool(self.text_parts) or bool(self.seen_urls)
 
-        if timed_out and not response_text:
+        if terminated_early and not response_text:
             if self.seen_urls:
                 source_list = list(self.seen_urls.keys())[:25]
+                reason = (
+                    "its navigation limit"
+                    if nav_terminated
+                    else "its time limit"
+                )
                 lines = [
-                    "The research task reached its time limit before generating "
+                    f"The research task reached {reason} before generating "
                     "a full summary. The following sources were visited during "
                     "research:",
                     "",
@@ -249,24 +262,39 @@ class _OutputAccumulator:
                     lines.append(f"- ... and {remaining} more")
                 response_text = "\n".join(lines)
             else:
+                limit_desc = (
+                    "the navigation limit"
+                    if nav_terminated
+                    else "the time limit"
+                )
                 response_text = (
-                    "The task could not be completed within the time limit. "
+                    f"The task could not be completed within {limit_desc}. "
                     "No results were gathered. "
                     "Please try a simpler or more specific request."
                 )
-        elif timed_out and response_text:
+        elif terminated_early and response_text:
             if self.phase2_summarized:
+                limit_desc = (
+                    "its navigation limit"
+                    if nav_terminated
+                    else "its time limit"
+                )
                 response_text += (
                     "\n\n---\n*Note: This summary was auto-generated from "
                     "collected page content after the browsing phase reached "
-                    "its time limit.*"
+                    f"{limit_desc}.*"
+                )
+            elif nav_terminated:
+                response_text += (
+                    "\n\n---\n*Note: This response may be incomplete as "
+                    "the task reached its navigation limit.*"
                 )
             else:
                 response_text += "\n\n---\n*Note: This response may be incomplete as the task reached its time limit.*"
 
         result: dict[str, Any] = {
-            "success": not timed_out or has_partial_data,
-            "partial": timed_out and has_partial_data,
+            "success": not terminated_early or has_partial_data,
+            "partial": terminated_early and has_partial_data,
             "response": response_text,
             "duration_seconds": round(duration, 2),
             "sources": list(self.seen_urls.keys()),
@@ -610,7 +638,6 @@ class BrowserService:
                     f"(accumulated {len(accumulator.text_parts)} text parts, "
                     f"{len(accumulator.page_contents)} page snapshots)"
                 )
-                timed_out = True
                 await self._terminate_process(proc)
 
             stderr_task.cancel()
@@ -622,8 +649,9 @@ class BrowserService:
                 logger.debug(f"OpenCode stderr: {stderr_text[:500]}...")
 
             # Phase 2: summarize collected page content when Phase 1
-            # timed out without producing any text response.
-            if timed_out and not accumulator.text_parts and accumulator.has_page_content:
+            # terminated early without producing any text response.
+            terminated_early = timed_out or nav_terminated
+            if terminated_early and not accumulator.text_parts and accumulator.has_page_content:
                 logger.info(
                     f"Phase 2: summarizing {len(accumulator.page_contents)} page snapshots "
                     f"({accumulator._total_content_chars} chars) for workspace "
@@ -642,7 +670,9 @@ class BrowserService:
                     logger.warning("Phase 2 summarization failed, falling back to URL list")
 
             duration = time.perf_counter() - start_time
-            return accumulator.to_response(duration, timed_out=timed_out)
+            return accumulator.to_response(
+                duration, timed_out=timed_out, nav_terminated=nav_terminated
+            )
 
         except Exception as e:
             duration = time.perf_counter() - start_time
