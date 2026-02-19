@@ -36,6 +36,16 @@ export function classifyError(error: unknown): ErrorClassification {
     val !== null && typeof val === 'object';
 
   const err = isObject(error) ? error : {};
+
+  // Agent timeout with recovery already attempted — do not retry
+  if (err['isTimeout'] === true) {
+    return {
+      shouldRetry: false,
+      reason: 'agent_timeout_recovered',
+      description: 'Agent generation timed out - recovery response provided',
+    };
+  }
+
   const message = (
     typeof err.message === 'string' ? err.message : ''
   ).toLowerCase();

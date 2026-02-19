@@ -32,6 +32,7 @@ export function useBrandingContext() {
 
 interface BrandingProviderProps {
   organizationId: string;
+  skip?: boolean;
   children: ReactNode;
 }
 
@@ -39,11 +40,13 @@ const DEFAULT_TITLE_SUFFIX = 'Tale';
 
 export function BrandingProvider({
   organizationId,
+  skip,
   children,
 }: BrandingProviderProps) {
-  const { data: branding } = useConvexQuery(api.branding.queries.getBranding, {
-    organizationId,
-  });
+  const { data: branding } = useConvexQuery(
+    api.branding.queries.getBranding,
+    skip ? 'skip' : { organizationId },
+  );
 
   const originalFaviconHrefRef = useRef<string | null>(null);
 

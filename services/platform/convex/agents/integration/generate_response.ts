@@ -27,6 +27,7 @@ export interface GenerateIntegrationResponseArgs {
   additionalContext?: Record<string, string>;
   parentThreadId?: string;
   integrationsInfo?: string;
+  deadlineMs?: number;
 }
 
 export type GenerateIntegrationResponseResult = GenerateResponseResult;

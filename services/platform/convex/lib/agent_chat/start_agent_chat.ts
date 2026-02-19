@@ -20,6 +20,7 @@ import type { SerializableAgentConfig, AgentHooksConfig } from './types';
 
 import { components, internal } from '../../_generated/api';
 import { persistentStreaming } from '../../streaming/helpers';
+import { AGENT_CONTEXT_CONFIGS } from '../context_management/constants';
 import { createDebugLog } from '../debug_log';
 import { getUserTeamIds } from '../get_user_teams';
 import {
@@ -185,9 +186,14 @@ export async function startAgentChat(
         }))
       : undefined;
 
+  // Compute absolute deadline for this generation chain
+  const deadlineMs =
+    Date.now() + (AGENT_CONTEXT_CONFIGS[agentType]?.timeoutMs ?? 420_000);
+
   // Schedule the generic agent action with full configuration
   debugLog('SCHEDULE_ACTION', {
     threadId,
+    deadlineMs: new Date(deadlineMs).toISOString(),
     timestamp: new Date().toISOString(),
   });
   await ctx.scheduler.runAfter(
@@ -211,6 +217,7 @@ export async function startAgentChat(
       maxSteps,
       userTeamIds,
       additionalContext,
+      deadlineMs,
     },
   );
 

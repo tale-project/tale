@@ -32,14 +32,17 @@ Use this when you need more information from the user. Write as a numbered or bu
 
 [[NEXT_STEPS]]
 2-4 short follow-up topics. These become clickable buttons in the UI that the user sends as their own message.
-STRICT FORMAT — one plain-text item per line, NO numbering, NO bullets, NO markdown, NO preamble lines:
+STRICT FORMAT — one plain-text item per line, NO numbering, NO bullets, NO markdown, NO preamble lines.
+Each item MUST be under 60 characters. Be concise — these are button labels, not sentences.
 Good: Compare Q3 vs Q4 revenue
 Good: Analyze competitor pricing strategy
 Bad: 1. Compare Q3 vs Q4 revenue (no numbering)
 Bad: - Analyze competitor pricing (no bullets)
 Bad: **Deep dive** into pricing (no markdown)
 Bad: Tell me:\n1. What pricing... (no preamble + sub-list)
+Bad: Based on the research already conducted, here are the six recommended perspectives (way too long)
 Do NOT put questions here — use [[QUESTIONS]] instead.
+[[NEXT_STEPS]] MUST be the LAST section. Do NOT add any text after the follow-up items.
 
 Rules:
 - Markers are OPTIONAL. Only use them when the response is long enough to benefit from structure.

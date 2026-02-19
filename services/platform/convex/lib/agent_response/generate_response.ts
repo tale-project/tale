@@ -31,12 +31,14 @@ import { onAgentComplete } from '../agent_completion';
 import {
   buildStructuredContext,
   AGENT_CONTEXT_CONFIGS,
+  RECOVERY_TIMEOUT_MS,
   estimateTokens,
 } from '../context_management';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { startRagPrefetch, type RagPrefetchCache } from '../rag_prefetch';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
+import { AgentTimeoutError, withTimeout } from './with_timeout';
 
 /**
  * Generate an agent response using the provided configuration.
@@ -179,16 +181,24 @@ export async function generateAgentResponse(
       });
     }
 
+    // Compute effective timeout from deadline (if provided) or config default.
+    // The deadline is an absolute timestamp propagated from startAgentChat.
+    const effectiveTimeoutMs = args.deadlineMs
+      ? Math.max(args.deadlineMs - Date.now(), 30_000)
+      : agentConfig.timeoutMs;
+    const actionDeadline = args.deadlineMs ?? startTime + effectiveTimeoutMs;
+
     // Create agent instance
     const agent = createAgent(agentOptions);
 
-    // Build context with organization and optional RAG prefetch cache
+    // Build context with organization and optional RAG prefetch cache.
+    // actionDeadlineMs is exposed via variables so tool handlers can check remaining budget.
     const contextWithOrg = {
       ...ctx,
       organizationId,
       threadId,
       userTeamIds: userTeamIds ?? [],
-      variables: {},
+      variables: { actionDeadlineMs: String(actionDeadline) },
       ...(ragPrefetchCache ? { ragPrefetchCache } : {}),
     };
 
@@ -221,6 +231,8 @@ export async function generateAgentResponse(
       ? `${agentInstructions}\n\n${structuredThreadContext.threadContext}`
       : structuredThreadContext.threadContext;
 
+    const abortController = new AbortController();
+
     debugLog('PRE_LLM_CALL', {
       threadId,
       model,
@@ -228,199 +240,344 @@ export async function generateAgentResponse(
       promptMessageId,
       system: systemPrompt,
       prompt: promptToSend,
+      effectiveTimeoutMs,
+      actionDeadline: new Date(actionDeadline).toISOString(),
       elapsedMs: Date.now() - startTime,
       timestamp: new Date().toISOString(),
     });
 
-    if (enableStreaming) {
-      // Streaming mode (chat agent)
-      // - system: thread context (history, RAG, integrations)
-      // - prompt: current user message (passed separately to avoid duplication)
-      const streamResult = await agent.streamText(
-        contextWithOrg,
-        { threadId, userId },
-        {
-          promptMessageId,
-          system: systemPrompt,
-          prompt: promptToSend,
-          onChunk: ({ chunk }: { chunk: { type: string } }) => {
-            if (firstTokenTime === null && chunk.type === 'text-delta') {
-              firstTokenTime = Date.now();
-            }
-          },
-        },
-        {
-          contextOptions: {
-            recentMessages: 0,
-            excludeToolMessages: true,
-            searchOtherThreads: false,
-          },
-          saveStreamDeltas: { chunking: 'line', throttleMs: 200 },
-        },
-      );
-
-      // Wait for stream to complete
-      const [
-        streamText,
-        streamSteps,
-        streamUsage,
-        streamFinishReason,
-        streamResponse,
-      ] = await Promise.all([
-        streamResult.text,
-        streamResult.steps,
-        streamResult.usage,
-        streamResult.finishReason,
-        streamResult.response,
-      ]);
-
-      debugLog('Stream completed', {
-        threadId,
-        elapsedMs: Date.now() - startTime,
-      });
-
-      result = {
-        text: streamText,
-        steps: streamSteps,
-        usage: streamUsage,
-        finishReason: streamFinishReason,
-        response: streamResponse,
-      };
-
-      // If the LLM called tools but didn't generate a substantive follow-up response,
-      // retry without tools. This handles cases where the LLM outputs preamble text
-      // (e.g., "Let me check...") before tool calls but stops without summarizing results.
-      if (needsToolResultRetry(result.text, result.steps)) {
-        debugLog(
-          'Stream: empty text with tool results, retrying without tools',
-          {
-            stepsCount: result.steps?.length ?? 0,
-            finishReason: result.finishReason,
-          },
-        );
-
-        const retryContext = await buildStructuredContext({
-          ctx,
-          threadId,
-          additionalContext,
-          parentThreadId,
-          maxMessages: agentConfig.recentMessages,
-          ragContext: hookData?.ragContext,
-          integrationsInfo: hookData?.integrationsInfo,
-        });
-
-        // Find the original user message so we can link the retry response
-        // to it without creating a duplicate user message in the thread
-        const recentMessages = await listMessages(ctx, components.agent, {
-          threadId,
-          paginationOpts: { cursor: null, numItems: 10 },
-          excludeToolMessages: true,
-        });
-        const originalUserMessage = recentMessages.page.find(
-          (m: MessageDoc) => m.message?.role === 'user',
-        );
-
-        const retryAgent = createAgent({ ...agentOptions, withTools: false });
-
-        const retrySystemPrompt = instructions
-          ? `${instructions}\n\n${retryContext.threadContext}`
-          : retryContext.threadContext;
-
-        // Save messages normally so the UI can display the retry response.
-        // Pass promptMessageId to avoid creating a duplicate user message.
-        const retryResult = await retryAgent.generateText(
+    try {
+      if (enableStreaming) {
+        // Streaming mode (chat agent)
+        // - system: thread context (history, RAG, integrations)
+        // - prompt: current user message (passed separately to avoid duplication)
+        const streamResult = await agent.streamText(
           contextWithOrg,
           { threadId, userId },
           {
-            system: retrySystemPrompt,
-            prompt: promptMessage
-              ? `Based on the tool results, complete this task: ${promptMessage}`
-              : 'Based on the conversation and tool results above, provide a summary response.',
-            ...(originalUserMessage
-              ? { promptMessageId: originalUserMessage._id }
-              : {}),
+            promptMessageId,
+            system: systemPrompt,
+            prompt: promptToSend,
+            abortSignal: abortController.signal,
+            onChunk: ({ chunk }: { chunk: { type: string } }) => {
+              if (firstTokenTime === null && chunk.type === 'text-delta') {
+                firstTokenTime = Date.now();
+              }
+            },
           },
           {
             contextOptions: {
               recentMessages: 0,
-              excludeToolMessages: false,
+              excludeToolMessages: true,
               searchOtherThreads: false,
             },
+            saveStreamDeltas: { chunking: 'line', throttleMs: 200 },
           },
         );
 
+        // Wait for stream to complete (with timeout)
+        const [
+          streamText,
+          streamSteps,
+          streamUsage,
+          streamFinishReason,
+          streamResponse,
+        ] = await withTimeout(
+          Promise.all([
+            streamResult.text,
+            streamResult.steps,
+            streamResult.usage,
+            streamResult.finishReason,
+            streamResult.response,
+          ]),
+          effectiveTimeoutMs,
+          abortController,
+        );
+
+        debugLog('Stream completed', {
+          threadId,
+          elapsedMs: Date.now() - startTime,
+        });
+
         result = {
-          text: retryResult.text,
-          steps: [...(result.steps || []), ...retryResult.steps],
-          usage: mergeUsage(result.usage, retryResult.usage),
-          finishReason: retryResult.finishReason,
-          response: result.response,
+          text: streamText,
+          steps: streamSteps,
+          usage: streamUsage,
+          finishReason: streamFinishReason,
+          response: streamResponse,
         };
 
-        debugLog('Stream retry completed', {
-          textLength: result.text?.length ?? 0,
+        // If the LLM called tools but didn't generate a substantive follow-up response,
+        // retry without tools. This handles cases where the LLM outputs preamble text
+        // (e.g., "Let me check...") before tool calls but stops without summarizing results.
+        if (needsToolResultRetry(result.text, result.steps)) {
+          debugLog(
+            'Stream: empty text with tool results, retrying without tools',
+            {
+              stepsCount: result.steps?.length ?? 0,
+              finishReason: result.finishReason,
+            },
+          );
+
+          const retryContext = await buildStructuredContext({
+            ctx,
+            threadId,
+            additionalContext,
+            parentThreadId,
+            maxMessages: agentConfig.recentMessages,
+            ragContext: hookData?.ragContext,
+            integrationsInfo: hookData?.integrationsInfo,
+          });
+
+          // Find the original user message so we can link the retry response
+          // to it without creating a duplicate user message in the thread
+          const recentMessages = await listMessages(ctx, components.agent, {
+            threadId,
+            paginationOpts: { cursor: null, numItems: 10 },
+            excludeToolMessages: true,
+          });
+          const originalUserMessage = recentMessages.page.find(
+            (m: MessageDoc) => m.message?.role === 'user',
+          );
+
+          const retryAgent = createAgent({ ...agentOptions, withTools: false });
+
+          const retrySystemPrompt = agentInstructions
+            ? `${agentInstructions}\n\n${retryContext.threadContext}`
+            : retryContext.threadContext;
+
+          // Save messages normally so the UI can display the retry response.
+          // Pass promptMessageId to avoid creating a duplicate user message.
+          const retryResult = await retryAgent.generateText(
+            contextWithOrg,
+            { threadId, userId },
+            {
+              system: retrySystemPrompt,
+              prompt: promptMessage
+                ? `Based on the tool results, complete this task: ${promptMessage}`
+                : 'Based on the conversation and tool results above, provide a summary response.',
+              ...(originalUserMessage
+                ? { promptMessageId: originalUserMessage._id }
+                : {}),
+            },
+            {
+              contextOptions: {
+                recentMessages: 0,
+                excludeToolMessages: false,
+                searchOtherThreads: false,
+              },
+            },
+          );
+
+          result = {
+            text: retryResult.text,
+            steps: [...(result.steps || []), ...retryResult.steps],
+            usage: mergeUsage(result.usage, retryResult.usage),
+            finishReason: retryResult.finishReason,
+            response: result.response,
+          };
+
+          debugLog('Stream retry completed', {
+            textLength: result.text?.length ?? 0,
+            finishReason: result.finishReason,
+          });
+        }
+      } else {
+        // Non-streaming mode (sub-agents)
+        // Extend context with all fields from contextWithOrg for consistency
+        const subAgentContext = {
+          ...ctx,
+          organizationId,
+          threadId,
+          userTeamIds: userTeamIds ?? [],
+          variables: { actionDeadlineMs: String(actionDeadline) },
+          ...(parentThreadId ? { parentThreadId } : {}),
+          ...(ragPrefetchCache ? { ragPrefetchCache } : {}),
+        };
+
+        const generateResult = await withTimeout(
+          agent.generateText(
+            subAgentContext,
+            { threadId, userId },
+            {
+              system: systemPrompt,
+              prompt: promptMessage,
+              abortSignal: abortController.signal,
+              ...(promptMessageId ? { promptMessageId } : {}),
+            },
+            {
+              contextOptions: {
+                recentMessages: 0,
+                excludeToolMessages: false,
+              },
+            },
+          ),
+          effectiveTimeoutMs,
+          abortController,
+        );
+
+        debugLog('Generate completed', {
+          threadId,
+          elapsedMs: Date.now() - startTime,
+        });
+
+        result = {
+          text: generateResult.text,
+          steps: generateResult.steps,
+          usage: generateResult.usage,
+          finishReason: generateResult.finishReason,
+          response: generateResult.response,
+        };
+
+        // If the LLM called tools but didn't generate a substantive follow-up response,
+        // retry without tools. Handles both completely empty text (e.g., DeepSeek with
+        // finishReason: "stop") and preamble-only text before tool calls.
+        if (needsToolResultRetry(result.text, result.steps)) {
+          debugLog('Empty text with tool results, retrying without tools', {
+            stepsCount: result.steps?.length ?? 0,
+            finishReason: result.finishReason,
+          });
+
+          // Rebuild context to include the just-saved tool results
+          const retryContext = await buildStructuredContext({
+            ctx,
+            threadId,
+            additionalContext,
+            parentThreadId,
+            maxMessages: agentConfig.recentMessages,
+            ragContext: hookData?.ragContext,
+            integrationsInfo: hookData?.integrationsInfo,
+          });
+
+          debugLog('Rebuilt context for retry', {
+            estimatedTokens: retryContext.stats.totalTokens,
+            messageCount: retryContext.stats.messageCount,
+          });
+
+          // Create agent without tools for the retry
+          const retryAgent = createAgent({ ...agentOptions, withTools: false });
+
+          const retrySystemPrompt = agentInstructions
+            ? `${agentInstructions}\n\n${retryContext.threadContext}`
+            : retryContext.threadContext;
+
+          const retryResult = await retryAgent.generateText(
+            subAgentContext,
+            { threadId, userId },
+            {
+              system: retrySystemPrompt,
+              prompt: promptMessage
+                ? `Based on the tool results, complete this task: ${promptMessage}`
+                : 'Based on the conversation and tool results above, provide a summary response.',
+            },
+            {
+              contextOptions: {
+                recentMessages: 0,
+                excludeToolMessages: false,
+              },
+              storageOptions: { saveMessages: 'none' },
+            },
+          );
+
+          result = {
+            text: retryResult.text,
+            steps: [...(result.steps || []), ...retryResult.steps],
+            usage: mergeUsage(result.usage, retryResult.usage),
+            finishReason: retryResult.finishReason,
+          };
+
+          debugLog('Retry completed', {
+            textLength: result.text?.length ?? 0,
+            finishReason: result.finishReason,
+          });
+        }
+
+        // General empty text retry (handles cases like thinking models that consume all tokens for reasoning)
+        if (!result.text?.trim()) {
+          debugLog('Empty text response, retrying', {
+            finishReason: result.finishReason,
+            usage: result.usage,
+          });
+
+          // Rebuild context to include any messages saved during the original generation
+          const retryContext = await buildStructuredContext({
+            ctx,
+            threadId,
+            additionalContext,
+            parentThreadId,
+            maxMessages: agentConfig.recentMessages,
+            ragContext: hookData?.ragContext,
+            integrationsInfo: hookData?.integrationsInfo,
+          });
+
+          debugLog('Rebuilt context for empty text retry', {
+            estimatedTokens: retryContext.stats.totalTokens,
+            messageCount: retryContext.stats.messageCount,
+          });
+
+          const retryAgent = createAgent({ ...agentOptions, withTools: false });
+
+          const emptyRetrySystemPrompt = agentInstructions
+            ? `${agentInstructions}\n\n${retryContext.threadContext}`
+            : retryContext.threadContext;
+
+          const retryResult = await retryAgent.generateText(
+            subAgentContext,
+            { threadId, userId },
+            {
+              system: emptyRetrySystemPrompt,
+              prompt: promptMessage
+                ? `Please complete this task: ${promptMessage}`
+                : 'Please provide a response based on the conversation above.',
+            },
+            {
+              contextOptions: {
+                recentMessages: 0,
+                excludeToolMessages: false,
+              },
+              storageOptions: { saveMessages: 'none' },
+            },
+          );
+
+          result = {
+            text: retryResult.text,
+            steps: result.steps,
+            usage: mergeUsage(result.usage, retryResult.usage),
+            finishReason: retryResult.finishReason,
+          };
+
+          debugLog('Empty text retry completed', {
+            textLength: result.text?.length ?? 0,
+            finishReason: result.finishReason,
+          });
+        }
+      }
+
+      // Fallback: if text is still missing after all retries, provide a minimal response
+      // so the user always sees something rather than an empty message
+      if (needsToolResultRetry(result.text, result.steps)) {
+        const toolNames = extractToolNamesFromSteps(result.steps ?? []);
+        debugLog('All retries exhausted, using fallback message', {
+          toolNames,
           finishReason: result.finishReason,
         });
+        result.text =
+          toolNames.length > 0
+            ? `I attempted to process your request using ${toolNames.join(', ')}, but was unable to generate a complete response. Please try again.`
+            : 'I was unable to generate a response. Please try again.';
       }
-    } else {
-      // Non-streaming mode (sub-agents)
-      // Extend context with all fields from contextWithOrg for consistency
-      const subAgentContext = {
-        ...ctx,
-        organizationId,
-        threadId,
-        userTeamIds: userTeamIds ?? [],
-        variables: {},
-        ...(parentThreadId ? { parentThreadId } : {}),
-        ...(ragPrefetchCache ? { ragPrefetchCache } : {}),
-      };
+    } catch (timeoutError) {
+      if (!(timeoutError instanceof AgentTimeoutError)) throw timeoutError;
 
-      const generateResult = await agent.generateText(
-        subAgentContext,
-        { threadId, userId },
-        {
-          // Use system parameter for context - it's passed to LLM but NOT saved to database
-          // This prevents XML system messages from being stored as thread messages
-          system: systemPrompt,
-          // Use prompt parameter for the task - this triggers the agent response
-          // and gets saved as the user message in the thread (unless promptMessageId is provided)
-          prompt: promptMessage,
-          // If promptMessageId is provided, the message was already saved (e.g., with attachments)
-          // This prevents double-saving the user message
-          ...(promptMessageId ? { promptMessageId } : {}),
-        },
-        {
-          contextOptions: {
-            recentMessages: 0,
-            excludeToolMessages: false,
-          },
-        },
-      );
-
-      debugLog('Generate completed', {
-        threadId,
+      // Generation timed out — attempt recovery using available context + tool results
+      debugLog('Generation timed out, attempting recovery', {
+        timeoutMs: effectiveTimeoutMs,
         elapsedMs: Date.now() - startTime,
       });
 
-      result = {
-        text: generateResult.text,
-        steps: generateResult.steps,
-        usage: generateResult.usage,
-        finishReason: generateResult.finishReason,
-        response: generateResult.response,
-      };
-
-      // If the LLM called tools but didn't generate a substantive follow-up response,
-      // retry without tools. Handles both completely empty text (e.g., DeepSeek with
-      // finishReason: "stop") and preamble-only text before tool calls.
-      if (needsToolResultRetry(result.text, result.steps)) {
-        debugLog('Empty text with tool results, retrying without tools', {
-          stepsCount: result.steps?.length ?? 0,
-          finishReason: result.finishReason,
-        });
-
-        // Rebuild context to include the just-saved tool results
-        const retryContext = await buildStructuredContext({
+      try {
+        // Rebuild context — picks up any tool results saved before the timeout
+        const recoveryContext = await buildStructuredContext({
           ctx,
           threadId,
           additionalContext,
@@ -430,122 +587,65 @@ export async function generateAgentResponse(
           integrationsInfo: hookData?.integrationsInfo,
         });
 
-        debugLog('Rebuilt context for retry', {
-          estimatedTokens: retryContext.stats.totalTokens,
-          messageCount: retryContext.stats.messageCount,
+        const recoveryAgent = createAgent({
+          ...agentOptions,
+          withTools: false,
         });
 
-        // Create agent without tools for the retry
-        const retryAgent = createAgent({ ...agentOptions, withTools: false });
+        const recoverySystemPrompt = agentInstructions
+          ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
+          : recoveryContext.threadContext;
 
-        const retrySystemPrompt = instructions
-          ? `${instructions}\n\n${retryContext.threadContext}`
-          : retryContext.threadContext;
-
-        const retryResult = await retryAgent.generateText(
-          subAgentContext,
-          { threadId, userId },
-          {
-            system: retrySystemPrompt,
-            prompt: promptMessage
-              ? `Based on the tool results, complete this task: ${promptMessage}`
-              : 'Based on the conversation and tool results above, provide a summary response.',
-          },
-          {
-            contextOptions: {
-              recentMessages: 0,
-              excludeToolMessages: false,
+        const recoveryResult = await withTimeout(
+          recoveryAgent.generateText(
+            contextWithOrg,
+            { threadId, userId },
+            {
+              system: recoverySystemPrompt,
+              prompt: promptMessage
+                ? `The previous attempt to respond timed out. Based on any available context and tool results, provide a helpful response to: ${promptMessage}`
+                : 'The previous attempt timed out. Based on the conversation and any available tool results, provide a summary response.',
             },
-            storageOptions: { saveMessages: 'none' },
-          },
+            {
+              contextOptions: {
+                recentMessages: 0,
+                excludeToolMessages: false,
+                searchOtherThreads: false,
+              },
+              storageOptions: { saveMessages: 'none' },
+            },
+          ),
+          RECOVERY_TIMEOUT_MS,
         );
 
         result = {
-          text: retryResult.text,
-          steps: [...(result.steps || []), ...retryResult.steps],
-          usage: mergeUsage(result.usage, retryResult.usage),
-          finishReason: retryResult.finishReason,
+          text: recoveryResult.text,
+          steps: recoveryResult.steps,
+          usage: recoveryResult.usage,
+          finishReason: 'timeout-recovery',
+          response: recoveryResult.response,
         };
 
-        debugLog('Retry completed', {
+        debugLog('Timeout recovery completed', {
           textLength: result.text?.length ?? 0,
-          finishReason: result.finishReason,
+          elapsedMs: Date.now() - startTime,
         });
-      }
-
-      // General empty text retry (handles cases like thinking models that consume all tokens for reasoning)
-      if (!result.text?.trim()) {
-        debugLog('Empty text response, retrying', {
-          finishReason: result.finishReason,
-          usage: result.usage,
-        });
-
-        // Rebuild context to include any messages saved during the original generation
-        const retryContext = await buildStructuredContext({
-          ctx,
-          threadId,
-          additionalContext,
-          parentThreadId,
-          maxMessages: agentConfig.recentMessages,
-          ragContext: hookData?.ragContext,
-          integrationsInfo: hookData?.integrationsInfo,
-        });
-
-        debugLog('Rebuilt context for empty text retry', {
-          estimatedTokens: retryContext.stats.totalTokens,
-          messageCount: retryContext.stats.messageCount,
-        });
-
-        const retryAgent = createAgent({ ...agentOptions, withTools: false });
-
-        const emptyRetrySystemPrompt = instructions
-          ? `${instructions}\n\n${retryContext.threadContext}`
-          : retryContext.threadContext;
-
-        const retryResult = await retryAgent.generateText(
-          subAgentContext,
-          { threadId, userId },
-          {
-            system: emptyRetrySystemPrompt,
-            prompt: promptMessage
-              ? `Please complete this task: ${promptMessage}`
-              : 'Please provide a response based on the conversation above.',
-          },
-          {
-            contextOptions: {
-              recentMessages: 0,
-              excludeToolMessages: false,
-            },
-            storageOptions: { saveMessages: 'none' },
-          },
+      } catch (recoveryError) {
+        // Recovery itself failed — use static fallback
+        console.error(
+          '[generateAgentResponse] Timeout recovery failed:',
+          recoveryError,
         );
 
         result = {
-          text: retryResult.text,
-          steps: result.steps,
-          usage: mergeUsage(result.usage, retryResult.usage),
-          finishReason: retryResult.finishReason,
+          text: 'I was unable to complete your request in time. Please try again.',
+          finishReason: 'timeout-recovery-failed',
         };
 
-        debugLog('Empty text retry completed', {
-          textLength: result.text?.length ?? 0,
-          finishReason: result.finishReason,
+        debugLog('Timeout recovery failed, using static fallback', {
+          elapsedMs: Date.now() - startTime,
         });
       }
-    }
-
-    // Fallback: if text is still missing after all retries, provide a minimal response
-    // so the user always sees something rather than an empty message
-    if (needsToolResultRetry(result.text, result.steps)) {
-      const toolNames = extractToolNamesFromSteps(result.steps ?? []);
-      debugLog('All retries exhausted, using fallback message', {
-        toolNames,
-        finishReason: result.finishReason,
-      });
-      result.text =
-        toolNames.length > 0
-          ? `I attempted to process your request using ${toolNames.join(', ')}, but was unable to generate a complete response. Please try again.`
-          : 'I was unable to generate a response. Please try again.';
     }
 
     const durationMs = Date.now() - startTime;

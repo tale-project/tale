@@ -15,6 +15,7 @@ export const generateResponse = internalAction({
     additionalContext: v.optional(v.record(v.string(), v.string())),
     parentThreadId: v.optional(v.string()),
     delegationMode: v.optional(v.boolean()),
+    deadlineMs: v.optional(v.number()),
   },
   returns: agentResponseReturnsValidator,
   handler: async (ctx, args) => {
@@ -27,6 +28,7 @@ export const generateResponse = internalAction({
       additionalContext: args.additionalContext,
       parentThreadId: args.parentThreadId,
       delegationMode: args.delegationMode,
+      deadlineMs: args.deadlineMs,
     });
   },
 });

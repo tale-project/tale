@@ -13,6 +13,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { parseFollowUpItems } from '@/lib/utils/parse-follow-up-items';
 
 import {
   markdownComponents,
@@ -174,13 +175,7 @@ export const NextStepsSection = memo(
   }: NextStepsSectionProps) {
     const { t } = useT('chat');
 
-    const items = useMemo(() => {
-      if (!content) return [];
-      return content
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
-    }, [content]);
+    const items = useMemo(() => parseFollowUpItems(content), [content]);
 
     if (items.length === 0) return null;
 
