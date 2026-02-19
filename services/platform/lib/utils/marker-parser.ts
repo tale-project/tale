@@ -141,5 +141,5 @@ function parseMarkers(text: string, isStreaming: boolean): MarkerParseResult {
   };
 }
 
-export type { MarkerType, ParsedSection, MarkerParseResult };
-export { MARKERS, parseMarkers };
+export type { ParsedSection };
+export { parseMarkers };

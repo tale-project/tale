@@ -1,7 +1,7 @@
 export const MAX_FOLLOW_UP_LENGTH = 60;
 export const MAX_FOLLOW_UP_ITEMS = 4;
 
-const MARKDOWN_PATTERN = /[|*#\[\]`~>]|^-\s|^\d+\.\s/;
+const MARKDOWN_PATTERN = /[|*#[\]`~>]|^-\s|^\d+\.\s/;
 
 function isValidFollowUp(line: string) {
   return (

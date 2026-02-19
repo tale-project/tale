@@ -212,16 +212,15 @@ class _OutputAccumulator:
             part = event.get("part", {})
             text_content = self._extract_text_content(part)
             if text_content:
-                self.page_contents.append(_PageContent(
-                    url=self._last_navigated_url or "unknown",
-                    content=text_content,
-                ))
+                self.page_contents.append(
+                    _PageContent(
+                        url=self._last_navigated_url or "unknown",
+                        content=text_content,
+                    )
+                )
                 self._total_content_chars += len(text_content)
             else:
-                logger.debug(
-                    f"Unparsed tool_result: keys={list(part.keys())}, "
-                    f"preview={str(part)[:200]}"
-                )
+                logger.debug(f"Unparsed tool_result: keys={list(part.keys())}, preview={str(part)[:200]}")
 
     def to_response(self, duration: float, *, timed_out: bool) -> dict[str, Any]:
         """Build the final response dict from accumulated data."""
@@ -358,8 +357,10 @@ _SYNTHESIS_PROMPT = """You are a research assistant. A web browsing agent was ta
 The agent visited several web pages and collected information, but ran out of time before writing a response.
 
 Based on the collected content, determine the nature of the task and respond appropriately:
-- If this was an information gathering / research task: synthesize a comprehensive answer with specific facts, data, and source links.
-- If this was an interactive task (form filling, purchasing, booking, etc.): report what was attempted, how far the agent progressed, and what remains to be done.
+- If this was an information gathering / research task: synthesize a comprehensive answer
+  with specific facts, data, and source links.
+- If this was an interactive task (form filling, purchasing, booking, etc.): report what was
+  attempted, how far the agent progressed, and what remains to be done.
 
 ## User's Original Request
 {query}
@@ -427,9 +428,7 @@ async def _summarize_page_content(
 
     logger.info(f"Phase 2 map: summarizing {len(chunks)} chunks in parallel")
 
-    summaries = await asyncio.gather(
-        *[_summarize_chunk(chunk, original_query, i) for i, chunk in enumerate(chunks)]
-    )
+    summaries = await asyncio.gather(*[_summarize_chunk(chunk, original_query, i) for i, chunk in enumerate(chunks)])
 
     successful = [s for s in summaries if s]
     if not successful:
@@ -439,9 +438,7 @@ async def _summarize_page_content(
     logger.info(f"Phase 2 map: {len(successful)}/{len(chunks)} chunks succeeded")
 
     # Reduce phase: synthesize chunk summaries into final response
-    combined = "\n\n---\n\n".join(
-        f"### Findings (Part {i + 1})\n{s}" for i, s in enumerate(successful)
-    )
+    combined = "\n\n---\n\n".join(f"### Findings (Part {i + 1})\n{s}" for i, s in enumerate(successful))
     prompt = _SYNTHESIS_PROMPT.format(
         query=original_query,
         source_list=source_list,
