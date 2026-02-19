@@ -49,6 +49,10 @@ function markdownToHtml(md: string): string {
   return DOMPurify.sanitize(raw);
 }
 
+interface MilkdownEditorInnerProps extends MessageEditorProps {
+  onMessageSent?: () => void;
+}
+
 function MilkdownEditorInner({
   placeholder,
   disabled = false,
@@ -58,22 +62,24 @@ function MilkdownEditorInner({
   onConversationResolved: _onConversationResolved,
   pendingMessage,
   hasMessageHistory = false,
-}: MessageEditorProps) {
+  onMessageSent,
+}: MilkdownEditorInnerProps) {
   const { t: tConversations } = useT('conversations');
 
   const { mutateAsync: improveMessage } = useImproveMessage();
 
   const editorPlaceholder = placeholder || tConversations('messagePlaceholder');
-  const [message, setMessage] = usePersistedState(
+  const [message, setMessage, clearMessage] = usePersistedState(
     messageId ? `conversation-${messageId}` : 'new-conversation',
     pendingMessage?.content || '',
   );
-  const [improveInstruction, setImproveInstruction] = usePersistedState(
-    messageId
-      ? `conversation-${messageId}-improve-instruction`
-      : 'new-conversation-improve-instruction',
-    '',
-  );
+  const [improveInstruction, setImproveInstruction, clearImproveInstruction] =
+    usePersistedState(
+      messageId
+        ? `conversation-${messageId}-improve-instruction`
+        : 'new-conversation-improve-instruction',
+      '',
+    );
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isImproveMode, setIsImproveMode] = useState(false);
@@ -138,6 +144,7 @@ function MilkdownEditorInner({
     const pending = pendingMessage?.content ?? '';
     if (!message.trim() && pending.trim()) {
       setMessage(pending);
+      setProgrammaticContent(pending);
       setHasContent(true);
     }
   }, [pendingMessage, message, setMessage]);
@@ -216,10 +223,12 @@ function MilkdownEditorInner({
           await onSave(html, attachedFiles);
 
           setAttachedFiles([]);
-          setMessage('');
-          setProgrammaticContent('');
           setIsImproveMode(false);
-          setImproveInstruction('');
+          setHasContent(false);
+          clearMessage();
+          clearImproveInstruction();
+
+          onMessageSent?.();
         } catch (error) {
           console.error('Failed to send message:', error);
           toast({
@@ -233,8 +242,9 @@ function MilkdownEditorInner({
     message,
     attachedFiles,
     onSave,
-    setMessage,
-    setImproveInstruction,
+    clearMessage,
+    clearImproveInstruction,
+    onMessageSent,
     tConversations,
   ]);
 
@@ -389,9 +399,15 @@ function MilkdownEditorInner({
 }
 
 export function MessageEditor(props: MessageEditorProps) {
+  const [editorKey, setEditorKey] = useState(0);
+
+  const handleMessageSent = useCallback(() => {
+    setEditorKey((k) => k + 1);
+  }, []);
+
   return (
-    <MilkdownProvider>
-      <MilkdownEditorInner {...props} />
+    <MilkdownProvider key={editorKey}>
+      <MilkdownEditorInner {...props} onMessageSent={handleMessageSent} />
     </MilkdownProvider>
   );
 }
