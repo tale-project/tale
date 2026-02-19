@@ -17,6 +17,7 @@ interface ImageUploadFieldProps {
   currentUrl?: string | null;
   onUpload: (storageId: Id<'_storage'>) => void;
   onRemove?: () => void;
+  onPreviewUrlChange?: (url: string | null) => void;
   size?: 'sm' | 'md';
   label?: string;
   ariaLabel: string;
@@ -26,6 +27,7 @@ export function ImageUploadField({
   currentUrl,
   onUpload,
   onRemove,
+  onPreviewUrlChange,
   size = 'sm',
   label,
   ariaLabel,
@@ -69,6 +71,7 @@ export function ImageUploadField({
       const objectUrl = URL.createObjectURL(file);
       objectUrlRef.current = objectUrl;
       setPreviewUrl(objectUrl);
+      onPreviewUrlChange?.(objectUrl);
       setIsRemoved(false);
       setIsUploading(true);
 
@@ -86,6 +89,7 @@ export function ImageUploadField({
         onUpload(storageId);
       } catch {
         setPreviewUrl(null);
+        onPreviewUrlChange?.(null);
         if (objectUrlRef.current) {
           URL.revokeObjectURL(objectUrlRef.current);
           objectUrlRef.current = null;
@@ -97,18 +101,19 @@ export function ImageUploadField({
         }
       }
     },
-    [generateUploadUrl, onUpload],
+    [generateUploadUrl, onUpload, onPreviewUrlChange],
   );
 
   const handleRemove = useCallback(() => {
     setPreviewUrl(null);
+    onPreviewUrlChange?.(null);
     setIsRemoved(true);
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;
     }
     onRemove?.();
-  }, [onRemove]);
+  }, [onRemove, onPreviewUrlChange]);
 
   const sizeClasses = size === 'sm' ? 'size-10' : 'size-12';
 

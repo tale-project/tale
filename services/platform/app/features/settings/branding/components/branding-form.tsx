@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -75,15 +75,17 @@ export function BrandingForm({
 
   const watchedValues = watch();
 
-  const logoPreviewUrlRef = useRef<string | null>(null);
-  const faviconPreviewUrlRef = useRef<string | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [faviconPreviewUrl, setFaviconPreviewUrl] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     onPreviewChange({
       appName: watchedValues.appName || undefined,
       textLogo: watchedValues.textLogo || undefined,
-      logoUrl: logoPreviewUrlRef.current ?? branding?.logoUrl,
-      faviconUrl: faviconPreviewUrlRef.current ?? branding?.faviconLightUrl,
+      logoUrl: logoPreviewUrl ?? branding?.logoUrl,
+      faviconUrl: faviconPreviewUrl ?? branding?.faviconLightUrl,
       brandColor: watchedValues.brandColor || undefined,
       accentColor: watchedValues.accentColor || undefined,
     });
@@ -94,6 +96,8 @@ export function BrandingForm({
     watchedValues.accentColor,
     branding?.logoUrl,
     branding?.faviconLightUrl,
+    logoPreviewUrl,
+    faviconPreviewUrl,
     onPreviewChange,
   ]);
 
@@ -191,6 +195,7 @@ export function BrandingForm({
               onRemove={() => {
                 setValue('logoStorageId', '', { shouldDirty: true });
               }}
+              onPreviewUrlChange={setLogoPreviewUrl}
               size="md"
               ariaLabel={t('branding.uploadLogo')}
             />
@@ -218,6 +223,7 @@ export function BrandingForm({
                     shouldDirty: true,
                   });
                 }}
+                onPreviewUrlChange={setFaviconPreviewUrl}
                 label={t('branding.light')}
                 ariaLabel={`${t('branding.uploadFavicon')} (${t('branding.light')})`}
               />
