@@ -289,6 +289,7 @@ import type * as lib_agent_completion_index from "../lib/agent_completion/index.
 import type * as lib_agent_completion_on_agent_complete from "../lib/agent_completion/on_agent_complete.js";
 import type * as lib_agent_response_generate_response from "../lib/agent_response/generate_response.js";
 import type * as lib_agent_response_index from "../lib/agent_response/index.js";
+import type * as lib_agent_response_structured_response_instructions from "../lib/agent_response/structured_response_instructions.js";
 import type * as lib_agent_response_types from "../lib/agent_response/types.js";
 import type * as lib_agent_response_validators from "../lib/agent_response/validators.js";
 import type * as lib_agent_runtime_config from "../lib/agent_runtime_config.js";
@@ -1160,6 +1161,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_completion/on_agent_complete": typeof lib_agent_completion_on_agent_complete;
   "lib/agent_response/generate_response": typeof lib_agent_response_generate_response;
   "lib/agent_response/index": typeof lib_agent_response_index;
+  "lib/agent_response/structured_response_instructions": typeof lib_agent_response_structured_response_instructions;
   "lib/agent_response/types": typeof lib_agent_response_types;
   "lib/agent_response/validators": typeof lib_agent_response_validators;
   "lib/agent_runtime_config": typeof lib_agent_runtime_config;

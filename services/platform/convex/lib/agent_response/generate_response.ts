@@ -36,6 +36,7 @@ import {
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { startRagPrefetch, type RagPrefetchCache } from '../rag_prefetch';
+import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
 
 /**
  * Generate an agent response using the provided configuration.
@@ -210,8 +211,14 @@ export async function generateAgentResponse(
     // `system` explicitly the agent's own instructions are overridden.
     // We prepend them here so the LLM receives both the agent's identity/guidance
     // and the structured thread context (history, RAG, integrations).
-    const systemPrompt = instructions
-      ? `${instructions}\n\n${structuredThreadContext.threadContext}`
+    // For streaming agents, append structured response instructions so the LLM
+    // can optionally emit section markers (parsed by the frontend).
+    const agentInstructions =
+      enableStreaming && instructions
+        ? `${instructions}\n\n${STRUCTURED_RESPONSE_INSTRUCTIONS}`
+        : instructions;
+    const systemPrompt = agentInstructions
+      ? `${agentInstructions}\n\n${structuredThreadContext.threadContext}`
       : structuredThreadContext.threadContext;
 
     debugLog('PRE_LLM_CALL', {
@@ -248,7 +255,7 @@ export async function generateAgentResponse(
             excludeToolMessages: true,
             searchOtherThreads: false,
           },
-          saveStreamDeltas: true,
+          saveStreamDeltas: { chunking: 'line', throttleMs: 200 },
         },
       );
 

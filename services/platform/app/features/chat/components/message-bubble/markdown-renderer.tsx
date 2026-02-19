@@ -14,7 +14,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { PaginatedMarkdownTable } from '../paginated-markdown-table';
-import { TypewriterText } from '../typewriter-text';
+import { StructuredMessage } from '../structured-message/structured-message';
 import { CodeBlock, HighlightedCode } from './code-block';
 import { ImagePreviewDialog } from './image-preview-dialog';
 
@@ -137,16 +137,17 @@ export const markdownComponents = {
 export function TypewriterTextWrapper({
   text,
   isStreaming = false,
+  onSendFollowUp,
 }: {
   text: string;
   isStreaming?: boolean;
+  onSendFollowUp?: (message: string) => void;
 }) {
   return (
-    <TypewriterText
+    <StructuredMessage
       text={text}
       isStreaming={isStreaming}
-      components={markdownComponents}
-      className={markdownWrapperStyles}
+      onSendFollowUp={onSendFollowUp}
     />
   );
 }

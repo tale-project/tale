@@ -8,10 +8,6 @@ import {
   useEffect,
   memo,
 } from 'react';
-import Markdown, { type Components } from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
-import remarkGfm from 'remark-gfm';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -25,22 +21,20 @@ import {
   FileAttachmentDisplay,
   FilePartDisplay,
 } from './message-bubble/file-displays';
-import {
-  markdownWrapperStyles,
-  markdownComponents,
-  TypewriterTextWrapper,
-} from './message-bubble/markdown-renderer';
 import { MessageInfoDialog } from './message-info-dialog';
+import { StructuredMessage } from './structured-message/structured-message';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
 
 interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   message: Message;
+  onSendFollowUp?: (message: string) => void;
 }
 
 function MessageBubbleComponent({
   message,
   className,
+  onSendFollowUp,
   ...restProps
 }: MessageBubbleProps) {
   const { t } = useT('common');
@@ -116,23 +110,11 @@ function MessageBubbleComponent({
 
         {sanitizedContent && (
           <div className="text-sm leading-5">
-            {isAssistantStreaming ? (
-              <TypewriterTextWrapper
-                text={sanitizedContent}
-                isStreaming={true}
-              />
-            ) : (
-              <div className={markdownWrapperStyles}>
-                <Markdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- markdownComponents satisfies Components but object literal type is not identical
-                  components={markdownComponents as Components}
-                >
-                  {sanitizedContent}
-                </Markdown>
-              </div>
-            )}
+            <StructuredMessage
+              text={sanitizedContent}
+              isStreaming={!!isAssistantStreaming}
+              onSendFollowUp={!isUser ? onSendFollowUp : undefined}
+            />
           </div>
         )}
         {!isUser && !isAssistantStreaming && (
@@ -188,7 +170,8 @@ export const MessageBubble = memo(
       prevProps.message.isStreaming === nextProps.message.isStreaming &&
       prevProps.message.attachments === nextProps.message.attachments &&
       prevProps.message.fileParts === nextProps.message.fileParts &&
-      prevProps.className === nextProps.className
+      prevProps.className === nextProps.className &&
+      prevProps.onSendFollowUp === nextProps.onSendFollowUp
     );
   },
 );

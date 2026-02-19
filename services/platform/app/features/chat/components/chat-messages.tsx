@@ -30,6 +30,7 @@ interface ChatMessagesProps {
   isProcessingToolResult: boolean;
   aiResponseAreaRef: RefObject<HTMLDivElement | null>;
   onHumanInputResponseSubmitted?: () => void;
+  onSendFollowUp?: (message: string) => void;
 }
 
 /**
@@ -49,6 +50,7 @@ export function ChatMessages({
   isProcessingToolResult,
   aiResponseAreaRef,
   onHumanInputResponseSubmitted,
+  onSendFollowUp,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
 
@@ -115,6 +117,7 @@ export function ChatMessages({
                 role: message.role === 'user' ? 'user' : 'assistant',
                 threadId: threadId,
               }}
+              onSendFollowUp={onSendFollowUp}
             />
           ) : null;
         } else if (item.type === 'approval') {
