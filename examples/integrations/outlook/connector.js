@@ -204,12 +204,19 @@ function listMessages(http, headers, params) {
     queryParts.push('$orderby=' + orderby);
   }
 
+  // Exclude draft messages — drafts should never enter the sync pipeline
+  var draftFilter = 'isDraft eq false';
   if (filter) {
-    queryParts.push('$filter=' + filter);
+    queryParts.push('$filter=' + filter + ' and ' + draftFilter);
   } else if (params.folder) {
     queryParts.push(
-      "$filter=parentFolderId eq '" + escapeODataString(params.folder) + "'",
+      "$filter=parentFolderId eq '" +
+        escapeODataString(params.folder) +
+        "' and " +
+        draftFilter,
     );
+  } else {
+    queryParts.push('$filter=' + draftFilter);
   }
   if (params.select) {
     queryParts.push('$select=' + params.select);
