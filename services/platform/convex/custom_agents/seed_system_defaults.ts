@@ -28,7 +28,7 @@ async function getSystemDefaultBySlug(
       q.eq('organizationId', organizationId).eq('systemAgentSlug', slug),
     );
   for await (const agent of query) {
-    if (agent.isActive) return agent;
+    return agent;
   }
   return null;
 }
@@ -38,6 +38,8 @@ async function insertSystemAgent(
   organizationId: string,
   template: SystemDefaultAgentTemplate,
 ) {
+  const isChatAgent = template.systemAgentSlug === 'chat';
+
   const agentId = await ctx.db.insert('customAgents', {
     organizationId,
     name: template.name,
@@ -50,14 +52,17 @@ async function insertSystemAgent(
     timeoutMs: template.timeoutMs,
     outputReserve: template.outputReserve,
     roleRestriction: template.roleRestriction,
+    knowledgeEnabled: template.knowledgeEnabled,
+    includeOrgKnowledge: template.includeOrgKnowledge,
     isSystemDefault: true,
     systemAgentSlug: template.systemAgentSlug,
     createdBy: 'system',
-    isActive: true,
     versionNumber: 1,
-    status: 'active',
-    publishedAt: Date.now(),
-    publishedBy: 'system',
+    status: isChatAgent ? 'active' : 'draft',
+    ...(isChatAgent && {
+      publishedAt: Date.now(),
+      publishedBy: 'system',
+    }),
   });
 
   await ctx.db.patch(agentId, { rootVersionId: agentId });

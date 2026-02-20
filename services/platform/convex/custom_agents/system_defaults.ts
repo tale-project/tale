@@ -29,17 +29,21 @@ export interface SystemDefaultAgentTemplate {
   outputReserve: number;
   modelPreset: 'fast' | 'standard' | 'advanced';
   roleRestriction?: string;
+  knowledgeEnabled?: boolean;
+  includeOrgKnowledge?: boolean;
 }
 
 export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
   {
     systemAgentSlug: 'chat',
-    name: 'routing-agent',
+    name: 'chat-agent',
     displayName: 'Assistant',
     description: 'General-purpose AI assistant',
     systemInstructions: CHAT_AGENT_INSTRUCTIONS,
-    toolNames: ['rag_search', 'request_human_input'],
-    partnerSlugs: ['web', 'crm', 'document', 'integration', 'workflow'],
+    toolNames: ['rag_search', 'web'],
+    partnerSlugs: ['document'],
+    knowledgeEnabled: true,
+    includeOrgKnowledge: true,
     maxSteps: 20,
     timeoutMs: 420_000,
     outputReserve: 4096,

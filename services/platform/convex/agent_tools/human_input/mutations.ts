@@ -122,7 +122,7 @@ export const submitHumanInputResponse = mutation({
 
     let chatAgent = null;
     for await (const agent of systemChatQuery) {
-      if (agent.isActive && agent.status === 'active') {
+      if (agent.status === 'active') {
         chatAgent = agent;
         break;
       }

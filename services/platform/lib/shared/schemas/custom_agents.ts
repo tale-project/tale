@@ -26,8 +26,8 @@ const customAgentSchema = z.object({
   filePreprocessingEnabled: z.boolean().optional(),
   teamId: z.string().optional(),
   sharedWithTeamIds: z.array(z.string()).optional(),
+  partnerAgentIds: z.array(z.string()).optional(),
   createdBy: z.string(),
-  isActive: z.boolean(),
   versionNumber: z.number(),
   status: versionStatusSchema,
   rootVersionId: z.string().optional(),
@@ -58,6 +58,7 @@ const createCustomAgentSchema = z.object({
   filePreprocessingEnabled: z.boolean().optional(),
   teamId: z.string().optional(),
   sharedWithTeamIds: z.array(z.string()).optional(),
+  partnerAgentIds: z.array(z.string()).optional(),
 });
 type CreateCustomAgent = z.infer<typeof createCustomAgentSchema>;
 

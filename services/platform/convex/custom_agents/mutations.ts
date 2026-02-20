@@ -98,7 +98,7 @@ async function getDraftByRoot(
   rootVersionId: Id<'customAgents'>,
 ) {
   const draft = await getVersionByRootAndStatus(ctx, rootVersionId, 'draft');
-  if (!draft || !draft.isActive) throw new Error('Agent not found');
+  if (!draft) throw new Error('Agent not found');
   return draft;
 }
 
@@ -175,7 +175,6 @@ export const createCustomAgent = mutation({
       ...agentFields,
       toolNames: finalToolNames,
       createdBy: String(authUser._id),
-      isActive: true,
       versionNumber: 1,
       status: 'draft',
     });
@@ -287,27 +286,22 @@ export const deleteCustomAgent = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const draft = await getDraftByRoot(ctx, args.customAgentId);
-
-    if (draft.isSystemDefault) {
-      throw new Error('System default agents cannot be deleted');
-    }
+    const rootAgent = await ctx.db.get(args.customAgentId);
+    if (!rootAgent) throw new Error('Agent not found');
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
-    if (!hasTeamAccess(draft, userTeamIds)) {
+    if (!hasTeamAccess(rootAgent, userTeamIds)) {
       throw new Error('Agent not accessible');
     }
 
-    const activeVersion = await getVersionByRootAndStatus(
-      ctx,
-      args.customAgentId,
-      'active',
-    );
-    if (activeVersion) {
-      await ctx.db.patch(activeVersion._id, { status: 'archived' });
+    const allVersions = ctx.db
+      .query('customAgents')
+      .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId));
+
+    for await (const version of allVersions) {
+      await ctx.db.delete(version._id);
     }
 
-    await ctx.db.patch(draft._id, { isActive: false, status: 'archived' });
     return null;
   },
 });
@@ -338,7 +332,6 @@ export const duplicateCustomAgent = mutation({
       name: newName,
       displayName: newDisplayName,
       createdBy: String(authUser._id),
-      isActive: true,
       versionNumber: 1,
       status: 'draft',
     });
@@ -519,7 +512,6 @@ export const createDraftFromVersion = mutation({
 
     const draftId = await ctx.db.insert('customAgents', {
       ...copyVersionFields(source),
-      isActive: true,
       versionNumber: newVersionNumber,
       status: 'draft',
       rootVersionId: args.customAgentId,

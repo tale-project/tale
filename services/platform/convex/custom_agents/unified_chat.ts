@@ -43,7 +43,7 @@ async function resolveAgentId(
     );
 
   for await (const agent of systemChat) {
-    if (agent.isActive && agent.status === 'active' && agent.rootVersionId) {
+    if (agent.status === 'active' && agent.rootVersionId) {
       return agent.rootVersionId;
     }
   }

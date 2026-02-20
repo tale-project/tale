@@ -675,6 +675,7 @@
         "publishing": "Publishing...",
         "goToDraft": "Go to draft",
         "webhook": "Webhook",
+        "delegation": "Delegation",
         "test": "Test"
       },
       "testChat": {
@@ -742,6 +743,12 @@
         "filePreprocessingEnabledHelp": "When enabled, uploaded files (documents, images, text) are automatically analyzed before the AI responds. This provides faster and more accurate responses. When disabled, the AI uses tools to read files on demand.",
         "filePreprocessingInjectedPrompt": "The following instructions will be automatically appended to the system prompt:",
         "copyPrompt": "Copy prompt"
+      },
+      "delegation": {
+        "title": "Delegation",
+        "description": "Select agents that this agent can delegate tasks to",
+        "noDelegatesAvailable": "No other agents available for delegation.",
+        "noDelegatesSelected": "No agents selected for delegation."
       },
       "knowledge": {
         "enableKnowledge": "Enable knowledge base",
@@ -2894,6 +2901,10 @@
     "agentWebhook": {
       "title": "Agent webhook",
       "description": "Manage webhook URLs for your custom agent."
+    },
+    "agentDelegation": {
+      "title": "Agent delegation",
+      "description": "Configure agent delegation to other agents."
     },
     "automationTriggers": {
       "title": "Triggers",

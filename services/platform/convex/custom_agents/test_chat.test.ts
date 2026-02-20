@@ -22,7 +22,6 @@ function createMockDraftAgent(
     teamId: 'team_1',
     sharedWithTeamIds: [],
     createdBy: 'user_1',
-    isActive: true,
     versionNumber: 1,
     status: 'draft',
     rootVersionId: 'agent_root_1' as Id<'customAgents'>,

@@ -46,7 +46,8 @@ export const customAgentsTable = defineTable({
   isSystemDefault: v.optional(v.boolean()),
   systemAgentSlug: v.optional(v.string()),
 
-  isActive: v.boolean(),
+  // @deprecated — kept for existing documents, no longer written or read
+  isActive: v.optional(v.boolean()),
 
   versionNumber: v.number(),
   status: versionStatusValidator,
@@ -57,7 +58,7 @@ export const customAgentsTable = defineTable({
   changeLog: v.optional(v.string()),
 })
   .index('by_organization', ['organizationId'])
-  .index('by_org_active_status', ['organizationId', 'isActive', 'status'])
+  .index('by_org_status', ['organizationId', 'status'])
   .index('by_root_status', ['rootVersionId', 'status'])
   .index('by_root', ['rootVersionId'])
   .index('by_team', ['teamId'])
