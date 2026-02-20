@@ -19,7 +19,7 @@ export async function getOrganization(
   ctx: QueryCtx,
   organizationId: string,
 ): Promise<BAOrganization | null> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await authComponent.safeGetAuthUser(ctx);
   if (!authUser) {
     return null;
   }

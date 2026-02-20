@@ -22,13 +22,26 @@ import { SubAgentDetailsDialog } from './sub-agent-details-dialog';
 
 function formatAgentName(toolName: string): string {
   const nameMap: Record<string, string> = {
-    web_assistant: 'Web',
     document_assistant: 'Document',
     crm_assistant: 'CRM',
     integration_assistant: 'Integration',
     workflow_assistant: 'Workflow',
   };
   return nameMap[toolName] ?? toolName;
+}
+
+interface StatItemProps {
+  label: string;
+  value: string | number;
+}
+
+function StatItem({ label, value }: StatItemProps) {
+  return (
+    <Stack gap={0}>
+      <div className="text-muted-foreground text-xs">{label}</div>
+      <div className="font-medium">{value}</div>
+    </Stack>
+  );
 }
 
 interface ContextWindowTokenProps {
@@ -172,58 +185,25 @@ export function MessageInfoDialog({
                       locale={locale}
                     />
                   )}
-                  {metadata.inputTokens !== undefined && (
-                    <Stack gap={0}>
-                      <div className="text-muted-foreground text-xs">
-                        {t('messageInfo.input')}
-                      </div>
-                      <div className="font-medium">
-                        {formatNumber(metadata.inputTokens, locale)}
-                      </div>
-                    </Stack>
+                  {(
+                    [
+                      [metadata.inputTokens, 'input'],
+                      [metadata.outputTokens, 'output'],
+                      [metadata.totalTokens, 'total'],
+                      [metadata.reasoningTokens, 'reasoning'],
+                      [metadata.cachedInputTokens, 'cached'],
+                    ] as const
+                  ).map(
+                    ([value, key]) =>
+                      value != null &&
+                      value > 0 && (
+                        <StatItem
+                          key={key}
+                          label={t(`messageInfo.${key}`)}
+                          value={formatNumber(value, locale)}
+                        />
+                      ),
                   )}
-                  {metadata.outputTokens !== undefined && (
-                    <Stack gap={0}>
-                      <div className="text-muted-foreground text-xs">
-                        {t('messageInfo.output')}
-                      </div>
-                      <div className="font-medium">
-                        {formatNumber(metadata.outputTokens, locale)}
-                      </div>
-                    </Stack>
-                  )}
-                  {metadata.totalTokens !== undefined && (
-                    <Stack gap={0}>
-                      <div className="text-muted-foreground text-xs">
-                        {t('messageInfo.total')}
-                      </div>
-                      <div className="font-medium">
-                        {formatNumber(metadata.totalTokens, locale)}
-                      </div>
-                    </Stack>
-                  )}
-                  {metadata.reasoningTokens !== undefined &&
-                    metadata.reasoningTokens > 0 && (
-                      <Stack gap={0}>
-                        <div className="text-muted-foreground text-xs">
-                          {t('messageInfo.reasoning')}
-                        </div>
-                        <div className="font-medium">
-                          {formatNumber(metadata.reasoningTokens, locale)}
-                        </div>
-                      </Stack>
-                    )}
-                  {metadata.cachedInputTokens !== undefined &&
-                    metadata.cachedInputTokens > 0 && (
-                      <Stack gap={0}>
-                        <div className="text-muted-foreground text-xs">
-                          {t('messageInfo.cached')}
-                        </div>
-                        <div className="font-medium">
-                          {formatNumber(metadata.cachedInputTokens, locale)}
-                        </div>
-                      </Stack>
-                    )}
                 </Grid>
               </Field>
             )}
@@ -232,25 +212,20 @@ export function MessageInfoDialog({
               metadata.timeToFirstTokenMs !== undefined) && (
               <Field label={t('messageInfo.performance')}>
                 <Grid cols={2} gap={2} className="text-sm">
-                  {metadata.durationMs !== undefined && (
-                    <Stack gap={0}>
-                      <div className="text-muted-foreground text-xs">
-                        {t('messageInfo.duration')}
-                      </div>
-                      <div className="font-medium">
-                        {(metadata.durationMs / 1000).toFixed(2)}s
-                      </div>
-                    </Stack>
-                  )}
-                  {metadata.timeToFirstTokenMs !== undefined && (
-                    <Stack gap={0}>
-                      <div className="text-muted-foreground text-xs">
-                        {t('messageInfo.timeToFirstToken')}
-                      </div>
-                      <div className="font-medium">
-                        {(metadata.timeToFirstTokenMs / 1000).toFixed(2)}s
-                      </div>
-                    </Stack>
+                  {(
+                    [
+                      [metadata.durationMs, 'duration'],
+                      [metadata.timeToFirstTokenMs, 'timeToFirstToken'],
+                    ] as const
+                  ).map(
+                    ([value, key]) =>
+                      value != null && (
+                        <StatItem
+                          key={key}
+                          label={t(`messageInfo.${key}`)}
+                          value={`${(value / 1000).toFixed(2)}s`}
+                        />
+                      ),
                   )}
                 </Grid>
               </Field>

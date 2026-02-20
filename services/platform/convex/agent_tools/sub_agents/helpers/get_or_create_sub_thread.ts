@@ -33,8 +33,8 @@ interface GetOrCreateSubThreadResult {
  * {
  *   "chatType": "general",
  *   "subThreads": {
- *     "web_assistant": "thread_id_123",
- *     "document_assistant": "thread_id_456"
+ *     "document_assistant": "thread_id_123",
+ *     "crm_assistant": "thread_id_456"
  *   }
  * }
  * ```

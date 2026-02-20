@@ -3,7 +3,7 @@
  */
 
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
-import type { RLSContext } from '../types';
+import type { AuthenticatedUser, RLSContext } from '../types';
 
 import { createRLSContext } from '../context/create_rls_context';
 import { UnauthorizedError } from '../errors';
@@ -20,16 +20,19 @@ export const MEMBER_PLUS: readonly OrgRole[] = [
 export const ADMIN_ONLY: readonly OrgRole[] = ['admin'];
 
 /**
- * Validate organization access for any resource
- * Note: Better Auth uses string-based roles: admin, developer, editor, member, disabled
- * This function enforces membership via allow-lists (e.g., ADMIN_ONLY, MEMBER_PLUS), no invented hierarchy
+ * Validate organization access for any resource.
+ *
+ * Pass an existing `user` to skip the expensive `requireAuthenticatedUser`
+ * call inside `createRLSContext` (saves 2 DB queries when the caller already
+ * has an AuthenticatedUser from `getAuthUserIdentity`).
  */
 export async function validateOrganizationAccess(
   ctx: QueryCtx | MutationCtx,
   organizationId: string,
   allowed?: readonly OrgRole[],
+  user?: AuthenticatedUser,
 ): Promise<RLSContext> {
-  const rlsContext = await createRLSContext(ctx, organizationId);
+  const rlsContext = await createRLSContext(ctx, organizationId, user);
 
   const role = (rlsContext.role || 'member').toLowerCase();
 
