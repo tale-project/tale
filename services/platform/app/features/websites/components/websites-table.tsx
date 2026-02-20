@@ -65,7 +65,6 @@ export function WebsitesTable({
       {
         key: 'status',
         title: tTables('headers.status'),
-        multiSelect: false,
         options: [
           { value: 'active', label: tWebsites('filter.status.active') },
           { value: 'scanning', label: tWebsites('filter.status.scanning') },

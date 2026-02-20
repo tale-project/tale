@@ -3,7 +3,6 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 
 import { FilterButton } from './filter-button';
 import { FilterSection } from './filter-section';
@@ -28,6 +27,7 @@ import { FilterButton, FilterSection } from '@/app/components/ui/filters';
   title="Status"
   isExpanded={expanded}
   onToggle={() => setExpanded(!expanded)}
+  selectedCount={2}
 >
   {/* Filter options */}
 </FilterSection>
@@ -63,16 +63,19 @@ export const FilterSectionExample: StoryObj = {
   render: function Render() {
     const [expanded, setExpanded] = useState(true);
     return (
-      <div className="w-64 rounded-lg border p-2">
+      <div className="w-64 rounded-lg border p-1">
         <FilterSection
           title="Status"
           isExpanded={expanded}
           onToggle={() => setExpanded(!expanded)}
-          active={false}
         >
-          <div className="space-y-2">
+          <div className="bg-muted rounded-lg px-2 py-3">
             <Checkbox label="Active" />
+          </div>
+          <div className="bg-muted rounded-lg px-2 py-3">
             <Checkbox label="Inactive" />
+          </div>
+          <div className="bg-muted rounded-lg px-2 py-3">
             <Checkbox label="Pending" />
           </div>
         </FilterSection>
@@ -81,20 +84,22 @@ export const FilterSectionExample: StoryObj = {
   },
 };
 
-export const FilterSectionActive: StoryObj = {
+export const FilterSectionWithSelectedCount: StoryObj = {
   render: function Render() {
     const [expanded, setExpanded] = useState(true);
     return (
-      <div className="w-64 rounded-lg border p-2">
+      <div className="w-64 rounded-lg border p-1">
         <FilterSection
           title="Category"
           isExpanded={expanded}
           onToggle={() => setExpanded(!expanded)}
-          active={true}
+          selectedCount={2}
         >
-          <div className="space-y-2">
+          <div className="bg-muted rounded-lg px-2 py-3">
             <Checkbox defaultChecked label="Electronics" />
-            <Checkbox label="Clothing" />
+          </div>
+          <div className="bg-muted rounded-lg px-2 py-3">
+            <Checkbox defaultChecked label="Clothing" />
           </div>
         </FilterSection>
       </div>
@@ -103,7 +108,7 @@ export const FilterSectionActive: StoryObj = {
   parameters: {
     docs: {
       description: {
-        story: 'Filter section with active indicator dot.',
+        story: 'Filter section with selected count badge.',
       },
     },
   },
@@ -116,15 +121,17 @@ export const MultipleFilterSections: StoryObj = {
     const [dateExpanded, setDateExpanded] = useState(false);
 
     return (
-      <div className="w-64 space-y-1 rounded-lg border p-2">
+      <div className="w-64 rounded-lg border p-1">
         <FilterSection
           title="Status"
           isExpanded={statusExpanded}
           onToggle={() => setStatusExpanded(!statusExpanded)}
-          active={true}
+          selectedCount={1}
         >
-          <div className="space-y-2">
+          <div className="bg-muted rounded-lg px-2 py-3">
             <Checkbox defaultChecked label="Active" />
+          </div>
+          <div className="bg-muted rounded-lg px-2 py-3">
             <Checkbox label="Inactive" />
           </div>
         </FilterSection>
@@ -134,8 +141,10 @@ export const MultipleFilterSections: StoryObj = {
           isExpanded={categoryExpanded}
           onToggle={() => setCategoryExpanded(!categoryExpanded)}
         >
-          <div className="space-y-2">
+          <div className="bg-muted rounded-lg px-2 py-3">
             <Checkbox label="Type A" />
+          </div>
+          <div className="bg-muted rounded-lg px-2 py-3">
             <Checkbox label="Type B" />
           </div>
         </FilterSection>
@@ -145,7 +154,7 @@ export const MultipleFilterSections: StoryObj = {
           isExpanded={dateExpanded}
           onToggle={() => setDateExpanded(!dateExpanded)}
         >
-          <div className="text-muted-foreground text-sm">
+          <div className="text-muted-foreground px-2 text-sm">
             Date picker content...
           </div>
         </FilterSection>
@@ -156,42 +165,6 @@ export const MultipleFilterSections: StoryObj = {
     docs: {
       description: {
         story: 'Multiple collapsible filter sections.',
-      },
-    },
-  },
-};
-
-export const FilterSectionWithRadioGroup: StoryObj = {
-  render: function Render() {
-    const [expanded, setExpanded] = useState(true);
-    const [value, setValue] = useState('newest');
-
-    return (
-      <div className="w-64 rounded-lg border p-2">
-        <FilterSection
-          title="Sort by"
-          isExpanded={expanded}
-          onToggle={() => setExpanded(!expanded)}
-          active={value !== 'newest'}
-        >
-          <RadioGroup
-            value={value}
-            onValueChange={setValue}
-            options={[
-              { value: 'newest', label: 'Newest first' },
-              { value: 'oldest', label: 'Oldest first' },
-              { value: 'name-asc', label: 'Name A–Z' },
-              { value: 'name-desc', label: 'Name Z–A' },
-            ]}
-          />
-        </FilterSection>
-      </div>
-    );
-  },
-  parameters: {
-    docs: {
-      description: {
-        story: 'Filter section with a radio group for single-select options.',
       },
     },
   },
@@ -211,10 +184,13 @@ export const FilterPanelExample: StoryObj = {
         />
 
         {showFilters && (
-          <div className="w-64 rounded-lg border p-2 shadow-lg">
-            <div className="mb-2 flex items-center justify-between px-2">
-              <span className="text-sm font-medium">Filters</span>
-              <button className="text-primary text-xs hover:underline">
+          <div className="w-64 rounded-lg border p-1 shadow-lg">
+            <div className="border-border flex items-center justify-between border-b px-2 py-3">
+              <span className="text-base font-medium">Filters</span>
+              <button
+                type="button"
+                className="text-primary text-xs font-medium hover:underline"
+              >
                 Clear all
               </button>
             </div>
@@ -222,10 +198,12 @@ export const FilterPanelExample: StoryObj = {
               title="Status"
               isExpanded={statusExpanded}
               onToggle={() => setStatusExpanded(!statusExpanded)}
-              active={true}
+              selectedCount={1}
             >
-              <div className="space-y-2">
+              <div className="bg-muted rounded-lg px-2 py-3">
                 <Checkbox defaultChecked label="Published" />
+              </div>
+              <div className="bg-muted rounded-lg px-2 py-3">
                 <Checkbox label="Draft" />
               </div>
             </FilterSection>

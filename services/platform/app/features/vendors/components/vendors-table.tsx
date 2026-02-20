@@ -81,7 +81,6 @@ export function VendorsTable({
       {
         key: 'source',
         title: tTables('headers.source'),
-        multiSelect: false,
         options: [
           { value: 'manual_import', label: tVendors('filter.source.manual') },
           { value: 'file_upload', label: tVendors('filter.source.upload') },
@@ -93,7 +92,6 @@ export function VendorsTable({
       {
         key: 'locale',
         title: tTables('headers.locale'),
-        multiSelect: false,
         grid: true,
         options: [
           { value: 'en', label: tGlobal('languageCodes.en') },

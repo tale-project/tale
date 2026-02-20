@@ -64,7 +64,6 @@ export function AuditLogTable({
       {
         key: 'category',
         title: t('logs.audit.columns.category'),
-        multiSelect: false,
         options: [
           { value: 'auth', label: t('logs.audit.categories.auth') },
           { value: 'member', label: t('logs.audit.categories.member') },

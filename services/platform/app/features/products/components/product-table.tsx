@@ -65,7 +65,6 @@ export function ProductTable({
       {
         key: 'status',
         title: tTables('headers.status'),
-        multiSelect: false,
         options: [
           { value: 'active', label: tCommon('status.active') },
           { value: 'inactive', label: tCommon('status.inactive') },

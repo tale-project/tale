@@ -90,7 +90,8 @@
       "notes": "Notes",
       "created": "Created",
       "filters": "Filters",
-      "notAvailable": "N/A"
+      "notAvailable": "N/A",
+      "nSelected": "{{count}} selected"
     },
     "status": {
       "active": "Active",
