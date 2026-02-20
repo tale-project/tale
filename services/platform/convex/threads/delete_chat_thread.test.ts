@@ -31,8 +31,8 @@ describe('parseSubThreadIds', () => {
     const summary = JSON.stringify({
       chatType: 'general',
       subThreads: {
-        web_assistant: 'thread_1',
-        document_assistant: 'thread_2',
+        document_assistant: 'thread_1',
+        crm_assistant: 'thread_2',
       },
     });
     const result = parseSubThreadIds(summary);
@@ -110,8 +110,8 @@ describe('deleteChatThread', () => {
     const summary = JSON.stringify({
       chatType: 'general',
       subThreads: {
-        web_assistant: 'sub_1',
-        document_assistant: 'sub_2',
+        document_assistant: 'sub_1',
+        crm_assistant: 'sub_2',
       },
     });
     const { ctx, mockRunAfter, scheduledJobs } = createMockCtx(summary);

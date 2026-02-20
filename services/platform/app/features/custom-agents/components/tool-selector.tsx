@@ -38,7 +38,6 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   Data: ['database_schema'],
   Assistants: [
     'crm_assistant',
-    'web_assistant',
     'document_assistant',
     'workflow_assistant',
     'integration_assistant',
