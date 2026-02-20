@@ -69,10 +69,15 @@ describe('chunkContent', () => {
   });
 
   it('filters out chunks shorter than minimum length', () => {
-    const content = 'Short\n\nAnother really short piece';
-    const result = chunkContent(content, undefined, 5000, 100);
+    const longParagraph =
+      'This is a sufficiently long paragraph that has exactly enough words to be useful for testing.';
+    const shortParagraph = 'OK.';
+    const content = `${longParagraph}\n\n${shortParagraph}\n\n${longParagraph}`;
+    const result = chunkContent(content, undefined, 100, 1);
+
+    expect(result.length).toBeGreaterThanOrEqual(1);
     for (const chunk of result) {
-      expect(chunk.content.length).toBeGreaterThanOrEqual(1);
+      expect(chunk.content.length).toBeGreaterThanOrEqual(50);
     }
   });
 
