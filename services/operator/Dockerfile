@@ -69,13 +69,13 @@ COPY services/operator/app ./app
 
 # Copy entrypoint script
 COPY services/operator/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# Set ownership for app directory
-RUN chown -R pwuser:pwuser /app
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
+
+# Set permissions and ownership
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+    && chown -R pwuser:pwuser /app
 
 # Set environment variables
 ENV TALE_VERSION=${VERSION} \
