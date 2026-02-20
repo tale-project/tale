@@ -28,6 +28,7 @@ class BrowserPool:
         self._semaphore: asyncio.Semaphore | None = None
         self._initialized = False
         self._lock = asyncio.Lock()
+        self._disconnect_task: asyncio.Task[None] | None = None
 
     @property
     def initialized(self) -> bool:
@@ -51,13 +52,19 @@ class BrowserPool:
                     "--disable-gpu",
                 ],
             )
-            self._browser.on("disconnected", lambda: asyncio.create_task(self._on_browser_disconnected()))
+            self._browser.on(
+                "disconnected",
+                lambda: self._schedule_disconnect_handler(),
+            )
             self._semaphore = asyncio.Semaphore(settings.max_concurrent_requests)
             self._initialized = True
             logger.info(
                 f"BrowserPool initialized: max_concurrent={settings.max_concurrent_requests}, "
                 f"headless={settings.headless}"
             )
+
+    def _schedule_disconnect_handler(self) -> None:
+        self._disconnect_task = asyncio.create_task(self._on_browser_disconnected())
 
     async def _on_browser_disconnected(self) -> None:
         logger.error("Browser disconnected unexpectedly, marking pool as uninitialized for relaunch")
@@ -99,6 +106,14 @@ class BrowserPool:
 
     async def shutdown(self) -> None:
         """Shut down the browser and Playwright."""
+        if self._disconnect_task and not self._disconnect_task.done():
+            self._disconnect_task.cancel()
+            try:
+                await self._disconnect_task
+            except asyncio.CancelledError:
+                pass
+        self._disconnect_task = None
+
         if self._browser:
             try:
                 await self._browser.close()
