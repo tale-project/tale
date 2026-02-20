@@ -165,6 +165,10 @@
     @apply border-border;
   }
 
+  :where(.dark, .dark *) {
+    --tw-shadow-color: rgb(255 255 255 / 0.06);
+  }
+
   body {
     font-family: var(--font-inter), Arial, Helvetica, sans-serif;
     @apply bg-background text-foreground;

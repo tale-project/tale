@@ -144,7 +144,7 @@ function LogInPage() {
               disabled={isSubmitting}
               autoComplete="email"
               errorMessage={errors.email?.message}
-              className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              className="shadow-xs"
               {...form.register('email')}
             />
 
@@ -157,7 +157,7 @@ function LogInPage() {
               disabled={isSubmitting}
               autoComplete="current-password"
               errorMessage={errors.password?.message}
-              className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              className="shadow-xs"
               {...form.register('password')}
             />
 
