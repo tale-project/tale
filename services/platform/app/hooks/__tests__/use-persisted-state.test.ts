@@ -14,7 +14,7 @@ describe('usePersistedState', () => {
     expect(result.current[0]).toBe('hello');
   });
 
-  it('hydrates from localStorage after mount', async () => {
+  it('hydrates from localStorage after mount', () => {
     localStorage.setItem('test-key', JSON.stringify('stored-value'));
 
     const { result } = renderHook(() =>
