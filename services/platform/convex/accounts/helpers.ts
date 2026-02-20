@@ -4,12 +4,11 @@
  * Accounts use Better Auth for storage.
  */
 
-import type { QueryCtx, MutationCtx } from '../_generated/server';
-import type { OAuthAccount, UpdateTokensArgs } from './types';
-
 import { components } from '../_generated/api';
+import type { QueryCtx, MutationCtx } from '../_generated/server';
 import { authComponent } from '../auth';
 import { createDebugLog } from '../lib/debug_log';
+import type { OAuthAccount, UpdateTokensArgs } from './types';
 
 const debugLog = createDebugLog('DEBUG_ACCOUNTS', '[Accounts]');
 
@@ -49,7 +48,6 @@ export async function getMicrosoftAccount(
 ): Promise<OAuthAccount | null> {
   const authUser = await authComponent.safeGetAuthUser(ctx);
   if (!authUser) {
-    console.warn('getMicrosoftAccount: No authenticated user');
     return null;
   }
 
