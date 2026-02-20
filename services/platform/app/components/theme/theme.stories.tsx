@@ -288,11 +288,14 @@ export const Shadows: StoryObj = {
       </h3>
       <div className="flex flex-wrap gap-6">
         {[
+          { name: 'shadow-2xs', class: 'shadow-2xs' },
+          { name: 'shadow-xs', class: 'shadow-xs' },
           { name: 'shadow-sm', class: 'shadow-sm' },
           { name: 'shadow', class: 'shadow' },
           { name: 'shadow-md', class: 'shadow-md' },
           { name: 'shadow-lg', class: 'shadow-lg' },
           { name: 'shadow-xl', class: 'shadow-xl' },
+          { name: 'shadow-2xl', class: 'shadow-2xl' },
         ].map((shadow) => (
           <div key={shadow.name} className="text-center">
             <div className={`bg-card size-20 rounded-lg ${shadow.class}`} />

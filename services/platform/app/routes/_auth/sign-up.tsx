@@ -126,7 +126,7 @@ function SignUpPage() {
               disabled={isSubmitting}
               autoComplete="email"
               errorMessage={errors.email?.message}
-              className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              className="border-border shadow-xs"
               {...form.register('email')}
             />
 
@@ -140,7 +140,7 @@ function SignUpPage() {
                 disabled={isSubmitting}
                 autoComplete="new-password"
                 errorMessage={errors.password?.message}
-                className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                className="shadow-xs"
                 {...form.register('password')}
               />
               {password && (

@@ -228,7 +228,7 @@ export function CirculyIntegrationDialog({
             placeholder={t('integrations.circuly.usernamePlaceholder')}
             disabled={isSubmitting}
             errorMessage={form.formState.errors.username?.message}
-            className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+            className="border-gray-300 shadow-xs"
             {...form.register('username')}
           />
 
@@ -239,7 +239,7 @@ export function CirculyIntegrationDialog({
             placeholder={t('integrations.circuly.passwordPlaceholder')}
             disabled={isSubmitting}
             errorMessage={form.formState.errors.password?.message}
-            className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+            className="border-gray-300 shadow-xs"
             {...form.register('password')}
           />
         </Stack>
