@@ -20,6 +20,11 @@ import { components } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
 import { fetchOperationsSummary } from '../../agent_tools/integrations/fetch_operations_summary';
+import {
+  createPartnerDelegationTool,
+  buildPartnerInstructionsSection,
+} from '../../agent_tools/partner_agents/create_partner_tool';
+import { loadPartnerAgents } from '../../agent_tools/partner_agents/load_partner_agents';
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
 import { generateAgentResponse } from '../agent_response';
@@ -52,6 +57,9 @@ const serializableAgentConfigValidator = v.object({
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
   enableVectorSearch: v.optional(v.boolean()),
   contextFeatures: v.optional(v.array(v.string())),
+  partnerAgentIds: v.optional(v.array(v.string())),
+  timeoutMs: v.optional(v.number()),
+  outputReserve: v.optional(v.number()),
 });
 
 const hooksConfigValidator = v.object({
@@ -145,17 +153,51 @@ export const runAgentGeneration = internalAction({
       });
     }
 
+    // Build partner agent delegation tools dynamically
+    let partnerExtraTools: Record<string, unknown> | undefined;
+    let partnerInstructionsAppend = '';
+    if (agentConfig.partnerAgentIds?.length) {
+      const partners = await loadPartnerAgents(
+        ctx,
+        agentConfig.partnerAgentIds,
+        organizationId,
+      );
+
+      if (partners.length > 0) {
+        partnerExtraTools = {};
+        for (const partner of partners) {
+          const partnerTool = createPartnerDelegationTool(partner);
+          partnerExtraTools[partnerTool.name] = partnerTool.tool;
+        }
+        partnerInstructionsAppend = buildPartnerInstructionsSection(partners);
+        debugLog('Built partner delegation tools', {
+          names: Object.keys(partnerExtraTools),
+        });
+      }
+    }
+
+    // Merge all extra tools
+    const allExtraTools: Record<string, unknown> | undefined =
+      integrationExtraTools || partnerExtraTools
+        ? { ...integrationExtraTools, ...partnerExtraTools }
+        : undefined;
+
+    // Combine instructions with partner agent descriptions
+    const finalInstructions = partnerInstructionsAppend
+      ? agentConfig.instructions + partnerInstructionsAppend
+      : agentConfig.instructions;
+
     // Create agent factory function from serializable config
     const createAgent = (options?: Record<string, unknown>) => {
       const config = createAgentConfig({
         name: agentConfig.name,
-        instructions: agentConfig.instructions,
+        instructions: finalInstructions,
         convexToolNames: agentConfig.convexToolNames
           ? agentConfig.convexToolNames.filter((n): n is ToolName =>
               (TOOL_NAMES as readonly string[]).includes(n),
             )
           : undefined,
-        extraTools: integrationExtraTools,
+        extraTools: allExtraTools,
         useFastModel: agentConfig.useFastModel,
         model: agentConfig.model,
         maxSteps:
@@ -176,7 +218,7 @@ export const runAgentGeneration = internalAction({
     // Build tools summary for context window display
     const toolsSummary = buildToolsSummary(
       agentConfig.convexToolNames,
-      integrationExtraTools,
+      allExtraTools,
     );
 
     try {
@@ -190,7 +232,7 @@ export const runAgentGeneration = internalAction({
           enableStreaming,
           hooks,
           convexToolNames: agentConfig.convexToolNames,
-          instructions: agentConfig.instructions,
+          instructions: finalInstructions,
           toolsSummary,
         },
         {

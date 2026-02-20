@@ -10,13 +10,13 @@
  */
 
 import type { ActionCtx } from '../../../_generated/server';
-import type { SubAgentType } from './types';
+import type { SubAgentKey } from './types';
 
 import { internal } from '../../../_generated/api';
 
 interface GetOrCreateSubThreadArgs {
   parentThreadId: string;
-  subAgentType: SubAgentType;
+  subAgentType: SubAgentKey;
   userId?: string;
 }
 
@@ -33,8 +33,8 @@ interface GetOrCreateSubThreadResult {
  * {
  *   "chatType": "general",
  *   "subThreads": {
- *     "document_assistant": "thread_id_123",
- *     "crm_assistant": "thread_id_456"
+ *     "<partner_root_version_id>": "thread_id_123",
+ *     "<another_partner_id>": "thread_id_456"
  *   }
  * }
  * ```

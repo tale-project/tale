@@ -33,6 +33,12 @@ export interface SerializableAgentConfig {
   enableVectorSearch?: boolean;
   /** Context features to load in beforeContext hook (e.g., ['integrations']). Undefined = load all (backward compat). */
   contextFeatures?: string[];
+  /** Root version IDs of partner agents for delegation */
+  partnerAgentIds?: string[];
+  /** Per-agent timeout in milliseconds */
+  timeoutMs?: number;
+  /** Per-agent output token reserve */
+  outputReserve?: number;
 }
 
 /**

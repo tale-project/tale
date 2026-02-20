@@ -37,6 +37,15 @@ export const customAgentsTable = defineTable({
   sharedWithTeamIds: v.optional(v.array(v.string())),
   createdBy: v.string(),
 
+  partnerAgentIds: v.optional(v.array(v.id('customAgents'))),
+  maxSteps: v.optional(v.number()),
+  timeoutMs: v.optional(v.number()),
+  outputReserve: v.optional(v.number()),
+  roleRestriction: v.optional(v.string()),
+
+  isSystemDefault: v.optional(v.boolean()),
+  systemAgentSlug: v.optional(v.string()),
+
   isActive: v.boolean(),
 
   versionNumber: v.number(),
@@ -52,4 +61,5 @@ export const customAgentsTable = defineTable({
   .index('by_root_status', ['rootVersionId', 'status'])
   .index('by_root', ['rootVersionId'])
   .index('by_team', ['teamId'])
-  .index('by_creator', ['createdBy']);
+  .index('by_creator', ['createdBy'])
+  .index('by_org_system_slug', ['organizationId', 'systemAgentSlug']);

@@ -39,6 +39,11 @@ const agentFieldsValidator = {
   filePreprocessingEnabled: v.optional(v.boolean()),
   teamId: v.optional(v.string()),
   sharedWithTeamIds: v.optional(v.array(v.string())),
+  partnerAgentIds: v.optional(v.array(v.id('customAgents'))),
+  maxSteps: v.optional(v.number()),
+  timeoutMs: v.optional(v.number()),
+  outputReserve: v.optional(v.number()),
+  roleRestriction: v.optional(v.string()),
 };
 
 function validateToolNames(toolNames: string[]) {
@@ -130,6 +135,13 @@ function copyVersionFields(source: Doc<'customAgents'>) {
     teamId: source.teamId,
     sharedWithTeamIds: source.sharedWithTeamIds,
     createdBy: source.createdBy,
+    partnerAgentIds: source.partnerAgentIds,
+    maxSteps: source.maxSteps,
+    timeoutMs: source.timeoutMs,
+    outputReserve: source.outputReserve,
+    roleRestriction: source.roleRestriction,
+    isSystemDefault: source.isSystemDefault,
+    systemAgentSlug: source.systemAgentSlug,
   };
 }
 
@@ -192,6 +204,11 @@ export const updateCustomAgent = mutation({
     filePreprocessingEnabled: v.optional(v.boolean()),
     teamId: v.optional(v.string()),
     sharedWithTeamIds: v.optional(v.array(v.string())),
+    partnerAgentIds: v.optional(v.array(v.id('customAgents'))),
+    maxSteps: v.optional(v.number()),
+    timeoutMs: v.optional(v.number()),
+    outputReserve: v.optional(v.number()),
+    roleRestriction: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -271,6 +288,10 @@ export const deleteCustomAgent = mutation({
     if (!authUser) throw new Error('Unauthenticated');
 
     const draft = await getDraftByRoot(ctx, args.customAgentId);
+
+    if (draft.isSystemDefault) {
+      throw new Error('System default agents cannot be deleted');
+    }
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
     if (!hasTeamAccess(draft, userTeamIds)) {

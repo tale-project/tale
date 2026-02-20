@@ -14,9 +14,7 @@ import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
 
 import {
-  useChatWithAgent,
-  useChatWithBuiltinAgent,
-  useChatWithCustomAgent,
+  useUnifiedChatWithAgent,
   useCreateThread,
   useUpdateThread,
 } from './mutations';
@@ -51,9 +49,7 @@ export function useSendMessage({
 
   const { mutateAsync: createThread } = useCreateThread();
   const { mutateAsync: updateThread } = useUpdateThread();
-  const { mutateAsync: chatWithAgent } = useChatWithAgent();
-  const { mutateAsync: chatWithBuiltinAgent } = useChatWithBuiltinAgent();
-  const { mutateAsync: chatWithCustomAgent } = useChatWithCustomAgent();
+  const { mutateAsync: chatWithAgent } = useUnifiedChatWithAgent();
 
   const sendMessage = useCallback(
     async (message: string, attachments?: FileAttachment[]) => {
@@ -122,31 +118,16 @@ export function useSendMessage({
           await updateThread({ threadId: currentThreadId, title });
         }
 
-        // Send message with optimistic update
-        if (selectedAgent?.type === 'custom') {
-          await chatWithCustomAgent({
-            customAgentId: toId<'customAgents'>(selectedAgent._id),
-            threadId: currentThreadId,
-            organizationId,
-            message: sanitizedContent,
-            attachments: mutationAttachments,
-          });
-        } else if (selectedAgent?.type === 'builtin') {
-          await chatWithBuiltinAgent({
-            builtinAgentType: selectedAgent._id,
-            threadId: currentThreadId,
-            organizationId,
-            message: sanitizedContent,
-            attachments: mutationAttachments,
-          });
-        } else {
-          await chatWithAgent({
-            threadId: currentThreadId,
-            organizationId,
-            message: sanitizedContent,
-            attachments: mutationAttachments,
-          });
-        }
+        // Send message via unified agent chat mutation
+        await chatWithAgent({
+          agentId: selectedAgent
+            ? toId<'customAgents'>(selectedAgent._id)
+            : undefined,
+          threadId: currentThreadId,
+          organizationId,
+          message: sanitizedContent,
+          attachments: mutationAttachments,
+        });
       } catch (error) {
         console.error('Failed to send message:', error);
         clearChatState();
@@ -167,8 +148,6 @@ export function useSendMessage({
       createThread,
       updateThread,
       chatWithAgent,
-      chatWithBuiltinAgent,
-      chatWithCustomAgent,
       selectedAgent,
       navigate,
       t,

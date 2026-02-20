@@ -78,7 +78,7 @@ export const productReadTool: ToolDefinition = {
 
 SCOPE LIMITATION:
 This tool ONLY accesses the internal product catalog.
-DO NOT use this tool for products from external e-commerce systems - check [INTEGRATIONS] context and use integration_assistant instead.
+DO NOT use this tool for products from external e-commerce systems - check [INTEGRATIONS] context and delegate to the integration partner agent instead.
 
 OPERATIONS:
 • 'list': Browse/search the catalog. Returns ONLY: _id, name, description, status, stock (fixed fields).

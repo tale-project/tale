@@ -4,59 +4,9 @@ import { v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
-import {
-  agentResponseReturnsValidator,
-  generateAgentResponse,
-} from '../../lib/agent_response';
-import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { createDebugLog } from '../../lib/debug_log';
-import { createChatAgent, CHAT_AGENT_INSTRUCTIONS } from './agent';
 
 const debugLog = createDebugLog('DEBUG_ROUTING_AGENT', '[RoutingAgent]');
-
-export const generateResponse = internalAction({
-  args: {
-    threadId: v.string(),
-    userId: v.optional(v.string()),
-    organizationId: v.string(),
-    promptMessage: v.string(),
-    additionalContext: v.optional(v.record(v.string(), v.string())),
-    parentThreadId: v.optional(v.string()),
-    streamId: v.optional(v.string()),
-    promptMessageId: v.optional(v.string()),
-    maxSteps: v.optional(v.number()),
-    userTeamIds: v.optional(v.array(v.string())),
-  },
-  returns: agentResponseReturnsValidator,
-  handler: async (ctx, args) => {
-    const { model, provider } = getDefaultAgentRuntimeConfig();
-
-    return generateAgentResponse(
-      {
-        agentType: 'chat',
-        createAgent: createChatAgent,
-        model,
-        provider,
-        debugTag: '[ChatAgent]',
-        enableStreaming: !!args.streamId,
-        instructions: CHAT_AGENT_INSTRUCTIONS,
-      },
-      {
-        ctx,
-        threadId: args.threadId,
-        userId: args.userId,
-        organizationId: args.organizationId,
-        promptMessage: args.promptMessage,
-        additionalContext: args.additionalContext,
-        parentThreadId: args.parentThreadId,
-        streamId: args.streamId,
-        promptMessageId: args.promptMessageId,
-        maxSteps: args.maxSteps,
-        userTeamIds: args.userTeamIds,
-      },
-    );
-  },
-});
 
 export const beforeContextHook = internalAction({
   args: {

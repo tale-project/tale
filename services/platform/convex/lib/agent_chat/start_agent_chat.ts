@@ -187,8 +187,12 @@ export async function startAgentChat(
       : undefined;
 
   // Compute absolute deadline for this generation chain
+  // Per-agent timeoutMs takes precedence over the AgentType-based default
   const deadlineMs =
-    Date.now() + (AGENT_CONTEXT_CONFIGS[agentType]?.timeoutMs ?? 420_000);
+    Date.now() +
+    (agentConfig.timeoutMs ??
+      AGENT_CONTEXT_CONFIGS[agentType]?.timeoutMs ??
+      420_000);
 
   // Schedule the generic agent action with full configuration
   debugLog('SCHEDULE_ACTION', {

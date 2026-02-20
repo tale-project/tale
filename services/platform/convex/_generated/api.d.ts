@@ -178,6 +178,8 @@ import type * as custom_agents_chat from "../custom_agents/chat.js";
 import type * as custom_agents_config from "../custom_agents/config.js";
 import type * as custom_agents_mutations from "../custom_agents/mutations.js";
 import type * as custom_agents_queries from "../custom_agents/queries.js";
+import type * as custom_agents_seed_system_defaults from "../custom_agents/seed_system_defaults.js";
+import type * as custom_agents_system_defaults from "../custom_agents/system_defaults.js";
 import type * as custom_agents_test_chat from "../custom_agents/test_chat.js";
 import type * as custom_agents_webhooks_http_actions from "../custom_agents/webhooks/http_actions.js";
 import type * as custom_agents_webhooks_internal_mutations from "../custom_agents/webhooks/internal_mutations.js";
@@ -1060,6 +1062,8 @@ declare const fullApi: ApiFromModules<{
   "custom_agents/config": typeof custom_agents_config;
   "custom_agents/mutations": typeof custom_agents_mutations;
   "custom_agents/queries": typeof custom_agents_queries;
+  "custom_agents/seed_system_defaults": typeof custom_agents_seed_system_defaults;
+  "custom_agents/system_defaults": typeof custom_agents_system_defaults;
   "custom_agents/test_chat": typeof custom_agents_test_chat;
   "custom_agents/webhooks/http_actions": typeof custom_agents_webhooks_http_actions;
   "custom_agents/webhooks/internal_mutations": typeof custom_agents_webhooks_internal_mutations;

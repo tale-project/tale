@@ -13,20 +13,24 @@ interface AgentSelectorProps {
   organizationId: string;
 }
 
-const BUILTIN_AGENT_TYPES = [
-  'chat',
-  'web',
-  'crm',
-  'document',
-  'integration',
-  'workflow',
-] as const;
 const DEFAULT_AGENT_VALUE = '__default__';
+
+/** Stable ordering for system default agents by slug */
+const SYSTEM_SLUG_ORDER: Record<string, number> = {
+  chat: 0,
+  web: 1,
+  crm: 2,
+  document: 3,
+  integration: 4,
+  workflow: 5,
+};
 
 interface AgentOption {
   value: string;
   label: string;
   description: string;
+  isSystemDefault?: boolean;
+  isDefaultChat?: boolean;
 }
 
 function filterOptions(options: AgentOption[], query: string) {
@@ -42,33 +46,60 @@ function filterOptions(options: AgentOption[], query: string) {
 export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const { t } = useT('chat');
   const { selectedAgent, setSelectedAgent } = useChatLayout();
-  const { agents: customAgents } = useChatAgents(organizationId);
+  const { agents: allAgents } = useChatAgents(organizationId);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const builtinOptions = useMemo<AgentOption[]>(
-    () =>
-      BUILTIN_AGENT_TYPES.map((type) => ({
-        value: type === 'chat' ? DEFAULT_AGENT_VALUE : `builtin:${type}`,
-        label: t(`agentSelector.builtinAgents.${type}.name`),
-        description: t(`agentSelector.builtinAgents.${type}.description`),
-      })),
-    [t],
-  );
+  const { systemOptions, customOptions } = useMemo(() => {
+    if (!allAgents) return { systemOptions: [], customOptions: [] };
 
-  const customOptions = useMemo<AgentOption[]>(() => {
-    if (!customAgents) return [];
-    return customAgents.map((agent) => ({
-      value: `custom:${agent.rootVersionId ?? agent._id}`,
-      label: agent.displayName,
-      description: agent.description || '',
-    }));
-  }, [customAgents]);
+    const system: AgentOption[] = [];
+    const custom: AgentOption[] = [];
 
-  const filteredBuiltin = useMemo(
-    () => filterOptions(builtinOptions, search),
-    [builtinOptions, search],
+    for (const agent of allAgents) {
+      const rootId = agent.rootVersionId ?? agent._id;
+      const isSystem = Boolean(agent.isSystemDefault);
+      const isDefaultChat = isSystem && agent.systemAgentSlug === 'chat';
+
+      const option: AgentOption = {
+        value: isDefaultChat ? DEFAULT_AGENT_VALUE : rootId,
+        label: agent.displayName,
+        description: agent.description || '',
+        isSystemDefault: isSystem,
+        isDefaultChat,
+      };
+
+      if (isSystem) {
+        system.push(option);
+      } else {
+        custom.push(option);
+      }
+    }
+
+    // Sort system agents by stable slug order
+    system.sort((a, b) => {
+      const aAgent = allAgents.find(
+        (ag) =>
+          (ag.rootVersionId ?? ag._id) === a.value ||
+          (a.isDefaultChat && ag.systemAgentSlug === 'chat'),
+      );
+      const bAgent = allAgents.find(
+        (ag) =>
+          (ag.rootVersionId ?? ag._id) === b.value ||
+          (b.isDefaultChat && ag.systemAgentSlug === 'chat'),
+      );
+      const aOrder = SYSTEM_SLUG_ORDER[aAgent?.systemAgentSlug ?? ''] ?? 99;
+      const bOrder = SYSTEM_SLUG_ORDER[bAgent?.systemAgentSlug ?? ''] ?? 99;
+      return aOrder - bOrder;
+    });
+
+    return { systemOptions: system, customOptions: custom };
+  }, [allAgents]);
+
+  const filteredSystem = useMemo(
+    () => filterOptions(systemOptions, search),
+    [systemOptions, search],
   );
   const filteredCustom = useMemo(
     () => filterOptions(customOptions, search),
@@ -77,41 +108,32 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
 
   const currentValue = useMemo(() => {
     if (!selectedAgent) return DEFAULT_AGENT_VALUE;
-    if (selectedAgent.type === 'builtin') return `builtin:${selectedAgent._id}`;
-    return `custom:${selectedAgent._id}`;
+    return selectedAgent._id;
   }, [selectedAgent]);
 
   const currentLabel =
     selectedAgent?.displayName ?? t('agentSelector.defaultAgent');
 
-  const handleSelect = (value: string) => {
-    if (value === DEFAULT_AGENT_VALUE) {
-      setSelectedAgent(null);
-    } else if (value.startsWith('builtin:')) {
-      const agentType = value.replace('builtin:', '');
-      const option = builtinOptions.find((o) => o.value === value);
-      if (option) {
-        setSelectedAgent({
-          type: 'builtin',
-          _id: agentType,
-          displayName: option.label,
-        });
+  const handleSelect = useCallback(
+    (value: string) => {
+      if (value === DEFAULT_AGENT_VALUE) {
+        setSelectedAgent(null);
+      } else {
+        const agent = allAgents?.find(
+          (a) => (a.rootVersionId ?? a._id) === value,
+        );
+        if (agent) {
+          setSelectedAgent({
+            _id: agent.rootVersionId ?? agent._id,
+            displayName: agent.displayName,
+            isSystemDefault: agent.isSystemDefault,
+          });
+        }
       }
-    } else if (value.startsWith('custom:')) {
-      const agentId = value.replace('custom:', '');
-      const agent = customAgents?.find(
-        (a) => (a.rootVersionId ?? a._id) === agentId,
-      );
-      if (agent) {
-        setSelectedAgent({
-          type: 'custom',
-          _id: agent.rootVersionId ?? agent._id,
-          displayName: agent.displayName,
-        });
-      }
-    }
-    setOpen(false);
-  };
+      setOpen(false);
+    },
+    [allAgents, setSelectedAgent],
+  );
 
   const handleOpenChange = useCallback((nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -122,7 +144,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
 
   const hasCustomAgents = filteredCustom.length > 0;
   const hasNoResults =
-    filteredBuiltin.length === 0 && filteredCustom.length === 0;
+    filteredSystem.length === 0 && filteredCustom.length === 0;
 
   return (
     <Popover
@@ -165,7 +187,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
       </div>
 
       <div className="max-h-[20rem] overflow-y-auto p-1" role="listbox">
-        {filteredBuiltin.map((option) => (
+        {filteredSystem.map((option) => (
           <OptionButton
             key={option.value}
             option={option}
@@ -176,7 +198,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
 
         {hasCustomAgents && (
           <>
-            {filteredBuiltin.length > 0 && (
+            {filteredSystem.length > 0 && (
               <hr className="border-border mx-2 my-1 border-t" />
             )}
             <div className="text-muted-foreground px-2 py-1 text-[10px] font-medium tracking-wider uppercase">

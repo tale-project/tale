@@ -47,14 +47,18 @@ export function toSerializableConfig(
     : agent.systemInstructions;
 
   return {
-    name: `custom:${agent.name}`,
+    name: agent.isSystemDefault ? agent.name : `custom:${agent.name}`,
     instructions,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are validated via validateToolNames() on insert; always valid ToolName values
     convexToolNames: agent.toolNames as ToolName[],
     integrationBindings: agent.integrationBindings,
     useFastModel: agent.modelPreset === 'fast',
     model: resolveModelPreset(agent.modelPreset),
+    maxSteps: agent.maxSteps,
     enableVectorSearch: false,
+    partnerAgentIds: agent.partnerAgentIds?.map(String),
+    timeoutMs: agent.timeoutMs,
+    outputReserve: agent.outputReserve,
   };
 }
 

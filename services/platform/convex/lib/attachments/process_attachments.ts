@@ -250,7 +250,7 @@ export async function processAttachments(
   if (hasAnalyzedContent) {
     contentParts.push({
       type: 'text',
-      text: '\n\n[PRE-ANALYZED CONTENT BELOW - This is the attachment from the CURRENT message. It takes priority over any previous context. Answer directly from this content without calling document_assistant.]',
+      text: '\n\n[PRE-ANALYZED CONTENT BELOW - This is the attachment from the CURRENT message. It takes priority over any previous context. Answer directly from this content without delegating to document tools.]',
     });
 
     for (const doc of parsedDocuments) {

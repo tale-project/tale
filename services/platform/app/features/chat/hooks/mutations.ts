@@ -1,16 +1,8 @@
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
-export function useChatWithAgent() {
-  return useConvexMutation(api.agents.chat.mutations.chatWithAgent);
-}
-
-export function useChatWithBuiltinAgent() {
-  return useConvexMutation(api.agents.builtin_agents.chatWithBuiltinAgent);
-}
-
-export function useChatWithCustomAgent() {
-  return useConvexMutation(api.custom_agents.chat.chatWithCustomAgent);
+export function useUnifiedChatWithAgent() {
+  return useConvexMutation(api.custom_agents.unified_chat.chatWithAgent);
 }
 
 export function useSubmitHumanInputResponse() {

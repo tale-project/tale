@@ -36,12 +36,6 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   ],
   Integrations: ['integration', 'integration_batch', 'integration_introspect'],
   Data: ['database_schema'],
-  Assistants: [
-    'crm_assistant',
-    'document_assistant',
-    'workflow_assistant',
-    'integration_assistant',
-  ],
   Other: ['verify_approval', 'request_human_input'],
 };
 

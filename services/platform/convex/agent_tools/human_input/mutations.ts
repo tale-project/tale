@@ -1,18 +1,23 @@
 import { saveMessage } from '@convex-dev/agent';
+import { createFunctionHandle, makeFunctionReference } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { HumanInputRequestMetadata } from '../../../lib/shared/schemas/approvals';
 
 import { components, internal } from '../../_generated/api';
 import { mutation } from '../../_generated/server';
-import {
-  CHAT_AGENT_CONFIG,
-  getChatAgentRuntimeConfig,
-  createChatHookHandles,
-} from '../../agents/chat/config';
+import { toSerializableConfig } from '../../custom_agents/config';
+import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { getUserTeamIds } from '../../lib/get_user_teams';
 import { getOrganizationMember } from '../../lib/rls';
 import { persistentStreaming } from '../../streaming/helpers';
+
+const beforeContextHookRef = makeFunctionReference<'action'>(
+  'agents/chat/internal_actions:beforeContextHook',
+);
+const beforeGenerateHookRef = makeFunctionReference<'action'>(
+  'lib/agent_chat/internal_actions:beforeGenerateHook',
+);
 
 export const submitHumanInputResponse = mutation({
   args: {
@@ -108,20 +113,44 @@ export const submitHumanInputResponse = mutation({
       ? await getUserTeamIds(ctx, thread.userId)
       : [];
 
-    const runtimeConfig = getChatAgentRuntimeConfig();
-    const hooks = await createChatHookHandles(ctx);
+    // Load system default chat agent from DB
+    const systemChatQuery = ctx.db
+      .query('customAgents')
+      .withIndex('by_org_system_slug', (q) =>
+        q.eq('organizationId', organizationId).eq('systemAgentSlug', 'chat'),
+      );
+
+    let chatAgent = null;
+    for await (const agent of systemChatQuery) {
+      if (agent.isActive && agent.status === 'active') {
+        chatAgent = agent;
+        break;
+      }
+    }
+
+    if (!chatAgent) {
+      throw new Error('System default chat agent not found');
+    }
+
+    const agentConfig = toSerializableConfig(chatAgent);
+    const { model, provider } = getDefaultAgentRuntimeConfig();
+
+    const [beforeContext, beforeGenerate] = await Promise.all([
+      createFunctionHandle(beforeContextHookRef),
+      createFunctionHandle(beforeGenerateHookRef),
+    ]);
 
     await ctx.scheduler.runAfter(
       0,
       internal.lib.agent_chat.internal_actions.runAgentGeneration,
       {
-        agentType: 'chat',
-        agentConfig: CHAT_AGENT_CONFIG,
-        model: runtimeConfig.model,
-        provider: runtimeConfig.provider,
-        debugTag: runtimeConfig.debugTag,
-        enableStreaming: runtimeConfig.enableStreaming,
-        hooks,
+        agentType: 'custom',
+        agentConfig,
+        model: agentConfig.model ?? model,
+        provider,
+        debugTag: '[ChatAgent:HumanInput]',
+        enableStreaming: true,
+        hooks: { beforeContext, beforeGenerate },
         threadId,
         organizationId,
         promptMessage: responseMessage,

@@ -970,12 +970,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     }>;
   };
 
-  const subAgentToolNames = new Set([
-    'workflow_assistant',
-    'document_assistant',
-    'integration_assistant',
-    'crm_assistant',
-  ]);
+  const isPartnerTool = (name: string) => name.startsWith('partner_');
   const toolCalls: Array<{ toolName: string; status: string }> = [];
   const subAgentUsage: Array<{
     toolName: string;
@@ -1029,7 +1024,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
 
     // Extract sub-agent usage
     for (const toolResult of stepToolResults ?? []) {
-      if (subAgentToolNames.has(toolResult.toolName)) {
+      if (isPartnerTool(toolResult.toolName)) {
         type SubAgentResultData = {
           model?: string;
           provider?: string;

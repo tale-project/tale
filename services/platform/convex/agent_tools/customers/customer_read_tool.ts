@@ -79,7 +79,7 @@ export const customerReadTool: ToolDefinition = {
 
 SCOPE LIMITATION:
 This tool ONLY accesses the internal CRM customer database.
-DO NOT use this tool for data from external systems - check [INTEGRATIONS] context and use integration_assistant instead.
+DO NOT use this tool for data from external systems - check [INTEGRATIONS] context and delegate to the integration partner agent instead.
 Example: Hotel guests, e-commerce customers, external system records are NOT in this database.
 
 OPERATIONS:

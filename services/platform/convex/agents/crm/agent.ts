@@ -72,7 +72,7 @@ Heavy fields (avoid unless needed):
 
 **SCOPE LIMITATION**
 This tool ONLY accesses the INTERNAL CRM database.
-For data from external systems (Shopify, PMS, etc.), use integration_assistant instead.`;
+For data from external systems (Shopify, PMS, etc.), use the integration tools instead.`;
 
 export function createCrmAgent(options?: {
   maxSteps?: number;

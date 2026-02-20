@@ -52,13 +52,15 @@ export function useChatAgents(organizationId: string) {
   const { selectedTeamId } = useTeamFilter();
   const { data } = useConvexQuery(api.custom_agents.queries.listCustomAgents, {
     organizationId,
+    filterPublished: true,
   });
 
   const agents = useMemo(() => {
     if (!data) return undefined;
+    if (!selectedTeamId) return data;
     return data.filter((agent) => {
-      if (agent.status !== 'active') return false;
-      if (!selectedTeamId) return true;
+      // Org-wide agents (no teamId) are always visible, matching backend hasTeamAccess logic
+      if (!agent.teamId) return true;
       return (
         agent.teamId === selectedTeamId ||
         (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
