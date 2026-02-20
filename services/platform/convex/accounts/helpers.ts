@@ -22,7 +22,7 @@ const debugLog = createDebugLog('DEBUG_ACCOUNTS', '[Accounts]');
  * OAuth-only users (e.g. Microsoft SSO) won't have one.
  */
 export async function hasCredentialAccount(ctx: QueryCtx): Promise<boolean> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await authComponent.safeGetAuthUser(ctx);
   if (!authUser) return false;
 
   const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
@@ -47,7 +47,7 @@ export async function hasCredentialAccount(ctx: QueryCtx): Promise<boolean> {
 export async function getMicrosoftAccount(
   ctx: QueryCtx,
 ): Promise<OAuthAccount | null> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await authComponent.safeGetAuthUser(ctx);
   if (!authUser) {
     console.warn('getMicrosoftAccount: No authenticated user');
     return null;
@@ -186,7 +186,7 @@ export async function getMicrosoftAccountByUserId(
  * Check if current user has a Microsoft account connected.
  */
 export async function hasMicrosoftAccount(ctx: QueryCtx): Promise<boolean> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await authComponent.safeGetAuthUser(ctx);
   if (!authUser) return false;
 
   try {
