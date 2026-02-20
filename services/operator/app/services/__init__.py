@@ -2,12 +2,12 @@
 Services for the Operator service.
 """
 
+from app.services.browser_pool import BrowserPool, get_browser_pool
 from app.services.browser_service import BrowserService, get_browser_service
-from app.services.workspace_manager import WorkspaceManager, get_workspace_manager
 
 __all__ = [
+    "BrowserPool",
     "BrowserService",
-    "WorkspaceManager",
+    "get_browser_pool",
     "get_browser_service",
-    "get_workspace_manager",
 ]

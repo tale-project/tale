@@ -176,7 +176,7 @@ export function ShopifyIntegrationDialog({
         value={domain}
         onChange={(e) => setDomain(e.target.value)}
         disabled={isSubmitting}
-        className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+        className="border-gray-300 shadow-xs"
       />
 
       <Input
@@ -198,7 +198,7 @@ export function ShopifyIntegrationDialog({
         value={accessToken}
         onChange={(e) => setAccessToken(e.target.value)}
         disabled={isSubmitting}
-        className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+        className="border-gray-300 shadow-xs"
       />
     </FormDialog>
   );

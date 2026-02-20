@@ -41,6 +41,14 @@ import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instruct
 import { AgentTimeoutError, withTimeout } from './with_timeout';
 
 /**
+ * Convex platform hard-kills Node.js actions after 10 minutes.
+ * We cap our own timeout at 9 minutes to leave room for cleanup
+ * and to avoid the platform killing us mid-operation (which produces
+ * an Error with an empty message that is hard to diagnose).
+ */
+const PLATFORM_HARD_LIMIT_MS = 540_000;
+
+/**
  * Generate an agent response using the provided configuration.
  *
  * This is the core implementation shared by all agents.
@@ -183,10 +191,20 @@ export async function generateAgentResponse(
 
     // Compute effective timeout from deadline (if provided) or config default.
     // The deadline is an absolute timestamp propagated from startAgentChat.
-    const effectiveTimeoutMs = args.deadlineMs
+    // Cap by platform hard limit to avoid Convex killing the action mid-operation.
+    const platformDeadline = startTime + PLATFORM_HARD_LIMIT_MS;
+    const remainingPlatformMs = Math.max(platformDeadline - Date.now(), 0);
+    const rawTimeoutMs = args.deadlineMs
       ? Math.max(args.deadlineMs - Date.now(), 30_000)
       : agentConfig.timeoutMs;
-    const actionDeadline = args.deadlineMs ?? startTime + effectiveTimeoutMs;
+    const effectiveTimeoutMs = Math.min(rawTimeoutMs, remainingPlatformMs);
+    if (effectiveTimeoutMs <= 0) {
+      throw new AgentTimeoutError(0);
+    }
+    const actionDeadline = Math.min(
+      args.deadlineMs ?? Date.now() + effectiveTimeoutMs,
+      platformDeadline,
+    );
 
     // Create agent instance
     const agent = createAgent(agentOptions);
@@ -340,7 +358,11 @@ export async function generateAgentResponse(
             (m: MessageDoc) => m.message?.role === 'user',
           );
 
-          const retryAgent = createAgent({ ...agentOptions, withTools: false });
+          const retryAgent = createAgent({
+            ...agentOptions,
+            withTools: false,
+            useFastModel: true,
+          });
 
           const retrySystemPrompt = agentInstructions
             ? `${agentInstructions}\n\n${retryContext.threadContext}`
@@ -352,6 +374,14 @@ export async function generateAgentResponse(
             actionDeadline - Date.now(),
             10_000,
           );
+          const streamRetryStartTime = Date.now();
+          debugLog('Stream tool-result retry starting', {
+            timeoutMs: retryRemainingMs,
+            contextTokens: retryContext.stats.totalTokens,
+            useFastModel: true,
+            elapsedMs: streamRetryStartTime - startTime,
+          });
+
           const retryAbortController = new AbortController();
           const retryResult = await withTimeout(
             retryAgent.generateText(
@@ -387,9 +417,10 @@ export async function generateAgentResponse(
             response: result.response,
           };
 
-          debugLog('Stream retry completed', {
+          debugLog('Stream tool-result retry completed', {
             textLength: result.text?.length ?? 0,
             finishReason: result.finishReason,
+            retryDurationMs: Date.now() - streamRetryStartTime,
           });
         }
       } else {
@@ -464,8 +495,13 @@ export async function generateAgentResponse(
             messageCount: retryContext.stats.messageCount,
           });
 
-          // Create agent without tools for the retry
-          const retryAgent = createAgent({ ...agentOptions, withTools: false });
+          // Create agent without tools for the retry, using the fast model
+          // since this is just summarizing tool results
+          const retryAgent = createAgent({
+            ...agentOptions,
+            withTools: false,
+            useFastModel: true,
+          });
 
           const retrySystemPrompt = agentInstructions
             ? `${agentInstructions}\n\n${retryContext.threadContext}`
@@ -475,6 +511,14 @@ export async function generateAgentResponse(
             actionDeadline - Date.now(),
             10_000,
           );
+          const retryStartTime = Date.now();
+          debugLog('Tool-result retry starting', {
+            timeoutMs: nonStreamRetryRemainingMs,
+            contextTokens: retryContext.stats.totalTokens,
+            useFastModel: true,
+            elapsedMs: retryStartTime - startTime,
+          });
+
           const nonStreamRetryAbort = new AbortController();
           const retryResult = await withTimeout(
             retryAgent.generateText(
@@ -507,9 +551,10 @@ export async function generateAgentResponse(
             response: result.response,
           };
 
-          debugLog('Retry completed', {
+          debugLog('Tool-result retry completed', {
             textLength: result.text?.length ?? 0,
             finishReason: result.finishReason,
+            retryDurationMs: Date.now() - retryStartTime,
           });
         }
 
@@ -536,7 +581,11 @@ export async function generateAgentResponse(
             messageCount: retryContext.stats.messageCount,
           });
 
-          const retryAgent = createAgent({ ...agentOptions, withTools: false });
+          const retryAgent = createAgent({
+            ...agentOptions,
+            withTools: false,
+            useFastModel: true,
+          });
 
           const emptyRetrySystemPrompt = agentInstructions
             ? `${agentInstructions}\n\n${retryContext.threadContext}`
@@ -546,6 +595,14 @@ export async function generateAgentResponse(
             actionDeadline - Date.now(),
             10_000,
           );
+          const emptyRetryStartTime = Date.now();
+          debugLog('Empty text retry starting', {
+            timeoutMs: emptyRetryRemainingMs,
+            contextTokens: retryContext.stats.totalTokens,
+            useFastModel: true,
+            elapsedMs: emptyRetryStartTime - startTime,
+          });
+
           const emptyRetryAbort = new AbortController();
           const retryResult = await withTimeout(
             retryAgent.generateText(
@@ -581,6 +638,7 @@ export async function generateAgentResponse(
           debugLog('Empty text retry completed', {
             textLength: result.text?.length ?? 0,
             finishReason: result.finishReason,
+            retryDurationMs: Date.now() - emptyRetryStartTime,
           });
         }
       }
@@ -622,11 +680,32 @@ export async function generateAgentResponse(
         const recoveryAgent = createAgent({
           ...agentOptions,
           withTools: false,
+          useFastModel: true,
         });
 
         const recoverySystemPrompt = agentInstructions
           ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
           : recoveryContext.threadContext;
+
+        // Cap recovery timeout by platform hard limit
+        const recoveryPlatformRemainingMs = Math.max(
+          platformDeadline - Date.now(),
+          0,
+        );
+        if (recoveryPlatformRemainingMs < 10_000) {
+          throw new AgentTimeoutError(0);
+        }
+        const recoveryRemainingMs = Math.min(
+          RECOVERY_TIMEOUT_MS,
+          recoveryPlatformRemainingMs,
+        );
+        const recoveryStartTime = Date.now();
+        debugLog('Timeout recovery starting', {
+          timeoutMs: recoveryRemainingMs,
+          contextTokens: recoveryContext.stats.totalTokens,
+          useFastModel: true,
+          elapsedMs: recoveryStartTime - startTime,
+        });
 
         const recoveryAbortController = new AbortController();
 
@@ -650,7 +729,7 @@ export async function generateAgentResponse(
               storageOptions: { saveMessages: 'none' },
             },
           ),
-          RECOVERY_TIMEOUT_MS,
+          recoveryRemainingMs,
           recoveryAbortController,
         );
 
@@ -664,6 +743,7 @@ export async function generateAgentResponse(
 
         debugLog('Timeout recovery completed', {
           textLength: result.text?.length ?? 0,
+          retryDurationMs: Date.now() - recoveryStartTime,
           elapsedMs: Date.now() - startTime,
         });
       } catch (recoveryError) {
@@ -892,7 +972,6 @@ function extractToolCallsFromSteps(steps: unknown[]): {
 
   const subAgentToolNames = new Set([
     'workflow_assistant',
-    'web_assistant',
     'document_assistant',
     'integration_assistant',
     'crm_assistant',
