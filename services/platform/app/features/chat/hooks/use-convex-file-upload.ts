@@ -146,22 +146,19 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
     });
   }, []);
 
-  const clearAttachments = useCallback(() => {
-    let clearedAttachments: FileAttachment[] = [];
-    setAttachments((prev) => {
-      clearedAttachments = prev;
-      for (const att of prev) {
-        if (att.previewUrl) {
-          URL.revokeObjectURL(att.previewUrl);
-        }
-      }
-      return [];
-    });
-    return clearedAttachments;
-  }, []);
-
   const attachmentsRef = useRef(attachments);
   attachmentsRef.current = attachments;
+
+  const clearAttachments = useCallback(() => {
+    const clearedAttachments = attachmentsRef.current;
+    for (const att of clearedAttachments) {
+      if (att.previewUrl) {
+        URL.revokeObjectURL(att.previewUrl);
+      }
+    }
+    setAttachments([]);
+    return clearedAttachments;
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -175,6 +172,7 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
 
   return {
     attachments,
+    setAttachments,
     uploadingFiles,
     isUploading: uploadingFiles.length > 0,
     uploadFiles,

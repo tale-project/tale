@@ -190,6 +190,9 @@ export const CHAT_MAX_FILE_SIZE = 10 * 1024 * 1024;
 /** Document upload max (100 MB) */
 export const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;
 
+/** Max file IDs per batch URL query */
+export const MAX_BATCH_FILE_IDS = 10;
+
 // ---------------------------------------------------------------------------
 // Parse endpoint routing
 // ---------------------------------------------------------------------------

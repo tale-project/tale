@@ -16,7 +16,7 @@
 
 import type { ModelMessage } from 'ai';
 
-import { listMessages, type MessageDoc } from '@convex-dev/agent';
+import { listMessages, saveMessage, type MessageDoc } from '@convex-dev/agent';
 
 import type {
   GenerateResponseConfig,
@@ -938,6 +938,28 @@ export async function generateAgentResponse(
           streamError,
         );
       }
+    }
+
+    // Save a failed assistant message so the client exits the loading state.
+    // Without this, the UI stays stuck in "thinking" forever because no
+    // assistant message with a terminal status ever appears in the thread.
+    try {
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        message: {
+          role: 'assistant',
+          content: 'I was unable to complete your request. Please try again.',
+        },
+        metadata: {
+          status: 'failed',
+          error: getString(err, 'message') ?? 'Unknown error',
+        },
+      });
+    } catch (saveError) {
+      console.error(
+        '[generateAgentResponse] Failed to save failed message:',
+        saveError,
+      );
     }
 
     throw error;

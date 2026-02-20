@@ -7,6 +7,19 @@ import type { FileAttachment } from '../types';
 
 const HUMAN_INPUT_RESPONSE_PREFIX = 'User responded to question';
 
+const INTERNAL_ATTACHMENT_MARKER =
+  /\n?\n?\[ATTACHED FILES - Pre-analysis was not available\. Use your tools to process these files\.\]/;
+const INTERNAL_FILE_REF = /\n?📎 \*\*[^*]+\*\* \([^)]*fileId: [a-z0-9]+\)/g;
+const INTERNAL_FILEID_ITALIC = /\n?\*\(fileId: [a-z0-9]+\)\*/g;
+
+export function stripInternalFileReferences(text: string) {
+  return text
+    .replace(INTERNAL_ATTACHMENT_MARKER, '')
+    .replace(INTERNAL_FILE_REF, '')
+    .replace(INTERNAL_FILEID_ITALIC, '')
+    .trim();
+}
+
 interface FilePart {
   type: 'file';
   mediaType: string;
@@ -121,7 +134,7 @@ export function useMessageProcessing(
         return {
           id: m.id,
           key: m.key,
-          content: m.text,
+          content: m.text ? stripInternalFileReferences(m.text) : '',
           // UIMessage.role is string — cast required to narrow to expected union
           role: m.role,
           timestamp: new Date(m._creationTime),

@@ -2,7 +2,7 @@
 
 import type { FunctionHandle } from 'convex/server';
 
-import { Agent } from '@convex-dev/agent';
+import { Agent, saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
 import type {
@@ -211,8 +211,26 @@ export const runAgentGeneration = internalAction({
         },
       );
 
-      // Validate response
+      // Validate response — save a failed message so the client exits loading
       if (!result.text?.trim()) {
+        try {
+          await saveMessage(ctx, components.agent, {
+            threadId,
+            message: {
+              role: 'assistant',
+              content: 'I was unable to generate a response. Please try again.',
+            },
+            metadata: {
+              status: 'failed',
+              error: 'Agent returned empty response',
+            },
+          });
+        } catch (saveError) {
+          console.error(
+            '[runAgentGeneration] Failed to save failed message:',
+            saveError,
+          );
+        }
         throw new Error(
           `Agent returned empty response: ${JSON.stringify({
             model: result.model,

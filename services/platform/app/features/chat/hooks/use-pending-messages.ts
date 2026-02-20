@@ -1,5 +1,8 @@
 import { useMemo, useEffect, useRef } from 'react';
 
+import type { Id } from '@/convex/_generated/dataModel';
+
+import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
 
 import { useChatLayout } from '../context/chat-layout-context';
@@ -51,12 +54,23 @@ export function usePendingMessages({
         pendingMessage.threadId === 'pending');
 
     if (shouldShowPending) {
+      const attachments: FileAttachment[] | undefined =
+        pendingMessage.attachments?.map((a) => ({
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- PendingMessageAttachment.fileId is a string from Convex Id serialization
+          fileId: a.fileId as Id<'_storage'>,
+          fileName: a.fileName,
+          fileType: a.fileType,
+          fileSize: a.fileSize,
+        }));
+
       const optimisticMessage: ChatMessage = {
         id: `pending-${pendingMessage.timestamp.getTime()}`,
         key: `pending-${pendingMessage.timestamp.getTime()}`,
         content: pendingMessage.content,
         role: 'user',
         timestamp: pendingMessage.timestamp,
+        attachments:
+          attachments && attachments.length > 0 ? attachments : undefined,
       };
       return [optimisticMessage];
     }
