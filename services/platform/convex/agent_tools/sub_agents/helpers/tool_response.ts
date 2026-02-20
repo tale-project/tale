@@ -78,6 +78,11 @@ function extractErrorMessage(error: unknown, toolName: string): string {
     if (cause instanceof Error && cause.message) {
       return cause.message;
     }
+    // Empty Error from performAsyncSyscall typically means the sub-action
+    // was killed by the Convex platform (e.g., 10-minute action timeout)
+    if (error.stack?.includes('performAsyncSyscall')) {
+      return `Sub-agent action timed out or was terminated by the platform in ${toolName}`;
+    }
   }
 
   const str = String(error);

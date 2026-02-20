@@ -65,21 +65,25 @@ Use for searching the web or interacting with websites:
 export function createWebAgent(options?: {
   maxSteps?: number;
   withTools?: boolean;
+  useFastModel?: boolean;
 }) {
   const maxSteps = options?.maxSteps ?? 5;
   const withTools = options?.withTools ?? true;
+  const useFastModel = options?.useFastModel ?? false;
 
   const convexToolNames: ToolName[] = ['web'];
 
-  debugLog('createWebAgent Loaded tools', {
-    convexCount: convexToolNames.length,
+  debugLog('createWebAgent', {
+    toolCount: withTools ? convexToolNames.length : 0,
     maxSteps,
+    useFastModel,
   });
 
   const agentConfig = createAgentConfig({
     name: 'web-assistant',
     instructions: WEB_AGENT_INSTRUCTIONS,
     ...(withTools ? { convexToolNames } : {}),
+    ...(useFastModel ? { useFastModel: true } : {}),
     maxSteps,
   });
 

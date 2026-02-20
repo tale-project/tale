@@ -96,7 +96,6 @@ export function ChatInterface({
   const { setPendingWithCount } = useChatPendingState({
     isPending,
     setIsPending,
-    streamingMessage,
     uiMessages,
   });
 
@@ -242,6 +241,7 @@ export function ChatInterface({
             pendingToolResponse={pendingToolResponse}
             hasActiveTools={hasActiveTools}
             isProcessingToolResult={isProcessingToolResult}
+            hasIncompleteAssistantMessage={hasIncompleteAssistantMessage}
             aiResponseAreaRef={aiResponseAreaRef}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             onSendFollowUp={handleSendFollowUp}

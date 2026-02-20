@@ -35,6 +35,10 @@ export interface ErrorBoundaryBaseProps {
   resetKeys?: unknown[];
   /** Organization ID for context */
   organizationId?: string;
+  /** Max auto-retries for transient errors before showing fallback (default: 0) */
+  maxRetries?: number;
+  /** Predicate to determine if an error is transient and should be retried */
+  isRetryableError?: (error: Error) => boolean;
 }
 
 /**
@@ -45,6 +49,10 @@ export interface ErrorBoundaryState {
   hasError: boolean;
   /** The caught error, if any */
   error: Error | null;
+  /** Number of auto-retries attempted */
+  retryCount: number;
+  /** Whether an auto-retry is scheduled */
+  isRetrying: boolean;
 }
 
 /**

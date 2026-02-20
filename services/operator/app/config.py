@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="info", validation_alias="OPERATOR_LOG_LEVEL")
 
     # Browser configuration (OPERATOR_ prefix)
-    headless: bool = Field(default=True, validation_alias="OPERATOR_HEADLESS")
+    headless: bool = Field(default=False, validation_alias="OPERATOR_HEADLESS")
 
     # Workspace configuration for concurrent requests
     max_concurrent_requests: int = Field(
@@ -33,30 +33,14 @@ class Settings(BaseSettings):
         description="Maximum timeout for a single request in seconds (default 180s = 3min, "
         "leaves buffer before client's 4-min abort)",
     )
-    cleanup_interval_seconds: int = Field(
-        default=60,
-        ge=10,
-        validation_alias="OPERATOR_CLEANUP_INTERVAL",
-        description="Interval between cleanup cycles",
-    )
-    workspace_base_dir: str = Field(
-        default="/tmp/operator-sessions",
-        validation_alias="OPERATOR_WORKSPACE_BASE_DIR",
-        description="Base directory for isolated workspaces",
-    )
-    workspace_max_size_mb: int = Field(
-        default=500,
-        ge=100,
-        validation_alias="OPERATOR_WORKSPACE_MAX_SIZE_MB",
-        description="Maximum total workspace disk usage in MB",
-    )
-
-    # LLM configuration (from OPENAI_* env vars - used by OpenCode)
+    # LLM configuration
     openai_base_url: str = ""
     openai_api_key: str = ""
     openai_model: str = ""
     openai_vision_model: str = ""
     openai_fast_model: str = ""
+    openai_vision_base_url: str = ""
+    openai_vision_api_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

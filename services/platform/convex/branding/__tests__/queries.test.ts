@@ -4,6 +4,7 @@ import type { QueryCtx } from '../../_generated/server';
 
 vi.mock('../../lib/rls', () => ({
   validateOrganizationAccess: vi.fn(),
+  getAuthUserIdentity: vi.fn(),
 }));
 
 const { getBrandingHandler } = await import('../queries');
@@ -47,7 +48,12 @@ describe('getBrandingHandler', () => {
       organizationId: 'org_1',
     });
 
-    expect(mockedValidate).toHaveBeenCalledWith(ctx, 'org_1');
+    expect(mockedValidate).toHaveBeenCalledWith(
+      ctx,
+      'org_1',
+      undefined,
+      undefined,
+    );
   });
 
   it('returns null when no branding exists', async () => {

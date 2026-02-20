@@ -12,10 +12,10 @@ router = APIRouter(prefix="/api/v1", tags=["browser"])
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
     """
-    Send a message to OpenCode with Playwright MCP for browser automation.
+    Execute a browser automation task.
 
-    OpenCode will use Playwright MCP tools to browse the web, search for
-    information, interact with websites, and complete tasks autonomously.
+    The agent uses Playwright to browse the web, search for information,
+    interact with websites, and complete tasks autonomously.
     """
     try:
         service = get_browser_service()

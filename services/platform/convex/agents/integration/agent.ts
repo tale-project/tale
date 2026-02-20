@@ -117,9 +117,11 @@ Be concise. Format data clearly. Never expose credentials.`;
 export function createIntegrationAgent(options?: {
   maxSteps?: number;
   withTools?: boolean;
+  useFastModel?: boolean;
 }) {
   const maxSteps = options?.maxSteps ?? 20;
   const withTools = options?.withTools ?? true;
+  const useFastModel = options?.useFastModel ?? false;
 
   const convexToolNames: ToolName[] = [
     'integration',
@@ -128,15 +130,17 @@ export function createIntegrationAgent(options?: {
     'verify_approval',
   ];
 
-  debugLog('createIntegrationAgent Loaded tools', {
-    convexCount: convexToolNames.length,
+  debugLog('createIntegrationAgent', {
+    toolCount: withTools ? convexToolNames.length : 0,
     maxSteps,
+    useFastModel,
   });
 
   const agentConfig = createAgentConfig({
     name: 'integration-assistant',
     instructions: INTEGRATION_AGENT_INSTRUCTIONS,
     ...(withTools ? { convexToolNames } : {}),
+    ...(useFastModel ? { useFastModel: true } : {}),
     maxSteps,
   });
 

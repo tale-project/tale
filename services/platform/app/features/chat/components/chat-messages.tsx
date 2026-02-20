@@ -28,6 +28,7 @@ interface ChatMessagesProps {
   pendingToolResponse: UIMessage | undefined;
   hasActiveTools: boolean;
   isProcessingToolResult: boolean;
+  hasIncompleteAssistantMessage: boolean;
   aiResponseAreaRef: RefObject<HTMLDivElement | null>;
   onHumanInputResponseSubmitted?: () => void;
   onSendFollowUp?: (message: string) => void;
@@ -48,6 +49,7 @@ export function ChatMessages({
   pendingToolResponse,
   hasActiveTools,
   isProcessingToolResult,
+  hasIncompleteAssistantMessage,
   aiResponseAreaRef,
   onHumanInputResponseSubmitted,
   onSendFollowUp,
@@ -175,7 +177,7 @@ export function ChatMessages({
 
       {/* Thinking animation area */}
       <div ref={aiResponseAreaRef}>
-        {((isPending && !streamingMessage) ||
+        {(((isPending || hasIncompleteAssistantMessage) && !streamingMessage) ||
           (streamingMessage?.status === 'streaming' &&
             !streamingMessage.text) ||
           hasActiveTools ||

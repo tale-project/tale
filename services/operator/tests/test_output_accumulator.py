@@ -5,15 +5,14 @@ import json
 import pytest
 
 from app.services.browser_service import (
+    _ASSET_URL_PATTERN,
     MAX_NAVIGATION_COUNT,
     MAX_SINGLE_CONTENT_CHARS,
     MAX_TOTAL_CONTENT_CHARS,
-    _ASSET_URL_PATTERN,
     _OutputAccumulator,
     _PageContent,
     _prepare_content_for_summarization,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

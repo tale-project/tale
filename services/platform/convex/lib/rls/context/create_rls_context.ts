@@ -3,7 +3,7 @@
  */
 
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
-import type { RLSContext } from '../types';
+import type { AuthenticatedUser, RLSContext } from '../types';
 
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 import { getOrganizationMember } from '../organization/get_organization_member';
@@ -15,14 +15,15 @@ import { getOrganizationMember } from '../organization/get_organization_member';
 export async function createRLSContext(
   ctx: QueryCtx | MutationCtx,
   organizationId: string,
+  user?: AuthenticatedUser,
 ): Promise<RLSContext> {
-  const user = await requireAuthenticatedUser(ctx);
-  const member = await getOrganizationMember(ctx, organizationId, user);
+  const authUser = user ?? (await requireAuthenticatedUser(ctx));
+  const member = await getOrganizationMember(ctx, organizationId, authUser);
 
   const role = member.role || 'member';
 
   return {
-    user,
+    user: authUser,
     member,
     organizationId,
     role,

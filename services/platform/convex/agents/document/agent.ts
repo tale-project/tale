@@ -123,9 +123,11 @@ When analyzing images:
 export function createDocumentAgent(options?: {
   maxSteps?: number;
   withTools?: boolean;
+  useFastModel?: boolean;
 }) {
   const maxSteps = options?.maxSteps ?? 15;
   const withTools = options?.withTools ?? true;
+  const useFastModel = options?.useFastModel ?? false;
 
   const convexToolNames: ToolName[] = [
     'pdf',
@@ -136,15 +138,17 @@ export function createDocumentAgent(options?: {
     'excel',
   ];
 
-  debugLog('createDocumentAgent Loaded tools', {
-    convexCount: convexToolNames.length,
+  debugLog('createDocumentAgent', {
+    toolCount: withTools ? convexToolNames.length : 0,
     maxSteps,
+    useFastModel,
   });
 
   const agentConfig = createAgentConfig({
     name: 'document-assistant',
     instructions: DOCUMENT_AGENT_INSTRUCTIONS,
     ...(withTools ? { convexToolNames } : {}),
+    ...(useFastModel ? { useFastModel: true } : {}),
     maxSteps,
   });
 

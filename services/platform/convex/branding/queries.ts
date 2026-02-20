@@ -1,15 +1,17 @@
 import { v } from 'convex/values';
 
 import type { QueryCtx } from '../_generated/server';
+import type { AuthenticatedUser } from '../lib/rls/types';
 
 import { query } from '../_generated/server';
-import { validateOrganizationAccess } from '../lib/rls';
+import { getAuthUserIdentity, validateOrganizationAccess } from '../lib/rls';
 
 export async function getBrandingHandler(
   ctx: QueryCtx,
   args: { organizationId: string },
+  user?: AuthenticatedUser,
 ) {
-  await validateOrganizationAccess(ctx, args.organizationId);
+  await validateOrganizationAccess(ctx, args.organizationId, undefined, user);
 
   const branding = await ctx.db
     .query('brandingSettings')
@@ -57,5 +59,9 @@ export const getBranding = query({
     }),
     v.null(),
   ),
-  handler: async (ctx, args) => getBrandingHandler(ctx, args),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+    return getBrandingHandler(ctx, args, authUser);
+  },
 });

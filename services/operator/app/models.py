@@ -14,9 +14,9 @@ class HealthResponse(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """Chat request - send a message to OpenCode with Playwright MCP."""
+    """Chat request for browser automation tasks."""
 
-    message: str = Field(..., description="The message/task for OpenCode")
+    message: str = Field(..., description="The message/task for the browser agent")
     timeout_seconds: int | None = Field(
         None,
         ge=30,
@@ -35,7 +35,7 @@ class TokenUsage(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Chat response from OpenCode."""
+    """Chat response from the browser agent."""
 
     success: bool
     message: str

@@ -6,16 +6,16 @@ import httpx
 import pytest
 
 from app.services.browser_service import (
-    _PageContent,
     _call_llm,
+    _PageContent,
     _summarize_chunk,
     _summarize_page_content,
 )
 
-
 # ---------------------------------------------------------------------------
 # _call_llm
 # ---------------------------------------------------------------------------
+
 
 class TestCallLlm:
     @pytest.mark.asyncio
@@ -81,6 +81,7 @@ class TestCallLlm:
 # _summarize_chunk
 # ---------------------------------------------------------------------------
 
+
 class TestSummarizeChunk:
     @pytest.mark.asyncio
     async def test_includes_query_and_content_in_prompt(self):
@@ -107,6 +108,7 @@ class TestSummarizeChunk:
 # _summarize_page_content
 # ---------------------------------------------------------------------------
 
+
 class TestSummarizePageContent:
     @pytest.mark.asyncio
     async def test_small_content_uses_single_call(self):
@@ -128,10 +130,7 @@ class TestSummarizePageContent:
     @pytest.mark.asyncio
     async def test_large_content_uses_map_reduce(self):
         """Content over threshold triggers map-reduce with parallel calls."""
-        contents = [
-            _PageContent(url=f"https://example.com/{i}", content="X" * 15_000)
-            for i in range(5)
-        ]
+        contents = [_PageContent(url=f"https://example.com/{i}", content="X" * 15_000) for i in range(5)]
         seen = {f"https://example.com/{i}": None for i in range(5)}
 
         call_count = 0
@@ -139,8 +138,9 @@ class TestSummarizePageContent:
         async def mock_llm(prompt, *, timeout):
             nonlocal call_count
             call_count += 1
-            if "Chunk" in prompt:
-                return f"Chunk summary {call_count}"
+            # Map prompts contain "Page Content" from _CHUNK_SUMMARY_PROMPT
+            if "Page Content" in prompt:
+                return f"Map result {call_count}"
             return "Final synthesized summary."
 
         with patch("app.services.browser_service._call_llm", side_effect=mock_llm):
@@ -153,10 +153,7 @@ class TestSummarizePageContent:
     @pytest.mark.asyncio
     async def test_map_partial_failure_still_produces_result(self):
         """When some map chunks fail, reduce uses successful ones."""
-        contents = [
-            _PageContent(url=f"https://example.com/{i}", content="Y" * 15_000)
-            for i in range(4)
-        ]
+        contents = [_PageContent(url=f"https://example.com/{i}", content="Y" * 15_000) for i in range(4)]
         seen = {f"https://example.com/{i}": None for i in range(4)}
 
         call_index = 0
@@ -164,7 +161,7 @@ class TestSummarizePageContent:
         async def mock_llm(prompt, *, timeout):
             nonlocal call_index
             call_index += 1
-            if "Chunk" in prompt:
+            if "Page Content" in prompt:
                 # Fail every other chunk
                 return f"Summary {call_index}" if call_index % 2 == 0 else None
             return "Reduced from partial."
@@ -177,10 +174,7 @@ class TestSummarizePageContent:
     @pytest.mark.asyncio
     async def test_all_map_calls_fail_returns_none(self):
         """When all map chunks fail, returns None."""
-        contents = [
-            _PageContent(url=f"https://example.com/{i}", content="Z" * 15_000)
-            for i in range(3)
-        ]
+        contents = [_PageContent(url=f"https://example.com/{i}", content="Z" * 15_000) for i in range(3)]
         seen = {f"https://example.com/{i}": None for i in range(3)}
 
         async def mock_llm(prompt, *, timeout):
@@ -194,15 +188,12 @@ class TestSummarizePageContent:
     @pytest.mark.asyncio
     async def test_reduce_failure_returns_none(self):
         """When reduce call fails, returns None."""
-        contents = [
-            _PageContent(url=f"https://example.com/{i}", content="W" * 15_000)
-            for i in range(3)
-        ]
+        contents = [_PageContent(url=f"https://example.com/{i}", content="W" * 15_000) for i in range(3)]
         seen = {f"https://example.com/{i}": None for i in range(3)}
 
         async def mock_llm(prompt, *, timeout):
-            if "Chunk" in prompt:
-                return "Chunk summary"
+            if "Page Content" in prompt:
+                return "Map summary"
             return None  # Reduce fails
 
         with patch("app.services.browser_service._call_llm", side_effect=mock_llm):
