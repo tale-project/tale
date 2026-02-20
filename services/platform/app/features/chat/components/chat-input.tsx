@@ -4,11 +4,12 @@ import { X, Paperclip } from 'lucide-react';
 import { LoaderCircleIcon } from 'lucide-react';
 import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
 
+import type { Id } from '@/convex/_generated/dataModel';
+
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ACCEPT,
@@ -17,6 +18,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
+
 import { AgentSelector } from './agent-selector';
 import { ImagePreviewDialog } from './message-bubble';
 

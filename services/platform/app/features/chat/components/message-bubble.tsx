@@ -14,12 +14,13 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import type { Message } from './message-bubble/types';
+
 import { useMessageMetadata } from '../hooks/queries';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
 } from './message-bubble/file-displays';
-import type { Message } from './message-bubble/types';
 import { MessageInfoDialog } from './message-info-dialog';
 import { StructuredMessage } from './structured-message/structured-message';
 

@@ -2,8 +2,9 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
-import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
+
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,

@@ -17,6 +17,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
 import type { MessageMetadata, SubAgentUsage } from '../hooks/queries';
+
 import { SubAgentDetailsDialog } from './sub-agent-details-dialog';
 
 function formatAgentName(toolName: string): string {

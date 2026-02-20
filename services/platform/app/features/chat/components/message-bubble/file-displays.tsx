@@ -9,8 +9,9 @@ import {
   getFileExtensionLower,
 } from '@/lib/utils/text-file-types';
 
-import { useFileUrl } from '../../hooks/queries';
 import type { FileAttachment, FilePart } from './types';
+
+import { useFileUrl } from '../../hooks/queries';
 
 export function getFileTypeLabel(
   fileName: string,
