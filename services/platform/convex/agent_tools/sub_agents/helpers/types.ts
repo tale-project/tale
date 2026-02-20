@@ -4,7 +4,6 @@
 
 /** Available sub-agent types */
 export type SubAgentType =
-  | 'web_assistant'
   | 'document_assistant'
   | 'integration_assistant'
   | 'workflow_assistant'

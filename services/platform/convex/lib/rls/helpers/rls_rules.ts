@@ -517,6 +517,18 @@ export async function rlsRules(
       },
     },
 
+    // Website Pages - organization-scoped, same access as websites
+    websitePages: {
+      read: async (_, page) => {
+        if (!user) return false;
+        if (!userOrgIds.has(page.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === page.organizationId,
+        );
+        return authorizeRls(membership?.role, 'websites', 'read');
+      },
+    },
+
     // Audit Logs - organization-scoped, allow inserts for org members
     auditLogs: {
       read: async (_, log) => {

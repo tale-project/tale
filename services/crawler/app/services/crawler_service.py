@@ -231,32 +231,31 @@ class CrawlerService:
         if not self.initialized:
             await self.initialize()
 
-        from crawl4ai import SeedingConfig
+        from crawl4ai import AsyncUrlSeeder, SeedingConfig
 
-        # Try with sitemap+cc first, then fallback to sitemap-only if Common Crawl fails.
-        # We also rate-limit discovery to avoid hammering sites and triggering 429s.
-        sources_to_try = ["sitemap+cc", "sitemap"]
+        # Try sitemap first (fastest, most reliable), then fall back to Common Crawl
+        # (covers sites without sitemaps). Re-initialize seeder between retries to
+        # avoid stale httpx client state from crawl4ai's async generator cleanup bug.
+        sources_to_try = ["sitemap", "cc"]
 
         for source in sources_to_try:
             try:
-                # Configure URL discovery
                 config = SeedingConfig(
                     source=source,
-                    extract_head=True,  # Get metadata for filtering
+                    extract_head=True,
                     max_urls=max_urls if max_urls > 0 else -1,
-                    filter_nonsense_urls=True,  # Skip robots.txt, .js, .css, etc.
+                    filter_nonsense_urls=True,
                     pattern=pattern,
                     query=query,
                     scoring_method="bm25" if query else None,
                     score_threshold=0.3 if query else None,
-                    concurrency=3,  # Be polite to target sites
-                    hits_per_sec=1,  # Explicit rate limit to reduce 429s
+                    concurrency=3,
+                    hits_per_sec=1,
                     verbose=True,
                 )
 
                 logger.info(f"Discovering URLs from {domain} using source: {source} with timeout: {timeout}s...")
 
-                # Add timeout to prevent hanging
                 urls = await asyncio.wait_for(
                     self._seeder.urls(domain, config),
                     timeout=timeout,
@@ -264,36 +263,36 @@ class CrawlerService:
 
                 logger.info(f"Seeder returned {len(urls)} URLs for {domain} from source {source}")
 
-                # Keep all URLs returned by the seeder; let the crawler handle transient failures.
-                filtered_urls = urls
+                if urls:
+                    logger.info(
+                        "Discovered %s URLs from %s (source: %s)",
+                        len(urls),
+                        domain,
+                        source,
+                    )
+                    _cleanup_memory()
+                    return urls
 
-                logger.info(
-                    "Discovered %s URLs from %s (no additional filtering applied)",
-                    len(filtered_urls),
-                    domain,
-                )
-
-                # Cleanup memory after discovery
-                _cleanup_memory()
-
-                return filtered_urls
+                logger.info(f"Source '{source}' returned 0 URLs for {domain}, trying next source...")
 
             except TimeoutError:
                 logger.warning(f"Timeout discovering URLs with source '{source}', trying next source...")
-                _cleanup_memory()
-                if source == sources_to_try[-1]:
-                    raise Exception(f"All discovery sources timed out for {domain}") from None
-                continue
 
             except Exception as e:
                 logger.warning(f"Error discovering URLs with source '{source}': {e}")
-                _cleanup_memory()
-                if source == sources_to_try[-1]:
-                    raise Exception(f"Failed to discover URLs from {domain}: {e!s}") from e
-                continue
 
-        _cleanup_memory()
-        return []
+            # Re-initialize seeder before next retry to get a fresh httpx client
+            _cleanup_memory()
+            if source != sources_to_try[-1]:
+                try:
+                    if self._seeder:
+                        await self._seeder.__aexit__(None, None, None)
+                except Exception:
+                    pass
+                self._seeder = AsyncUrlSeeder()
+                await self._seeder.__aenter__()
+
+        raise Exception(f"Failed to discover URLs from {domain}: all sources exhausted")
 
     async def crawl_urls(
         self,
@@ -314,6 +313,8 @@ class CrawlerService:
             await self.initialize()
 
         from crawl4ai import CrawlerRunConfig
+        from crawl4ai.content_filter_strategy import PruningContentFilter
+        from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 
         config = CrawlerRunConfig(
             only_text=False,  # We need HTML to extract structured data
@@ -324,6 +325,15 @@ class CrawlerService:
             # Disable screenshot capture to save memory
             screenshot=False,
             pdf=False,
+            # Exclude structural/navigational HTML elements to reduce noise in markdown
+            excluded_tags=["nav", "footer", "header", "aside", "select", "option"],
+            exclude_external_links=True,
+            exclude_social_media_links=True,
+            # Use PruningContentFilter for fit_markdown: density-based main content extraction
+            markdown_generator=DefaultMarkdownGenerator(
+                content_filter=PruningContentFilter(threshold=0.4),
+                options={"ignore_links": True},
+            ),
         )
 
         logger.info(f"Crawling {len(urls)} URLs...")
@@ -332,8 +342,8 @@ class CrawlerService:
         try:
             async for result in await self._crawler.arun_many(urls, config=config):
                 if result.success:
-                    # Use the new 'markdown' attribute instead of deprecated 'markdown_v2'
-                    markdown_content = result.markdown.raw_markdown
+                    # Prefer fit_markdown (density-filtered main content) over raw_markdown
+                    markdown_content = result.markdown.fit_markdown or result.markdown.raw_markdown
 
                     # Extract structured data (price, images, etc.) from HTML
                     structured_data = self._extract_structured_data_from_html(result.html)
