@@ -102,6 +102,8 @@ export const deleteByPageId = internalMutation({
         }
         break;
       }
+      default:
+        throw new Error(`Unsupported embedding dimension: ${dimension}`);
     }
     return count;
   },
