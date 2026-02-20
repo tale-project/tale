@@ -119,7 +119,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
       hideClose
       className="bg-muted flex flex-col border-0 p-0 ring-0 sm:p-0"
       customHeader={
-        <div className="absolute left-4 right-4 top-4 z-10 flex items-center justify-between">
+        <div className="absolute top-4 right-4 left-4 z-10 flex items-center justify-between">
           <span className="text-foreground/80 max-w-[60%] truncate text-sm">
             {alt}
           </span>
@@ -181,7 +181,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
             transformOrigin: 'center center',
             transition: isDragging ? 'none' : 'transform 0.15s ease-out',
           }}
-          className="max-h-full max-w-full select-none object-contain"
+          className="max-h-full max-w-full object-contain select-none"
           draggable={false}
         />
       </div>

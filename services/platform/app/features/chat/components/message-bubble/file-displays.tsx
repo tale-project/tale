@@ -109,7 +109,7 @@ export function FileTypeIcon({
     >
       <div className="flex flex-col items-center">
         <span className="text-xs leading-none">{icon}</span>
-        <span className="text-foreground/80 mt-0.5 text-[8px] font-medium leading-none">
+        <span className="text-foreground/80 mt-0.5 text-[8px] leading-none font-medium">
           {label}
         </span>
       </div>

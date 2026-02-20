@@ -78,7 +78,7 @@ const MarkdownImage = memo(function MarkdownImage({
       <button
         type="button"
         onClick={handleOpen}
-        className="focus:ring-ring font-inherit inline-block cursor-pointer appearance-none rounded-lg border-none bg-transparent p-0 transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
+        className="focus:ring-ring font-inherit inline-block cursor-pointer appearance-none rounded-lg border-none bg-transparent p-0 transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
       >
         <Image
           src={imageSrc}

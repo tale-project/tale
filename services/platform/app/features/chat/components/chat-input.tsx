@@ -165,7 +165,7 @@ export function ChatInput({
                           alt: attachment.fileName,
                         })
                       }
-                      className="bg-secondary/20 focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                      className="bg-secondary/20 focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
                     >
                       {attachment.previewUrl ? (
                         <img
@@ -185,7 +185,7 @@ export function ChatInput({
                       type="button"
                       aria-label={tChat('removeAttachment')}
                       onClick={() => removeAttachment(attachment.fileId)}
-                      className="bg-background absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                     >
                       <X className="text-muted-foreground size-3" />
                     </button>
@@ -212,7 +212,7 @@ export function ChatInput({
                       type="button"
                       aria-label={tChat('removeAttachment')}
                       onClick={() => removeAttachment(attachment.fileId)}
-                      className="bg-background absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                     >
                       <X className="text-muted-foreground size-3" />
                     </button>
@@ -242,7 +242,7 @@ export function ChatInput({
                 placeholder=""
               />
               {value.length === 0 && (
-                <div className="text-muted-foreground pointer-events-none absolute left-0 top-0 flex items-center gap-1 text-sm">
+                <div className="text-muted-foreground pointer-events-none absolute top-0 left-0 flex items-center gap-1 text-sm">
                   {defaultPlaceholder}
                   <div className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
                     <EnterKeyIcon />

@@ -275,7 +275,7 @@ export function ChatInterface({
 
       <div className="sticky bottom-0 z-50">
         {/* Scroll to bottom button */}
-        <div className="max-w-(--chat-max-width) relative mx-auto w-full">
+        <div className="relative mx-auto w-full max-w-(--chat-max-width)">
           <AnimatePresence>
             {showScrollButton && (
               <motion.div
@@ -289,7 +289,7 @@ export function ChatInterface({
                   onClick={scrollToBottom}
                   size="icon"
                   variant="secondary"
-                  className="rounded-full bg-opacity-60 shadow-lg backdrop-blur-sm"
+                  className="bg-opacity-60 rounded-full shadow-lg backdrop-blur-sm"
                   aria-label={t('aria.scrollToBottom')}
                 >
                   <ArrowDown className="h-4 w-4" />
@@ -300,7 +300,7 @@ export function ChatInterface({
         </div>
         <FileUpload.Root>
           <ChatInput
-            className="max-w-(--chat-max-width) mx-auto w-full"
+            className="mx-auto w-full max-w-(--chat-max-width)"
             value={inputValue}
             onChange={setInputValue}
             onSendMessage={handleSendMessage}
