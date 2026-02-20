@@ -457,6 +457,7 @@ async def _execute_tool(
             index = args.get("index", 0)
             locator = _resolve_locator(page, role, name, index)
             await locator.select_option(value)
+            await page.wait_for_load_state("domcontentloaded", timeout=_PAGE_TIMEOUT_MS)
             return f"Selected '{value}' in {role} '{name}'"
 
         elif tool_name == "fill_form":
