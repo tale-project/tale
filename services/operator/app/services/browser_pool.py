@@ -79,8 +79,8 @@ class BrowserPool:
         if not self._initialized:
             await self.initialize()
 
-        assert self._semaphore is not None
-        assert self._browser is not None
+        if self._semaphore is None or self._browser is None:
+            raise RuntimeError("BrowserPool not properly initialized")
 
         await self._semaphore.acquire()
         try:
@@ -96,7 +96,8 @@ class BrowserPool:
 
     async def release(self, context: BrowserContext) -> None:
         """Release (close) a browser context after request completion."""
-        assert self._semaphore is not None
+        if self._semaphore is None:
+            raise RuntimeError("BrowserPool not properly initialized")
         try:
             await context.close()
         except Exception as e:
