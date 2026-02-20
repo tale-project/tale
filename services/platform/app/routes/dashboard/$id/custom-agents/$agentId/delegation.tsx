@@ -39,6 +39,7 @@ function DelegationTab() {
     if (!agents) return [];
     return agents
       .filter((a) => {
+        if (a.status !== 'active') return false;
         const rootId = a.rootVersionId ?? a._id;
         return rootId !== currentRootId;
       })

@@ -86,10 +86,15 @@ function InstructionsTab() {
     [agentId, updateAgent],
   );
 
-  const { status } = useAutoSave({
+  const { status, save } = useAutoSave({
     data: formValues,
     onSave: handleSave,
     enabled: !isReadOnly,
+    mode: 'manual',
+  });
+
+  const systemInstructionsField = form.register('systemInstructions', {
+    required: true,
   });
 
   return (
@@ -108,7 +113,11 @@ function InstructionsTab() {
               id="systemInstructions"
               label={t('customAgents.form.systemInstructions')}
               placeholder={t('customAgents.form.systemInstructionsPlaceholder')}
-              {...form.register('systemInstructions', { required: true })}
+              {...systemInstructionsField}
+              onBlur={(e) => {
+                void systemInstructionsField.onBlur(e);
+                void save(form.getValues());
+              }}
               required
               rows={8}
               className="font-mono text-sm"
@@ -127,10 +136,11 @@ function InstructionsTab() {
               options={modelOptions}
               label={t('customAgents.form.modelPreset')}
               value={formValues.modelPreset}
-              onValueChange={(val) =>
+              onValueChange={(val) => {
                 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select value is constrained to MODEL_PRESET_OPTIONS
-                form.setValue('modelPreset', val as ModelPreset)
-              }
+                form.setValue('modelPreset', val as ModelPreset);
+                void save(form.getValues());
+              }}
               required
               disabled={isReadOnly}
             />
@@ -145,9 +155,10 @@ function InstructionsTab() {
         >
           <Switch
             checked={formValues.filePreprocessingEnabled}
-            onCheckedChange={(checked) =>
-              form.setValue('filePreprocessingEnabled', checked)
-            }
+            onCheckedChange={(checked) => {
+              form.setValue('filePreprocessingEnabled', checked);
+              void save(form.getValues());
+            }}
             label={t('customAgents.form.filePreprocessingEnabled')}
             description={t('customAgents.form.filePreprocessingEnabledHelp')}
             disabled={isReadOnly}
