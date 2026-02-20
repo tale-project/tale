@@ -738,7 +738,7 @@ async def run_agent_loop(
                 parsed_calls.append((tc, fn["name"], args))
 
             navigate_calls = [(tc, args) for tc, name, args in parsed_calls if name == "navigate"]
-            should_batch = len(navigate_calls) > 1 and context is not None
+            should_batch = len(navigate_calls) > 1
 
             if should_batch:
                 urls = [args["url"] for _, args in navigate_calls]
