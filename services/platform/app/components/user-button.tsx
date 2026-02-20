@@ -25,7 +25,7 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -53,7 +53,10 @@ export function UserButton({
   const params = useParams({ strict: false });
   const organizationId = params.id;
   const { theme, setTheme } = useTheme();
-  const { teams, selectedTeamId, setSelectedTeamId } = useTeamFilter();
+  const teamFilter = useOptionalTeamFilter();
+  const teams = teamFilter?.teams;
+  const selectedTeamId = teamFilter?.selectedTeamId ?? null;
+  const setSelectedTeamId = teamFilter?.setSelectedTeamId;
 
   const { data: memberContext } = useCurrentMemberContext(
     organizationId,
@@ -148,7 +151,7 @@ export function UserButton({
               {
                 type: 'radio-group',
                 value: selectedTeamId ?? '',
-                onValueChange: (val) => setSelectedTeamId(val || null),
+                onValueChange: (val) => setSelectedTeamId?.(val || null),
                 options: [
                   { value: '', label: tNav('teamFilter.allTeams') },
                   ...teams.map((team) => ({
