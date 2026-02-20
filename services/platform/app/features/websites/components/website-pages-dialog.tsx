@@ -3,6 +3,7 @@
 import type { Components } from 'react-markdown';
 
 import { FileText } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -22,6 +23,8 @@ import { useListWebsitePagesPaginated } from '../hooks/queries';
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- markdownComponents are structurally compatible with react-markdown Components; index signature mismatch is a React type version conflict
 const mdComponents = markdownComponents as unknown as Components;
 
+const COLLAPSED_MAX_HEIGHT = 256;
+
 interface WebsitePagesDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -36,6 +39,49 @@ function PageSkeleton() {
       <Skeleton className="h-3 w-full" />
       <Skeleton className="h-3 w-4/5" />
       <Skeleton className="h-3 w-2/3" />
+    </div>
+  );
+}
+
+function CollapsibleMarkdown({ content }: { content: string }) {
+  const { t } = useT('websites');
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const measureRef = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      contentRef.current = node;
+      setIsOverflowing(node.scrollHeight > COLLAPSED_MAX_HEIGHT);
+    }
+  }, []);
+
+  return (
+    <div>
+      <div
+        ref={measureRef}
+        className={cn(
+          'text-foreground prose-sm max-w-none text-sm',
+          markdownWrapperStyles,
+          !isExpanded && 'overflow-hidden',
+        )}
+        style={
+          !isExpanded && isOverflowing
+            ? { maxHeight: COLLAPSED_MAX_HEIGHT }
+            : undefined
+        }
+      >
+        <ReactMarkdown components={mdComponents}>{content}</ReactMarkdown>
+      </div>
+      {isOverflowing && (
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground mt-2 cursor-pointer text-xs font-medium transition-colors"
+          onClick={() => setIsExpanded((prev) => !prev)}
+        >
+          {isExpanded ? t('pagesDialog.showLess') : t('pagesDialog.showMore')}
+        </button>
+      )}
     </div>
   );
 }
@@ -94,16 +140,7 @@ export function WebsitePagesDialog({
               <p className="text-muted-foreground mb-3 text-xs">{page.url}</p>
             )}
             {page.content ? (
-              <div
-                className={cn(
-                  'text-foreground prose-sm max-w-none text-sm',
-                  markdownWrapperStyles,
-                )}
-              >
-                <ReactMarkdown components={mdComponents}>
-                  {page.content}
-                </ReactMarkdown>
-              </div>
+              <CollapsibleMarkdown content={page.content} />
             ) : (
               <p className="text-muted-foreground text-xs italic">
                 {t('pagesDialog.noContent')}

@@ -2733,7 +2733,9 @@
       "title": "Website pages",
       "noPages": "No pages crawled yet",
       "loadMore": "Load more",
-      "noContent": "No content"
+      "noContent": "No content",
+      "showMore": "Show more",
+      "showLess": "Show less"
     },
     "filter": {
       "status": {
