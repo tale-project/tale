@@ -18,13 +18,13 @@ import {
 } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
+import {
+  createDelegationTool,
+  buildDelegationInstructionsSection,
+} from '../../agent_tools/delegation/create_delegation_tool';
+import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
 import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
 import { fetchOperationsSummary } from '../../agent_tools/integrations/fetch_operations_summary';
-import {
-  createPartnerDelegationTool,
-  buildPartnerInstructionsSection,
-} from '../../agent_tools/partner_agents/create_partner_tool';
-import { loadPartnerAgents } from '../../agent_tools/partner_agents/load_partner_agents';
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
 import { generateAgentResponse } from '../agent_response';
@@ -57,7 +57,7 @@ const serializableAgentConfigValidator = v.object({
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
   enableVectorSearch: v.optional(v.boolean()),
   contextFeatures: v.optional(v.array(v.string())),
-  partnerAgentIds: v.optional(v.array(v.string())),
+  delegateAgentIds: v.optional(v.array(v.string())),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
 });
@@ -153,38 +153,39 @@ export const runAgentGeneration = internalAction({
       });
     }
 
-    // Build partner agent delegation tools dynamically
-    let partnerExtraTools: Record<string, unknown> | undefined;
-    let partnerInstructionsAppend = '';
-    if (agentConfig.partnerAgentIds?.length) {
-      const partners = await loadPartnerAgents(
+    // Build delegation tools dynamically
+    let delegationExtraTools: Record<string, unknown> | undefined;
+    let delegationInstructionsAppend = '';
+    if (agentConfig.delegateAgentIds?.length) {
+      const delegates = await loadDelegateAgents(
         ctx,
-        agentConfig.partnerAgentIds,
+        agentConfig.delegateAgentIds,
         organizationId,
       );
 
-      if (partners.length > 0) {
-        partnerExtraTools = {};
-        for (const partner of partners) {
-          const partnerTool = createPartnerDelegationTool(partner);
-          partnerExtraTools[partnerTool.name] = partnerTool.tool;
+      if (delegates.length > 0) {
+        delegationExtraTools = {};
+        for (const delegate of delegates) {
+          const delegationTool = createDelegationTool(delegate);
+          delegationExtraTools[delegationTool.name] = delegationTool.tool;
         }
-        partnerInstructionsAppend = buildPartnerInstructionsSection(partners);
-        debugLog('Built partner delegation tools', {
-          names: Object.keys(partnerExtraTools),
+        delegationInstructionsAppend =
+          buildDelegationInstructionsSection(delegates);
+        debugLog('Built delegation tools', {
+          names: Object.keys(delegationExtraTools),
         });
       }
     }
 
     // Merge all extra tools
     const allExtraTools: Record<string, unknown> | undefined =
-      integrationExtraTools || partnerExtraTools
-        ? { ...integrationExtraTools, ...partnerExtraTools }
+      integrationExtraTools || delegationExtraTools
+        ? { ...integrationExtraTools, ...delegationExtraTools }
         : undefined;
 
-    // Combine instructions with partner agent descriptions
-    const finalInstructions = partnerInstructionsAppend
-      ? agentConfig.instructions + partnerInstructionsAppend
+    // Combine instructions with delegation agent descriptions
+    const finalInstructions = delegationInstructionsAppend
+      ? agentConfig.instructions + delegationInstructionsAppend
       : agentConfig.instructions;
 
     // Create agent factory function from serializable config

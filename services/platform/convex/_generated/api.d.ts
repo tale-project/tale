@@ -22,6 +22,8 @@ import type * as agent_tools_customers_helpers_types from "../agent_tools/custom
 import type * as agent_tools_database_database_schema_tool from "../agent_tools/database/database_schema_tool.js";
 import type * as agent_tools_database_helpers_schema_definitions from "../agent_tools/database/helpers/schema_definitions.js";
 import type * as agent_tools_database_helpers_types from "../agent_tools/database/helpers/types.js";
+import type * as agent_tools_delegation_create_delegation_tool from "../agent_tools/delegation/create_delegation_tool.js";
+import type * as agent_tools_delegation_load_delegation_agents from "../agent_tools/delegation/load_delegation_agents.js";
 import type * as agent_tools_files_docx_tool from "../agent_tools/files/docx_tool.js";
 import type * as agent_tools_files_excel_tool from "../agent_tools/files/excel_tool.js";
 import type * as agent_tools_files_helpers_analyze_image from "../agent_tools/files/helpers/analyze_image.js";
@@ -47,8 +49,6 @@ import type * as agent_tools_integrations_internal_mutations from "../agent_tool
 import type * as agent_tools_integrations_types from "../agent_tools/integrations/types.js";
 import type * as agent_tools_integrations_verify_approval_tool from "../agent_tools/integrations/verify_approval_tool.js";
 import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/load_convex_tools_as_object.js";
-import type * as agent_tools_partner_agents_create_partner_tool from "../agent_tools/partner_agents/create_partner_tool.js";
-import type * as agent_tools_partner_agents_load_partner_agents from "../agent_tools/partner_agents/load_partner_agents.js";
 import type * as agent_tools_products_helpers_count_products from "../agent_tools/products/helpers/count_products.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
 import type * as agent_tools_products_helpers_read_product_list from "../agent_tools/products/helpers/read_product_list.js";
@@ -886,6 +886,8 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/database/database_schema_tool": typeof agent_tools_database_database_schema_tool;
   "agent_tools/database/helpers/schema_definitions": typeof agent_tools_database_helpers_schema_definitions;
   "agent_tools/database/helpers/types": typeof agent_tools_database_helpers_types;
+  "agent_tools/delegation/create_delegation_tool": typeof agent_tools_delegation_create_delegation_tool;
+  "agent_tools/delegation/load_delegation_agents": typeof agent_tools_delegation_load_delegation_agents;
   "agent_tools/files/docx_tool": typeof agent_tools_files_docx_tool;
   "agent_tools/files/excel_tool": typeof agent_tools_files_excel_tool;
   "agent_tools/files/helpers/analyze_image": typeof agent_tools_files_helpers_analyze_image;
@@ -911,8 +913,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/integrations/types": typeof agent_tools_integrations_types;
   "agent_tools/integrations/verify_approval_tool": typeof agent_tools_integrations_verify_approval_tool;
   "agent_tools/load_convex_tools_as_object": typeof agent_tools_load_convex_tools_as_object;
-  "agent_tools/partner_agents/create_partner_tool": typeof agent_tools_partner_agents_create_partner_tool;
-  "agent_tools/partner_agents/load_partner_agents": typeof agent_tools_partner_agents_load_partner_agents;
   "agent_tools/products/helpers/count_products": typeof agent_tools_products_helpers_count_products;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;
   "agent_tools/products/helpers/read_product_list": typeof agent_tools_products_helpers_read_product_list;

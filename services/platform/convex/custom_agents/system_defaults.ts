@@ -3,10 +3,10 @@
  *
  * These templates define the 6 built-in agents that are seeded into every
  * organization's customAgents table. Users can freely edit these agents
- * (instructions, tools, partners, etc.) using the existing versioning system.
+ * (instructions, tools, delegation, etc.) using the existing versioning system.
  *
  * The `systemAgentSlug` field serves as a stable identifier for resolving
- * partner agent references across organizations.
+ * delegate agent references across organizations.
  */
 
 import { CHAT_AGENT_INSTRUCTIONS } from '../agents/chat/agent';
@@ -23,7 +23,7 @@ export interface SystemDefaultAgentTemplate {
   description: string;
   systemInstructions: string;
   toolNames: string[];
-  partnerSlugs: string[];
+  delegateSlugs: string[];
   maxSteps: number;
   timeoutMs: number;
   outputReserve: number;
@@ -31,6 +31,9 @@ export interface SystemDefaultAgentTemplate {
   roleRestriction?: string;
   knowledgeEnabled?: boolean;
   includeOrgKnowledge?: boolean;
+  filePreprocessingEnabled?: boolean;
+  visibleInChat?: boolean;
+  publishOnSeed?: boolean;
 }
 
 export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
@@ -41,13 +44,16 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     description: 'General-purpose AI assistant',
     systemInstructions: CHAT_AGENT_INSTRUCTIONS,
     toolNames: ['rag_search', 'web'],
-    partnerSlugs: ['document'],
+    delegateSlugs: ['document'],
     knowledgeEnabled: true,
     includeOrgKnowledge: true,
+    filePreprocessingEnabled: true,
     maxSteps: 20,
     timeoutMs: 420_000,
     outputReserve: 4096,
     modelPreset: 'standard',
+    visibleInChat: true,
+    publishOnSeed: true,
   },
   {
     systemAgentSlug: 'web',
@@ -56,7 +62,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     description: 'Searches the web for the latest information',
     systemInstructions: WEB_AGENT_INSTRUCTIONS,
     toolNames: ['web'],
-    partnerSlugs: [],
+    delegateSlugs: [],
     maxSteps: 5,
     timeoutMs: 300_000,
     outputReserve: 2048,
@@ -69,7 +75,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     description: 'Looks up customer and product information',
     systemInstructions: CRM_AGENT_INSTRUCTIONS,
     toolNames: ['customer_read', 'product_read'],
-    partnerSlugs: [],
+    delegateSlugs: [],
     maxSteps: 10,
     timeoutMs: 180_000,
     outputReserve: 2048,
@@ -78,15 +84,17 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
   {
     systemAgentSlug: 'document',
     name: 'document-assistant',
-    displayName: 'Docs',
+    displayName: 'Document assistant',
     description: 'Reads and creates documents (PDF, Word, Excel, etc.)',
     systemInstructions: DOCUMENT_AGENT_INSTRUCTIONS,
     toolNames: ['pdf', 'image', 'docx', 'pptx', 'txt', 'excel'],
-    partnerSlugs: [],
+    delegateSlugs: [],
     maxSteps: 15,
     timeoutMs: 180_000,
     outputReserve: 4096,
     modelPreset: 'fast',
+    visibleInChat: false,
+    publishOnSeed: true,
   },
   {
     systemAgentSlug: 'integration',
@@ -100,7 +108,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
       'integration_introspect',
       'verify_approval',
     ],
-    partnerSlugs: [],
+    delegateSlugs: [],
     maxSteps: 20,
     timeoutMs: 180_000,
     outputReserve: 2048,
@@ -121,7 +129,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
       'create_workflow',
       'database_schema',
     ],
-    partnerSlugs: [],
+    delegateSlugs: [],
     maxSteps: 30,
     timeoutMs: 240_000,
     outputReserve: 2048,

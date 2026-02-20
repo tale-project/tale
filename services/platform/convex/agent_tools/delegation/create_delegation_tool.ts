@@ -1,7 +1,7 @@
 /**
- * Partner Agent Delegation Tool Factory
+ * Delegation Tool Factory
  *
- * Dynamically creates delegation tools for partner agents at runtime.
+ * Dynamically creates delegation tools for delegate agents at runtime.
  * This generalizes the old hardcoded sub-agent tools (crm_assistant,
  * document_assistant, etc.) into a single factory that works with any agent.
  *
@@ -9,8 +9,8 @@
  * 1. Validates context (orgId, threadId, userId)
  * 2. Checks time budget
  * 3. Optionally checks role access
- * 4. Gets/creates a sub-thread keyed by partner rootVersionId
- * 5. Runs the partner agent via the generic runAgentGeneration action
+ * 4. Gets/creates a sub-thread keyed by delegate rootVersionId
+ * 5. Runs the delegate agent via the generic runAgentGeneration action
  * 6. Returns a structured ToolResponse
  */
 
@@ -33,7 +33,7 @@ import {
 } from '../sub_agents/helpers/tool_response';
 import { validateToolContext } from '../sub_agents/helpers/validate_context';
 
-export interface PartnerAgentMeta {
+export interface DelegateAgentMeta {
   rootVersionId: string;
   name: string;
   displayName: string;
@@ -44,17 +44,17 @@ export interface PartnerAgentMeta {
   roleRestriction?: string;
 }
 
-export function createPartnerDelegationTool(partner: PartnerAgentMeta) {
-  const toolName = `partner_${partner.name}`;
+export function createDelegationTool(delegate: DelegateAgentMeta) {
+  const toolName = `delegate_${delegate.name}`;
 
   return {
     name: toolName,
     tool: createTool({
-      description: `Delegate tasks to the ${partner.displayName} agent.
+      description: `Delegate tasks to the ${delegate.displayName} agent.
 
-${partner.description}
+${delegate.description}
 
-Pass the user's request in natural language. The partner agent will handle it and return results.`,
+Pass the user's request in natural language. The agent will handle it and return results.`,
 
       args: z.object({
         userRequest: z
@@ -73,7 +73,7 @@ Pass the user's request in natural language. The partner agent will handle it an
 
         const { organizationId, threadId, userId } = validation.context;
 
-        if (partner.roleRestriction === 'admin_developer' && userId) {
+        if (delegate.roleRestriction === 'admin_developer' && userId) {
           const roleCheck = await checkRoleAccess(
             ctx,
             userId,
@@ -89,7 +89,7 @@ Pass the user's request in natural language. The partner agent will handle it an
             ctx,
             {
               parentThreadId: threadId,
-              subAgentType: partner.rootVersionId,
+              subAgentType: delegate.rootVersionId,
               userId,
             },
           );
@@ -104,10 +104,10 @@ Pass the user's request in natural language. The partner agent will handle it an
             internal.lib.agent_chat.internal_actions.runAgentGeneration,
             {
               agentType: 'custom',
-              agentConfig: partner.agentConfig,
-              model: partner.model,
-              provider: partner.provider,
-              debugTag: `[Partner:${partner.displayName}]`,
+              agentConfig: delegate.agentConfig,
+              model: delegate.model,
+              provider: delegate.provider,
+              debugTag: `[Delegate:${delegate.displayName}]`,
               enableStreaming: false,
               threadId: subThreadId,
               organizationId,
@@ -115,7 +115,7 @@ Pass the user's request in natural language. The partner agent will handle it an
               promptMessage: args.userRequest,
               parentThreadId: threadId,
               deadlineMs: budget.deadlineMs,
-              maxSteps: partner.agentConfig.maxSteps,
+              maxSteps: delegate.agentConfig.maxSteps,
             },
           );
 
@@ -143,23 +143,23 @@ Pass the user's request in natural language. The partner agent will handle it an
 
 /**
  * Build a section to append to an agent's system instructions
- * describing its available partner agents.
+ * describing its available delegate agents.
  */
-export function buildPartnerInstructionsSection(
-  partners: PartnerAgentMeta[],
+export function buildDelegationInstructionsSection(
+  delegates: DelegateAgentMeta[],
 ): string {
-  if (partners.length === 0) return '';
+  if (delegates.length === 0) return '';
 
-  const partnerLines = partners
-    .map((p) => `- **partner_${p.name}**: ${p.displayName} — ${p.description}`)
+  const delegateLines = delegates
+    .map((d) => `- **delegate_${d.name}**: ${d.displayName} — ${d.description}`)
     .join('\n');
 
   return `\n\n====================
-PARTNER AGENTS
+DELEGATION AGENTS
 ====================
 
 You can delegate tasks to these specialized agents:
-${partnerLines}
+${delegateLines}
 
-Call the appropriate partner agent tool with the user's request. Preserve the user's full intent.`;
+Call the appropriate delegation tool with the user's request. Preserve the user's full intent.`;
 }

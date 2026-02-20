@@ -970,7 +970,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     }>;
   };
 
-  const isPartnerTool = (name: string) => name.startsWith('partner_');
+  const isDelegationTool = (name: string) => name.startsWith('delegate_');
   const toolCalls: Array<{ toolName: string; status: string }> = [];
   const subAgentUsage: Array<{
     toolName: string;
@@ -1024,7 +1024,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
 
     // Extract sub-agent usage
     for (const toolResult of stepToolResults ?? []) {
-      if (isPartnerTool(toolResult.toolName)) {
+      if (isDelegationTool(toolResult.toolName)) {
         type SubAgentResultData = {
           model?: string;
           provider?: string;

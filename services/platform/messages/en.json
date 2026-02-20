@@ -694,7 +694,11 @@
       },
       "general": {
         "active": "Active",
-        "activeHelp": "When active, this agent is available for use. Deactivating it will make it unavailable until you activate it again."
+        "activeHelp": "When active, this agent is available for use. Deactivating it will make it unavailable until you activate it again.",
+        "visibleInChat": "Visible in chat",
+        "visibleInChatHelp": "When enabled, this agent appears in the chat page for users to select. When disabled, the agent can only be used through delegation from other agents.",
+        "visibilityUpdated": "Chat visibility updated",
+        "visibilityUpdateFailed": "Failed to update chat visibility"
       },
       "form": {
         "sectionGeneral": "General",
@@ -2119,6 +2123,7 @@
     "searchPlaceholder": "Search chats...",
     "messagePlaceholder": "Type a message...",
     "typeMessageHere": "Type your message here…",
+    "noAgentsAvailable": "No agents available. Please publish an agent first.",
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
     "filesNotSupported": "Some files are too large (>10MB) or not supported. Supported: images, PDF, Word docs, text files.",

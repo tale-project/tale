@@ -3,7 +3,7 @@
  *
  * Creates the 6 system default agent records for an organization.
  * Idempotent: skips agents that already exist (by systemAgentSlug).
- * Resolves partner agent references (slugs → rootVersionIds) in a second pass.
+ * Resolves delegate agent references (slugs → rootVersionIds) in a second pass.
  */
 
 import { v } from 'convex/values';
@@ -38,7 +38,7 @@ async function insertSystemAgent(
   organizationId: string,
   template: SystemDefaultAgentTemplate,
 ) {
-  const isChatAgent = template.systemAgentSlug === 'chat';
+  const shouldPublish = template.publishOnSeed === true;
 
   const agentId = await ctx.db.insert('customAgents', {
     organizationId,
@@ -54,12 +54,14 @@ async function insertSystemAgent(
     roleRestriction: template.roleRestriction,
     knowledgeEnabled: template.knowledgeEnabled,
     includeOrgKnowledge: template.includeOrgKnowledge,
+    filePreprocessingEnabled: template.filePreprocessingEnabled,
+    visibleInChat: template.visibleInChat,
     isSystemDefault: true,
     systemAgentSlug: template.systemAgentSlug,
     createdBy: 'system',
     versionNumber: 1,
-    status: isChatAgent ? 'active' : 'draft',
-    ...(isChatAgent && {
+    status: shouldPublish ? 'active' : 'draft',
+    ...(shouldPublish && {
       publishedAt: Date.now(),
       publishedBy: 'system',
     }),
@@ -89,23 +91,23 @@ async function seedDefaults(ctx: MutationCtx, organizationId: string) {
     }
   }
 
-  // Pass 2: Resolve partner slugs to rootVersionIds
+  // Pass 2: Resolve delegate slugs to rootVersionIds
   for (const template of SYSTEM_DEFAULT_AGENT_TEMPLATES) {
-    if (template.partnerSlugs.length === 0) continue;
+    if (template.delegateSlugs.length === 0) continue;
 
     const agentId = slugToId.get(template.systemAgentSlug);
     if (!agentId) continue;
 
-    const partnerAgentIds: Id<'customAgents'>[] = [];
-    for (const slug of template.partnerSlugs) {
-      const partnerId = slugToId.get(slug);
-      if (partnerId) {
-        partnerAgentIds.push(partnerId);
+    const delegateAgentIds: Id<'customAgents'>[] = [];
+    for (const slug of template.delegateSlugs) {
+      const delegateId = slugToId.get(slug);
+      if (delegateId) {
+        delegateAgentIds.push(delegateId);
       }
     }
 
-    if (partnerAgentIds.length > 0) {
-      await ctx.db.patch(agentId, { partnerAgentIds });
+    if (delegateAgentIds.length > 0) {
+      await ctx.db.patch(agentId, { delegateAgentIds });
     }
   }
 }

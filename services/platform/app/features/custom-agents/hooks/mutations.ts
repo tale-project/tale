@@ -45,6 +45,12 @@ export function useUpdateCustomAgentMetadata() {
   );
 }
 
+export function useUpdateCustomAgentVisibility() {
+  return useConvexMutation(
+    api.custom_agents.mutations.updateCustomAgentVisibility,
+  );
+}
+
 export function useDeleteCustomAgent() {
   return useConvexMutation(api.custom_agents.mutations.deleteCustomAgent);
 }

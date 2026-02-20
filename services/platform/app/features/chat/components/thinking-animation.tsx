@@ -64,6 +64,15 @@ export function ThinkingAnimation({
       };
     }
 
+    if (toolName.startsWith('delegate_')) {
+      const agentDisplayName = toolName
+        .slice('delegate_'.length)
+        .split('-')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+      return { toolName, displayText: agentDisplayName };
+    }
+
     const toolDisplayNames: Record<string, string> = {
       customer_read: t('tools.customerRead'),
       product_read: t('tools.productRead'),

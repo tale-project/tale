@@ -83,9 +83,9 @@ export function buildPrioritizedContexts(params: {
 ${params.integrationsInfo}
 
 ROUTING GUIDANCE:
-• Data from external systems (hotels, e-commerce, etc.) is ONLY accessible via the integration partner agent
+• Data from external systems (hotels, e-commerce, etc.) is ONLY accessible via the integration agent
 • customer_read and product_read ONLY access internal CRM/catalog data
-• If a query relates to any integration domain above, delegate to the integration partner agent
+• If a query relates to any integration domain above, delegate to the integration agent
 • Use integration_introspect to discover available operations before calling integration`,
         { sectionName: 'integrations' },
       ),

@@ -39,7 +39,7 @@ const agentFieldsValidator = {
   filePreprocessingEnabled: v.optional(v.boolean()),
   teamId: v.optional(v.string()),
   sharedWithTeamIds: v.optional(v.array(v.string())),
-  partnerAgentIds: v.optional(v.array(v.id('customAgents'))),
+  delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
   maxSteps: v.optional(v.number()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
@@ -135,11 +135,12 @@ function copyVersionFields(source: Doc<'customAgents'>) {
     teamId: source.teamId,
     sharedWithTeamIds: source.sharedWithTeamIds,
     createdBy: source.createdBy,
-    partnerAgentIds: source.partnerAgentIds,
+    delegateAgentIds: source.delegateAgentIds ?? source.partnerAgentIds,
     maxSteps: source.maxSteps,
     timeoutMs: source.timeoutMs,
     outputReserve: source.outputReserve,
     roleRestriction: source.roleRestriction,
+    visibleInChat: source.visibleInChat,
     isSystemDefault: source.isSystemDefault,
     systemAgentSlug: source.systemAgentSlug,
   };
@@ -203,7 +204,7 @@ export const updateCustomAgent = mutation({
     filePreprocessingEnabled: v.optional(v.boolean()),
     teamId: v.optional(v.string()),
     sharedWithTeamIds: v.optional(v.array(v.string())),
-    partnerAgentIds: v.optional(v.array(v.id('customAgents'))),
+    delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
     maxSteps: v.optional(v.number()),
     timeoutMs: v.optional(v.number()),
     outputReserve: v.optional(v.number()),
@@ -274,6 +275,27 @@ export const updateCustomAgentMetadata = mutation({
     }
 
     await ctx.db.patch(draft._id, cleanUpdate);
+    return null;
+  },
+});
+
+export const updateCustomAgentVisibility = mutation({
+  args: {
+    customAgentId: v.id('customAgents'),
+    visibleInChat: v.boolean(),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const draft = await getDraftByRoot(ctx, args.customAgentId);
+
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    if (!hasTeamAccess(draft, userTeamIds)) {
+      throw new Error('Agent not accessible');
+    }
+
+    await ctx.db.patch(draft._id, { visibleInChat: args.visibleInChat });
     return null;
   },
 });

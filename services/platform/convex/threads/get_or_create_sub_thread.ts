@@ -6,8 +6,8 @@
  * {
  *   "chatType": "general",
  *   "subThreads": {
- *     "<partner_root_version_id>": "thread_id_123",
- *     "<another_partner_id>": "thread_id_456"
+ *     "<delegate_root_version_id>": "thread_id_123",
+ *     "<another_delegate_id>": "thread_id_456"
  *   }
  * }
  * ```

@@ -56,7 +56,9 @@ export function toSerializableConfig(
     model: resolveModelPreset(agent.modelPreset),
     maxSteps: agent.maxSteps,
     enableVectorSearch: false,
-    partnerAgentIds: agent.partnerAgentIds?.map(String),
+    delegateAgentIds: (agent.delegateAgentIds ?? agent.partnerAgentIds)?.map(
+      String,
+    ),
     timeoutMs: agent.timeoutMs,
     outputReserve: agent.outputReserve,
   };

@@ -71,6 +71,7 @@ export const listCustomAgents = query({
 
       const results: Doc<'customAgents'>[] = [];
       for await (const agent of agents) {
+        if (agent.visibleInChat === false) continue;
         if (!hasTeamAccess(agent, userTeamIds)) continue;
         if (
           args.filterTeamId &&

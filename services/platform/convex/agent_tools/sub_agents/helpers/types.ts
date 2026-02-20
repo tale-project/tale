@@ -4,8 +4,8 @@
 
 /**
  * Sub-agent key for thread mapping.
- * Used as the key in the sub-threads map to identify partner agent threads.
- * Typically the partner agent's rootVersionId or a stable identifier.
+ * Used as the key in the sub-threads map to identify delegate agent threads.
+ * Typically the delegate agent's rootVersionId or a stable identifier.
  */
 export type SubAgentKey = string;
 

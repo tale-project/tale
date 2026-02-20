@@ -1,8 +1,8 @@
 /**
  * Internal queries for custom agents.
  *
- * Used by the partner agent system to load active published versions
- * of partner agents at runtime.
+ * Used by the delegation system to load active published versions
+ * of delegate agents at runtime.
  */
 
 import { v } from 'convex/values';
@@ -11,13 +11,13 @@ import { internalQuery } from '../_generated/server';
 import { toId } from '../lib/type_cast_helpers';
 import { toSerializableConfig } from './config';
 
-export const getActivePartnerAgents = internalQuery({
+export const getActiveDelegateAgents = internalQuery({
   args: {
     rootVersionIds: v.array(v.string()),
     organizationId: v.string(),
   },
   handler: async (ctx, args) => {
-    const partners = [];
+    const delegates = [];
 
     for (const rootId of args.rootVersionIds) {
       const query = ctx.db
@@ -44,7 +44,7 @@ export const getActivePartnerAgents = internalQuery({
                 '')
               : (process.env.OPENAI_MODEL ?? '');
 
-        partners.push({
+        delegates.push({
           rootVersionId: rootId,
           name: agent.name,
           displayName: agent.displayName,
@@ -58,6 +58,6 @@ export const getActivePartnerAgents = internalQuery({
       }
     }
 
-    return partners;
+    return delegates;
   },
 });

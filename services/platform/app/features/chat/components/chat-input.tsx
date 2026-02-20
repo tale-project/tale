@@ -28,6 +28,7 @@ interface ChatInputProps extends Omit<
 > {
   onSendMessage: (message: string, attachments?: FileAttachment[]) => void;
   isLoading?: boolean;
+  disabled?: boolean;
   placeholder?: string;
   value?: string;
   onChange?: (value: string) => void;
@@ -39,6 +40,7 @@ export function ChatInput({
   onChange,
   onSendMessage,
   isLoading = false,
+  disabled = false,
   placeholder,
   organizationId,
   ...restProps
@@ -64,7 +66,8 @@ export function ChatInput({
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
   const handleSendMessage = () => {
-    if ((!value.trim() && attachments.length === 0) || isLoading) return;
+    if ((!value.trim() && attachments.length === 0) || isLoading || disabled)
+      return;
 
     const attachmentsToSend =
       attachments.length > 0 ? clearAttachments() : undefined;
@@ -94,6 +97,7 @@ export function ChatInput({
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
+    if (disabled) return;
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -233,10 +237,10 @@ export function ChatInput({
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                disabled={isLoading}
+                disabled={isLoading || disabled}
                 placeholder=""
               />
-              {value.length === 0 && (
+              {value.length === 0 && !disabled && (
                 <div className="text-muted-foreground pointer-events-none absolute top-0 left-0 flex items-center gap-1 text-sm">
                   {defaultPlaceholder}
                   <div className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
@@ -245,13 +249,18 @@ export function ChatInput({
                   {tDialogs('toSend')}
                 </div>
               )}
+              {disabled && (
+                <div className="text-muted-foreground pointer-events-none absolute top-0 left-0 text-sm">
+                  {tChat('noAgentsAvailable')}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between pb-3">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading}
+                disabled={isLoading || disabled}
                 className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 title={tDialogs('attach')}
               >

@@ -46,8 +46,8 @@ function DelegationTab() {
   }, [agents, currentRootId]);
 
   const selectedSet = useMemo(
-    () => new Set(agent.partnerAgentIds?.map(String) ?? []),
-    [agent.partnerAgentIds],
+    () => new Set(agent.delegateAgentIds?.map(String) ?? []),
+    [agent.delegateAgentIds],
   );
 
   const saveWithStatus = useCallback(
@@ -72,7 +72,7 @@ function DelegationTab() {
     async (targetRootId: string) => {
       if (isReadOnly) return;
 
-      const current = agent.partnerAgentIds?.map(String) ?? [];
+      const current = agent.delegateAgentIds?.map(String) ?? [];
       const next = selectedSet.has(targetRootId)
         ? current.filter((id) => id !== targetRootId)
         : [...current, targetRootId];
@@ -80,13 +80,13 @@ function DelegationTab() {
       await saveWithStatus(() =>
         updateAgent.mutateAsync({
           customAgentId: toId<'customAgents'>(agentId),
-          partnerAgentIds: next.map((id) => toId<'customAgents'>(id)),
+          delegateAgentIds: next.map((id) => toId<'customAgents'>(id)),
         }),
       );
     },
     [
       agentId,
-      agent.partnerAgentIds,
+      agent.delegateAgentIds,
       selectedSet,
       updateAgent,
       saveWithStatus,

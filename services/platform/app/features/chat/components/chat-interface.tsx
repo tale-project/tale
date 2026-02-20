@@ -14,6 +14,7 @@ import type { FileAttachment } from '../types';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import {
+  useChatAgents,
   useHumanInputRequests,
   useIntegrationApprovals,
   useWorkflowCreationApprovals,
@@ -68,6 +69,10 @@ export function ChatInterface({
     threadId,
     realMessages: rawMessages,
   });
+
+  // Agent availability — disable input when no agents exist
+  const { agents } = useChatAgents(organizationId);
+  const hasNoAgents = agents !== undefined && agents.length === 0;
 
   // Approvals
   const { approvals: integrationApprovals } = useIntegrationApprovals(
@@ -282,6 +287,7 @@ export function ChatInterface({
             onChange={setInputValue}
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
+            disabled={hasNoAgents}
             organizationId={organizationId}
           />
         </FileUpload.Root>

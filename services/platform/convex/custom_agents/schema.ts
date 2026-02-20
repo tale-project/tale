@@ -37,11 +37,15 @@ export const customAgentsTable = defineTable({
   sharedWithTeamIds: v.optional(v.array(v.string())),
   createdBy: v.string(),
 
+  delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
+
+  // @deprecated — kept for existing documents, no longer written or read
   partnerAgentIds: v.optional(v.array(v.id('customAgents'))),
   maxSteps: v.optional(v.number()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
   roleRestriction: v.optional(v.string()),
+  visibleInChat: v.optional(v.boolean()),
 
   isSystemDefault: v.optional(v.boolean()),
   systemAgentSlug: v.optional(v.string()),
