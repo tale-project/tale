@@ -2,7 +2,7 @@
 
 import type { DateRange } from 'react-day-picker';
 
-import { X } from 'lucide-react';
+import { Circle, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
 import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
@@ -12,7 +12,6 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { FilterButton } from '@/app/components/ui/filters/filter-button';
 import { FilterSection } from '@/app/components/ui/filters/filter-section';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Popover } from '@/app/components/ui/overlays/popover';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -48,7 +47,7 @@ export interface FilterConfig {
   onChange: (values: string[]) => void;
   /** Whether to show options in a grid layout */
   grid?: boolean;
-  /** Whether multiple options can be selected (default: true) */
+  /** Whether multiple options can be selected (default: false) */
   multiSelect?: boolean;
 }
 
@@ -121,7 +120,7 @@ export function DataTableFilters({
     (search?.value && search.value.length > 0) ||
     hasDateRange;
 
-  const handleFilterChange = (
+  const handleCheckboxChange = (
     filter: FilterConfig,
     value: string,
     checked: boolean,
@@ -172,6 +171,7 @@ export function DataTableFilters({
               modal={false}
               align="start"
               onOpenAutoFocus={(e) => e.preventDefault()}
+              contentClassName="p-0"
               trigger={
                 <div>
                   <FilterButton
@@ -181,83 +181,126 @@ export function DataTableFilters({
                 </div>
               }
             >
-              <div className="flex items-center justify-between p-2">
-                <h4 className="text-foreground text-sm font-semibold">
+              <div className="border-border flex items-center justify-between p-3">
+                <h4 className="text-foreground text-base font-medium">
                   {t('labels.filters')}
                 </h4>
                 {totalActiveFilters > 0 && (
                   <button
                     type="button"
                     onClick={handleClearAll}
-                    className="text-primary hover:text-primary/80 text-xs font-medium"
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700"
                   >
                     {t('actions.clearAll')}
                   </button>
                 )}
               </div>
 
-              {filters.map((filter) => {
-                const isMultiSelect = filter.multiSelect !== false;
-                return (
-                  <FilterSection
-                    key={filter.key}
-                    title={filter.title}
-                    isExpanded={expandedSections[filter.key] ?? false}
-                    onToggle={() =>
-                      setExpandedSections((prev) => ({
-                        ...prev,
-                        [filter.key]: !prev[filter.key],
-                      }))
-                    }
-                    active={filter.selectedValues.length > 0}
-                  >
-                    {isMultiSelect ? (
-                      <div
-                        className={
-                          filter.grid ? 'grid grid-cols-2 gap-2' : 'space-y-2'
-                        }
-                      >
-                        {filter.options.map((option) => {
-                          const checkboxId = `filter-${filter.key}-${option.value}`;
-                          return (
-                            <label
-                              key={option.value}
-                              htmlFor={checkboxId}
-                              className="flex cursor-pointer items-center gap-2"
-                            >
-                              <Checkbox
-                                id={checkboxId}
-                                checked={filter.selectedValues.includes(
+              {filters.map((filter) => (
+                <FilterSection
+                  key={filter.key}
+                  title={filter.title}
+                  isExpanded={expandedSections[filter.key] ?? false}
+                  onToggle={() =>
+                    setExpandedSections((prev) => ({
+                      ...prev,
+                      [filter.key]: !prev[filter.key],
+                    }))
+                  }
+                  selectedCount={
+                    filter.multiSelect ? filter.selectedValues.length : 0
+                  }
+                  hasSelection={
+                    !filter.multiSelect && filter.selectedValues.length > 0
+                  }
+                >
+                  {filter.multiSelect ? (
+                    <div
+                      className={cn(
+                        'flex flex-col gap-1',
+                        filter.grid && 'grid grid-cols-2',
+                      )}
+                    >
+                      {filter.options.map((option) => {
+                        const checkboxId = `filter-${filter.key}-${option.value}`;
+                        const isChecked = filter.selectedValues.includes(
+                          option.value,
+                        );
+                        return (
+                          <label
+                            key={option.value}
+                            htmlFor={checkboxId}
+                            className={cn(
+                              'flex cursor-pointer items-center gap-2 rounded-lg p-2',
+                              isChecked ? 'bg-muted' : 'hover:bg-muted/70',
+                            )}
+                          >
+                            <Checkbox
+                              id={checkboxId}
+                              checked={isChecked}
+                              onCheckedChange={(checked) =>
+                                handleCheckboxChange(
+                                  filter,
                                   option.value,
-                                )}
-                                onCheckedChange={(checked) =>
-                                  handleFilterChange(
-                                    filter,
-                                    option.value,
-                                    !!checked,
-                                  )
-                                }
-                              />
-                              <span className="text-muted-foreground text-sm">
-                                {option.label}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <RadioGroup
-                        value={filter.selectedValues[0] ?? ''}
-                        onValueChange={(value) =>
-                          filter.onChange(value ? [value] : [])
-                        }
-                        options={filter.options}
-                        className="space-y-2"
-                      />
-                    )}
-                  </FilterSection>
-                );
-              })}
+                                  !!checked,
+                                )
+                              }
+                            />
+                            <span className="text-muted-foreground text-sm font-medium">
+                              {option.label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div
+                      role="radiogroup"
+                      className={cn(
+                        'flex flex-col gap-1',
+                        filter.grid && 'grid grid-cols-2',
+                      )}
+                    >
+                      {filter.options.map((option) => {
+                        const isSelected =
+                          filter.selectedValues[0] === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            onClick={() =>
+                              filter.onChange(isSelected ? [] : [option.value])
+                            }
+                            className={cn(
+                              'flex cursor-pointer items-center gap-2 rounded-lg p-2',
+                              isSelected ? 'bg-muted' : 'hover:bg-muted/70',
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
+                                isSelected
+                                  ? 'border-blue-600 text-blue-600'
+                                  : 'border-primary',
+                              )}
+                              aria-hidden="true"
+                            >
+                              {isSelected && (
+                                <Circle className="size-2.5 fill-current" />
+                              )}
+                            </span>
+                            <span className="text-muted-foreground text-sm font-medium">
+                              {option.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </FilterSection>
+              ))}
             </Popover>
           )}
         </div>
