@@ -14,7 +14,7 @@ type MicrosoftTokenResult = {
 export async function getMicrosoftToken(
   ctx: GenericQueryCtx<DataModel>,
 ): Promise<MicrosoftTokenResult> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await authComponent.safeGetAuthUser(ctx);
   if (!authUser) {
     return null;
   }

@@ -1,6 +1,5 @@
 # Operator Service Dockerfile
-# AI-powered operator service using OpenCode + Playwright MCP
-# Based on crawler service pattern for Playwright/Chromium support
+# AI-powered operator service with direct Playwright browser automation
 
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
@@ -48,61 +47,45 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -fv
 
-# Install Node.js for Playwright MCP Server
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Playwright MCP Server and OpenCode CLI globally
-RUN npm install -g @playwright/mcp opencode-ai@latest
-
 # Create non-root user for running Chrome (required for sandbox)
 RUN groupadd -r pwuser \
     && useradd -r -g pwuser -G audio,video -m pwuser
 
-# Install Playwright Chromium browser using the playwright CLI bundled with @playwright/mcp
-# to ensure the installed browser version matches what @playwright/mcp expects at runtime
-RUN "$(npm root -g)/@playwright/mcp/node_modules/.bin/playwright" install chromium \
-    && mkdir -p /home/pwuser/.cache \
-    && cp -r /root/.cache/ms-playwright /home/pwuser/.cache/ \
-    && chown -R pwuser:pwuser /home/pwuser/.cache
-
 # Install uv for faster package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy pyproject.toml and install dependencies
+# Copy pyproject.toml and install dependencies (includes playwright)
 COPY services/operator/pyproject.toml .
 RUN uv pip install --system .
+
+# Install Playwright Chromium browser
+RUN playwright install chromium \
+    && mkdir -p /home/pwuser/.cache \
+    && cp -r /root/.cache/ms-playwright /home/pwuser/.cache/ \
+    && chown -R pwuser:pwuser /home/pwuser/.cache
 
 # Copy application code
 COPY services/operator/app ./app
 
 # Copy entrypoint script
 COPY services/operator/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
-# Set ownership for app directory and create OpenCode config dir
-RUN chown -R pwuser:pwuser /app \
-    && mkdir -p /home/pwuser/.config/opencode /home/pwuser/.local/share/opencode \
-    && chown -R pwuser:pwuser /home/pwuser/.config /home/pwuser/.local
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
 
-# Set environment variables with OPERATOR_ prefix defaults
+# Set permissions and ownership
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+    && chown -R pwuser:pwuser /app
+
+# Set environment variables
 ENV TALE_VERSION=${VERSION} \
     OPERATOR_HOST=0.0.0.0 \
     OPERATOR_PORT=8004 \
     OPERATOR_WORKERS=4 \
     OPERATOR_LOG_LEVEL=info \
-    OPERATOR_HEADLESS=true \
-    OPERATOR_TIMEOUT=30 \
-    OPERATOR_MAX_STEPS=30 \
+    OPERATOR_HEADLESS=false \
     OPERATOR_MAX_CONCURRENT_REQUESTS=10 \
-    OPERATOR_REQUEST_TIMEOUT=1800 \
-    OPERATOR_CLEANUP_INTERVAL=60 \
-    OPERATOR_WORKSPACE_BASE_DIR=/tmp/operator-sessions \
-    OPERATOR_WORKSPACE_MAX_SIZE_MB=500 \
+    OPERATOR_REQUEST_TIMEOUT=180 \
     HOME=/home/pwuser \
     DO_NOT_TRACK=1
 
@@ -113,7 +96,7 @@ USER pwuser
 EXPOSE 8004
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8004/health || exit 1
 
 # Use entrypoint to handle Xvfb for non-headless mode

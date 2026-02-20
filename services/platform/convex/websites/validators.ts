@@ -31,6 +31,7 @@ export const websiteValidator = v.object({
   scanInterval: v.string(),
   lastScannedAt: v.optional(v.number()),
   status: v.optional(websiteStatusValidator),
+  pageCount: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
 });
 

@@ -29,11 +29,13 @@ export function createWorkflowAgent(options?: {
   convexToolNames?: ToolName[];
   workflowContext?: string;
   delegationMode?: boolean;
+  useFastModel?: boolean;
 }) {
   const withTools = options?.withTools ?? true;
   const delegationMode = options?.delegationMode ?? false;
   const maxSteps = options?.maxSteps ?? (delegationMode ? 20 : 30);
   const workflowContext = options?.workflowContext;
+  const useFastModel = options?.useFastModel ?? false;
 
   let convexToolNames: ToolName[] = [];
 
@@ -48,12 +50,13 @@ export function createWorkflowAgent(options?: {
     ];
 
     convexToolNames = options?.convexToolNames ?? defaultWorkflowTools;
-
-    debugLog('createWorkflowAgent Loaded tools', {
-      convexCount: convexToolNames.length,
-      delegationMode,
-    });
   }
+
+  debugLog('createWorkflowAgent', {
+    toolCount: withTools ? convexToolNames.length : 0,
+    delegationMode,
+    useFastModel,
+  });
 
   const baseInstructions = WORKFLOW_AGENT_CORE_INSTRUCTIONS;
   const selectedInstructions = delegationMode
@@ -64,18 +67,23 @@ export function createWorkflowAgent(options?: {
     ? `${selectedInstructions}\n\n${workflowContext}`
     : selectedInstructions;
 
-  const model = (process.env.OPENAI_CODING_MODEL || '').trim();
-  if (!model) {
-    throw new Error(
-      'OPENAI_CODING_MODEL environment variable is required for Workflow Agent but is not set',
-    );
-  }
+  const modelConfig = useFastModel
+    ? { useFastModel: true }
+    : (() => {
+        const model = (process.env.OPENAI_CODING_MODEL || '').trim();
+        if (!model) {
+          throw new Error(
+            'OPENAI_CODING_MODEL environment variable is required for Workflow Agent but is not set',
+          );
+        }
+        return { model };
+      })();
 
   const agentConfig = createAgentConfig({
     name: delegationMode
       ? 'workflow-assistant-delegated'
       : 'workflow-assistant',
-    model,
+    ...modelConfig,
     instructions: finalInstructions,
     ...(withTools ? { convexToolNames } : {}),
     maxSteps,

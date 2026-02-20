@@ -19,7 +19,7 @@ import { CHAT_AGENT_INSTRUCTIONS } from './agent';
 
 export const CHAT_AGENT_TOOL_NAMES: ToolName[] = [
   'rag_search',
-  'web_assistant',
+  'web',
   'document_assistant',
   'integration_assistant',
   'workflow_assistant',

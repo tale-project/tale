@@ -27,32 +27,11 @@ describe('useChatPendingState', () => {
     setIsPending = vi.fn<(pending: boolean) => void>();
   });
 
-  it('clears pending when streaming message appears', () => {
-    const streamingMessage = createUIMessage({
-      id: 'msg-1',
-      order: 0,
-      role: 'assistant',
-      status: 'streaming',
-    });
-
+  it('does not clear pending when no messages exist', () => {
     renderHook(() =>
       useChatPendingState({
         isPending: true,
         setIsPending,
-        streamingMessage,
-        uiMessages: [streamingMessage],
-      }),
-    );
-
-    expect(setIsPending).toHaveBeenCalledWith(false);
-  });
-
-  it('does not clear pending when no streaming message exists', () => {
-    renderHook(() =>
-      useChatPendingState({
-        isPending: true,
-        setIsPending,
-        streamingMessage: undefined,
         uiMessages: [],
       }),
     );
@@ -60,54 +39,199 @@ describe('useChatPendingState', () => {
     expect(setIsPending).not.toHaveBeenCalled();
   });
 
-  it('clears pending via fallback when completed assistant message appears', () => {
+  it('does not clear pending while waiting for new assistant message', () => {
     const userMsg = createUIMessage({
       id: 'msg-1',
       order: 0,
       role: 'user',
       text: 'Hello',
     });
-    const assistantMsg = createUIMessage({
+
+    renderHook(() =>
+      useChatPendingState({
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg],
+      }),
+    );
+
+    expect(setIsPending).not.toHaveBeenCalled();
+  });
+
+  it('does not clear pending when assistant message is still streaming', () => {
+    const userMsg = createUIMessage({
+      id: 'msg-1',
+      order: 0,
+      role: 'user',
+      text: 'Hello',
+    });
+    const streamingMsg = createUIMessage({
       id: 'msg-2',
       order: 1,
       role: 'assistant',
-      text: 'Hi!',
-      status: 'success',
+      status: 'streaming',
+      text: 'thinking...',
     });
 
-    // First render: set pending with count tracking
     const { rerender } = renderHook((props) => useChatPendingState(props), {
       initialProps: {
         isPending: true,
         setIsPending,
-        streamingMessage: undefined as UIMessage | undefined,
         uiMessages: [userMsg] as UIMessage[] | undefined,
       },
     });
 
-    // Use setPendingWithCount to store current assistant count
-    // The hook's effect runs and sees no streaming message, no new assistant messages
-    expect(setIsPending).not.toHaveBeenCalled();
-
-    // Now rerender with a completed assistant message
     rerender({
       isPending: true,
       setIsPending,
-      streamingMessage: undefined,
-      uiMessages: [userMsg, assistantMsg],
+      uiMessages: [userMsg, streamingMsg],
+    });
+
+    expect(setIsPending).not.toHaveBeenCalledWith(false);
+  });
+
+  it('does not clear pending when assistant message has pending status (tool call)', () => {
+    const userMsg = createUIMessage({
+      id: 'msg-1',
+      order: 0,
+      role: 'user',
+      text: 'Hello',
+    });
+    const pendingMsg = createUIMessage({
+      id: 'msg-2',
+      order: 1,
+      role: 'assistant',
+      status: 'pending',
+      text: 'Let me check...',
+    });
+
+    const { rerender } = renderHook((props) => useChatPendingState(props), {
+      initialProps: {
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg] as UIMessage[] | undefined,
+      },
+    });
+
+    rerender({
+      isPending: true,
+      setIsPending,
+      uiMessages: [userMsg, pendingMsg],
+    });
+
+    expect(setIsPending).not.toHaveBeenCalledWith(false);
+  });
+
+  it('clears pending when new assistant message reaches success', () => {
+    const userMsg = createUIMessage({
+      id: 'msg-1',
+      order: 0,
+      role: 'user',
+      text: 'Hello',
+    });
+    const completedMsg = createUIMessage({
+      id: 'msg-2',
+      order: 1,
+      role: 'assistant',
+      text: 'Hi there!',
+      status: 'success',
+    });
+
+    const { rerender } = renderHook((props) => useChatPendingState(props), {
+      initialProps: {
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg] as UIMessage[] | undefined,
+      },
+    });
+
+    rerender({
+      isPending: true,
+      setIsPending,
+      uiMessages: [userMsg, completedMsg],
     });
 
     expect(setIsPending).toHaveBeenCalledWith(false);
   });
 
-  it('does not clear pending for human input response when only fallback condition met', () => {
+  it('clears pending when new assistant message reaches failed', () => {
     const userMsg = createUIMessage({
       id: 'msg-1',
       order: 0,
       role: 'user',
       text: 'Hello',
     });
-    const assistantMsg = createUIMessage({
+    const failedMsg = createUIMessage({
+      id: 'msg-2',
+      order: 1,
+      role: 'assistant',
+      text: '',
+      status: 'failed',
+    });
+
+    const { rerender } = renderHook((props) => useChatPendingState(props), {
+      initialProps: {
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg] as UIMessage[] | undefined,
+      },
+    });
+
+    rerender({
+      isPending: true,
+      setIsPending,
+      uiMessages: [userMsg, failedMsg],
+    });
+
+    expect(setIsPending).toHaveBeenCalledWith(false);
+  });
+
+  it('does not clear pending for pre-existing terminal messages when using setPendingWithCount', () => {
+    const existingAssistant = createUIMessage({
+      id: 'msg-1',
+      order: 0,
+      role: 'assistant',
+      text: 'Previous answer',
+      status: 'success',
+    });
+    const userMsg = createUIMessage({
+      id: 'msg-2',
+      order: 1,
+      role: 'user',
+      text: 'Follow up',
+    });
+
+    const messages = [existingAssistant, userMsg] as UIMessage[] | undefined;
+
+    // First render: not pending, existing conversation
+    const { result, rerender } = renderHook(
+      (props) => useChatPendingState(props),
+      {
+        initialProps: {
+          isPending: false as boolean,
+          setIsPending,
+          uiMessages: messages,
+        },
+      },
+    );
+
+    // User sends a follow-up — setPendingWithCount tracks current assistant count (1)
+    act(() => {
+      result.current.setPendingWithCount(true);
+    });
+
+    rerender({
+      isPending: true,
+      setIsPending,
+      uiMessages: messages,
+    });
+
+    // Should not clear — no new assistant message appeared yet
+    expect(setIsPending).not.toHaveBeenCalledWith(false);
+  });
+
+  it('handles component remount during navigation', () => {
+    const completedMsg = createUIMessage({
       id: 'msg-2',
       order: 1,
       role: 'assistant',
@@ -115,67 +239,16 @@ describe('useChatPendingState', () => {
       status: 'success',
     });
 
-    const { result, rerender } = renderHook(
-      (props) => useChatPendingState(props),
-      {
-        initialProps: {
-          isPending: false as boolean,
-          setIsPending,
-          streamingMessage: undefined as UIMessage | undefined,
-          uiMessages: [userMsg, assistantMsg] as UIMessage[] | undefined,
-        },
-      },
+    // Simulates remount: isPending true from context, messages already loaded
+    // assistantCountRef starts null, gets initialized to max(0, length-1) = 0
+    // Then length (1) > 0 → checks terminal → all success → clears
+    renderHook(() =>
+      useChatPendingState({
+        isPending: true,
+        setIsPending,
+        uiMessages: [completedMsg],
+      }),
     );
-
-    // Activate pending as human input response
-    act(() => {
-      result.current.setPendingWithCount(true, true);
-    });
-
-    // Rerender with pending=true (simulating context update)
-    rerender({
-      isPending: true,
-      setIsPending,
-      streamingMessage: undefined,
-      uiMessages: [userMsg, assistantMsg],
-    });
-
-    // Should NOT clear via fallback because it's a human input response
-    expect(setIsPending).not.toHaveBeenCalledWith(false);
-  });
-
-  it('clears human input pending when streaming starts', () => {
-    const streamingMsg = createUIMessage({
-      id: 'msg-3',
-      order: 2,
-      role: 'assistant',
-      status: 'streaming',
-    });
-
-    const { result, rerender } = renderHook(
-      (props) => useChatPendingState(props),
-      {
-        initialProps: {
-          isPending: false as boolean,
-          setIsPending,
-          streamingMessage: undefined as UIMessage | undefined,
-          uiMessages: [] as UIMessage[] | undefined,
-        },
-      },
-    );
-
-    // Set as human input pending
-    act(() => {
-      result.current.setPendingWithCount(true, true);
-    });
-
-    // Streaming starts
-    rerender({
-      isPending: true,
-      setIsPending,
-      streamingMessage: streamingMsg,
-      uiMessages: [streamingMsg],
-    });
 
     expect(setIsPending).toHaveBeenCalledWith(false);
   });

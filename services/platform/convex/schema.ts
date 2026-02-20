@@ -18,6 +18,15 @@ import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
 import { toneOfVoiceTable, exampleMessagesTable } from './tone_of_voice/schema';
 import { vendorsTable } from './vendors/schema';
+import {
+  websitePageEmbeddings256Table,
+  websitePageEmbeddings512Table,
+  websitePageEmbeddings1024Table,
+  websitePageEmbeddings1536Table,
+  websitePageEmbeddings2048Table,
+  websitePageEmbeddings2560Table,
+  websitePageEmbeddings4096Table,
+} from './website_page_embeddings/schema';
 import { websitesTable, websitePagesTable } from './websites/schema';
 import {
   wfDefinitionsTable,
@@ -52,6 +61,13 @@ export default defineSchema({
   ssoProviders: ssoProvidersTable,
   toneOfVoice: toneOfVoiceTable,
   vendors: vendorsTable,
+  websitePageEmbeddings256: websitePageEmbeddings256Table,
+  websitePageEmbeddings512: websitePageEmbeddings512Table,
+  websitePageEmbeddings1024: websitePageEmbeddings1024Table,
+  websitePageEmbeddings1536: websitePageEmbeddings1536Table,
+  websitePageEmbeddings2048: websitePageEmbeddings2048Table,
+  websitePageEmbeddings2560: websitePageEmbeddings2560Table,
+  websitePageEmbeddings4096: websitePageEmbeddings4096Table,
   websitePages: websitePagesTable,
   websites: websitesTable,
   wfApiKeys: wfApiKeysTable,
