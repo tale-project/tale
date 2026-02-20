@@ -127,7 +127,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
     attachment.fileId,
     !!attachment.previewUrl,
   );
-  const displayUrl = attachment.previewUrl || serverFileUrl;
+  const displayUrl = attachment.previewUrl || serverFileUrl || undefined;
   const isImage = attachment.fileType.startsWith('image/');
 
   if (isImage && !displayUrl) {
