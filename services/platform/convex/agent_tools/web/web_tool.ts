@@ -26,6 +26,8 @@ Searches through previously crawled and indexed website content from the organiz
 Uses vector embeddings for semantic understanding — finds related content even without exact keyword matches.
 Returns ranked results with page URL, title, and relevant content excerpts.
 
+IMPORTANT: Always cite the source URL for every piece of information you present from the results. Never omit the URL — users need to verify and navigate to the original source.
+
 EXAMPLES:
 - { query: "shipping policy" }
 - { query: "product pricing details" }
