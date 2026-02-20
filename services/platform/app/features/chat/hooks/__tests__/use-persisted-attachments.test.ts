@@ -1,6 +1,8 @@
 import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import type { Id } from '@/convex/_generated/dataModel';
+
 import type { FileAttachment } from '../use-convex-file-upload';
 
 vi.mock('../queries', () => ({

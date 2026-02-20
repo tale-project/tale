@@ -134,7 +134,7 @@ export function useMessageProcessing(
         return {
           id: m.id,
           key: m.key,
-          content: stripInternalFileReferences(m.text),
+          content: m.text ? stripInternalFileReferences(m.text) : '',
           // UIMessage.role is string — cast required to narrow to expected union
           role: m.role,
           timestamp: new Date(m._creationTime),

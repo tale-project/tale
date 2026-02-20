@@ -4,9 +4,8 @@ import { useEffect, useMemo, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
-import type { FileAttachment } from './use-convex-file-upload';
-
 import { useFileUrls } from './queries';
+import type { FileAttachment } from './use-convex-file-upload';
 
 const STORAGE_KEY_PREFIX = 'chat-attachments-';
 
@@ -92,17 +91,20 @@ export function usePersistedAttachments({
 
   // On mount: restore from localStorage for the initial thread
   const hasRestoredRef = useRef(false);
-  if (!hasRestoredRef.current) {
+  useEffect(() => {
+    if (hasRestoredRef.current) return;
     hasRestoredRef.current = true;
     const persisted = loadPersisted(threadId);
     if (persisted.length > 0) {
       isRestoringRef.current = true;
       setAttachments(persisted.map((p) => toFileAttachment(p)));
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, []);
 
   // On thread switch: save current, restore new
-  if (prevThreadIdRef.current !== threadId) {
+  useEffect(() => {
+    if (prevThreadIdRef.current === threadId) return;
     savePersisted(prevThreadIdRef.current, attachmentsRef.current);
     prevThreadIdRef.current = threadId;
 
@@ -111,7 +113,7 @@ export function usePersistedAttachments({
     setAttachments(
       persisted.length > 0 ? persisted.map((p) => toFileAttachment(p)) : [],
     );
-  }
+  }, [threadId, setAttachments]);
 
   // Persist to localStorage when attachments change (skip restore-triggered updates)
   useEffect(() => {
