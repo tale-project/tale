@@ -119,8 +119,9 @@ describe('DataTableFilters', () => {
       await openFilterPanel(user);
       await expandSection(user, 'Status');
 
-      const activeLabel = screen.getByText('Active').closest('label')!;
-      await user.click(activeLabel);
+      const activeLabel = screen.getByText('Active').closest('label');
+      expect(activeLabel).not.toBeNull();
+      await user.click(activeLabel ?? document.body);
 
       expect(onChange).toHaveBeenCalledWith(['active']);
     });
@@ -165,8 +166,11 @@ describe('DataTableFilters', () => {
       await expandSection(user, 'Status');
 
       const checkboxes = screen.getAllByRole('checkbox');
-      const filterContent = checkboxes[0]!.closest('[class*="flex flex-col"]')!;
-      await checkAccessibility(filterContent);
+      const firstCheckbox = checkboxes[0];
+      expect(firstCheckbox).toBeDefined();
+      const filterContent = firstCheckbox?.closest('[class*="flex flex-col"]');
+      expect(filterContent).not.toBeNull();
+      if (filterContent) await checkAccessibility(filterContent);
     });
   });
 });
