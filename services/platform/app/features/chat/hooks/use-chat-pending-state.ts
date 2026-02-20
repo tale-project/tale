@@ -5,80 +5,65 @@ import { useEffect, useRef } from 'react';
 interface UseChatPendingStateParams {
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
-  streamingMessage: UIMessage | undefined;
   uiMessages: UIMessage[] | undefined;
 }
 
 /**
  * Hook to manage pending state clearing.
- * Clears pending when streaming starts or when a completed message appears.
+ * Clears pending only when no assistant messages are in a non-terminal state.
+ * This ensures loading stays visible throughout the entire AI processing lifecycle,
+ * including gaps between tool calls and status transitions.
  *
- * Handles two scenarios:
- * 1. Normal message sending: Uses fallback logic to clear when a completed message appears
- * 2. Human input response: Only clears when streaming actually starts (no fallback)
- *
- * Also handles the case where component remounts during navigation (e.g., first message
+ * Also handles component remount during navigation (e.g., first message
  * creates a new thread and navigates to /chat/[threadId]).
  */
 export function useChatPendingState({
   isPending,
   setIsPending,
-  streamingMessage,
   uiMessages,
 }: UseChatPendingStateParams) {
-  const pendingUserCountRef = useRef<number | null>(null);
-  const isHumanInputPendingRef = useRef(false);
+  const assistantCountRef = useRef<number | null>(null);
 
   const setPendingWithCount = (
     pending: boolean,
-    isHumanInputResponse = false,
+    _isHumanInputResponse = false,
   ) => {
     if (pending) {
-      const currentAssistantCount =
+      const currentCount =
         uiMessages?.filter((m) => m.role === 'assistant').length ?? 0;
-      pendingUserCountRef.current = currentAssistantCount;
-      isHumanInputPendingRef.current = isHumanInputResponse;
+      assistantCountRef.current = currentCount;
     }
     setIsPending(pending);
   };
 
   useEffect(() => {
     if (!isPending) {
-      pendingUserCountRef.current = null;
-      isHumanInputPendingRef.current = false;
+      assistantCountRef.current = null;
       return;
     }
 
-    if (streamingMessage) {
+    if (!uiMessages?.length) return;
+
+    const assistantMessages = uiMessages.filter((m) => m.role === 'assistant');
+
+    // Initialize on first run (handles component remount during navigation)
+    if (assistantCountRef.current === null) {
+      assistantCountRef.current = Math.max(0, assistantMessages.length - 1);
+    }
+
+    // Wait for a new assistant message to appear before checking terminal status
+    if (assistantMessages.length <= assistantCountRef.current) return;
+
+    // Clear only when no assistant messages are in a non-terminal state
+    const hasNonTerminal = assistantMessages.some(
+      (m) => m.status !== 'success' && m.status !== 'failed',
+    );
+
+    if (!hasNonTerminal) {
       setIsPending(false);
-      pendingUserCountRef.current = null;
-      isHumanInputPendingRef.current = false;
-      return;
+      assistantCountRef.current = null;
     }
+  }, [isPending, setIsPending, uiMessages]);
 
-    if (isHumanInputPendingRef.current) {
-      return;
-    }
-
-    const assistantMessages =
-      uiMessages?.filter((m) => m.role === 'assistant') ?? [];
-
-    if (pendingUserCountRef.current === null) {
-      pendingUserCountRef.current = assistantMessages.length - 1;
-    }
-
-    if (assistantMessages.length > pendingUserCountRef.current) {
-      const lastAssistantMessage = assistantMessages.at(-1);
-      if (
-        lastAssistantMessage &&
-        lastAssistantMessage.status !== 'streaming' &&
-        lastAssistantMessage.text
-      ) {
-        setIsPending(false);
-        pendingUserCountRef.current = null;
-      }
-    }
-  }, [streamingMessage, isPending, setIsPending, uiMessages]);
-
-  return { setPendingWithCount, pendingUserCountRef };
+  return { setPendingWithCount };
 }

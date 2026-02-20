@@ -150,9 +150,11 @@ export function createChatAgent(options?: {
   withTools?: boolean;
   maxSteps?: number;
   convexToolNames?: ToolName[];
+  useFastModel?: boolean;
 }) {
   const withTools = options?.withTools ?? true;
   const maxSteps = options?.maxSteps ?? 20;
+  const useFastModel = options?.useFastModel ?? false;
 
   let convexToolNames: ToolName[] = [];
 
@@ -167,16 +169,18 @@ export function createChatAgent(options?: {
       'request_human_input',
     ];
     convexToolNames = options?.convexToolNames ?? defaultToolNames;
-
-    debugLog('createChatAgent Loaded tools', {
-      convexCount: convexToolNames.length,
-    });
   }
+
+  debugLog('createChatAgent', {
+    toolCount: withTools ? convexToolNames.length : 0,
+    useFastModel,
+  });
 
   const agentConfig = createAgentConfig({
     name: 'routing-agent',
     instructions: CHAT_AGENT_INSTRUCTIONS,
     ...(withTools ? { convexToolNames } : {}),
+    ...(useFastModel ? { useFastModel: true } : {}),
     maxSteps,
   });
 

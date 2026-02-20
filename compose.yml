@@ -160,7 +160,7 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Operator (OpenCode + Playwright MCP)
+  # Tale Operator (Direct Playwright + LLM Agent Loop)
   # ============================================================================
   # AI-powered operator service
   # - Uses real browser to bypass anti-bot detection
@@ -187,11 +187,6 @@ services:
     env_file:
       - .env
 
-    # Environment variables (override .env for testing)
-    environment:
-      # Use non-headless mode with Xvfb for better anti-detection
-      - OPERATOR_HEADLESS=false
-
     # Restart policy
     restart: unless-stopped
 
@@ -202,13 +197,13 @@ services:
     cap_add:
       - SYS_ADMIN
 
-    # Health check - longer start period for Playwright initialization
+    # Health check
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:8004/health']
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 60s
+      start_period: 15s
 
     # Logging configuration
     logging:

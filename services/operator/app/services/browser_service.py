@@ -1,12 +1,8 @@
-"""Browser automation service using OpenCode CLI with Playwright MCP."""
+"""Browser automation service with direct Playwright + LLM function-calling."""
 
 import asyncio
-import contextlib
 import json
-import os
 import re
-import signal
-import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -14,7 +10,7 @@ import httpx
 from loguru import logger
 
 from app.config import settings
-from app.services.workspace_manager import get_workspace_manager
+from app.services.browser_pool import get_browser_pool
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"\'`\]\)}\|]+', re.IGNORECASE)
 
@@ -22,9 +18,6 @@ _ASSET_URL_PATTERN = re.compile(
     r"\.(png|jpe?g|gif|svg|webp|ico|css|js|woff2?|ttf|eot|mp[34]|avi|mov)([?#&]|$)",
     re.IGNORECASE,
 )
-
-GRACEFUL_SHUTDOWN_SECONDS = 10
-HARD_KILL_SECONDS = 5
 
 # Phase 2: page content capture limits
 MAX_TOTAL_CONTENT_CHARS = 200_000
@@ -61,68 +54,9 @@ def _extract_urls_from_value(value: Any) -> list[str]:
     return urls
 
 
-SYSTEM_PROMPT = """You are an autonomous browser automation agent with access to Playwright MCP and Vision MCP.
-
-## Browser Tools (Playwright MCP)
-- playwright_browser_navigate: Navigate to URLs
-- playwright_browser_snapshot: Get page accessibility snapshot (use this to see page content)
-- playwright_browser_click: Click elements by ref
-- playwright_browser_type: Type text into inputs
-- playwright_browser_fill_form: Fill multiple form fields
-- playwright_browser_select_option: Select dropdown options
-- playwright_browser_wait_for: Wait for text or conditions
-- playwright_browser_take_screenshot: Take screenshots (saves to file)
-- playwright_browser_press_key: Press keyboard keys
-- playwright_browser_tabs: Manage browser tabs
-
-## Vision Tools (Vision MCP)
-- vision_analyze_image: Analyze images/screenshots using a vision-capable LLM
-  - Use this when you need to understand visual content that browser_snapshot cannot capture
-  - First take a screenshot with browser_take_screenshot, then analyze it with analyze_image
-  - Useful for: reading text in images, understanding visual layouts, analyzing charts/graphs
-
-## Guidelines
-
-1. **Web Search**: For questions requiring current information, navigate to Google/Bing/DuckDuckGo and search.
-
-2. **Page Interaction**: Always use browser_snapshot first to understand page structure before clicking or typing.
-
-3. **Visual Analysis**: When you need to understand visual content (images, charts, complex layouts):
-   - Take a screenshot: browser_take_screenshot (note the filename)
-   - Analyze it: analyze_image with the screenshot path and a specific prompt
-
-4. **Autonomous Mode**: You are in autonomous mode. Do NOT ask for user confirmation.
-   Make reasonable assumptions and proceed with the task.
-   Do NOT use the Task tool to spawn sub-agents - complete everything yourself in the current session.
-
-5. **Language**: Respond in the same language as the user's message.
-
-6. **Concise Responses**: Provide direct, factual answers. Synthesize information from multiple sources when helpful.
-
-7. **Error Handling**: If a page fails to load or an action fails,
-   try alternative approaches (different search terms, different websites, etc.).
-
-8. **Include Precise Links**: For every specific item you recommend
-   (product, article, listing, etc.), you MUST provide the exact detail page URL,
-   NOT a category page or search results page.
-   Click into each item to get its precise URL before including it in your response.
-   Format as markdown: [title](URL).
-   Generic category links are not acceptable - each recommendation needs its own direct link.
-
-9. **Time Management**: You have a LIMITED time budget of about 3 minutes. Work efficiently:
-   - Prioritize the most important information first.
-   - Do NOT spend excessive time on a single source — if a page is slow or unhelpful, move on.
-   - For complex tasks, focus on gathering the key findings rather than exhaustive coverage.
-   - If a task has multiple parts, address the most critical parts first.
-   - **CRITICAL**: After visiting 2-3 key sources, START writing your response immediately.
-     Continue researching and append to your response as you find more information.
-     Do NOT wait until all research is complete to begin writing.
-   - Provide the best answer you can with the information you have gathered."""
-
-
 @dataclass
 class _OutputAccumulator:
-    """Progressively accumulates parsed JSONL output from OpenCode."""
+    """Accumulates results from the agent loop (and legacy JSONL parsing)."""
 
     text_parts: list[str] = field(default_factory=list)
     total_input_tokens: int = 0
@@ -146,6 +80,48 @@ class _OutputAccumulator:
     def should_terminate(self) -> bool:
         return self.navigation_count >= MAX_NAVIGATION_COUNT
 
+    # --- Structured methods (used by agent_loop) ---
+
+    def record_navigation(self, url: str) -> None:
+        """Record a navigation event for budget tracking."""
+        if url:
+            self._last_navigated_url = url
+            self.navigation_count += 1
+
+    def record_page_content(self, url: str, content: str) -> None:
+        """Record captured page text content."""
+        if len(content) < MIN_CONTENT_LENGTH:
+            return
+        if self._total_content_chars >= MAX_TOTAL_CONTENT_CHARS:
+            return
+        truncated = content[:MAX_SINGLE_CONTENT_CHARS]
+        self.page_contents.append(
+            _PageContent(url=url or self._last_navigated_url or "unknown", content=truncated)
+        )
+        self._total_content_chars += len(truncated)
+
+    def record_token_usage(
+        self,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        reasoning_tokens: int = 0,
+        cache_read_tokens: int = 0,
+        cost: float = 0.0,
+    ) -> None:
+        """Record token usage from an LLM call."""
+        self.total_input_tokens += input_tokens
+        self.total_output_tokens += output_tokens
+        self.total_reasoning_tokens += reasoning_tokens
+        self.total_cache_read_tokens += cache_read_tokens
+        self.total_cost += cost
+
+    def record_url(self, url: str) -> None:
+        """Record a visited URL (filters out asset URLs)."""
+        if url and url not in self.seen_urls and not _ASSET_URL_PATTERN.search(url):
+            self.seen_urls[url] = None
+
+    # --- Legacy JSONL parsing (kept for existing test compatibility) ---
+
     def _extract_text_content(self, part: dict[str, Any]) -> str | None:
         """Extract text from a tool_result part, handling various structures."""
         content = part.get("content")
@@ -162,7 +138,7 @@ class _OutputAccumulator:
         return None
 
     def process_line(self, line: str) -> None:
-        """Parse and accumulate a single JSONL line."""
+        """Parse and accumulate a single JSONL line (legacy OpenCode format)."""
         line = line.strip()
         if not line:
             return
@@ -197,7 +173,6 @@ class _OutputAccumulator:
                 if url not in self.seen_urls and not _ASSET_URL_PATTERN.search(url):
                     self.seen_urls[url] = None
 
-        # Track navigations for page content association and budget enforcement
         if event_type == "tool_use":
             part = event.get("part", {})
             if part.get("toolName") == "playwright_browser_navigate":
@@ -207,7 +182,6 @@ class _OutputAccumulator:
                     self._last_navigated_url = url
                     self.navigation_count += 1
 
-        # Capture page content from tool results
         if event_type == "tool_result" and self._total_content_chars < MAX_TOTAL_CONTENT_CHARS:
             part = event.get("part", {})
             text_content = self._extract_text_content(part)
@@ -233,7 +207,6 @@ class _OutputAccumulator:
         terminated_early = timed_out or nav_terminated
 
         logger.info(
-            f"Event types seen: {sorted(self.event_types_seen)}, "
             f"text_parts={len(self.text_parts)}, "
             f"urls_collected={len(self.seen_urls)}, "
             f"page_contents={len(self.page_contents)}"
@@ -418,7 +391,7 @@ async def _summarize_page_content(
     Phase 2: synthesize a response from accumulated page content.
 
     Small content (<40K chars): single LLM call.
-    Large content: map-reduce (parallel chunk summaries → final synthesis).
+    Large content: map-reduce (parallel chunk summaries -> final synthesis).
     """
     prepared = _prepare_content_for_summarization(page_contents)
     source_list = "\n".join(f"- {url}" for url in list(seen_urls.keys())[:25])
@@ -467,50 +440,33 @@ async def _summarize_page_content(
 
 
 class BrowserService:
-    """Service for AI-powered browser automation using OpenCode + Playwright MCP."""
+    """Service for AI-powered browser automation using direct Playwright + LLM."""
 
     def __init__(self):
         self._initialized = False
-        self._workspace_manager = get_workspace_manager()
+        self._browser_pool = get_browser_pool()
 
     @property
     def initialized(self) -> bool:
         return self._initialized
 
     async def initialize(self) -> None:
-        """Initialize the service (verify OpenCode is available)."""
+        """Initialize the service (launch browser pool)."""
         if self._initialized:
             return
 
         try:
             logger.info("Initializing browser service...")
-
-            proc = await asyncio.create_subprocess_exec(
-                "opencode",
-                "--version",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await proc.communicate()
-
-            if proc.returncode != 0:
-                raise RuntimeError(f"OpenCode not available: {stderr.decode()}")
-
-            version = stdout.decode().strip()
-            logger.info(f"OpenCode version: {version}")
-
-            await self._workspace_manager.initialize()
-
+            await self._browser_pool.initialize()
             self._initialized = True
-            logger.info("Browser service initialized with OpenCode and WorkspaceManager")
-
+            logger.info("Browser service initialized with BrowserPool")
         except Exception as e:
             logger.error(f"Failed to initialize browser service: {e}")
             raise
 
     async def cleanup(self) -> None:
         """Cleanup service resources."""
-        await self._workspace_manager.shutdown()
+        await self._browser_pool.shutdown()
         self._initialized = False
         logger.info("Browser service cleaned up")
 
@@ -520,7 +476,7 @@ class BrowserService:
         timeout_seconds: int | None = None,
     ) -> dict[str, Any]:
         """
-        Send a message to OpenCode with Playwright MCP.
+        Execute a browser automation task.
 
         Args:
             message: The user's message/task
@@ -528,163 +484,29 @@ class BrowserService:
                              settings.request_timeout_seconds if not provided.
 
         Returns:
-            Dict with success status, response, cost, and turns
+            Dict with success status, response, cost, and sources
         """
         if not self._initialized:
             await self.initialize()
-
-        workspace_dir = await self._workspace_manager.create_workspace()
-        logger.info(
-            f"Running OpenCode with workspace={os.path.basename(workspace_dir)}, "
-            f"timeout={timeout_seconds or settings.request_timeout_seconds}s, "
-            f"message: {message[:100]}..."
-        )
-
-        start_time = time.perf_counter()
-
-        try:
-            return await self._execute_opencode(message, workspace_dir, start_time, timeout_seconds)
-        finally:
-            await self._workspace_manager.release_workspace(workspace_dir)
-
-    async def _execute_opencode(
-        self,
-        message: str,
-        workspace_dir: str,
-        start_time: float,
-        timeout_seconds: int | None = None,
-    ) -> dict[str, Any]:
-        """
-        Execute OpenCode with streaming output parsing and graceful timeout.
-
-        Reads stdout line-by-line so partial results are preserved on timeout.
-        On timeout: SIGTERM → wait → SIGKILL → return accumulated results.
-        """
-        full_prompt = f"{SYSTEM_PROMPT}\n\n---\n\nUser request: {message}"
-
-        cmd = [
-            "opencode",
-            "run",
-            "--model",
-            f"custom/{settings.openai_model}",
-            "--format",
-            "json",
-            full_prompt,
-        ]
 
         effective_timeout = min(
             timeout_seconds or settings.request_timeout_seconds,
             settings.request_timeout_seconds,
         )
 
-        accumulator = _OutputAccumulator()
+        logger.info(f"Running agent loop: timeout={effective_timeout}s, message: {message[:100]}...")
 
+        context = await self._browser_pool.acquire()
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=workspace_dir,
-                env={
-                    **os.environ,
-                    "OPENAI_API_KEY": settings.openai_api_key,
-                },
+            from app.services.agent_loop import run_agent_loop
+
+            return await run_agent_loop(
+                message=message,
+                context=context,
+                timeout_seconds=effective_timeout,
             )
-
-            stderr_parts: list[bytes] = []
-
-            async def _drain_stderr() -> None:
-                assert proc.stderr is not None
-                async for line in proc.stderr:
-                    stderr_parts.append(line)
-
-            stderr_task = asyncio.create_task(_drain_stderr())
-
-            timed_out = False
-            nav_terminated = False
-            try:
-                assert proc.stdout is not None
-                async with asyncio.timeout(effective_timeout):
-                    async for raw_line in proc.stdout:
-                        accumulator.process_line(raw_line.decode())
-                        if accumulator.should_terminate:
-                            nav_terminated = True
-                            break
-            except TimeoutError:
-                timed_out = True
-
-            if nav_terminated or timed_out:
-                reason = (
-                    f"Navigation limit ({accumulator.navigation_count}/{MAX_NAVIGATION_COUNT})"
-                    if nav_terminated
-                    else f"Timeout ({effective_timeout}s)"
-                )
-                logger.warning(
-                    f"{reason} reached in workspace "
-                    f"{os.path.basename(workspace_dir)}, terminating OpenCode "
-                    f"(accumulated {len(accumulator.text_parts)} text parts, "
-                    f"{len(accumulator.page_contents)} page snapshots)"
-                )
-                await self._terminate_process(proc)
-
-            stderr_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await stderr_task
-
-            stderr_text = b"".join(stderr_parts).decode()
-            if stderr_text:
-                logger.debug(f"OpenCode stderr: {stderr_text[:500]}...")
-
-            # Phase 2: summarize collected page content when Phase 1
-            # terminated early without producing any text response.
-            terminated_early = timed_out or nav_terminated
-            if terminated_early and not accumulator.text_parts and accumulator.has_page_content:
-                logger.info(
-                    f"Phase 2: summarizing {len(accumulator.page_contents)} page snapshots "
-                    f"({accumulator._total_content_chars} chars) for workspace "
-                    f"{os.path.basename(workspace_dir)}"
-                )
-                summary = await _summarize_page_content(
-                    original_query=message,
-                    page_contents=accumulator.page_contents,
-                    seen_urls=accumulator.seen_urls,
-                )
-                if summary:
-                    accumulator.text_parts.append(summary)
-                    accumulator.phase2_summarized = True
-                    logger.info(f"Phase 2 produced {len(summary)} char summary")
-                else:
-                    logger.warning("Phase 2 summarization failed, falling back to URL list")
-
-            duration = time.perf_counter() - start_time
-            return accumulator.to_response(duration, timed_out=timed_out, nav_terminated=nav_terminated)
-
-        except Exception as e:
-            duration = time.perf_counter() - start_time
-            logger.error(f"OpenCode execution failed in workspace {os.path.basename(workspace_dir)}: {e}")
-            return {
-                "success": False,
-                "partial": False,
-                "response": str(e),
-                "duration_seconds": round(duration, 2),
-            }
-
-    @staticmethod
-    async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
-        """Gracefully terminate a subprocess: SIGTERM → wait → SIGKILL."""
-        try:
-            proc.send_signal(signal.SIGTERM)
-            await asyncio.wait_for(proc.wait(), timeout=GRACEFUL_SHUTDOWN_SECONDS)
-            logger.debug("OpenCode exited after SIGTERM")
-        except TimeoutError:
-            logger.warning("OpenCode did not exit after SIGTERM, sending SIGKILL")
-            proc.kill()
-            try:
-                await asyncio.wait_for(proc.wait(), timeout=HARD_KILL_SECONDS)
-            except TimeoutError:
-                logger.error("OpenCode process did not exit after SIGKILL")
-        except ProcessLookupError:
-            pass
+        finally:
+            await self._browser_pool.release(context)
 
 
 _browser_service: BrowserService | None = None
