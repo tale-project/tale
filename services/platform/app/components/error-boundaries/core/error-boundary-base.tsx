@@ -72,7 +72,10 @@ export class ErrorBoundaryBase extends Component<
     }
   }
 
-  componentDidUpdate(prevProps: ErrorBoundaryBaseProps) {
+  componentDidUpdate(
+    prevProps: ErrorBoundaryBaseProps,
+    prevState: ErrorBoundaryState,
+  ) {
     const { resetKeys = [] } = this.props;
     const prevResetKeys = prevProps.resetKeys || [];
 
@@ -84,6 +87,15 @@ export class ErrorBoundaryBase extends Component<
       if (hasResetKeysChanged) {
         this.reset();
       }
+    }
+
+    if (
+      prevState.hasError &&
+      !this.state.hasError &&
+      !this.state.isRetrying &&
+      this.state.retryCount > 0
+    ) {
+      this.setState({ retryCount: 0 });
     }
 
     this.resetKeysRef = resetKeys;
