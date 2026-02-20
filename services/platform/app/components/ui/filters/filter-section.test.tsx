@@ -5,6 +5,23 @@ import { render, screen } from '@/test/utils/render';
 
 import { FilterSection } from './filter-section';
 
+vi.mock('@/lib/i18n/client', () => ({
+  useT: () => ({
+    t: (key: string, options?: Record<string, string | number>) => {
+      const translations: Record<string, string> = {
+        'labels.nSelected': '{{count}} selected',
+      };
+      let value = translations[key] ?? key;
+      if (options) {
+        for (const [k, v] of Object.entries(options)) {
+          value = value.replace(`{{${k}}}`, String(v));
+        }
+      }
+      return value;
+    },
+  }),
+}));
+
 describe('FilterSection', () => {
   const defaultProps = {
     title: 'Status',
