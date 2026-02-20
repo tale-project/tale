@@ -1,13 +1,13 @@
 """
 Tale Operator Service
 
-AI-powered operator service using OpenCode + Playwright MCP.
+AI-powered operator service with direct Playwright browser automation.
 Provides REST API for web search, browsing, and task automation.
 
 Architecture:
-- OpenCode CLI: Open-source AI coding agent with native MCP support
-- Playwright MCP: Browser automation via Model Context Protocol
-- Vision MCP: Image analysis using vision-capable LLMs
+- Direct LLM function-calling agent loop
+- Playwright Python API for browser control
+- Persistent browser pool for fast context creation
 """
 
 from collections.abc import AsyncGenerator
@@ -31,26 +31,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"Server: {settings.host}:{settings.port}")
     logger.info(f"Log level: {settings.log_level}")
     logger.info(f"Headless mode: {settings.headless}")
-    logger.info(f"LLM model: {settings.openai_model} (via OpenCode)")
+    logger.info(f"LLM model: {settings.openai_model} (direct agent loop)")
     logger.info(f"Max concurrent requests: {settings.max_concurrent_requests}")
-    logger.info(f"Workspace base dir: {settings.workspace_base_dir}")
-    logger.info(f"Workspace max size: {settings.workspace_max_size_mb}MB")
 
-    # Initialize browser service (lazy - will init on first request)
     try:
         service = get_browser_service()
         await service.initialize()
         logger.info("Browser service initialized successfully")
     except Exception:
         logger.exception("Failed to initialize browser service")
-        # Don't fail startup - allow lazy initialization
 
     yield
 
     # Shutdown
     logger.info("Shutting down Tale Operator service...")
 
-    # Cleanup browser service
     try:
         service = get_browser_service()
         if service.initialized:
@@ -63,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 # Create FastAPI application
 app = FastAPI(
     title="Tale Operator API",
-    description="AI-powered operator service using OpenCode + Playwright MCP",
+    description="AI-powered operator service with direct Playwright browser automation",
     version=__version__,
     lifespan=lifespan,
     docs_url="/docs",

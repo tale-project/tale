@@ -8,8 +8,8 @@ import type { Doc } from '../_generated/dataModel';
 
 import { query } from '../_generated/server';
 import { TOOL_NAMES } from '../agent_tools/tool_names';
-import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { getAuthUserIdentity } from '../lib/rls';
 import { hasTeamAccess } from '../lib/team_access';
 
 const COUNT_CAP = 20;
@@ -26,10 +26,10 @@ export const approxCountCustomAgents = query({
   },
   returns: v.number(),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
 
     const agents = ctx.db
       .query('customAgents')
@@ -57,10 +57,10 @@ export const listCustomAgents = query({
     filterPublished: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<Doc<'customAgents'>[]> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
 
     if (args.filterPublished === true) {
       const agents = ctx.db
@@ -126,7 +126,7 @@ export const getCustomAgent = query({
     customAgentId: v.id('customAgents'),
   },
   handler: async (ctx, args): Promise<Doc<'customAgents'> | null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     // customAgentId is the rootVersionId; find the draft record
@@ -144,7 +144,7 @@ export const getCustomAgent = query({
 
     if (!draft || !draft.isActive) return null;
 
-    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
     if (!hasTeamAccess(draft, userTeamIds)) return null;
 
     return draft;
@@ -157,13 +157,13 @@ export const getCustomAgentByVersion = query({
     versionNumber: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<Doc<'customAgents'> | null> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const rootAgent = await ctx.db.get(args.customAgentId);
     if (!rootAgent || !rootAgent.isActive) return null;
 
-    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
     if (!hasTeamAccess(rootAgent, userTeamIds)) return null;
 
     if (args.versionNumber !== undefined) {
@@ -197,13 +197,13 @@ export const getCustomAgentVersions = query({
     customAgentId: v.id('customAgents'),
   },
   handler: async (ctx, args): Promise<Doc<'customAgents'>[]> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const rootAgent = await ctx.db.get(args.customAgentId);
     if (!rootAgent || !rootAgent.isActive) return [];
 
-    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
     if (!hasTeamAccess(rootAgent, userTeamIds)) return [];
 
     const versions = ctx.db
@@ -238,7 +238,7 @@ export const getAvailableIntegrations = query({
     ctx,
     args,
   ): Promise<Array<{ name: string; title: string; type: string }>> => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
     const integrations: Array<{ name: string; title: string; type: string }> =

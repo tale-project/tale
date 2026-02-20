@@ -13,29 +13,26 @@ interface LayoutErrorBoundaryProps {
   organizationId?: string;
 }
 
+function isConvexTransientError(error: Error): boolean {
+  const msg = error.message || '';
+  return (
+    msg.includes('timed out') ||
+    msg.includes('Function execution') ||
+    msg.includes('overloaded')
+  );
+}
+
+const MAX_RETRIES = 3;
+
 /**
  * Error boundary for layout-level errors.
  *
  * Features:
  * - Compact error display
  * - Auto-resets on pathname change (resetKeys pattern)
+ * - Auto-retries transient Convex errors (timeouts, overloaded) up to 3 times
  * - Organization context support
  * - Preserves layout navigation
- *
- * Used in layout files to catch errors in child routes without crashing
- * the entire app.
- *
- * @example
- * // In app/(app)/dashboard/[id]/settings/layout.tsx
- * export default function SettingsLayout({ children }) {
- *   const organizationId = useParams().id as string;
- *
- *   return (
- *     <LayoutErrorBoundary organizationId={organizationId}>
- *       {children}
- *     </LayoutErrorBoundary>
- *   );
- * }
  */
 export function LayoutErrorBoundary({
   children,
@@ -47,7 +44,9 @@ export function LayoutErrorBoundary({
   return (
     <ErrorBoundaryBase
       organizationId={organizationId}
-      resetKeys={[pathname]} // Auto-reset when route changes
+      resetKeys={[pathname]}
+      maxRetries={MAX_RETRIES}
+      isRetryableError={isConvexTransientError}
       fallback={({ error, reset, organizationId }) => (
         <ErrorDisplayCompact
           error={error}
