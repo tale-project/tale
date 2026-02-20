@@ -11,8 +11,6 @@ import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import type { FileAttachment } from '../types';
-
 import { useChatLayout } from '../context/chat-layout-context';
 import {
   useHumanInputRequests,
@@ -26,6 +24,7 @@ import { useMessageProcessing } from '../hooks/use-message-processing';
 import { usePendingMessages } from '../hooks/use-pending-messages';
 import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
 import { useSendMessage } from '../hooks/use-send-message';
+import type { FileAttachment } from '../types';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
@@ -275,7 +274,7 @@ export function ChatInterface({
 
       <div className="sticky bottom-0 z-50">
         {/* Scroll to bottom button */}
-        <div className="relative mx-auto w-full max-w-(--chat-max-width)">
+        <div className="max-w-(--chat-max-width) relative mx-auto w-full">
           <AnimatePresence>
             {showScrollButton && (
               <motion.div
@@ -289,7 +288,7 @@ export function ChatInterface({
                   onClick={scrollToBottom}
                   size="icon"
                   variant="secondary"
-                  className="bg-opacity-60 rounded-full shadow-lg backdrop-blur-sm"
+                  className="rounded-full bg-opacity-60 shadow-lg backdrop-blur-sm"
                   aria-label={t('aria.scrollToBottom')}
                 >
                   <ArrowDown className="h-4 w-4" />
@@ -300,7 +299,7 @@ export function ChatInterface({
         </div>
         <FileUpload.Root>
           <ChatInput
-            className="mx-auto w-full max-w-(--chat-max-width)"
+            className="max-w-(--chat-max-width) mx-auto w-full"
             value={inputValue}
             onChange={setInputValue}
             onSendMessage={handleSendMessage}

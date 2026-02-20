@@ -1,15 +1,8 @@
 'use node';
 
-import type { FunctionHandle } from 'convex/server';
-
 import { Agent, saveMessage } from '@convex-dev/agent';
+import type { FunctionHandle } from 'convex/server';
 import { v } from 'convex/values';
-
-import type {
-  GenerateResponseHooks,
-  BeforeContextResult,
-  BeforeGenerateResult,
-} from '../agent_response/types';
 
 import {
   isRecord,
@@ -23,6 +16,11 @@ import { fetchOperationsSummary } from '../../agent_tools/integrations/fetch_ope
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
 import { generateAgentResponse } from '../agent_response';
+import type {
+  GenerateResponseHooks,
+  BeforeContextResult,
+  BeforeGenerateResult,
+} from '../agent_response/types';
 import { processAttachments } from '../attachments';
 import {
   estimateTokens,

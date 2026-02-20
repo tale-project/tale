@@ -2,10 +2,9 @@ import { useMemo, useEffect, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
+import { useChatLayout } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
-
-import { useChatLayout } from '../context/chat-layout-context';
 
 interface UsePendingMessagesParams {
   threadId: string | undefined;

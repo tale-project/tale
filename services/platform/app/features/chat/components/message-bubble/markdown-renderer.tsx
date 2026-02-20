@@ -43,7 +43,7 @@ export const markdownWrapperStyles = cn(
   '[&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:my-2 [&_blockquote]:text-muted-foreground [&_blockquote]:italic',
   '[&_hr]:border-0 [&_hr]:border-t [&_hr]:border-border [&_hr]:my-4',
   '[&_img]:rounded-lg [&_img]:shadow-sm',
-  '[&_image-group]:mt-2',
+  '[&_.image-group]:mt-2',
   '[&_strong]:font-semibold [&_em]:italic',
   '[&_table]:w-full [&_table]:border-collapse',
   '[&_thead]:bg-muted',
@@ -78,7 +78,7 @@ const MarkdownImage = memo(function MarkdownImage({
       <button
         type="button"
         onClick={handleOpen}
-        className="focus:ring-ring font-inherit inline-block cursor-pointer appearance-none rounded-lg border-none bg-transparent p-0 transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+        className="focus:ring-ring font-inherit inline-block cursor-pointer appearance-none rounded-lg border-none bg-transparent p-0 transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
       >
         <Image
           src={imageSrc}

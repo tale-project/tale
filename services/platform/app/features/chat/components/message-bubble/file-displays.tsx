@@ -9,9 +9,8 @@ import {
   getFileExtensionLower,
 } from '@/lib/utils/text-file-types';
 
-import type { FileAttachment, FilePart } from './types';
-
 import { useFileUrl } from '../../hooks/queries';
+import type { FileAttachment, FilePart } from './types';
 
 export function getFileTypeLabel(
   fileName: string,
@@ -109,7 +108,7 @@ export function FileTypeIcon({
     >
       <div className="flex flex-col items-center">
         <span className="text-xs leading-none">{icon}</span>
-        <span className="text-foreground/80 mt-0.5 text-[8px] leading-none font-medium">
+        <span className="text-foreground/80 mt-0.5 text-[8px] font-medium leading-none">
           {label}
         </span>
       </div>

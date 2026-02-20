@@ -14,16 +14,8 @@
  * - Context window building and token estimation
  */
 
-import type { ModelMessage } from 'ai';
-
 import { listMessages, saveMessage, type MessageDoc } from '@convex-dev/agent';
-
-import type {
-  GenerateResponseConfig,
-  GenerateResponseArgs,
-  GenerateResponseResult,
-  BeforeContextResult,
-} from './types';
+import type { ModelMessage } from 'ai';
 
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
@@ -38,6 +30,12 @@ import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { startRagPrefetch, type RagPrefetchCache } from '../rag_prefetch';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
+import type {
+  GenerateResponseConfig,
+  GenerateResponseArgs,
+  GenerateResponseResult,
+  BeforeContextResult,
+} from './types';
 import { AgentTimeoutError, withTimeout } from './with_timeout';
 
 /**

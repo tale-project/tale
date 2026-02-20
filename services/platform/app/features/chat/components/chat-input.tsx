@@ -4,12 +4,11 @@ import { X, Paperclip } from 'lucide-react';
 import { LoaderCircleIcon } from 'lucide-react';
 import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ACCEPT,
@@ -18,7 +17,6 @@ import {
 import { cn } from '@/lib/utils/cn';
 
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
-
 import { AgentSelector } from './agent-selector';
 import { ImagePreviewDialog } from './message-bubble';
 
@@ -165,7 +163,7 @@ export function ChatInput({
                           alt: attachment.fileName,
                         })
                       }
-                      className="bg-secondary/20 focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+                      className="bg-secondary/20 focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
                     >
                       {attachment.previewUrl ? (
                         <img
@@ -185,7 +183,7 @@ export function ChatInput({
                       type="button"
                       aria-label={tChat('removeAttachment')}
                       onClick={() => removeAttachment(attachment.fileId)}
-                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                      className="bg-background absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                     >
                       <X className="text-muted-foreground size-3" />
                     </button>
@@ -195,7 +193,7 @@ export function ChatInput({
                 {fileAttachments.map((attachment) => (
                   <div
                     key={attachment.fileId}
-                    className="group bg-secondary/20 relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
+                    className="bg-secondary/20 group relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
                   >
                     <DocumentIcon fileName={attachment.fileName} />
                     <div className="flex min-w-0 flex-1 flex-col">
@@ -212,7 +210,7 @@ export function ChatInput({
                       type="button"
                       aria-label={tChat('removeAttachment')}
                       onClick={() => removeAttachment(attachment.fileId)}
-                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                      className="bg-background absolute right-0.5 top-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                     >
                       <X className="text-muted-foreground size-3" />
                     </button>
@@ -242,7 +240,7 @@ export function ChatInput({
                 placeholder=""
               />
               {value.length === 0 && (
-                <div className="text-muted-foreground pointer-events-none absolute top-0 left-0 flex items-center gap-1 text-sm">
+                <div className="text-muted-foreground pointer-events-none absolute left-0 top-0 flex items-center gap-1 text-sm">
                   {defaultPlaceholder}
                   <div className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
                     <EnterKeyIcon />
