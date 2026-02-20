@@ -249,7 +249,7 @@ export function ExecutionsClient({
         size: 192,
         meta: { headerLabel: tTables('headers.startedAt') },
         cell: ({ row }) => (
-          <span className="text-muted-foreground block w-full whitespace-nowrap text-right text-sm">
+          <span className="text-muted-foreground block w-full text-right text-sm whitespace-nowrap">
             {formatTimestampWithMillis(row.original.startedAt)}
           </span>
         ),

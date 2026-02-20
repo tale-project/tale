@@ -38,7 +38,7 @@ export function FilterButton({
         <Filter className="text-muted-foreground size-4" />
       )}
       {hasActiveFilters && !isLoading && (
-        <div className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-blue-500" />
+        <div className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500" />
       )}
     </Button>
   );
