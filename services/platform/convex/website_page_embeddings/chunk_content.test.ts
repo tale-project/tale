@@ -23,11 +23,17 @@ describe('chunkContent', () => {
 
   it('splits long content into multiple chunks', () => {
     const paragraph = 'Lorem ipsum dolor sit amet. '.repeat(100);
-    const result = chunkContent(paragraph, undefined, 200, 50);
+    const chunkSize = 200;
+    const chunkOverlap = 50;
+    const result = chunkContent(paragraph, undefined, chunkSize, chunkOverlap);
 
     expect(result.length).toBeGreaterThan(1);
+    // Chunks can exceed chunkSize by up to chunkOverlap because overlap
+    // text from the previous chunk is prepended to the next chunk.
     for (const chunk of result) {
-      expect(chunk.content.length).toBeLessThanOrEqual(250);
+      expect(chunk.content.length).toBeLessThanOrEqual(
+        chunkSize + chunkOverlap,
+      );
     }
   });
 
