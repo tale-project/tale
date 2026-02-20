@@ -78,6 +78,13 @@ export function useFileUrl(fileId: Id<'_storage'> | undefined, skip = false) {
   );
 }
 
+export function useFileUrls(fileIds: Id<'_storage'>[], skip = false) {
+  return useConvexQuery(
+    api.files.queries.getFileUrls,
+    skip || fileIds.length === 0 ? 'skip' : { fileIds },
+  );
+}
+
 export function useThreadMessages(threadId: string | null) {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex agent SDK useUIMessages expects UIMessagesQuery which doesn't match generated API types
   const query = api.threads.queries

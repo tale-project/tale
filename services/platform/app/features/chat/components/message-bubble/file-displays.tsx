@@ -130,11 +130,15 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   const displayUrl = attachment.previewUrl || serverFileUrl;
   const isImage = attachment.fileType.startsWith('image/');
 
-  if (!displayUrl) return null;
-
   if (isImage) {
+    if (!displayUrl) {
+      return (
+        <div className="bg-muted size-11 animate-pulse overflow-hidden rounded-lg" />
+      );
+    }
+
     return (
-      <div className="size-11 overflow-hidden rounded-lg bg-gray-200 bg-cover bg-center bg-no-repeat">
+      <div className="bg-muted size-11 overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat">
         <img
           src={displayUrl}
           alt={attachment.fileName}
@@ -144,22 +148,41 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
     );
   }
 
+  if (!displayUrl) {
+    return (
+      <div className="bg-muted flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1.5">
+        <FileTypeIcon
+          fileType={attachment.fileType}
+          fileName={attachment.fileName}
+        />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="text-foreground truncate text-sm font-medium">
+            {attachment.fileName}
+          </div>
+          <div className="text-muted-foreground text-xs">
+            {getFileTypeLabel(attachment.fileName, attachment.fileType, t)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <a
       href={displayUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex max-w-[216px] items-center gap-2 rounded-lg bg-gray-100 px-2 py-1.5 transition-colors hover:bg-gray-200"
+      className="bg-muted hover:bg-muted/80 flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
     >
       <FileTypeIcon
         fileType={attachment.fileType}
         fileName={attachment.fileName}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="truncate text-sm font-medium text-gray-800">
+        <div className="text-foreground truncate text-sm font-medium">
           {attachment.fileName}
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="text-muted-foreground text-xs">
           {getFileTypeLabel(attachment.fileName, attachment.fileType, t)}
         </div>
       </div>
