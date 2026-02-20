@@ -193,15 +193,16 @@ export async function generateAgentResponse(
     // The deadline is an absolute timestamp propagated from startAgentChat.
     // Cap by platform hard limit to avoid Convex killing the action mid-operation.
     const platformDeadline = startTime + PLATFORM_HARD_LIMIT_MS;
+    const remainingPlatformMs = Math.max(platformDeadline - Date.now(), 0);
     const rawTimeoutMs = args.deadlineMs
       ? Math.max(args.deadlineMs - Date.now(), 30_000)
       : agentConfig.timeoutMs;
-    const effectiveTimeoutMs = Math.min(
-      rawTimeoutMs,
-      platformDeadline - Date.now(),
-    );
+    const effectiveTimeoutMs = Math.min(rawTimeoutMs, remainingPlatformMs);
+    if (effectiveTimeoutMs <= 0) {
+      throw new AgentTimeoutError(0);
+    }
     const actionDeadline = Math.min(
-      args.deadlineMs ?? startTime + effectiveTimeoutMs,
+      args.deadlineMs ?? Date.now() + effectiveTimeoutMs,
       platformDeadline,
     );
 
@@ -687,9 +688,16 @@ export async function generateAgentResponse(
           : recoveryContext.threadContext;
 
         // Cap recovery timeout by platform hard limit
+        const recoveryPlatformRemainingMs = Math.max(
+          platformDeadline - Date.now(),
+          0,
+        );
+        if (recoveryPlatformRemainingMs < 10_000) {
+          throw new AgentTimeoutError(0);
+        }
         const recoveryRemainingMs = Math.min(
           RECOVERY_TIMEOUT_MS,
-          Math.max(platformDeadline - Date.now(), 10_000),
+          recoveryPlatformRemainingMs,
         );
         const recoveryStartTime = Date.now();
         debugLog('Timeout recovery starting', {
