@@ -20,6 +20,8 @@ export function FilterSection({
   selectedCount = 0,
   hasSelection = false,
 }: FilterSectionProps) {
+  const { t } = useT('common');
+
   return (
     <div className="border-border border-t p-1">
       <button
@@ -33,7 +35,7 @@ export function FilterSection({
         </span>
         {selectedCount > 0 && (
           <span className="rounded-xl bg-blue-100/20 px-1.5 py-0.5 text-[10px] font-medium leading-3 text-blue-600">
-            {selectedCount} selected
+            {t('labels.nSelected', { count: selectedCount })}
           </span>
         )}
         {hasSelection && selectedCount === 0 && (
