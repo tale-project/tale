@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { MAX_BATCH_FILE_IDS } from '../../lib/shared/file-types';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 
@@ -19,8 +20,6 @@ export const getFileUrl = query({
     }
   },
 });
-
-const MAX_BATCH_FILE_IDS = 10;
 
 export const getFileUrls = query({
   args: {

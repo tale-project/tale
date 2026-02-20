@@ -12,6 +12,7 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
+import { MAX_BATCH_FILE_IDS } from '@/lib/shared/file-types';
 
 export interface Thread {
   _id: string;
@@ -81,7 +82,9 @@ export function useFileUrl(fileId: Id<'_storage'> | undefined, skip = false) {
 export function useFileUrls(fileIds: Id<'_storage'>[], skip = false) {
   return useConvexQuery(
     api.files.queries.getFileUrls,
-    skip || fileIds.length === 0 ? 'skip' : { fileIds },
+    skip || fileIds.length === 0
+      ? 'skip'
+      : { fileIds: fileIds.slice(0, MAX_BATCH_FILE_IDS) },
   );
 }
 

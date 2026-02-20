@@ -130,13 +130,13 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   const displayUrl = attachment.previewUrl || serverFileUrl;
   const isImage = attachment.fileType.startsWith('image/');
 
-  if (isImage) {
-    if (!displayUrl) {
-      return (
-        <div className="bg-muted size-11 animate-pulse overflow-hidden rounded-lg" />
-      );
-    }
+  if (isImage && !displayUrl) {
+    return (
+      <div className="bg-muted size-11 animate-pulse overflow-hidden rounded-lg" />
+    );
+  }
 
+  if (isImage) {
     return (
       <div className="bg-muted size-11 overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat">
         <img
