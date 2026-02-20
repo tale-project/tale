@@ -68,7 +68,9 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
       setIsDragging(true);
       dragStart.current = { x: e.clientX, y: e.clientY };
       panStart.current = { x: pan.x, y: pan.y };
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      if (e.target instanceof HTMLElement) {
+        e.target.setPointerCapture(e.pointerId);
+      }
     },
     [zoom, pan],
   );
@@ -117,7 +119,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
       hideClose
       className="bg-muted flex flex-col border-0 p-0 ring-0 sm:p-0"
       customHeader={
-        <div className="absolute top-4 right-4 left-4 z-10 flex items-center justify-between">
+        <div className="absolute left-4 right-4 top-4 z-10 flex items-center justify-between">
           <span className="text-foreground/80 max-w-[60%] truncate text-sm">
             {alt}
           </span>
@@ -179,7 +181,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
             transformOrigin: 'center center',
             transition: isDragging ? 'none' : 'transform 0.15s ease-out',
           }}
-          className="max-h-full max-w-full object-contain select-none"
+          className="max-h-full max-w-full select-none object-contain"
           draggable={false}
         />
       </div>

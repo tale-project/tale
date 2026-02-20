@@ -1,7 +1,5 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-import type { Id } from '@/convex/_generated/dataModel';
 
 import type { ChatMessage } from '../use-message-processing';
 
@@ -91,7 +89,7 @@ describe('usePendingMessages', () => {
 
     expect(result.current).toHaveLength(1);
     expect(result.current[0].attachments).toHaveLength(2);
-    expect(result.current[0].attachments![0]).toEqual(
+    expect(result.current[0].attachments?.[0]).toEqual(
       expect.objectContaining({
         fileId: 'storage-id-1',
         fileName: 'photo.png',
@@ -99,7 +97,7 @@ describe('usePendingMessages', () => {
         fileSize: 2048,
       }),
     );
-    expect(result.current[0].attachments![1]).toEqual(
+    expect(result.current[0].attachments?.[1]).toEqual(
       expect.objectContaining({
         fileId: 'storage-id-2',
         fileName: 'doc.pdf',

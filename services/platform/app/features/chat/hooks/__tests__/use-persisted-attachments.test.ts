@@ -1,7 +1,5 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-import type { Id } from '@/convex/_generated/dataModel';
 
 import type { FileAttachment } from '../use-convex-file-upload';
 
@@ -50,7 +48,7 @@ describe('usePersistedAttachments', () => {
     const stored = localStorage.getItem('chat-attachments-thread-1');
     expect(stored).not.toBeNull();
 
-    const parsed = JSON.parse(stored!);
+    const parsed = JSON.parse(stored ?? '[]');
     expect(parsed).toHaveLength(1);
     expect(parsed[0].fileId).toBe('storage-id-1');
     expect(parsed[0].fileName).toBe('test.png');
@@ -97,12 +95,6 @@ describe('usePersistedAttachments', () => {
       fileId: 'id-a' as Id<'_storage'>,
       fileName: 'a.png',
     });
-    const att2 = createAttachment({
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test
-      fileId: 'id-b' as Id<'_storage'>,
-      fileName: 'b.png',
-    });
-
     localStorage.setItem(
       'chat-attachments-thread-2',
       JSON.stringify([
@@ -128,7 +120,7 @@ describe('usePersistedAttachments', () => {
     // Should have saved thread-1's attachments
     const thread1Stored = localStorage.getItem('chat-attachments-thread-1');
     expect(thread1Stored).not.toBeNull();
-    expect(JSON.parse(thread1Stored!)[0].fileId).toBe('id-a');
+    expect(JSON.parse(thread1Stored ?? '[]')[0].fileId).toBe('id-a');
 
     // Should have restored thread-2's attachments
     expect(setAttachments).toHaveBeenCalledWith([
@@ -186,7 +178,7 @@ describe('usePersistedAttachments', () => {
 
     const stored = localStorage.getItem('chat-attachments-thread-1');
     expect(stored).not.toBeNull();
-    const parsed = JSON.parse(stored!);
+    const parsed = JSON.parse(stored ?? '[]');
     expect(parsed[0].previewUrl).toBeUndefined();
   });
 
