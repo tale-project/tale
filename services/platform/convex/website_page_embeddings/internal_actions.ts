@@ -194,7 +194,7 @@ export const search = internalAction({
         query,
         reason: classification.reason,
       });
-      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
 
       const retryResult = await embedMany(ctx, {
         userId: undefined,
