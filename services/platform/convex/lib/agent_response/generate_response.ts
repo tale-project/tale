@@ -972,7 +972,6 @@ function extractToolCallsFromSteps(steps: unknown[]): {
 
   const subAgentToolNames = new Set([
     'workflow_assistant',
-    'web_assistant',
     'document_assistant',
     'integration_assistant',
     'crm_assistant',

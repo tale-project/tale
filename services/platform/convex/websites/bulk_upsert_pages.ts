@@ -6,6 +6,7 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { BulkUpsertPagesArgs, BulkUpsertPagesResult } from './types';
 
+import { internal } from '../_generated/api';
 import { toId } from '../lib/type_cast_helpers';
 
 export type { BulkUpsertPagesArgs, BulkUpsertPagesResult };
@@ -33,12 +34,18 @@ export async function bulkUpsertPages(
     ),
   );
 
-  // Build a map of URL -> existing page ID
-  const existingPageMap = new Map<string, Id<'websitePages'>>();
+  // Build a map of URL -> existing page (ID + content for change detection)
+  const existingPageMap = new Map<
+    string,
+    { id: Id<'websitePages'>; content?: string }
+  >();
   for (let i = 0; i < args.pages.length; i++) {
     const existing = existingPages[i];
     if (existing) {
-      existingPageMap.set(args.pages[i].url, existing._id);
+      existingPageMap.set(args.pages[i].url, {
+        id: existing._id,
+        content: existing.content,
+      });
     }
   }
 
@@ -46,22 +53,28 @@ export async function bulkUpsertPages(
   const updates: Array<{
     id: Id<'websitePages'>;
     page: (typeof args.pages)[0];
+    contentChanged: boolean;
   }> = [];
   const inserts: Array<(typeof args.pages)[0]> = [];
 
   for (const page of args.pages) {
-    const existingId = existingPageMap.get(page.url);
-    if (existingId) {
-      updates.push({ id: existingId, page });
+    const existing = existingPageMap.get(page.url);
+    if (existing) {
+      updates.push({
+        id: existing.id,
+        page,
+        contentChanged: page.content !== existing.content,
+      });
     } else {
       inserts.push(page);
     }
   }
 
-  // Execute updates and inserts in parallel
-  await Promise.all([
-    // Batch updates
-    ...updates.map(({ id, page }) =>
+  const websiteId = toId<'websites'>(args.websiteId);
+
+  // Execute updates in parallel
+  await Promise.all(
+    updates.map(({ id, page }) =>
       ctx.db.patch(id, {
         title: page.title,
         content: page.content,
@@ -71,11 +84,14 @@ export async function bulkUpsertPages(
         structuredData: page.structuredData,
       }),
     ),
-    // Batch inserts
-    ...inserts.map((page) =>
+  );
+
+  // Execute inserts in parallel and collect new IDs
+  const insertedIds = await Promise.all(
+    inserts.map((page) =>
       ctx.db.insert('websitePages', {
         organizationId: args.organizationId,
-        websiteId: toId<'websites'>(args.websiteId),
+        websiteId,
         url: page.url,
         title: page.title,
         content: page.content,
@@ -85,7 +101,47 @@ export async function bulkUpsertPages(
         structuredData: page.structuredData,
       }),
     ),
-  ]);
+  );
+
+  // Update page count on the website when new pages are inserted
+  if (inserts.length > 0) {
+    const website = await ctx.db.get(websiteId);
+    if (website) {
+      await ctx.db.patch(websiteId, {
+        pageCount: (website.pageCount ?? 0) + inserts.length,
+      });
+    }
+  }
+
+  // Schedule embedding generation for pages with content
+  const embeddingsEnabled = !!process.env.EMBEDDING_DIMENSIONS;
+  if (embeddingsEnabled) {
+    const pageIdsToEmbed: Id<'websitePages'>[] = [];
+
+    // Updated pages with changed content only
+    for (const { id, page, contentChanged } of updates) {
+      if (page.content && contentChanged) pageIdsToEmbed.push(id);
+    }
+
+    // Newly inserted pages with content
+    for (let i = 0; i < inserts.length; i++) {
+      if (inserts[i].content && insertedIds[i]) {
+        pageIdsToEmbed.push(insertedIds[i]);
+      }
+    }
+
+    for (const pageId of pageIdsToEmbed) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.website_page_embeddings.internal_actions.generateForPage,
+        {
+          organizationId: args.organizationId,
+          websiteId,
+          pageId,
+        },
+      );
+    }
+  }
 
   return {
     created: inserts.length,

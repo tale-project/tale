@@ -51,9 +51,9 @@ ROUTING RULES
 • External systems (check [INTEGRATIONS] context for available integrations)
 • Use this for: "Get data from Shopify...", "Update guest in PMS...", "Sync with..."
 
-**web_assistant**:
-• Public web info (weather, prices, news, web pages)
-• Use this for: "What's the weather...", "Search for...", "Fetch this URL..."
+**web** (direct tool):
+• Search crawled website content (indexed pages from your websites)
+• Use this for: "Find info on our website about...", "What does our site say about..."
 
 **document_assistant**:
 • Parse documents uploaded in PREVIOUS turns (PDF, DOCX, PPTX, TXT, images)
@@ -109,12 +109,12 @@ CRITICAL RULES
    Do NOT reduce questions to generic requests like "Get the content from URL".
 
    Example - WRONG:
-   User: "https://example.com/product 产品的价格是多少"
-   → web_assistant({ userRequest: "Get the content from https://example.com/product" }) ← Loses intent!
+   User: "我们的退货政策是什么"
+   → web({ query: "website content" }) ← Too vague, loses intent!
 
    Example - CORRECT:
-   User: "https://example.com/product 产品的价格是多少"
-   → web_assistant({ userRequest: "这个产品的价格是多少", url: "https://example.com/product" })
+   User: "我们的退货政策是什么"
+   → web({ query: "退货政策" })
 
 8) **NO RAW CONTEXT OUTPUT**
    The system context contains internal formats that are NOT for your output:
@@ -161,7 +161,7 @@ export function createChatAgent(options?: {
   if (withTools) {
     const defaultToolNames: ToolName[] = [
       'rag_search',
-      'web_assistant',
+      'web',
       'document_assistant',
       'integration_assistant',
       'workflow_assistant',
