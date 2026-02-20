@@ -1,17 +1,15 @@
 'use client';
 
-import type { DateRange } from 'react-day-picker';
-
 import { Circle, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-
-import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
+import type { DateRange } from 'react-day-picker';
 
 import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { FilterButton } from '@/app/components/ui/filters/filter-button';
 import { FilterSection } from '@/app/components/ui/filters/filter-section';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Popover } from '@/app/components/ui/overlays/popover';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -120,7 +118,7 @@ export function DataTableFilters({
     (search?.value && search.value.length > 0) ||
     hasDateRange;
 
-  const handleCheckboxChange = (
+  const handleFilterChange = (
     filter: FilterConfig,
     value: string,
     checked: boolean,
@@ -239,7 +237,7 @@ export function DataTableFilters({
                               id={checkboxId}
                               checked={isChecked}
                               onCheckedChange={(checked) =>
-                                handleCheckboxChange(
+                                handleFilterChange(
                                   filter,
                                   option.value,
                                   !!checked,
