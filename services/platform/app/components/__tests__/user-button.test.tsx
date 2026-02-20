@@ -72,7 +72,7 @@ let mockTeamFilter = {
   filterByTeam: <T,>(items: T[]) => items,
 };
 vi.mock('@/app/hooks/use-team-filter', () => ({
-  useTeamFilter: () => mockTeamFilter,
+  useOptionalTeamFilter: () => mockTeamFilter,
 }));
 
 // Mock router
