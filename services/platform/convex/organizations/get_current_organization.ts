@@ -18,7 +18,7 @@ import { authComponent } from '../auth';
 export async function getCurrentOrganization(
   ctx: QueryCtx,
 ): Promise<string | null> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await authComponent.safeGetAuthUser(ctx);
   if (!authUser) {
     return null;
   }

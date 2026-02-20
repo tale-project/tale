@@ -12,7 +12,7 @@ type AuthUserResult = {
 export async function getAuthUser(
   ctx: GenericQueryCtx<DataModel>,
 ): Promise<AuthUserResult> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await authComponent.safeGetAuthUser(ctx);
   if (!authUser) {
     return null;
   }
