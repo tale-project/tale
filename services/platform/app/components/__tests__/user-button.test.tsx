@@ -64,9 +64,15 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 
 // Mock team filter
-let mockTeamFilter = {
-  teams: null as { id: string; name: string }[] | null,
-  selectedTeamId: null as string | null,
+let mockTeamFilter: {
+  teams: { id: string; name: string }[] | null;
+  selectedTeamId: string | null;
+  setSelectedTeamId: ReturnType<typeof vi.fn>;
+  isLoadingTeams: boolean;
+  filterByTeam: <T>(items: T[]) => T[];
+} | null = {
+  teams: null,
+  selectedTeamId: null,
   setSelectedTeamId: vi.fn(),
   isLoadingTeams: false,
   filterByTeam: <T,>(items: T[]) => items,
@@ -174,5 +180,11 @@ describe('UserButton', () => {
   it('does not render tooltip wrapper when label is provided', () => {
     render(<UserButton label="Account" />);
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('renders without crashing when team filter context is unavailable', () => {
+    mockTeamFilter = null;
+    const { container } = render(<UserButton />);
+    expect(getDropdownTrigger(container)).toBeInTheDocument();
   });
 });
