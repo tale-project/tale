@@ -23,6 +23,7 @@ import { computeContentHash } from './content_hash';
 import { mergeWithRRF } from './rrf';
 
 const RETRY_DELAY_MS = 30_000;
+const MAX_SEARCH_LIMIT = 256;
 
 const debugLog = createDebugLog('DEBUG_EMBEDDINGS', '[WebsitePageEmbeddings]');
 
@@ -169,7 +170,8 @@ export const search = internalAction({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<SearchResult[]> => {
-    const { organizationId, query, limit = 10 } = args;
+    const { organizationId, query } = args;
+    const limit = Math.min(Math.max(args.limit ?? 10, 1), MAX_SEARCH_LIMIT);
     const dimension = getEmbeddingDimension();
 
     debugLog('search start', { organizationId, query, dimension });
@@ -206,7 +208,9 @@ export const search = internalAction({
     }
 
     // 2. Run vector search + full-text search in parallel
-    const searchLimit = args.websiteId ? Math.min(limit * 3, 256) : limit;
+    const searchLimit = args.websiteId
+      ? Math.min(limit * 3, MAX_SEARCH_LIMIT)
+      : limit;
 
     const [vectorResults, fullTextResults] = await Promise.all([
       runVectorSearch(
