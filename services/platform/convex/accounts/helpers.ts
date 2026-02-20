@@ -4,11 +4,12 @@
  * Accounts use Better Auth for storage.
  */
 
-import { components } from '../_generated/api';
 import type { QueryCtx, MutationCtx } from '../_generated/server';
+import type { OAuthAccount, UpdateTokensArgs } from './types';
+
+import { components } from '../_generated/api';
 import { authComponent } from '../auth';
 import { createDebugLog } from '../lib/debug_log';
-import type { OAuthAccount, UpdateTokensArgs } from './types';
 
 const debugLog = createDebugLog('DEBUG_ACCOUNTS', '[Accounts]');
 
