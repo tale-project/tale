@@ -103,7 +103,7 @@ class TestCrawlerRunConfigSetup:
 
             async def gen():
                 return
-                yield  # noqa: RUF028
+                yield
 
             return gen()
 
