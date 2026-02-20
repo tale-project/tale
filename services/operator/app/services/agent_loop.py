@@ -571,12 +571,12 @@ async def _call_llm_with_tools(
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]],
     timeout: float,
-    _retries: int = 2,
+    retries: int = 2,
 ) -> dict[str, Any] | None:
     """Call LLM with function-calling tools via OpenAI-compatible API."""
     last_error = None
     async with httpx.AsyncClient() as client:
-        for attempt in range(_retries + 1):
+        for attempt in range(retries + 1):
             try:
                 response = await client.post(
                     f"{settings.llm_base_url}/chat/completions",
@@ -607,16 +607,19 @@ async def _call_llm_with_tools(
                 logger.debug(f"LLM response: finish_reason={data['choices'][0].get('finish_reason')}")
                 return data
             except httpx.TimeoutException:
-                logger.warning(f"LLM tool call timed out ({timeout}s)")
-                return None
+                logger.warning(f"LLM tool call timed out ({timeout}s), attempt {attempt + 1}")
+                last_error = f"Timeout after {timeout}s"
+                if attempt < retries:
+                    await asyncio.sleep(2**attempt)
+                    continue
             except Exception as e:
                 logger.warning(f"LLM call attempt {attempt + 1} error: {e}")
                 last_error = str(e)
-                if attempt < _retries:
+                if attempt < retries:
                     await asyncio.sleep(2**attempt)
                     continue
 
-    logger.error(f"LLM tool call failed after {_retries + 1} attempts: {last_error}")
+    logger.error(f"LLM tool call failed after {retries + 1} attempts: {last_error}")
     return None
 
 

@@ -116,8 +116,11 @@ class TestCallLlmWithTools:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_on_timeout(self):
-        with patch("app.services.agent_loop.httpx.AsyncClient") as mock_client_cls:
+    async def test_retries_on_timeout_then_returns_none(self):
+        with (
+            patch("app.services.agent_loop.httpx.AsyncClient") as mock_client_cls,
+            patch("app.services.agent_loop.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
             mock_client = AsyncMock()
             mock_client.post.side_effect = httpx.TimeoutException("timed out")
             mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -126,6 +129,8 @@ class TestCallLlmWithTools:
             result = await _call_llm_with_tools([], [], 30.0)
 
         assert result is None
+        assert mock_client.post.call_count == 3
+        assert mock_sleep.call_count == 2
 
 
 # ---------------------------------------------------------------------------
