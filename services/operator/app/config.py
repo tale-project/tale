@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # LLM configuration (from OPENAI_* env vars - used by OpenCode)
     openai_base_url: str = ""
     openai_api_key: str = ""
-    openai_coding_model: str = ""
+    openai_model: str = ""
     openai_vision_model: str = ""
     openai_fast_model: str = ""
 
@@ -72,11 +72,11 @@ class Settings(BaseSettings):
             raise ValueError("OPENAI_API_KEY is required but not set")
         return v
 
-    @field_validator("openai_coding_model")
+    @field_validator("openai_model")
     @classmethod
-    def validate_coding_model(cls, v: str) -> str:
+    def validate_model(cls, v: str) -> str:
         if not v:
-            raise ValueError("OPENAI_CODING_MODEL is required but not set")
+            raise ValueError("OPENAI_MODEL is required but not set")
         return v
 
     @property
@@ -89,7 +89,7 @@ class Settings(BaseSettings):
 
     @property
     def llm_model(self) -> str:
-        return self.openai_coding_model
+        return self.openai_model
 
     @property
     def llm_vision_model(self) -> str | None:
@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     @property
     def llm_fast_model(self) -> str:
         """Return fast model for summarization, falls back to coding model."""
-        return self.openai_fast_model if self.openai_fast_model else self.openai_coding_model
+        return self.openai_fast_model if self.openai_fast_model else self.openai_model
 
 
 # Global settings instance

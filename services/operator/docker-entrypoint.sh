@@ -15,8 +15,8 @@ fi
 echo "Configuring OpenCode..."
 
 # Validate required environment variables
-if [ -z "${OPENAI_CODING_MODEL}" ]; then
-    echo "Error: OPENAI_CODING_MODEL environment variable is required but not set" >&2
+if [ -z "${OPENAI_MODEL}" ]; then
+    echo "Error: OPENAI_MODEL environment variable is required but not set" >&2
     exit 1
 fi
 
@@ -42,8 +42,8 @@ cat > ~/.config/opencode/opencode.json << EOF
         "apiKey": "{env:OPENAI_API_KEY}"
       },
       "models": {
-        "${OPENAI_CODING_MODEL}": {
-          "name": "${OPENAI_CODING_MODEL}",
+        "${OPENAI_MODEL}": {
+          "name": "${OPENAI_MODEL}",
           "limit": {
             "context": 200000,
             "output": 65536
@@ -74,7 +74,7 @@ EOF
 
 echo "OpenCode configured with:"
 echo "  - Provider: custom (${OPENAI_BASE_URL})"
-echo "  - Model: ${OPENAI_CODING_MODEL}"
+echo "  - Model: ${OPENAI_MODEL}"
 echo "  - MCP: Playwright + Vision"
 echo "  - Vision model: ${VISION_MODEL}"
 
