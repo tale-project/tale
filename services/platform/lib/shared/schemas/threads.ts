@@ -54,7 +54,6 @@ export const latestToolMessageSchema = z.object({
 type LatestToolMessage = z.infer<typeof latestToolMessageSchema>;
 
 const subAgentTypeLiterals = [
-  'web_assistant',
   'document_assistant',
   'integration_assistant',
   'workflow_assistant',

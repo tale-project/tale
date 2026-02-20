@@ -31,7 +31,6 @@ export const TOOL_NAMES = [
   'verify_approval',
   'database_schema',
   'workflow_assistant',
-  'web_assistant',
   'document_assistant',
   'integration_assistant',
   'crm_assistant',

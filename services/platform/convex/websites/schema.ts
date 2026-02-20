@@ -13,6 +13,7 @@ export const websitesTable = defineTable({
   status: v.optional(
     v.union(v.literal('active'), v.literal('inactive'), v.literal('error')),
   ),
+  pageCount: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
 })
   .index('by_organizationId', ['organizationId'])

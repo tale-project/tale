@@ -65,7 +65,6 @@ import type * as agent_tools_sub_agents_helpers_tool_response from "../agent_too
 import type * as agent_tools_sub_agents_helpers_types from "../agent_tools/sub_agents/helpers/types.js";
 import type * as agent_tools_sub_agents_helpers_validate_context from "../agent_tools/sub_agents/helpers/validate_context.js";
 import type * as agent_tools_sub_agents_integration_assistant_tool from "../agent_tools/sub_agents/integration_assistant_tool.js";
-import type * as agent_tools_sub_agents_web_assistant_tool from "../agent_tools/sub_agents/web_assistant_tool.js";
 import type * as agent_tools_sub_agents_workflow_assistant_tool from "../agent_tools/sub_agents/workflow_assistant_tool.js";
 import type * as agent_tools_tool_names from "../agent_tools/tool_names.js";
 import type * as agent_tools_tool_registry from "../agent_tools/tool_registry.js";
@@ -74,6 +73,7 @@ import type * as agent_tools_web_helpers_browser_operate from "../agent_tools/we
 import type * as agent_tools_web_helpers_fetch_url_via_pdf from "../agent_tools/web/helpers/fetch_url_via_pdf.js";
 import type * as agent_tools_web_helpers_get_crawler_service_url from "../agent_tools/web/helpers/get_crawler_service_url.js";
 import type * as agent_tools_web_helpers_get_operator_service_url from "../agent_tools/web/helpers/get_operator_service_url.js";
+import type * as agent_tools_web_helpers_search_pages from "../agent_tools/web/helpers/search_pages.js";
 import type * as agent_tools_web_helpers_types from "../agent_tools/web/helpers/types.js";
 import type * as agent_tools_web_web_tool from "../agent_tools/web/web_tool.js";
 import type * as agent_tools_workflows_create_workflow_tool from "../agent_tools/workflows/create_workflow_tool.js";
@@ -322,6 +322,7 @@ import type * as lib_crypto_get_secret_key from "../lib/crypto/get_secret_key.js
 import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_crypto_internal_actions from "../lib/crypto/internal_actions.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
+import type * as lib_embedding_config from "../lib/embedding_config.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
 import type * as lib_get_user_teams from "../lib/get_user_teams.js";
@@ -579,6 +580,12 @@ import type * as vendors_list_vendors_paginated from "../vendors/list_vendors_pa
 import type * as vendors_mutations from "../vendors/mutations.js";
 import type * as vendors_queries from "../vendors/queries.js";
 import type * as vendors_validators from "../vendors/validators.js";
+import type * as website_page_embeddings_chunk_content from "../website_page_embeddings/chunk_content.js";
+import type * as website_page_embeddings_content_hash from "../website_page_embeddings/content_hash.js";
+import type * as website_page_embeddings_internal_actions from "../website_page_embeddings/internal_actions.js";
+import type * as website_page_embeddings_internal_mutations from "../website_page_embeddings/internal_mutations.js";
+import type * as website_page_embeddings_internal_queries from "../website_page_embeddings/internal_queries.js";
+import type * as website_page_embeddings_rrf from "../website_page_embeddings/rrf.js";
 import type * as websites_bulk_create_websites from "../websites/bulk_create_websites.js";
 import type * as websites_bulk_upsert_pages from "../websites/bulk_upsert_pages.js";
 import type * as websites_create_website from "../websites/create_website.js";
@@ -592,6 +599,7 @@ import type * as websites_helpers from "../websites/helpers.js";
 import type * as websites_internal_actions from "../websites/internal_actions.js";
 import type * as websites_internal_mutations from "../websites/internal_mutations.js";
 import type * as websites_internal_queries from "../websites/internal_queries.js";
+import type * as websites_list_website_pages_paginated from "../websites/list_website_pages_paginated.js";
 import type * as websites_list_websites_paginated from "../websites/list_websites_paginated.js";
 import type * as websites_mutations from "../websites/mutations.js";
 import type * as websites_provision_website_scan_workflow from "../websites/provision_website_scan_workflow.js";
@@ -939,7 +947,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/sub_agents/helpers/types": typeof agent_tools_sub_agents_helpers_types;
   "agent_tools/sub_agents/helpers/validate_context": typeof agent_tools_sub_agents_helpers_validate_context;
   "agent_tools/sub_agents/integration_assistant_tool": typeof agent_tools_sub_agents_integration_assistant_tool;
-  "agent_tools/sub_agents/web_assistant_tool": typeof agent_tools_sub_agents_web_assistant_tool;
   "agent_tools/sub_agents/workflow_assistant_tool": typeof agent_tools_sub_agents_workflow_assistant_tool;
   "agent_tools/tool_names": typeof agent_tools_tool_names;
   "agent_tools/tool_registry": typeof agent_tools_tool_registry;
@@ -948,6 +955,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/web/helpers/fetch_url_via_pdf": typeof agent_tools_web_helpers_fetch_url_via_pdf;
   "agent_tools/web/helpers/get_crawler_service_url": typeof agent_tools_web_helpers_get_crawler_service_url;
   "agent_tools/web/helpers/get_operator_service_url": typeof agent_tools_web_helpers_get_operator_service_url;
+  "agent_tools/web/helpers/search_pages": typeof agent_tools_web_helpers_search_pages;
   "agent_tools/web/helpers/types": typeof agent_tools_web_helpers_types;
   "agent_tools/web/web_tool": typeof agent_tools_web_web_tool;
   "agent_tools/workflows/create_workflow_tool": typeof agent_tools_workflows_create_workflow_tool;
@@ -1196,6 +1204,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/hex_to_bytes": typeof lib_crypto_hex_to_bytes;
   "lib/crypto/internal_actions": typeof lib_crypto_internal_actions;
   "lib/debug_log": typeof lib_debug_log;
+  "lib/embedding_config": typeof lib_embedding_config;
   "lib/error_classification": typeof lib_error_classification;
   "lib/get_or_throw": typeof lib_get_or_throw;
   "lib/get_user_teams": typeof lib_get_user_teams;
@@ -1453,6 +1462,12 @@ declare const fullApi: ApiFromModules<{
   "vendors/mutations": typeof vendors_mutations;
   "vendors/queries": typeof vendors_queries;
   "vendors/validators": typeof vendors_validators;
+  "website_page_embeddings/chunk_content": typeof website_page_embeddings_chunk_content;
+  "website_page_embeddings/content_hash": typeof website_page_embeddings_content_hash;
+  "website_page_embeddings/internal_actions": typeof website_page_embeddings_internal_actions;
+  "website_page_embeddings/internal_mutations": typeof website_page_embeddings_internal_mutations;
+  "website_page_embeddings/internal_queries": typeof website_page_embeddings_internal_queries;
+  "website_page_embeddings/rrf": typeof website_page_embeddings_rrf;
   "websites/bulk_create_websites": typeof websites_bulk_create_websites;
   "websites/bulk_upsert_pages": typeof websites_bulk_upsert_pages;
   "websites/create_website": typeof websites_create_website;
@@ -1466,6 +1481,7 @@ declare const fullApi: ApiFromModules<{
   "websites/internal_actions": typeof websites_internal_actions;
   "websites/internal_mutations": typeof websites_internal_mutations;
   "websites/internal_queries": typeof websites_internal_queries;
+  "websites/list_website_pages_paginated": typeof websites_list_website_pages_paginated;
   "websites/list_websites_paginated": typeof websites_list_websites_paginated;
   "websites/mutations": typeof websites_mutations;
   "websites/provision_website_scan_workflow": typeof websites_provision_website_scan_workflow;

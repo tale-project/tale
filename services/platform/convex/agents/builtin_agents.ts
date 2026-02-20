@@ -62,7 +62,7 @@ function getBuiltinAgentDefinitions(): BuiltinAgentDefinition[] {
       instructions: CHAT_AGENT_INSTRUCTIONS,
       toolNames: [
         'rag_search',
-        'web_assistant',
+        'web',
         'document_assistant',
         'integration_assistant',
         'workflow_assistant',

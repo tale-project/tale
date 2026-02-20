@@ -26,7 +26,6 @@ import { ragSearchTool } from './rag/rag_search_tool';
 import { crmAssistantTool } from './sub_agents/crm_assistant_tool';
 import { documentAssistantTool } from './sub_agents/document_assistant_tool';
 import { integrationAssistantTool } from './sub_agents/integration_assistant_tool';
-import { webAssistantTool } from './sub_agents/web_assistant_tool';
 import { workflowAssistantTool } from './sub_agents/workflow_assistant_tool';
 import { webTool } from './web/web_tool';
 import { createWorkflowTool } from './workflows/create_workflow_tool';
@@ -63,7 +62,6 @@ export const TOOL_REGISTRY = [
   verifyApprovalTool,
   databaseSchemaTool,
   workflowAssistantTool,
-  webAssistantTool,
   documentAssistantTool,
   integrationAssistantTool,
   crmAssistantTool,

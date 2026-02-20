@@ -7,6 +7,7 @@ import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell'
 import { HStack } from '@/app/components/ui/layout/layout';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
+import { WebsitePagesCell } from '../components/website-pages-cell';
 import { WebsiteRowActions } from '../components/website-row-actions';
 
 export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
@@ -14,7 +15,7 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
     entityNamespace: 'websites',
     defaultSort: '_creationTime',
   },
-  ({ tTables, builders }) => [
+  ({ tTables, tEntity, builders }) => [
     {
       accessorKey: 'domain',
       header: tTables('headers.website'),
@@ -51,6 +52,12 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
             : tTables('cells.empty')}
         </div>
       ),
+    },
+    {
+      id: 'pages',
+      header: tEntity('pages'),
+      size: 120,
+      cell: ({ row }) => <WebsitePagesCell website={row.original} />,
     },
     {
       accessorKey: 'lastScannedAt',
