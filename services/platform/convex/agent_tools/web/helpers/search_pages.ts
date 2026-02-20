@@ -7,8 +7,6 @@
 
 import type { ToolCtx } from '@convex-dev/agent';
 
-import type { Id } from '../../../_generated/dataModel';
-
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -39,8 +37,6 @@ export async function searchPages(
     internal.website_page_embeddings.internal_actions.search,
     {
       organizationId,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- organizationId is always a valid string; websiteId intentionally omitted to search all websites
-      websiteId: undefined as Id<'websites'> | undefined,
       query: args.query,
       limit: DEFAULT_LIMIT,
     },
