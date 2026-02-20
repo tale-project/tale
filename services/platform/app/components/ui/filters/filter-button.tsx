@@ -3,6 +3,7 @@ import { Loader2Icon } from 'lucide-react';
 import { ComponentProps } from 'react';
 
 import { Button } from '@/app/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 interface FilterButtonProps extends ComponentProps<typeof Button> {
@@ -16,10 +17,13 @@ export function FilterButton({
   className,
   ...restProps
 }: FilterButtonProps) {
+  const { t } = useT('common');
+
   return (
     <Button
       variant="secondary"
       size="icon"
+      aria-label={t('labels.filters')}
       className={cn(
         'hover:bg-muted relative p-2.5',
         hasActiveFilters && 'border-primary',

@@ -382,7 +382,6 @@ export function ExecutionsClient({
       {
         key: 'triggeredBy',
         title: tTables('headers.triggeredBy'),
-        multiSelect: false,
         options: [
           { value: 'schedule', label: tCommon('triggerSource.schedule') },
           { value: 'manual', label: tCommon('triggerSource.manual') },
