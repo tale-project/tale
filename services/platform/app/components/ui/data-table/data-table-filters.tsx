@@ -256,6 +256,7 @@ export function DataTableFilters({
                   ) : (
                     <div
                       role="radiogroup"
+                      aria-label={filter.title}
                       className={cn(
                         'flex flex-col gap-1',
                         filter.grid && 'grid grid-cols-2',

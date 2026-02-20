@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react';
 
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 interface FilterSectionProps {
@@ -31,7 +32,7 @@ export function FilterSection({
           {title}
         </span>
         {selectedCount > 0 && (
-          <span className="rounded-xl bg-blue-100/20 px-1.5 py-0.5 text-[10px] leading-3 font-medium text-blue-600">
+          <span className="rounded-xl bg-blue-100/20 px-1.5 py-0.5 text-[10px] font-medium leading-3 text-blue-600">
             {selectedCount} selected
           </span>
         )}

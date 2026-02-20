@@ -98,7 +98,6 @@ export function CustomersTable({
       {
         key: 'status',
         title: tTables('headers.status'),
-
         options: [
           { value: 'active', label: tCustomers('filter.status.active') },
           { value: 'potential', label: tCustomers('filter.status.potential') },
@@ -111,7 +110,6 @@ export function CustomersTable({
       {
         key: 'source',
         title: tTables('headers.source'),
-
         options: [
           { value: 'manual_import', label: tCustomers('filter.source.manual') },
           { value: 'file_upload', label: tCustomers('filter.source.upload') },
