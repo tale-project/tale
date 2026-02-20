@@ -94,5 +94,43 @@ fix_cert_permissions() {
   done
 ) &
 
+# For Let's Encrypt mode: retry certificate obtention if DNS wasn't ready at startup.
+# Caddy's built-in retry uses exponential backoff that gets very slow after failures.
+# This loop checks that DNS resolves to our public IP before reloading Caddy,
+# covering the common case where DNS is configured hours or days after deployment.
+if [ "${TLS_MODE:-selfsigned}" = "letsencrypt" ]; then
+  (
+    sleep 60
+    SERVER_IP=$(wget -qO- -T5 http://ipv4.icanhazip.com 2>/dev/null | tr -d '[:space:]')
+    if [ -n "$SERVER_IP" ]; then
+      echo "ACME retry: server public IP is ${SERVER_IP}"
+    else
+      echo "ACME retry: could not determine public IP, will retry every 15 minutes"
+    fi
+
+    while true; do
+      if find /data/caddy/certificates -name "${HOST}" -type d 2>/dev/null | grep -q .; then
+        echo "ACME certificate obtained for ${HOST}"
+        break
+      fi
+      if [ -n "$SERVER_IP" ]; then
+        # Verify domain resolves to our IP via external DNS (bypasses Docker DNS,
+        # handles wildcard DNS that resolves non-existent subdomains to a fallback IP)
+        if nslookup "${HOST}" 1.1.1.1 2>/dev/null | grep -q "${SERVER_IP}"; then
+          echo "DNS resolved ${HOST} to ${SERVER_IP}, reloading Caddy..."
+          caddy reload --config "$CADDYFILE" --adapter caddyfile 2>/dev/null || true
+          sleep 120
+        else
+          sleep 300
+        fi
+      else
+        # Fallback: safe interval under Let's Encrypt rate limit (5 failures/host/hour)
+        caddy reload --config "$CADDYFILE" --adapter caddyfile 2>/dev/null || true
+        sleep 900
+      fi
+    done
+  ) &
+fi
+
 # Execute the main command (Caddy)
 exec "$@"
