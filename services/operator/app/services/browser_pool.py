@@ -5,6 +5,7 @@ BrowserContext instances per request. Replaces WorkspaceManager.
 """
 
 import asyncio
+import contextlib
 
 from loguru import logger
 from playwright.async_api import Browser, BrowserContext, Playwright, async_playwright
@@ -109,10 +110,8 @@ class BrowserPool:
         """Shut down the browser and Playwright."""
         if self._disconnect_task and not self._disconnect_task.done():
             self._disconnect_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._disconnect_task
-            except asyncio.CancelledError:
-                pass
         self._disconnect_task = None
 
         if self._browser:

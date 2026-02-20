@@ -95,9 +95,7 @@ class _OutputAccumulator:
         if self._total_content_chars >= MAX_TOTAL_CONTENT_CHARS:
             return
         truncated = content[:MAX_SINGLE_CONTENT_CHARS]
-        self.page_contents.append(
-            _PageContent(url=url or self._last_navigated_url or "unknown", content=truncated)
-        )
+        self.page_contents.append(_PageContent(url=url or self._last_navigated_url or "unknown", content=truncated))
         self._total_content_chars += len(truncated)
 
     def record_token_usage(
