@@ -11,7 +11,6 @@ import type { SubAgentUsage } from '../hooks/queries';
 
 function formatAgentName(toolName: string): string {
   const nameMap: Record<string, string> = {
-    web_assistant: 'Web',
     document_assistant: 'Document',
     crm_assistant: 'CRM',
     integration_assistant: 'Integration',

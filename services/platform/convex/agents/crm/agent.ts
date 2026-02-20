@@ -77,21 +77,25 @@ For data from external systems (Shopify, PMS, etc.), use integration_assistant i
 export function createCrmAgent(options?: {
   maxSteps?: number;
   withTools?: boolean;
+  useFastModel?: boolean;
 }) {
   const maxSteps = options?.maxSteps ?? 10;
   const withTools = options?.withTools ?? true;
+  const useFastModel = options?.useFastModel ?? false;
 
   const convexToolNames: ToolName[] = ['customer_read', 'product_read'];
 
-  debugLog('createCrmAgent Loaded tools', {
-    convexCount: convexToolNames.length,
+  debugLog('createCrmAgent', {
+    toolCount: withTools ? convexToolNames.length : 0,
     maxSteps,
+    useFastModel,
   });
 
   const agentConfig = createAgentConfig({
     name: 'crm-assistant',
     instructions: CRM_AGENT_INSTRUCTIONS,
     ...(withTools ? { convexToolNames } : {}),
+    ...(useFastModel ? { useFastModel: true } : {}),
     maxSteps,
   });
 

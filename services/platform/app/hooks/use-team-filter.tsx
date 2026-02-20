@@ -43,6 +43,10 @@ export function useTeamFilter() {
   return context;
 }
 
+export function useOptionalTeamFilter() {
+  return useContext(TeamFilterContext);
+}
+
 interface TeamFilterProviderProps {
   organizationId: string;
   children: ReactNode;

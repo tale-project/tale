@@ -86,7 +86,7 @@ export function CustomerImportForm({
         >
           <div
             aria-hidden="true"
-            className="border-border pointer-events-none absolute inset-0 rounded-[8px] border border-solid shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+            className="border-border pointer-events-none absolute inset-0 rounded-[8px] border border-solid shadow-xs"
           />
           <div className="bg-background relative size-[40px] shrink-0 rounded-[6px]">
             <div

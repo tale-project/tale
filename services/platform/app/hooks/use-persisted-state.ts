@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Check if we're in a browser environment
 const isBrowser = typeof window !== 'undefined';
 
 function setItem(key: string, value: unknown) {
@@ -28,11 +27,9 @@ function getItem<T>(key: string): T | undefined {
   }
 }
 
-// Safe type validator function
 function isValidType<T>(value: unknown, initialValue: T): value is T {
   if (value === null || value === undefined) return false;
 
-  // Basic type checking - if initialValue is provided, check if types match
   if (typeof initialValue === 'object' && initialValue !== null) {
     return typeof value === 'object' && value !== null;
   }
@@ -41,30 +38,48 @@ function isValidType<T>(value: unknown, initialValue: T): value is T {
 }
 
 export function usePersistedState<T>(key: string, initialValue: T) {
-  // Always initialize with initialValue to ensure SSR/CSR consistency
-  // localStorage is only read in useEffect after hydration
   const [value, setValue] = useState<T>(initialValue);
   const [isHydrated, setIsHydrated] = useState(false);
+  const prevKeyRef = useRef(key);
+  const clearedRef = useRef(false);
 
-  // Handle hydration - read from localStorage only after mount
+  // On mount: hydrate from localStorage
   useEffect(() => {
     setIsHydrated(true);
 
-    // Read from localStorage after hydration
     const item = getItem<T>(key);
     if (item !== undefined && isValidType(item, initialValue)) {
       setValue(item);
     }
-  }, [key, initialValue]);
+    // Only runs on mount (key/initialValue are stable on first render)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Persist value changes
-  useEffect(() => {
-    if (isHydrated) {
-      setItem(key, value);
+  // On key change: read the new key's value synchronously during render
+  // so the persist effect sees the correct value
+  if (prevKeyRef.current !== key) {
+    prevKeyRef.current = key;
+
+    const item = getItem<T>(key);
+    if (item !== undefined && isValidType(item, initialValue)) {
+      setValue(item);
+    } else {
+      setValue(initialValue);
     }
+  }
+
+  // Persist value changes to localStorage
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (clearedRef.current) {
+      clearedRef.current = false;
+      return;
+    }
+    setItem(key, value);
   }, [key, value, isHydrated]);
 
   const clear = useCallback(() => {
+    clearedRef.current = true;
     setValue(initialValue);
     if (isBrowser) {
       try {

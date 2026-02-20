@@ -2725,6 +2725,18 @@
       "created": "Created",
       "unknown": "Unknown"
     },
+    "viewPages": "View pages",
+    "pages": "Pages",
+    "pageCount": "{count} pages",
+    "pageCountOne": "{count} page",
+    "pagesDialog": {
+      "title": "Website pages",
+      "noPages": "No pages crawled yet",
+      "loadMore": "Load more",
+      "noContent": "No content",
+      "showMore": "Show more",
+      "showLess": "Show less"
+    },
     "filter": {
       "status": {
         "active": "Active",

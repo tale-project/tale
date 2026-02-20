@@ -8,7 +8,7 @@ export type TokenResult =
   | { success: false; error: string };
 
 export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  const authUser = await authComponent.safeGetAuthUser(ctx);
   if (!authUser) {
     return { success: false, error: 'Unauthenticated' };
   }
