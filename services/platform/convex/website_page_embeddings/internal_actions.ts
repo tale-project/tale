@@ -376,7 +376,7 @@ interface EmbeddingRecord {
   title?: string;
   chunkContent: string;
   chunkIndex: number;
-  websiteId: string;
+  websiteId: Id<'websites'>;
 }
 
 async function fetchResultRecords(
