@@ -4,6 +4,8 @@ import { X, Paperclip } from 'lucide-react';
 import { LoaderCircleIcon } from 'lucide-react';
 import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
 
+import type { Id } from '@/convex/_generated/dataModel';
+
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -15,10 +17,8 @@ import {
 } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 
-import {
-  useConvexFileUpload,
-  type FileAttachment,
-} from '../hooks/use-convex-file-upload';
+import type { FileAttachment } from '../hooks/use-convex-file-upload';
+
 import { AgentSelector } from './agent-selector';
 import { ImagePreviewDialog } from './message-bubble';
 
@@ -32,6 +32,11 @@ interface ChatInputProps extends Omit<
   value?: string;
   onChange?: (value: string) => void;
   organizationId: string;
+  attachments: FileAttachment[];
+  uploadingFiles: string[];
+  uploadFiles: (files: File[]) => Promise<void>;
+  removeAttachment: (fileId: Id<'_storage'>) => void;
+  clearAttachments: () => FileAttachment[];
 }
 
 export function ChatInput({
@@ -41,6 +46,11 @@ export function ChatInput({
   isLoading = false,
   placeholder,
   organizationId,
+  attachments,
+  uploadingFiles,
+  uploadFiles,
+  removeAttachment,
+  clearAttachments,
   ...restProps
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
@@ -52,14 +62,6 @@ export function ChatInput({
     src: string;
     alt: string;
   } | null>(null);
-
-  const {
-    attachments,
-    uploadingFiles,
-    uploadFiles,
-    removeAttachment,
-    clearAttachments,
-  } = useConvexFileUpload();
 
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
@@ -150,7 +152,10 @@ export function ChatInput({
             {(attachments.length > 0 || uploadingFiles.length > 0) && (
               <div className="mb-2 flex flex-wrap gap-1">
                 {imageAttachments.map((attachment) => (
-                  <div key={attachment.fileId} className="group relative">
+                  <div
+                    key={attachment.fileId}
+                    className="group relative size-11 overflow-hidden rounded-lg shadow-sm"
+                  >
                     <button
                       type="button"
                       onClick={() =>
@@ -160,7 +165,7 @@ export function ChatInput({
                           alt: attachment.fileName,
                         })
                       }
-                      className="bg-secondary/20 focus:ring-ring size-11 cursor-pointer overflow-hidden rounded-lg transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+                      className="bg-secondary/20 focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
                     >
                       {attachment.previewUrl ? (
                         <img
@@ -190,7 +195,7 @@ export function ChatInput({
                 {fileAttachments.map((attachment) => (
                   <div
                     key={attachment.fileId}
-                    className="group bg-secondary/20 relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
+                    className="bg-secondary/20 group relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
                   >
                     <DocumentIcon fileName={attachment.fileName} />
                     <div className="flex min-w-0 flex-1 flex-col">

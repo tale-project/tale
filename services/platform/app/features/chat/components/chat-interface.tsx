@@ -7,6 +7,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -19,13 +20,19 @@ import {
   useWorkflowCreationApprovals,
 } from '../hooks/queries';
 import { useChatPendingState } from '../hooks/use-chat-pending-state';
+import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
 import { useMessageProcessing } from '../hooks/use-message-processing';
 import { usePendingMessages } from '../hooks/use-pending-messages';
+import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
 import { useSendMessage } from '../hooks/use-send-message';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
+
+function chatDraftKey(threadId?: string) {
+  return threadId ? `chat-draft-${threadId}` : 'chat-draft-new';
+}
 
 interface ChatInterfaceProps {
   organizationId: string;
@@ -46,8 +53,22 @@ export function ChatInterface({
     selectedAgent,
   } = useChatLayout();
 
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue, clearInputValue] = usePersistedState(
+    chatDraftKey(threadId),
+    '',
+  );
   const [showScrollButton, setShowScrollButton] = useState(false);
+
+  const {
+    attachments,
+    setAttachments,
+    uploadingFiles,
+    uploadFiles,
+    removeAttachment,
+    clearAttachments,
+  } = useConvexFileUpload();
+
+  usePersistedAttachments({ threadId, attachments, setAttachments });
 
   // Message processing
   const {
@@ -191,10 +212,10 @@ export function ChatInterface({
 
   const handleSendMessage = async (
     message: string,
-    attachments?: FileAttachment[],
+    sentAttachments?: FileAttachment[],
   ) => {
-    setInputValue('');
-    await sendMessage(message, attachments);
+    clearInputValue();
+    await sendMessage(message, sentAttachments);
   };
 
   const handleHumanInputResponseSubmitted = useCallback(() => {
@@ -202,9 +223,12 @@ export function ChatInterface({
     shouldScrollToAIRef.current = true;
   }, [setPendingWithCount]);
 
-  const handleSendFollowUp = useCallback((message: string) => {
-    setInputValue(message);
-  }, []);
+  const handleSendFollowUp = useCallback(
+    (message: string) => {
+      setInputValue(message);
+    },
+    [setInputValue],
+  );
 
   // Determine what to show in content area
   // Show welcome only when idle (no threadId, no messages, no pending message, not loading)
@@ -276,13 +300,17 @@ export function ChatInterface({
         </div>
         <FileUpload.Root>
           <ChatInput
-            key={threadId || 'new-chat'}
             className="mx-auto w-full max-w-(--chat-max-width)"
             value={inputValue}
             onChange={setInputValue}
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
             organizationId={organizationId}
+            attachments={attachments}
+            uploadingFiles={uploadingFiles}
+            uploadFiles={uploadFiles}
+            removeAttachment={removeAttachment}
+            clearAttachments={clearAttachments}
           />
         </FileUpload.Root>
       </div>

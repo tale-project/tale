@@ -92,14 +92,6 @@ function MessageBubbleComponent({
             : 'text-foreground bg-background'
         }`}
       >
-        {message.attachments && message.attachments.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1">
-            {message.attachments.map((attachment, index) => (
-              <FileAttachmentDisplay key={index} attachment={attachment} />
-            ))}
-          </div>
-        )}
-
         {message.fileParts && message.fileParts.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1">
             {message.fileParts.map((part, index) => (
@@ -115,6 +107,14 @@ function MessageBubbleComponent({
               isStreaming={!!isAssistantStreaming}
               onSendFollowUp={!isUser ? onSendFollowUp : undefined}
             />
+          </div>
+        )}
+
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {message.attachments.map((attachment, index) => (
+              <FileAttachmentDisplay key={index} attachment={attachment} />
+            ))}
           </div>
         )}
         {!isUser && !isAssistantStreaming && (

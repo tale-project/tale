@@ -248,7 +248,7 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
             className={cn(
               'max-w-[40rem] relative overflow-x-auto rounded-2xl shadow-sm mb-2',
               message.isCustomer
-                ? 'bg-white text-foreground'
+                ? 'bg-card text-foreground'
                 : 'bg-muted text-foreground',
             )}
           >

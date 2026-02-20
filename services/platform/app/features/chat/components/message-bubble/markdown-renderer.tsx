@@ -1,6 +1,13 @@
 'use client';
 
-import { ComponentPropsWithoutRef, memo, useState } from 'react';
+import {
+  Children,
+  ComponentPropsWithoutRef,
+  isValidElement,
+  memo,
+  ReactNode,
+  useState,
+} from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
 import {
@@ -35,7 +42,8 @@ export const markdownWrapperStyles = cn(
   '[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:rounded-none [&_pre_code]:text-xs [&_pre_code]:leading-relaxed [&_pre_code]:whitespace-pre [&_pre_code]:block [&_pre_code]:min-w-full',
   '[&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:my-2 [&_blockquote]:text-muted-foreground [&_blockquote]:italic',
   '[&_hr]:border-0 [&_hr]:border-t [&_hr]:border-border [&_hr]:my-4',
-  '[&_img]:max-w-96 [&_img]:max-h-96 [&_img]:w-auto [&_img]:h-auto [&_img]:object-contain [&_img]:rounded-lg [&_img]:my-2',
+  '[&_img]:rounded-lg [&_img]:shadow-sm',
+  '[&_.image-group]:mt-2',
   '[&_strong]:font-semibold [&_em]:italic',
   '[&_table]:w-full [&_table]:border-collapse',
   '[&_thead]:bg-muted',
@@ -46,9 +54,17 @@ export const markdownWrapperStyles = cn(
   '[&_del]:line-through [&_del]:text-muted-foreground',
 );
 
-const MarkdownImage = memo(function MarkdownImage(
-  props: React.ImgHTMLAttributes<HTMLImageElement>,
-) {
+interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+  width?: number;
+  height?: number;
+}
+
+const MarkdownImage = memo(function MarkdownImage({
+  className,
+  width = 448,
+  height = 320,
+  ...props
+}: MarkdownImageProps) {
   const { t } = useT('chat');
   const [isOpen, setIsOpen] = useState(false);
   const altText =
@@ -62,14 +78,17 @@ const MarkdownImage = memo(function MarkdownImage(
       <button
         type="button"
         onClick={handleOpen}
-        className="focus:ring-ring font-inherit my-2 inline-block cursor-pointer appearance-none rounded-lg border-none bg-transparent p-0 transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+        className="focus:ring-ring font-inherit inline-block cursor-pointer appearance-none rounded-lg border-none bg-transparent p-0 transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
       >
         <Image
           src={imageSrc}
           alt={altText}
-          width={384}
-          height={384}
-          className="max-h-[24rem] w-auto max-w-[24rem] rounded-lg object-contain"
+          width={width}
+          height={height}
+          className={cn(
+            'max-h-80 w-auto max-w-full rounded-lg object-contain',
+            className,
+          )}
         />
       </button>
       <ImagePreviewDialog
@@ -82,7 +101,42 @@ const MarkdownImage = memo(function MarkdownImage(
   );
 });
 
+const markdownImageComponent = ({
+  node: _node,
+  ...props
+}: { node?: unknown } & React.ImgHTMLAttributes<HTMLImageElement>) => (
+  <MarkdownImage
+    {...props}
+    width={44}
+    height={44}
+    className="size-[2.75rem] object-cover"
+  />
+);
+
+function MarkdownParagraph({ children }: { children?: ReactNode }) {
+  const childArray = Children.toArray(children);
+  const onlyImages =
+    childArray.length > 0 &&
+    childArray.every(
+      (child) => isValidElement(child) && child.type === markdownImageComponent,
+    );
+
+  if (onlyImages) {
+    return (
+      <div className="image-group inline-flex flex-wrap gap-2">{children}</div>
+    );
+  }
+
+  return <p>{children}</p>;
+}
+
 export const markdownComponents = {
+  p: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.HTMLAttributes<HTMLParagraphElement>) => (
+    <MarkdownParagraph {...props} />
+  ),
   table: ({
     node: _node,
     ...props
@@ -126,12 +180,7 @@ export const markdownComponents = {
       </code>
     );
   },
-  img: ({
-    node: _node,
-    ...props
-  }: { node?: unknown } & React.ImgHTMLAttributes<HTMLImageElement>) => (
-    <MarkdownImage {...props} />
-  ),
+  img: markdownImageComponent,
 };
 
 export function TypewriterTextWrapper({

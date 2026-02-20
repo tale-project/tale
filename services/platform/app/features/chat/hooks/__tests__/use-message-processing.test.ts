@@ -15,7 +15,10 @@ vi.mock('@convex-dev/agent/react', () => ({
 
 import { useUIMessages } from '@convex-dev/agent/react';
 
-import { useMessageProcessing } from '../use-message-processing';
+import {
+  useMessageProcessing,
+  stripInternalFileReferences,
+} from '../use-message-processing';
 
 const mockUseUIMessages = vi.mocked(useUIMessages);
 
@@ -327,6 +330,89 @@ describe('useMessageProcessing', () => {
 
       const { result } = renderHook(() => useMessageProcessing('thread-1'));
       expect(result.current.pendingToolResponse).toBe(pendingMsg);
+    });
+  });
+
+  describe('stripInternalFileReferences', () => {
+    it('removes the attached files marker', () => {
+      const input =
+        'Hello\n\n[ATTACHED FILES - Pre-analysis was not available. Use your tools to process these files.]';
+      expect(stripInternalFileReferences(input)).toBe('Hello');
+    });
+
+    it('removes fileId references', () => {
+      const input =
+        'Hello\n📎 **image.png** (image/png, fileId: kg24f801scvhvxnx320zcd9rcd81g8aj)';
+      expect(stripInternalFileReferences(input)).toBe('Hello');
+    });
+
+    it('removes both marker and multiple file references', () => {
+      const input = [
+        'What is this?',
+        '',
+        '[ATTACHED FILES - Pre-analysis was not available. Use your tools to process these files.]',
+        '📎 **photo.jpg** (image/jpeg, fileId: abc123def456)',
+        '📎 **doc.pdf** (application/pdf, fileId: xyz789)',
+      ].join('\n');
+      expect(stripInternalFileReferences(input)).toBe('What is this?');
+    });
+
+    it('returns text unchanged when no internal references exist', () => {
+      const input = 'Just a normal message with no file references';
+      expect(stripInternalFileReferences(input)).toBe(input);
+    });
+
+    it('handles empty string', () => {
+      expect(stripInternalFileReferences('')).toBe('');
+    });
+
+    it('strips fileId marker but preserves image markdown for renderer', () => {
+      const input =
+        '![photo.jpg](https://example.com/img.jpg)\n*(fileId: kg24f801scvhvxnx320zcd9rcd81g8aj)*';
+      expect(stripInternalFileReferences(input)).toBe(
+        '![photo.jpg](https://example.com/img.jpg)',
+      );
+    });
+
+    it('strips fileId marker but preserves document link markdown', () => {
+      const input =
+        '📄 [report.pdf](https://example.com/file) (application/pdf, 1.2 MB)\n*(fileId: abc123def456)*';
+      expect(stripInternalFileReferences(input)).toBe(
+        '📄 [report.pdf](https://example.com/file) (application/pdf, 1.2 MB)',
+      );
+    });
+
+    it('preserves user text and image markdown while stripping fileId', () => {
+      const input = [
+        'What is this image?',
+        '',
+        '![photo.jpg](https://example.com/img.jpg)',
+        '*(fileId: abc123)*',
+      ].join('\n');
+      expect(stripInternalFileReferences(input)).toBe(
+        'What is this image?\n\n![photo.jpg](https://example.com/img.jpg)',
+      );
+    });
+
+    it('strips fileId markers from multiple attachments but preserves markdown', () => {
+      const input = [
+        'Please review',
+        '',
+        '📄 [report.pdf](https://example.com/pdf) (application/pdf, 2 MB)',
+        '*(fileId: pdf123)*',
+        '',
+        '📄 [notes.txt](https://example.com/txt) (512 B)',
+        '*(fileId: txt456)*',
+      ].join('\n');
+      expect(stripInternalFileReferences(input)).toBe(
+        [
+          'Please review',
+          '',
+          '📄 [report.pdf](https://example.com/pdf) (application/pdf, 2 MB)',
+          '',
+          '📄 [notes.txt](https://example.com/txt) (512 B)',
+        ].join('\n'),
+      );
     });
   });
 });
