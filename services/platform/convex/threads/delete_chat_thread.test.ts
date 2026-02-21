@@ -71,10 +71,21 @@ describe('deleteChatThread', () => {
       },
     );
 
+    const mockPatch = vi.fn();
+    const dbQueryChain = {
+      withIndex: () => dbQueryChain,
+      first: vi.fn().mockResolvedValue(null),
+    };
+    const mockDb = {
+      query: () => dbQueryChain,
+      patch: mockPatch,
+    };
+
     const ctx = {
       runQuery: mockRunQuery,
       runMutation: mockRunMutation,
       scheduler: { runAfter: mockRunAfter },
+      db: mockDb,
     } as unknown as MutationCtx;
 
     return { ctx, mockRunQuery, mockRunMutation, mockRunAfter, scheduledJobs };

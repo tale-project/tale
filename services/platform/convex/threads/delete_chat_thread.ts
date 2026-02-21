@@ -21,6 +21,15 @@ export async function deleteChatThread(
     patch: { status: 'archived' },
   });
 
+  const existing = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .first();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, { status: 'archived' });
+  }
+
   const subThreadIds = parseSubThreadIds(thread.summary);
   if (subThreadIds.length > 0) {
     await ctx.scheduler.runAfter(

@@ -8,25 +8,23 @@ export async function getLatestThreadWithMessageCount(
   ctx: QueryCtx,
   userId: string,
 ): Promise<{ threadId: string; messageCount: number } | null> {
-  const result = await ctx.runQuery(
-    components.agent.threads.listThreadsByUserId,
-    {
-      userId,
-      order: 'desc',
-      paginationOpts: { cursor: null, numItems: 1 },
-    },
-  );
+  const latestMetadata = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_userId_chatType_status', (q) =>
+      q.eq('userId', userId).eq('chatType', 'general').eq('status', 'active'),
+    )
+    .order('desc')
+    .first();
 
-  const latestThread = result.page.find((thread) => thread.status === 'active');
-  if (!latestThread) return null;
+  if (!latestMetadata) return null;
 
   const messagesResult = await listUIMessages(ctx, components.agent, {
-    threadId: latestThread._id,
+    threadId: latestMetadata.threadId,
     paginationOpts: { cursor: null, numItems: 1 },
   });
 
   return {
-    threadId: latestThread._id,
+    threadId: latestMetadata.threadId,
     messageCount: messagesResult.page.length,
   };
 }

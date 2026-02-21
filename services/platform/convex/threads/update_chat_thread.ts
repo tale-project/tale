@@ -10,4 +10,13 @@ export async function updateChatThread(
     threadId,
     patch: { title },
   });
+
+  const existing = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .first();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, { title });
+  }
 }

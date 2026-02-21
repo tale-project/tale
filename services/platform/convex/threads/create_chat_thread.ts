@@ -12,10 +12,23 @@ export async function createChatThread(
   chatType: ChatType = 'general',
 ): Promise<string> {
   const summary = JSON.stringify({ chatType });
+  const resolvedTitle = title ?? 'New Chat';
+  const now = Date.now();
 
-  return createThread(ctx, components.agent, {
+  const threadId = await createThread(ctx, components.agent, {
     userId,
-    title: title ?? 'New Chat',
+    title: resolvedTitle,
     summary,
   });
+
+  await ctx.db.insert('threadMetadata', {
+    threadId,
+    userId,
+    chatType,
+    status: 'active',
+    title: resolvedTitle,
+    createdAt: now,
+  });
+
+  return threadId;
 }
