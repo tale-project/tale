@@ -310,6 +310,7 @@ export const deleteCustomAgent = mutation({
 
     const rootAgent = await ctx.db.get(args.customAgentId);
     if (!rootAgent) throw new Error('Agent not found');
+    const rootId = rootAgent.rootVersionId ?? rootAgent._id;
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
     if (!hasTeamAccess(rootAgent, userTeamIds)) {
@@ -319,14 +320,14 @@ export const deleteCustomAgent = mutation({
     // Delete associated webhooks to avoid dangling references
     const webhooks = ctx.db
       .query('customAgentWebhooks')
-      .withIndex('by_agent', (q) => q.eq('customAgentId', args.customAgentId));
+      .withIndex('by_agent', (q) => q.eq('customAgentId', rootId));
     for await (const webhook of webhooks) {
       await ctx.db.delete(webhook._id);
     }
 
     const allVersions = ctx.db
       .query('customAgents')
-      .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId));
+      .withIndex('by_root', (q) => q.eq('rootVersionId', rootId));
 
     for await (const version of allVersions) {
       await ctx.db.delete(version._id);
