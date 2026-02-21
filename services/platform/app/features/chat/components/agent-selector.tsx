@@ -31,6 +31,7 @@ interface AgentOption {
   description: string;
   isSystemDefault?: boolean;
   isDefaultChat?: boolean;
+  systemAgentSlug?: string;
 }
 
 function filterOptions(options: AgentOption[], query: string) {
@@ -68,6 +69,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
         description: agent.description || '',
         isSystemDefault: isSystem,
         isDefaultChat,
+        systemAgentSlug: agent.systemAgentSlug,
       };
 
       if (isSystem) {
@@ -79,18 +81,8 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
 
     // Sort system agents by stable slug order
     system.sort((a, b) => {
-      const aAgent = allAgents.find(
-        (ag) =>
-          (ag.rootVersionId ?? ag._id) === a.value ||
-          (a.isDefaultChat && ag.systemAgentSlug === 'chat'),
-      );
-      const bAgent = allAgents.find(
-        (ag) =>
-          (ag.rootVersionId ?? ag._id) === b.value ||
-          (b.isDefaultChat && ag.systemAgentSlug === 'chat'),
-      );
-      const aOrder = SYSTEM_SLUG_ORDER[aAgent?.systemAgentSlug ?? ''] ?? 99;
-      const bOrder = SYSTEM_SLUG_ORDER[bAgent?.systemAgentSlug ?? ''] ?? 99;
+      const aOrder = SYSTEM_SLUG_ORDER[a.systemAgentSlug ?? ''] ?? 99;
+      const bOrder = SYSTEM_SLUG_ORDER[b.systemAgentSlug ?? ''] ?? 99;
       return aOrder - bOrder;
     });
 
