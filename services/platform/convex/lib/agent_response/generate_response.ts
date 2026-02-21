@@ -27,6 +27,8 @@ import type {
 
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
+import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
+import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
 import { onAgentComplete } from '../agent_completion';
 import {
   buildStructuredContext,
@@ -37,6 +39,7 @@ import {
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { startRagPrefetch, type RagPrefetchCache } from '../rag_prefetch';
+import { resolveTemplateVariables } from './resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
 import { AgentTimeoutError, withTimeout } from './with_timeout';
 
@@ -74,7 +77,9 @@ export async function generateAgentResponse(
     debugTag,
     enableStreaming,
     hooks,
-    convexToolNames,
+    knowledgeMode: configKnowledgeMode,
+    webSearchMode: configWebSearchMode,
+    structuredResponsesEnabled,
     instructions,
     toolsSummary,
   } = config;
@@ -118,14 +123,19 @@ export async function generateAgentResponse(
       });
     }
 
-    // Start RAG prefetch immediately (non-blocking) if:
-    // 1. userId is provided (needed for RAG search)
-    // 2. promptMessage exists (query to search)
-    // 3. rag_search tool is configured for this agent
-    // This must be started in the main action context, not in a hook (Promises can't be serialized)
+    // Determine retrieval modes
+    const knowledgeMode = configKnowledgeMode ?? 'off';
+    const webSearchMode = configWebSearchMode ?? 'off';
+    const needsKnowledgeContext =
+      knowledgeMode === 'context' || knowledgeMode === 'both';
+    const needsWebContext =
+      webSearchMode === 'context' || webSearchMode === 'both';
+
+    // Start RAG prefetch for tool mode (existing behavior):
+    // The prefetch cache is consumed by the rag_search tool's first call.
+    // For context/both modes, we use queryRagContext instead (injected into structured context).
     let ragPrefetchCache: RagPrefetchCache | undefined;
-    const hasRagSearchTool = convexToolNames?.includes('rag_search') ?? false;
-    if (userId && promptMessage && hasRagSearchTool) {
+    if (knowledgeMode === 'tool' && userId && promptMessage) {
       ragPrefetchCache = startRagPrefetch({
         ctx,
         threadId,
@@ -133,9 +143,34 @@ export async function generateAgentResponse(
         userId,
         userTeamIds: userTeamIds ?? [],
       });
-      debugLog('RAG prefetch started', {
+      debugLog('RAG prefetch started (tool mode)', {
         threadId,
-        userId,
+        elapsedMs: Date.now() - startTime,
+      });
+    }
+
+    // Start context injection queries (non-blocking) for context/both modes
+    let knowledgeContextPromise: Promise<string | undefined> | undefined;
+    if (needsKnowledgeContext && userId && promptMessage) {
+      knowledgeContextPromise = queryRagContext(
+        promptMessage,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { userId, teamIds: userTeamIds ?? [] },
+      );
+      debugLog('Knowledge context query started', {
+        threadId,
+        elapsedMs: Date.now() - startTime,
+      });
+    }
+
+    let webContextPromise: Promise<string | undefined> | undefined;
+    if (needsWebContext && organizationId && promptMessage) {
+      webContextPromise = queryWebContext(ctx, organizationId, promptMessage);
+      debugLog('Web context query started', {
+        threadId,
         elapsedMs: Date.now() - startTime,
       });
     }
@@ -150,7 +185,26 @@ export async function generateAgentResponse(
       });
     }
 
-    // Build structured context (history, RAG, integrations)
+    // Await context injection results
+    const [knowledgeContextResult, webContextResult] = await Promise.all([
+      knowledgeContextPromise ?? Promise.resolve(undefined),
+      webContextPromise ?? Promise.resolve(undefined),
+    ]);
+
+    if (knowledgeContextResult) {
+      debugLog('Knowledge context injected', {
+        contextLength: knowledgeContextResult.length,
+        elapsedMs: Date.now() - startTime,
+      });
+    }
+    if (webContextResult) {
+      debugLog('Web context injected', {
+        contextLength: webContextResult.length,
+        elapsedMs: Date.now() - startTime,
+      });
+    }
+
+    // Build structured context (history, RAG, web)
     // Note: promptMessage is NOT included - it's passed via `prompt` parameter
     const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
     const structuredThreadContext = await buildStructuredContext({
@@ -159,8 +213,8 @@ export async function generateAgentResponse(
       additionalContext,
       parentThreadId,
       maxMessages: agentConfig.recentMessages,
-      ragContext: hookData?.ragContext,
-      integrationsInfo: hookData?.integrationsInfo,
+      ragContext: knowledgeContextResult ?? hookData?.ragContext,
+      webContext: webContextResult,
     });
 
     debugLog('Context built', {
@@ -234,17 +288,27 @@ export async function generateAgentResponse(
 
     const promptToSend = hookPromptContent ?? promptMessage;
 
+    // Resolve template variables (e.g. {{organization.name}}, {{current_time}})
+    const resolvedInstructions = instructions
+      ? await resolveTemplateVariables(ctx, instructions, {
+          organizationId,
+          userId,
+        })
+      : undefined;
+
     // Combine agent instructions with thread context for the system prompt.
     // The Agent SDK uses `system ?? this.options.instructions`, so when we pass
     // `system` explicitly the agent's own instructions are overridden.
     // We prepend them here so the LLM receives both the agent's identity/guidance
-    // and the structured thread context (history, RAG, integrations).
+    // and the structured thread context (history, RAG, web search).
     // For streaming agents, append structured response instructions so the LLM
     // can optionally emit section markers (parsed by the frontend).
     const agentInstructions =
-      enableStreaming && instructions
-        ? `${instructions}\n\n${STRUCTURED_RESPONSE_INSTRUCTIONS}`
-        : instructions;
+      enableStreaming &&
+      resolvedInstructions &&
+      structuredResponsesEnabled !== false
+        ? `${resolvedInstructions}\n\n${STRUCTURED_RESPONSE_INSTRUCTIONS}`
+        : resolvedInstructions;
     const systemPrompt = agentInstructions
       ? `${agentInstructions}\n\n${structuredThreadContext.threadContext}`
       : structuredThreadContext.threadContext;
@@ -267,7 +331,7 @@ export async function generateAgentResponse(
     try {
       if (enableStreaming) {
         // Streaming mode (chat agent)
-        // - system: thread context (history, RAG, integrations)
+        // - system: thread context (history, RAG, web search)
         // - prompt: current user message (passed separately to avoid duplication)
         const streamResult = await agent.streamText(
           contextWithOrg,
@@ -344,7 +408,6 @@ export async function generateAgentResponse(
             parentThreadId,
             maxMessages: agentConfig.recentMessages,
             ragContext: hookData?.ragContext,
-            integrationsInfo: hookData?.integrationsInfo,
           });
 
           // Find the original user message so we can link the retry response
@@ -487,7 +550,6 @@ export async function generateAgentResponse(
             parentThreadId,
             maxMessages: agentConfig.recentMessages,
             ragContext: hookData?.ragContext,
-            integrationsInfo: hookData?.integrationsInfo,
           });
 
           debugLog('Rebuilt context for retry', {
@@ -573,7 +635,6 @@ export async function generateAgentResponse(
             parentThreadId,
             maxMessages: agentConfig.recentMessages,
             ragContext: hookData?.ragContext,
-            integrationsInfo: hookData?.integrationsInfo,
           });
 
           debugLog('Rebuilt context for empty text retry', {
@@ -674,7 +735,6 @@ export async function generateAgentResponse(
           parentThreadId,
           maxMessages: agentConfig.recentMessages,
           ragContext: hookData?.ragContext,
-          integrationsInfo: hookData?.integrationsInfo,
         });
 
         const recoveryAgent = createAgent({
@@ -992,12 +1052,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     }>;
   };
 
-  const subAgentToolNames = new Set([
-    'workflow_assistant',
-    'document_assistant',
-    'integration_assistant',
-    'crm_assistant',
-  ]);
+  const isDelegationTool = (name: string) => name.startsWith('delegate_');
   const toolCalls: Array<{ toolName: string; status: string }> = [];
   const subAgentUsage: Array<{
     toolName: string;
@@ -1051,7 +1106,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
 
     // Extract sub-agent usage
     for (const toolResult of stepToolResults ?? []) {
-      if (subAgentToolNames.has(toolResult.toolName)) {
+      if (isDelegationTool(toolResult.toolName)) {
         type SubAgentResultData = {
           model?: string;
           provider?: string;

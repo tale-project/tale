@@ -146,14 +146,6 @@ export function formatHumanResponse(
 }
 
 /**
- * Format system info (collapsible)
- */
-export function formatSystemInfo(threadId: string, timestamp: number): string {
-  const content = `thread=${threadId} time=${shortTime(timestamp)}`;
-  return wrapInDetails('⚙️ System', content);
-}
-
-/**
  * Format context summary (collapsible)
  */
 export function formatContextSummary(summary: string): string {
@@ -168,10 +160,10 @@ export function formatKnowledgeBase(content: string): string {
 }
 
 /**
- * Format integrations info (collapsible)
+ * Format web search context (collapsible)
  */
-export function formatIntegrations(info: string): string {
-  return wrapInDetails('🔌 Integrations', info);
+export function formatWebContext(content: string): string {
+  return wrapInDetails('🌐 Web Search', content);
 }
 
 /**

@@ -77,14 +77,14 @@ interface ExtractedToolCall {
  * Result from building structured context
  */
 export interface StructuredContextResult {
-  /** Thread context as a string (history, RAG, integrations, etc.) */
+  /** Thread context as a string (history, RAG, etc.) */
   threadContext: string;
   stats: {
     totalTokens: number;
     messageCount: number;
     approvalCount: number;
     hasRag: boolean;
-    hasIntegrations: boolean;
+    hasWebContext: boolean;
   };
 }
 
@@ -95,7 +95,7 @@ export interface BuildStructuredContextParams {
   ctx: ActionCtx;
   threadId: string;
   ragContext?: string;
-  integrationsInfo?: string;
+  webContext?: string;
   maxMessages?: number;
   /** Additional structured context as key-value pairs */
   additionalContext?: Record<string, string>;
@@ -119,7 +119,7 @@ export async function buildStructuredContext(
     ctx,
     threadId,
     ragContext,
-    integrationsInfo,
+    webContext,
     maxMessages = 20,
     additionalContext,
     parentThreadId,
@@ -140,9 +140,6 @@ export async function buildStructuredContext(
 
   // 3. Build structured context parts
   const contextParts: string[] = [];
-
-  // System info
-  contextParts.push(fmt.formatSystemInfo(threadId, Date.now()));
 
   // Parent thread reference (for sub-agent mode)
   if (parentThreadId) {
@@ -167,9 +164,9 @@ export async function buildStructuredContext(
     contextParts.push(fmt.formatKnowledgeBase(ragContext));
   }
 
-  // Integrations
-  if (integrationsInfo) {
-    contextParts.push(fmt.formatIntegrations(integrationsInfo));
+  // Web search context
+  if (webContext) {
+    contextParts.push(fmt.formatWebContext(webContext));
   }
 
   // 4. Format messages with approvals interleaved
@@ -191,7 +188,7 @@ export async function buildStructuredContext(
     messageCount: messagesResult.page.length,
     approvalCount: approvals?.length ?? 0,
     hasRag: !!ragContext,
-    hasIntegrations: !!integrationsInfo,
+    hasWebContext: !!webContext,
   };
 
   // 7. Return thread context

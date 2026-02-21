@@ -84,6 +84,12 @@ export function CustomAgentNavigation({
       search: versionSearch,
     },
     {
+      label: t('customAgents.navigation.delegation'),
+      href: `${basePath}/delegation`,
+      matchMode: 'exact',
+      search: versionSearch,
+    },
+    {
       label: t('customAgents.navigation.webhook'),
       href: `${basePath}/webhook`,
       matchMode: 'exact',

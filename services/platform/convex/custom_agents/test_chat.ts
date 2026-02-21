@@ -46,11 +46,7 @@ export const testCustomAgent = mutation({
 
     const agent = await ctx.db.get(args.customAgentId);
 
-    if (
-      !agent ||
-      !agent.isActive ||
-      agent.organizationId !== args.organizationId
-    ) {
+    if (!agent || agent.organizationId !== args.organizationId) {
       throw new Error('Agent not found');
     }
 

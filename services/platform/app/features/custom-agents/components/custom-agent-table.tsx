@@ -37,6 +37,8 @@ export interface CustomAgentRow {
   rootVersionId?: string;
   teamId?: string;
   sharedWithTeamIds?: string[];
+  visibleInChat?: boolean;
+  isSystemDefault?: boolean;
 }
 
 interface CustomAgentTableProps {

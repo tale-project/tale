@@ -6,16 +6,21 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
+import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { CustomAgentActiveToggle } from '@/app/features/custom-agents/components/custom-agent-active-toggle';
-import { useUpdateCustomAgentMetadata } from '@/app/features/custom-agents/hooks/mutations';
+import {
+  useUpdateCustomAgentMetadata,
+  useUpdateCustomAgentVisibility,
+} from '@/app/features/custom-agents/hooks/mutations';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -45,6 +50,8 @@ function GeneralTab() {
   const { t } = useT('settings');
   const { agent, isReadOnly } = useCustomAgentVersion();
   const updateMetadata = useUpdateCustomAgentMetadata();
+  const { mutate: updateVisibility, isPending: isUpdatingVisibility } =
+    useUpdateCustomAgentVisibility();
   const { teams } = useTeamFilter();
 
   const form = useForm<GeneralFormData>({
@@ -113,6 +120,32 @@ function GeneralTab() {
     return teams.filter((team) => team.id !== teamId);
   }, [teams, teamId]);
 
+  const handleVisibilityChange = useCallback(
+    (checked: boolean) => {
+      updateVisibility(
+        {
+          customAgentId: toId<'customAgents'>(agentId),
+          visibleInChat: checked,
+        },
+        {
+          onSuccess: () => {
+            toast({
+              title: t('customAgents.general.visibilityUpdated'),
+              variant: 'success',
+            });
+          },
+          onError: () => {
+            toast({
+              title: t('customAgents.general.visibilityUpdateFailed'),
+              variant: 'destructive',
+            });
+          },
+        },
+      );
+    },
+    [agentId, updateVisibility, t],
+  );
+
   const handleTeamChange = (val: string) => {
     const resolved = val === NO_TEAM_VALUE ? undefined : val;
     setTeamId(resolved);
@@ -141,11 +174,20 @@ function GeneralTab() {
         />
 
         {agent && (
-          <CustomAgentActiveToggle
-            agent={agent}
-            label={t('customAgents.general.active')}
-            description={t('customAgents.general.activeHelp')}
-          />
+          <Stack gap={3}>
+            <CustomAgentActiveToggle
+              agent={agent}
+              label={t('customAgents.general.active')}
+              description={t('customAgents.general.activeHelp')}
+            />
+            <Switch
+              checked={agent.visibleInChat !== false}
+              onCheckedChange={handleVisibilityChange}
+              disabled={isReadOnly || isUpdatingVisibility}
+              label={t('customAgents.general.visibleInChat')}
+              description={t('customAgents.general.visibleInChatHelp')}
+            />
+          </Stack>
         )}
 
         <Stack gap={3}>

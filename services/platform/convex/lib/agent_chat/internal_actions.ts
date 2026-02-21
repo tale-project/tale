@@ -18,6 +18,11 @@ import {
 } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
+import {
+  createDelegationTool,
+  buildDelegationInstructionsSection,
+} from '../../agent_tools/delegation/create_delegation_tool';
+import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
 import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
 import { fetchOperationsSummary } from '../../agent_tools/integrations/fetch_operations_summary';
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
@@ -51,7 +56,26 @@ const serializableAgentConfigValidator = v.object({
   maxSteps: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
   enableVectorSearch: v.optional(v.boolean()),
-  contextFeatures: v.optional(v.array(v.string())),
+  knowledgeMode: v.optional(
+    v.union(
+      v.literal('off'),
+      v.literal('tool'),
+      v.literal('context'),
+      v.literal('both'),
+    ),
+  ),
+  webSearchMode: v.optional(
+    v.union(
+      v.literal('off'),
+      v.literal('tool'),
+      v.literal('context'),
+      v.literal('both'),
+    ),
+  ),
+  delegateAgentIds: v.optional(v.array(v.string())),
+  structuredResponsesEnabled: v.optional(v.boolean()),
+  timeoutMs: v.optional(v.number()),
+  outputReserve: v.optional(v.number()),
 });
 
 const hooksConfigValidator = v.object({
@@ -145,17 +169,52 @@ export const runAgentGeneration = internalAction({
       });
     }
 
+    // Build delegation tools dynamically
+    let delegationExtraTools: Record<string, unknown> | undefined;
+    let delegationInstructionsAppend = '';
+    if (agentConfig.delegateAgentIds?.length) {
+      const delegates = await loadDelegateAgents(
+        ctx,
+        agentConfig.delegateAgentIds,
+        organizationId,
+      );
+
+      if (delegates.length > 0) {
+        delegationExtraTools = {};
+        for (const delegate of delegates) {
+          const delegationTool = createDelegationTool(delegate);
+          delegationExtraTools[delegationTool.name] = delegationTool.tool;
+        }
+        delegationInstructionsAppend =
+          buildDelegationInstructionsSection(delegates);
+        debugLog('Built delegation tools', {
+          names: Object.keys(delegationExtraTools),
+        });
+      }
+    }
+
+    // Merge all extra tools
+    const allExtraTools: Record<string, unknown> | undefined =
+      integrationExtraTools || delegationExtraTools
+        ? { ...integrationExtraTools, ...delegationExtraTools }
+        : undefined;
+
+    // Combine instructions with delegation agent descriptions
+    const finalInstructions = delegationInstructionsAppend
+      ? agentConfig.instructions + delegationInstructionsAppend
+      : agentConfig.instructions;
+
     // Create agent factory function from serializable config
     const createAgent = (options?: Record<string, unknown>) => {
       const config = createAgentConfig({
         name: agentConfig.name,
-        instructions: agentConfig.instructions,
+        instructions: finalInstructions,
         convexToolNames: agentConfig.convexToolNames
           ? agentConfig.convexToolNames.filter((n): n is ToolName =>
               (TOOL_NAMES as readonly string[]).includes(n),
             )
           : undefined,
-        extraTools: integrationExtraTools,
+        extraTools: allExtraTools,
         useFastModel: agentConfig.useFastModel,
         model: agentConfig.model,
         maxSteps:
@@ -170,13 +229,13 @@ export const runAgentGeneration = internalAction({
 
     // Build hooks object from FunctionHandle strings
     const hooks: GenerateResponseHooks | undefined = hooksConfig
-      ? buildHooksFromConfig(hooksConfig, agentConfig.contextFeatures)
+      ? buildHooksFromConfig(hooksConfig)
       : undefined;
 
     // Build tools summary for context window display
     const toolsSummary = buildToolsSummary(
       agentConfig.convexToolNames,
-      integrationExtraTools,
+      allExtraTools,
     );
 
     try {
@@ -190,7 +249,10 @@ export const runAgentGeneration = internalAction({
           enableStreaming,
           hooks,
           convexToolNames: agentConfig.convexToolNames,
-          instructions: agentConfig.instructions,
+          knowledgeMode: agentConfig.knowledgeMode,
+          webSearchMode: agentConfig.webSearchMode,
+          structuredResponsesEnabled: agentConfig.structuredResponsesEnabled,
+          instructions: finalInstructions,
           toolsSummary,
         },
         {
@@ -278,14 +340,11 @@ export const runAgentGeneration = internalAction({
  * Build hooks object from FunctionHandle configuration.
  * Converts string handles to callable functions.
  */
-function buildHooksFromConfig(
-  hooksConfig: {
-    beforeContext?: string;
-    beforeGenerate?: string;
-    afterGenerate?: string;
-  },
-  contextFeatures?: string[],
-): GenerateResponseHooks {
+function buildHooksFromConfig(hooksConfig: {
+  beforeContext?: string;
+  beforeGenerate?: string;
+  afterGenerate?: string;
+}): GenerateResponseHooks {
   const hooks: GenerateResponseHooks = {};
 
   if (hooksConfig.beforeContext) {
@@ -299,7 +358,6 @@ function buildHooksFromConfig(
         promptMessage: args.promptMessage,
         organizationId: args.organizationId,
         userTeamIds: args.userTeamIds,
-        contextFeatures,
       });
       // runAction returns unknown; we trust the hook contract
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- hook return type guaranteed by contract
