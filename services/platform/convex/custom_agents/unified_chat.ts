@@ -22,6 +22,7 @@ import { authComponent } from '../auth';
 import { startAgentChat } from '../lib/agent_chat';
 import { getDefaultAgentRuntimeConfig } from '../lib/agent_runtime_config';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { getOrganizationMember } from '../lib/rls';
 import { hasTeamAccess } from '../lib/team_access';
 import { createCustomAgentHookHandles, toSerializableConfig } from './config';
 
@@ -80,6 +81,12 @@ export const chatWithAgent = mutation({
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
 
     // Resolve agent: use provided ID or fall back to system default 'chat' agent
     const rootVersionId = await resolveAgentId(
