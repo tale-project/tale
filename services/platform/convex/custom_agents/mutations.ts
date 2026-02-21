@@ -316,6 +316,14 @@ export const deleteCustomAgent = mutation({
       throw new Error('Agent not accessible');
     }
 
+    // Delete associated webhooks to avoid dangling references
+    const webhooks = ctx.db
+      .query('customAgentWebhooks')
+      .withIndex('by_agent', (q) => q.eq('customAgentId', args.customAgentId));
+    for await (const webhook of webhooks) {
+      await ctx.db.delete(webhook._id);
+    }
+
     const allVersions = ctx.db
       .query('customAgents')
       .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId));
