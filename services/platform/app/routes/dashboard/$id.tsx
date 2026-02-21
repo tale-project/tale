@@ -1,5 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { Outlet, createFileRoute } from '@tanstack/react-router';
+import { useRef } from 'react';
 
 import { BrandingProvider } from '@/app/components/branding/branding-provider';
 import {
@@ -33,6 +34,14 @@ function DashboardLayout() {
     isAuthLoading || !isAuthenticated,
   );
 
+  // Preserve the last known role across auth token refreshes / WebSocket reconnections.
+  // When convexQuery args change to 'skip', the queryKey changes and data becomes undefined,
+  // which would cause role-gated nav items to briefly disappear.
+  const roleRef = useRef(memberContext?.role);
+  if (memberContext?.role) {
+    roleRef.current = memberContext.role;
+  }
+
   return (
     <BrandingProvider
       organizationId={organizationId}
@@ -44,7 +53,7 @@ function DashboardLayout() {
             <div className="bg-background flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
               <MobileNavigation
                 organizationId={organizationId}
-                role={memberContext?.role}
+                role={roleRef.current}
               />
               <AdaptiveHeaderSlot />
             </div>
@@ -52,7 +61,7 @@ function DashboardLayout() {
             <div className="hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
               <Navigation
                 organizationId={organizationId}
-                role={memberContext?.role}
+                role={roleRef.current}
               />
             </div>
 

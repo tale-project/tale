@@ -7,6 +7,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { OrganizationSettingsClient } from '@/app/features/settings/organization/components/organization-settings-client';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -69,11 +70,12 @@ function OrganizationSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
   const { data: memberContext, isLoading: isMemberLoading } =
-    useCurrentMemberContext(organizationId);
+    useCurrentMemberContext(organizationId, isAuthLoading || !isAuthenticated);
   const { data: organization, isLoading: isOrgLoading } =
     useOrganization(organizationId);
-  if (isMemberLoading || isOrgLoading || !memberContext) {
+  if (isAuthLoading || isMemberLoading || isOrgLoading || !memberContext) {
     return <OrganizationSettingsSkeleton />;
   }
 

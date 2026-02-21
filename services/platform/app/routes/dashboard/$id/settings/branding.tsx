@@ -6,6 +6,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { BrandingSettingsClient } from '@/app/features/settings/branding/components/branding-settings-client';
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -72,12 +73,13 @@ function BrandingSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
   const { data: memberContext, isLoading: isMemberLoading } =
-    useCurrentMemberContext(organizationId);
+    useCurrentMemberContext(organizationId, isAuthLoading || !isAuthenticated);
   const { data: branding, isLoading: isBrandingLoading } =
     useBranding(organizationId);
 
-  if (isMemberLoading || isBrandingLoading || !memberContext) {
+  if (isAuthLoading || isMemberLoading || isBrandingLoading || !memberContext) {
     return <BrandingSettingsSkeleton />;
   }
 

@@ -9,6 +9,7 @@ import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { SettingsNavigation } from '@/app/features/settings/components/settings-navigation';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -24,10 +25,13 @@ function SettingsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('settings');
 
-  const { data: userContext, isLoading } =
-    useCurrentMemberContext(organizationId);
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+  const { data: userContext, isLoading } = useCurrentMemberContext(
+    organizationId,
+    isAuthLoading || !isAuthenticated,
+  );
 
-  if (isLoading) {
+  if (isAuthLoading || isLoading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <StickyHeader>

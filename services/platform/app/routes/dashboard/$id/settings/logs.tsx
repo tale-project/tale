@@ -9,6 +9,7 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -62,8 +63,9 @@ function LogsPage() {
   const { t } = useT('settings');
   const { t: tAccess } = useT('accessDenied');
 
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
   const { data: memberContext, isLoading: isMemberLoading } =
-    useCurrentMemberContext(organizationId);
+    useCurrentMemberContext(organizationId, isAuthLoading || !isAuthenticated);
 
   const paginatedResult = useListAuditLogsPaginated({
     organizationId,
@@ -71,7 +73,7 @@ function LogsPage() {
     initialNumItems: 30,
   });
 
-  if (isMemberLoading) {
+  if (isAuthLoading || isMemberLoading) {
     return <LogsSkeleton />;
   }
 

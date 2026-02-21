@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { AccountFormClient } from '@/app/features/settings/account/components/account-form-client';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { seo } from '@/lib/utils/seo';
 
@@ -36,10 +37,13 @@ function AccountSkeleton() {
 
 function AccountPage() {
   const { id: organizationId } = Route.useParams();
-  const { data: memberContext, isLoading } =
-    useCurrentMemberContext(organizationId);
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+  const { data: memberContext, isLoading } = useCurrentMemberContext(
+    organizationId,
+    isAuthLoading || !isAuthenticated,
+  );
 
-  if (isLoading) {
+  if (isAuthLoading || isLoading) {
     return <AccountSkeleton />;
   }
 
