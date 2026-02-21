@@ -88,7 +88,15 @@ describe('deleteChatThread', () => {
       db: mockDb,
     } as unknown as MutationCtx;
 
-    return { ctx, mockRunQuery, mockRunMutation, mockRunAfter, scheduledJobs };
+    return {
+      ctx,
+      mockRunQuery,
+      mockRunMutation,
+      mockRunAfter,
+      mockPatch,
+      dbQueryChain,
+      scheduledJobs,
+    };
   }
 
   it('should archive the parent thread', async () => {
@@ -105,6 +113,26 @@ describe('deleteChatThread', () => {
         patch: { status: 'archived' },
       }),
     );
+  });
+
+  it('should archive threadMetadata when present', async () => {
+    const summary = JSON.stringify({ chatType: 'general' });
+    const { ctx, mockPatch, dbQueryChain } = createMockCtx(summary);
+    const mockRecord = { _id: 'meta_1' };
+    dbQueryChain.first.mockResolvedValue(mockRecord);
+
+    await deleteChatThread(ctx, 'parent_1');
+
+    expect(mockPatch).toHaveBeenCalledWith('meta_1', { status: 'archived' });
+  });
+
+  it('should not patch threadMetadata when not found', async () => {
+    const summary = JSON.stringify({ chatType: 'general' });
+    const { ctx, mockPatch } = createMockCtx(summary);
+
+    await deleteChatThread(ctx, 'parent_1');
+
+    expect(mockPatch).not.toHaveBeenCalled();
   });
 
   it('should not schedule cleanup when no sub-threads exist', async () => {
