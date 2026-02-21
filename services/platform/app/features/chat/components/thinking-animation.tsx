@@ -65,11 +65,13 @@ export function ThinkingAnimation({
     }
 
     if (toolName.startsWith('delegate_')) {
-      const agentDisplayName = toolName
-        .slice('delegate_'.length)
-        .split('-')
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
+      const rawName = toolName.slice('delegate_'.length);
+      const agentDisplayName =
+        rawName
+          .split(/[-_]+/)
+          .filter(Boolean)
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ') || toolName;
       return { toolName, displayText: agentDisplayName };
     }
 
