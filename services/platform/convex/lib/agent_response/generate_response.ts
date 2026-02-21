@@ -39,6 +39,7 @@ import {
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { startRagPrefetch, type RagPrefetchCache } from '../rag_prefetch';
+import { resolveTemplateVariables } from './resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
 import { AgentTimeoutError, withTimeout } from './with_timeout';
 
@@ -203,7 +204,7 @@ export async function generateAgentResponse(
       });
     }
 
-    // Build structured context (history, RAG, web, integrations)
+    // Build structured context (history, RAG, web)
     // Note: promptMessage is NOT included - it's passed via `prompt` parameter
     const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
     const structuredThreadContext = await buildStructuredContext({
@@ -214,7 +215,6 @@ export async function generateAgentResponse(
       maxMessages: agentConfig.recentMessages,
       ragContext: knowledgeContextResult ?? hookData?.ragContext,
       webContext: webContextResult,
-      integrationsInfo: hookData?.integrationsInfo,
     });
 
     debugLog('Context built', {
@@ -288,17 +288,27 @@ export async function generateAgentResponse(
 
     const promptToSend = hookPromptContent ?? promptMessage;
 
+    // Resolve template variables (e.g. {{organization.name}}, {{current_time}})
+    const resolvedInstructions = instructions
+      ? await resolveTemplateVariables(ctx, instructions, {
+          organizationId,
+          userId,
+        })
+      : undefined;
+
     // Combine agent instructions with thread context for the system prompt.
     // The Agent SDK uses `system ?? this.options.instructions`, so when we pass
     // `system` explicitly the agent's own instructions are overridden.
     // We prepend them here so the LLM receives both the agent's identity/guidance
-    // and the structured thread context (history, RAG, integrations).
+    // and the structured thread context (history, RAG, web search).
     // For streaming agents, append structured response instructions so the LLM
     // can optionally emit section markers (parsed by the frontend).
     const agentInstructions =
-      enableStreaming && instructions && structuredResponsesEnabled !== false
-        ? `${instructions}\n\n${STRUCTURED_RESPONSE_INSTRUCTIONS}`
-        : instructions;
+      enableStreaming &&
+      resolvedInstructions &&
+      structuredResponsesEnabled !== false
+        ? `${resolvedInstructions}\n\n${STRUCTURED_RESPONSE_INSTRUCTIONS}`
+        : resolvedInstructions;
     const systemPrompt = agentInstructions
       ? `${agentInstructions}\n\n${structuredThreadContext.threadContext}`
       : structuredThreadContext.threadContext;
@@ -321,7 +331,7 @@ export async function generateAgentResponse(
     try {
       if (enableStreaming) {
         // Streaming mode (chat agent)
-        // - system: thread context (history, RAG, integrations)
+        // - system: thread context (history, RAG, web search)
         // - prompt: current user message (passed separately to avoid duplication)
         const streamResult = await agent.streamText(
           contextWithOrg,
@@ -398,7 +408,6 @@ export async function generateAgentResponse(
             parentThreadId,
             maxMessages: agentConfig.recentMessages,
             ragContext: hookData?.ragContext,
-            integrationsInfo: hookData?.integrationsInfo,
           });
 
           // Find the original user message so we can link the retry response
@@ -541,7 +550,6 @@ export async function generateAgentResponse(
             parentThreadId,
             maxMessages: agentConfig.recentMessages,
             ragContext: hookData?.ragContext,
-            integrationsInfo: hookData?.integrationsInfo,
           });
 
           debugLog('Rebuilt context for retry', {
@@ -627,7 +635,6 @@ export async function generateAgentResponse(
             parentThreadId,
             maxMessages: agentConfig.recentMessages,
             ragContext: hookData?.ragContext,
-            integrationsInfo: hookData?.integrationsInfo,
           });
 
           debugLog('Rebuilt context for empty text retry', {
@@ -728,7 +735,6 @@ export async function generateAgentResponse(
           parentThreadId,
           maxMessages: agentConfig.recentMessages,
           ragContext: hookData?.ragContext,
-          integrationsInfo: hookData?.integrationsInfo,
         });
 
         const recoveryAgent = createAgent({

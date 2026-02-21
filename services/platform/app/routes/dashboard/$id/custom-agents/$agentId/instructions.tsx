@@ -18,10 +18,12 @@ import { useModelPresets } from '@/app/features/custom-agents/hooks/queries';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { api } from '@/convex/_generated/api';
+import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { FILE_PREPROCESSING_INSTRUCTIONS } from '@/lib/shared/constants/custom-agents';
+import { modelPresetSchema } from '@/lib/shared/schemas/custom_agents';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
@@ -128,6 +130,22 @@ function InstructionsTab() {
               disabled={isReadOnly}
               errorMessage={form.formState.errors.systemInstructions?.message}
             />
+            <details className="text-muted-foreground text-xs">
+              <summary className="cursor-pointer font-medium select-none">
+                {t('customAgents.form.templateVariablesLabel')}
+              </summary>
+              <p className="mt-1 mb-2">
+                {t('customAgents.form.templateVariablesDescription')}
+              </p>
+              <ul className="space-y-0.5 font-mono">
+                {SUPPORTED_TEMPLATE_VARIABLES.map((v) => (
+                  <li key={v.variable}>
+                    <code className="bg-muted rounded px-1">{v.variable}</code>{' '}
+                    <span className="font-sans">&mdash; {v.description}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
           </Stack>
         </section>
 
@@ -141,12 +159,11 @@ function InstructionsTab() {
               label={t('customAgents.form.modelPreset')}
               value={formValues.modelPreset}
               onValueChange={(val) => {
-                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select value is constrained to MODEL_PRESET_OPTIONS
-                form.setValue('modelPreset', val as ModelPreset);
-                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select value is constrained to MODEL_PRESET_OPTIONS
+                const preset = modelPresetSchema.parse(val);
+                form.setValue('modelPreset', preset);
                 void save({
                   ...form.getValues(),
-                  modelPreset: val as ModelPreset,
+                  modelPreset: preset,
                 });
               }}
               required

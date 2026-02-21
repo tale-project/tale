@@ -72,7 +72,6 @@ const serializableAgentConfigValidator = v.object({
       v.literal('both'),
     ),
   ),
-  contextFeatures: v.optional(v.array(v.string())),
   delegateAgentIds: v.optional(v.array(v.string())),
   structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
@@ -230,7 +229,7 @@ export const runAgentGeneration = internalAction({
 
     // Build hooks object from FunctionHandle strings
     const hooks: GenerateResponseHooks | undefined = hooksConfig
-      ? buildHooksFromConfig(hooksConfig, agentConfig.contextFeatures)
+      ? buildHooksFromConfig(hooksConfig)
       : undefined;
 
     // Build tools summary for context window display
@@ -323,14 +322,11 @@ export const runAgentGeneration = internalAction({
  * Build hooks object from FunctionHandle configuration.
  * Converts string handles to callable functions.
  */
-function buildHooksFromConfig(
-  hooksConfig: {
-    beforeContext?: string;
-    beforeGenerate?: string;
-    afterGenerate?: string;
-  },
-  contextFeatures?: string[],
-): GenerateResponseHooks {
+function buildHooksFromConfig(hooksConfig: {
+  beforeContext?: string;
+  beforeGenerate?: string;
+  afterGenerate?: string;
+}): GenerateResponseHooks {
   const hooks: GenerateResponseHooks = {};
 
   if (hooksConfig.beforeContext) {
@@ -344,7 +340,6 @@ function buildHooksFromConfig(
         promptMessage: args.promptMessage,
         organizationId: args.organizationId,
         userTeamIds: args.userTeamIds,
-        contextFeatures,
       });
       // runAction returns unknown; we trust the hook contract
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- hook return type guaranteed by contract

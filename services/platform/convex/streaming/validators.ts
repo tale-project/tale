@@ -21,7 +21,7 @@ export const contextStatsValidator = v.object({
   hasSummary: v.optional(v.boolean()),
   hasRag: v.boolean(),
   hasWebContext: v.optional(v.boolean()),
-  hasIntegrations: v.boolean(),
+  hasIntegrations: v.optional(v.boolean()),
 });
 
 export const messageMetadataValidator = v.object({

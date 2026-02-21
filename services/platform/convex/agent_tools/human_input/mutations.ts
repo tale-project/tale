@@ -12,9 +12,6 @@ import { getUserTeamIds } from '../../lib/get_user_teams';
 import { getOrganizationMember } from '../../lib/rls';
 import { persistentStreaming } from '../../streaming/helpers';
 
-const beforeContextHookRef = makeFunctionReference<'action'>(
-  'agents/chat/internal_actions:beforeContextHook',
-);
 const beforeGenerateHookRef = makeFunctionReference<'action'>(
   'lib/agent_chat/internal_actions:beforeGenerateHook',
 );
@@ -135,10 +132,7 @@ export const submitHumanInputResponse = mutation({
     const agentConfig = toSerializableConfig(chatAgent);
     const { model, provider } = getDefaultAgentRuntimeConfig();
 
-    const [beforeContext, beforeGenerate] = await Promise.all([
-      createFunctionHandle(beforeContextHookRef),
-      createFunctionHandle(beforeGenerateHookRef),
-    ]);
+    const beforeGenerate = await createFunctionHandle(beforeGenerateHookRef);
 
     await ctx.scheduler.runAfter(
       0,
@@ -150,7 +144,7 @@ export const submitHumanInputResponse = mutation({
         provider,
         debugTag: '[ChatAgent:HumanInput]',
         enableStreaming: true,
-        hooks: { beforeContext, beforeGenerate },
+        hooks: { beforeGenerate },
         threadId,
         organizationId,
         promptMessage: responseMessage,

@@ -17,31 +17,9 @@ import {
  * the specific context types used by the main chat agent.
  */
 export function buildPrioritizedContexts(params: {
-  threadId: string;
   ragContext?: string;
-  integrationsInfo?: string;
 }): PrioritizedContext[] {
   const contexts: PrioritizedContext[] = [];
-
-  // System info is mandatory and highest priority (thread ID only - static)
-  contexts.push(
-    createPrioritizedContext(
-      'system_info',
-      ContextPriority.SYSTEM_INFO,
-      `[SYSTEM] Current thread ID: ${params.threadId}`,
-      { canTrim: false, sectionName: 'system_info' },
-    ),
-  );
-
-  // Current time is placed last (DYNAMIC_INFO) to improve LLM cache hit rate
-  contexts.push(
-    createPrioritizedContext(
-      'current_time',
-      ContextPriority.DYNAMIC_INFO,
-      `[TIME] Current time: ${new Date().toISOString()}`,
-      { canTrim: false, sectionName: 'current_time' },
-    ),
-  );
 
   // Split RAG by relevance
   if (params.ragContext) {
@@ -70,26 +48,6 @@ export function buildPrioritizedContexts(params: {
         ),
       );
     }
-  }
-
-  // Integrations info with routing guidance
-  if (params.integrationsInfo) {
-    contexts.push(
-      createPrioritizedContext(
-        'integrations',
-        ContextPriority.MEDIUM_RELEVANCE,
-        `[INTEGRATIONS] Available external integrations:
-
-${params.integrationsInfo}
-
-ROUTING GUIDANCE:
-• Data from external systems (hotels, e-commerce, etc.) is ONLY accessible via the integration agent
-• customer_read and product_read ONLY access internal CRM/catalog data
-• If a query relates to any integration domain above, delegate to the integration agent
-• Use integration_introspect to discover available operations before calling integration`,
-        { sectionName: 'integrations' },
-      ),
-    );
   }
 
   return contexts;

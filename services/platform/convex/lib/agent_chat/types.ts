@@ -35,8 +35,6 @@ export interface SerializableAgentConfig {
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
   /** Web search retrieval mode: tool (agent calls web), context (auto-inject), both, or off */
   webSearchMode?: 'off' | 'tool' | 'context' | 'both';
-  /** Context features to load in beforeContext hook (e.g., ['integrations']). Undefined = load all (backward compat). */
-  contextFeatures?: string[];
   /** Root version IDs of delegate agents */
   delegateAgentIds?: string[];
   /** Whether to inject structured response markers into the system prompt (default true) */
@@ -117,9 +115,7 @@ export interface RunAgentGenerationArgs {
  */
 export interface BeforeContextHookResult {
   contextSummary?: string;
-  integrationsInfo?: string;
   ragPrefetchCache?: unknown;
-  integrationsList?: unknown[];
   [key: string]: unknown;
 }
 

@@ -42,10 +42,12 @@ describe('testCustomAgent', () => {
         integrationBindings: ['integration_1'],
         useFastModel: false,
         model: undefined,
+        maxSteps: undefined,
         enableVectorSearch: false,
         knowledgeMode: 'off',
         webSearchMode: 'off',
         delegateAgentIds: undefined,
+        structuredResponsesEnabled: true,
         timeoutMs: undefined,
         outputReserve: undefined,
       });

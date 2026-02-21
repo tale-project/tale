@@ -78,7 +78,6 @@ export interface GenerateResponseHooks {
 export interface BeforeContextResult {
   contextSummary?: string;
   ragContext?: string;
-  integrationsInfo?: string;
   ragPrefetchCache?: unknown;
   [key: string]: unknown;
 }
@@ -148,7 +147,6 @@ export interface GenerateResponseResult {
     approvalCount: number;
     hasRag: boolean;
     hasWebContext: boolean;
-    hasIntegrations: boolean;
   };
   model?: string;
   provider?: string;

@@ -77,7 +77,7 @@ interface ExtractedToolCall {
  * Result from building structured context
  */
 export interface StructuredContextResult {
-  /** Thread context as a string (history, RAG, integrations, etc.) */
+  /** Thread context as a string (history, RAG, etc.) */
   threadContext: string;
   stats: {
     totalTokens: number;
@@ -85,7 +85,6 @@ export interface StructuredContextResult {
     approvalCount: number;
     hasRag: boolean;
     hasWebContext: boolean;
-    hasIntegrations: boolean;
   };
 }
 
@@ -97,7 +96,6 @@ export interface BuildStructuredContextParams {
   threadId: string;
   ragContext?: string;
   webContext?: string;
-  integrationsInfo?: string;
   maxMessages?: number;
   /** Additional structured context as key-value pairs */
   additionalContext?: Record<string, string>;
@@ -122,7 +120,6 @@ export async function buildStructuredContext(
     threadId,
     ragContext,
     webContext,
-    integrationsInfo,
     maxMessages = 20,
     additionalContext,
     parentThreadId,
@@ -143,9 +140,6 @@ export async function buildStructuredContext(
 
   // 3. Build structured context parts
   const contextParts: string[] = [];
-
-  // System info
-  contextParts.push(fmt.formatSystemInfo(threadId, Date.now()));
 
   // Parent thread reference (for sub-agent mode)
   if (parentThreadId) {
@@ -175,11 +169,6 @@ export async function buildStructuredContext(
     contextParts.push(fmt.formatWebContext(webContext));
   }
 
-  // Integrations
-  if (integrationsInfo) {
-    contextParts.push(fmt.formatIntegrations(integrationsInfo));
-  }
-
   // 4. Format messages with approvals interleaved
   // Note: currentUserMessage is NOT included in context - it's passed via `prompt` parameter
   const { historyMessages } = formatMessagesWithApprovals(
@@ -200,7 +189,6 @@ export async function buildStructuredContext(
     approvalCount: approvals?.length ?? 0,
     hasRag: !!ragContext,
     hasWebContext: !!webContext,
-    hasIntegrations: !!integrationsInfo,
   };
 
   // 7. Return thread context

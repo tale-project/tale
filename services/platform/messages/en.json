@@ -705,6 +705,8 @@
         "sectionGeneralDescription": "Basic information about the agent",
         "sectionInstructions": "Instructions",
         "sectionInstructionsDescription": "Define the agent's behavior and personality",
+        "templateVariablesLabel": "Available template variables",
+        "templateVariablesDescription": "Use these variables in your instructions — they will be resolved at runtime.",
         "sectionModel": "Model",
         "sectionModelDescription": "Configure the AI model and generation parameters",
         "sectionTools": "Tools",

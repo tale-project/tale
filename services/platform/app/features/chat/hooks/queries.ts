@@ -252,7 +252,6 @@ export interface ContextStats {
   messageCount: number;
   approvalCount: number;
   hasRag: boolean;
-  hasIntegrations: boolean;
 }
 
 export interface MessageMetadata {

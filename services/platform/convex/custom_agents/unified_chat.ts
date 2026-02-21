@@ -10,12 +10,10 @@
  * If no agentId is provided, the organization's system default 'chat' agent is used.
  */
 
-import { createFunctionHandle, makeFunctionReference } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import type { AgentHooksConfig } from '../lib/agent_chat/types';
 
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
@@ -26,10 +24,6 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { hasTeamAccess } from '../lib/team_access';
 import { createCustomAgentHookHandles, toSerializableConfig } from './config';
-
-const beforeContextHookRef = makeFunctionReference<'action'>(
-  'agents/chat/internal_actions:beforeContextHook',
-);
 
 async function resolveAgentId(
   ctx: MutationCtx,
@@ -148,17 +142,10 @@ export const chatWithAgent = mutation({
       }
     }
 
-    // Build hooks: system default chat agent gets beforeContext (integrations loading)
-    let hooks: AgentHooksConfig | undefined =
-      await createCustomAgentHookHandles(
-        ctx,
-        activeVersion.filePreprocessingEnabled,
-      );
-
-    if (activeVersion.systemAgentSlug === 'chat') {
-      const beforeContext = await createFunctionHandle(beforeContextHookRef);
-      hooks = { ...hooks, beforeContext };
-    }
+    const hooks = await createCustomAgentHookHandles(
+      ctx,
+      activeVersion.filePreprocessingEnabled,
+    );
 
     return startAgentChat({
       ctx,

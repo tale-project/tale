@@ -42,7 +42,7 @@ export const messageMetadataTable = defineTable({
       hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
       hasRag: v.boolean(),
       hasWebContext: v.optional(v.boolean()),
-      hasIntegrations: v.boolean(),
+      hasIntegrations: v.optional(v.boolean()),
     }),
   ),
 })
