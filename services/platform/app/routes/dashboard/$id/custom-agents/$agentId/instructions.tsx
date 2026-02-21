@@ -139,7 +139,11 @@ function InstructionsTab() {
               onValueChange={(val) => {
                 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select value is constrained to MODEL_PRESET_OPTIONS
                 form.setValue('modelPreset', val as ModelPreset);
-                void save(form.getValues());
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select value is constrained to MODEL_PRESET_OPTIONS
+                void save({
+                  ...form.getValues(),
+                  modelPreset: val as ModelPreset,
+                });
               }}
               required
               disabled={isReadOnly}
@@ -157,7 +161,10 @@ function InstructionsTab() {
             checked={formValues.filePreprocessingEnabled}
             onCheckedChange={(checked) => {
               form.setValue('filePreprocessingEnabled', checked);
-              void save(form.getValues());
+              void save({
+                ...form.getValues(),
+                filePreprocessingEnabled: checked,
+              });
             }}
             label={t('customAgents.form.filePreprocessingEnabled')}
             description={t('customAgents.form.filePreprocessingEnabledHelp')}
