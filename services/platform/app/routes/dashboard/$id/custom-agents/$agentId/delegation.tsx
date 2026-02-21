@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
@@ -46,10 +46,17 @@ function DelegationTab() {
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [agents, currentRootId]);
 
-  const selectedSet = useMemo(
+  const serverSelected = useMemo(
     () => new Set(agent.delegateAgentIds?.map(String) ?? []),
     [agent.delegateAgentIds],
   );
+
+  const [pendingDelegates, setPendingDelegates] = useState<Set<string> | null>(
+    null,
+  );
+  const inflightRef = useRef(0);
+
+  const selectedSet = pendingDelegates ?? serverSelected;
 
   const saveWithStatus = useCallback(
     async <T,>(updateFn: () => Promise<T>) => {
@@ -73,10 +80,12 @@ function DelegationTab() {
     async (targetRootId: string) => {
       if (isReadOnly) return;
 
-      const current = agent.delegateAgentIds?.map(String) ?? [];
       const next = selectedSet.has(targetRootId)
-        ? current.filter((id) => id !== targetRootId)
-        : [...current, targetRootId];
+        ? [...selectedSet].filter((id) => id !== targetRootId)
+        : [...selectedSet, targetRootId];
+
+      setPendingDelegates(new Set(next));
+      inflightRef.current += 1;
 
       await saveWithStatus(() =>
         updateAgent.mutateAsync({
@@ -84,15 +93,13 @@ function DelegationTab() {
           delegateAgentIds: next.map((id) => toId<'customAgents'>(id)),
         }),
       );
+
+      inflightRef.current -= 1;
+      if (inflightRef.current === 0) {
+        setPendingDelegates(null);
+      }
     },
-    [
-      agentId,
-      agent.delegateAgentIds,
-      selectedSet,
-      updateAgent,
-      saveWithStatus,
-      isReadOnly,
-    ],
+    [agentId, selectedSet, updateAgent, saveWithStatus, isReadOnly],
   );
 
   return (
