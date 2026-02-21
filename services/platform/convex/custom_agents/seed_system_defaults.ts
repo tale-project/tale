@@ -83,8 +83,14 @@ async function seedDefaults(ctx: MutationCtx, organizationId: string) {
       template.systemAgentSlug,
     );
 
-    if (existing?.rootVersionId) {
-      slugToId.set(template.systemAgentSlug, existing.rootVersionId);
+    if (existing) {
+      if (!existing.rootVersionId) {
+        await ctx.db.patch(existing._id, { rootVersionId: existing._id });
+      }
+      slugToId.set(
+        template.systemAgentSlug,
+        existing.rootVersionId ?? existing._id,
+      );
     } else {
       const agentId = await insertSystemAgent(ctx, organizationId, template);
       slugToId.set(template.systemAgentSlug, agentId);
