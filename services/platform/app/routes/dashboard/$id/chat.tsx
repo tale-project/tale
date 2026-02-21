@@ -38,7 +38,9 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
               className="relative hidden w-[18rem] shrink-0 md:block"
             >
               <div className="border-border bg-background flex h-full flex-col overflow-hidden border-r">
-                <ChatHistorySidebar organizationId={organizationId} />
+                <LayoutErrorBoundary organizationId={organizationId}>
+                  <ChatHistorySidebar organizationId={organizationId} />
+                </LayoutErrorBoundary>
               </div>
               <button
                 type="button"

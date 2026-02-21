@@ -364,6 +364,7 @@ import type * as members_types from "../members/types.js";
 import type * as members_validators from "../members/validators.js";
 import type * as message_metadata_internal_mutations from "../message_metadata/internal_mutations.js";
 import type * as message_metadata_queries from "../message_metadata/queries.js";
+import type * as migrations_backfill_thread_metadata from "../migrations/backfill_thread_metadata.js";
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
 import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
 import type * as migrations_trigger_steps_to_start from "../migrations/trigger_steps_to_start.js";
@@ -1229,6 +1230,7 @@ declare const fullApi: ApiFromModules<{
   "members/validators": typeof members_validators;
   "message_metadata/internal_mutations": typeof message_metadata_internal_mutations;
   "message_metadata/queries": typeof message_metadata_queries;
+  "migrations/backfill_thread_metadata": typeof migrations_backfill_thread_metadata;
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
   "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
   "migrations/trigger_steps_to_start": typeof migrations_trigger_steps_to_start;

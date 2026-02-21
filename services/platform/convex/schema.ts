@@ -16,6 +16,7 @@ import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
+import { threadMetadataTable } from './threads/schema';
 import { toneOfVoiceTable, exampleMessagesTable } from './tone_of_voice/schema';
 import { vendorsTable } from './vendors/schema';
 import {
@@ -57,6 +58,7 @@ export default defineSchema({
   integrations: integrationsTable,
   messageMetadata: messageMetadataTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
+  threadMetadata: threadMetadataTable,
   products: productsTable,
   ssoProviders: ssoProvidersTable,
   toneOfVoice: toneOfVoiceTable,

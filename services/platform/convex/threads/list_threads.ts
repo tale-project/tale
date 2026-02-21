@@ -3,9 +3,7 @@ import type { PaginationOptions } from 'convex/server';
 import type { QueryCtx } from '../_generated/server';
 import type { Thread, ListThreadsArgs } from './types';
 
-import { components } from '../_generated/api';
-
-function isGeneralThread(summary?: string): boolean {
+export function isGeneralThread(summary?: string): boolean {
   if (!summary || !summary.includes('"general"')) return false;
 
   try {
@@ -27,56 +25,32 @@ interface ListThreadsPaginatedResult {
   continueCursor: string;
 }
 
-const MAX_AGENT_PAGES = 5;
-
 export async function listThreads(
   ctx: QueryCtx,
   args: Pick<ListThreadsArgs, 'userId'> & {
     paginationOpts: PaginationOptions;
   },
 ): Promise<ListThreadsPaginatedResult> {
-  const threads: Thread[] = [];
-  let cursor = args.paginationOpts.cursor;
-  const limit = args.paginationOpts.numItems;
-  let isDone = false;
-
-  // Fetch agent pages until we have enough matching general threads.
-  // Non-general/inactive threads are filtered out, so we may need
-  // multiple agent pages to fill a single frontend page.
-  for (let i = 0; i < MAX_AGENT_PAGES && threads.length < limit; i++) {
-    const paginationOpts = { cursor, numItems: Math.max(limit, 50) };
-    const result = await ctx.runQuery(
-      components.agent.threads.listThreadsByUserId,
-      {
-        userId: args.userId,
-        order: 'desc',
-        paginationOpts,
-      },
-    );
-
-    for (const thread of result.page) {
-      if (thread.status !== 'active') continue;
-      if (!isGeneralThread(thread.summary)) continue;
-
-      threads.push({
-        _id: thread._id,
-        _creationTime: thread._creationTime,
-        title: thread.title,
-        status: thread.status,
-        userId: thread.userId,
-      });
-    }
-
-    cursor = result.continueCursor;
-    if (result.isDone) {
-      isDone = true;
-      break;
-    }
-  }
+  const result = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_userId_chatType_status', (q) =>
+      q
+        .eq('userId', args.userId)
+        .eq('chatType', 'general')
+        .eq('status', 'active'),
+    )
+    .order('desc')
+    .paginate(args.paginationOpts);
 
   return {
-    page: threads.slice(0, limit),
-    isDone,
-    continueCursor: cursor ?? '',
+    page: result.page.map((row) => ({
+      _id: row.threadId,
+      _creationTime: row.createdAt,
+      title: row.title,
+      status: row.status,
+      userId: row.userId,
+    })),
+    isDone: result.isDone,
+    continueCursor: result.continueCursor,
   };
 }
