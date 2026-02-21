@@ -23,6 +23,10 @@ export interface GenerateResponseConfig {
   hooks?: GenerateResponseHooks;
   /** Tool names configured for this agent - used to determine if RAG prefetch should be enabled */
   convexToolNames?: string[];
+  /** Knowledge retrieval mode */
+  knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
+  /** Web search retrieval mode */
+  webSearchMode?: 'off' | 'tool' | 'context' | 'both';
   /** Agent instructions for context window display (not sent to LLM, already in agent config) */
   instructions?: string;
   /** Formatted tool definitions for context window display (not sent to LLM) */
@@ -141,6 +145,7 @@ export interface GenerateResponseResult {
     messageCount: number;
     approvalCount: number;
     hasRag: boolean;
+    hasWebContext: boolean;
     hasIntegrations: boolean;
   };
   model?: string;

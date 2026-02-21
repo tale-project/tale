@@ -20,6 +20,7 @@ export const contextStatsValidator = v.object({
   approvalCount: v.number(),
   hasSummary: v.optional(v.boolean()),
   hasRag: v.boolean(),
+  hasWebContext: v.optional(v.boolean()),
   hasIntegrations: v.boolean(),
 });
 

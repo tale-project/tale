@@ -6,6 +6,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { RagStatus } from '@/types/documents';
 
 import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
@@ -20,6 +21,8 @@ import { useUpdateCustomAgent } from '../hooks/mutations';
 import { useAutoSave } from '../hooks/use-auto-save';
 import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
 import { AutoSaveIndicator } from './auto-save-indicator';
+
+type RetrievalMode = 'off' | 'tool' | 'context' | 'both';
 
 interface CustomAgentKnowledgeProps {
   organizationId: string;
@@ -92,7 +95,7 @@ export function CustomAgentKnowledge({
     );
   }, [documents, agent?.teamId]);
 
-  const [knowledgeEnabled, setKnowledgeEnabled] = useState<boolean | undefined>(
+  const [knowledgeMode, setKnowledgeMode] = useState<RetrievalMode | undefined>(
     undefined,
   );
   const [includeOrgKnowledge, setIncludeOrgKnowledge] = useState<
@@ -102,31 +105,35 @@ export function CustomAgentKnowledge({
 
   useEffect(() => {
     if (!agent) return;
-    setKnowledgeEnabled(agent.knowledgeEnabled ?? false);
+    const mode: RetrievalMode =
+      agent.knowledgeMode ?? (agent.knowledgeEnabled ? 'tool' : 'off');
+    setKnowledgeMode(mode);
     setIncludeOrgKnowledge(agent.includeOrgKnowledge ?? false);
     setInitialized(true);
   }, [agent, agentId]);
 
+  const isEnabled = knowledgeMode !== undefined && knowledgeMode !== 'off';
+
   const orgDocuments = useMemo(() => {
-    if (!knowledgeEnabled || !includeOrgKnowledge) return [];
+    if (!isEnabled || !includeOrgKnowledge) return [];
     return documents.filter(
       (doc) => !doc.teamTags || doc.teamTags.length === 0,
     );
-  }, [documents, knowledgeEnabled, includeOrgKnowledge]);
+  }, [documents, isEnabled, includeOrgKnowledge]);
 
   const knowledgeData = useMemo(
-    () => ({ knowledgeEnabled, includeOrgKnowledge }),
-    [knowledgeEnabled, includeOrgKnowledge],
+    () => ({ knowledgeMode, includeOrgKnowledge }),
+    [knowledgeMode, includeOrgKnowledge],
   );
 
   const handleSave = useCallback(
     async (data: {
-      knowledgeEnabled?: boolean;
+      knowledgeMode?: RetrievalMode;
       includeOrgKnowledge?: boolean;
     }) => {
       await updateAgent.mutateAsync({
         customAgentId: toId<'customAgents'>(agentId),
-        knowledgeEnabled: data.knowledgeEnabled,
+        knowledgeMode: data.knowledgeMode,
         includeOrgKnowledge: data.includeOrgKnowledge,
       });
     },
@@ -139,6 +146,28 @@ export function CustomAgentKnowledge({
     enabled: initialized && !isReadOnly,
   });
 
+  const modeOptions = useMemo(
+    () => [
+      {
+        value: 'off',
+        label: `${t('customAgents.knowledge.modeOff')} — ${t('customAgents.knowledge.modeOffDescription')}`,
+      },
+      {
+        value: 'tool',
+        label: `${t('customAgents.knowledge.modeTool')} — ${t('customAgents.knowledge.modeToolDescription')}`,
+      },
+      {
+        value: 'context',
+        label: `${t('customAgents.knowledge.modeContext')} — ${t('customAgents.knowledge.modeContextDescription')}`,
+      },
+      {
+        value: 'both',
+        label: `${t('customAgents.knowledge.modeBoth')} — ${t('customAgents.knowledge.modeBothDescription')}`,
+      },
+    ],
+    [t],
+  );
+
   return (
     <NarrowContainer className="py-4">
       <Stack gap={6}>
@@ -148,15 +177,16 @@ export function CustomAgentKnowledge({
           action={<AutoSaveIndicator status={status} />}
         />
 
-        <Switch
-          checked={knowledgeEnabled ?? false}
-          onCheckedChange={(checked) => setKnowledgeEnabled(checked)}
-          label={t('customAgents.knowledge.enableKnowledge')}
-          description={t('customAgents.knowledge.enableKnowledgeHelp')}
+        <RadioGroup
+          label={t('customAgents.knowledge.retrievalMode')}
+          value={knowledgeMode ?? 'off'}
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
+          onValueChange={(value) => setKnowledgeMode(value as RetrievalMode)}
+          options={modeOptions}
           disabled={isReadOnly}
         />
 
-        {knowledgeEnabled && (
+        {isEnabled && (
           <>
             {agent.teamId && teamName ? (
               <p className="text-muted-foreground text-sm">

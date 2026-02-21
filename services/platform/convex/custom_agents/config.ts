@@ -46,6 +46,11 @@ export function toSerializableConfig(
         .join('\n\n')
     : agent.systemInstructions;
 
+  const knowledgeMode =
+    agent.knowledgeMode ?? (agent.knowledgeEnabled ? 'tool' : 'off');
+  const webSearchMode =
+    agent.webSearchMode ?? (agent.toolNames.includes('web') ? 'tool' : 'off');
+
   return {
     name: agent.isSystemDefault ? agent.name : `custom:${agent.name}`,
     instructions,
@@ -56,6 +61,8 @@ export function toSerializableConfig(
     model: resolveModelPreset(agent.modelPreset),
     maxSteps: agent.maxSteps,
     enableVectorSearch: false,
+    knowledgeMode,
+    webSearchMode,
     delegateAgentIds: (agent.delegateAgentIds ?? agent.partnerAgentIds)?.map(
       String,
     ),

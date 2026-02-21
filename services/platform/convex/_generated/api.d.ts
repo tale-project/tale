@@ -71,6 +71,7 @@ import type * as agent_tools_web_helpers_browser_operate from "../agent_tools/we
 import type * as agent_tools_web_helpers_fetch_url_via_pdf from "../agent_tools/web/helpers/fetch_url_via_pdf.js";
 import type * as agent_tools_web_helpers_get_crawler_service_url from "../agent_tools/web/helpers/get_crawler_service_url.js";
 import type * as agent_tools_web_helpers_get_operator_service_url from "../agent_tools/web/helpers/get_operator_service_url.js";
+import type * as agent_tools_web_helpers_query_web_context from "../agent_tools/web/helpers/query_web_context.js";
 import type * as agent_tools_web_helpers_search_pages from "../agent_tools/web/helpers/search_pages.js";
 import type * as agent_tools_web_helpers_types from "../agent_tools/web/helpers/types.js";
 import type * as agent_tools_web_web_tool from "../agent_tools/web/web_tool.js";
@@ -935,6 +936,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/web/helpers/fetch_url_via_pdf": typeof agent_tools_web_helpers_fetch_url_via_pdf;
   "agent_tools/web/helpers/get_crawler_service_url": typeof agent_tools_web_helpers_get_crawler_service_url;
   "agent_tools/web/helpers/get_operator_service_url": typeof agent_tools_web_helpers_get_operator_service_url;
+  "agent_tools/web/helpers/query_web_context": typeof agent_tools_web_helpers_query_web_context;
   "agent_tools/web/helpers/search_pages": typeof agent_tools_web_helpers_search_pages;
   "agent_tools/web/helpers/types": typeof agent_tools_web_helpers_types;
   "agent_tools/web/web_tool": typeof agent_tools_web_web_tool;

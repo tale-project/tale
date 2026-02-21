@@ -43,6 +43,11 @@ describe('testCustomAgent', () => {
         useFastModel: false,
         model: undefined,
         enableVectorSearch: false,
+        knowledgeMode: 'off',
+        webSearchMode: 'off',
+        delegateAgentIds: undefined,
+        timeoutMs: undefined,
+        outputReserve: undefined,
       });
     });
 
@@ -155,6 +160,94 @@ describe('testCustomAgent', () => {
       expect(config.instructions).toContain('You are a helpful test agent.');
       expect(config.instructions).toContain('**FILE ATTACHMENTS**');
       expect(config.instructions).toContain('PRE-ANALYZED CONTENT');
+    });
+  });
+
+  describe('toSerializableConfig retrieval modes', () => {
+    it('should default knowledgeMode to off when no legacy fields', () => {
+      const draft = createMockDraftAgent({
+        knowledgeMode: undefined,
+        knowledgeEnabled: undefined,
+      });
+      const config = toSerializableConfig(draft);
+
+      expect(config.knowledgeMode).toBe('off');
+    });
+
+    it('should derive knowledgeMode tool from legacy knowledgeEnabled', () => {
+      const draft = createMockDraftAgent({
+        knowledgeMode: undefined,
+        knowledgeEnabled: true,
+      });
+      const config = toSerializableConfig(draft);
+
+      expect(config.knowledgeMode).toBe('tool');
+    });
+
+    it('should derive knowledgeMode off from legacy knowledgeEnabled false', () => {
+      const draft = createMockDraftAgent({
+        knowledgeMode: undefined,
+        knowledgeEnabled: false,
+      });
+      const config = toSerializableConfig(draft);
+
+      expect(config.knowledgeMode).toBe('off');
+    });
+
+    it('should use explicit knowledgeMode over legacy field', () => {
+      const draft = createMockDraftAgent({
+        knowledgeMode: 'context',
+        knowledgeEnabled: false,
+      });
+      const config = toSerializableConfig(draft);
+
+      expect(config.knowledgeMode).toBe('context');
+    });
+
+    it('should pass through all knowledge modes', () => {
+      for (const mode of ['off', 'tool', 'context', 'both'] as const) {
+        const draft = createMockDraftAgent({ knowledgeMode: mode });
+        const config = toSerializableConfig(draft);
+        expect(config.knowledgeMode).toBe(mode);
+      }
+    });
+
+    it('should default webSearchMode to off when web not in tools', () => {
+      const draft = createMockDraftAgent({
+        webSearchMode: undefined,
+        toolNames: ['rag_search'],
+      });
+      const config = toSerializableConfig(draft);
+
+      expect(config.webSearchMode).toBe('off');
+    });
+
+    it('should derive webSearchMode tool from legacy web tool presence', () => {
+      const draft = createMockDraftAgent({
+        webSearchMode: undefined,
+        toolNames: ['web', 'rag_search'],
+      });
+      const config = toSerializableConfig(draft);
+
+      expect(config.webSearchMode).toBe('tool');
+    });
+
+    it('should use explicit webSearchMode over legacy tool presence', () => {
+      const draft = createMockDraftAgent({
+        webSearchMode: 'both',
+        toolNames: [],
+      });
+      const config = toSerializableConfig(draft);
+
+      expect(config.webSearchMode).toBe('both');
+    });
+
+    it('should pass through all web search modes', () => {
+      for (const mode of ['off', 'tool', 'context', 'both'] as const) {
+        const draft = createMockDraftAgent({ webSearchMode: mode });
+        const config = toSerializableConfig(draft);
+        expect(config.webSearchMode).toBe(mode);
+      }
     });
   });
 

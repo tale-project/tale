@@ -709,7 +709,6 @@
         "sectionModelDescription": "Configure the AI model and generation parameters",
         "sectionTools": "Tools",
         "sectionToolsDescription": "Select which tools this agent can use",
-        "managedByKnowledge": "managed by Knowledge",
         "sectionIntegrationBindings": "Bound integrations",
         "sectionIntegrationBindingsDescription": "Bind specific integrations as dedicated tools. The agent won't need to specify the integration name.",
         "noIntegrationsAvailable": "No active integrations available.",
@@ -755,8 +754,15 @@
         "noDelegatesSelected": "No agents selected for delegation."
       },
       "knowledge": {
-        "enableKnowledge": "Enable knowledge base",
-        "enableKnowledgeHelp": "When enabled, the agent can search your knowledge base. This automatically activates the search tool.",
+        "retrievalMode": "Retrieval mode",
+        "modeOff": "Off",
+        "modeOffDescription": "Knowledge base disabled",
+        "modeTool": "Tool",
+        "modeToolDescription": "Agent searches on demand",
+        "modeContext": "Context",
+        "modeContextDescription": "Automatically inject relevant knowledge into every response",
+        "modeBoth": "Both",
+        "modeBothDescription": "Auto-inject context and allow on-demand search",
         "includeOrgKnowledge": "Include organization documents",
         "includeOrgKnowledgeHelp": "When enabled, the agent can also search documents that are not assigned to any team.",
         "teamDocuments": "Team documents",
@@ -765,6 +771,18 @@
         "orgDocumentsEmptyState": "No organization-wide documents found.",
         "noTeamAssigned": "No team assigned. Assign a team in the General tab to give this agent access to team documents.",
         "emptyState": "No documents found for this team."
+      },
+      "tools": {
+        "webSearchMode": "Web search",
+        "webSearchModeDescription": "Configure how web search results are retrieved",
+        "modeOff": "Off",
+        "modeTool": "Tool",
+        "modeContext": "Context",
+        "modeBoth": "Both",
+        "webModeOffDescription": "Web search disabled",
+        "webModeToolDescription": "Agent searches the web on demand",
+        "webModeContextDescription": "Automatically inject relevant web results into every response",
+        "webModeBothDescription": "Auto-inject web results and allow on-demand search"
       },
       "versions": {
         "title": "Version history",

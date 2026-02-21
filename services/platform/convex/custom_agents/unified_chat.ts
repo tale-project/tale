@@ -136,11 +136,16 @@ export const chatWithAgent = mutation({
     const agentConfig = toSerializableConfig(activeVersion);
     const { model, provider } = getDefaultAgentRuntimeConfig();
 
-    // Build RAG team IDs
+    // Build RAG team IDs — needed when knowledge mode is not 'off'
+    const knowledgeMode =
+      activeVersion.knowledgeMode ??
+      (activeVersion.knowledgeEnabled ? 'tool' : 'off');
     const ragTeamIds: string[] = [];
-    if (activeVersion.teamId) ragTeamIds.push(activeVersion.teamId);
-    if (activeVersion.includeOrgKnowledge) {
-      ragTeamIds.push(`org_${args.organizationId}`);
+    if (knowledgeMode !== 'off') {
+      if (activeVersion.teamId) ragTeamIds.push(activeVersion.teamId);
+      if (activeVersion.includeOrgKnowledge) {
+        ragTeamIds.push(`org_${args.organizationId}`);
+      }
     }
 
     // Build hooks: system default chat agent gets beforeContext (integrations loading)

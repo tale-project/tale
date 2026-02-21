@@ -19,7 +19,7 @@ import { TOOL_NAMES } from '../agent_tools/tool_names';
 import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
-import { modelPresetValidator } from './schema';
+import { modelPresetValidator, retrievalModeValidator } from './schema';
 
 const toolNamesValidator = v.array(v.string());
 
@@ -32,6 +32,8 @@ const agentFieldsValidator = {
   toolNames: toolNamesValidator,
   integrationBindings: v.optional(v.array(v.string())),
   modelPreset: modelPresetValidator,
+  knowledgeMode: v.optional(retrievalModeValidator),
+  webSearchMode: v.optional(retrievalModeValidator),
   knowledgeEnabled: v.optional(v.boolean()),
   includeOrgKnowledge: v.optional(v.boolean()),
   knowledgeTopK: v.optional(v.number()),
@@ -54,26 +56,59 @@ function validateToolNames(toolNames: string[]) {
   }
 }
 
-function syncRagSearchTool(
-  cleanUpdate: Record<string, unknown>,
-  knowledgeEnabled: boolean | undefined,
-  draft: Doc<'customAgents'>,
-) {
-  const toolNames = Array.isArray(cleanUpdate.toolNames)
-    ? cleanUpdate.toolNames
-    : draft.toolNames;
-  const hasRag = toolNames.includes('rag_search');
-  const isEnabled = knowledgeEnabled ?? draft.knowledgeEnabled;
+type RetrievalMode = 'off' | 'tool' | 'context' | 'both';
 
-  if (knowledgeEnabled !== undefined) {
-    if (knowledgeEnabled && !hasRag) {
-      cleanUpdate.toolNames = [...toolNames, 'rag_search'];
-    } else if (!knowledgeEnabled && hasRag) {
-      cleanUpdate.toolNames = toolNames.filter((t) => t !== 'rag_search');
-    }
-  } else if (isEnabled && !hasRag && cleanUpdate.toolNames !== undefined) {
-    // Guard: toolNames updated without knowledgeEnabled change — re-add rag_search
-    cleanUpdate.toolNames = [...toolNames, 'rag_search'];
+function modeNeedsTool(mode: RetrievalMode): boolean {
+  return mode === 'tool' || mode === 'both';
+}
+
+interface RetrievalModeState {
+  toolNames: string[];
+  knowledgeEnabled?: boolean;
+  knowledgeMode?: RetrievalMode;
+  webSearchMode?: RetrievalMode;
+}
+
+function syncRetrievalModes(
+  cleanUpdate: Record<string, unknown>,
+  args: {
+    knowledgeMode?: RetrievalMode;
+    webSearchMode?: RetrievalMode;
+  },
+  current: RetrievalModeState,
+) {
+  let toolNames: string[] = Array.isArray(cleanUpdate.toolNames)
+    ? [...cleanUpdate.toolNames]
+    : [...current.toolNames];
+
+  const kMode =
+    args.knowledgeMode ??
+    current.knowledgeMode ??
+    (current.knowledgeEnabled ? 'tool' : 'off');
+  const wMode =
+    args.webSearchMode ??
+    current.webSearchMode ??
+    (toolNames.includes('web') ? 'tool' : 'off');
+
+  // Sync rag_search tool
+  if (modeNeedsTool(kMode) && !toolNames.includes('rag_search')) {
+    toolNames.push('rag_search');
+  } else if (!modeNeedsTool(kMode)) {
+    toolNames = toolNames.filter((t) => t !== 'rag_search');
+  }
+
+  // Sync web tool
+  if (modeNeedsTool(wMode) && !toolNames.includes('web')) {
+    toolNames.push('web');
+  } else if (!modeNeedsTool(wMode)) {
+    toolNames = toolNames.filter((t) => t !== 'web');
+  }
+
+  cleanUpdate.toolNames = toolNames;
+
+  // Keep knowledgeEnabled in sync as derived field
+  if (args.knowledgeMode !== undefined) {
+    cleanUpdate.knowledgeEnabled = args.knowledgeMode !== 'off';
   }
 }
 
@@ -127,6 +162,8 @@ function copyVersionFields(source: Doc<'customAgents'>) {
     toolNames: source.toolNames,
     integrationBindings: source.integrationBindings,
     modelPreset: source.modelPreset,
+    knowledgeMode: source.knowledgeMode,
+    webSearchMode: source.webSearchMode,
     knowledgeEnabled: source.knowledgeEnabled,
     includeOrgKnowledge: source.includeOrgKnowledge,
     knowledgeTopK: source.knowledgeTopK,
@@ -166,15 +203,29 @@ export const createCustomAgent = mutation({
 
     const { organizationId, toolNames, ...agentFields } = args;
 
-    const finalToolNames =
-      args.knowledgeEnabled && !toolNames.includes('rag_search')
-        ? [...toolNames, 'rag_search']
-        : toolNames;
+    // Sync tool list based on retrieval modes
+    const syncUpdate: Record<string, unknown> = { toolNames };
+    syncRetrievalModes(
+      syncUpdate,
+      { knowledgeMode: args.knowledgeMode, webSearchMode: args.webSearchMode },
+      {
+        toolNames,
+        knowledgeEnabled: args.knowledgeEnabled,
+        knowledgeMode: args.knowledgeMode,
+        webSearchMode: args.webSearchMode,
+      },
+    );
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- syncRetrievalModes guarantees toolNames is string[]
+    const syncedToolNames = syncUpdate.toolNames as string[];
 
     const agentId = await ctx.db.insert('customAgents', {
       organizationId,
       ...agentFields,
-      toolNames: finalToolNames,
+      toolNames: syncedToolNames,
+      knowledgeEnabled: args.knowledgeMode
+        ? args.knowledgeMode !== 'off'
+        : args.knowledgeEnabled,
       createdBy: String(authUser._id),
       versionNumber: 1,
       status: 'draft',
@@ -197,6 +248,8 @@ export const updateCustomAgent = mutation({
     toolNames: v.optional(toolNamesValidator),
     integrationBindings: v.optional(v.array(v.string())),
     modelPreset: v.optional(modelPresetValidator),
+    knowledgeMode: v.optional(retrievalModeValidator),
+    webSearchMode: v.optional(retrievalModeValidator),
     knowledgeEnabled: v.optional(v.boolean()),
     includeOrgKnowledge: v.optional(v.boolean()),
     knowledgeTopK: v.optional(v.number()),
@@ -235,8 +288,12 @@ export const updateCustomAgent = mutation({
       cleanUpdate.teamId = teamId || undefined;
     }
 
-    // Synchronize rag_search tool with knowledgeEnabled
-    syncRagSearchTool(cleanUpdate, args.knowledgeEnabled, draft);
+    // Synchronize tools with retrieval modes
+    syncRetrievalModes(
+      cleanUpdate,
+      { knowledgeMode: args.knowledgeMode, webSearchMode: args.webSearchMode },
+      draft,
+    );
 
     await ctx.db.patch(draft._id, cleanUpdate);
     return null;

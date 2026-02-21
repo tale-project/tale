@@ -18,7 +18,7 @@ interface ToolSelectorProps {
   integrationBindings: string[];
   onIntegrationBindingsChange: (bindings: string[]) => void;
   organizationId: string;
-  lockedTools?: Set<string>;
+  hiddenTools?: Set<string>;
   disabled?: boolean;
 }
 
@@ -66,7 +66,7 @@ export function ToolSelector({
   integrationBindings,
   onIntegrationBindingsChange,
   organizationId,
-  lockedTools,
+  hiddenTools,
   disabled,
 }: ToolSelectorProps) {
   const { t } = useT('settings');
@@ -82,14 +82,13 @@ export function ToolSelector({
 
   const toggleTool = useCallback(
     (toolName: string) => {
-      if (lockedTools?.has(toolName)) return;
       if (selectedSet.has(toolName)) {
         onChange(value.filter((t) => t !== toolName));
       } else {
         onChange([...value, toolName]);
       }
     },
-    [value, onChange, selectedSet, lockedTools],
+    [value, onChange, selectedSet],
   );
 
   const toggleBinding = useCallback(
@@ -106,8 +105,11 @@ export function ToolSelector({
   );
 
   const availableToolNames = useMemo(
-    () => tools?.map((t) => t.name) ?? [],
-    [tools],
+    () =>
+      (tools?.map((t) => t.name) ?? []).filter(
+        (name) => !hiddenTools?.has(name),
+      ),
+    [tools, hiddenTools],
   );
 
   const categorized = useMemo(
@@ -145,24 +147,14 @@ export function ToolSelector({
               {category}
             </p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-              {toolNames.map((toolName) => {
-                const isLocked = lockedTools?.has(toolName);
-                return (
-                  <div key={toolName} className="flex items-center gap-1">
-                    <Checkbox
-                      label={toolName}
-                      checked={selectedSet.has(toolName)}
-                      onCheckedChange={() => toggleTool(toolName)}
-                      disabled={isLocked}
-                    />
-                    {isLocked && (
-                      <span className="text-muted-foreground text-xs">
-                        ({t('customAgents.form.managedByKnowledge')})
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+              {toolNames.map((toolName) => (
+                <Checkbox
+                  key={toolName}
+                  label={toolName}
+                  checked={selectedSet.has(toolName)}
+                  onCheckedChange={() => toggleTool(toolName)}
+                />
+              ))}
             </div>
           </div>
         ))}

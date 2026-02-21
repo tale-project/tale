@@ -56,6 +56,22 @@ const serializableAgentConfigValidator = v.object({
   maxSteps: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
   enableVectorSearch: v.optional(v.boolean()),
+  knowledgeMode: v.optional(
+    v.union(
+      v.literal('off'),
+      v.literal('tool'),
+      v.literal('context'),
+      v.literal('both'),
+    ),
+  ),
+  webSearchMode: v.optional(
+    v.union(
+      v.literal('off'),
+      v.literal('tool'),
+      v.literal('context'),
+      v.literal('both'),
+    ),
+  ),
   contextFeatures: v.optional(v.array(v.string())),
   delegateAgentIds: v.optional(v.array(v.string())),
   timeoutMs: v.optional(v.number()),
@@ -233,6 +249,8 @@ export const runAgentGeneration = internalAction({
           enableStreaming,
           hooks,
           convexToolNames: agentConfig.convexToolNames,
+          knowledgeMode: agentConfig.knowledgeMode,
+          webSearchMode: agentConfig.webSearchMode,
           instructions: finalInstructions,
           toolsSummary,
         },

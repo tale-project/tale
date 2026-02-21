@@ -168,6 +168,13 @@ export function formatKnowledgeBase(content: string): string {
 }
 
 /**
+ * Format web search context (collapsible)
+ */
+export function formatWebContext(content: string): string {
+  return wrapInDetails('🌐 Web Search', content);
+}
+
+/**
  * Format integrations info (collapsible)
  */
 export function formatIntegrations(info: string): string {

@@ -51,6 +51,7 @@ export interface AgentResponseResult {
     messageCount: number;
     approvalCount: number;
     hasRag: boolean;
+    hasWebContext: boolean;
     hasIntegrations: boolean;
   };
 }

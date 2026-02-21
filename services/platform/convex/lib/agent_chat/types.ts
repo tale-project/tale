@@ -31,6 +31,10 @@ export interface SerializableAgentConfig {
   outputFormat?: 'text' | 'json';
   /** Enable vector search for semantic message retrieval */
   enableVectorSearch?: boolean;
+  /** Knowledge retrieval mode: tool (agent calls rag_search), context (auto-inject), both, or off */
+  knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
+  /** Web search retrieval mode: tool (agent calls web), context (auto-inject), both, or off */
+  webSearchMode?: 'off' | 'tool' | 'context' | 'both';
   /** Context features to load in beforeContext hook (e.g., ['integrations']). Undefined = load all (backward compat). */
   contextFeatures?: string[];
   /** Root version IDs of delegate agents */

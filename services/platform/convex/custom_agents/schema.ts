@@ -7,6 +7,13 @@ export const modelPresetValidator = v.union(
   v.literal('advanced'),
 );
 
+export const retrievalModeValidator = v.union(
+  v.literal('off'),
+  v.literal('tool'),
+  v.literal('context'),
+  v.literal('both'),
+);
+
 export const versionStatusValidator = v.union(
   v.literal('draft'),
   v.literal('active'),
@@ -27,6 +34,10 @@ export const customAgentsTable = defineTable({
 
   modelPreset: modelPresetValidator,
 
+  knowledgeMode: v.optional(retrievalModeValidator),
+  webSearchMode: v.optional(retrievalModeValidator),
+
+  // @deprecated — kept for existing documents; derived from knowledgeMode at runtime
   knowledgeEnabled: v.optional(v.boolean()),
   includeOrgKnowledge: v.optional(v.boolean()),
   knowledgeTopK: v.optional(v.number()),

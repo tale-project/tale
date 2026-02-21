@@ -84,6 +84,7 @@ export interface StructuredContextResult {
     messageCount: number;
     approvalCount: number;
     hasRag: boolean;
+    hasWebContext: boolean;
     hasIntegrations: boolean;
   };
 }
@@ -95,6 +96,7 @@ export interface BuildStructuredContextParams {
   ctx: ActionCtx;
   threadId: string;
   ragContext?: string;
+  webContext?: string;
   integrationsInfo?: string;
   maxMessages?: number;
   /** Additional structured context as key-value pairs */
@@ -119,6 +121,7 @@ export async function buildStructuredContext(
     ctx,
     threadId,
     ragContext,
+    webContext,
     integrationsInfo,
     maxMessages = 20,
     additionalContext,
@@ -167,6 +170,11 @@ export async function buildStructuredContext(
     contextParts.push(fmt.formatKnowledgeBase(ragContext));
   }
 
+  // Web search context
+  if (webContext) {
+    contextParts.push(fmt.formatWebContext(webContext));
+  }
+
   // Integrations
   if (integrationsInfo) {
     contextParts.push(fmt.formatIntegrations(integrationsInfo));
@@ -191,6 +199,7 @@ export async function buildStructuredContext(
     messageCount: messagesResult.page.length,
     approvalCount: approvals?.length ?? 0,
     hasRag: !!ragContext,
+    hasWebContext: !!webContext,
     hasIntegrations: !!integrationsInfo,
   };
 
