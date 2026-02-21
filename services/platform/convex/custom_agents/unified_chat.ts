@@ -17,6 +17,7 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { AgentHooksConfig } from '../lib/agent_chat/types';
 
+import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { startAgentChat } from '../lib/agent_chat';
@@ -87,6 +88,13 @@ export const chatWithAgent = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    const thread = await ctx.runQuery(components.agent.threads.getThread, {
+      threadId: args.threadId,
+    });
+    if (!thread || thread.userId !== String(authUser._id)) {
+      throw new Error('Thread not found');
+    }
 
     // Resolve agent: use provided ID or fall back to system default 'chat' agent
     const rootVersionId = await resolveAgentId(
