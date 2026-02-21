@@ -90,7 +90,6 @@ import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_
 import type * as agent_tools_workflows_workflow_examples_tool from "../agent_tools/workflows/workflow_examples_tool.js";
 import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/workflows/workflow_read_tool.js";
 import type * as agents_chat_agent from "../agents/chat/agent.js";
-import type * as agents_chat_internal_actions from "../agents/chat/internal_actions.js";
 import type * as agents_crm_agent from "../agents/crm/agent.js";
 import type * as agents_document_agent from "../agents/document/agent.js";
 import type * as agents_integration_agent from "../agents/integration/agent.js";
@@ -273,6 +272,7 @@ import type * as lib_agent_completion_index from "../lib/agent_completion/index.
 import type * as lib_agent_completion_on_agent_complete from "../lib/agent_completion/on_agent_complete.js";
 import type * as lib_agent_response_generate_response from "../lib/agent_response/generate_response.js";
 import type * as lib_agent_response_index from "../lib/agent_response/index.js";
+import type * as lib_agent_response_resolve_template_variables from "../lib/agent_response/resolve_template_variables.js";
 import type * as lib_agent_response_structured_response_instructions from "../lib/agent_response/structured_response_instructions.js";
 import type * as lib_agent_response_types from "../lib/agent_response/types.js";
 import type * as lib_agent_response_validators from "../lib/agent_response/validators.js";
@@ -955,7 +955,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/workflow_examples_tool": typeof agent_tools_workflows_workflow_examples_tool;
   "agent_tools/workflows/workflow_read_tool": typeof agent_tools_workflows_workflow_read_tool;
   "agents/chat/agent": typeof agents_chat_agent;
-  "agents/chat/internal_actions": typeof agents_chat_internal_actions;
   "agents/crm/agent": typeof agents_crm_agent;
   "agents/document/agent": typeof agents_document_agent;
   "agents/integration/agent": typeof agents_integration_agent;
@@ -1138,6 +1137,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_completion/on_agent_complete": typeof lib_agent_completion_on_agent_complete;
   "lib/agent_response/generate_response": typeof lib_agent_response_generate_response;
   "lib/agent_response/index": typeof lib_agent_response_index;
+  "lib/agent_response/resolve_template_variables": typeof lib_agent_response_resolve_template_variables;
   "lib/agent_response/structured_response_instructions": typeof lib_agent_response_structured_response_instructions;
   "lib/agent_response/types": typeof lib_agent_response_types;
   "lib/agent_response/validators": typeof lib_agent_response_validators;
