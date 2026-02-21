@@ -152,36 +152,28 @@ async function getMaxVersionNumber(
   return max;
 }
 
+const VERSION_META_FIELDS = [
+  '_id',
+  '_creationTime',
+  'versionNumber',
+  'status',
+  'rootVersionId',
+  'parentVersionId',
+  'publishedAt',
+  'publishedBy',
+  'changeLog',
+] as const;
+
 function copyVersionFields(source: Doc<'customAgents'>) {
-  return {
-    organizationId: source.organizationId,
-    name: source.name,
-    displayName: source.displayName,
-    description: source.description,
-    avatarUrl: source.avatarUrl,
-    systemInstructions: source.systemInstructions,
-    toolNames: source.toolNames,
-    integrationBindings: source.integrationBindings,
-    modelPreset: source.modelPreset,
-    knowledgeMode: source.knowledgeMode,
-    webSearchMode: source.webSearchMode,
-    knowledgeEnabled: source.knowledgeEnabled,
-    includeOrgKnowledge: source.includeOrgKnowledge,
-    knowledgeTopK: source.knowledgeTopK,
-    toneOfVoiceId: source.toneOfVoiceId,
-    filePreprocessingEnabled: source.filePreprocessingEnabled,
-    teamId: source.teamId,
-    sharedWithTeamIds: source.sharedWithTeamIds,
-    createdBy: source.createdBy,
-    delegateAgentIds: source.delegateAgentIds ?? source.partnerAgentIds,
-    maxSteps: source.maxSteps,
-    timeoutMs: source.timeoutMs,
-    outputReserve: source.outputReserve,
-    roleRestriction: source.roleRestriction,
-    visibleInChat: source.visibleInChat,
-    isSystemDefault: source.isSystemDefault,
-    systemAgentSlug: source.systemAgentSlug,
-  };
+  const copy = { ...source };
+  for (const key of VERSION_META_FIELDS) {
+    delete copy[key];
+  }
+  if (copy.partnerAgentIds) {
+    copy.delegateAgentIds = copy.delegateAgentIds ?? copy.partnerAgentIds;
+    delete copy.partnerAgentIds;
+  }
+  return copy;
 }
 
 export const createCustomAgent = mutation({
