@@ -168,7 +168,7 @@ function AutomationDetailLayout() {
     organizationId,
     isAuthLoading || !isAuthenticated,
   );
-  const isLoading = isLoadingAutomation || isLoadingSteps;
+  const isLoading = isAuthLoading || isLoadingAutomation || isLoadingSteps;
   const { data: versions } = useListWorkflowVersions(
     organizationId,
     automation?.name,
