@@ -745,7 +745,12 @@
         "filePreprocessingEnabled": "Pre-analyze file attachments",
         "filePreprocessingEnabledHelp": "When enabled, uploaded files (documents, images, text) are automatically analyzed before the AI responds. This provides faster and more accurate responses. When disabled, the AI uses tools to read files on demand.",
         "filePreprocessingInjectedPrompt": "The following instructions will be automatically appended to the system prompt:",
-        "copyPrompt": "Copy prompt"
+        "copyPrompt": "Copy prompt",
+        "sectionStructuredResponses": "Structured responses",
+        "sectionStructuredResponsesDescription": "Configure whether the agent can use structured response markers (conclusion, key points, details, etc.) to format substantial answers",
+        "structuredResponsesEnabled": "Enable structured response markers",
+        "structuredResponsesEnabledHelp": "When enabled, the agent can use markers like [[CONCLUSION]], [[KEY_POINTS]], [[DETAILS]] to structure long responses. These are rendered as rich UI sections in the chat. When disabled, the agent responds with plain text only.",
+        "structuredResponsesInjectedPrompt": "The following instructions will be automatically appended to the system prompt:"
       },
       "delegation": {
         "title": "Delegation",

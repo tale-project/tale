@@ -66,6 +66,7 @@ export function toSerializableConfig(
     delegateAgentIds: (agent.delegateAgentIds ?? agent.partnerAgentIds)?.map(
       String,
     ),
+    structuredResponsesEnabled: agent.structuredResponsesEnabled ?? true,
     timeoutMs: agent.timeoutMs,
     outputReserve: agent.outputReserve,
   };

@@ -78,6 +78,7 @@ export async function generateAgentResponse(
     hooks,
     knowledgeMode: configKnowledgeMode,
     webSearchMode: configWebSearchMode,
+    structuredResponsesEnabled,
     instructions,
     toolsSummary,
   } = config;
@@ -295,7 +296,7 @@ export async function generateAgentResponse(
     // For streaming agents, append structured response instructions so the LLM
     // can optionally emit section markers (parsed by the frontend).
     const agentInstructions =
-      enableStreaming && instructions
+      enableStreaming && instructions && structuredResponsesEnabled !== false
         ? `${instructions}\n\n${STRUCTURED_RESPONSE_INSTRUCTIONS}`
         : instructions;
     const systemPrompt = agentInstructions

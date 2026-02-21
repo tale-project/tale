@@ -27,6 +27,8 @@ export interface GenerateResponseConfig {
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
   /** Web search retrieval mode */
   webSearchMode?: 'off' | 'tool' | 'context' | 'both';
+  /** Whether to inject structured response markers into the system prompt (default true) */
+  structuredResponsesEnabled?: boolean;
   /** Agent instructions for context window display (not sent to LLM, already in agent config) */
   instructions?: string;
   /** Formatted tool definitions for context window display (not sent to LLM) */

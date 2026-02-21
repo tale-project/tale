@@ -18,6 +18,7 @@ import { useModelPresets } from '@/app/features/custom-agents/hooks/queries';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { api } from '@/convex/_generated/api';
+import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { FILE_PREPROCESSING_INSTRUCTIONS } from '@/lib/shared/constants/custom-agents';
@@ -41,6 +42,7 @@ interface InstructionsFormData {
   systemInstructions: string;
   modelPreset: ModelPreset;
   filePreprocessingEnabled: boolean;
+  structuredResponsesEnabled: boolean;
 }
 
 const MODEL_PRESET_OPTIONS = ['fast', 'standard', 'advanced'] as const;
@@ -68,6 +70,7 @@ function InstructionsTab() {
           systemInstructions: agent.systemInstructions,
           modelPreset: agent.modelPreset,
           filePreprocessingEnabled: agent.filePreprocessingEnabled ?? false,
+          structuredResponsesEnabled: agent.structuredResponsesEnabled ?? true,
         }
       : undefined,
   });
@@ -81,6 +84,7 @@ function InstructionsTab() {
         systemInstructions: data.systemInstructions,
         modelPreset: data.modelPreset,
         filePreprocessingEnabled: data.filePreprocessingEnabled,
+        structuredResponsesEnabled: data.structuredResponsesEnabled,
       });
     },
     [agentId, updateAgent],
@@ -177,6 +181,36 @@ function InstructionsTab() {
               copyLabel={t('customAgents.form.copyPrompt')}
             >
               {FILE_PREPROCESSING_INSTRUCTIONS}
+            </CodeBlock>
+          )}
+        </PageSection>
+
+        <PageSection
+          title={t('customAgents.form.sectionStructuredResponses')}
+          description={t(
+            'customAgents.form.sectionStructuredResponsesDescription',
+          )}
+        >
+          <Switch
+            checked={formValues.structuredResponsesEnabled}
+            onCheckedChange={(checked) => {
+              form.setValue('structuredResponsesEnabled', checked);
+              void save({
+                ...form.getValues(),
+                structuredResponsesEnabled: checked,
+              });
+            }}
+            label={t('customAgents.form.structuredResponsesEnabled')}
+            description={t('customAgents.form.structuredResponsesEnabledHelp')}
+            disabled={isReadOnly}
+          />
+          {formValues.structuredResponsesEnabled && (
+            <CodeBlock
+              label={t('customAgents.form.structuredResponsesInjectedPrompt')}
+              copyValue={STRUCTURED_RESPONSE_INSTRUCTIONS}
+              copyLabel={t('customAgents.form.copyPrompt')}
+            >
+              {STRUCTURED_RESPONSE_INSTRUCTIONS}
             </CodeBlock>
           )}
         </PageSection>

@@ -39,6 +39,8 @@ export interface SerializableAgentConfig {
   contextFeatures?: string[];
   /** Root version IDs of delegate agents */
   delegateAgentIds?: string[];
+  /** Whether to inject structured response markers into the system prompt (default true) */
+  structuredResponsesEnabled?: boolean;
   /** Per-agent timeout in milliseconds */
   timeoutMs?: number;
   /** Per-agent output token reserve */

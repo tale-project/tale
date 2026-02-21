@@ -74,6 +74,7 @@ const serializableAgentConfigValidator = v.object({
   ),
   contextFeatures: v.optional(v.array(v.string())),
   delegateAgentIds: v.optional(v.array(v.string())),
+  structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
 });
@@ -251,6 +252,7 @@ export const runAgentGeneration = internalAction({
           convexToolNames: agentConfig.convexToolNames,
           knowledgeMode: agentConfig.knowledgeMode,
           webSearchMode: agentConfig.webSearchMode,
+          structuredResponsesEnabled: agentConfig.structuredResponsesEnabled,
           instructions: finalInstructions,
           toolsSummary,
         },
