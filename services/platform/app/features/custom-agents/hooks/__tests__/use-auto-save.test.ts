@@ -96,7 +96,7 @@ describe('useAutoSave', () => {
     expect(onSave).toHaveBeenCalledWith({ value: 'abc' });
   });
 
-  it('does not save when data reverts to the last saved value', async () => {
+  it('saves when data differs from last saved value, skips when unchanged', async () => {
     const { rerender } = renderHook(
       (props: { data: { value: string } }) =>
         useAutoSave({ data: props.data, onSave }),
