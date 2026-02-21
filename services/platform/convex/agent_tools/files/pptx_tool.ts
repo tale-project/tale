@@ -155,7 +155,7 @@ export const pptxTool: ToolDefinition = {
 
 IMPORTANT WORKFLOW FOR GENERATING PPTX:
 1. FIRST call list_templates to check if templates are available
-2. If no templates found, tell the user to upload a .pptx template to Knowledge/Documents
+2. If no templates found, tell the user to upload a .pptx template to the Knowledge Base (Documents page) — NOT in the chat. Include the link from the list_templates result.
 3. Only call generate after you have a valid templateStorageId from list_templates
 
 OPERATIONS:
@@ -236,6 +236,9 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
             totalCount: templates.length,
           });
 
+          const siteUrl = process.env.SITE_URL || '';
+          const knowledgeUrl = `${siteUrl}/dashboard/${organizationId}/knowledge/documents`;
+
           return {
             operation: 'list_templates',
             success: true,
@@ -244,7 +247,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
             message:
               templates.length > 0
                 ? `Found ${templates.length} PPTX template(s). Use the storageId as templateStorageId for generate operations.`
-                : 'No PPTX templates found. Please ask the user to upload a .pptx template file to Knowledge/Documents before generating presentations. Do NOT attempt to call generate without a template.',
+                : `No PPTX templates found. The user must upload a .pptx template file to the Knowledge Base first — uploading in the chat will NOT work as a template. Direct the user to: ${knowledgeUrl} . Do NOT attempt to call generate without a template.`,
           };
         } catch (error) {
           console.error('[tool:pptx list_templates] error', {
@@ -291,7 +294,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
           contentType: '',
           size: 0,
           error:
-            'templateStorageId is required. Call list_templates first to get available templates. If no templates exist, ask the user to upload a .pptx file to Knowledge/Documents.',
+            'templateStorageId is required. Call list_templates first to get available templates. If no templates exist, the user must upload a .pptx template to the Knowledge Base (Documents page) — not in chat.',
         };
       }
       if (!args.fileName) {

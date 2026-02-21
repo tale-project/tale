@@ -53,15 +53,6 @@ export const latestToolMessageSchema = z.object({
 
 type LatestToolMessage = z.infer<typeof latestToolMessageSchema>;
 
-const subAgentTypeLiterals = [
-  'document_assistant',
-  'integration_assistant',
-  'workflow_assistant',
-  'crm_assistant',
-] as const;
-export const subAgentTypeSchema = z.enum(subAgentTypeLiterals);
-type SubAgentType = z.infer<typeof subAgentTypeSchema>;
-
 export const getOrCreateSubThreadResultSchema = z.object({
   threadId: z.string(),
   isNew: z.boolean(),

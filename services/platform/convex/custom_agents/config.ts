@@ -46,15 +46,29 @@ export function toSerializableConfig(
         .join('\n\n')
     : agent.systemInstructions;
 
+  const knowledgeMode =
+    agent.knowledgeMode ?? (agent.knowledgeEnabled ? 'tool' : 'off');
+  const webSearchMode =
+    agent.webSearchMode ?? (agent.toolNames.includes('web') ? 'tool' : 'off');
+
   return {
-    name: `custom:${agent.name}`,
+    name: agent.isSystemDefault ? agent.name : `custom:${agent.name}`,
     instructions,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are validated via validateToolNames() on insert; always valid ToolName values
     convexToolNames: agent.toolNames as ToolName[],
     integrationBindings: agent.integrationBindings,
     useFastModel: agent.modelPreset === 'fast',
     model: resolveModelPreset(agent.modelPreset),
+    maxSteps: agent.maxSteps,
     enableVectorSearch: false,
+    knowledgeMode,
+    webSearchMode,
+    delegateAgentIds: (agent.delegateAgentIds ?? agent.partnerAgentIds)?.map(
+      String,
+    ),
+    structuredResponsesEnabled: agent.structuredResponsesEnabled ?? true,
+    timeoutMs: agent.timeoutMs,
+    outputReserve: agent.outputReserve,
   };
 }
 

@@ -24,10 +24,11 @@ const customAgentSchema = z.object({
   knowledgeTopK: z.number().optional(),
   toneOfVoiceId: z.string().optional(),
   filePreprocessingEnabled: z.boolean().optional(),
+  structuredResponsesEnabled: z.boolean().optional(),
   teamId: z.string().optional(),
   sharedWithTeamIds: z.array(z.string()).optional(),
+  delegateAgentIds: z.array(z.string()).optional(),
   createdBy: z.string(),
-  isActive: z.boolean(),
   versionNumber: z.number(),
   status: versionStatusSchema,
   rootVersionId: z.string().optional(),
@@ -56,8 +57,10 @@ const createCustomAgentSchema = z.object({
   knowledgeTopK: z.number().int().min(1).max(50).optional(),
   toneOfVoiceId: z.string().optional(),
   filePreprocessingEnabled: z.boolean().optional(),
+  structuredResponsesEnabled: z.boolean().optional(),
   teamId: z.string().optional(),
   sharedWithTeamIds: z.array(z.string()).optional(),
+  delegateAgentIds: z.array(z.string()).optional(),
 });
 type CreateCustomAgent = z.infer<typeof createCustomAgentSchema>;
 

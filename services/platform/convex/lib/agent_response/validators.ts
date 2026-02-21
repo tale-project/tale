@@ -22,7 +22,8 @@ export const contextStatsValidator = v.object({
   approvalCount: v.number(),
   hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
   hasRag: v.boolean(),
-  hasIntegrations: v.boolean(),
+  hasWebContext: v.optional(v.boolean()),
+  hasIntegrations: v.optional(v.boolean()),
 });
 
 export const toolCallValidator = v.object({

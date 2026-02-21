@@ -27,14 +27,14 @@ export const approxCountCustomAgents = query({
   returns: v.number(),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) return 0;
 
     const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
 
     const agents = ctx.db
       .query('customAgents')
-      .withIndex('by_org_active_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('isActive', true),
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', args.organizationId),
       );
 
     const seenRoots = new Set<string>();
@@ -58,22 +58,20 @@ export const listCustomAgents = query({
   },
   handler: async (ctx, args): Promise<Doc<'customAgents'>[]> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) return [];
 
     const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
 
     if (args.filterPublished === true) {
       const agents = ctx.db
         .query('customAgents')
-        .withIndex('by_org_active_status', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('isActive', true)
-            .eq('status', 'active'),
+        .withIndex('by_org_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', 'active'),
         );
 
       const results: Doc<'customAgents'>[] = [];
       for await (const agent of agents) {
+        if (agent.visibleInChat === false) continue;
         if (!hasTeamAccess(agent, userTeamIds)) continue;
         if (
           args.filterTeamId &&
@@ -90,8 +88,8 @@ export const listCustomAgents = query({
 
     const agents = ctx.db
       .query('customAgents')
-      .withIndex('by_org_active_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('isActive', true),
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', args.organizationId),
       );
 
     const bestByRoot = new Map<string, Doc<'customAgents'>>();
@@ -127,7 +125,7 @@ export const getCustomAgent = query({
   },
   handler: async (ctx, args): Promise<Doc<'customAgents'> | null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) return null;
 
     // customAgentId is the rootVersionId; find the draft record
     const draftQuery = ctx.db
@@ -142,7 +140,7 @@ export const getCustomAgent = query({
       break;
     }
 
-    if (!draft || !draft.isActive) return null;
+    if (!draft) return null;
 
     const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
     if (!hasTeamAccess(draft, userTeamIds)) return null;
@@ -158,10 +156,10 @@ export const getCustomAgentByVersion = query({
   },
   handler: async (ctx, args): Promise<Doc<'customAgents'> | null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) return null;
 
     const rootAgent = await ctx.db.get(args.customAgentId);
-    if (!rootAgent || !rootAgent.isActive) return null;
+    if (!rootAgent) return null;
 
     const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
     if (!hasTeamAccess(rootAgent, userTeamIds)) return null;
@@ -198,10 +196,10 @@ export const getCustomAgentVersions = query({
   },
   handler: async (ctx, args): Promise<Doc<'customAgents'>[]> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) return [];
 
     const rootAgent = await ctx.db.get(args.customAgentId);
-    if (!rootAgent || !rootAgent.isActive) return [];
+    if (!rootAgent) return [];
 
     const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
     if (!hasTeamAccess(rootAgent, userTeamIds)) return [];
@@ -239,7 +237,7 @@ export const getAvailableIntegrations = query({
     args,
   ): Promise<Array<{ name: string; title: string; type: string }>> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    if (!authUser) return [];
 
     const integrations: Array<{ name: string; title: string; type: string }> =
       [];

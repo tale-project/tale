@@ -37,7 +37,7 @@ export const requestHumanInputTool = {
     description: `**DIRECTLY call this tool** to ask the user a question and collect their response in the current chat.
 
 **IMPORTANT - DIRECT TOOL CALL:**
-• This is a DIRECT tool call - do NOT use workflow_assistant or other tools to create human input requests
+• This is a DIRECT tool call - do NOT delegate to other agents to create human input requests
 • When you call this tool, an interactive input card will IMMEDIATELY appear in the chat UI
 • The user can respond by clicking options or typing text directly in the chat
 • Do NOT show JSON examples or code snippets - just call this tool directly

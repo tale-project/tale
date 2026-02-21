@@ -80,7 +80,6 @@ export interface ContextBuilderOptions {
  * ```typescript
  * const builder = new ContextBuilder({ agentType: 'web' });
  * builder
- *   .addSystemInfo(threadId)
  *   .addContext('task_context', promptMessage, ContextPriority.HIGH_RELEVANCE)
  *   .addContext('history', summary, ContextPriority.CONVERSATION_SUMMARY);
  *
@@ -96,37 +95,6 @@ export class ContextBuilder {
   }
 
   /**
-   * Add system info (thread ID only - static).
-   * This is mandatory and cannot be trimmed.
-   * Note: Use addCurrentTime() separately to add timestamp with lower priority.
-   */
-  addSystemInfo(threadId: string): this {
-    this.contexts.push({
-      id: 'system_info',
-      content: `Current thread ID: ${threadId}`,
-      priority: ContextPriority.SYSTEM_INFO,
-      canTrim: false,
-      sectionName: 'system_info',
-    });
-    return this;
-  }
-
-  /**
-   * Add current timestamp with DYNAMIC_INFO priority.
-   * Placed last in the context to improve LLM cache hit rate.
-   */
-  addCurrentTime(): this {
-    this.contexts.push({
-      id: 'current_time',
-      content: `Current time: ${new Date().toISOString()}`,
-      priority: ContextPriority.DYNAMIC_INFO,
-      canTrim: false,
-      sectionName: 'current_time',
-    });
-    return this;
-  }
-
-  /**
    * Add a conversation summary.
    */
   addSummary(summary: string): this {
@@ -138,22 +106,6 @@ export class ContextBuilder {
       priority: ContextPriority.CONVERSATION_SUMMARY,
       canTrim: true,
       sectionName: 'conversation_summary',
-    });
-    return this;
-  }
-
-  /**
-   * Add integrations info.
-   */
-  addIntegrations(integrationsInfo: string): this {
-    if (!integrationsInfo) return this;
-
-    this.contexts.push({
-      id: 'integrations',
-      content: `${integrationsInfo}\n\nUse integration_introspect tool with the integration name to see available operations, then use the integration tool to execute operations.`,
-      priority: ContextPriority.MEDIUM_RELEVANCE,
-      canTrim: true,
-      sectionName: 'integrations',
     });
     return this;
   }

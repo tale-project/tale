@@ -3,12 +3,11 @@ import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import { cleanupOrphanedSubThreads as cleanupOrphanedSubThreadsHandler } from './cleanup_orphaned_sub_threads';
 import { getOrCreateSubThread } from './get_or_create_sub_thread';
-import { subAgentTypeValidator } from './validators';
 
 export const getOrCreateSubThreadAtomic = internalMutation({
   args: {
     parentThreadId: v.string(),
-    subAgentType: subAgentTypeValidator,
+    subAgentType: v.string(),
     userId: v.optional(v.string()),
   },
   returns: v.object({

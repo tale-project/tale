@@ -31,8 +31,18 @@ export interface SerializableAgentConfig {
   outputFormat?: 'text' | 'json';
   /** Enable vector search for semantic message retrieval */
   enableVectorSearch?: boolean;
-  /** Context features to load in beforeContext hook (e.g., ['integrations']). Undefined = load all (backward compat). */
-  contextFeatures?: string[];
+  /** Knowledge retrieval mode: tool (agent calls rag_search), context (auto-inject), both, or off */
+  knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
+  /** Web search retrieval mode: tool (agent calls web), context (auto-inject), both, or off */
+  webSearchMode?: 'off' | 'tool' | 'context' | 'both';
+  /** Root version IDs of delegate agents */
+  delegateAgentIds?: string[];
+  /** Whether to inject structured response markers into the system prompt (default true) */
+  structuredResponsesEnabled?: boolean;
+  /** Per-agent timeout in milliseconds */
+  timeoutMs?: number;
+  /** Per-agent output token reserve */
+  outputReserve?: number;
 }
 
 /**
@@ -105,9 +115,7 @@ export interface RunAgentGenerationArgs {
  */
 export interface BeforeContextHookResult {
   contextSummary?: string;
-  integrationsInfo?: string;
   ragPrefetchCache?: unknown;
-  integrationsList?: unknown[];
   [key: string]: unknown;
 }
 

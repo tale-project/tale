@@ -8,7 +8,6 @@ import {
   threadMessageSchema,
   threadListItemSchema,
   latestToolMessageSchema,
-  subAgentTypeSchema,
   getOrCreateSubThreadResultSchema,
 } from '../../lib/shared/schemas/threads';
 
@@ -28,7 +27,6 @@ export const toolStatusValidator = zodToConvex(toolStatusSchema);
 export const threadMessageValidator = zodToConvex(threadMessageSchema);
 export const threadListItemValidator = zodToConvex(threadListItemSchema);
 export const latestToolMessageValidator = zodToConvex(latestToolMessageSchema);
-export const subAgentTypeValidator = zodToConvex(subAgentTypeSchema);
 export const getOrCreateSubThreadResultValidator = zodToConvex(
   getOrCreateSubThreadResultSchema,
 );

@@ -30,10 +30,6 @@ export const TOOL_NAMES = [
   'integration_introspect',
   'verify_approval',
   'database_schema',
-  'workflow_assistant',
-  'document_assistant',
-  'integration_assistant',
-  'crm_assistant',
   'request_human_input',
 ] as const;
 

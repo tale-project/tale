@@ -41,7 +41,8 @@ export const messageMetadataTable = defineTable({
       approvalCount: v.number(),
       hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
       hasRag: v.boolean(),
-      hasIntegrations: v.boolean(),
+      hasWebContext: v.optional(v.boolean()),
+      hasIntegrations: v.optional(v.boolean()),
     }),
   ),
 })

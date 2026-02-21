@@ -2,15 +2,15 @@
  * Types for sub-agent thread management.
  */
 
-/** Available sub-agent types */
-export type SubAgentType =
-  | 'document_assistant'
-  | 'integration_assistant'
-  | 'workflow_assistant'
-  | 'crm_assistant';
+/**
+ * Sub-agent key for thread mapping.
+ * Used as the key in the sub-threads map to identify delegate agent threads.
+ * Typically the delegate agent's rootVersionId or a stable identifier.
+ */
+export type SubAgentKey = string;
 
 /** Structure of the subThreads mapping in parent thread summary */
-export type SubThreadsMap = Partial<Record<SubAgentType, string>>;
+export type SubThreadsMap = Record<string, string>;
 
 /** Extended summary structure for threads with sub-thread mappings */
 export interface ThreadSummaryWithSubThreads {
@@ -21,6 +21,6 @@ export interface ThreadSummaryWithSubThreads {
 
 /** Summary structure for sub-threads (stores parent thread reference) */
 export interface SubThreadSummary {
-  subAgentType: SubAgentType;
+  subAgentType: SubAgentKey;
   parentThreadId: string;
 }

@@ -19,7 +19,7 @@ import { TOOL_NAMES } from '../agent_tools/tool_names';
 import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
-import { modelPresetValidator } from './schema';
+import { modelPresetValidator, retrievalModeValidator } from './schema';
 
 const toolNamesValidator = v.array(v.string());
 
@@ -32,13 +32,21 @@ const agentFieldsValidator = {
   toolNames: toolNamesValidator,
   integrationBindings: v.optional(v.array(v.string())),
   modelPreset: modelPresetValidator,
+  knowledgeMode: v.optional(retrievalModeValidator),
+  webSearchMode: v.optional(retrievalModeValidator),
   knowledgeEnabled: v.optional(v.boolean()),
   includeOrgKnowledge: v.optional(v.boolean()),
   knowledgeTopK: v.optional(v.number()),
   toneOfVoiceId: v.optional(v.id('toneOfVoice')),
   filePreprocessingEnabled: v.optional(v.boolean()),
+  structuredResponsesEnabled: v.optional(v.boolean()),
   teamId: v.optional(v.string()),
   sharedWithTeamIds: v.optional(v.array(v.string())),
+  delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
+  maxSteps: v.optional(v.number()),
+  timeoutMs: v.optional(v.number()),
+  outputReserve: v.optional(v.number()),
+  roleRestriction: v.optional(v.string()),
 };
 
 function validateToolNames(toolNames: string[]) {
@@ -49,26 +57,59 @@ function validateToolNames(toolNames: string[]) {
   }
 }
 
-function syncRagSearchTool(
-  cleanUpdate: Record<string, unknown>,
-  knowledgeEnabled: boolean | undefined,
-  draft: Doc<'customAgents'>,
-) {
-  const toolNames = Array.isArray(cleanUpdate.toolNames)
-    ? cleanUpdate.toolNames
-    : draft.toolNames;
-  const hasRag = toolNames.includes('rag_search');
-  const isEnabled = knowledgeEnabled ?? draft.knowledgeEnabled;
+type RetrievalMode = 'off' | 'tool' | 'context' | 'both';
 
-  if (knowledgeEnabled !== undefined) {
-    if (knowledgeEnabled && !hasRag) {
-      cleanUpdate.toolNames = [...toolNames, 'rag_search'];
-    } else if (!knowledgeEnabled && hasRag) {
-      cleanUpdate.toolNames = toolNames.filter((t) => t !== 'rag_search');
-    }
-  } else if (isEnabled && !hasRag && cleanUpdate.toolNames !== undefined) {
-    // Guard: toolNames updated without knowledgeEnabled change — re-add rag_search
-    cleanUpdate.toolNames = [...toolNames, 'rag_search'];
+function modeNeedsTool(mode: RetrievalMode): boolean {
+  return mode === 'tool' || mode === 'both';
+}
+
+interface RetrievalModeState {
+  toolNames: string[];
+  knowledgeEnabled?: boolean;
+  knowledgeMode?: RetrievalMode;
+  webSearchMode?: RetrievalMode;
+}
+
+function syncRetrievalModes(
+  cleanUpdate: Record<string, unknown>,
+  args: {
+    knowledgeMode?: RetrievalMode;
+    webSearchMode?: RetrievalMode;
+  },
+  current: RetrievalModeState,
+) {
+  let toolNames: string[] = Array.isArray(cleanUpdate.toolNames)
+    ? [...cleanUpdate.toolNames]
+    : [...current.toolNames];
+
+  const kMode =
+    args.knowledgeMode ??
+    current.knowledgeMode ??
+    (current.knowledgeEnabled ? 'tool' : 'off');
+  const wMode =
+    args.webSearchMode ??
+    current.webSearchMode ??
+    (toolNames.includes('web') ? 'tool' : 'off');
+
+  // Sync rag_search tool
+  if (modeNeedsTool(kMode) && !toolNames.includes('rag_search')) {
+    toolNames.push('rag_search');
+  } else if (!modeNeedsTool(kMode)) {
+    toolNames = toolNames.filter((t) => t !== 'rag_search');
+  }
+
+  // Sync web tool
+  if (modeNeedsTool(wMode) && !toolNames.includes('web')) {
+    toolNames.push('web');
+  } else if (!modeNeedsTool(wMode)) {
+    toolNames = toolNames.filter((t) => t !== 'web');
+  }
+
+  cleanUpdate.toolNames = toolNames;
+
+  // Keep knowledgeEnabled in sync as derived field
+  if (args.knowledgeMode !== undefined) {
+    cleanUpdate.knowledgeEnabled = args.knowledgeMode !== 'off';
   }
 }
 
@@ -93,7 +134,7 @@ async function getDraftByRoot(
   rootVersionId: Id<'customAgents'>,
 ) {
   const draft = await getVersionByRootAndStatus(ctx, rootVersionId, 'draft');
-  if (!draft || !draft.isActive) throw new Error('Agent not found');
+  if (!draft) throw new Error('Agent not found');
   return draft;
 }
 
@@ -111,26 +152,28 @@ async function getMaxVersionNumber(
   return max;
 }
 
+const VERSION_META_FIELDS = [
+  '_id',
+  '_creationTime',
+  'versionNumber',
+  'status',
+  'rootVersionId',
+  'parentVersionId',
+  'publishedAt',
+  'publishedBy',
+  'changeLog',
+] as const;
+
 function copyVersionFields(source: Doc<'customAgents'>) {
-  return {
-    organizationId: source.organizationId,
-    name: source.name,
-    displayName: source.displayName,
-    description: source.description,
-    avatarUrl: source.avatarUrl,
-    systemInstructions: source.systemInstructions,
-    toolNames: source.toolNames,
-    integrationBindings: source.integrationBindings,
-    modelPreset: source.modelPreset,
-    knowledgeEnabled: source.knowledgeEnabled,
-    includeOrgKnowledge: source.includeOrgKnowledge,
-    knowledgeTopK: source.knowledgeTopK,
-    toneOfVoiceId: source.toneOfVoiceId,
-    filePreprocessingEnabled: source.filePreprocessingEnabled,
-    teamId: source.teamId,
-    sharedWithTeamIds: source.sharedWithTeamIds,
-    createdBy: source.createdBy,
-  };
+  const copy = { ...source };
+  for (const key of VERSION_META_FIELDS) {
+    delete copy[key];
+  }
+  if (copy.partnerAgentIds) {
+    copy.delegateAgentIds = copy.delegateAgentIds ?? copy.partnerAgentIds;
+    delete copy.partnerAgentIds;
+  }
+  return copy;
 }
 
 export const createCustomAgent = mutation({
@@ -153,17 +196,30 @@ export const createCustomAgent = mutation({
 
     const { organizationId, toolNames, ...agentFields } = args;
 
-    const finalToolNames =
-      args.knowledgeEnabled && !toolNames.includes('rag_search')
-        ? [...toolNames, 'rag_search']
-        : toolNames;
+    // Sync tool list based on retrieval modes
+    const syncUpdate: Record<string, unknown> = { toolNames };
+    syncRetrievalModes(
+      syncUpdate,
+      { knowledgeMode: args.knowledgeMode, webSearchMode: args.webSearchMode },
+      {
+        toolNames,
+        knowledgeEnabled: args.knowledgeEnabled,
+        knowledgeMode: args.knowledgeMode,
+        webSearchMode: args.webSearchMode,
+      },
+    );
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- syncRetrievalModes guarantees toolNames is string[]
+    const syncedToolNames = syncUpdate.toolNames as string[];
 
     const agentId = await ctx.db.insert('customAgents', {
       organizationId,
       ...agentFields,
-      toolNames: finalToolNames,
+      toolNames: syncedToolNames,
+      knowledgeEnabled: args.knowledgeMode
+        ? args.knowledgeMode !== 'off'
+        : args.knowledgeEnabled,
       createdBy: String(authUser._id),
-      isActive: true,
       versionNumber: 1,
       status: 'draft',
     });
@@ -185,13 +241,21 @@ export const updateCustomAgent = mutation({
     toolNames: v.optional(toolNamesValidator),
     integrationBindings: v.optional(v.array(v.string())),
     modelPreset: v.optional(modelPresetValidator),
+    knowledgeMode: v.optional(retrievalModeValidator),
+    webSearchMode: v.optional(retrievalModeValidator),
     knowledgeEnabled: v.optional(v.boolean()),
     includeOrgKnowledge: v.optional(v.boolean()),
     knowledgeTopK: v.optional(v.number()),
     toneOfVoiceId: v.optional(v.id('toneOfVoice')),
     filePreprocessingEnabled: v.optional(v.boolean()),
+    structuredResponsesEnabled: v.optional(v.boolean()),
     teamId: v.optional(v.string()),
     sharedWithTeamIds: v.optional(v.array(v.string())),
+    delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
+    maxSteps: v.optional(v.number()),
+    timeoutMs: v.optional(v.number()),
+    outputReserve: v.optional(v.number()),
+    roleRestriction: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -218,8 +282,12 @@ export const updateCustomAgent = mutation({
       cleanUpdate.teamId = teamId || undefined;
     }
 
-    // Synchronize rag_search tool with knowledgeEnabled
-    syncRagSearchTool(cleanUpdate, args.knowledgeEnabled, draft);
+    // Synchronize tools with retrieval modes
+    syncRetrievalModes(
+      cleanUpdate,
+      { knowledgeMode: args.knowledgeMode, webSearchMode: args.webSearchMode },
+      draft,
+    );
 
     await ctx.db.patch(draft._id, cleanUpdate);
     return null;
@@ -262,9 +330,10 @@ export const updateCustomAgentMetadata = mutation({
   },
 });
 
-export const deleteCustomAgent = mutation({
+export const updateCustomAgentVisibility = mutation({
   args: {
     customAgentId: v.id('customAgents'),
+    visibleInChat: v.boolean(),
   },
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -277,16 +346,44 @@ export const deleteCustomAgent = mutation({
       throw new Error('Agent not accessible');
     }
 
-    const activeVersion = await getVersionByRootAndStatus(
-      ctx,
-      args.customAgentId,
-      'active',
-    );
-    if (activeVersion) {
-      await ctx.db.patch(activeVersion._id, { status: 'archived' });
+    await ctx.db.patch(draft._id, { visibleInChat: args.visibleInChat });
+    return null;
+  },
+});
+
+export const deleteCustomAgent = mutation({
+  args: {
+    customAgentId: v.id('customAgents'),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const rootAgent = await ctx.db.get(args.customAgentId);
+    if (!rootAgent) throw new Error('Agent not found');
+    const rootId = rootAgent.rootVersionId ?? rootAgent._id;
+
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    if (!hasTeamAccess(rootAgent, userTeamIds)) {
+      throw new Error('Agent not accessible');
     }
 
-    await ctx.db.patch(draft._id, { isActive: false, status: 'archived' });
+    // Delete associated webhooks to avoid dangling references
+    const webhooks = ctx.db
+      .query('customAgentWebhooks')
+      .withIndex('by_agent', (q) => q.eq('customAgentId', rootId));
+    for await (const webhook of webhooks) {
+      await ctx.db.delete(webhook._id);
+    }
+
+    const allVersions = ctx.db
+      .query('customAgents')
+      .withIndex('by_root', (q) => q.eq('rootVersionId', rootId));
+
+    for await (const version of allVersions) {
+      await ctx.db.delete(version._id);
+    }
+
     return null;
   },
 });
@@ -317,7 +414,6 @@ export const duplicateCustomAgent = mutation({
       name: newName,
       displayName: newDisplayName,
       createdBy: String(authUser._id),
-      isActive: true,
       versionNumber: 1,
       status: 'draft',
     });
@@ -498,7 +594,6 @@ export const createDraftFromVersion = mutation({
 
     const draftId = await ctx.db.insert('customAgents', {
       ...copyVersionFields(source),
-      isActive: true,
       versionNumber: newVersionNumber,
       status: 'draft',
       rootVersionId: args.customAgentId,

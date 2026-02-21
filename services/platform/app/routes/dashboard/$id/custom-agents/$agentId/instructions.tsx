@@ -18,9 +18,12 @@ import { useModelPresets } from '@/app/features/custom-agents/hooks/queries';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { api } from '@/convex/_generated/api';
+import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolve_template_variables';
+import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { FILE_PREPROCESSING_INSTRUCTIONS } from '@/lib/shared/constants/custom-agents';
+import { modelPresetSchema } from '@/lib/shared/schemas/custom_agents';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
@@ -41,6 +44,7 @@ interface InstructionsFormData {
   systemInstructions: string;
   modelPreset: ModelPreset;
   filePreprocessingEnabled: boolean;
+  structuredResponsesEnabled: boolean;
 }
 
 const MODEL_PRESET_OPTIONS = ['fast', 'standard', 'advanced'] as const;
@@ -68,6 +72,7 @@ function InstructionsTab() {
           systemInstructions: agent.systemInstructions,
           modelPreset: agent.modelPreset,
           filePreprocessingEnabled: agent.filePreprocessingEnabled ?? false,
+          structuredResponsesEnabled: agent.structuredResponsesEnabled ?? true,
         }
       : undefined,
   });
@@ -81,15 +86,21 @@ function InstructionsTab() {
         systemInstructions: data.systemInstructions,
         modelPreset: data.modelPreset,
         filePreprocessingEnabled: data.filePreprocessingEnabled,
+        structuredResponsesEnabled: data.structuredResponsesEnabled,
       });
     },
     [agentId, updateAgent],
   );
 
-  const { status } = useAutoSave({
+  const { status, save } = useAutoSave({
     data: formValues,
     onSave: handleSave,
     enabled: !isReadOnly,
+    mode: 'manual',
+  });
+
+  const systemInstructionsField = form.register('systemInstructions', {
+    required: true,
   });
 
   return (
@@ -108,13 +119,33 @@ function InstructionsTab() {
               id="systemInstructions"
               label={t('customAgents.form.systemInstructions')}
               placeholder={t('customAgents.form.systemInstructionsPlaceholder')}
-              {...form.register('systemInstructions', { required: true })}
+              {...systemInstructionsField}
+              onBlur={(e) => {
+                void systemInstructionsField.onBlur(e);
+                void save(form.getValues());
+              }}
               required
               rows={8}
               className="font-mono text-sm"
               disabled={isReadOnly}
               errorMessage={form.formState.errors.systemInstructions?.message}
             />
+            <details className="text-muted-foreground text-xs">
+              <summary className="cursor-pointer font-medium select-none">
+                {t('customAgents.form.templateVariablesLabel')}
+              </summary>
+              <p className="mt-1 mb-2">
+                {t('customAgents.form.templateVariablesDescription')}
+              </p>
+              <ul className="space-y-0.5 font-mono">
+                {SUPPORTED_TEMPLATE_VARIABLES.map((v) => (
+                  <li key={v.variable}>
+                    <code className="bg-muted rounded px-1">{v.variable}</code>{' '}
+                    <span className="font-sans">&mdash; {v.description}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
           </Stack>
         </section>
 
@@ -127,10 +158,14 @@ function InstructionsTab() {
               options={modelOptions}
               label={t('customAgents.form.modelPreset')}
               value={formValues.modelPreset}
-              onValueChange={(val) =>
-                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select value is constrained to MODEL_PRESET_OPTIONS
-                form.setValue('modelPreset', val as ModelPreset)
-              }
+              onValueChange={(val) => {
+                const preset = modelPresetSchema.parse(val);
+                form.setValue('modelPreset', preset);
+                void save({
+                  ...form.getValues(),
+                  modelPreset: preset,
+                });
+              }}
               required
               disabled={isReadOnly}
             />
@@ -145,9 +180,13 @@ function InstructionsTab() {
         >
           <Switch
             checked={formValues.filePreprocessingEnabled}
-            onCheckedChange={(checked) =>
-              form.setValue('filePreprocessingEnabled', checked)
-            }
+            onCheckedChange={(checked) => {
+              form.setValue('filePreprocessingEnabled', checked);
+              void save({
+                ...form.getValues(),
+                filePreprocessingEnabled: checked,
+              });
+            }}
             label={t('customAgents.form.filePreprocessingEnabled')}
             description={t('customAgents.form.filePreprocessingEnabledHelp')}
             disabled={isReadOnly}
@@ -159,6 +198,36 @@ function InstructionsTab() {
               copyLabel={t('customAgents.form.copyPrompt')}
             >
               {FILE_PREPROCESSING_INSTRUCTIONS}
+            </CodeBlock>
+          )}
+        </PageSection>
+
+        <PageSection
+          title={t('customAgents.form.sectionStructuredResponses')}
+          description={t(
+            'customAgents.form.sectionStructuredResponsesDescription',
+          )}
+        >
+          <Switch
+            checked={formValues.structuredResponsesEnabled}
+            onCheckedChange={(checked) => {
+              form.setValue('structuredResponsesEnabled', checked);
+              void save({
+                ...form.getValues(),
+                structuredResponsesEnabled: checked,
+              });
+            }}
+            label={t('customAgents.form.structuredResponsesEnabled')}
+            description={t('customAgents.form.structuredResponsesEnabledHelp')}
+            disabled={isReadOnly}
+          />
+          {formValues.structuredResponsesEnabled && (
+            <CodeBlock
+              label={t('customAgents.form.structuredResponsesInjectedPrompt')}
+              copyValue={STRUCTURED_RESPONSE_INSTRUCTIONS}
+              copyLabel={t('customAgents.form.copyPrompt')}
+            >
+              {STRUCTURED_RESPONSE_INSTRUCTIONS}
             </CodeBlock>
           )}
         </PageSection>

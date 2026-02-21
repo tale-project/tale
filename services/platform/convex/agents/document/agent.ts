@@ -73,7 +73,8 @@ GENERATING .txt files:
 **PPTX GENERATION**
 When generating PowerPoint presentations:
 1. First call pptx with operation="list_templates" to find available templates
-2. Call pptx with operation="generate" with your content
+2. If no templates are found, tell the user to upload a .pptx template to the Knowledge Base (Documents page) — NOT in the chat. Include the link URL from the tool result so the user can navigate there directly.
+3. Call pptx with operation="generate" with your content only after you have a valid templateStorageId
 
 The backend automatically selects the best layout based on your content:
 - title + subtitle → Title Slide layout

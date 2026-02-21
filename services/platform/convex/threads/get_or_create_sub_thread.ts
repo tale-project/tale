@@ -6,15 +6,15 @@
  * {
  *   "chatType": "general",
  *   "subThreads": {
- *     "document_assistant": "thread_id_123",
- *     "crm_assistant": "thread_id_456"
+ *     "<delegate_root_version_id>": "thread_id_123",
+ *     "<another_delegate_id>": "thread_id_456"
  *   }
  * }
  * ```
  */
 
 import type {
-  SubAgentType,
+  SubAgentKey,
   SubThreadSummary,
   ThreadSummaryWithSubThreads,
 } from '../agent_tools/sub_agents/helpers/types';
@@ -24,7 +24,7 @@ import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 
 // Re-export for consumers that import from this module
-export type { SubAgentType } from '../agent_tools/sub_agents/helpers/types';
+export type { SubAgentKey } from '../agent_tools/sub_agents/helpers/types';
 
 /** Result of get or create operation */
 export interface GetOrCreateSubThreadResult {
@@ -42,7 +42,7 @@ export interface GetOrCreateSubThreadResult {
 export async function getOrCreateSubThread(
   ctx: MutationCtx,
   parentThreadId: string,
-  subAgentType: SubAgentType,
+  subAgentType: SubAgentKey,
   userId?: string,
 ): Promise<GetOrCreateSubThreadResult> {
   // 1. Get parent thread to read its summary (atomic read within this transaction)

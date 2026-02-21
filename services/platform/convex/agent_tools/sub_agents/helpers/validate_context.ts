@@ -4,8 +4,6 @@
 
 import type { ToolCtx } from '@convex-dev/agent';
 
-import type { SubAgentType } from './types';
-
 import { errorResponse, type ToolResponse } from './tool_response';
 
 interface ValidatedContext {
@@ -20,7 +18,7 @@ type ValidationResult =
 
 export function validateToolContext(
   ctx: ToolCtx,
-  toolName: SubAgentType,
+  toolName: string,
   options?: { requireUserId?: boolean },
 ): ValidationResult {
   const { organizationId, threadId, userId } = ctx;
