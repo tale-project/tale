@@ -9,6 +9,7 @@ import {
   useApproxTeamCount,
   useTeams,
 } from '@/app/features/settings/teams/hooks/queries';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -41,12 +42,13 @@ function TeamsSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
   const { data: memberContext, isLoading: isMemberLoading } =
-    useCurrentMemberContext(organizationId);
+    useCurrentMemberContext(organizationId, isAuthLoading || !isAuthenticated);
   const { data: count } = useApproxTeamCount(organizationId);
   const { teams } = useTeams();
 
-  if (isMemberLoading) {
+  if (isAuthLoading || isMemberLoading) {
     return (
       <TeamsTableSkeleton
         organizationId={organizationId}

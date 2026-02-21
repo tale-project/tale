@@ -32,7 +32,7 @@ import {
   useListWorkflowVersions,
 } from '@/app/features/automations/hooks/queries';
 import { useAutomationVersionNavigation } from '@/app/features/automations/hooks/use-automation-version-navigation';
-import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useAuth, useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -163,7 +163,11 @@ function AutomationDetailLayout() {
   const { data: automation, isLoading: isLoadingAutomation } =
     useWorkflow(automationId);
   const { steps, isLoading: isLoadingSteps } = useWorkflowSteps(amId);
-  const { data: memberContext } = useCurrentMemberContext(organizationId);
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+  const { data: memberContext } = useCurrentMemberContext(
+    organizationId,
+    isAuthLoading || !isAuthenticated,
+  );
   const isLoading = isLoadingAutomation || isLoadingSteps;
   const { data: versions } = useListWorkflowVersions(
     organizationId,

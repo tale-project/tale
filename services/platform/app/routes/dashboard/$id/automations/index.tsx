@@ -12,6 +12,7 @@ import {
   useAutomations,
   useApproxAutomationCount,
 } from '@/app/features/automations/hooks/queries';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -58,13 +59,14 @@ function AutomationsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
   const { data: memberContext, isLoading: isMemberLoading } =
-    useCurrentMemberContext(organizationId);
+    useCurrentMemberContext(organizationId, isAuthLoading || !isAuthenticated);
   const { data: count } = useApproxAutomationCount(organizationId);
   const { automations, isLoading: isAutomationsLoading } =
     useAutomations(organizationId);
 
-  if (isMemberLoading || isAutomationsLoading) {
+  if (isAuthLoading || isMemberLoading || isAutomationsLoading) {
     return (
       <ContentWrapper>
         <AutomationsTableSkeleton

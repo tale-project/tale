@@ -6,6 +6,7 @@ import { ApiKeysEmptyState } from '@/app/features/settings/api-keys/components/a
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
 import { ApiKeysTableSkeleton } from '@/app/features/settings/api-keys/components/api-keys-table-skeleton';
 import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -29,11 +30,12 @@ function ApiKeysSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
   const { data: memberContext, isLoading: isMemberLoading } =
-    useCurrentMemberContext(organizationId);
+    useCurrentMemberContext(organizationId, isAuthLoading || !isAuthenticated);
   const { data: apiKeys, isLoading } = useApiKeys(organizationId);
 
-  if (isMemberLoading || isLoading) {
+  if (isAuthLoading || isMemberLoading || isLoading) {
     return <ApiKeysTableSkeleton organizationId={organizationId} />;
   }
 

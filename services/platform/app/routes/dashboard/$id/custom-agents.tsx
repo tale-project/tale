@@ -8,6 +8,7 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -29,10 +30,13 @@ function CustomAgentsLayout() {
     shouldThrow: false,
   });
 
-  const { data: memberContext, isLoading } =
-    useCurrentMemberContext(organizationId);
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+  const { data: memberContext, isLoading } = useCurrentMemberContext(
+    organizationId,
+    isAuthLoading || !isAuthenticated,
+  );
 
-  if (isLoading) {
+  if (isAuthLoading || isLoading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <StickyHeader>
