@@ -253,6 +253,25 @@ describe('useAutoSave', () => {
       expect(result.current.status).toBe('saved');
     });
 
+    it('does not save when override data matches last saved value', async () => {
+      const { result, rerender } = renderHook(
+        (props: { data: { value: string } }) =>
+          useAutoSave({ data: props.data, onSave, mode: 'manual' }),
+        { initialProps: { data: { value: 'initial' } } },
+      );
+
+      rerender({ data: { value: 'changed' } });
+      await act(async () => {
+        await result.current.save();
+      });
+      expect(onSave).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await result.current.save({ value: 'changed' });
+      });
+      expect(onSave).toHaveBeenCalledTimes(1);
+    });
+
     it('does not save when data has not changed', async () => {
       const { result } = renderHook(
         (props: { data: { value: string } }) =>
