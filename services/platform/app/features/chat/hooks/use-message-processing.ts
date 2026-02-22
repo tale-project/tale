@@ -202,15 +202,20 @@ export function useMessageProcessing(
     return !hasTextAfterTool;
   }, [uiMessages]);
 
-  // Check if the last assistant message is still in a non-terminal state.
-  // Covers gaps where status transitions between 'streaming' and 'pending'
-  // would otherwise cause loading to flicker off.
+  // Check if the thread is waiting for an assistant response.
+  // Only hide loading when the newest message is a completed assistant response.
+  // This is the most stable signal — avoids gaps between tool call steps
+  // where individual message statuses might briefly be terminal.
   const hasIncompleteAssistantMessage = useMemo(() => {
     if (!uiMessages?.length) return false;
-    const lastAssistant = uiMessages.findLast((m) => m.role === 'assistant');
-    if (!lastAssistant) return false;
-    return (
-      lastAssistant.status !== 'success' && lastAssistant.status !== 'failed'
+
+    const newestMessage = uiMessages.reduce((a, b) =>
+      a._creationTime > b._creationTime ? a : b,
+    );
+
+    return !(
+      newestMessage.role === 'assistant' &&
+      (newestMessage.status === 'success' || newestMessage.status === 'failed')
     );
   }, [uiMessages]);
 

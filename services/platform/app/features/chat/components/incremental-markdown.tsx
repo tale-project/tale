@@ -58,6 +58,25 @@ import type {
 } from '@/lib/utils/markdown-types';
 
 // ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/** Tags that receive cursor wrappers — used to detect nesting and prevent double cursors */
+const CURSOR_ELIGIBLE_TAGS = new Set([
+  'p',
+  'li',
+  'td',
+  'th',
+  'pre',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+]);
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -165,7 +184,18 @@ const StreamingMarkdown = memo(
       );
 
       const createCursorWrapper = (
-        Tag: 'p' | 'li' | 'td' | 'th' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
+        Tag:
+          | 'p'
+          | 'li'
+          | 'td'
+          | 'th'
+          | 'pre'
+          | 'h1'
+          | 'h2'
+          | 'h3'
+          | 'h4'
+          | 'h5'
+          | 'h6',
         CustomComponent?: MarkdownComponentType,
       ) => {
         return function CursorWrapper({
@@ -173,14 +203,25 @@ const StreamingMarkdown = memo(
           children,
           ...props
         }: Record<string, unknown> & {
-          node?: { position?: { end?: { offset?: number } } };
+          node?: {
+            position?: { end?: { offset?: number } };
+            children?: { tagName?: string }[];
+          };
           children?: ReactNode;
         }) {
+          // Skip cursor on parent elements whose block-level children
+          // already handle it (e.g. <li> containing <p> in loose lists).
+          const hasCursorEligibleChild = node?.children?.some(
+            (child) => child.tagName && CURSOR_ELIGIBLE_TAGS.has(child.tagName),
+          );
+
           const isLastElement =
-            node?.position?.end?.offset === revealedLenRef.current ||
-            (node?.position?.end?.offset &&
-              revealedTextRef.current.slice(node.position.end.offset).trim() ===
-                '');
+            !hasCursorEligibleChild &&
+            (node?.position?.end?.offset === revealedLenRef.current ||
+              (node?.position?.end?.offset &&
+                revealedTextRef.current
+                  .slice(node.position.end.offset)
+                  .trim() === ''));
 
           if (CustomComponent) {
             return (
@@ -205,6 +246,7 @@ const StreamingMarkdown = memo(
         li: createCursorWrapper('li', components?.li),
         td: createCursorWrapper('td', components?.td),
         th: createCursorWrapper('th', components?.th),
+        pre: createCursorWrapper('pre', components?.pre),
         h1: createCursorWrapper('h1', components?.h1),
         h2: createCursorWrapper('h2', components?.h2),
         h3: createCursorWrapper('h3', components?.h3),
@@ -264,18 +306,15 @@ export function IncrementalMarkdown({
   className,
   showCursor,
 }: IncrementalMarkdownProps) {
-  // Split content at anchor position
+  // Split content at anchor position.
+  // Note: we intentionally do NOT consolidate all content into stable when
+  // streaming ends. Doing so causes a full markdown re-parse that produces
+  // slightly different DOM (e.g. separate lists become a single loose list),
+  // which changes the content height and triggers a visible scroll jump.
+  // Instead, the split stays at the current anchor — the streaming portion
+  // simply loses its cursor, a minimal DOM change with no height impact.
   const { stableContent, streamingContent, streamingRevealLength } =
     useMemo(() => {
-      // When fully revealed and no cursor needed, treat all content as stable
-      if (revealPosition >= content.length && !showCursor) {
-        return {
-          stableContent: content,
-          streamingContent: '',
-          streamingRevealLength: 0,
-        };
-      }
-
       // Ensure anchor doesn't exceed reveal position
       const effectiveAnchor = Math.min(anchorPosition, revealPosition);
 
@@ -291,7 +330,7 @@ export function IncrementalMarkdown({
         streamingContent: streaming,
         streamingRevealLength: revealedInStreaming,
       };
-    }, [content, anchorPosition, revealPosition, showCursor]);
+    }, [content, anchorPosition, revealPosition]);
 
   return (
     <div className={className}>

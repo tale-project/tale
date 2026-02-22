@@ -29,8 +29,21 @@ describe('parseMarkers', () => {
     });
   });
 
-  describe('all markers present', () => {
-    it('parses all five markers in order', () => {
+  describe('stripped markers (no special rendering)', () => {
+    it('strips [[CONCLUSION]] and renders content as plain', () => {
+      const text = `[[CONCLUSION]]
+Just a conclusion.`;
+
+      const result = parseMarkers(text, false);
+      expect(result.hasMarkers).toBe(true);
+      expect(result.sections).toHaveLength(1);
+      expect(result.sections[0]).toEqual({
+        type: 'plain',
+        content: 'Just a conclusion.',
+      });
+    });
+
+    it('strips all non-NEXT_STEPS markers and merges content as plain', () => {
       const text = `[[CONCLUSION]]
 The quick summary.
 
@@ -43,7 +56,36 @@ Extended details here.
 
 [[QUESTIONS]]
 1. What is your budget?
-2. Which region do you target?
+2. Which region do you target?`;
+
+      const result = parseMarkers(text, false);
+      expect(result.hasMarkers).toBe(true);
+      expect(result.sections).toHaveLength(1);
+      expect(result.sections[0].type).toBe('plain');
+      expect(result.sections[0].content).toContain('The quick summary.');
+      expect(result.sections[0].content).toContain('- Point one');
+      expect(result.sections[0].content).toContain('Extended details here.');
+      expect(result.sections[0].content).toContain('What is your budget?');
+    });
+
+    it('strips inline marker and keeps surrounding text', () => {
+      const text =
+        '好的，让我搜索。 [[CONCLUSION]] 成功获取到 WiseKey 的财报信息。';
+
+      const result = parseMarkers(text, false);
+      expect(result.hasMarkers).toBe(true);
+      expect(result.sections).toHaveLength(1);
+      expect(result.sections[0]).toEqual({
+        type: 'plain',
+        content: '好的，让我搜索。  成功获取到 WiseKey 的财报信息。',
+      });
+    });
+  });
+
+  describe('NEXT_STEPS marker (special rendering)', () => {
+    it('splits on [[NEXT_STEPS]] and creates a section', () => {
+      const text = `[[CONCLUSION]]
+The quick summary.
 
 [[NEXT_STEPS]]
 Ask about X
@@ -51,122 +93,31 @@ Ask about Y`;
 
       const result = parseMarkers(text, false);
       expect(result.hasMarkers).toBe(true);
-      expect(result.sections).toHaveLength(5);
+      expect(result.sections).toHaveLength(2);
       expect(result.sections[0]).toEqual({
-        type: 'CONCLUSION',
+        type: 'plain',
         content: 'The quick summary.',
       });
       expect(result.sections[1]).toEqual({
-        type: 'KEY_POINTS',
-        content: '- Point one\n- Point two',
-      });
-      expect(result.sections[2]).toEqual({
-        type: 'DETAILS',
-        content: 'Extended details here.',
-      });
-      expect(result.sections[3]).toEqual({
-        type: 'QUESTIONS',
-        content: '1. What is your budget?\n2. Which region do you target?',
-      });
-      expect(result.sections[4]).toEqual({
         type: 'NEXT_STEPS',
         content: 'Ask about X\nAsk about Y',
       });
     });
-  });
 
-  describe('partial markers', () => {
-    it('only some markers used', () => {
-      const text = `[[CONCLUSION]]
-Summary here.
-
-[[KEY_POINTS]]
-- Important point`;
-
-      const result = parseMarkers(text, false);
-      expect(result.hasMarkers).toBe(true);
-      expect(result.sections).toHaveLength(2);
-      expect(result.sections[0].type).toBe('CONCLUSION');
-      expect(result.sections[1].type).toBe('KEY_POINTS');
-    });
-
-    it('single marker only', () => {
-      const text = `[[CONCLUSION]]
-Just a conclusion.`;
+    it('handles NEXT_STEPS with no preceding content', () => {
+      const text = `[[NEXT_STEPS]]
+Ask about X`;
 
       const result = parseMarkers(text, false);
       expect(result.hasMarkers).toBe(true);
       expect(result.sections).toHaveLength(1);
       expect(result.sections[0]).toEqual({
-        type: 'CONCLUSION',
-        content: 'Just a conclusion.',
-      });
-    });
-  });
-
-  describe('text before first marker', () => {
-    it('includes preamble as plain section', () => {
-      const text = `Let me research that for you.
-
-[[CONCLUSION]]
-Here is the answer.`;
-
-      const result = parseMarkers(text, false);
-      expect(result.hasMarkers).toBe(true);
-      expect(result.sections).toHaveLength(2);
-      expect(result.sections[0]).toEqual({
-        type: 'plain',
-        content: 'Let me research that for you.',
-      });
-      expect(result.sections[1]).toEqual({
-        type: 'CONCLUSION',
-        content: 'Here is the answer.',
-      });
-    });
-  });
-
-  describe('inline markers (not on their own line)', () => {
-    it('parses marker placed inline with surrounding text', () => {
-      const text =
-        '好的，让我搜索。 [[CONCLUSION]] 成功获取到 WiseKey 的财报信息。';
-
-      const result = parseMarkers(text, false);
-      expect(result.hasMarkers).toBe(true);
-      expect(result.sections).toHaveLength(2);
-      expect(result.sections[0]).toEqual({
-        type: 'plain',
-        content: '好的，让我搜索。',
-      });
-      expect(result.sections[1]).toEqual({
-        type: 'CONCLUSION',
-        content: '成功获取到 WiseKey 的财报信息。',
+        type: 'NEXT_STEPS',
+        content: 'Ask about X',
       });
     });
 
-    it('parses multiple inline markers', () => {
-      const text =
-        'Preamble text [[CONCLUSION]] The summary. [[KEY_POINTS]] - Point one\n- Point two';
-
-      const result = parseMarkers(text, false);
-      expect(result.hasMarkers).toBe(true);
-      expect(result.sections).toHaveLength(3);
-      expect(result.sections[0]).toEqual({
-        type: 'plain',
-        content: 'Preamble text',
-      });
-      expect(result.sections[1]).toEqual({
-        type: 'CONCLUSION',
-        content: 'The summary.',
-      });
-      expect(result.sections[2]).toEqual({
-        type: 'KEY_POINTS',
-        content: '- Point one\n- Point two',
-      });
-    });
-  });
-
-  describe('empty content after marker', () => {
-    it('handles marker with no content after it', () => {
+    it('handles NEXT_STEPS with empty content', () => {
       const text = `[[CONCLUSION]]
 Summary.
 
@@ -176,13 +127,61 @@ Summary.
       expect(result.hasMarkers).toBe(true);
       expect(result.sections).toHaveLength(2);
       expect(result.sections[0]).toEqual({
-        type: 'CONCLUSION',
+        type: 'plain',
         content: 'Summary.',
       });
       expect(result.sections[1]).toEqual({
         type: 'NEXT_STEPS',
         content: '',
       });
+    });
+
+    it('handles all markers with NEXT_STEPS at the end', () => {
+      const text = `[[CONCLUSION]]
+The quick summary.
+
+[[KEY_POINTS]]
+- Point one
+- Point two
+
+[[DETAILS]]
+Extended details here.
+
+[[QUESTIONS]]
+1. What is your budget?
+
+[[NEXT_STEPS]]
+Ask about X
+Ask about Y`;
+
+      const result = parseMarkers(text, false);
+      expect(result.hasMarkers).toBe(true);
+      expect(result.sections).toHaveLength(2);
+      expect(result.sections[0].type).toBe('plain');
+      expect(result.sections[0].content).toContain('The quick summary.');
+      expect(result.sections[0].content).toContain('- Point one');
+      expect(result.sections[1]).toEqual({
+        type: 'NEXT_STEPS',
+        content: 'Ask about X\nAsk about Y',
+      });
+    });
+  });
+
+  describe('text before first marker', () => {
+    it('preserves preamble text when markers are stripped', () => {
+      const text = `Let me research that for you.
+
+[[CONCLUSION]]
+Here is the answer.`;
+
+      const result = parseMarkers(text, false);
+      expect(result.hasMarkers).toBe(true);
+      expect(result.sections).toHaveLength(1);
+      expect(result.sections[0].type).toBe('plain');
+      expect(result.sections[0].content).toContain(
+        'Let me research that for you.',
+      );
+      expect(result.sections[0].content).toContain('Here is the answer.');
     });
   });
 
@@ -191,7 +190,7 @@ Summary.
       const result = parseMarkers('Some plain text [[CONCLU', true);
       expect(result.hasMarkers).toBe(false);
       expect(result.sections).toEqual([
-        { type: 'plain', content: 'Some plain text ' },
+        { type: 'plain', content: 'Some plain text' },
       ]);
       expect(result.pendingText).toBe('[[CONCLU');
     });
@@ -200,7 +199,7 @@ Summary.
       const result = parseMarkers('Some text [[', true);
       expect(result.hasMarkers).toBe(false);
       expect(result.sections).toEqual([
-        { type: 'plain', content: 'Some text ' },
+        { type: 'plain', content: 'Some text' },
       ]);
       expect(result.pendingText).toBe('[[');
     });
@@ -220,7 +219,8 @@ The answer.`;
       const result = parseMarkers(text, true);
       expect(result.hasMarkers).toBe(true);
       expect(result.sections).toHaveLength(1);
-      expect(result.sections[0].type).toBe('CONCLUSION');
+      expect(result.sections[0].type).toBe('plain');
+      expect(result.sections[0].content).toBe('The answer.');
       expect(result.pendingText).toBe('');
     });
 
@@ -248,24 +248,26 @@ The answer.`;
       expect(r1.hasMarkers).toBe(false);
       expect(r1.sections[0].content).toBe('Working on it...');
 
-      // Phase 2: first marker appears
+      // Phase 2: stripped marker appears — still plain
       const r2 = parseMarkers(
         'Working on it...\n\n[[CONCLUSION]]\nHere is the',
         true,
       );
       expect(r2.hasMarkers).toBe(true);
+      expect(r2.sections).toHaveLength(1);
       expect(r2.sections[0].type).toBe('plain');
-      expect(r2.sections[1].type).toBe('CONCLUSION');
-      expect(r2.sections[1].content).toBe('Here is the');
+      expect(r2.sections[0].content).toContain('Here is the');
 
-      // Phase 3: second marker appears
+      // Phase 3: NEXT_STEPS appears — creates a split
       const r3 = parseMarkers(
-        'Working on it...\n\n[[CONCLUSION]]\nHere is the answer.\n\n[[KEY_POINTS]]\n- First',
+        'Working on it...\n\n[[CONCLUSION]]\nHere is the answer.\n\n[[NEXT_STEPS]]\nAsk about X',
         true,
       );
       expect(r3.hasMarkers).toBe(true);
-      expect(r3.sections).toHaveLength(3);
-      expect(r3.sections[2].type).toBe('KEY_POINTS');
+      expect(r3.sections).toHaveLength(2);
+      expect(r3.sections[0].type).toBe('plain');
+      expect(r3.sections[1].type).toBe('NEXT_STEPS');
+      expect(r3.sections[1].content).toBe('Ask about X');
     });
   });
 });
