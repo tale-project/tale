@@ -165,11 +165,13 @@ describe('useStreamBuffer', () => {
       const delta1 = len2 - len1;
       const delta2 = len3 - len2;
 
-      if (delta1 > 0 && delta2 > 0) {
-        // Allow ±80% tolerance for word-boundary snapping and rate ramping
-        expect(delta2).toBeGreaterThan(delta1 * 0.2);
-        expect(delta2).toBeLessThan(delta1 * 1.8);
-      }
+      // Ensure animation actually progressed in both intervals
+      expect(delta1).toBeGreaterThan(0);
+      expect(delta2).toBeGreaterThan(0);
+
+      // Allow ±80% tolerance for word-boundary snapping and rate ramping
+      expect(delta2).toBeGreaterThan(delta1 * 0.2);
+      expect(delta2).toBeLessThan(delta1 * 1.8);
     });
   });
 
