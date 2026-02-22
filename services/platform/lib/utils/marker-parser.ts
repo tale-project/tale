@@ -4,22 +4,19 @@
  * Parses structured markers from streaming AI responses.
  * Markers follow the format [[MARKER_NAME]] anywhere in the text.
  *
+ * Only [[NEXT_STEPS]] creates a structural section split (rendered as
+ * follow-up buttons). All other recognised markers ([[CONCLUSION]],
+ * [[KEY_POINTS]], [[DETAILS]], [[QUESTIONS]]) are silently stripped so
+ * their content flows as regular markdown.
+ *
  * During streaming, partial markers (e.g., "[[CONCLU") are held back
  * in `pendingText` to prevent flashing incomplete markers to the user.
  */
 
-const MARKERS = [
-  'CONCLUSION',
-  'KEY_POINTS',
-  'DETAILS',
-  'QUESTIONS',
-  'NEXT_STEPS',
-] as const;
-
-type MarkerType = (typeof MARKERS)[number];
+type SectionMarkerType = 'NEXT_STEPS';
 
 interface ParsedSection {
-  type: MarkerType | 'plain';
+  type: SectionMarkerType | 'plain';
   content: string;
 }
 
@@ -29,8 +26,16 @@ interface MarkerParseResult {
   pendingText: string;
 }
 
-const MARKER_REGEX =
+/** Matches any recognised marker — used for partial-marker detection */
+const ANY_MARKER_REGEX =
   /\[\[(CONCLUSION|KEY_POINTS|DETAILS|QUESTIONS|NEXT_STEPS)\]\]/;
+
+/** Markers that are stripped (not used for section splitting) */
+const STRIP_MARKER_REGEX =
+  /\[\[(CONCLUSION|KEY_POINTS|DETAILS|QUESTIONS)\]\]\n?/g;
+
+/** The only marker that creates a structural split */
+const NEXT_STEPS_REGEX = /\[\[NEXT_STEPS\]\]/;
 
 /** Max length of a partial marker: "[[NEXT_STEPS]]" = 14 chars */
 const MAX_MARKER_LENGTH = 14;
@@ -55,10 +60,6 @@ function trimPendingText(text: string): { clean: string; pending: string } {
     clean: text.slice(0, partialStart),
     pending: text.slice(partialStart),
   };
-}
-
-function isValidMarker(name: string): name is MarkerType {
-  return (MARKERS as readonly string[]).includes(name);
 }
 
 /**
@@ -87,52 +88,37 @@ function parseMarkers(text: string, isStreaming: boolean): MarkerParseResult {
     return { hasMarkers: false, sections: [], pendingText };
   }
 
-  // Check if any markers exist
-  if (!MARKER_REGEX.test(textToParse)) {
+  // Strip non-structural markers (CONCLUSION, KEY_POINTS, DETAILS, QUESTIONS)
+  const stripped = textToParse.replace(STRIP_MARKER_REGEX, '');
+
+  // Check if NEXT_STEPS marker exists
+  if (!NEXT_STEPS_REGEX.test(stripped)) {
+    const content = stripped.trim();
     return {
-      hasMarkers: false,
-      sections: [{ type: 'plain', content: textToParse }],
+      hasMarkers: ANY_MARKER_REGEX.test(textToParse),
+      sections: content ? [{ type: 'plain', content }] : [],
       pendingText,
     };
   }
 
-  // Split by markers using a global version of the regex
-  const splitRegex =
-    /\[\[(CONCLUSION|KEY_POINTS|DETAILS|QUESTIONS|NEXT_STEPS)\]\]/g;
+  // Split on [[NEXT_STEPS]]
   const sections: ParsedSection[] = [];
+  const splitRegex = /\[\[NEXT_STEPS\]\]/g;
 
   let lastIndex = 0;
-  let lastMarker: MarkerType | null = null;
   let match: RegExpExecArray | null;
 
-  while ((match = splitRegex.exec(textToParse)) !== null) {
-    const markerName = match[1];
-
-    if (!isValidMarker(markerName)) continue;
-
-    // Content before this marker
-    const contentBefore = textToParse.slice(lastIndex, match.index);
-
-    if (lastMarker === null) {
-      // Text before the first marker → plain section
-      const trimmed = contentBefore.trim();
-      if (trimmed) {
-        sections.push({ type: 'plain', content: trimmed });
-      }
-    } else {
-      // Content of the previous marker section
-      sections.push({ type: lastMarker, content: contentBefore.trim() });
+  while ((match = splitRegex.exec(stripped)) !== null) {
+    const contentBefore = stripped.slice(lastIndex, match.index).trim();
+    if (contentBefore) {
+      sections.push({ type: 'plain', content: contentBefore });
     }
-
-    lastMarker = markerName;
     lastIndex = match.index + match[0].length;
   }
 
-  // Remaining content after the last marker
-  if (lastMarker !== null) {
-    const remaining = textToParse.slice(lastIndex).trim();
-    sections.push({ type: lastMarker, content: remaining });
-  }
+  // Remaining content after [[NEXT_STEPS]]
+  const remaining = stripped.slice(lastIndex).trim();
+  sections.push({ type: 'NEXT_STEPS', content: remaining });
 
   return {
     hasMarkers: true,

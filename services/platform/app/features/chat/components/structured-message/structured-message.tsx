@@ -3,13 +3,11 @@
 /**
  * Structured Message Orchestrator
  *
- * Parses AI response text for structured markers ([[CONCLUSION]], [[KEY_POINTS]],
- * [[DETAILS]], [[QUESTIONS]], [[NEXT_STEPS]]) and renders each section with appropriate UI.
+ * Parses AI response text for the [[NEXT_STEPS]] marker and renders it as
+ * follow-up buttons. All other recognised markers ([[CONCLUSION]], etc.)
+ * are silently stripped so their content renders as regular markdown.
  *
  * Falls back to plain TypewriterText when no markers are detected.
- *
- * Each structured section gets its own TypewriterText instance for independent
- * animation. Only the last section with growing content is actively streaming.
  */
 
 import { memo, useMemo } from 'react';
@@ -23,13 +21,7 @@ import {
   markdownWrapperStyles,
 } from '../message-bubble/markdown-renderer';
 import { TypewriterText } from '../typewriter-text';
-import {
-  ConclusionSection,
-  KeyPointsSection,
-  DetailsSection,
-  QuestionsSection,
-  NextStepsSection,
-} from './section-renderers';
+import { NextStepsSection } from './section-renderers';
 
 // ============================================================================
 // TYPES
@@ -52,38 +44,6 @@ function renderSection(
   onSendFollowUp?: (message: string) => void,
 ) {
   switch (section.type) {
-    case 'CONCLUSION':
-      return (
-        <ConclusionSection
-          key={`section-${index}`}
-          content={section.content}
-          isStreaming={isActiveSection}
-        />
-      );
-    case 'KEY_POINTS':
-      return (
-        <KeyPointsSection
-          key={`section-${index}`}
-          content={section.content}
-          isStreaming={isActiveSection}
-        />
-      );
-    case 'DETAILS':
-      return (
-        <DetailsSection
-          key={`section-${index}`}
-          content={section.content}
-          isStreaming={isActiveSection}
-        />
-      );
-    case 'QUESTIONS':
-      return (
-        <QuestionsSection
-          key={`section-${index}`}
-          content={section.content}
-          isStreaming={isActiveSection}
-        />
-      );
     case 'NEXT_STEPS':
       return (
         <NextStepsSection

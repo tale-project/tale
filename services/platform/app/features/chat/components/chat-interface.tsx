@@ -79,9 +79,6 @@ export function ChatInterface({
     canLoadMore,
     isLoadingMore,
     streamingMessage,
-    pendingToolResponse,
-    hasActiveTools,
-    isProcessingToolResult,
     hasIncompleteAssistantMessage,
   } = useMessageProcessing(threadId);
 
@@ -265,11 +262,7 @@ export function ChatInterface({
             canLoadMore={canLoadMore}
             isLoadingMore={isLoadingMore}
             loadMore={loadMore}
-            isPending={isPending}
             streamingMessage={streamingMessage}
-            pendingToolResponse={pendingToolResponse}
-            hasActiveTools={hasActiveTools}
-            isProcessingToolResult={isProcessingToolResult}
             hasIncompleteAssistantMessage={hasIncompleteAssistantMessage}
             aiResponseAreaRef={aiResponseAreaRef}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
