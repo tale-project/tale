@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 import { useRef } from 'react';
 
@@ -13,17 +12,9 @@ import { AbilityContext } from '@/app/context/ability-context';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
-import { api } from '@/convex/_generated/api';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
 
 export const Route = createFileRoute('/dashboard/$id')({
-  loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.members.queries.getCurrentMemberContext, {
-        organizationId: params.id,
-      }),
-    );
-  },
   component: DashboardLayout,
 });
 
@@ -37,9 +28,8 @@ function DashboardLayout() {
   );
 
   // Preserve the last known ability across auth token refreshes / WebSocket reconnections.
-  // When convexQuery args change to 'skip', the queryKey changes and data becomes undefined,
-  // which would cause role-gated nav items to briefly disappear.
-  // Only recompute when the role value actually changes to keep abilityRef.current stable.
+  // useCurrentMemberContext returns cached data during auth loading (enabled: false),
+  // so memberContext stays defined. Only recompute when the role actually changes.
   const abilityRef = useRef<AppAbility>(defineAbilityFor(memberContext?.role));
   const lastRoleRef = useRef<string | undefined>(memberContext?.role);
   if (

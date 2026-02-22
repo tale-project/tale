@@ -83,4 +83,33 @@ describe('useConvexQuery', () => {
     expect(passedOptions).not.toHaveProperty('staleTime');
     expect(passedOptions).not.toHaveProperty('gcTime');
   });
+
+  it('merges enabled option into useQuery call', () => {
+    const args = { organizationId: 'org-123' };
+
+    useConvexQuery(mockQueryRef, args, { enabled: false });
+
+    const passedOptions = mockUseQuery.mock.calls[0]?.[0] as {
+      enabled?: boolean;
+    };
+    expect(passedOptions?.enabled).toBe(false);
+  });
+
+  it('enabled option overrides convexQuery enabled when provided', () => {
+    // Even with normal args (which would produce enabled:true from convexQuery),
+    // passing enabled:false disables the query while keeping the stable query key.
+    useConvexQuery(
+      mockQueryRef,
+      { organizationId: 'org-123' },
+      { enabled: false },
+    );
+
+    expect(mockConvexQuery).toHaveBeenCalledWith(mockQueryRef, {
+      organizationId: 'org-123',
+    });
+    const passedOptions = mockUseQuery.mock.calls[0]?.[0] as {
+      enabled?: boolean;
+    };
+    expect(passedOptions?.enabled).toBe(false);
+  });
 });

@@ -8,6 +8,7 @@ type EmptyObject = Record<string, never>;
 interface ConvexQueryOptions {
   staleTime?: number;
   gcTime?: number;
+  enabled?: boolean;
 }
 
 type QueryArgs<Func extends FunctionReference<'query'>> =
