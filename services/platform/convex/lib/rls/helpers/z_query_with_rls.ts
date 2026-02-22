@@ -13,7 +13,8 @@ import { zCustomQuery } from 'convex-helpers/server/zod4';
 import type { DataModel } from '../../../_generated/dataModel';
 
 import { query, type QueryCtx } from '../../../_generated/server';
-import { getAuthenticatedUser } from '../auth/get_authenticated_user';
+import { getUserTeamIds } from '../../get_user_teams';
+import { getAuthUserIdentity } from '../auth/get_auth_user_identity';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import { rlsRules } from './rls_rules';
 
@@ -46,9 +47,16 @@ const rlsConfig: RLSConfig = {
 export const zQueryWithRLS = zCustomQuery(
   query,
   customCtx(async (ctx: QueryCtx) => {
-    const rules = await rlsRules(ctx);
-    const user = await getAuthenticatedUser(ctx);
-    const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
+    const user = await getAuthUserIdentity(ctx);
+
+    const [userOrganizations, userTeamIds] = user
+      ? await Promise.all([
+          getUserOrganizations(ctx, user),
+          getUserTeamIds(ctx, user.userId).then((ids) => new Set(ids)),
+        ])
+      : [[], new Set<string>()];
+
+    const rules = await rlsRules(ctx, { user, userOrganizations, userTeamIds });
 
     return {
       db: wrapDatabaseReader<

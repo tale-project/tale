@@ -15,7 +15,7 @@ import type {
 import { authorizeRls } from '../../../auth';
 import { getUserTeamIds } from '../../get_user_teams';
 import { hasTeamAccess } from '../../team_access';
-import { getAuthenticatedUser } from '../auth/get_authenticated_user';
+import { getAuthUserIdentity } from '../auth/get_auth_user_identity';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 
 /**
@@ -32,10 +32,11 @@ export async function rlsRules(
       role: 'disabled' | 'member' | 'editor' | 'developer' | 'admin';
       member: OrganizationMember;
     }>;
+    userTeamIds: Set<string>;
   },
 ): Promise<Rules<RLSRuleContext, DataModel>> {
   // Use pre-fetched data if available, otherwise fetch
-  const user = prefetchedData?.user ?? (await getAuthenticatedUser(ctx));
+  const user = prefetchedData?.user ?? (await getAuthUserIdentity(ctx));
   const userOrganizations =
     prefetchedData?.userOrganizations ??
     (user ? await getUserOrganizations(ctx, user) : []);
@@ -43,10 +44,13 @@ export async function rlsRules(
     userOrganizations.map((org) => org.organizationId),
   );
 
-  // Get user's team IDs for team-based access control on documents
-  const userTeamIds = user?.userId
-    ? new Set(await getUserTeamIds(ctx, user.userId))
-    : new Set<string>();
+  // Use pre-fetched team IDs if available (parallel fetch in queryWithRLS),
+  // otherwise fetch sequentially as fallback
+  const userTeamIds =
+    prefetchedData?.userTeamIds ??
+    (user?.userId
+      ? new Set(await getUserTeamIds(ctx, user.userId))
+      : new Set<string>());
 
   // Helper to check team access for documents
   // Uses unified teamId + sharedWithTeamIds fields with teamTags fallback
