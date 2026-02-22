@@ -119,12 +119,12 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@storybook/addon-a11y": "10.2.5",
-    "@storybook/addon-docs": "10.2.5",
-    "@storybook/addon-themes": "10.2.5",
-    "@storybook/addon-vitest": "10.2.5",
-    "@storybook/react": "10.2.5",
-    "@storybook/react-vite": "10.2.5",
+    "@storybook/addon-a11y": "10.2.10",
+    "@storybook/addon-docs": "10.2.10",
+    "@storybook/addon-themes": "10.2.10",
+    "@storybook/addon-vitest": "10.2.10",
+    "@storybook/react": "10.2.10",
+    "@storybook/react-vite": "10.2.10",
     "@tanstack/router-plugin": "^1.158.0",
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "6.9.1",
@@ -149,7 +149,7 @@
     "convex-test": "0.0.41",
     "jsdom": "28.1.0",
     "postcss-load-config": "6.0.1",
-    "storybook": "10.2.5",
+    "storybook": "10.2.10",
     "tree-kill": "1.2.2",
     "vite-tsconfig-paths": "6.1.1",
     "vitest-axe": "1.0.0-pre.5"
