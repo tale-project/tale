@@ -25,11 +25,14 @@ export interface Thread {
 
 const THREADS_PAGE_SIZE = 20;
 
-export function useThreads() {
+export function useThreads({ skip = false } = {}) {
   const { isAuthenticated } = useConvexAuth();
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- paginationOpts is optional for defensive handling of Convex reconnection edge cases; usePaginatedQuery always provides it at runtime
   const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
-    api.threads.queries.listThreads,
-    isAuthenticated ? {} : 'skip',
+    api.threads.queries.listThreads as Parameters<
+      typeof useCachedPaginatedQuery
+    >[0],
+    isAuthenticated && !skip ? {} : 'skip',
     { initialNumItems: THREADS_PAGE_SIZE },
   );
 

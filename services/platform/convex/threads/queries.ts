@@ -6,9 +6,12 @@ import { getAuthUserIdentity } from '../lib/rls';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
 import { listThreads as listThreadsHelper } from './list_threads';
 
+// Defensive: paginationOpts is optional because the Convex client occasionally
+// replays subscriptions with empty args ({}) during WebSocket reconnection or
+// token refresh. usePaginatedQuery always provides paginationOpts at runtime.
 export const listThreads = query({
   args: {
-    paginationOpts: paginationOptsValidator,
+    paginationOpts: v.optional(paginationOptsValidator),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -22,7 +25,7 @@ export const listThreads = query({
 
     return await listThreadsHelper(ctx, {
       userId: authUser.userId,
-      paginationOpts: args.paginationOpts,
+      paginationOpts: args.paginationOpts ?? { cursor: null, numItems: 20 },
     });
   },
 });
