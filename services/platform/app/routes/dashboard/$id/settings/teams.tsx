@@ -8,6 +8,7 @@ import {
   useApproxTeamCount,
   useTeams,
 } from '@/app/features/settings/teams/hooks/queries';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
@@ -43,15 +44,18 @@ function TeamsSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
+  const ability = useAbility();
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { data: memberContext, isLoading: isMemberLoading } =
-    useCurrentMemberContext(organizationId, isAuthLoading || !isAuthenticated);
+  const { isLoading: isMemberLoading } = useCurrentMemberContext(
+    organizationId,
+    isAuthLoading || !isAuthenticated,
+  );
   const { data: count } = useApproxTeamCount(organizationId);
   const { teams } = useTeams();
 
   if (isAuthLoading || isMemberLoading || count === undefined) return null;
 
-  if (!memberContext?.isAdmin) {
+  if (ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={t('teams')} />;
   }
 

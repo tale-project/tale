@@ -11,6 +11,7 @@ import {
   useIntegrations,
   useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
@@ -86,9 +87,12 @@ function IntegrationsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
+  const ability = useAbility();
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { data: memberContext, isLoading: isMemberLoading } =
-    useCurrentMemberContext(organizationId, isAuthLoading || !isAuthenticated);
+  const { isLoading: isMemberLoading } = useCurrentMemberContext(
+    organizationId,
+    isAuthLoading || !isAuthenticated,
+  );
   const { integrations, isLoading: isIntegrationsLoading } =
     useIntegrations(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
@@ -97,16 +101,12 @@ function IntegrationsPage() {
     isAuthLoading ||
     isMemberLoading ||
     isIntegrationsLoading ||
-    isSsoLoading ||
-    !memberContext
+    isSsoLoading
   ) {
     return <IntegrationsSkeleton />;
   }
 
-  const userRole = (memberContext.role ?? '').toLowerCase();
-  const hasAccess = userRole === 'admin' || userRole === 'developer';
-
-  if (!hasAccess) {
+  if (ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('integrations')} />;
   }
 

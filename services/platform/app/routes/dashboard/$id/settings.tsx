@@ -26,7 +26,7 @@ function SettingsLayout() {
   const { t } = useT('settings');
 
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { data: userContext, isLoading } = useCurrentMemberContext(
+  const { isLoading } = useCurrentMemberContext(
     organizationId,
     isAuthLoading || !isAuthenticated,
   );
@@ -51,20 +51,13 @@ function SettingsLayout() {
     );
   }
 
-  const userRole = userContext?.role ?? 'member';
-  const showAccountTab = true;
-
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       <StickyHeader>
         <AdaptiveHeaderRoot standalone={false}>
           <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
         </AdaptiveHeaderRoot>
-        <SettingsNavigation
-          organizationId={organizationId}
-          userRole={userRole}
-          showAccountTab={showAccountTab}
-        />
+        <SettingsNavigation organizationId={organizationId} />
       </StickyHeader>
       <LayoutErrorBoundary organizationId={organizationId}>
         <ContentWrapper className="p-4">

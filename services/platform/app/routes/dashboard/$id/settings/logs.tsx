@@ -9,6 +9,7 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
@@ -63,9 +64,12 @@ function LogsPage() {
   const { t } = useT('settings');
   const { t: tAccess } = useT('accessDenied');
 
+  const ability = useAbility();
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { data: memberContext, isLoading: isMemberLoading } =
-    useCurrentMemberContext(organizationId, isAuthLoading || !isAuthenticated);
+  const { isLoading: isMemberLoading } = useCurrentMemberContext(
+    organizationId,
+    isAuthLoading || !isAuthenticated,
+  );
 
   const paginatedResult = useListAuditLogsPaginated({
     organizationId,
@@ -77,7 +81,7 @@ function LogsPage() {
     return <LogsSkeleton />;
   }
 
-  if (!memberContext || !memberContext.isAdmin) {
+  if (ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={tAccess('organization')} />;
   }
 

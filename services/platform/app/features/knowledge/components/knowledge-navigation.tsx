@@ -8,7 +8,6 @@ import { useT } from '@/lib/i18n/client';
 
 interface KnowledgeNavigationProps {
   organizationId: string;
-  userRole?: string | null;
 }
 
 type KnowledgeLabelKey =
@@ -21,7 +20,6 @@ type KnowledgeLabelKey =
 
 export function KnowledgeNavigation({
   organizationId,
-  userRole,
 }: KnowledgeNavigationProps) {
   const { t } = useT('knowledge');
   const { t: tCommon } = useT('common');
@@ -64,7 +62,6 @@ export function KnowledgeNavigation({
   return (
     <TabNavigation
       items={navigationItems}
-      userRole={userRole}
       standalone={false}
       className="h-12 py-3"
       ariaLabel={tCommon('aria.knowledgeNavigation')}

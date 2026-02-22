@@ -8,7 +8,6 @@ import { useT } from '@/lib/i18n/client';
 
 interface SettingsNavigationProps {
   organizationId: string;
-  userRole?: string | null;
   showAccountTab?: boolean;
 }
 
@@ -22,7 +21,6 @@ type SettingsLabelKey =
 
 export function SettingsNavigation({
   organizationId,
-  userRole,
   showAccountTab = true,
 }: SettingsNavigationProps) {
   const { t } = useT('navigation');
@@ -33,31 +31,31 @@ export function SettingsNavigation({
       labelKey: 'organization',
       label: t('organization'),
       href: `/dashboard/${organizationId}/settings/organization`,
-      roles: ['admin'],
+      can: ['read', 'orgSettings'],
     },
     {
       labelKey: 'teams',
       label: t('teams'),
       href: `/dashboard/${organizationId}/settings/teams`,
-      roles: ['admin'],
+      can: ['read', 'orgSettings'],
     },
     {
       labelKey: 'integrations',
       label: t('integrations'),
       href: `/dashboard/${organizationId}/settings/integrations`,
-      roles: ['admin', 'developer'],
+      can: ['read', 'developerSettings'],
     },
     {
       labelKey: 'apiKeys',
       label: t('apiKeys'),
       href: `/dashboard/${organizationId}/settings/api-keys`,
-      roles: ['admin', 'developer'],
+      can: ['read', 'developerSettings'],
     },
     {
       labelKey: 'branding',
       label: t('branding'),
       href: `/dashboard/${organizationId}/settings/branding`,
-      roles: ['admin'],
+      can: ['read', 'orgSettings'],
     },
     {
       labelKey: 'account',
@@ -73,7 +71,6 @@ export function SettingsNavigation({
   return (
     <TabNavigation
       items={navigationItems}
-      userRole={userRole}
       matchMode="exact"
       standalone={false}
       className="h-12 py-3"

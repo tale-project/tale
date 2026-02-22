@@ -1,4 +1,4 @@
-export type { Role } from '../../lib/shared/schemas/users';
+export type { PlatformRole as Role } from '../../lib/shared/schemas/users';
 
 export interface CreateUserWithoutSessionArgs {
   email: string;

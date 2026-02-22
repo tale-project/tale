@@ -2,6 +2,13 @@ import type { Meta, StoryObj } from '@storybook/react';
 
 import { Plus } from 'lucide-react';
 
+import { AbilityContext } from '@/app/context/ability-context';
+import {
+  defineAbilityFor,
+  type AppAction,
+  type AppSubject,
+} from '@/lib/permissions/ability';
+
 import { Button } from '../primitives/button';
 import { TabNavigation } from './tab-navigation';
 
@@ -93,41 +100,50 @@ export const ExactMatch: Story = {
   },
 };
 
-export const WithRoles: Story = {
+const itemsWithAbilityCheck = [
+  { label: 'Overview', href: '/dashboard/overview' },
+  { label: 'Analytics', href: '/dashboard/analytics' },
+  {
+    label: 'Admin',
+    href: '/dashboard/admin',
+    can: ['read', 'orgSettings'] as [AppAction, AppSubject],
+  },
+  { label: 'Settings', href: '/dashboard/settings' },
+];
+
+export const WithAdminAbility: Story = {
+  render: (args) => (
+    <AbilityContext.Provider value={defineAbilityFor('admin')}>
+      <TabNavigation {...args} />
+    </AbilityContext.Provider>
+  ),
   args: {
-    items: [
-      { label: 'Overview', href: '/dashboard/overview' },
-      { label: 'Analytics', href: '/dashboard/analytics' },
-      { label: 'Admin', href: '/dashboard/admin', roles: ['admin'] },
-      { label: 'Settings', href: '/dashboard/settings' },
-    ],
-    userRole: 'admin',
-    ariaLabel: 'Role-based navigation',
+    items: itemsWithAbilityCheck,
+    ariaLabel: 'Ability-based navigation (admin)',
   },
   parameters: {
     docs: {
       description: {
-        story: 'Tabs can be hidden based on user roles.',
+        story: 'All tabs visible for admin — including the org settings tab.',
       },
     },
   },
 };
 
-export const WithoutAdminRole: Story = {
+export const WithMemberAbility: Story = {
+  render: (args) => (
+    <AbilityContext.Provider value={defineAbilityFor('member')}>
+      <TabNavigation {...args} />
+    </AbilityContext.Provider>
+  ),
   args: {
-    items: [
-      { label: 'Overview', href: '/dashboard/overview' },
-      { label: 'Analytics', href: '/dashboard/analytics' },
-      { label: 'Admin', href: '/dashboard/admin', roles: ['admin'] },
-      { label: 'Settings', href: '/dashboard/settings' },
-    ],
-    userRole: 'member',
-    ariaLabel: 'Role-based navigation',
+    items: itemsWithAbilityCheck,
+    ariaLabel: 'Ability-based navigation (member)',
   },
   parameters: {
     docs: {
       description: {
-        story: 'Admin tab is hidden for non-admin users.',
+        story: 'The org settings tab is hidden for members.',
       },
     },
   },
