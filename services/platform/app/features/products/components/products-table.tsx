@@ -18,19 +18,19 @@ import { ProductsActionMenu } from './products-action-menu';
 
 type Product = Doc<'products'>;
 
-export interface ProductTableProps {
+export interface ProductsTableProps {
   organizationId: string;
   paginatedResult: UsePaginatedQueryResult<Product>;
   status?: string;
 }
 
-export function ProductTable({
+export function ProductsTable({
   organizationId,
   paginatedResult,
   status,
-}: ProductTableProps) {
+}: ProductsTableProps) {
   const navigate = useNavigate();
-  const { t: tProducts } = useT('products');
+  const { t: tEmpty } = useT('emptyStates');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
 
@@ -105,8 +105,8 @@ export function ProductTable({
       actionMenu={<ProductsActionMenu organizationId={organizationId} />}
       emptyState={{
         icon: Package,
-        title: tProducts('emptyState.title'),
-        description: tProducts('emptyState.description'),
+        title: tEmpty('products.title'),
+        description: tEmpty('products.description'),
       }}
       {...list.tableProps}
     />

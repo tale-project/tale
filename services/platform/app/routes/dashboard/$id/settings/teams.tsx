@@ -4,7 +4,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { TeamsEmptyState } from '@/app/features/settings/teams/components/teams-empty-state';
 import { TeamsTable } from '@/app/features/settings/teams/components/teams-table';
-import { TeamsTableSkeleton } from '@/app/features/settings/teams/components/teams-table-skeleton';
 import {
   useApproxTeamCount,
   useTeams,
@@ -19,6 +18,8 @@ export const Route = createFileRoute('/dashboard/$id/settings/teams')({
   head: () => ({
     meta: seo('teams'),
   }),
+  pendingComponent: () => null,
+  pendingMs: 0,
   loader: async ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.members.queries.getMyTeams, {
@@ -48,21 +49,10 @@ function TeamsSettingsPage() {
   const { data: count } = useApproxTeamCount(organizationId);
   const { teams } = useTeams();
 
-  if (isAuthLoading || isMemberLoading) {
-    return (
-      <TeamsTableSkeleton
-        organizationId={organizationId}
-        rows={Math.min(count ?? 10, 10)}
-      />
-    );
-  }
+  if (isAuthLoading || isMemberLoading || count === undefined) return null;
 
-  if (!memberContext || !memberContext.isAdmin) {
+  if (!memberContext?.isAdmin) {
     return <AccessDenied message={t('teams')} />;
-  }
-
-  if (count === undefined) {
-    return <TeamsTableSkeleton organizationId={organizationId} rows={10} />;
   }
 
   if (count === 0) {

@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
@@ -7,6 +8,7 @@ import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { queryWithRLS } from '../lib/rls';
 import { executeDryRun } from '../workflow_engine/execution/dry_run_executor';
 import { listAutomations as listAutomationsHandler } from '../workflows/definitions/list_automations';
+import { listAutomationsPaginated as listAutomationsPaginatedHelper } from '../workflows/definitions/list_automations_paginated';
 
 type WorkflowDefinition = Doc<'wfDefinitions'>;
 
@@ -72,6 +74,16 @@ export const listAutomations = queryWithRLS({
   },
   handler: async (ctx, args) => {
     return await listAutomationsHandler(ctx, args);
+  },
+});
+
+export const listAutomationsPaginated = queryWithRLS({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await listAutomationsPaginatedHelper(ctx, args);
   },
 });
 

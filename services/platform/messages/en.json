@@ -2787,7 +2787,8 @@
     "organization": "You need Admin permissions to access organization settings.",
     "teams": "You need Admin permissions to access team settings.",
     "customAgents": "You need Admin or Developer permissions to manage custom agents.",
-    "branding": "You need Admin permissions to access branding settings."
+    "branding": "You need Admin permissions to access branding settings.",
+    "knowledge": "You need Editor, Developer, or Admin permissions to access knowledge."
   },
   "metadata": {
     "suffix": "Tale",
@@ -2863,6 +2864,10 @@
     "teams": {
       "title": "Teams",
       "description": "Manage teams within your organization."
+    },
+    "customAgents": {
+      "title": "Custom agents",
+      "description": "Manage custom AI agents for your organization."
     },
     "integrations": {
       "title": "Integrations",

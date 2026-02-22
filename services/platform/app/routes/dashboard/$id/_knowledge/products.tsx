@@ -2,8 +2,8 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import { ProductTable } from '@/app/features/products/components/product-table';
 import { ProductsEmptyState } from '@/app/features/products/components/products-empty-state';
+import { ProductsTable } from '@/app/features/products/components/products-table';
 import {
   useApproxProductCount,
   useListProductsPaginated,
@@ -22,6 +22,8 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/products')({
     meta: seo('products'),
   }),
   validateSearch: searchSchema,
+  pendingComponent: () => null,
+  pendingMs: 0,
   loader: async ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.products.queries.listProducts, {
@@ -50,12 +52,14 @@ function ProductsPage() {
     initialNumItems: 10,
   });
 
+  if (count === undefined) return null;
+
   if (count === 0) {
     return <ProductsEmptyState organizationId={organizationId} />;
   }
 
   return (
-    <ProductTable
+    <ProductsTable
       organizationId={organizationId}
       paginatedResult={paginatedResult}
       status={search.status}

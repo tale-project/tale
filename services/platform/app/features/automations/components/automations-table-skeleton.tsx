@@ -2,8 +2,8 @@
 
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 
+import { useAutomationsTableConfig } from '../hooks/use-automations-table-config';
 import { AutomationsActionMenu } from './automations-action-menu';
-import { useAutomationsTableConfig } from './use-automations-table-config';
 
 interface AutomationsTableSkeletonProps {
   organizationId: string;

@@ -24,6 +24,8 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')(
       meta: seo('toneOfVoice'),
     }),
     validateSearch: searchSchema,
+    pendingComponent: () => null,
+    pendingMs: 0,
     loader: async ({ context, params }) => {
       void context.queryClient.prefetchQuery(
         convexQuery(api.tone_of_voice.queries.getToneOfVoiceWithExamples, {
@@ -89,6 +91,8 @@ function ToneOfVoicePage() {
   const { data: exampleCount } = useApproxExampleMessageCount(organizationId);
   const { data: toneOfVoice, isLoading: isToneLoading } =
     useToneOfVoiceWithExamples(organizationId);
+
+  if (exampleCount === undefined) return null;
 
   if (isToneLoading) {
     return (

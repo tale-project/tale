@@ -21,6 +21,8 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/websites')({
     meta: seo('websites'),
   }),
   validateSearch: searchSchema,
+  pendingComponent: () => null,
+  pendingMs: 0,
   loader: async ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.websites.queries.listWebsites, {
@@ -47,6 +49,8 @@ function WebsitesPage() {
     status: search.status,
     initialNumItems: 10,
   });
+
+  if (count === undefined) return null;
 
   if (count === 0) {
     return <WebsitesEmptyState organizationId={organizationId} />;

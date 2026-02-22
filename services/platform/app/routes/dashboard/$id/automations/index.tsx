@@ -1,27 +1,30 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Workflow, Sparkles } from 'lucide-react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { ContentWrapper } from '@/app/components/layout/content-wrapper';
-import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
-import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
-import { AutomationsClient } from '@/app/features/automations/components/automations-client';
-import { AutomationsTableSkeleton } from '@/app/features/automations/components/automations-table-skeleton';
+import { AutomationsEmptyState } from '@/app/features/automations/components/automations-empty-state';
+import { AutomationsTable } from '@/app/features/automations/components/automations-table';
 import {
-  useAutomations,
   useApproxAutomationCount,
+  useListAutomationsPaginated,
 } from '@/app/features/automations/hooks/queries';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/automations/')({
+  head: () => ({
+    meta: seo('automations'),
+  }),
+  pendingComponent: () => null,
+  pendingMs: 0,
   loader: async ({ context, params }) => {
     void context.queryClient.prefetchQuery(
-      convexQuery(api.wf_definitions.queries.listAutomations, {
+      convexQuery(api.wf_definitions.queries.listAutomationsPaginated, {
         organizationId: params.id,
+        paginationOpts: { numItems: 10, cursor: null },
       }),
     );
     await context.queryClient.ensureQueryData(
@@ -33,28 +36,6 @@ export const Route = createFileRoute('/dashboard/$id/automations/')({
   component: AutomationsPage,
 });
 
-function AutomationsEmptyState({ organizationId }: { organizationId: string }) {
-  const { t: tEmpty } = useT('emptyStates');
-  const { t: tAutomations } = useT('automations');
-
-  return (
-    <ContentWrapper className="p-4">
-      <DataTableEmptyState
-        icon={Workflow}
-        title={tEmpty('automations.title')}
-        description={tEmpty('automations.description')}
-        actionMenu={
-          <DataTableActionMenu
-            label={tAutomations('createWithAI')}
-            icon={Sparkles}
-            href={`/dashboard/${organizationId}/chat`}
-          />
-        }
-      />
-    </ContentWrapper>
-  );
-}
-
 function AutomationsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
@@ -63,22 +44,18 @@ function AutomationsPage() {
   const { data: memberContext, isLoading: isMemberLoading } =
     useCurrentMemberContext(organizationId, isAuthLoading || !isAuthenticated);
   const { data: count } = useApproxAutomationCount(organizationId);
-  const { automations, isLoading: isAutomationsLoading } =
-    useAutomations(organizationId);
 
-  if (isAuthLoading || isMemberLoading || isAutomationsLoading) {
-    return (
-      <ContentWrapper>
-        <AutomationsTableSkeleton
-          organizationId={organizationId}
-          rows={Math.min(count ?? 10, 10)}
-        />
-      </ContentWrapper>
-    );
-  }
+  const paginatedResult = useListAutomationsPaginated({
+    organizationId,
+    initialNumItems: 10,
+  });
 
-  const userRole = (memberContext?.role ?? '').toLowerCase();
-  if (userRole !== 'admin' && userRole !== 'developer') {
+  if (isAuthLoading || isMemberLoading || count === undefined) return null;
+
+  const userRole = memberContext ? memberContext.role.toLowerCase() : null;
+  const isAdminOrDeveloper = userRole === 'admin' || userRole === 'developer';
+
+  if (!isAdminOrDeveloper) {
     return <AccessDenied message={t('automations')} />;
   }
 
@@ -86,13 +63,10 @@ function AutomationsPage() {
     return <AutomationsEmptyState organizationId={organizationId} />;
   }
 
-  if (!automations || automations.length === 0) {
-    return <AutomationsEmptyState organizationId={organizationId} />;
-  }
-
   return (
-    <ContentWrapper>
-      <AutomationsClient organizationId={organizationId} />
-    </ContentWrapper>
+    <AutomationsTable
+      organizationId={organizationId}
+      paginatedResult={paginatedResult}
+    />
   );
 }

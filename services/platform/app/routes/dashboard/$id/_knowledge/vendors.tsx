@@ -22,6 +22,8 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/vendors')({
     meta: seo('vendors'),
   }),
   validateSearch: searchSchema,
+  pendingComponent: () => null,
+  pendingMs: 0,
   loader: async ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.vendors.queries.listVendors, {
@@ -49,6 +51,8 @@ function VendorsPage() {
     locale: search.locale,
     initialNumItems: 10,
   });
+
+  if (count === undefined) return null;
 
   if (count === 0) {
     return <VendorsEmptyState organizationId={organizationId} />;

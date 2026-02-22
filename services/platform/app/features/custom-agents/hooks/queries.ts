@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
@@ -16,6 +17,22 @@ export function useApproxCustomAgentCount(organizationId: string) {
   return useConvexQuery(api.custom_agents.queries.approxCountCustomAgents, {
     organizationId,
   });
+}
+
+interface ListCustomAgentsPaginatedArgs {
+  organizationId: string;
+  initialNumItems: number;
+}
+
+export function useListCustomAgentsPaginated(
+  args: ListCustomAgentsPaginatedArgs,
+) {
+  const { initialNumItems, ...queryArgs } = args;
+  return useCachedPaginatedQuery(
+    api.custom_agents.queries.listCustomAgentsPaginated,
+    queryArgs,
+    { initialNumItems },
+  );
 }
 
 export function useCustomAgents(organizationId: string) {

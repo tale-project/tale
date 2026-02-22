@@ -34,7 +34,7 @@ import { DocumentRowActions } from './document-row-actions';
 import { DocumentsActionMenu } from './documents-action-menu';
 import { RagStatusBadge } from './rag-status-badge';
 
-interface DocumentsClientProps {
+interface DocumentsTableProps {
   organizationId: string;
   searchQuery?: string;
   currentFolderPath?: string;
@@ -82,13 +82,13 @@ function DocumentsSkeleton({
   );
 }
 
-export function DocumentsClient({
+export function DocumentsTable({
   organizationId,
   searchQuery,
   currentFolderPath,
   docId,
   hasMicrosoftAccount = false,
-}: DocumentsClientProps) {
+}: DocumentsTableProps) {
   const navigate = useNavigate();
   const { t: tDocuments } = useT('documents');
   const { t: tTables } = useT('tables');

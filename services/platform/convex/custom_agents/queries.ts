@@ -2,6 +2,7 @@
  * Queries for custom agents (single-table versioning).
  */
 
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
@@ -11,6 +12,7 @@ import { TOOL_NAMES } from '../agent_tools/tool_names';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls';
 import { hasTeamAccess } from '../lib/team_access';
+import { listCustomAgentsPaginated as listCustomAgentsPaginatedHelper } from './list_custom_agents_paginated';
 
 const COUNT_CAP = 20;
 
@@ -47,6 +49,16 @@ export const approxCountCustomAgents = query({
     }
 
     return seenRoots.size;
+  },
+});
+
+export const listCustomAgentsPaginated = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await listCustomAgentsPaginatedHelper(ctx, args);
   },
 });
 

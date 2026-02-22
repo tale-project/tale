@@ -75,6 +75,7 @@ export const customAgentsTable = defineTable({
 })
   .index('by_organization', ['organizationId'])
   .index('by_org_status', ['organizationId', 'status'])
+  .index('by_org_versionNumber', ['organizationId', 'versionNumber'])
   .index('by_root_status', ['rootVersionId', 'status'])
   .index('by_root', ['rootVersionId'])
   .index('by_team', ['teamId'])

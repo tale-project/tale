@@ -33,6 +33,7 @@ export function VendorsTable({
 }: VendorsTableProps) {
   const navigate = useNavigate();
   const { t: tVendors } = useT('vendors');
+  const { t: tEmpty } = useT('emptyStates');
   const { t: tTables } = useT('tables');
   const { t: tGlobal } = useT('global');
 
@@ -145,8 +146,8 @@ export function VendorsTable({
       actionMenu={<VendorsActionMenu organizationId={organizationId} />}
       emptyState={{
         icon: Store,
-        title: tVendors('noVendorsYet'),
-        description: tVendors('uploadFirstVendor'),
+        title: tEmpty('vendors.title'),
+        description: tEmpty('vendors.description'),
       }}
       {...list.tableProps}
     />
