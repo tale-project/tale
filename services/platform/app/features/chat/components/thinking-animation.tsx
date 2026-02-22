@@ -122,6 +122,12 @@ export function ThinkingAnimation({
     }
   }
 
+  // When text is actively streaming and no tools are running,
+  // the user sees progress through the text itself — no indicator needed
+  if (streamingMessage?.text && toolDetails.length === 0) {
+    return null;
+  }
+
   let displayText = t('thinking.default');
 
   if (toolDetails.length === 1) {
