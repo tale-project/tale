@@ -165,6 +165,7 @@ function AutomationDetailLayout() {
   const { isLoading: isAuthLoading } = useConvexAuth();
 
   const isLoading = isAuthLoading || isLoadingAutomation || isLoadingSteps;
+  const isNavigationLoading = isAuthLoading || isLoadingAutomation;
   const { data: versions } = useListWorkflowVersions(
     organizationId,
     automation?.name,
@@ -309,7 +310,7 @@ function AutomationDetailLayout() {
           organizationId={organizationId}
           automationId={amId}
           automation={automation}
-          isLoading={isLoading}
+          isLoading={isNavigationLoading}
         />
       </StickyHeader>
       <LayoutErrorBoundary organizationId={organizationId}>
