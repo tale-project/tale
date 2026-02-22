@@ -111,7 +111,7 @@
     "shiki": "^3.22.0",
     "striptags": "3.2.0",
     "swagger-ui-react": "^5.31.0",
-    "tailwind-merge": "3.4.0",
+    "tailwind-merge": "3.5.0",
     "tailwindcss": "4.1.18",
     "typescript": "5.9.3",
     "vite": "^7.0.0",
