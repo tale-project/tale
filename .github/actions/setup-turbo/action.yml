@@ -4,7 +4,7 @@ description: Installs Node.js, Python, uv, npm dependencies, and starts turbo ca
 inputs:
   node-version:
     description: Node.js version
-    default: '22'
+    default: '24'
   python-version:
     description: Python version
     default: '3.11'
