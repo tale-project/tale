@@ -5,9 +5,9 @@ import { Link, useLocation } from '@tanstack/react-router';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { UserButton } from '@/app/components/user-button';
+import { useAbility } from '@/app/hooks/use-ability';
 import {
   useNavigationItems,
-  hasRequiredRole,
   type NavItem,
 } from '@/app/hooks/use-navigation-items';
 import { useT } from '@/lib/i18n/client';
@@ -25,22 +25,16 @@ function isPathMatch(itemHref: string, currentPath: string): boolean {
   return false;
 }
 
-function NavigationItem({
-  role,
-  item,
-}: {
-  item: NavItem;
-  role?: string | null;
-}) {
+function NavigationItem({ item }: { item: NavItem }) {
   const location = useLocation();
   const pathname = location.pathname;
+  const ability = useAbility();
 
   const isActive =
     isPathMatch(item.href, pathname) ||
     item.subItems?.some((subItem) => isPathMatch(subItem.href, pathname));
 
-  const isAccessible = hasRequiredRole(role, item.roles);
-  if (!isAccessible) {
+  if (item.can && !ability.can(item.can[0], item.can[1])) {
     return null;
   }
 
@@ -106,10 +100,9 @@ function NavigationItem({
 
 export interface NavigationProps {
   organizationId: string;
-  role?: string | null;
 }
 
-export function Navigation({ organizationId, role }: NavigationProps) {
+export function Navigation({ organizationId }: NavigationProps) {
   const { t } = useT('navigation');
   const navigationItems = useNavigationItems(organizationId);
 
@@ -127,7 +120,7 @@ export function Navigation({ organizationId, role }: NavigationProps) {
       <div className="mx-1 min-h-0 flex-1 py-4">
         <NavigationMenuList className="block space-y-2 space-x-0">
           {navigationItems.map((item) => (
-            <NavigationItem key={item.href} item={item} role={role} />
+            <NavigationItem key={item.href} item={item} />
           ))}
         </NavigationMenuList>
       </div>

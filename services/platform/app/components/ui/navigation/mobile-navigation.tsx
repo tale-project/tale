@@ -8,9 +8,9 @@ import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
 import { UserButton } from '@/app/components/user-button';
+import { useAbility } from '@/app/hooks/use-ability';
 import {
   useNavigationItems,
-  hasRequiredRole,
   type NavItem,
 } from '@/app/hooks/use-navigation-items';
 import { useT } from '@/lib/i18n/client';
@@ -30,24 +30,19 @@ function isPathMatch(itemHref: string, currentPath: string): boolean {
 
 interface MobileNavigationItemProps {
   item: NavItem;
-  role?: string | null;
   onClose: () => void;
 }
 
-function MobileNavigationItem({
-  item,
-  role,
-  onClose,
-}: MobileNavigationItemProps) {
+function MobileNavigationItem({ item, onClose }: MobileNavigationItemProps) {
   const location = useLocation();
   const pathname = location.pathname;
+  const ability = useAbility();
 
   const isActive =
     isPathMatch(item.href, pathname) ||
     item.subItems?.some((subItem) => isPathMatch(subItem.href, pathname));
 
-  const isAccessible = hasRequiredRole(role, item.roles);
-  if (!isAccessible) {
+  if (item.can && !ability.can(item.can[0], item.can[1])) {
     return null;
   }
 
@@ -98,13 +93,9 @@ function MobileNavigationItem({
 
 export interface MobileNavigationProps {
   organizationId: string;
-  role?: string | null;
 }
 
-export function MobileNavigation({
-  organizationId,
-  role,
-}: MobileNavigationProps) {
+export function MobileNavigation({ organizationId }: MobileNavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { t } = useT('common');
   const { t: tNav } = useT('navigation');
@@ -149,7 +140,6 @@ export function MobileNavigation({
                 <MobileNavigationItem
                   key={item.href}
                   item={item}
-                  role={role}
                   onClose={() => setIsOpen(false)}
                 />
               ))}

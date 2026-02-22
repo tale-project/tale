@@ -11,6 +11,7 @@ import {
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
 export interface NavItem {
   label: string;
@@ -19,7 +20,8 @@ export interface NavItem {
   href: string;
   icon?: React.ComponentType<{ className?: string }>;
   external?: boolean;
-  roles?: string[];
+  /** CASL ability check required to show this item. When absent, always visible. */
+  can?: [AppAction, AppSubject];
   subItems?: NavItem[];
 }
 
@@ -143,7 +145,7 @@ export function useNavigationItems(businessId: string): NavItem[] {
         params: { id: businessId },
         href: `/dashboard/${businessId}/custom-agents`,
         icon: Bot,
-        roles: ['admin', 'developer'],
+        can: ['write', 'customAgents'],
       },
       {
         label: tNav('automations'),
@@ -151,19 +153,9 @@ export function useNavigationItems(businessId: string): NavItem[] {
         params: { id: businessId },
         href: `/dashboard/${businessId}/automations`,
         icon: Network,
-        roles: ['admin', 'developer'],
+        can: ['write', 'wfDefinitions'],
       },
     ],
     [businessId, tNav, tKnowledge, tConversations, tApprovals],
   );
 }
-
-export const hasRequiredRole = (
-  userRole?: string | null,
-  requiredRoles?: string[],
-): boolean => {
-  if (!requiredRoles || requiredRoles.length === 0) return true;
-  if (!userRole) return false;
-  const ur = userRole.toLowerCase();
-  return requiredRoles.some((r) => r.toLowerCase() === ur);
-};

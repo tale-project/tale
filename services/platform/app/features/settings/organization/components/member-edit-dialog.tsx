@@ -13,6 +13,10 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import {
+  memberRoleSchema,
+  type MemberRole,
+} from '@/lib/shared/schemas/organizations';
 
 import {
   useSetMemberPassword,
@@ -22,13 +26,11 @@ import {
 
 type EditMemberFormData = {
   displayName: string;
-  role: 'disabled' | 'admin' | 'developer' | 'editor' | 'member';
+  role: MemberRole;
   email: string;
   updatePassword?: boolean;
   password?: string;
 };
-
-type MemberRole = EditMemberFormData['role'];
 
 type MemberLite = {
   _id: string;
@@ -39,13 +41,7 @@ type MemberLite = {
 };
 
 function isValidRole(role?: string): role is MemberRole {
-  return (
-    role === 'disabled' ||
-    role === 'admin' ||
-    role === 'developer' ||
-    role === 'editor' ||
-    role === 'member'
-  );
+  return memberRoleSchema.safeParse(role).success;
 }
 
 interface EditMemberDialogProps {
@@ -70,7 +66,7 @@ export function EditMemberDialog({
         displayName: z
           .string()
           .min(1, tCommon('validation.required', { field: t('form.name') })),
-        role: z.enum(['disabled', 'admin', 'developer', 'editor', 'member']),
+        role: memberRoleSchema,
         email: z.string().email(tCommon('validation.email')),
         updatePassword: z.boolean().optional(),
         password: z.string().optional(),

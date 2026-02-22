@@ -10,7 +10,9 @@ import {
   type ReactNode,
 } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import { useResizeObserver } from '@/app/hooks/use-resize-observer';
+import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 import { cn } from '@/lib/utils/cn';
 
 export interface TabNavigationItem {
@@ -18,8 +20,8 @@ export interface TabNavigationItem {
   label: string;
   /** URL path for the tab */
   href: string;
-  /** Optional roles required to view this tab */
-  roles?: string[];
+  /** CASL ability check required to show this tab. When absent, always visible. */
+  can?: [AppAction, AppSubject];
   /** Match mode for this specific item (overrides default) */
   matchMode?: 'exact' | 'startsWith';
   /** Search params to include in the link */
@@ -29,8 +31,6 @@ export interface TabNavigationItem {
 export interface TabNavigationProps {
   /** Navigation items to display */
   items: TabNavigationItem[];
-  /** User role for filtering items (optional) */
-  userRole?: string | null;
   /** Default match mode for determining active state */
   matchMode?: 'exact' | 'startsWith';
   /** Custom className for the nav element */
@@ -49,20 +49,8 @@ export interface TabNavigationProps {
   standalone?: boolean;
 }
 
-const hasRequiredRole = (
-  userRole?: string | null,
-  requiredRoles?: string[],
-): boolean => {
-  if (!requiredRoles || requiredRoles.length === 0) return true;
-  if (!userRole) return false;
-  const ur = userRole.toLowerCase();
-  const rr = requiredRoles.map((r) => r.toLowerCase());
-  return rr.includes(ur);
-};
-
 export function TabNavigation({
   items,
-  userRole,
   matchMode = 'startsWith',
   className,
   ariaLabel,
@@ -72,6 +60,7 @@ export function TabNavigation({
 }: TabNavigationProps) {
   const location = useLocation();
   const pathname = location.pathname;
+  const ability = useAbility();
   const navRef = useRef<HTMLElement | null>(null);
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
@@ -79,10 +68,13 @@ export function TabNavigation({
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const hasInitialized = useRef(false);
 
-  // Filter items by role
+  // Filter items by ability
   const accessibleItems = useMemo(
-    () => items.filter((item) => hasRequiredRole(userRole, item.roles)),
-    [items, userRole],
+    () =>
+      items.filter(
+        (item) => !item.can || ability.can(item.can[0], item.can[1]),
+      ),
+    [items, ability],
   );
 
   // Determine if a path matches an item

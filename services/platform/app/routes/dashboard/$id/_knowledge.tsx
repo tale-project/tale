@@ -10,6 +10,7 @@ import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { KnowledgeNavigation } from '@/app/features/knowledge/components/knowledge-navigation';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
@@ -27,8 +28,9 @@ function KnowledgeLayout() {
   const { t } = useT('knowledge');
   const { t: tAccess } = useT('accessDenied');
 
+  const ability = useAbility();
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { data: userContext, isLoading } = useCurrentMemberContext(
+  const { isLoading } = useCurrentMemberContext(
     organizationId,
     isAuthLoading || !isAuthenticated,
   );
@@ -56,9 +58,7 @@ function KnowledgeLayout() {
     );
   }
 
-  const userRole = userContext?.role ?? 'member';
-
-  if (!userContext || !['editor', 'developer', 'admin'].includes(userRole)) {
+  if (ability.cannot('write', 'knowledgeWrite')) {
     return <AccessDenied message={tAccess('knowledge')} />;
   }
 
@@ -68,10 +68,7 @@ function KnowledgeLayout() {
         <AdaptiveHeaderRoot standalone={false}>
           <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
         </AdaptiveHeaderRoot>
-        <KnowledgeNavigation
-          organizationId={organizationId}
-          userRole={userRole}
-        />
+        <KnowledgeNavigation organizationId={organizationId} />
       </StickyHeader>
       <LayoutErrorBoundary organizationId={organizationId}>
         <ContentWrapper className="p-4">

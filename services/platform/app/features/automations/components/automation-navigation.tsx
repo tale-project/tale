@@ -38,7 +38,6 @@ import { useAutomationVersionNavigation } from '../hooks/use-automation-version-
 interface AutomationNavigationProps {
   organizationId: string;
   automationId?: string;
-  userRole?: string | null;
   automation?: Doc<'wfDefinitions'> | null;
   isLoading?: boolean;
 }
@@ -46,7 +45,6 @@ interface AutomationNavigationProps {
 export function AutomationNavigation({
   organizationId,
   automationId,
-  userRole,
   automation,
   isLoading,
 }: AutomationNavigationProps) {
@@ -214,7 +212,6 @@ export function AutomationNavigation({
   return (
     <TabNavigation
       items={navigationItems}
-      userRole={userRole}
       standalone={false}
       ariaLabel={tCommon('aria.automationsNavigation')}
     >
