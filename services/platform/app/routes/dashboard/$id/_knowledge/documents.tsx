@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { useHasMicrosoftAccount } from '@/app/features/auth/hooks/queries';
-import { DocumentsClient } from '@/app/features/documents/components/documents-client';
+import { DocumentsTable } from '@/app/features/documents/components/documents-table';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -33,7 +33,7 @@ function DocumentsPage() {
   const { data: hasMicrosoftAccount = false } = useHasMicrosoftAccount();
 
   return (
-    <DocumentsClient
+    <DocumentsTable
       organizationId={organizationId}
       searchQuery={searchQuery?.trim()}
       currentFolderPath={folderPath}

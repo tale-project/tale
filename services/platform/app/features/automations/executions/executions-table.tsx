@@ -26,7 +26,7 @@ import {
 import { ExecutionsTableSkeleton } from './executions-table-skeleton';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 
-interface ExecutionsClientProps {
+interface ExecutionsTableProps {
   amId: Id<'wfDefinitions'>;
   organizationId: string;
   searchTerm?: string;
@@ -116,7 +116,7 @@ const ExecutionDetails = memo(function ExecutionDetails({
   );
 });
 
-export function ExecutionsClient({
+export function ExecutionsTable({
   amId,
   organizationId,
   searchTerm,
@@ -124,7 +124,7 @@ export function ExecutionsClient({
   triggeredBy,
   dateFrom,
   dateTo,
-}: ExecutionsClientProps) {
+}: ExecutionsTableProps) {
   const navigate = useNavigate();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const { locale } = useLocale();

@@ -1,10 +1,13 @@
 'use client';
 
 import type { ColumnDef, Row } from '@tanstack/react-table';
+import type { UsePaginatedQueryResult } from 'convex/react';
 
 import { useNavigate } from '@tanstack/react-router';
 import { Bot } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
+
+import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -41,18 +44,19 @@ export interface CustomAgentRow {
   isSystemDefault?: boolean;
 }
 
-interface CustomAgentTableProps {
+interface CustomAgentsTableProps {
   organizationId: string;
-  agents: CustomAgentRow[] | undefined;
+  paginatedResult: UsePaginatedQueryResult<Doc<'customAgents'>>;
 }
 
-export function CustomAgentTable({
+export function CustomAgentsTable({
   organizationId,
-  agents,
-}: CustomAgentTableProps) {
+  paginatedResult,
+}: CustomAgentsTableProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
+  const { t: tEmpty } = useT('emptyStates');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
   const { data: count } = useApproxCustomAgentCount(organizationId);
@@ -180,8 +184,14 @@ export function CustomAgentTable({
     [t, tCommon, tTables, teamNameMap, modelPresets],
   );
 
-  const list = useListPage({
-    dataSource: { type: 'query', data: agents },
+  const list = useListPage<CustomAgentRow>({
+    dataSource: {
+      type: 'paginated',
+      results: paginatedResult.results,
+      status: paginatedResult.status,
+      loadMore: paginatedResult.loadMore,
+      isLoading: paginatedResult.isLoading,
+    },
     pageSize: 25,
     search: {
       fields: ['displayName', 'name'],
@@ -192,15 +202,14 @@ export function CustomAgentTable({
 
   return (
     <DataTable
-      className="px-4 py-6"
       {...list.tableProps}
       columns={columns}
       onRowClick={handleRowClick}
       actionMenu={<CustomAgentsActionMenu organizationId={organizationId} />}
       emptyState={{
         icon: Bot,
-        title: t('customAgents.noAgents'),
-        description: t('customAgents.noAgentsDescription'),
+        title: tEmpty('customAgents.title'),
+        description: tEmpty('customAgents.description'),
       }}
     />
   );

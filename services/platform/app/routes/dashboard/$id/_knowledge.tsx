@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
+import { AccessDenied } from '@/app/components/layout/access-denied';
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
@@ -24,6 +25,7 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge')({
 function KnowledgeLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('knowledge');
+  const { t: tAccess } = useT('accessDenied');
 
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
   const { data: userContext, isLoading } = useCurrentMemberContext(
@@ -55,6 +57,10 @@ function KnowledgeLayout() {
   }
 
   const userRole = userContext?.role ?? 'member';
+
+  if (!userContext || !['editor', 'developer', 'admin'].includes(userRole)) {
+    return <AccessDenied message={tAccess('knowledge')} />;
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">

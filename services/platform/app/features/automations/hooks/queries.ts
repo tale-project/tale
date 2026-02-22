@@ -27,6 +27,22 @@ export function useApproxAutomationCount(organizationId: string) {
   });
 }
 
+interface ListAutomationsPaginatedArgs {
+  organizationId: string;
+  initialNumItems: number;
+}
+
+export function useListAutomationsPaginated(
+  args: ListAutomationsPaginatedArgs,
+) {
+  const { initialNumItems, ...queryArgs } = args;
+  return useCachedPaginatedQuery(
+    api.wf_definitions.queries.listAutomationsPaginated,
+    queryArgs,
+    { initialNumItems },
+  );
+}
+
 export function useAutomationRoots(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.wf_definitions.queries.listAutomationRoots,

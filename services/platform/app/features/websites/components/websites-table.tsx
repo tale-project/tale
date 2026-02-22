@@ -94,10 +94,7 @@ export function WebsitesTable({
       configs: filterConfigs,
       onClear: handleClearFilters,
     },
-    skeletonRows:
-      count === 0 && paginatedResult.status === 'LoadingFirstPage'
-        ? pageSize
-        : Math.min(count ?? 10, 10),
+    skeletonRows: Math.min(count ?? 10, 10),
   });
 
   return (

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import { ExecutionsClient } from '@/app/features/automations/executions/executions-client';
+import { ExecutionsTable } from '@/app/features/automations/executions/executions-table';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { seo } from '@/lib/utils/seo';
 
@@ -29,7 +29,7 @@ function ExecutionsPage() {
   const { query, status, triggeredBy, dateFrom, dateTo } = Route.useSearch();
 
   return (
-    <ExecutionsClient
+    <ExecutionsTable
       amId={automationId}
       organizationId={organizationId}
       searchTerm={query}

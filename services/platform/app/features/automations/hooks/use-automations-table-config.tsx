@@ -3,8 +3,8 @@
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
-import { AutomationActiveToggle } from './automation-active-toggle';
-import { AutomationRowActions } from './automation-row-actions';
+import { AutomationActiveToggle } from '../components/automation-active-toggle';
+import { AutomationRowActions } from '../components/automation-row-actions';
 
 export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
   {

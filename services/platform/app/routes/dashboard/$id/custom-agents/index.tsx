@@ -1,19 +1,26 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { CustomAgentTable } from '@/app/features/custom-agents/components/custom-agent-table';
 import { CustomAgentsEmptyState } from '@/app/features/custom-agents/components/custom-agents-empty-state';
+import { CustomAgentsTable } from '@/app/features/custom-agents/components/custom-agents-table';
 import {
   useApproxCustomAgentCount,
-  useCustomAgents,
+  useListCustomAgentsPaginated,
 } from '@/app/features/custom-agents/hooks/queries';
 import { api } from '@/convex/_generated/api';
+import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/')({
+  head: () => ({
+    meta: seo('customAgents'),
+  }),
+  pendingComponent: () => null,
+  pendingMs: 0,
   loader: async ({ context, params }) => {
     void context.queryClient.prefetchQuery(
-      convexQuery(api.custom_agents.queries.listCustomAgents, {
+      convexQuery(api.custom_agents.queries.listCustomAgentsPaginated, {
         organizationId: params.id,
+        paginationOpts: { numItems: 10, cursor: null },
       }),
     );
     await context.queryClient.ensureQueryData(
@@ -30,11 +37,21 @@ function CustomAgentsPage() {
 
   const { data: count } = useApproxCustomAgentCount(organizationId);
 
-  const { agents } = useCustomAgents(organizationId);
+  const paginatedResult = useListCustomAgentsPaginated({
+    organizationId,
+    initialNumItems: 10,
+  });
+
+  if (count === undefined) return null;
 
   if (count === 0) {
     return <CustomAgentsEmptyState organizationId={organizationId} />;
   }
 
-  return <CustomAgentTable organizationId={organizationId} agents={agents} />;
+  return (
+    <CustomAgentsTable
+      organizationId={organizationId}
+      paginatedResult={paginatedResult}
+    />
+  );
 }

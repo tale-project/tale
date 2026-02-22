@@ -1,46 +1,55 @@
 'use client';
 
+import type { UsePaginatedQueryResult } from 'convex/react';
+
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
 import { Workflow } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
+import type { AutomationItem } from '@/convex/workflows/definitions/list_automations_paginated';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
-import { useAutomations } from '../hooks/queries';
+import { useApproxAutomationCount } from '../hooks/queries';
+import { useAutomationsTableConfig } from '../hooks/use-automations-table-config';
 import { AutomationsActionMenu } from './automations-action-menu';
-import { useAutomationsTableConfig } from './use-automations-table-config';
 
-interface AutomationsClientProps {
+interface AutomationsTableProps {
   organizationId: string;
+  paginatedResult: UsePaginatedQueryResult<AutomationItem>;
 }
 
-export function AutomationsClient({ organizationId }: AutomationsClientProps) {
+export function AutomationsTable({
+  organizationId,
+  paginatedResult,
+}: AutomationsTableProps) {
   const navigate = useNavigate();
   const { t: tTables } = useT('tables');
   const { t: tCommon } = useT('common');
   const { t: tEmpty } = useT('emptyStates');
 
+  const { data: count } = useApproxAutomationCount(organizationId);
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useAutomationsTableConfig();
 
-  const { automations, isLoading } = useAutomations(organizationId);
-
   const activeVersionMap = useMemo(() => {
     const map = new Map<string, string>();
-    for (const a of automations) {
+    for (const a of paginatedResult.results ?? []) {
       if (a.activeVersionId) map.set(a._id, a.activeVersionId);
     }
     return map;
-  }, [automations]);
+  }, [paginatedResult.results]);
 
-  const tableData = useMemo(
-    () => automations.map(({ activeVersionId: _, ...rest }) => rest),
-    [automations],
+  const tableResults = useMemo(
+    (): Doc<'wfDefinitions'>[] =>
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      paginatedResult.results?.map(({ activeVersionId: _, ...rest }) => rest) ??
+      [],
+    [paginatedResult.results],
   );
 
   const handleRowClick = useCallback(
@@ -54,16 +63,20 @@ export function AutomationsClient({ organizationId }: AutomationsClientProps) {
     [navigate, organizationId, activeVersionMap],
   );
 
-  const list = useListPage({
+  const list = useListPage<Doc<'wfDefinitions'>>({
     dataSource: {
-      type: 'query',
-      data: isLoading ? undefined : tableData,
+      type: 'paginated',
+      results: tableResults,
+      status: paginatedResult.status,
+      loadMore: paginatedResult.loadMore,
+      isLoading: paginatedResult.isLoading,
     },
     pageSize,
     search: {
       fields: ['name', 'description'],
       placeholder: searchPlaceholder,
     },
+    skeletonRows: Math.min(count ?? 10, 10),
     filters: {
       definitions: [
         {
@@ -81,7 +94,6 @@ export function AutomationsClient({ organizationId }: AutomationsClientProps) {
 
   return (
     <DataTable
-      className="px-4 py-6"
       columns={columns}
       onRowClick={handleRowClick}
       stickyLayout={stickyLayout}
