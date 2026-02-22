@@ -3,31 +3,25 @@
 /**
  * TypewriterText Component
  *
- * A high-performance streaming text component that renders AI-generated text
- * with a smooth typewriter animation. Uses a hybrid approach:
+ * A streaming text component that renders AI-generated text with a smooth
+ * typewriter animation using constant drain rate buffering.
  *
- * ANIMATION STRATEGY:
- * ===================
- * 1. CSS MASK: GPU-accelerated text reveal using mask-image gradient
- *    - The full text is rendered but masked beyond the reveal point
- *    - Updates a CSS custom property (--reveal-chars) for smooth animation
- *    - No React re-renders during character-by-character animation
+ * ARCHITECTURE:
+ * =============
+ * 1. STREAM BUFFER: Constant-rate character reveal via useStreamBuffer
+ *    - Fixed CPS output with buffer as shock absorber
+ *    - Word boundary snapping for natural reading flow
+ *    - Throttled React state updates to reduce re-renders
  *
- * 2. JS PRECISION: JavaScript handles word boundary snapping
- *    - Calculates the next reveal position based on buffer state
- *    - Snaps to word boundaries for natural reading flow
- *    - Throttles React state updates to reduce re-renders
- *
- * 3. INCREMENTAL MARKDOWN: Splits content for optimal parsing
+ * 2. INCREMENTAL MARKDOWN: Splits content for optimal parsing
  *    - Stable portion: Complete blocks, memoized, no re-parsing
- *    - Streaming portion: Current block, re-rendered on updates
+ *    - Streaming portion: Only revealed slice, re-parsed on updates
  *
- * PERFORMANCE OPTIMIZATIONS:
- * ==========================
+ * PERFORMANCE:
+ * ============
  * - requestAnimationFrame for 60fps animation
- * - Ring buffer for metrics (no GC pressure)
- * - Refs for animation state (no re-renders)
- * - Memoized markdown components
+ * - Refs for animation state (no re-renders during animation)
+ * - Memoized markdown components with ref-based cursor wrappers
  * - Tab visibility detection (pause when hidden)
  * - Reduced motion support
  *
@@ -72,15 +66,13 @@ interface TypewriterTextProps {
 
 /**
  * Timing parameters for the typewriter animation.
- * These are optimized for readability and smoothness.
+ * Uses constant drain rate for smooth, steady output.
  */
 const TYPEWRITER_CONFIG = {
-  /** Characters per second (600 WPM reading speed) */
-  targetCPS: 120,
-  /** Minimum words to buffer before starting */
-  minBufferWords: 3,
-  /** Speed multiplier for catch-up mode */
-  catchUpMultiplier: 2.5,
+  /** Target characters per second */
+  targetCPS: 50,
+  /** Characters to buffer before starting reveal */
+  initialBufferChars: 30,
 };
 
 // ============================================================================
@@ -105,15 +97,12 @@ function TypewriterTextComponent({
   className,
 }: TypewriterTextProps) {
   // Use the stream buffer hook for animation management
-  const { displayLength, anchorPosition, isTyping, progress } = useStreamBuffer(
-    {
-      text,
-      isStreaming,
-      targetCPS: TYPEWRITER_CONFIG.targetCPS,
-      minBufferWords: TYPEWRITER_CONFIG.minBufferWords,
-      catchUpMultiplier: TYPEWRITER_CONFIG.catchUpMultiplier,
-    },
-  );
+  const { displayLength, anchorPosition, progress } = useStreamBuffer({
+    text,
+    isStreaming,
+    targetCPS: TYPEWRITER_CONFIG.targetCPS,
+    initialBufferChars: TYPEWRITER_CONFIG.initialBufferChars,
+  });
 
   // Ref for the streaming container (used for CSS variable updates)
   const containerRef = useRef<HTMLDivElement>(null);
@@ -152,8 +141,8 @@ function TypewriterTextComponent({
     updateRevealPosition(displayLength);
   }, [displayLength, updateRevealPosition]);
 
-  // Show cursor inline within markdown when streaming
-  const showCursor = isStreaming && isTyping && text.length > 0;
+  // Show cursor throughout the entire streaming phase (including buffer-empty pauses)
+  const showCursor = isStreaming && text.length > 0;
 
   return (
     <div
@@ -168,7 +157,6 @@ function TypewriterTextComponent({
         content={text}
         revealPosition={displayLength}
         anchorPosition={anchorPosition}
-        isStreaming={isStreaming}
         components={components}
         showCursor={showCursor}
       />

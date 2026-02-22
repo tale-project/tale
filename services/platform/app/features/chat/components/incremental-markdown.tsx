@@ -16,7 +16,6 @@
  * 2. STREAMING PORTION (anchorPosition to revealPosition):
  *    - Current incomplete block being typed
  *    - Re-parsed on each update, but content is small
- *    - Uses CSS mask for smooth character reveal
  *
  * 3. HIDDEN PORTION (after revealPosition):
  *    - Text that hasn't been revealed yet
@@ -47,7 +46,7 @@
 
 import type { Components } from 'react-markdown';
 
-import { memo, useMemo, type ReactNode } from 'react';
+import { memo, useMemo, useRef, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
@@ -69,8 +68,6 @@ interface IncrementalMarkdownProps {
   revealPosition: number;
   /** Safe anchor position for splitting (at a block boundary) */
   anchorPosition: number;
-  /** Whether content is still streaming */
-  isStreaming: boolean;
   /** Custom markdown components */
   components?: MarkdownComponentMap;
   /** Additional CSS class */
@@ -132,7 +129,7 @@ const TypewriterCursor = memo(function TypewriterCursor() {
 
 /**
  * Renders the streaming (incomplete) portion of markdown.
- * Uses CSS mask for smooth character reveal animation.
+ * Only the revealed slice is parsed; cursor is injected into the last block element.
  */
 const StreamingMarkdown = memo(
   function StreamingMarkdown({
@@ -147,14 +144,19 @@ const StreamingMarkdown = memo(
     showCursor?: boolean;
   }) {
     const revealedContent = content ? content.slice(0, revealedLength) : '';
-    const revealedContentLength = revealedContent.length;
 
-    // Create components that inject cursor at the end of the last element
-    // We track render order and append cursor to the last rendered block element
+    // Refs for cursor position detection — avoids recreating wrapper
+    // functions on every 50ms update. Wrappers read from refs instead.
+    const revealedLenRef = useRef(revealedContent.length);
+    revealedLenRef.current = revealedContent.length;
+    const revealedTextRef = useRef(revealedContent);
+    revealedTextRef.current = revealedContent;
+
+    // Cursor wrapper components — stable across renders (only recreated
+    // when showCursor or components change, not on every text update).
     const componentsWithCursor = useMemo(() => {
       if (!showCursor) return components;
 
-      // Helper to wrap children with cursor at the end
       const withCursor = (children: React.ReactNode) => (
         <>
           {children}
@@ -162,7 +164,6 @@ const StreamingMarkdown = memo(
         </>
       );
 
-      // Create wrapper components for block elements that might be last
       const createCursorWrapper = (
         Tag: 'p' | 'li' | 'td' | 'th' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
         CustomComponent?: MarkdownComponentType,
@@ -175,12 +176,11 @@ const StreamingMarkdown = memo(
           node?: { position?: { end?: { offset?: number } } };
           children?: ReactNode;
         }) {
-          // Check if this is the last element by looking at node position
           const isLastElement =
-            node?.position?.end?.offset === revealedContentLength ||
-            // Fallback: check if we're near the end (within whitespace)
+            node?.position?.end?.offset === revealedLenRef.current ||
             (node?.position?.end?.offset &&
-              revealedContent.slice(node.position.end.offset).trim() === '');
+              revealedTextRef.current.slice(node.position.end.offset).trim() ===
+                '');
 
           if (CustomComponent) {
             return (
@@ -212,35 +212,19 @@ const StreamingMarkdown = memo(
         h5: createCursorWrapper('h5', components?.h5),
         h6: createCursorWrapper('h6', components?.h6),
       };
-    }, [components, showCursor, revealedContentLength, revealedContent]);
+    }, [components, showCursor]);
 
-    if (!content) return null;
+    if (!revealedContent) return null;
 
     return (
-      <div className="streaming-text-container">
-        {/* Hidden layer: Full content establishes layout dimensions */}
-        <div className="streaming-text-layout-reference" aria-hidden="true">
-          <Markdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw, rehypeSanitize]}
-            components={components}
-          >
-            {content}
-          </Markdown>
-        </div>
-
-        {/* Visible layer: Revealed content overlaid on top */}
-        <div className="streaming-text-reveal">
-          <Markdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw, rehypeSanitize]}
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
-            components={componentsWithCursor as Components}
-          >
-            {revealedContent}
-          </Markdown>
-        </div>
-      </div>
+      <Markdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw, rehypeSanitize]}
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
+        components={componentsWithCursor as Components}
+      >
+        {revealedContent}
+      </Markdown>
     );
   },
   (prevProps, nextProps) => {
@@ -276,7 +260,6 @@ export function IncrementalMarkdown({
   content,
   revealPosition,
   anchorPosition,
-  isStreaming,
   components,
   className,
   showCursor,
@@ -284,8 +267,8 @@ export function IncrementalMarkdown({
   // Split content at anchor position
   const { stableContent, streamingContent, streamingRevealLength } =
     useMemo(() => {
-      // When not streaming, treat all content as stable
-      if (!isStreaming) {
+      // When fully revealed and no cursor needed, treat all content as stable
+      if (revealPosition >= content.length && !showCursor) {
         return {
           stableContent: content,
           streamingContent: '',
@@ -308,7 +291,7 @@ export function IncrementalMarkdown({
         streamingContent: streaming,
         streamingRevealLength: revealedInStreaming,
       };
-    }, [content, anchorPosition, revealPosition, isStreaming]);
+    }, [content, anchorPosition, revealPosition, showCursor]);
 
   return (
     <div className={className}>
