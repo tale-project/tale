@@ -58,11 +58,18 @@ vi.mock('framer-motion', () => ({
   },
 }));
 
+// UIMessagePart requires toolCallId and specific state shapes — helper builds
+// type-safe parts without repeating boilerplate in every test.
+function toolPart(fields: Record<string, unknown>) {
+  return { toolCallId: 'tc-1', ...fields } as UIMessage['parts'][number];
+}
+
 function makeStreamingMessage(overrides: Partial<UIMessage> = {}): UIMessage {
   return {
     id: 'msg-1',
     key: 'msg-1',
     order: 0,
+    stepOrder: 0,
     role: 'assistant',
     status: 'streaming',
     text: '',
@@ -97,11 +104,11 @@ describe('ThinkingAnimation', () => {
       <ThinkingAnimation
         streamingMessage={makeStreamingMessage({
           parts: [
-            {
+            toolPart({
               type: 'tool-rag_search',
               state: 'input-available',
               input: { query: 'EU AI Act compliance' },
-            },
+            }),
           ],
         })}
       />,
@@ -116,11 +123,12 @@ describe('ThinkingAnimation', () => {
       <ThinkingAnimation
         streamingMessage={makeStreamingMessage({
           parts: [
-            {
+            toolPart({
               type: 'tool-rag_search',
               state: 'output-available',
               input: { query: 'EU AI Act compliance' },
-            },
+              output: {},
+            }),
           ],
         })}
       />,
@@ -137,19 +145,19 @@ describe('ThinkingAnimation', () => {
         streamingMessage={makeStreamingMessage({
           text: 'Here is a detailed analysis of the EU AI Act...',
           parts: [
-            {
+            toolPart({
               type: 'tool-rag_search',
               state: 'input-available',
               input: { query: 'EU AI Act compliance' },
-            },
-            {
+            }),
+            toolPart({
               type: 'tool-web',
               state: 'input-streaming',
               input: {
                 operation: 'fetch_url',
                 url: 'https://example.com/eu-ai-act',
               },
-            },
+            }),
           ],
         })}
       />,
@@ -166,19 +174,19 @@ describe('ThinkingAnimation', () => {
       <ThinkingAnimation
         streamingMessage={makeStreamingMessage({
           parts: [
-            {
+            toolPart({
               type: 'tool-rag_search',
               state: 'input-available',
               input: { query: 'compliance' },
-            },
-            {
+            }),
+            toolPart({
               type: 'tool-web',
               state: 'input-streaming',
               input: {
                 operation: 'fetch_url',
                 url: 'https://example.com',
               },
-            },
+            }),
           ],
         })}
       />,
@@ -194,7 +202,9 @@ describe('ThinkingAnimation', () => {
     render(
       <ThinkingAnimation
         streamingMessage={makeStreamingMessage({
-          parts: [{ type: 'tool-invocation', state: 'input-available' }],
+          parts: [
+            toolPart({ type: 'tool-invocation', state: 'input-available' }),
+          ],
         })}
       />,
     );
