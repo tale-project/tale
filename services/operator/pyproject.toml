@@ -2,22 +2,22 @@
 name = "tale-operator"
 version = "0.1.0"
 description = "AI-powered operator service with direct Playwright browser automation"
-requires-python = ">=3.11"
+requires-python = "==3.14.3"
 dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn>=0.40.0,<0.41.0",
-    "httpx>=0.27.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-    "loguru>=0.7.0",
-    "playwright>=1.49.0",
+    "fastapi==0.128.5",
+    "uvicorn==0.40.0",
+    "httpx==0.28.1",
+    "pydantic==2.12.5",
+    "pydantic-settings==2.12.0",
+    "loguru==0.7.3",
+    "playwright==1.58.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff==0.15.1",
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.24.0",
+    "pytest==9.0.2",
+    "pytest-asyncio==1.3.0",
 ]
 
 [build-system]
