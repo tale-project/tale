@@ -54,7 +54,7 @@ describe('useMessageProcessing', () => {
       expect(result.current.hasIncompleteAssistantMessage).toBe(false);
     });
 
-    it('returns false when there are no assistant messages', () => {
+    it('returns true when there are only user messages (waiting for assistant)', () => {
       mockUseUIMessages.mockReturnValue({
         results: [
           createUIMessage({
@@ -70,7 +70,7 @@ describe('useMessageProcessing', () => {
       } as unknown as ReturnType<typeof useUIMessages>);
 
       const { result } = renderHook(() => useMessageProcessing('thread-1'));
-      expect(result.current.hasIncompleteAssistantMessage).toBe(false);
+      expect(result.current.hasIncompleteAssistantMessage).toBe(true);
     });
 
     it('returns false when last assistant message has status "success"', () => {
