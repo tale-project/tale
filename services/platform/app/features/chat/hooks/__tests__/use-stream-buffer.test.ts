@@ -73,14 +73,15 @@ describe('useStreamBuffer', () => {
 
   describe('non-streaming (historical messages)', () => {
     it('shows all text immediately when not streaming', () => {
+      const text = 'Hello world, this is a complete message.';
       const { result } = renderHook(() =>
         useStreamBuffer({
-          text: 'Hello world, this is a complete message.',
+          text,
           isStreaming: false,
         }),
       );
 
-      expect(result.current.displayLength).toBe(40);
+      expect(result.current.displayLength).toBe(text.length);
       expect(result.current.progress).toBe(1);
       expect(result.current.isTyping).toBe(false);
     });
@@ -177,9 +178,10 @@ describe('useStreamBuffer', () => {
 
   describe('buffer empty during streaming', () => {
     it('keeps animation loop running when buffer empties', () => {
+      const text = 'Hello world test words five six seven eight';
       const { result } = renderHook(() =>
         useStreamBuffer({
-          text: 'Hello world test words five six seven eight',
+          text,
           isStreaming: true,
           targetCPS: 800,
           initialBufferChars: 3,
@@ -190,7 +192,7 @@ describe('useStreamBuffer', () => {
       act(() => advanceFrames(120));
 
       // Should have caught up to end of text
-      expect(result.current.displayLength).toBe(43);
+      expect(result.current.displayLength).toBe(text.length);
       // rAF should still be active (not stopped)
       expect(rafCallbacks.size).toBeGreaterThan(0);
     });
@@ -226,9 +228,10 @@ describe('useStreamBuffer', () => {
     it('shows all text instantly when reduced motion is preferred', () => {
       vi.mocked(usePrefersReducedMotion).mockReturnValue(true);
 
+      const text = 'Hello world this is some streaming text content here now';
       const { result } = renderHook(() =>
         useStreamBuffer({
-          text: 'Hello world this is some streaming text content here now',
+          text,
           isStreaming: true,
           initialBufferChars: 5,
         }),
@@ -236,7 +239,7 @@ describe('useStreamBuffer', () => {
 
       act(() => advanceFrames(1));
 
-      expect(result.current.displayLength).toBe(56);
+      expect(result.current.displayLength).toBe(text.length);
       expect(result.current.isTyping).toBe(false);
     });
   });
