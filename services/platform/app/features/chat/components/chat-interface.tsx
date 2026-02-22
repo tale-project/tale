@@ -246,7 +246,7 @@ export function ChatInterface({
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
     >
       <div
         ref={contentRef}

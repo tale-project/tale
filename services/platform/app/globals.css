@@ -205,49 +205,6 @@
     --reveal-chars: 0;
   }
 
-  /*
-   * Streaming Text Layout Stabilization
-   *
-   * Uses a hidden "layout reference" layer that renders the full content
-   * to establish dimensions, then overlays the visible revealed content.
-   * This prevents layout shifts when:
-   * - Newlines are revealed
-   * - Text wraps to new lines
-   *
-   * overflow-anchor: none disables browser scroll anchoring which causes
-   * scroll position jumps when content height changes during streaming.
-   */
-  .streaming-text-container {
-    position: relative;
-    overflow-anchor: none;
-  }
-
-  /*
-   * Layout Reference Layer
-   * - Renders full content to establish dimensions
-   * - Invisible to user but takes up space
-   * - Uses visibility:hidden (not display:none) to preserve layout
-   */
-  .streaming-text-layout-reference {
-    visibility: hidden;
-    pointer-events: none;
-    user-select: none;
-  }
-
-  /*
-   * Revealed Content Layer
-   * - Positioned absolutely on top of layout reference
-   * - Only shows the revealed portion
-   * - Inset 0 to match parent dimensions exactly
-   */
-  .streaming-text-reveal {
-    position: absolute;
-    inset: 0;
-    /* Ensure smooth font rendering */
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
   /* Cursor blink animation for typewriter effect */
   .animate-cursor-blink {
     animation: cursor-blink 1s ease-in-out infinite;
@@ -294,15 +251,6 @@
     .typewriter-container {
       /* Show all text instantly */
       --reveal-chars: 999999;
-    }
-
-    /* Skip layout stabilization - show content directly */
-    .streaming-text-layout-reference {
-      display: none;
-    }
-
-    .streaming-text-reveal {
-      position: static;
     }
   }
 }
