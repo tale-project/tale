@@ -8,7 +8,7 @@ import { listThreads as listThreadsHelper } from './list_threads';
 
 export const listThreads = query({
   args: {
-    paginationOpts: paginationOptsValidator,
+    paginationOpts: v.optional(paginationOptsValidator),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -22,7 +22,7 @@ export const listThreads = query({
 
     return await listThreadsHelper(ctx, {
       userId: authUser.userId,
-      paginationOpts: args.paginationOpts,
+      paginationOpts: args.paginationOpts ?? { cursor: null, numItems: 20 },
     });
   },
 });

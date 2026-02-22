@@ -105,75 +105,74 @@ export function ThinkingAnimation({
 
   if (streamingMessage?.parts) {
     for (const part of streamingMessage.parts) {
-      if (part.type.startsWith('tool-')) {
-        const toolName = part.type.slice(5);
-        if (toolName && toolName !== 'invocation') {
-          const input =
-            'input' in part &&
-            typeof part.input === 'object' &&
-            part.input !== null
-              ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- part.input verified as non-null object above
-                (part.input as Record<string, unknown>)
-              : undefined;
-          const detail = formatToolDetail(toolName, input);
-          toolDetails.push(detail);
-        }
-      }
-    }
-  }
+      if (!part.type.startsWith('tool-')) continue;
 
-  // When text is actively streaming and no tools are running,
-  // the user sees progress through the text itself — no indicator needed
-  if (streamingMessage?.text && toolDetails.length === 0) {
-    return null;
+      // Only show tools that are actively running, not completed ones
+      const state = 'state' in part ? part.state : undefined;
+      if (state !== 'input-streaming' && state !== 'input-available') continue;
+
+      const toolName = part.type.slice(5);
+      if (!toolName || toolName === 'invocation') continue;
+
+      const input =
+        'input' in part && typeof part.input === 'object' && part.input !== null
+          ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- part.input verified as non-null object above
+            (part.input as Record<string, unknown>)
+          : undefined;
+      toolDetails.push(formatToolDetail(toolName, input));
+    }
   }
 
   let displayText = t('thinking.default');
 
-  if (toolDetails.length === 1) {
-    displayText = toolDetails[0].displayText;
-  } else if (toolDetails.length > 1) {
-    const uniqueDisplayTexts = [
-      ...new Set(toolDetails.map((d) => d.displayText)),
-    ];
+  // Only show detailed tool status before any text has appeared.
+  // Once text is flowing, detailed tool names are distracting — fall back to "Thinking…"
+  if (!streamingMessage?.text && toolDetails.length > 0) {
+    if (toolDetails.length === 1) {
+      displayText = toolDetails[0].displayText;
+    } else {
+      const uniqueDisplayTexts = [
+        ...new Set(toolDetails.map((d) => d.displayText)),
+      ];
 
-    const searchingPrefix = t('thinking.searching', { query: '' }).replace(
-      '""',
-      '',
-    );
-    const allSearches = uniqueDisplayTexts.every((text) =>
-      text.startsWith(searchingPrefix),
-    );
-
-    if (allSearches && uniqueDisplayTexts.length > 1) {
-      const queries = uniqueDisplayTexts.map((text) =>
-        text.slice(
-          searchingPrefix.length,
-          text.endsWith('"') ? text.length : text.length,
-        ),
+      const searchingPrefix = t('thinking.searching', { query: '' }).replace(
+        '""',
+        '',
       );
-      if (queries.length <= 2) {
-        displayText = t('thinking.searchingMultiple', {
-          queries: queries.join(` ${t('thinking.and')} `),
+      const allSearches = uniqueDisplayTexts.every((text) =>
+        text.startsWith(searchingPrefix),
+      );
+
+      if (allSearches && uniqueDisplayTexts.length > 1) {
+        const queries = uniqueDisplayTexts.map((text) =>
+          text.slice(
+            searchingPrefix.length,
+            text.endsWith('"') ? text.length : text.length,
+          ),
+        );
+        if (queries.length <= 2) {
+          displayText = t('thinking.searchingMultiple', {
+            queries: queries.join(` ${t('thinking.and')} `),
+          });
+        } else {
+          displayText = t('thinking.searchingMore', {
+            first: queries[0],
+            second: queries[1],
+            count: queries.length - 2,
+          });
+        }
+      } else if (uniqueDisplayTexts.length <= 2) {
+        displayText = t('thinking.multipleTools', {
+          first: uniqueDisplayTexts[0],
+          second: uniqueDisplayTexts[1],
         });
       } else {
-        displayText = t('thinking.searchingMore', {
-          first: queries[0],
-          second: queries[1],
-          count: queries.length - 2,
+        displayText = t('thinking.multipleToolsMore', {
+          first: uniqueDisplayTexts[0],
+          second: uniqueDisplayTexts[1],
+          count: uniqueDisplayTexts.length - 2,
         });
       }
-    } else if (uniqueDisplayTexts.length <= 2) {
-      displayText = t('thinking.multipleTools', {
-        first: uniqueDisplayTexts[0],
-        second: uniqueDisplayTexts[1],
-      });
-    } else {
-      displayText = t('thinking.multipleToolsMore', {
-        first: uniqueDisplayTexts[0],
-        second: uniqueDisplayTexts[1],
-        count: uniqueDisplayTexts.length - 2,
-      });
     }
   }
 
