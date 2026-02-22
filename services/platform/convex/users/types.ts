@@ -1,3 +1,5 @@
+import type { PlatformRole } from '../../lib/shared/schemas/users';
+
 export type { PlatformRole as Role } from '../../lib/shared/schemas/users';
 
 export interface CreateUserWithoutSessionArgs {
@@ -5,7 +7,7 @@ export interface CreateUserWithoutSessionArgs {
   password: string;
   name?: string;
   organizationId: string;
-  role?: string;
+  role?: PlatformRole;
   displayName?: string;
 }
 
@@ -19,7 +21,7 @@ export interface CreateMemberArgs {
   email: string;
   password: string;
   displayName?: string;
-  role?: string;
+  role?: PlatformRole;
 }
 
 export interface CreateMemberResult {
@@ -31,7 +33,7 @@ export interface AddMemberInternalArgs {
   organizationId: string;
   email: string;
   identityId: string;
-  role?: string;
+  role?: PlatformRole;
   displayName?: string;
 }
 

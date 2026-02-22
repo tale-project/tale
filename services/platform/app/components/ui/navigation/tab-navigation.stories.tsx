@@ -39,7 +39,7 @@ import { TabNavigation } from '@/app/components/ui/navigation/tab-navigation';
 
 ## Features
 - Animated sliding indicator
-- Role-based visibility
+- Ability-based visibility
 - Exact or startsWith path matching
 - Accessible navigation with aria-current
 - Support for additional action content

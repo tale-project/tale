@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 
 export const PLATFORM_ROLES = [
+  'owner',
   'admin',
   'developer',
   'editor',

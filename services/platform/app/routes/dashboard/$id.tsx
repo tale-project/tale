@@ -39,8 +39,14 @@ function DashboardLayout() {
   // Preserve the last known ability across auth token refreshes / WebSocket reconnections.
   // When convexQuery args change to 'skip', the queryKey changes and data becomes undefined,
   // which would cause role-gated nav items to briefly disappear.
+  // Only recompute when the role value actually changes to keep abilityRef.current stable.
   const abilityRef = useRef<AppAbility>(defineAbilityFor(memberContext?.role));
-  if (memberContext?.role) {
+  const lastRoleRef = useRef<string | undefined>(memberContext?.role);
+  if (
+    memberContext?.role !== undefined &&
+    memberContext.role !== lastRoleRef.current
+  ) {
+    lastRoleRef.current = memberContext.role;
     abilityRef.current = defineAbilityFor(memberContext.role);
   }
 

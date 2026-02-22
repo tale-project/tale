@@ -54,16 +54,14 @@ export function defineAbilityFor(role?: string | null): AppAbility {
   const { can, cannot, build } = new AbilityBuilder<AppAbility>(
     createMongoAbility,
   );
-  const normalized = (role ?? 'member').toLowerCase();
+  const normalized = (role ?? '').toLowerCase();
 
   switch (normalized) {
+    case 'owner':
     case 'admin': {
+      // 'all' covers every subject including orgSettings, developerSettings, members, etc.
       can('read', 'all');
       can('write', 'all');
-      can('read', 'orgSettings');
-      can('read', 'developerSettings');
-      can('write', 'knowledgeWrite');
-      can('write', 'members');
       break;
     }
     case 'developer': {
@@ -114,6 +112,8 @@ export function defineAbilityFor(role?: string | null): AppAbility {
     }
     case 'member': {
       can('read', 'all');
+      cannot('read', 'orgSettings');
+      cannot('read', 'developerSettings');
       break;
     }
     default: {
