@@ -13,7 +13,10 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { roleSchema, type PlatformRole } from '@/lib/shared/schemas/users';
+import {
+  memberRoleSchema,
+  type MemberRole,
+} from '@/lib/shared/schemas/organizations';
 
 import {
   useSetMemberPassword,
@@ -23,7 +26,7 @@ import {
 
 type EditMemberFormData = {
   displayName: string;
-  role: PlatformRole;
+  role: MemberRole;
   email: string;
   updatePassword?: boolean;
   password?: string;
@@ -37,8 +40,8 @@ type MemberLite = {
   email?: string;
 };
 
-function isValidRole(role?: string): role is PlatformRole {
-  return roleSchema.safeParse(role).success;
+function isValidRole(role?: string): role is MemberRole {
+  return memberRoleSchema.safeParse(role).success;
 }
 
 interface EditMemberDialogProps {
@@ -63,7 +66,7 @@ export function EditMemberDialog({
         displayName: z
           .string()
           .min(1, tCommon('validation.required', { field: t('form.name') })),
-        role: roleSchema,
+        role: memberRoleSchema,
         email: z.string().email(tCommon('validation.email')),
         updatePassword: z.boolean().optional(),
         password: z.string().optional(),

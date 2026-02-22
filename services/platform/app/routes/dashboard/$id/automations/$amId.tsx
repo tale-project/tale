@@ -313,7 +313,6 @@ function AutomationDetailLayout() {
           organizationId={organizationId}
           automationId={amId}
           automation={automation}
-          userRole={memberContext?.role ?? 'Member'}
           isLoading={isLoading}
         />
       </StickyHeader>
