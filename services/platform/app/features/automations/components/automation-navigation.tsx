@@ -269,7 +269,7 @@ export function AutomationNavigation({
 
         {/* Desktop: Show buttons directly */}
         {!isLoading && (
-          <div className="hidden items-center gap-4 md:flex">
+          <div className="hidden items-center gap-2 md:flex">
             {(automation?.status === 'draft' ||
               automation?.status === 'archived') && (
               <Button onClick={handlePublish} disabled={isPublishing} size="sm">
@@ -296,8 +296,8 @@ export function AutomationNavigation({
                   onClick={handleCreateDraft}
                   disabled={isCreatingDraft}
                   size="sm"
-                  variant="secondary"
                 >
+                  <Pencil className="mr-1.5 size-3.5" aria-hidden="true" />
                   {tCommon('actions.edit')}
                 </Button>
               </>

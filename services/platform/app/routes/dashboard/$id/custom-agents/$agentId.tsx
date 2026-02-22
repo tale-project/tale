@@ -8,6 +8,10 @@ import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
+import {
+  TabNavigation,
+  type TabNavigationItem,
+} from '@/app/components/ui/navigation/tab-navigation';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { CustomAgentNavigation } from '@/app/features/custom-agents/components/custom-agent-navigation';
 import { TestChatPanel } from '@/app/features/custom-agents/components/test-chat-panel';
@@ -86,15 +90,49 @@ function CustomAgentDetailLayout() {
             </h1>
             <Skeleton className="ml-2 h-5 w-16 rounded-full" />
           </AdaptiveHeaderRoot>
-          <nav className="border-border relative flex min-h-12 shrink-0 flex-nowrap items-center gap-4 border-b px-4">
-            {[56, 128, 40, 80, 64].map((w, i) => (
-              <Skeleton key={i} className="h-4" style={{ width: w }} />
-            ))}
+          <TabNavigation
+            items={
+              [
+                {
+                  label: t('customAgents.navigation.general'),
+                  href: `/dashboard/${organizationId}/custom-agents/${agentId}`,
+                  matchMode: 'exact',
+                },
+                {
+                  label: t('customAgents.navigation.instructionsModel'),
+                  href: `/dashboard/${organizationId}/custom-agents/${agentId}/instructions`,
+                  matchMode: 'exact',
+                },
+                {
+                  label: t('customAgents.navigation.tools'),
+                  href: `/dashboard/${organizationId}/custom-agents/${agentId}/tools`,
+                  matchMode: 'exact',
+                },
+                {
+                  label: t('customAgents.navigation.knowledge'),
+                  href: `/dashboard/${organizationId}/custom-agents/${agentId}/knowledge`,
+                  matchMode: 'exact',
+                },
+                {
+                  label: t('customAgents.navigation.delegation'),
+                  href: `/dashboard/${organizationId}/custom-agents/${agentId}/delegation`,
+                  matchMode: 'exact',
+                },
+                {
+                  label: t('customAgents.navigation.webhook'),
+                  href: `/dashboard/${organizationId}/custom-agents/${agentId}/webhook`,
+                  matchMode: 'exact',
+                },
+              ] satisfies TabNavigationItem[]
+            }
+            standalone={false}
+            ariaLabel={tCommon('aria.customAgentsNavigation')}
+          >
             <div className="ml-auto flex items-center gap-2">
               <Skeleton className="h-8 w-14 rounded-md" />
               <Skeleton className="h-8 w-20 rounded-md" />
             </div>
-          </nav>
+          </TabNavigation>
         </StickyHeader>
         <NarrowContainer className="py-4">
           <Stack gap={6}>
