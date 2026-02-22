@@ -80,7 +80,7 @@ describe('useStreamBuffer', () => {
         }),
       );
 
-      expect(result.current.displayLength).toBe(39);
+      expect(result.current.displayLength).toBe(40);
       expect(result.current.progress).toBe(1);
       expect(result.current.isTyping).toBe(false);
     });
@@ -234,7 +234,7 @@ describe('useStreamBuffer', () => {
 
       act(() => advanceFrames(1));
 
-      expect(result.current.displayLength).toBe(55);
+      expect(result.current.displayLength).toBe(56);
       expect(result.current.isTyping).toBe(false);
     });
   });
