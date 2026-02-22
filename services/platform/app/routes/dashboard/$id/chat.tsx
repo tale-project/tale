@@ -25,7 +25,9 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
   return (
     <div className="bg-background flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <ChatHeader organizationId={organizationId} />
+      <LayoutErrorBoundary organizationId={organizationId}>
+        <ChatHeader organizationId={organizationId} />
+      </LayoutErrorBoundary>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <AnimatePresence initial={false}>

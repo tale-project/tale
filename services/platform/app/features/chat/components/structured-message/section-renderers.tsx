@@ -21,19 +21,22 @@ import { parseFollowUpItems } from '@/lib/utils/parse-follow-up-items';
 
 interface NextStepsSectionProps {
   content: string;
+  isStreaming?: boolean;
   onSendFollowUp?: (message: string) => void;
 }
 
 export const NextStepsSection = memo(
   function NextStepsSection({
     content,
+    isStreaming,
     onSendFollowUp,
   }: NextStepsSectionProps) {
     const { t } = useT('chat');
 
     const items = useMemo(() => parseFollowUpItems(content), [content]);
 
-    if (items.length === 0 || !onSendFollowUp) return null;
+    if (items.length === 0 && !isStreaming) return null;
+    if (!onSendFollowUp) return null;
 
     return (
       <section aria-label={t('structured.nextSteps')}>
@@ -55,11 +58,19 @@ export const NextStepsSection = memo(
               {item}
             </Button>
           ))}
+          {isStreaming && (
+            <div
+              className="bg-muted/40 h-7 w-28 animate-pulse rounded-md"
+              role="status"
+              aria-label={t('structured.nextSteps')}
+            />
+          )}
         </div>
       </section>
     );
   },
   (prev, next) =>
     prev.content === next.content &&
+    prev.isStreaming === next.isStreaming &&
     prev.onSendFollowUp === next.onSendFollowUp,
 );

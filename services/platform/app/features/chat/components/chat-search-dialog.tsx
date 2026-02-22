@@ -37,7 +37,7 @@ export function ChatSearchDialog({
 
   const debouncedQuery = useDebounce(query, 300);
 
-  const { threads: allThreads } = useThreads();
+  const { threads: allThreads } = useThreads({ skip: !isOpen });
 
   const threadsData = useMemo(() => {
     if (!allThreads) return null;

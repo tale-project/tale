@@ -49,6 +49,7 @@ function renderSection(
         <NextStepsSection
           key={`section-${index}`}
           content={section.content}
+          isStreaming={isActiveSection}
           onSendFollowUp={onSendFollowUp}
         />
       );
