@@ -1,32 +1,28 @@
 'use client';
 
-import type { UsePaginatedQueryResult } from 'convex/react';
-
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
 import { Workflow } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
-import type { AutomationItem } from '@/convex/workflows/definitions/list_automations_paginated';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
-import { useApproxAutomationCount } from '../hooks/queries';
+import {
+  useApproxAutomationCount,
+  useListAutomationsPaginated,
+} from '../hooks/queries';
 import { useAutomationsTableConfig } from '../hooks/use-automations-table-config';
 import { AutomationsActionMenu } from './automations-action-menu';
 
 interface AutomationsTableProps {
   organizationId: string;
-  paginatedResult: UsePaginatedQueryResult<AutomationItem>;
 }
 
-export function AutomationsTable({
-  organizationId,
-  paginatedResult,
-}: AutomationsTableProps) {
+export function AutomationsTable({ organizationId }: AutomationsTableProps) {
   const navigate = useNavigate();
   const { t: tTables } = useT('tables');
   const { t: tCommon } = useT('common');
@@ -35,6 +31,10 @@ export function AutomationsTable({
   const { data: count } = useApproxAutomationCount(organizationId);
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useAutomationsTableConfig();
+  const paginatedResult = useListAutomationsPaginated({
+    organizationId,
+    initialNumItems: pageSize,
+  });
 
   const activeVersionMap = useMemo(() => {
     const map = new Map<string, string>();

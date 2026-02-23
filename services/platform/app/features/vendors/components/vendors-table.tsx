@@ -1,7 +1,5 @@
 'use client';
 
-import type { UsePaginatedQueryResult } from 'convex/react';
-
 import { useNavigate } from '@tanstack/react-router';
 import { Store } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -12,7 +10,10 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
-import { useApproxVendorCount } from '../hooks/queries';
+import {
+  useApproxVendorCount,
+  useListVendorsPaginated,
+} from '../hooks/queries';
 import { useVendorsTableConfig } from '../hooks/use-vendors-table-config';
 import { VendorsActionMenu } from './vendors-action-menu';
 
@@ -20,14 +21,12 @@ type Vendor = Doc<'vendors'>;
 
 export interface VendorsTableProps {
   organizationId: string;
-  paginatedResult: UsePaginatedQueryResult<Vendor>;
   source?: string;
   locale?: string;
 }
 
 export function VendorsTable({
   organizationId,
-  paginatedResult,
   source,
   locale,
 }: VendorsTableProps) {
@@ -40,6 +39,12 @@ export function VendorsTable({
   const { data: count } = useApproxVendorCount(organizationId);
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useVendorsTableConfig();
+  const paginatedResult = useListVendorsPaginated({
+    organizationId,
+    source,
+    locale,
+    initialNumItems: pageSize,
+  });
 
   const handleSourceChange = useCallback(
     (values: string[]) => {

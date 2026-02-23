@@ -1,7 +1,5 @@
 'use client';
 
-import type { UsePaginatedQueryResult } from 'convex/react';
-
 import { useNavigate } from '@tanstack/react-router';
 import { Users } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -12,7 +10,10 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
-import { useApproxCustomerCount } from '../hooks/queries';
+import {
+  useApproxCustomerCount,
+  useListCustomersPaginated,
+} from '../hooks/queries';
 import { useCustomersTableConfig } from '../hooks/use-customers-table-config';
 import { CustomersActionMenu } from './customers-action-menu';
 
@@ -20,7 +21,6 @@ type Customer = Doc<'customers'>;
 
 export interface CustomersTableProps {
   organizationId: string;
-  paginatedResult: UsePaginatedQueryResult<Customer>;
   status?: string;
   source?: string;
   locale?: string;
@@ -28,7 +28,6 @@ export interface CustomersTableProps {
 
 export function CustomersTable({
   organizationId,
-  paginatedResult,
   status,
   source,
   locale,
@@ -42,6 +41,13 @@ export function CustomersTable({
   const { data: count } = useApproxCustomerCount(organizationId);
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useCustomersTableConfig();
+  const paginatedResult = useListCustomersPaginated({
+    organizationId,
+    status,
+    source,
+    locale,
+    initialNumItems: pageSize,
+  });
 
   const handleStatusChange = useCallback(
     (values: string[]) => {

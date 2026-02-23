@@ -8,11 +8,8 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { KnowledgeNavigation } from '@/app/features/knowledge/components/knowledge-navigation';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -29,34 +26,6 @@ function KnowledgeLayout() {
   const { t: tAccess } = useT('accessDenied');
 
   const ability = useAbility();
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { isLoading } = useCurrentMemberContext(
-    organizationId,
-    isAuthLoading || !isAuthenticated,
-  );
-
-  if (isAuthLoading || isLoading) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        <StickyHeader>
-          <AdaptiveHeaderRoot standalone={false}>
-            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
-          </AdaptiveHeaderRoot>
-          <div className="flex gap-2 p-2">
-            <Skeleton className="h-8 w-24" />
-            <Skeleton className="h-8 w-24" />
-            <Skeleton className="h-8 w-24" />
-            <Skeleton className="h-8 w-24" />
-            <Skeleton className="h-8 w-24" />
-            <Skeleton className="h-8 w-24" />
-          </div>
-        </StickyHeader>
-        <ContentWrapper className="p-4">
-          <Skeleton className="h-96 w-full" />
-        </ContentWrapper>
-      </div>
-    );
-  }
 
   if (ability.cannot('write', 'knowledgeWrite')) {
     return <AccessDenied message={tAccess('knowledge')} />;

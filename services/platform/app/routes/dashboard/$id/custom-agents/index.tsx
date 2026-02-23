@@ -2,10 +2,6 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { CustomAgentsTable } from '@/app/features/custom-agents/components/custom-agents-table';
-import {
-  useApproxCustomAgentCount,
-  useListCustomAgentsPaginated,
-} from '@/app/features/custom-agents/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -34,19 +30,5 @@ export const Route = createFileRoute('/dashboard/$id/custom-agents/')({
 function CustomAgentsPage() {
   const { id: organizationId } = Route.useParams();
 
-  const { data: count } = useApproxCustomAgentCount(organizationId);
-
-  const paginatedResult = useListCustomAgentsPaginated({
-    organizationId,
-    initialNumItems: 10,
-  });
-
-  if (count === undefined) return null;
-
-  return (
-    <CustomAgentsTable
-      organizationId={organizationId}
-      paginatedResult={paginatedResult}
-    />
-  );
+  return <CustomAgentsTable organizationId={organizationId} />;
 }

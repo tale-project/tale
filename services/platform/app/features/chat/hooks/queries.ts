@@ -8,7 +8,6 @@ import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useApprovals } from '@/app/features/approvals/hooks/queries';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
@@ -26,13 +25,12 @@ export interface Thread {
 const THREADS_PAGE_SIZE = 20;
 
 export function useThreads({ skip = false } = {}) {
-  const { isAuthenticated } = useConvexAuth();
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- paginationOpts is optional to handle Convex reconnection replays; usePaginatedQuery always provides it at runtime
   const listThreadsQuery = api.threads.queries
     .listThreads as unknown as Parameters<typeof useCachedPaginatedQuery>[0];
   const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
     listThreadsQuery,
-    isAuthenticated && !skip ? {} : 'skip',
+    skip ? 'skip' : {},
     { initialNumItems: THREADS_PAGE_SIZE },
   );
 

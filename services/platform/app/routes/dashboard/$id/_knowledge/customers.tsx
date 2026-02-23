@@ -3,10 +3,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { CustomersTable } from '@/app/features/customers/components/customers-table';
-import {
-  useApproxCustomerCount,
-  useListCustomersPaginated,
-} from '@/app/features/customers/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -43,22 +39,9 @@ function CustomersPage() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
 
-  const { data: count } = useApproxCustomerCount(organizationId);
-
-  const paginatedResult = useListCustomersPaginated({
-    organizationId,
-    status: search.status,
-    source: search.source,
-    locale: search.locale,
-    initialNumItems: 10,
-  });
-
-  if (count === undefined) return null;
-
   return (
     <CustomersTable
       organizationId={organizationId}
-      paginatedResult={paginatedResult}
       status={search.status}
       source={search.source}
       locale={search.locale}

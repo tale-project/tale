@@ -7,8 +7,6 @@ import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { BrandingSettings } from '@/app/features/settings/branding/components/branding-settings';
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -75,15 +73,10 @@ function BrandingSettingsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { isLoading: isMemberLoading } = useCurrentMemberContext(
-    organizationId,
-    isAuthLoading || !isAuthenticated,
-  );
   const { data: branding, isLoading: isBrandingLoading } =
     useBranding(organizationId);
 
-  if (isAuthLoading || isMemberLoading || isBrandingLoading) {
+  if (isBrandingLoading) {
     return <BrandingSettingsSkeleton />;
   }
 

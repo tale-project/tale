@@ -3,10 +3,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { VendorsTable } from '@/app/features/vendors/components/vendors-table';
-import {
-  useApproxVendorCount,
-  useListVendorsPaginated,
-} from '@/app/features/vendors/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -42,21 +38,9 @@ function VendorsPage() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
 
-  const { data: count } = useApproxVendorCount(organizationId);
-
-  const paginatedResult = useListVendorsPaginated({
-    organizationId,
-    source: search.source,
-    locale: search.locale,
-    initialNumItems: 10,
-  });
-
-  if (count === undefined) return null;
-
   return (
     <VendorsTable
       organizationId={organizationId}
-      paginatedResult={paginatedResult}
       source={search.source}
       locale={search.locale}
     />

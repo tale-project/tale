@@ -1,7 +1,5 @@
 'use client';
 
-import type { UsePaginatedQueryResult } from 'convex/react';
-
 import { useNavigate } from '@tanstack/react-router';
 import { Package } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -12,7 +10,10 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
-import { useApproxProductCount } from '../hooks/queries';
+import {
+  useApproxProductCount,
+  useListProductsPaginated,
+} from '../hooks/queries';
 import { useProductsTableConfig } from '../hooks/use-products-table-config';
 import { ProductsActionMenu } from './products-action-menu';
 
@@ -20,14 +21,14 @@ type Product = Doc<'products'>;
 
 export interface ProductsTableProps {
   organizationId: string;
-  paginatedResult: UsePaginatedQueryResult<Product>;
   status?: string;
+  category?: string;
 }
 
 export function ProductsTable({
   organizationId,
-  paginatedResult,
   status,
+  category,
 }: ProductsTableProps) {
   const navigate = useNavigate();
   const { t: tEmpty } = useT('emptyStates');
@@ -37,6 +38,12 @@ export function ProductsTable({
   const { data: count } = useApproxProductCount(organizationId);
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useProductsTableConfig();
+  const paginatedResult = useListProductsPaginated({
+    organizationId,
+    status,
+    category,
+    initialNumItems: pageSize,
+  });
 
   const handleStatusChange = useCallback(
     (values: string[]) => {

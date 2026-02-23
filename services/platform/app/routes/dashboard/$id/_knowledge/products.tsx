@@ -3,10 +3,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { ProductsTable } from '@/app/features/products/components/products-table';
-import {
-  useApproxProductCount,
-  useListProductsPaginated,
-} from '@/app/features/products/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -42,22 +38,11 @@ function ProductsPage() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
 
-  const { data: count } = useApproxProductCount(organizationId);
-
-  const paginatedResult = useListProductsPaginated({
-    organizationId,
-    status: search.status,
-    category: search.category,
-    initialNumItems: 10,
-  });
-
-  if (count === undefined) return null;
-
   return (
     <ProductsTable
       organizationId={organizationId}
-      paginatedResult={paginatedResult}
       status={search.status}
+      category={search.category}
     />
   );
 }

@@ -12,8 +12,6 @@ import {
   useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -88,21 +86,11 @@ function IntegrationsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { isLoading: isMemberLoading } = useCurrentMemberContext(
-    organizationId,
-    isAuthLoading || !isAuthenticated,
-  );
   const { integrations, isLoading: isIntegrationsLoading } =
     useIntegrations(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
 
-  if (
-    isAuthLoading ||
-    isMemberLoading ||
-    isIntegrationsLoading ||
-    isSsoLoading
-  ) {
+  if (isIntegrationsLoading || isSsoLoading) {
     return <IntegrationsSkeleton />;
   }
 

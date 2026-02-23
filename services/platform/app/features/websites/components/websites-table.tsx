@@ -1,7 +1,5 @@
 'use client';
 
-import type { UsePaginatedQueryResult } from 'convex/react';
-
 import { useNavigate } from '@tanstack/react-router';
 import { Globe } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
@@ -12,7 +10,10 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
-import { useApproxWebsiteCount } from '../hooks/queries';
+import {
+  useApproxWebsiteCount,
+  useListWebsitesPaginated,
+} from '../hooks/queries';
 import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
 import { WebsitesActionMenu } from './websites-action-menu';
 
@@ -20,15 +21,10 @@ type Website = Doc<'websites'>;
 
 export interface WebsitesTableProps {
   organizationId: string;
-  paginatedResult: UsePaginatedQueryResult<Website>;
   status?: string;
 }
 
-export function WebsitesTable({
-  organizationId,
-  paginatedResult,
-  status,
-}: WebsitesTableProps) {
+export function WebsitesTable({ organizationId, status }: WebsitesTableProps) {
   const navigate = useNavigate();
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
@@ -37,6 +33,11 @@ export function WebsitesTable({
   const { data: count } = useApproxWebsiteCount(organizationId);
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useWebsitesTableConfig();
+  const paginatedResult = useListWebsitesPaginated({
+    organizationId,
+    status,
+    initialNumItems: pageSize,
+  });
 
   const handleStatusChange = useCallback(
     (values: string[]) => {
