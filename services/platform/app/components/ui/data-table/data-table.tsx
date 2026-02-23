@@ -42,7 +42,7 @@ import {
 } from '@/app/components/ui/data-display/table';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
-import { HStack, Stack, VStack } from '@/app/components/ui/layout/layout';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useInfiniteScroll } from '@/app/hooks/use-infinite-scroll';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -80,8 +80,8 @@ export interface DataTableProps<TData, TValue = unknown> {
   data: TData[];
   /** Accessible table caption for screen readers */
   caption?: string;
-  /** Empty state configuration (actionMenu is automatically provided) */
-  emptyState?: Omit<DataTableEmptyStateProps, 'actionMenu'>;
+  /** Empty state configuration */
+  emptyState?: DataTableEmptyStateProps;
   /** Pagination configuration */
   pagination?: Omit<DataTablePaginationProps, 'currentPage'> & {
     /** Whether to use client-side pagination */
@@ -344,9 +344,9 @@ export function DataTable<TData, TValue = unknown>({
   const skeletonRowCount = approxRowCount ?? 0;
   const showSkeleton = isDataLoading && skeletonRowCount > 0;
 
-  // Show the initial empty state when not loading and data is empty with no filters
+  // Show empty state when not loading and data is empty (regardless of filters)
   const showInitialEmptyState =
-    !showSkeleton && data.length === 0 && !!emptyState && !hasActiveFilters;
+    !showSkeleton && data.length === 0 && !!emptyState;
 
   const colSpan = columns.length + (enableExpanding ? 1 : 0);
 
@@ -465,15 +465,11 @@ export function DataTable<TData, TValue = unknown>({
           </TableRow>
         ) : rows.length === 0 && hasActiveFilters ? (
           <TableRow className="hover:bg-transparent">
-            <TableCell colSpan={colSpan} className="py-16 text-center">
-              <VStack align="center" className="text-center">
-                <h4 className="text-foreground mb-1 text-base font-semibold">
-                  {t('search.noResults')}
-                </h4>
-                <p className="text-muted-foreground text-sm">
-                  {t('search.tryAdjusting')}
-                </p>
-              </VStack>
+            <TableCell colSpan={colSpan} className="p-4">
+              <DataTableEmptyState
+                title={t('search.noResults')}
+                description={t('search.tryAdjusting')}
+              />
             </TableCell>
           </TableRow>
         ) : rows.length === 0 ? null : (
