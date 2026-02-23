@@ -2,7 +2,6 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import { WebsitesEmptyState } from '@/app/features/websites/components/websites-empty-state';
 import { WebsitesTable } from '@/app/features/websites/components/websites-table';
 import {
   useApproxWebsiteCount,
@@ -51,10 +50,6 @@ function WebsitesPage() {
   });
 
   if (count === undefined) return null;
-
-  if (count === 0) {
-    return <WebsitesEmptyState organizationId={organizationId} />;
-  }
 
   return (
     <WebsitesTable

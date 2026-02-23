@@ -1,7 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { CustomAgentsEmptyState } from '@/app/features/custom-agents/components/custom-agents-empty-state';
 import { CustomAgentsTable } from '@/app/features/custom-agents/components/custom-agents-table';
 import {
   useApproxCustomAgentCount,
@@ -43,10 +42,6 @@ function CustomAgentsPage() {
   });
 
   if (count === undefined) return null;
-
-  if (count === 0) {
-    return <CustomAgentsEmptyState organizationId={organizationId} />;
-  }
 
   return (
     <CustomAgentsTable

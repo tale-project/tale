@@ -1,7 +1,9 @@
+import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { ExecutionsTable } from '@/app/features/automations/executions/executions-table';
+import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { seo } from '@/lib/utils/seo';
 
@@ -20,6 +22,13 @@ export const Route = createFileRoute(
     meta: seo('automationExecutions'),
   }),
   validateSearch: searchSchema,
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.wf_executions.queries.approxCountExecutions, {
+        wfDefinitionId: toId<'wfDefinitions'>(params.amId),
+      }),
+    );
+  },
   component: ExecutionsPage,
 });
 

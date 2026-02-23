@@ -197,7 +197,7 @@ export function CustomAgentsTable({
       fields: ['displayName', 'name'],
       placeholder: t('customAgents.searchAgent'),
     },
-    skeletonRows: Math.min(count ?? 10, 10),
+    approxRowCount: count,
   });
 
   return (

@@ -2,7 +2,6 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { AutomationsEmptyState } from '@/app/features/automations/components/automations-empty-state';
 import { AutomationsTable } from '@/app/features/automations/components/automations-table';
 import {
   useApproxAutomationCount,
@@ -54,14 +53,14 @@ function AutomationsPage() {
     initialNumItems: 10,
   });
 
-  if (isAuthLoading || isMemberLoading || count === undefined) return null;
+  if (count === undefined) return null;
 
-  if (ability.cannot('write', 'wfDefinitions')) {
+  if (
+    !isAuthLoading &&
+    !isMemberLoading &&
+    ability.cannot('write', 'wfDefinitions')
+  ) {
     return <AccessDenied message={t('automations')} />;
-  }
-
-  if (count === 0) {
-    return <AutomationsEmptyState organizationId={organizationId} />;
   }
 
   return (

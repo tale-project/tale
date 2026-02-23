@@ -76,7 +76,7 @@ export function AutomationsTable({
       fields: ['name', 'description'],
       placeholder: searchPlaceholder,
     },
-    skeletonRows: Math.min(count ?? 10, 10),
+    approxRowCount: count,
     filters: {
       definitions: [
         {

@@ -1,6 +1,5 @@
 'use client';
 
-import { useSearch } from '@tanstack/react-router';
 import { type ColumnDef } from '@tanstack/react-table';
 import {
   Eye,
@@ -15,13 +14,11 @@ import { useMemo } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
-import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
-import { Pagination } from '@/app/components/ui/navigation/pagination';
 import { DropdownMenu } from '@/app/components/ui/overlays/dropdown-menu';
-import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
+import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
 interface ExampleMessage {
@@ -43,6 +40,8 @@ const truncateMessage = (message: string, maxLength: number = 100) => {
   return `"${message.slice(0, maxLength)}..."`;
 };
 
+const PAGE_SIZE = 5;
+
 export function ExampleMessagesTable({
   examples,
   onAddExample,
@@ -54,18 +53,6 @@ export function ExampleMessagesTable({
   const { t: tTone } = useT('toneOfVoice');
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
-  const search = useSearch({ strict: false });
-  const itemsPerPage = 5;
-
-  // Get current page from URL query params, default to 1
-  const currentPage = parseInt(search.page || '1', 10);
-
-  // Calculate pagination
-  const totalPages = Math.ceil(examples.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedExamples = examples.slice(startIndex, endIndex);
-  const hasNextPage = currentPage < totalPages;
 
   // Column definitions
   const columns = useMemo<ColumnDef<ExampleMessage>[]>(
@@ -138,41 +125,14 @@ export function ExampleMessagesTable({
         ),
       },
     ],
-    // locale is not used in column definitions
     [tTables, tCommon, onViewExample, onEditExample, onDeleteExample],
   );
 
-  if (examples.length === 0) {
-    return (
-      <PageSection
-        as="h3"
-        titleSize="lg"
-        title={tTone('exampleMessages.title')}
-        description={tTone('exampleMessages.description')}
-        gap={5}
-      >
-        <DataTableEmptyState
-          icon={Sparkles}
-          title={tEmpty('examples.title')}
-          description={tEmpty('examples.description')}
-          actionMenu={
-            <DataTableActionMenu
-              label={tTone('exampleMessages.addButton')}
-              icon={Plus}
-              onClick={onAddExample}
-            />
-          }
-        />
-      </PageSection>
-    );
-  }
-
-  const action = (
-    <Button onClick={onAddExample}>
-      <Plus className="mr-2 size-4" />
-      {tTone('exampleMessages.addButton')}
-    </Button>
-  );
+  const list = useListPage({
+    dataSource: { type: 'query', data: examples },
+    pageSize: PAGE_SIZE,
+    getRowId: (row) => row.id,
+  });
 
   return (
     <PageSection
@@ -180,24 +140,23 @@ export function ExampleMessagesTable({
       titleSize="lg"
       title={tTone('exampleMessages.title')}
       description={tTone('exampleMessages.description')}
-      action={action}
       gap={5}
     >
       <DataTable
         columns={columns}
-        data={paginatedExamples}
-        getRowId={(row) => row.id}
-        footer={
-          examples.length > itemsPerPage ? (
-            <Pagination
-              currentPage={currentPage}
-              total={examples.length}
-              pageSize={itemsPerPage}
-              totalPages={totalPages}
-              hasNextPage={hasNextPage}
-            />
-          ) : undefined
+        actionMenu={
+          <DataTableActionMenu
+            label={tTone('exampleMessages.addButton')}
+            icon={Plus}
+            onClick={onAddExample}
+          />
         }
+        emptyState={{
+          icon: Sparkles,
+          title: tEmpty('examples.title'),
+          description: tEmpty('examples.description'),
+        }}
+        {...list.tableProps}
       />
     </PageSection>
   );

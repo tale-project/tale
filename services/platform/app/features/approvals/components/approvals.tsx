@@ -8,8 +8,6 @@ import { useState, useCallback, useMemo } from 'react';
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';
@@ -32,32 +30,6 @@ interface ApprovalsProps {
   search?: string;
   paginatedResult: UsePaginatedQueryResult<ApprovalItem>;
   approxCount?: number;
-}
-
-function ApprovalsSkeleton({
-  status,
-  rows,
-}: {
-  status?: 'pending' | 'resolved';
-  rows?: number;
-}) {
-  const { pendingColumns, resolvedColumns } = useApprovalColumns({
-    approving: null,
-    rejecting: null,
-    onApprove: () => {},
-    onReject: () => {},
-  });
-
-  return (
-    <DataTableSkeleton
-      rows={rows}
-      columns={status === 'resolved' ? resolvedColumns : pendingColumns}
-      noFirstColumnAvatar
-      showHeader
-      stickyLayout
-      infiniteScroll
-    />
-  );
 }
 
 export function Approvals({
@@ -111,6 +83,7 @@ export function Approvals({
     },
     pageSize,
     getRowId: (row) => row._id,
+    approxRowCount: approxCount,
   });
 
   const { data: memberContext } = useCurrentMemberContext(organizationId);
@@ -236,37 +209,6 @@ export function Approvals({
     return getApprovalDetail(approval);
   }, [selectedApprovalId, allApprovals]);
 
-  const emptyStateElement = (
-    <DataTableEmptyState
-      icon={GitCompare}
-      title={
-        status === 'pending'
-          ? t('emptyState.pending.title')
-          : t('emptyState.resolved.title')
-      }
-      description={
-        status === 'pending' ? t('emptyState.pending.description') : undefined
-      }
-    />
-  );
-
-  if (approxCount === 0) {
-    return emptyStateElement;
-  }
-
-  if (paginatedResult.status === 'LoadingFirstPage') {
-    return (
-      <ApprovalsSkeleton
-        status={status}
-        rows={Math.min(approxCount ?? 10, 10)}
-      />
-    );
-  }
-
-  if (allApprovals.length === 0) {
-    return emptyStateElement;
-  }
-
   const columns = status === 'pending' ? pendingColumns : resolvedColumns;
 
   return (
@@ -276,6 +218,17 @@ export function Approvals({
         stickyLayout
         onRowClick={(row) => handleApprovalRowClick(row.original._id)}
         rowClassName="cursor-pointer"
+        emptyState={{
+          icon: GitCompare,
+          title:
+            status === 'pending'
+              ? t('emptyState.pending.title')
+              : t('emptyState.resolved.title'),
+          description:
+            status === 'pending'
+              ? t('emptyState.pending.description')
+              : undefined,
+        }}
         {...list.tableProps}
       />
       <ApprovalDetailDialog

@@ -8,7 +8,6 @@ import { useMemo, useState, useCallback } from 'react';
 import type { DocumentItem } from '@/types/documents';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
@@ -34,38 +33,6 @@ interface DocumentsTableProps {
 }
 
 const PAGE_SIZE = 20;
-
-function DocumentsSkeleton({
-  organizationId,
-  hasMicrosoftAccount,
-  rows,
-}: {
-  organizationId: string;
-  hasMicrosoftAccount: boolean;
-  rows?: number;
-}) {
-  const { columns, searchPlaceholder } = useDocumentsTableConfig({
-    onDocumentClick: () => {},
-    isLoadingTeams: false,
-    teamMap: new Map(),
-  });
-
-  return (
-    <DataTableSkeleton
-      rows={rows}
-      columns={columns}
-      stickyLayout
-      infiniteScroll
-      searchPlaceholder={searchPlaceholder}
-      actionMenu={
-        <DocumentsActionMenu
-          organizationId={organizationId}
-          hasMicrosoftAccount={hasMicrosoftAccount}
-        />
-      }
-    />
-  );
-}
 
 export function DocumentsTable({
   organizationId,
@@ -232,17 +199,8 @@ export function DocumentsTable({
       placeholder: tDocuments('searchPlaceholder'),
     },
     getRowId: (row) => row.id,
+    approxRowCount: docCount,
   });
-
-  if (paginatedResult.status === 'LoadingFirstPage') {
-    return (
-      <DocumentsSkeleton
-        organizationId={organizationId}
-        hasMicrosoftAccount={hasMicrosoftAccount}
-        rows={Math.max(1, Math.min(docCount ?? 10, 10))}
-      />
-    );
-  }
 
   return (
     <>

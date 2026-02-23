@@ -2,7 +2,6 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import { VendorsEmptyState } from '@/app/features/vendors/components/vendors-empty-state';
 import { VendorsTable } from '@/app/features/vendors/components/vendors-table';
 import {
   useApproxVendorCount,
@@ -53,10 +52,6 @@ function VendorsPage() {
   });
 
   if (count === undefined) return null;
-
-  if (count === 0) {
-    return <VendorsEmptyState organizationId={organizationId} />;
-  }
 
   return (
     <VendorsTable

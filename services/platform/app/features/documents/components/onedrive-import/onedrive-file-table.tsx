@@ -6,7 +6,6 @@ import { useMemo } from 'react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -177,14 +176,12 @@ export function OneDriveFileTable({
     };
   }, [isMicrosoftAccountError, searchQuery, t]);
 
-  if (isLoading) {
-    return <DataTableSkeleton columns={columns} rows={5} />;
-  }
-
   return (
     <DataTable
       columns={columns}
       data={items}
+      isLoading={isLoading}
+      approxRowCount={5}
       getRowId={(row) => row.id}
       emptyState={emptyState}
     />

@@ -95,7 +95,7 @@ export function ProductsTable({
       configs: filterConfigs,
       onClear: handleClearFilters,
     },
-    skeletonRows: Math.min(count ?? 10, 10),
+    approxRowCount: count,
   });
 
   return (

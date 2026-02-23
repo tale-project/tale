@@ -2,9 +2,7 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { ApiKeysEmptyState } from '@/app/features/settings/api-keys/components/api-keys-empty-state';
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
-import { ApiKeysTableSkeleton } from '@/app/features/settings/api-keys/components/api-keys-table-skeleton';
 import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
@@ -37,18 +35,14 @@ function ApiKeysSettingsPage() {
     organizationId,
     isAuthLoading || !isAuthenticated,
   );
-  const { data: apiKeys, isLoading } = useApiKeys(organizationId);
+  const { data: apiKeys } = useApiKeys(organizationId);
 
-  if (isAuthLoading || isMemberLoading || isLoading) {
-    return <ApiKeysTableSkeleton organizationId={organizationId} />;
-  }
-
-  if (ability.cannot('read', 'developerSettings')) {
+  if (
+    !isAuthLoading &&
+    !isMemberLoading &&
+    ability.cannot('read', 'developerSettings')
+  ) {
     return <AccessDenied message={t('apiKeys')} />;
-  }
-
-  if (!isLoading && (!apiKeys || apiKeys.length === 0)) {
-    return <ApiKeysEmptyState organizationId={organizationId} />;
   }
 
   return <ApiKeysTable apiKeys={apiKeys} organizationId={organizationId} />;

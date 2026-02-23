@@ -2,7 +2,6 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { TeamsEmptyState } from '@/app/features/settings/teams/components/teams-empty-state';
 import { TeamsTable } from '@/app/features/settings/teams/components/teams-table';
 import {
   useApproxTeamCount,
@@ -53,14 +52,14 @@ function TeamsSettingsPage() {
   const { data: count } = useApproxTeamCount(organizationId);
   const { teams } = useTeams();
 
-  if (isAuthLoading || isMemberLoading || count === undefined) return null;
+  if (count === undefined) return null;
 
-  if (ability.cannot('read', 'orgSettings')) {
+  if (
+    !isAuthLoading &&
+    !isMemberLoading &&
+    ability.cannot('read', 'orgSettings')
+  ) {
     return <AccessDenied message={t('teams')} />;
-  }
-
-  if (count === 0) {
-    return <TeamsEmptyState organizationId={organizationId} />;
   }
 
   return <TeamsTable teams={teams} organizationId={organizationId} />;

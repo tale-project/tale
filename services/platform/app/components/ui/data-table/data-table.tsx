@@ -64,6 +64,15 @@ import {
   type DataTablePaginationProps,
 } from './data-table-pagination';
 
+interface ColumnMeta {
+  isAction?: boolean;
+  hasAvatar?: boolean;
+  skeleton?: {
+    type?: 'text' | 'badge' | 'id-copy' | 'avatar-text' | 'action' | 'switch';
+  };
+  align?: 'left' | 'center' | 'right';
+}
+
 export interface DataTableProps<TData, TValue = unknown> {
   /** Column definitions */
   columns: ColumnDef<TData, TValue>[];
@@ -95,8 +104,10 @@ export interface DataTableProps<TData, TValue = unknown> {
     /** Distance from bottom to trigger load in px (default: 1000) */
     threshold?: number;
   };
-  /** Number of skeleton rows during initial loading (default: 10) */
-  skeletonRows?: number;
+  /** Approximate row count used for skeleton rows during initial loading */
+  approxRowCount?: number;
+  /** Whether the table data is loading externally (shows skeleton rows) */
+  isLoading?: boolean;
   /** Sorting configuration from useDataTable hook */
   sorting?: DataTableSortingConfig;
   /** Enable row selection */
@@ -160,8 +171,8 @@ export interface DataTableProps<TData, TValue = unknown> {
  * - Row selection with checkboxes
  * - Expandable rows
  * - Pagination (client-side or server-side)
- * - Empty states (initial and filtered)
- * - Loading skeletons
+ * - Empty states (initial and filtered) rendered inside the table
+ * - Loading skeletons via approxRowCount
  * - Customizable row actions
  */
 export function DataTable<TData, TValue = unknown>({
@@ -192,7 +203,8 @@ export function DataTable<TData, TValue = unknown>({
   footer,
   stickyLayout = false,
   infiniteScroll,
-  skeletonRows = 10,
+  approxRowCount,
+  isLoading = false,
   error,
   onRetry,
 }: DataTableProps<TData, TValue>) {
@@ -317,36 +329,28 @@ export function DataTable<TData, TValue = unknown>({
     </div>
   ) : null;
 
-  // Check if any filters are actively applied (moved here after hooks)
+  // Check if any filters are actively applied
   const hasActiveFilters =
     (search?.value && search.value.trim().length > 0) ||
     (filters && filters.some((f) => f.selectedValues.length > 0)) ||
     dateRange?.from ||
     dateRange?.to;
 
-  // Determine empty state (but not during initial load)
-  const isInitialLoading = infiniteScroll?.isInitialLoading;
-  const showEmptyState = data.length === 0 && emptyState && !isInitialLoading;
-  const showInitialEmptyState = showEmptyState && !hasActiveFilters;
+  // Combined loading state: from infiniteScroll or explicit isLoading prop
+  const isDataLoading = infiniteScroll?.isInitialLoading || isLoading;
 
-  // Initial empty state (no data, no filters) - early return since no header needed
-  if (showInitialEmptyState) {
-    return (
-      <div
-        className={cn(
-          stickyLayout ? 'flex flex-col flex-1 min-h-0' : 'space-y-4',
-          className,
-        )}
-      >
-        <DataTableEmptyState {...emptyState} actionMenu={actionMenu} />
-        {footer}
-      </div>
-    );
-  }
+  // Show skeleton rows only when loading AND approxRowCount > 0.
+  // approxRowCount === 0 or undefined signals "no data expected" — show empty state immediately.
+  const skeletonRowCount = approxRowCount ?? 0;
+  const showSkeleton = isDataLoading && skeletonRowCount > 0;
 
-  const rows = pagination?.clientSide
-    ? table.getRowModel().rows
-    : table.getRowModel().rows;
+  // Show the initial empty state when not loading and data is empty with no filters
+  const showInitialEmptyState =
+    !showSkeleton && data.length === 0 && !!emptyState && !hasActiveFilters;
+
+  const colSpan = columns.length + (enableExpanding ? 1 : 0);
+
+  const rows = table.getRowModel().rows;
 
   // Shared table content
   const tableContent = (
@@ -379,43 +383,89 @@ export function DataTable<TData, TValue = unknown>({
         ))}
       </TableHeader>
       <TableBody>
-        {isInitialLoading ? (
-          // Show skeleton rows during initial loading (matching DataTableSkeleton style)
-          Array.from({ length: skeletonRows }).map((_, rowIndex) => (
+        {showSkeleton ? (
+          Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
             <TableRow key={`skeleton-${rowIndex}`}>
               {enableExpanding && <TableCell className="w-[3rem]" />}
               {columns.map((col, colIndex) => {
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+                const meta = col.meta as ColumnMeta | undefined;
                 const isFirstColumn = colIndex === 0;
-                const isActionColumn =
-                  (col.meta as { isAction?: boolean } | undefined)?.isAction ===
-                  true;
+                const isActionCol = meta?.isAction === true;
+                const skeletonType = meta?.skeleton?.type;
+                const hasAvatar = meta?.hasAvatar;
+                const align = meta?.align;
 
-                const cellContent = isActionColumn ? (
-                  <HStack justify="end">
-                    <Skeleton className="h-8 w-8 rounded-md" />
-                  </HStack>
-                ) : isFirstColumn ? (
-                  <HStack gap={3}>
-                    <Skeleton className="size-8 shrink-0 rounded-md" />
-                    <Stack gap={1} className="flex-1">
-                      <Skeleton className="h-3.5 w-full max-w-48" />
-                      <Skeleton className="h-3 w-2/3 max-w-24" />
-                    </Stack>
-                  </HStack>
-                ) : (
-                  <Skeleton className="h-3.5 w-full max-w-[80%]" />
-                );
+                let cellContent: ReactNode;
+
+                if (isActionCol || skeletonType === 'action') {
+                  cellContent = (
+                    <HStack justify="end">
+                      <Skeleton className="h-8 w-8 rounded-md" />
+                    </HStack>
+                  );
+                } else if (skeletonType === 'badge') {
+                  cellContent = <Skeleton className="h-5 w-20 rounded-full" />;
+                } else if (skeletonType === 'switch') {
+                  cellContent = (
+                    <Skeleton className="h-[1.15rem] w-8 rounded-full" />
+                  );
+                } else if (skeletonType === 'id-copy') {
+                  cellContent = (
+                    <HStack gap={2}>
+                      <Skeleton className="h-3.5 max-w-[120px] flex-1" />
+                      <Skeleton className="size-6 shrink-0 rounded-md" />
+                    </HStack>
+                  );
+                } else if (
+                  hasAvatar === true ||
+                  skeletonType === 'avatar-text' ||
+                  (isFirstColumn && hasAvatar !== false)
+                ) {
+                  cellContent = (
+                    <HStack gap={3}>
+                      <Skeleton className="size-8 shrink-0 rounded-md" />
+                      <Stack gap={1} className="flex-1">
+                        <Skeleton className="h-3.5 w-full max-w-48" />
+                        <Skeleton className="h-3 w-2/3 max-w-24" />
+                      </Stack>
+                    </HStack>
+                  );
+                } else if (align === 'right') {
+                  cellContent = (
+                    <div className="flex justify-end">
+                      <Skeleton className="h-3.5 w-20" />
+                    </div>
+                  );
+                } else if (align === 'center') {
+                  cellContent = (
+                    <div className="flex justify-center">
+                      <Skeleton className="h-3.5 w-20" />
+                    </div>
+                  );
+                } else {
+                  cellContent = (
+                    <Skeleton className="h-3.5 w-full max-w-[80%]" />
+                  );
+                }
 
                 return <TableCell key={colIndex}>{cellContent}</TableCell>;
               })}
             </TableRow>
           ))
+        ) : showInitialEmptyState ? (
+          <TableRow className="hover:bg-transparent">
+            <TableCell colSpan={colSpan} className="p-4">
+              <DataTableEmptyState
+                icon={emptyState.icon}
+                title={emptyState.title}
+                description={emptyState.description}
+              />
+            </TableCell>
+          </TableRow>
         ) : rows.length === 0 && hasActiveFilters ? (
-          <TableRow>
-            <TableCell
-              colSpan={columns.length + (enableExpanding ? 1 : 0)}
-              className="py-16 text-center"
-            >
+          <TableRow className="hover:bg-transparent">
+            <TableCell colSpan={colSpan} className="py-16 text-center">
               <VStack align="center" className="text-center">
                 <h4 className="text-foreground mb-1 text-base font-semibold">
                   {t('search.noResults')}

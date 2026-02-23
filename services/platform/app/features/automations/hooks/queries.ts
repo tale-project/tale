@@ -137,6 +137,15 @@ export function useSearchExecution(args: SearchExecutionArgs | undefined) {
   );
 }
 
+export function useApproxExecutionCount(
+  wfDefinitionId: Id<'wfDefinitions'> | undefined,
+) {
+  return useConvexQuery(
+    api.wf_executions.queries.approxCountExecutions,
+    wfDefinitionId ? { wfDefinitionId } : 'skip',
+  );
+}
+
 export function useDryRunWorkflow(
   wfDefinitionId: Id<'wfDefinitions'>,
   input: Record<string, unknown> | null,
