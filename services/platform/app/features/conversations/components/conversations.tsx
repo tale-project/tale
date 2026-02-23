@@ -27,7 +27,7 @@ import { ConversationPanel } from './conversation-panel';
 import { ConversationsClientSkeleton } from './conversations-client-skeleton';
 import { ConversationsList } from './conversations-list';
 
-interface ConversationsClientProps {
+interface ConversationsProps {
   status?: Conversation['status'];
   organizationId: string;
   search?: string;
@@ -35,13 +35,13 @@ interface ConversationsClientProps {
   conversationCount: number | undefined;
 }
 
-export function ConversationsClient({
+export function Conversations({
   status,
   organizationId,
   search: initialSearch,
   paginatedResult,
   conversationCount,
-}: ConversationsClientProps) {
+}: ConversationsProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
   >(null);

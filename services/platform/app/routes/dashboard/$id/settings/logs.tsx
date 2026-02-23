@@ -9,6 +9,7 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
+import { useAuditLogTableConfig } from '@/app/features/settings/audit-logs/hooks/use-audit-log-table-config';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -28,7 +29,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/logs')({
 });
 
 function LogsSkeleton() {
-  const { t } = useT('settings');
+  const { columns } = useAuditLogTableConfig();
 
   return (
     <Stack gap={4}>
@@ -41,15 +42,7 @@ function LogsSkeleton() {
       <Card title={<Skeleton className="h-6 w-32" />}>
         <DataTableSkeleton
           rows={10}
-          columns={[
-            { header: t('logs.audit.columns.timestamp'), size: 140 },
-            { header: t('logs.audit.columns.action'), size: 160 },
-            { header: t('logs.audit.columns.actor'), size: 200 },
-            { header: t('logs.audit.columns.resource'), size: 120 },
-            { header: t('logs.audit.columns.target'), size: 200 },
-            { header: t('logs.audit.columns.category'), size: 100 },
-            { header: t('logs.audit.columns.status'), size: 100 },
-          ]}
+          columns={columns}
           showHeader
           noFirstColumnAvatar
         />

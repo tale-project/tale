@@ -4,9 +4,9 @@ import { createFileRoute } from '@tanstack/react-router';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
-import { OrganizationSettingsClient } from '@/app/features/settings/organization/components/organization-settings-client';
+import { OrganizationSettings } from '@/app/features/settings/organization/components/organization-settings';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -33,23 +33,30 @@ function OrganizationSettingsSkeleton() {
 
   return (
     <Stack>
-      <Stack gap={2}>
-        <Skeleton className="h-4 w-36" />
-        <HStack gap={3} justify="between">
-          <Skeleton className="h-9 max-w-sm flex-1" />
-          <Skeleton className="h-9 w-28" />
-        </HStack>
-      </Stack>
+      {/* Org name: label + input + save button */}
+      <HStack gap={3} align="end" justify="between">
+        <Stack gap={1} className="max-w-sm flex-1">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-9 w-full" />
+        </Stack>
+        <Skeleton className="h-9 w-28 shrink-0" />
+      </HStack>
 
-      <Stack className="pt-4">
+      {/* Org ID row */}
+      <HStack gap={2} align="center">
+        <Skeleton className="h-4 w-24 shrink-0" />
+        <Skeleton className="h-4 w-48" />
+      </HStack>
+
+      {/* Members section */}
+      <Stack gap={4} className="pt-4">
         <Stack gap={1}>
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-4 w-56" />
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-4 w-52" />
         </Stack>
 
         <HStack justify="between">
-          <Skeleton className="h-9 w-full max-w-md" />
-          <Skeleton className="h-9 w-32" />
+          <Skeleton className="h-8 max-w-sm flex-1" />
         </HStack>
 
         <DataTableSkeleton
@@ -91,7 +98,7 @@ function OrganizationSettingsPage() {
   }
 
   return (
-    <OrganizationSettingsClient
+    <OrganizationSettings
       organization={organization}
       memberContext={memberContext}
     />

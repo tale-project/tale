@@ -1,38 +1,29 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
+import { type Row } from '@tanstack/react-table';
+import { ClipboardList } from 'lucide-react';
 import { useMemo, useState, useCallback } from 'react';
 
 import type { DocumentItem } from '@/types/documents';
 
-import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
-import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { HStack } from '@/app/components/ui/layout/layout';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { filterByTextSearch } from '@/lib/utils/filtering';
-import { formatBytes } from '@/lib/utils/format/number';
 
 import {
   useApproxDocumentCount,
   useListDocumentsPaginated,
 } from '../hooks/queries';
+import { useDocumentsTableConfig } from '../hooks/use-documents-table-config';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { DocumentPreviewDialog } from './document-preview-dialog';
-import { DocumentRowActions } from './document-row-actions';
 import { DocumentsActionMenu } from './documents-action-menu';
-import { RagStatusBadge } from './rag-status-badge';
 
 interface DocumentsTableProps {
   organizationId: string;
@@ -53,25 +44,19 @@ function DocumentsSkeleton({
   hasMicrosoftAccount: boolean;
   rows?: number;
 }) {
-  const { t } = useT('tables');
-  const { t: tDocuments } = useT('documents');
+  const { columns, searchPlaceholder } = useDocumentsTableConfig({
+    onDocumentClick: () => {},
+    isLoadingTeams: false,
+    teamMap: new Map(),
+  });
 
   return (
     <DataTableSkeleton
       rows={rows}
-      columns={[
-        { header: t('headers.document') },
-        { header: t('headers.size'), size: 128, align: 'right' },
-        { header: t('headers.source'), size: 96, align: 'center' },
-        { header: t('headers.ragStatus'), size: 160 },
-        { header: t('headers.teams'), size: 160 },
-        { header: t('headers.uploadedBy'), size: 160 },
-        { header: t('headers.modified'), size: 192, align: 'right' },
-        { isAction: true, size: 160 },
-      ]}
+      columns={columns}
       stickyLayout
       infiniteScroll
-      searchPlaceholder={tDocuments('searchPlaceholder')}
+      searchPlaceholder={searchPlaceholder}
       actionMenu={
         <DocumentsActionMenu
           organizationId={organizationId}
@@ -91,7 +76,6 @@ export function DocumentsTable({
 }: DocumentsTableProps) {
   const navigate = useNavigate();
   const { t: tDocuments } = useT('documents');
-  const { t: tTables } = useT('tables');
 
   const { data: docCount } = useApproxDocumentCount(organizationId);
   const [query, setQuery] = useState(searchQuery ?? '');
@@ -137,34 +121,6 @@ export function DocumentsTable({
     organizationId,
     debouncedQuery,
   ]);
-
-  const list = useListPage({
-    dataSource: {
-      type: 'paginated',
-      results: filteredResults,
-      status: paginatedResult.status,
-      loadMore: paginatedResult.loadMore,
-      isLoading: paginatedResult.isLoading,
-    },
-    pageSize: PAGE_SIZE,
-    search: {
-      value: query,
-      onChange: (value: string) => {
-        setQuery(value);
-        void navigate({
-          to: '/dashboard/$id/documents',
-          params: { id: organizationId },
-          search: {
-            query: value.trim() || undefined,
-            folderPath: currentFolderPath,
-            doc: docId,
-          },
-        });
-      },
-      placeholder: tDocuments('searchPlaceholder'),
-    },
-    getRowId: (row) => row.id,
-  });
 
   const previewDocument = useMemo(() => {
     if (!docId || !filteredResults.length) return null;
@@ -244,200 +200,39 @@ export function DocumentsTable({
     [handleFolderClick, openPreview],
   );
 
-  const columns = useMemo<ColumnDef<DocumentItem>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: tTables('headers.document'),
-        cell: ({ row }) => {
-          const fullPath = row.original.name ?? '';
-          const fileName = fullPath.split('/').pop() || fullPath;
+  const { columns } = useDocumentsTableConfig({
+    onDocumentClick: handleDocumentClick,
+    isLoadingTeams,
+    teamMap,
+  });
 
-          return (
-            <HStack gap={3}>
-              <DocumentIcon
-                fileName={fileName}
-                isFolder={row.original.type === 'folder'}
-              />
-              <button
-                type="button"
-                title={fullPath}
-                className="text-left"
-                onClick={(e) => handleDocumentClick(row.original, e)}
-              >
-                <div className="text-primary max-w-[30rem] truncate text-sm font-medium hover:underline">
-                  {fileName}
-                </div>
-              </button>
-            </HStack>
-          );
-        },
+  const list = useListPage({
+    dataSource: {
+      type: 'paginated',
+      results: filteredResults,
+      status: paginatedResult.status,
+      loadMore: paginatedResult.loadMore,
+      isLoading: paginatedResult.isLoading,
+    },
+    pageSize: PAGE_SIZE,
+    search: {
+      value: query,
+      onChange: (value: string) => {
+        setQuery(value);
+        void navigate({
+          to: '/dashboard/$id/documents',
+          params: { id: organizationId },
+          search: {
+            query: value.trim() || undefined,
+            folderPath: currentFolderPath,
+            doc: docId,
+          },
+        });
       },
-      {
-        accessorKey: 'size',
-        header: () => (
-          <span className="block w-full text-right">
-            {tTables('headers.size')}
-          </span>
-        ),
-        size: 128,
-        cell: ({ row }) => (
-          <span className="block text-right whitespace-nowrap">
-            {row.original.type === 'folder' || !row.original.size
-              ? '—'
-              : formatBytes(row.original.size)}
-          </span>
-        ),
-      },
-      {
-        id: 'source',
-        header: () => (
-          <span className="block w-full text-center">
-            {tTables('headers.source')}
-          </span>
-        ),
-        size: 96,
-        cell: ({ row }) => (
-          <HStack gap={2} justify="center">
-            {row.original.sourceProvider === 'onedrive' &&
-              row.original.sourceMode === 'auto' && (
-                <div
-                  className="relative"
-                  title={tDocuments('sourceType.oneDriveSynced')}
-                >
-                  <OneDriveIcon className="size-6" />
-                  <RefreshCw className="text-background bg-foreground absolute right-0.5 bottom-0 size-4 rounded-full p-0.5" />
-                </div>
-              )}
-            {row.original.sourceProvider === 'onedrive' &&
-              row.original.sourceMode === 'manual' && (
-                <div title={tDocuments('sourceType.oneDrive')}>
-                  <OneDriveIcon className="size-6" />
-                </div>
-              )}
-            {row.original.sourceProvider === 'sharepoint' &&
-              row.original.sourceMode === 'auto' && (
-                <div
-                  className="relative"
-                  title={tDocuments('sourceType.sharePointSynced')}
-                >
-                  <SharePointIcon className="size-6" />
-                  <RefreshCw className="text-background bg-foreground absolute right-0.5 bottom-0 size-4 rounded-full p-0.5" />
-                </div>
-              )}
-            {row.original.sourceProvider === 'sharepoint' &&
-              row.original.sourceMode === 'manual' && (
-                <div title={tDocuments('sourceType.sharePoint')}>
-                  <SharePointIcon className="size-6" />
-                </div>
-              )}
-            {row.original.sourceProvider === 'upload' && (
-              <div title={tDocuments('sourceType.uploaded')}>
-                <Monitor className="size-6" />
-              </div>
-            )}
-          </HStack>
-        ),
-      },
-      {
-        id: 'ragStatus',
-        header: tTables('headers.ragStatus'),
-        size: 160,
-        cell: ({ row }) =>
-          row.original.type === 'folder' ? (
-            <span className="text-muted-foreground text-sm">—</span>
-          ) : (
-            <RagStatusBadge
-              status={row.original.ragStatus}
-              indexedAt={row.original.ragIndexedAt}
-              error={row.original.ragError}
-              documentId={row.original.id}
-            />
-          ),
-      },
-      {
-        id: 'teams',
-        header: tTables('headers.teams'),
-        size: 160,
-        cell: ({ row }) => {
-          const tags = row.original.teamTags;
-          if (row.original.type === 'folder' || !tags || tags.length === 0) {
-            return <span className="text-muted-foreground text-sm">—</span>;
-          }
-          if (isLoadingTeams) {
-            return <Skeleton className="h-5 w-20" />;
-          }
-          return (
-            <HStack gap={1} className="flex-wrap">
-              {tags.slice(0, 2).map((tagId) => {
-                const teamName = teamMap.get(tagId);
-                if (!teamName) return null;
-                return (
-                  <Badge key={tagId} variant="blue" className="text-xs">
-                    {teamName}
-                  </Badge>
-                );
-              })}
-              {tags.length > 2 && (
-                <Badge variant="outline" className="text-xs">
-                  +{tags.length - 2}
-                </Badge>
-              )}
-            </HStack>
-          );
-        },
-      },
-      {
-        id: 'uploadedBy',
-        header: tTables('headers.uploadedBy'),
-        size: 160,
-        cell: ({ row }) => {
-          if (row.original.type === 'folder') {
-            return <span className="text-muted-foreground text-sm">—</span>;
-          }
-          return (
-            <span className="text-muted-foreground max-w-[10rem] truncate text-sm">
-              {row.original.createdByName ?? '—'}
-            </span>
-          );
-        },
-      },
-      {
-        accessorKey: 'lastModified',
-        header: () => (
-          <span className="block w-full text-right">
-            {tTables('headers.modified')}
-          </span>
-        ),
-        size: 192,
-        cell: ({ row }) => (
-          <TableDateCell
-            date={row.original.lastModified}
-            preset="short"
-            alignRight
-          />
-        ),
-      },
-      {
-        id: 'actions',
-        size: 160,
-        cell: ({ row }) => (
-          <HStack justify="end">
-            <DocumentRowActions
-              documentId={row.original.id}
-              itemType={row.original.type}
-              name={row.original.name ?? null}
-              syncConfigId={row.original.syncConfigId}
-              isDirectlySelected={row.original.isDirectlySelected}
-              sourceMode={row.original.sourceMode}
-              teamTags={row.original.teamTags}
-            />
-          </HStack>
-        ),
-      },
-    ],
-    [handleDocumentClick, isLoadingTeams, tTables, tDocuments, teamMap],
-  );
+      placeholder: tDocuments('searchPlaceholder'),
+    },
+    getRowId: (row) => row.id,
+  });
 
   if (paginatedResult.status === 'LoadingFirstPage') {
     return (

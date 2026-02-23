@@ -1,6 +1,5 @@
 'use client';
 
-import type { ColumnDef } from '@tanstack/react-table';
 import type { UsePaginatedQueryResult } from 'convex/react';
 
 import { useNavigate } from '@tanstack/react-router';
@@ -8,14 +7,14 @@ import { useCallback, useMemo, useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+import { useAuditLogTableConfig } from '../hooks/use-audit-log-table-config';
 
 type AuditLog = Doc<'auditLogs'>;
 
@@ -24,8 +23,6 @@ interface AuditLogTableProps {
   paginatedResult: UsePaginatedQueryResult<AuditLog>;
   category?: string;
 }
-
-const PAGE_SIZE = 30;
 
 export function AuditLogTable({
   organizationId,
@@ -36,6 +33,8 @@ export function AuditLogTable({
   const { formatDate } = useFormatDate();
   const { t } = useT('settings');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+
+  const { columns, pageSize } = useAuditLogTableConfig();
 
   const handleCategoryChange = useCallback(
     (values: string[]) => {
@@ -83,100 +82,6 @@ export function AuditLogTable({
     [category, t, handleCategoryChange],
   );
 
-  const columns = useMemo<ColumnDef<AuditLog>[]>(
-    () => [
-      {
-        accessorKey: 'timestamp',
-        header: () => (
-          <span className="block w-full text-right">
-            {t('logs.audit.columns.timestamp')}
-          </span>
-        ),
-        size: 140,
-        meta: { headerLabel: t('logs.audit.columns.timestamp') },
-        cell: ({ row }) => (
-          <TableDateCell
-            date={row.original.timestamp}
-            preset="relative"
-            alignRight
-          />
-        ),
-      },
-      {
-        accessorKey: 'action',
-        header: t('logs.audit.columns.action'),
-        cell: ({ row }) => (
-          <span className="font-medium">
-            {row.original.action.replace(/_/g, ' ')}
-          </span>
-        ),
-        size: 160,
-      },
-      {
-        accessorKey: 'actorEmail',
-        header: t('logs.audit.columns.actor'),
-        cell: ({ row }) => (
-          <span className="text-sm">
-            {row.original.actorEmail ?? row.original.actorId}
-          </span>
-        ),
-        size: 200,
-      },
-      {
-        accessorKey: 'resourceType',
-        header: t('logs.audit.columns.resource'),
-        cell: ({ row }) => (
-          <span className="text-sm capitalize">
-            {row.original.resourceType}
-          </span>
-        ),
-        size: 120,
-      },
-      {
-        accessorKey: 'resourceName',
-        header: t('logs.audit.columns.target'),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground block max-w-[200px] truncate text-sm">
-            {row.original.resourceName ?? row.original.resourceId ?? '-'}
-          </span>
-        ),
-        size: 200,
-      },
-      {
-        accessorKey: 'category',
-        header: t('logs.audit.columns.category'),
-        cell: ({ row }) => (
-          <Badge variant="outline" className="capitalize">
-            {row.original.category}
-          </Badge>
-        ),
-        size: 100,
-      },
-      {
-        accessorKey: 'status',
-        header: t('logs.audit.columns.status'),
-        cell: ({ row }) => {
-          const status = row.original.status;
-          return (
-            <Badge
-              variant={
-                status === 'success'
-                  ? 'green'
-                  : status === 'denied'
-                    ? 'yellow'
-                    : 'destructive'
-              }
-            >
-              {status}
-            </Badge>
-          );
-        },
-        size: 100,
-      },
-    ],
-    [t],
-  );
-
   const list = useListPage<AuditLog>({
     dataSource: {
       type: 'paginated',
@@ -185,7 +90,7 @@ export function AuditLogTable({
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
     },
-    pageSize: PAGE_SIZE,
+    pageSize,
     filters: {
       configs: filterConfigs,
       onClear: handleClearFilters,

@@ -6,9 +6,11 @@ import { useForm } from 'react-hook-form';
 import type { ToneOfVoiceWithExamples } from '@/convex/tone_of_voice/types';
 import type { ExampleMessageUI } from '@/types/tone-of-voice';
 
+import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Form } from '@/app/components/ui/forms/form';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
@@ -27,19 +29,67 @@ import { AddExampleDialog } from './example-add-dialog';
 import { ExampleMessagesTable } from './example-messages-table';
 import { ViewEditExampleDialog } from './example-view-edit-dialog';
 
-interface ToneOfVoiceFormClientProps {
+interface ToneOfVoiceFormProps {
   organizationId: string;
   toneOfVoice: ToneOfVoiceWithExamples | null;
+  isLoading?: boolean;
+  exampleCount?: number;
 }
 
 interface ToneFormData {
   tone: string;
 }
 
-export function ToneOfVoiceFormClient({
+function ExampleSectionSkeleton({ rows }: { rows: number }) {
+  const { t } = useT('tables');
+
+  return (
+    <Stack gap={5}>
+      <HStack justify="between" align="start">
+        <Stack gap={1}>
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="h-4 w-64" />
+        </Stack>
+        <Skeleton className="h-9 w-32 shrink-0" />
+      </HStack>
+      <DataTableSkeleton
+        rows={rows}
+        columns={[
+          { header: t('headers.message') },
+          { header: t('headers.updated'), size: 140 },
+          { isAction: true, size: 60 },
+        ]}
+        showHeader
+      />
+    </Stack>
+  );
+}
+
+function ToneFormSkeleton() {
+  return (
+    <Stack gap={5}>
+      <Stack gap={1}>
+        <HStack gap={2} align="center">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-4 w-16 rounded-full" />
+        </HStack>
+        <Skeleton className="h-4 w-72" />
+      </Stack>
+      <Skeleton className="h-36 w-full rounded-lg" />
+      <HStack gap={2} justify="end">
+        <Skeleton className="h-9 w-32" />
+        <Skeleton className="h-9 w-28" />
+      </HStack>
+    </Stack>
+  );
+}
+
+export function ToneOfVoiceForm({
   organizationId,
   toneOfVoice: toneOfVoiceData,
-}: ToneOfVoiceFormClientProps) {
+  isLoading,
+  exampleCount,
+}: ToneOfVoiceFormProps) {
   const { t: tTone } = useT('toneOfVoice');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
@@ -202,53 +252,63 @@ export function ToneOfVoiceFormClient({
 
   return (
     <Stack gap={8}>
-      <ExampleMessagesTable
-        examples={examples}
-        onAddExample={() => setIsAddDialogOpen(true)}
-        onViewExample={handleViewExample}
-        onEditExample={handleEditExample}
-        onDeleteExample={handleDeleteExample}
-      />
-
-      <Form onSubmit={handleSubmit(onSubmit)}>
-        <SectionHeader
-          as="h3"
-          size="lg"
-          title={
-            <>
-              {tTone('form.title')}
-              <span className="text-muted-foreground ml-2 text-xs font-normal">
-                {tTone('form.optional')}
-              </span>
-            </>
-          }
-          description={tTone('form.description')}
+      {isLoading ? (
+        exampleCount && exampleCount > 0 ? (
+          <ExampleSectionSkeleton rows={Math.min(exampleCount, 5)} />
+        ) : null
+      ) : (
+        <ExampleMessagesTable
+          examples={examples}
+          onAddExample={() => setIsAddDialogOpen(true)}
+          onViewExample={handleViewExample}
+          onEditExample={handleEditExample}
+          onDeleteExample={handleDeleteExample}
         />
+      )}
 
-        <Textarea
-          {...register('tone')}
-          defaultValue={toneOfVoiceData?.toneOfVoice?.generatedTone || ''}
-          disabled={isSubmitting}
-          placeholder={tTone('form.placeholder')}
-          rows={6}
-        />
-        <HStack gap={2} justify="end">
-          <Button
-            variant="secondary"
-            onClick={handleGenerateTone}
-            disabled={isGenerating}
-          >
-            {isGenerating
-              ? tTone('form.generating')
-              : tTone('form.generateTone')}
-          </Button>
-          <Button disabled={!isDirty} type="submit">
-            {isSubmitting
-              ? tCommon('actions.saving')
-              : tCommon('actions.saveChanges')}
-          </Button>
-        </HStack>
-      </Form>
+      {isLoading ? (
+        <ToneFormSkeleton />
+      ) : (
+        <Form onSubmit={handleSubmit(onSubmit)}>
+          <SectionHeader
+            as="h3"
+            size="lg"
+            title={
+              <>
+                {tTone('form.title')}
+                <span className="text-muted-foreground ml-2 text-xs font-normal">
+                  {tTone('form.optional')}
+                </span>
+              </>
+            }
+            description={tTone('form.description')}
+          />
+
+          <Textarea
+            {...register('tone')}
+            defaultValue={toneOfVoiceData?.toneOfVoice?.generatedTone || ''}
+            disabled={isSubmitting}
+            placeholder={tTone('form.placeholder')}
+            rows={6}
+          />
+          <HStack gap={2} justify="end">
+            <Button
+              variant="secondary"
+              onClick={handleGenerateTone}
+              disabled={isGenerating}
+            >
+              {isGenerating
+                ? tTone('form.generating')
+                : tTone('form.generateTone')}
+            </Button>
+            <Button disabled={!isDirty} type="submit">
+              {isSubmitting
+                ? tCommon('actions.saving')
+                : tCommon('actions.saveChanges')}
+            </Button>
+          </HStack>
+        </Form>
+      )}
 
       <AddExampleDialog
         isOpen={isAddDialogOpen}

@@ -23,7 +23,7 @@ interface MemberContext {
   isAdmin: boolean;
 }
 
-interface AccountFormClientProps {
+interface AccountFormProps {
   organizationId: string;
   memberContext: MemberContext | null;
 }
@@ -39,9 +39,9 @@ interface SetPasswordFormData {
   confirmPassword: string;
 }
 
-export function AccountFormClient({
+export function AccountForm({
   memberContext: _memberContext,
-}: AccountFormClientProps) {
+}: AccountFormProps) {
   const { t: tAuth } = useT('auth');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');

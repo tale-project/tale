@@ -75,6 +75,7 @@ interface ColumnMeta {
   hasAvatar?: boolean;
   skeleton?: { type?: SkeletonType };
   headerLabel?: string;
+  align?: 'left' | 'center' | 'right';
 }
 
 /** Extract skeleton column info from TanStack Table column definitions */
@@ -103,6 +104,7 @@ function normalizeColumns<TData, TValue>(
       isAction: meta?.isAction,
       hasAvatar: meta?.hasAvatar,
       skeleton: meta?.skeleton,
+      align: meta?.align,
     };
   });
 

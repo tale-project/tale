@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { TriggersClient } from '@/app/features/automations/triggers/triggers-client';
+import { Triggers } from '@/app/features/automations/triggers/triggers';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { seo } from '@/lib/utils/seo';
 
@@ -18,9 +18,6 @@ function TriggersPage() {
   const automationId = toId<'wfDefinitions'>(amId);
 
   return (
-    <TriggersClient
-      automationId={automationId}
-      organizationId={organizationId}
-    />
+    <Triggers automationId={automationId} organizationId={organizationId} />
   );
 }

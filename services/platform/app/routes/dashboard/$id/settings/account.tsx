@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { AccountFormClient } from '@/app/features/settings/account/components/account-form-client';
+import { AccountForm } from '@/app/features/settings/account/components/account-form';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { seo } from '@/lib/utils/seo';
@@ -52,7 +52,7 @@ function AccountPage() {
   }
 
   return (
-    <AccountFormClient
+    <AccountForm
       organizationId={organizationId}
       memberContext={memberContext}
     />

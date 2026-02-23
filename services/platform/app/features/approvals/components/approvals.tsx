@@ -21,12 +21,12 @@ import {
   useUpdateApprovalStatus,
 } from '../hooks/mutations';
 import { ApprovalDetailDialog } from './approval-detail-dialog';
-import { getApprovalDetail } from './approvals-client/get-approval-detail';
-import { useApprovalColumns } from './approvals-client/use-approval-columns';
+import { getApprovalDetail } from './approvals/get-approval-detail';
+import { useApprovalColumns } from './approvals/use-approval-columns';
 
 type ApprovalItem = Doc<'approvals'>;
 
-interface ApprovalsClientProps {
+interface ApprovalsProps {
   status?: 'pending' | 'resolved';
   organizationId: string;
   search?: string;
@@ -41,65 +41,17 @@ function ApprovalsSkeleton({
   status?: 'pending' | 'resolved';
   rows?: number;
 }) {
-  const { t } = useT('approvals');
-  const columns =
-    status === 'resolved'
-      ? [
-          {
-            header: t('columns.approvalRecipient'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          {
-            header: t('columns.event'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          {
-            header: t('columns.action'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          { header: t('columns.reviewer') },
-          { header: t('columns.reviewedAt'), align: 'right' as const },
-          {
-            header: t('columns.approved'),
-            size: 100,
-            align: 'center' as const,
-          },
-        ]
-      : [
-          {
-            header: t('columns.approvalRecipient'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          {
-            header: t('columns.event'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          {
-            header: t('columns.action'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          {
-            header: t('columns.confidence'),
-            size: 100,
-            align: 'right' as const,
-          },
-          {
-            header: t('columns.approved'),
-            size: 100,
-            skeleton: { type: 'action' as const },
-          },
-        ];
+  const { pendingColumns, resolvedColumns } = useApprovalColumns({
+    approving: null,
+    rejecting: null,
+    onApprove: () => {},
+    onReject: () => {},
+  });
 
   return (
     <DataTableSkeleton
       rows={rows}
-      columns={columns}
+      columns={status === 'resolved' ? resolvedColumns : pendingColumns}
       noFirstColumnAvatar
       showHeader
       stickyLayout
@@ -108,13 +60,13 @@ function ApprovalsSkeleton({
   );
 }
 
-export function ApprovalsClient({
+export function Approvals({
   status,
   organizationId,
   search,
   paginatedResult,
   approxCount,
-}: ApprovalsClientProps) {
+}: ApprovalsProps) {
   const { t } = useT('approvals');
 
   const [approving, setApproving] = useState<string | null>(null);

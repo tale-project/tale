@@ -6,7 +6,7 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Card } from '@/app/components/ui/layout/card';
 import { Stack, Grid, HStack } from '@/app/components/ui/layout/layout';
-import { IntegrationsClient } from '@/app/features/settings/integrations/components/integrations-client';
+import { Integrations } from '@/app/features/settings/integrations/components/integrations';
 import {
   useIntegrations,
   useSsoProvider,
@@ -111,7 +111,7 @@ function IntegrationsPage() {
   }
 
   return (
-    <IntegrationsClient
+    <Integrations
       organizationId={organizationId}
       integrations={integrations}
       ssoProvider={ssoProvider ?? null}

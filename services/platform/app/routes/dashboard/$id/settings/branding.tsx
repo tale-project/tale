@@ -4,7 +4,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { BrandingSettingsClient } from '@/app/features/settings/branding/components/branding-settings-client';
+import { BrandingSettings } from '@/app/features/settings/branding/components/branding-settings';
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
@@ -92,7 +92,7 @@ function BrandingSettingsPage() {
   }
 
   return (
-    <BrandingSettingsClient
+    <BrandingSettings
       organizationId={organizationId}
       branding={branding ?? undefined}
     />

@@ -2,7 +2,7 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import { ApprovalsClient } from '@/app/features/approvals/components/approvals-client';
+import { Approvals } from '@/app/features/approvals/components/approvals';
 import {
   useApproxApprovalCountByStatus,
   useListApprovalsPaginated,
@@ -60,7 +60,7 @@ function ApprovalsStatusPage() {
   });
 
   return (
-    <ApprovalsClient
+    <Approvals
       key={`${organizationId}-${status}`}
       status={resolvedStatus}
       organizationId={organizationId}

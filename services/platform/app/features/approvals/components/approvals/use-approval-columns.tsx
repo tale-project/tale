@@ -81,6 +81,7 @@ export function useApprovalColumns({
         id: 'approval',
         header: t('columns.approvalRecipient'),
         size: 256,
+        meta: { skeleton: { type: 'avatar-text' as const } },
         cell: ({ row }) => (
           <div className="flex min-h-[41px] flex-col gap-1.5">
             <div className="flex items-center gap-3">
@@ -99,6 +100,7 @@ export function useApprovalColumns({
         id: 'event',
         header: t('columns.event'),
         size: 256,
+        meta: { skeleton: { type: 'avatar-text' as const } },
         cell: ({ row }) => {
           const metadata = row.original.metadata ?? {};
           return (
@@ -123,6 +125,7 @@ export function useApprovalColumns({
         id: 'action',
         header: t('columns.action'),
         size: 256,
+        meta: { skeleton: { type: 'avatar-text' as const } },
         cell: ({ row }) => {
           const metadata = row.original.metadata ?? {};
           return (
@@ -152,6 +155,7 @@ export function useApprovalColumns({
           </span>
         ),
         size: 100,
+        meta: { headerLabel: t('columns.confidence') },
         cell: ({ row }) => (
           <span className="text-muted-foreground block text-right text-xs font-medium">
             {getConfidencePercent(row.original)}%
@@ -166,6 +170,10 @@ export function useApprovalColumns({
           </span>
         ),
         size: 100,
+        meta: {
+          headerLabel: t('columns.approved'),
+          skeleton: { type: 'action' as const },
+        },
         cell: ({ row }) => (
           <div className="flex justify-center gap-1">
             <Button
@@ -225,6 +233,7 @@ export function useApprovalColumns({
         id: 'approval',
         header: t('columns.approvalRecipient'),
         size: 256,
+        meta: { skeleton: { type: 'avatar-text' as const } },
         cell: ({ row }) => (
           <div className="flex min-h-[41px] flex-col gap-1.5">
             <div className="flex items-center gap-3">
@@ -243,6 +252,7 @@ export function useApprovalColumns({
         id: 'event',
         header: t('columns.event'),
         size: 256,
+        meta: { skeleton: { type: 'avatar-text' as const } },
         cell: ({ row }) => {
           const metadata = row.original.metadata ?? {};
           return (
@@ -267,6 +277,7 @@ export function useApprovalColumns({
         id: 'action',
         header: t('columns.action'),
         size: 256,
+        meta: { skeleton: { type: 'avatar-text' as const } },
         cell: ({ row }) => {
           const metadata = row.original.metadata ?? {};
           return (
@@ -308,6 +319,7 @@ export function useApprovalColumns({
             {t('columns.reviewedAt')}
           </span>
         ),
+        meta: { headerLabel: t('columns.reviewedAt') },
         cell: ({ row }) => (
           <span className="block text-right text-sm">
             {row.original.reviewedAt
@@ -324,6 +336,7 @@ export function useApprovalColumns({
           </span>
         ),
         size: 100,
+        meta: { headerLabel: t('columns.approved') },
         cell: ({ row }) => (
           <div className="px-4 text-center">
             {row.original.status === 'approved' ? (
