@@ -43,6 +43,8 @@ function DashboardLayout() {
     abilityRef.current = defineAbilityFor(memberContext.role);
   }
 
+  const hasRole = !!memberContext?.role;
+
   return (
     <AbilityContext.Provider value={abilityRef.current}>
       <BrandingProvider organizationId={organizationId}>
@@ -59,7 +61,7 @@ function DashboardLayout() {
               </div>
 
               <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
-                <Outlet />
+                {hasRole ? <Outlet /> : null}
               </div>
             </div>
           </AdaptiveHeaderProvider>
