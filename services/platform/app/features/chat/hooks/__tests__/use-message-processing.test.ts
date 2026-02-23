@@ -333,6 +333,139 @@ describe('useMessageProcessing', () => {
     });
   });
 
+  describe('sticky isStreaming', () => {
+    it('keeps isStreaming true when status transitions from streaming to pending', () => {
+      const msgKey = 'msg-2';
+
+      // First render: message is streaming
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: 'Hello...',
+            status: 'streaming',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result, rerender } = renderHook(() =>
+        useMessageProcessing('thread-1'),
+      );
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(true);
+
+      // Second render: status falls back to pending (reconnection)
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'pending',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      rerender();
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(true);
+    });
+
+    it('sets isStreaming false when status reaches success', () => {
+      const msgKey = 'msg-2';
+
+      // First render: streaming
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: 'Hello',
+            status: 'streaming',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result, rerender } = renderHook(() =>
+        useMessageProcessing('thread-1'),
+      );
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(true);
+
+      // Second render: completed
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: 'Hello world!',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      rerender();
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(false);
+    });
+
+    it('does not treat a never-streaming pending message as streaming', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'pending',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.key === 'msg-2')?.isStreaming,
+      ).toBe(false);
+    });
+  });
+
   describe('stripInternalFileReferences', () => {
     it('removes the attached files marker', () => {
       const input =
