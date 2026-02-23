@@ -2116,8 +2116,6 @@
       "usingAgent": "Using {name}",
       "searchPlaceholder": "Search agents...",
       "noResults": "No agents found",
-      "builtinSection": "Built-in agents",
-      "customSection": "Custom agents",
       "builtinAgents": {
         "chat": {
           "name": "Assistant",

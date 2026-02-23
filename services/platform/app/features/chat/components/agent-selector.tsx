@@ -15,23 +15,11 @@ interface AgentSelectorProps {
 
 const DEFAULT_AGENT_VALUE = '__default__';
 
-/** Stable ordering for system default agents by slug */
-const SYSTEM_SLUG_ORDER: Record<string, number> = {
-  chat: 0,
-  web: 1,
-  crm: 2,
-  document: 3,
-  integration: 4,
-  workflow: 5,
-};
-
 interface AgentOption {
   value: string;
   label: string;
   description: string;
-  isSystemDefault?: boolean;
   isDefaultChat?: boolean;
-  systemAgentSlug?: string;
 }
 
 function filterOptions(options: AgentOption[], query: string) {
@@ -52,50 +40,37 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const { systemOptions, customOptions } = useMemo(() => {
-    if (!allAgents) return { systemOptions: [], customOptions: [] };
+  const options = useMemo(() => {
+    if (!allAgents) return [];
 
-    const system: AgentOption[] = [];
-    const custom: AgentOption[] = [];
+    const result: AgentOption[] = [];
 
     for (const agent of allAgents) {
       const rootId = agent.rootVersionId ?? agent._id;
-      const isSystem = Boolean(agent.isSystemDefault);
-      const isDefaultChat = isSystem && agent.systemAgentSlug === 'chat';
+      const isDefaultChat =
+        Boolean(agent.isSystemDefault) && agent.systemAgentSlug === 'chat';
 
-      const option: AgentOption = {
+      result.push({
         value: isDefaultChat ? DEFAULT_AGENT_VALUE : rootId,
         label: agent.displayName,
         description: agent.description || '',
-        isSystemDefault: isSystem,
         isDefaultChat,
-        systemAgentSlug: agent.systemAgentSlug,
-      };
-
-      if (isSystem) {
-        system.push(option);
-      } else {
-        custom.push(option);
-      }
+      });
     }
 
-    // Sort system agents by stable slug order
-    system.sort((a, b) => {
-      const aOrder = SYSTEM_SLUG_ORDER[a.systemAgentSlug ?? ''] ?? 99;
-      const bOrder = SYSTEM_SLUG_ORDER[b.systemAgentSlug ?? ''] ?? 99;
-      return aOrder - bOrder;
+    // Default chat agent first, then alphabetical
+    result.sort((a, b) => {
+      if (a.isDefaultChat) return -1;
+      if (b.isDefaultChat) return 1;
+      return a.label.localeCompare(b.label);
     });
 
-    return { systemOptions: system, customOptions: custom };
+    return result;
   }, [allAgents]);
 
-  const filteredSystem = useMemo(
-    () => filterOptions(systemOptions, search),
-    [systemOptions, search],
-  );
-  const filteredCustom = useMemo(
-    () => filterOptions(customOptions, search),
-    [customOptions, search],
+  const filteredOptions = useMemo(
+    () => filterOptions(options, search),
+    [options, search],
   );
 
   const currentValue = useMemo(() => {
@@ -118,7 +93,6 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
           setSelectedAgent({
             _id: agent.rootVersionId ?? agent._id,
             displayName: agent.displayName,
-            isSystemDefault: agent.isSystemDefault,
           });
         }
       }
@@ -134,9 +108,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
     }
   }, []);
 
-  const hasCustomAgents = filteredCustom.length > 0;
-  const hasNoResults =
-    filteredSystem.length === 0 && filteredCustom.length === 0;
+  const hasNoResults = filteredOptions.length === 0;
 
   return (
     <Popover
@@ -179,7 +151,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
       </div>
 
       <div className="max-h-[20rem] overflow-y-auto p-1" role="listbox">
-        {filteredSystem.map((option) => (
+        {filteredOptions.map((option) => (
           <OptionButton
             key={option.value}
             option={option}
@@ -187,25 +159,6 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
             onSelect={handleSelect}
           />
         ))}
-
-        {hasCustomAgents && (
-          <>
-            {filteredSystem.length > 0 && (
-              <hr className="border-border mx-2 my-1 border-t" />
-            )}
-            <div className="text-muted-foreground px-2 py-1 text-[10px] font-medium tracking-wider uppercase">
-              {t('agentSelector.customSection')}
-            </div>
-            {filteredCustom.map((option) => (
-              <OptionButton
-                key={option.value}
-                option={option}
-                isSelected={currentValue === option.value}
-                onSelect={handleSelect}
-              />
-            ))}
-          </>
-        )}
 
         {hasNoResults && (
           <div className="text-muted-foreground px-3 py-4 text-center text-sm">
