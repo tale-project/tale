@@ -17,3 +17,7 @@ export * from './provision_website_scan_workflow';
 export * from './bulk_upsert_pages';
 export * from './get_pages_by_website';
 export * from './get_page_by_url';
+export * from './register_discovered_urls';
+export * from './find_pending_pages';
+export * from './mark_pages_synced';
+export * from './delete_pages';

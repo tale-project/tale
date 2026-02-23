@@ -6,6 +6,7 @@ export type CrawlerActionParams =
       domain?: string;
       maxPages?: number;
       maxUrls?: number;
+      offset?: number;
       pattern?: string;
       query?: string;
       timeout?: number;
@@ -27,6 +28,8 @@ export interface DiscoverUrlsRawData {
     status: string;
     metadata?: Record<string, unknown>;
   }>;
+  is_complete: boolean;
+  offset: number;
 }
 
 // Simplified result returned by action (only URL strings to avoid memory issues)
@@ -35,6 +38,8 @@ export interface DiscoverUrlsData {
   domain: string;
   urls_discovered: number;
   urls: string[];
+  is_complete: boolean;
+  offset: number;
 }
 
 export interface FetchUrlsData {
@@ -49,6 +54,7 @@ export interface FetchUrlsData {
     metadata?: Record<string, unknown>;
     structured_data?: Record<string, unknown>;
   }>;
+  failed: Array<{ url: string; status_code: number | null; error: string }>;
 }
 
 // Actions should return data directly (not wrapped in { data: ... })

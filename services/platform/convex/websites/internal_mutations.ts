@@ -60,3 +60,33 @@ export const bulkUpsertPages = internalMutation({
     return await WebsitesHelpers.bulkUpsertPages(ctx, args);
   },
 });
+
+export const registerDiscoveredUrls = internalMutation({
+  args: {
+    organizationId: v.string(),
+    websiteId: v.string(),
+    urls: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await WebsitesHelpers.registerDiscoveredUrls(ctx, args);
+  },
+});
+
+export const markPagesSynced = internalMutation({
+  args: {
+    pageIds: v.array(v.id('websitePages')),
+  },
+  handler: async (ctx, args) => {
+    return await WebsitesHelpers.markPagesSynced(ctx, args.pageIds);
+  },
+});
+
+export const deletePages = internalMutation({
+  args: {
+    websiteId: v.id('websites'),
+    pageIds: v.array(v.id('websitePages')),
+  },
+  handler: async (ctx, args) => {
+    return await WebsitesHelpers.deletePages(ctx, args);
+  },
+});

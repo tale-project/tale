@@ -82,6 +82,7 @@ export async function bulkUpsertPages(
         lastCrawledAt: now,
         metadata: page.metadata,
         structuredData: page.structuredData,
+        syncStatus: 'synced' as const,
       }),
     ),
   );
@@ -99,6 +100,7 @@ export async function bulkUpsertPages(
         lastCrawledAt: now,
         metadata: page.metadata,
         structuredData: page.structuredData,
+        syncStatus: 'synced' as const,
       }),
     ),
   );

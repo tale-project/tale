@@ -22,18 +22,22 @@ export interface PageData {
   structured_data?: unknown;
 }
 
-// Parameter type for website pages operations (single operation for now)
-export type WebsitePagesActionParams = {
-  operation: 'bulk_upsert';
-  websiteId: Id<'websites'>;
-  pages: PageData[];
-};
-
-export interface WebsitePagesActionResult {
-  operation: 'bulk_upsert';
-  created: number;
-  updated: number;
-  total: number;
-  success: boolean;
-  timestamp: number;
-}
+// Discriminated union for website pages operations
+export type WebsitePagesActionParams =
+  | {
+      operation: 'bulk_upsert';
+      websiteId: Id<'websites'>;
+      pages: PageData[];
+    }
+  | {
+      operation: 'register_discovered_urls';
+      websiteId: Id<'websites'>;
+      urls: string[];
+    }
+  | {
+      operation: 'sync_pending_pages';
+      websiteId: Id<'websites'>;
+      batchSize?: number;
+      wordCountThreshold?: number;
+      crawlerTimeoutMs?: number;
+    };

@@ -1,14 +1,15 @@
 /**
- * Website Scan Workflow
+ * Website Scan Workflow — Discovery Only
  *
- * This workflow scans a website and saves/updates its details in the database.
- * Each website should have its own workflow instance with the domain defined in variables.
+ * This workflow discovers URLs for a website and registers them as pending pages.
+ * Actual page content fetching is handled by the separate Website Page Sync workflow.
  *
  * Features:
  * - Fetches main page first to extract title and description from metadata
  * - Updates website record with title and description before URL discovery
  * - Discovers URLs using the crawler service (/api/v1/urls/discover)
- * - Fetches content from discovered URLs (/api/v1/urls/fetch)
+ * - Registers discovered URLs as pending website pages
+ * - Supports paginated discovery via offset-based looping
  * - Creates or updates website record with proper metadata
  * - Can be triggered manually or scheduled based on scanInterval
  */
@@ -17,7 +18,7 @@ const websiteScanWorkflow = {
   workflowConfig: {
     name: 'Website Scan',
     description:
-      'Scan a website and save its details to the database. Fetches main page first for metadata, then discovers and fetches all URLs.',
+      'Discover URLs for a website and register them as pending pages for later syncing.',
     version: '1.0.0',
     workflowType: 'predefined',
     config: {
@@ -30,6 +31,8 @@ const websiteScanWorkflow = {
         scanInterval: '6h',
         maxPages: 1000,
         crawlerTimeoutMs: 1800000,
+        offset: 0,
+        discoveryId: '',
       },
     },
   },
@@ -157,7 +160,7 @@ const websiteScanWorkflow = {
       },
     },
 
-    // Step 7: Discover URLs
+    // Step 7: Discover URLs (with offset for pagination)
     {
       stepSlug: 'discover_urls',
       name: 'Discover URLs',
@@ -170,6 +173,7 @@ const websiteScanWorkflow = {
           url: '{{websiteUrl}}',
           domain: '{{websiteDomain}}',
           maxUrls: '{{maxPages}}',
+          offset: '{{offset}}',
           timeout: '{{crawlerTimeoutMs}}',
         },
       },
@@ -200,70 +204,62 @@ const websiteScanWorkflow = {
         },
       },
       nextSteps: {
-        success: 'loop_urls',
+        success: 'register_discovered_urls',
       },
     },
 
-    // Step 9: Loop Through URLs
+    // Step 9: Register Discovered URLs as Pending Pages
     {
-      stepSlug: 'loop_urls',
-      name: 'Loop Through URLs',
-      stepType: 'loop',
+      stepSlug: 'register_discovered_urls',
+      name: 'Register Discovered URLs',
+      stepType: 'action',
       order: 9,
-      config: {
-        items: '{{steps.discover_urls.output.data.urls}}',
-        itemVariable: 'url',
-      },
-      nextSteps: {
-        loop: 'fetch_single_url',
-        done: 'update_website_status',
-      },
-    },
-
-    // Step 10: Fetch Single URL Content
-    {
-      stepSlug: 'fetch_single_url',
-      name: 'Fetch Single URL Content',
-      stepType: 'action',
-      order: 10,
-      config: {
-        type: 'crawler',
-        parameters: {
-          operation: 'fetch_urls',
-          urls: ['{{loop.item}}'],
-          wordCountThreshold: 1000,
-          timeout: '{{crawlerTimeoutMs}}',
-        },
-      },
-      nextSteps: {
-        success: 'save_single_page',
-      },
-    },
-
-    // Step 11: Save Single Page to Database
-    {
-      stepSlug: 'save_single_page',
-      name: 'Save Single Page',
-      stepType: 'action',
-      order: 11,
       config: {
         type: 'websitePages',
         parameters: {
-          operation: 'bulk_upsert',
+          operation: 'register_discovered_urls',
           websiteId:
             '{{steps.create_website_with_metadata.output.data._id || steps.check_existing_website_for_metadata.output.data._id}}',
-          pages: '{{steps.fetch_single_url.output.data.pages}}',
+          urls: '{{steps.discover_urls.output.data.urls}}',
         },
       },
+      nextSteps: { success: 'check_discovery_has_more' },
+    },
+
+    // Step 10: Check if Discovery Has More Pages
+    {
+      stepSlug: 'check_discovery_has_more',
+      name: 'Check Discovery Has More',
+      stepType: 'condition',
+      order: 10,
+      config: {
+        expression: 'steps.discover_urls.output.data.is_complete == false',
+      },
       nextSteps: {
-        success: 'loop_urls',
+        true: 'update_discovery_offset',
+        false: 'update_website_status',
       },
     },
 
-    // Step 12: Update Website - Mark Scan Complete
+    // Step 11: Update Discovery Offset for Next Page
+    {
+      stepSlug: 'update_discovery_offset',
+      name: 'Update Discovery Offset',
+      stepType: 'action',
+      order: 11,
+      config: {
+        type: 'set_variables',
+        parameters: {
+          variables: [{ name: 'offset', value: '{{offset + maxPages}}' }],
+        },
+      },
+      nextSteps: { success: 'discover_urls' },
+    },
+
+    // Step 12: Update Website - Mark Discovery Complete
     {
       stepSlug: 'update_website_status',
-      name: 'Update Website - Mark Scan Complete',
+      name: 'Update Website - Mark Discovery Complete',
       stepType: 'action',
       order: 12,
       config: {
@@ -277,8 +273,9 @@ const websiteScanWorkflow = {
           metadata: {
             urls_discovered:
               '{{steps.discover_urls.output.data.urls_discovered}}',
-            urls_fetched: '{{loop.state.iterations}}',
-            scan_status: 'completed',
+            urls_registered:
+              '{{steps.register_discovered_urls.output.data.registered}}',
+            scan_status: 'discovery_complete',
             last_crawl_timestamp: '{{nowMs}}',
           },
         },

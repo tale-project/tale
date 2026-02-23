@@ -27,6 +27,7 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
       domain: v.optional(v.string()),
       maxPages: v.optional(v.number()),
       maxUrls: v.optional(v.number()),
+      offset: v.optional(v.number()),
       pattern: v.optional(v.string()),
       query: v.optional(v.string()),
       timeout: v.optional(v.number()),
@@ -91,7 +92,8 @@ async function discoverUrls(
 
   const payload = {
     domain,
-    max_urls: params.maxUrls || params.maxPages || 100,
+    max_urls: params.maxUrls || params.maxPages || 1000,
+    offset: params.offset || 0,
     ...(params.pattern && { pattern: params.pattern }),
     ...(params.query && { query: params.query }),
     timeout: timeout / 1000, // Convert milliseconds to seconds
@@ -138,6 +140,8 @@ async function discoverUrls(
     domain: result.domain,
     urls_discovered: result.urls_discovered,
     urls: result.urls.map((u) => u.url),
+    is_complete: result.is_complete,
+    offset: result.offset,
   };
 }
 

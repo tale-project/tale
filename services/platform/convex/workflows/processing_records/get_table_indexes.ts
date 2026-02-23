@@ -116,13 +116,18 @@ export const TABLE_INDEXES: Record<TableName, IndexConfig[]> = {
 
   websitePages: [
     {
-      name: 'by_organizationId_and_status',
-      fields: ['organizationId', 'status'],
+      name: 'by_websiteId_and_syncStatus',
+      fields: ['websiteId', 'syncStatus'],
     },
     {
-      name: 'by_organizationId_and_websiteId',
-      fields: ['organizationId', 'websiteId'],
+      name: 'by_websiteId_and_lastCrawledAt',
+      fields: ['websiteId', 'lastCrawledAt'],
     },
+    {
+      name: 'by_organizationId_and_url',
+      fields: ['organizationId', 'url'],
+    },
+    { name: 'by_websiteId', fields: ['websiteId'] },
     { name: 'by_organizationId', fields: ['organizationId'] },
   ],
 
