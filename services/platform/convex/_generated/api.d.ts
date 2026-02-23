@@ -155,6 +155,7 @@ import type * as conversations_validators from "../conversations/validators.js";
 import type * as crons from "../crons.js";
 import type * as custom_agents_config from "../custom_agents/config.js";
 import type * as custom_agents_internal_queries from "../custom_agents/internal_queries.js";
+import type * as custom_agents_list_custom_agents_paginated from "../custom_agents/list_custom_agents_paginated.js";
 import type * as custom_agents_mutations from "../custom_agents/mutations.js";
 import type * as custom_agents_queries from "../custom_agents/queries.js";
 import type * as custom_agents_seed_system_defaults from "../custom_agents/seed_system_defaults.js";
@@ -779,6 +780,7 @@ import type * as workflows_definitions_get_workflow_by_name from "../workflows/d
 import type * as workflows_definitions_get_workflow_with_first_step from "../workflows/definitions/get_workflow_with_first_step.js";
 import type * as workflows_definitions_helpers from "../workflows/definitions/helpers.js";
 import type * as workflows_definitions_list_automations from "../workflows/definitions/list_automations.js";
+import type * as workflows_definitions_list_automations_paginated from "../workflows/definitions/list_automations_paginated.js";
 import type * as workflows_definitions_list_versions from "../workflows/definitions/list_versions.js";
 import type * as workflows_definitions_list_workflows from "../workflows/definitions/list_workflows.js";
 import type * as workflows_definitions_list_workflows_with_best_version from "../workflows/definitions/list_workflows_with_best_version.js";
@@ -1021,6 +1023,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   "custom_agents/config": typeof custom_agents_config;
   "custom_agents/internal_queries": typeof custom_agents_internal_queries;
+  "custom_agents/list_custom_agents_paginated": typeof custom_agents_list_custom_agents_paginated;
   "custom_agents/mutations": typeof custom_agents_mutations;
   "custom_agents/queries": typeof custom_agents_queries;
   "custom_agents/seed_system_defaults": typeof custom_agents_seed_system_defaults;
@@ -1645,6 +1648,7 @@ declare const fullApi: ApiFromModules<{
   "workflows/definitions/get_workflow_with_first_step": typeof workflows_definitions_get_workflow_with_first_step;
   "workflows/definitions/helpers": typeof workflows_definitions_helpers;
   "workflows/definitions/list_automations": typeof workflows_definitions_list_automations;
+  "workflows/definitions/list_automations_paginated": typeof workflows_definitions_list_automations_paginated;
   "workflows/definitions/list_versions": typeof workflows_definitions_list_versions;
   "workflows/definitions/list_workflows": typeof workflows_definitions_list_workflows;
   "workflows/definitions/list_workflows_with_best_version": typeof workflows_definitions_list_workflows_with_best_version;
