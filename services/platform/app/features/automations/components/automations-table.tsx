@@ -94,6 +94,7 @@ export function AutomationsTable({ organizationId }: AutomationsTableProps) {
 
   return (
     <DataTable
+      className="p-4"
       columns={columns}
       onRowClick={handleRowClick}
       stickyLayout={stickyLayout}
