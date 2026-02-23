@@ -27,9 +27,23 @@ export const Route = createFileRoute('/dashboard/$id/approvals/$status')({
       throw notFound();
     }
   },
-  loader: async ({ context, params }) => {
+  loader: ({ context, params }) => {
     if (isValidStatus(params.status)) {
-      await context.queryClient.ensureQueryData(
+      const isPending = params.status === 'pending';
+
+      void context.queryClient.prefetchQuery(
+        convexQuery(api.approvals.queries.listApprovalsPaginated, {
+          organizationId: params.id,
+          ...(isPending
+            ? { status: 'pending', resourceType: 'product_recommendation' }
+            : {
+                resourceType: 'product_recommendation',
+                excludeStatus: 'pending',
+              }),
+          paginationOpts: { numItems: 30, cursor: null },
+        }),
+      );
+      void context.queryClient.prefetchQuery(
         convexQuery(api.approvals.queries.approxCountApprovalsByStatus, {
           organizationId: params.id,
           status: params.status,

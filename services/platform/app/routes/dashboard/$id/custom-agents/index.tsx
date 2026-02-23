@@ -11,16 +11,16 @@ export const Route = createFileRoute('/dashboard/$id/custom-agents/')({
   }),
   pendingComponent: () => null,
   pendingMs: 0,
-  loader: async ({ context, params }) => {
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.custom_agents.queries.approxCountCustomAgents, {
+        organizationId: params.id,
+      }),
+    );
     void context.queryClient.prefetchQuery(
       convexQuery(api.custom_agents.queries.listCustomAgentsPaginated, {
         organizationId: params.id,
         paginationOpts: { numItems: 10, cursor: null },
-      }),
-    );
-    await context.queryClient.ensureQueryData(
-      convexQuery(api.custom_agents.queries.approxCountCustomAgents, {
-        organizationId: params.id,
       }),
     );
   },

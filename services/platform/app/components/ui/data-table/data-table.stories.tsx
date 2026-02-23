@@ -451,6 +451,84 @@ export const WithManualLoadMore: Story = {
   },
 };
 
+export const CountLoading: Story = {
+  args: {
+    columns,
+    data: [],
+    caption: 'Loading count',
+    approxRowCount: undefined,
+    isLoading: true,
+    search: {
+      value: '',
+      onChange: () => {},
+      placeholder: 'Search users...',
+    },
+    actionMenu: (
+      <Button size="sm" icon={Plus}>
+        Add User
+      </Button>
+    ),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Count still loading — header and column headers render instantly, table body shows 3 placeholder skeleton rows.',
+      },
+    },
+  },
+};
+
+export const SkeletonRows: Story = {
+  args: {
+    columns,
+    data: [],
+    caption: 'Skeleton rows',
+    approxRowCount: 8,
+    isLoading: true,
+    search: {
+      value: '',
+      onChange: () => {},
+      placeholder: 'Search users...',
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Count known (8), data still loading — shows 8 skeleton rows matching the approximate row count.',
+      },
+    },
+  },
+};
+
+export const EmptyStateImmediate: Story = {
+  args: {
+    columns,
+    data: [],
+    caption: 'Empty state',
+    approxRowCount: 0,
+    emptyState: {
+      title: 'No users yet',
+      description: 'Get started by adding your first user.',
+      icon: Plus,
+    },
+    actionMenu: (
+      <Button size="sm" icon={Plus}>
+        Add User
+      </Button>
+    ),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Count is 0 — empty state displays immediately without any skeleton flash.',
+      },
+    },
+  },
+};
+
 export const FullFeatured: Story = {
   render: function FullFeaturedStory() {
     const [searchValue, setSearchValue] = useState('');

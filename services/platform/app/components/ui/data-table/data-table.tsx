@@ -21,6 +21,7 @@ import { ChevronRight } from 'lucide-react';
 import {
   Fragment,
   useState,
+  useMemo,
   useRef,
   useEffect,
   useCallback,
@@ -104,7 +105,12 @@ export interface DataTableProps<TData, TValue = unknown> {
     /** Distance from bottom to trigger load in px (default: 1000) */
     threshold?: number;
   };
-  /** Approximate row count used for skeleton rows during initial loading */
+  /**
+   * Approximate row count for the skeleton display.
+   * - `undefined`: count still loading (shows minimal skeleton placeholder)
+   * - `0`: no data expected (shows empty state immediately)
+   * - `> 0`: shows this many skeleton rows while data loads
+   */
   approxRowCount?: number;
   /** Whether the table data is loading externally (shows skeleton rows) */
   isLoading?: boolean;
@@ -300,6 +306,76 @@ export function DataTable<TData, TValue = unknown>({
     }),
   });
 
+  // Whether any filters are actively applied (memoized for stable dependency)
+  const hasActiveFilters = useMemo(
+    () =>
+      !!(search?.value && search.value.trim().length > 0) ||
+      !!(filters && filters.some((f) => f.selectedValues.length > 0)) ||
+      !!dateRange?.from ||
+      !!dateRange?.to,
+    [search?.value, filters, dateRange?.from, dateRange?.to],
+  );
+
+  // Combined loading signal: data rows are still in flight
+  const isDataLoading = infiniteScroll?.isInitialLoading || isLoading;
+
+  // ---------------------------------------------------------------------------
+  // Table body state machine
+  //
+  // Derives what the table body should render from three independent signals:
+  //   1. approxRowCount — drives skeleton vs empty decision
+  //   2. isDataLoading  — whether the data query is still in flight
+  //   3. data.length    — whether actual rows have arrived
+  //
+  // States:
+  //   'loading'        — count unknown, show minimal skeleton (3 rows)
+  //   'skeleton'       — count known > 0, show N skeleton rows
+  //   'empty'          — no data, emptyState provided, no active filters
+  //   'filtered-empty' — no data, active filters present
+  //   'idle-empty'     — no data, no emptyState, no filters
+  //   'data'           — rows available
+  // ---------------------------------------------------------------------------
+  const tableBodyState = useMemo(() => {
+    const isRowCountLoading = approxRowCount === undefined;
+
+    if (!isDataLoading) {
+      // Has data
+      if (data.length > 0) return 'data';
+      // Has filters
+      if (hasActiveFilters) return 'filtered-empty';
+      // Has empty state
+      if (emptyState) return 'empty';
+      // Has neither data, filters nor empty state
+      return 'idle-empty';
+    }
+
+    if (!isRowCountLoading) {
+      // Can have data
+      if (approxRowCount > 0) return 'skeleton';
+      // Has empty state
+      if (emptyState) return 'empty';
+      // Has neither data nor empty state
+      return 'idle-empty';
+    }
+
+    // Count and data is loading — show minimal skeleton placeholder
+    return 'loading';
+  }, [
+    approxRowCount,
+    isDataLoading,
+    data.length,
+    emptyState,
+    hasActiveFilters,
+  ]);
+
+  // Number of skeleton rows to render based on current state
+  const skeletonRowCount =
+    tableBodyState === 'loading'
+      ? 3
+      : tableBodyState === 'skeleton'
+        ? (approxRowCount ?? 0)
+        : 0;
+
   // If error prop provided, show error display instead of table
   if (error) {
     return (
@@ -328,25 +404,6 @@ export function DataTable<TData, TValue = unknown>({
       {actionMenu}
     </div>
   ) : null;
-
-  // Check if any filters are actively applied
-  const hasActiveFilters =
-    (search?.value && search.value.trim().length > 0) ||
-    (filters && filters.some((f) => f.selectedValues.length > 0)) ||
-    dateRange?.from ||
-    dateRange?.to;
-
-  // Combined loading state: from infiniteScroll or explicit isLoading prop
-  const isDataLoading = infiniteScroll?.isInitialLoading || isLoading;
-
-  // Show skeleton rows only when loading AND approxRowCount > 0.
-  // approxRowCount === 0 or undefined signals "no data expected" — show empty state immediately.
-  const skeletonRowCount = approxRowCount ?? 0;
-  const showSkeleton = isDataLoading && skeletonRowCount > 0;
-
-  // Show empty state when not loading and data is empty (regardless of filters)
-  const showInitialEmptyState =
-    !showSkeleton && data.length === 0 && !!emptyState;
 
   const colSpan = columns.length + (enableExpanding ? 1 : 0);
 
@@ -383,7 +440,9 @@ export function DataTable<TData, TValue = unknown>({
         ))}
       </TableHeader>
       <TableBody>
-        {showSkeleton ? (
+        {tableBodyState === 'loading' || tableBodyState === 'skeleton' ? (
+          // Skeleton rows — count-loading uses 3 placeholder rows,
+          // skeleton uses the actual approxRowCount
           Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
             <TableRow key={`skeleton-${rowIndex}`}>
               {enableExpanding && <TableCell className="w-[3rem]" />}
@@ -453,17 +512,19 @@ export function DataTable<TData, TValue = unknown>({
               })}
             </TableRow>
           ))
-        ) : showInitialEmptyState ? (
+        ) : tableBodyState === 'empty' ? (
+          // Initial empty state — no data and no filters active
           <TableRow className="hover:bg-transparent">
             <TableCell colSpan={colSpan} className="p-4">
               <DataTableEmptyState
-                icon={emptyState.icon}
-                title={emptyState.title}
-                description={emptyState.description}
+                icon={emptyState?.icon}
+                title={emptyState?.title ?? ''}
+                description={emptyState?.description}
               />
             </TableCell>
           </TableRow>
-        ) : rows.length === 0 && hasActiveFilters ? (
+        ) : tableBodyState === 'filtered-empty' ? (
+          // Filtered empty state — filters applied but no matching rows
           <TableRow className="hover:bg-transparent">
             <TableCell colSpan={colSpan} className="p-4">
               <DataTableEmptyState
@@ -472,7 +533,7 @@ export function DataTable<TData, TValue = unknown>({
               />
             </TableCell>
           </TableRow>
-        ) : rows.length === 0 ? null : (
+        ) : tableBodyState === 'idle-empty' ? null : (
           rows.map((row, index) => {
             const isExpanded = row.getIsExpanded();
             const rowClassNameValue =

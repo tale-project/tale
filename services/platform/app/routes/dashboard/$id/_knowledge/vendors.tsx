@@ -19,14 +19,14 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/vendors')({
   validateSearch: searchSchema,
   pendingComponent: () => null,
   pendingMs: 0,
-  loader: async ({ context, params }) => {
+  loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
-      convexQuery(api.vendors.queries.listVendors, {
+      convexQuery(api.vendors.queries.approxCountVendors, {
         organizationId: params.id,
       }),
     );
-    await context.queryClient.ensureQueryData(
-      convexQuery(api.vendors.queries.approxCountVendors, {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.vendors.queries.listVendors, {
         organizationId: params.id,
       }),
     );

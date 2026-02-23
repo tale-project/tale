@@ -25,21 +25,19 @@ export const Route = createFileRoute('/dashboard/$id/approvals')({
       });
     }
   },
-  loader: async ({ context, params }) => {
-    await Promise.all([
-      context.queryClient.ensureQueryData(
-        convexQuery(api.approvals.queries.approxCountApprovalsByStatus, {
-          organizationId: params.id,
-          status: 'pending',
-        }),
-      ),
-      context.queryClient.ensureQueryData(
-        convexQuery(api.approvals.queries.approxCountApprovalsByStatus, {
-          organizationId: params.id,
-          status: 'resolved',
-        }),
-      ),
-    ]);
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.approvals.queries.approxCountApprovalsByStatus, {
+        organizationId: params.id,
+        status: 'resolved',
+      }),
+    );
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.approvals.queries.approxCountApprovalsByStatus, {
+        organizationId: params.id,
+        status: 'pending',
+      }),
+    );
   },
   component: ApprovalsLayout,
 });

@@ -14,16 +14,16 @@ export const Route = createFileRoute('/dashboard/$id/automations/')({
   }),
   pendingComponent: () => null,
   pendingMs: 0,
-  loader: async ({ context, params }) => {
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.wf_definitions.queries.approxCountAutomations, {
+        organizationId: params.id,
+      }),
+    );
     void context.queryClient.prefetchQuery(
       convexQuery(api.wf_definitions.queries.listAutomationsPaginated, {
         organizationId: params.id,
         paginationOpts: { numItems: 10, cursor: null },
-      }),
-    );
-    await context.queryClient.ensureQueryData(
-      convexQuery(api.wf_definitions.queries.approxCountAutomations, {
-        organizationId: params.id,
       }),
     );
   },
