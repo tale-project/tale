@@ -86,16 +86,17 @@ function IntegrationsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
+
   const { integrations, isLoading: isIntegrationsLoading } =
     useIntegrations(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
 
-  if (isIntegrationsLoading || isSsoLoading) {
-    return <IntegrationsSkeleton />;
-  }
-
   if (ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('integrations')} />;
+  }
+
+  if (isIntegrationsLoading || isSsoLoading) {
+    return <IntegrationsSkeleton />;
   }
 
   return (

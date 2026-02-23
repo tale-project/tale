@@ -35,6 +35,7 @@ function AutomationsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
+
   if (ability.cannot('write', 'wfDefinitions')) {
     return <AccessDenied message={t('automations')} />;
   }

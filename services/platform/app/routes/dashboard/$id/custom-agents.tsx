@@ -23,12 +23,12 @@ function CustomAgentsLayout() {
   const { t } = useT('settings');
   const { t: tAccessDenied } = useT('accessDenied');
 
+  const ability = useAbility();
+
   const isDetailPage = useMatch({
     from: '/dashboard/$id/custom-agents/$agentId',
     shouldThrow: false,
   });
-
-  const ability = useAbility();
 
   if (ability.cannot('write', 'customAgents')) {
     return <AccessDenied message={tAccessDenied('customAgents')} />;

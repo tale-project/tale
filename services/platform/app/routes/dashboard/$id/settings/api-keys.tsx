@@ -28,6 +28,7 @@ function ApiKeysSettingsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
+
   const { data: apiKeys } = useApiKeys(organizationId);
 
   if (ability.cannot('read', 'developerSettings')) {

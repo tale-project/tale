@@ -73,15 +73,16 @@ function BrandingSettingsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
+
   const { data: branding, isLoading: isBrandingLoading } =
     useBranding(organizationId);
 
-  if (isBrandingLoading) {
-    return <BrandingSettingsSkeleton />;
-  }
-
   if (ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={t('branding')} />;
+  }
+
+  if (isBrandingLoading) {
+    return <BrandingSettingsSkeleton />;
   }
 
   return (

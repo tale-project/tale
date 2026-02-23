@@ -30,6 +30,7 @@ function TeamsSettingsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
+
   const { teams } = useTeams();
 
   if (ability.cannot('read', 'orgSettings')) {

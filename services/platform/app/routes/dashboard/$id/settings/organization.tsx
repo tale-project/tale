@@ -82,12 +82,12 @@ function OrganizationSettingsPage() {
   const { data: organization, isLoading: isOrgLoading } =
     useOrganization(organizationId);
 
-  if (isOrgLoading || !memberContext) {
-    return <OrganizationSettingsSkeleton />;
-  }
-
   if (ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={t('organization')} />;
+  }
+
+  if (isOrgLoading || !memberContext) {
+    return <OrganizationSettingsSkeleton />;
   }
 
   if (!organization) {

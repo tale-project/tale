@@ -63,7 +63,6 @@ function ApprovalsStatusPage() {
     <Approvals
       key={`${organizationId}-${status}`}
       status={resolvedStatus}
-      organizationId={organizationId}
       search={search}
       paginatedResult={paginatedResult}
       approxCount={approxCount}

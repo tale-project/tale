@@ -8,7 +8,6 @@ import { useState, useCallback, useMemo } from 'react';
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -26,7 +25,6 @@ type ApprovalItem = Doc<'approvals'>;
 
 interface ApprovalsProps {
   status?: 'pending' | 'resolved';
-  organizationId: string;
   search?: string;
   paginatedResult: UsePaginatedQueryResult<ApprovalItem>;
   approxCount?: number;
@@ -34,7 +32,6 @@ interface ApprovalsProps {
 
 export function Approvals({
   status,
-  organizationId,
   search,
   paginatedResult,
   approxCount,
@@ -86,23 +83,14 @@ export function Approvals({
     approxRowCount: approxCount,
   });
 
-  const { data: memberContext } = useCurrentMemberContext(organizationId);
-
   const { mutateAsync: updateApprovalStatus } = useUpdateApprovalStatus();
   const { mutateAsync: removeRecommendedProduct } =
     useRemoveRecommendedProduct();
 
   const handleApprove = useCallback(
     async (approvalId: string) => {
-      if (!memberContext?.memberId) {
-        toast({
-          title: t('toast.loginRequired'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
       setApproving(approvalId);
+
       try {
         await updateApprovalStatus({
           approvalId: toId<'approvals'>(approvalId),
@@ -119,20 +107,13 @@ export function Approvals({
         setApproving(null);
       }
     },
-    [memberContext?.memberId, updateApprovalStatus, t],
+    [updateApprovalStatus, t],
   );
 
   const handleReject = useCallback(
     async (approvalId: string) => {
-      if (!memberContext?.memberId) {
-        toast({
-          title: t('toast.loginRequired'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
       setRejecting(approvalId);
+
       try {
         await updateApprovalStatus({
           approvalId: toId<'approvals'>(approvalId),
@@ -149,20 +130,13 @@ export function Approvals({
         setRejecting(null);
       }
     },
-    [memberContext?.memberId, updateApprovalStatus, t],
+    [updateApprovalStatus, t],
   );
 
   const handleRemoveRecommendation = useCallback(
     async (approvalId: string, productId: string) => {
-      if (!memberContext?.memberId) {
-        toast({
-          title: t('toast.loginRequired'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
       setRemovingProductId(productId);
+
       try {
         await removeRecommendedProduct({
           approvalId: toId<'approvals'>(approvalId),
@@ -178,7 +152,7 @@ export function Approvals({
         setRemovingProductId(null);
       }
     },
-    [memberContext?.memberId, removeRecommendedProduct, t],
+    [removeRecommendedProduct, t],
   );
 
   const handleApprovalRowClick = useCallback((approvalId: string) => {
