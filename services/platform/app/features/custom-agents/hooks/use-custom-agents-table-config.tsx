@@ -23,7 +23,7 @@ interface CustomAgentsTableConfig {
 
 interface CustomAgentsTableConfigOptions {
   teamNameMap: Map<string, string>;
-  modelPresets: Record<string, string> | undefined;
+  modelPresets: Record<string, string | null> | undefined;
 }
 
 export function useCustomAgentsTableConfig({
