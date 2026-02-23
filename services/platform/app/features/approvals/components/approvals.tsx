@@ -8,9 +8,6 @@ import { useState, useCallback, useMemo } from 'react';
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableEmptyState } from '@/app/components/ui/data-table/data-table-empty-state';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
-import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -21,100 +18,24 @@ import {
   useUpdateApprovalStatus,
 } from '../hooks/mutations';
 import { ApprovalDetailDialog } from './approval-detail-dialog';
-import { getApprovalDetail } from './approvals-client/get-approval-detail';
-import { useApprovalColumns } from './approvals-client/use-approval-columns';
+import { getApprovalDetail } from './approvals/get-approval-detail';
+import { useApprovalColumns } from './approvals/use-approval-columns';
 
 type ApprovalItem = Doc<'approvals'>;
 
-interface ApprovalsClientProps {
+interface ApprovalsProps {
   status?: 'pending' | 'resolved';
-  organizationId: string;
   search?: string;
   paginatedResult: UsePaginatedQueryResult<ApprovalItem>;
   approxCount?: number;
 }
 
-function ApprovalsSkeleton({
+export function Approvals({
   status,
-  rows,
-}: {
-  status?: 'pending' | 'resolved';
-  rows?: number;
-}) {
-  const { t } = useT('approvals');
-  const columns =
-    status === 'resolved'
-      ? [
-          {
-            header: t('columns.approvalRecipient'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          {
-            header: t('columns.event'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          {
-            header: t('columns.action'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          { header: t('columns.reviewer') },
-          { header: t('columns.reviewedAt'), align: 'right' as const },
-          {
-            header: t('columns.approved'),
-            size: 100,
-            align: 'center' as const,
-          },
-        ]
-      : [
-          {
-            header: t('columns.approvalRecipient'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          {
-            header: t('columns.event'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          {
-            header: t('columns.action'),
-            size: 256,
-            skeleton: { type: 'avatar-text' as const },
-          },
-          {
-            header: t('columns.confidence'),
-            size: 100,
-            align: 'right' as const,
-          },
-          {
-            header: t('columns.approved'),
-            size: 100,
-            skeleton: { type: 'action' as const },
-          },
-        ];
-
-  return (
-    <DataTableSkeleton
-      rows={rows}
-      columns={columns}
-      noFirstColumnAvatar
-      showHeader
-      stickyLayout
-      infiniteScroll
-    />
-  );
-}
-
-export function ApprovalsClient({
-  status,
-  organizationId,
   search,
   paginatedResult,
   approxCount,
-}: ApprovalsClientProps) {
+}: ApprovalsProps) {
   const { t } = useT('approvals');
 
   const [approving, setApproving] = useState<string | null>(null);
@@ -159,9 +80,8 @@ export function ApprovalsClient({
     },
     pageSize,
     getRowId: (row) => row._id,
+    approxRowCount: approxCount,
   });
-
-  const { data: memberContext } = useCurrentMemberContext(organizationId);
 
   const { mutateAsync: updateApprovalStatus } = useUpdateApprovalStatus();
   const { mutateAsync: removeRecommendedProduct } =
@@ -169,15 +89,8 @@ export function ApprovalsClient({
 
   const handleApprove = useCallback(
     async (approvalId: string) => {
-      if (!memberContext?.memberId) {
-        toast({
-          title: t('toast.loginRequired'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
       setApproving(approvalId);
+
       try {
         await updateApprovalStatus({
           approvalId: toId<'approvals'>(approvalId),
@@ -194,20 +107,13 @@ export function ApprovalsClient({
         setApproving(null);
       }
     },
-    [memberContext?.memberId, updateApprovalStatus, t],
+    [updateApprovalStatus, t],
   );
 
   const handleReject = useCallback(
     async (approvalId: string) => {
-      if (!memberContext?.memberId) {
-        toast({
-          title: t('toast.loginRequired'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
       setRejecting(approvalId);
+
       try {
         await updateApprovalStatus({
           approvalId: toId<'approvals'>(approvalId),
@@ -224,20 +130,13 @@ export function ApprovalsClient({
         setRejecting(null);
       }
     },
-    [memberContext?.memberId, updateApprovalStatus, t],
+    [updateApprovalStatus, t],
   );
 
   const handleRemoveRecommendation = useCallback(
     async (approvalId: string, productId: string) => {
-      if (!memberContext?.memberId) {
-        toast({
-          title: t('toast.loginRequired'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
       setRemovingProductId(productId);
+
       try {
         await removeRecommendedProduct({
           approvalId: toId<'approvals'>(approvalId),
@@ -253,7 +152,7 @@ export function ApprovalsClient({
         setRemovingProductId(null);
       }
     },
-    [memberContext?.memberId, removeRecommendedProduct, t],
+    [removeRecommendedProduct, t],
   );
 
   const handleApprovalRowClick = useCallback((approvalId: string) => {
@@ -284,37 +183,6 @@ export function ApprovalsClient({
     return getApprovalDetail(approval);
   }, [selectedApprovalId, allApprovals]);
 
-  const emptyStateElement = (
-    <DataTableEmptyState
-      icon={GitCompare}
-      title={
-        status === 'pending'
-          ? t('emptyState.pending.title')
-          : t('emptyState.resolved.title')
-      }
-      description={
-        status === 'pending' ? t('emptyState.pending.description') : undefined
-      }
-    />
-  );
-
-  if (approxCount === 0) {
-    return emptyStateElement;
-  }
-
-  if (paginatedResult.status === 'LoadingFirstPage') {
-    return (
-      <ApprovalsSkeleton
-        status={status}
-        rows={Math.min(approxCount ?? 10, 10)}
-      />
-    );
-  }
-
-  if (allApprovals.length === 0) {
-    return emptyStateElement;
-  }
-
   const columns = status === 'pending' ? pendingColumns : resolvedColumns;
 
   return (
@@ -324,6 +192,17 @@ export function ApprovalsClient({
         stickyLayout
         onRowClick={(row) => handleApprovalRowClick(row.original._id)}
         rowClassName="cursor-pointer"
+        emptyState={{
+          icon: GitCompare,
+          title:
+            status === 'pending'
+              ? t('emptyState.pending.title')
+              : t('emptyState.resolved.title'),
+          description:
+            status === 'pending'
+              ? t('emptyState.pending.description')
+              : undefined,
+        }}
         {...list.tableProps}
       />
       <ApprovalDetailDialog

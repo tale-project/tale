@@ -13,21 +13,6 @@ import { useT } from '@/lib/i18n/client';
 
 import { useUpdatePassword } from '../hooks/mutations';
 
-interface MemberContext {
-  memberId: string;
-  organizationId: string;
-  userId: string;
-  role: 'admin' | 'member' | 'editor' | 'developer' | 'disabled';
-  createdAt: number;
-  displayName?: string;
-  isAdmin: boolean;
-}
-
-interface AccountFormClientProps {
-  organizationId: string;
-  memberContext: MemberContext | null;
-}
-
 interface ChangePasswordFormData {
   currentPassword: string;
   newPassword: string;
@@ -39,9 +24,7 @@ interface SetPasswordFormData {
   confirmPassword: string;
 }
 
-export function AccountFormClient({
-  memberContext: _memberContext,
-}: AccountFormClientProps) {
+export function AccountForm() {
   const { t: tAuth } = useT('auth');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');

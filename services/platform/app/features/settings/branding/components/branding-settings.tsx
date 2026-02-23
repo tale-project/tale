@@ -15,15 +15,15 @@ interface BrandingData {
   accentColor?: string;
 }
 
-interface BrandingSettingsClientProps {
+interface BrandingSettingsProps {
   organizationId: string;
   branding?: BrandingData;
 }
 
-export function BrandingSettingsClient({
+export function BrandingSettings({
   organizationId,
   branding,
-}: BrandingSettingsClientProps) {
+}: BrandingSettingsProps) {
   const [previewData, setPreviewData] = useState<BrandingPreviewData>({
     appName: branding?.appName,
     textLogo: branding?.textLogo,

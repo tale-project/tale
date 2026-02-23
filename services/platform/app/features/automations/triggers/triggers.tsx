@@ -10,15 +10,12 @@ import { EventsSection } from './components/events-section';
 import { SchedulesSection } from './components/schedules-section';
 import { WebhooksSection } from './components/webhooks-section';
 
-interface TriggersClientProps {
+interface TriggersProps {
   automationId: Id<'wfDefinitions'>;
   organizationId: string;
 }
 
-export function TriggersClient({
-  automationId,
-  organizationId,
-}: TriggersClientProps) {
+export function Triggers({ automationId, organizationId }: TriggersProps) {
   const { data: workflow } = useWorkflow(automationId);
 
   if (!workflow) {

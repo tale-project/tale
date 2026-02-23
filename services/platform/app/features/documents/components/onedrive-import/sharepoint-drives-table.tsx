@@ -6,7 +6,6 @@ import { Database } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
 
@@ -67,11 +66,7 @@ export function SharePointDrivesTable({
     [tTables, t],
   );
 
-  if (isLoading) {
-    return <DataTableSkeleton columns={columns} rows={5} />;
-  }
-
-  if (!drives || drives.length === 0) {
+  if (!isLoading && (!drives || drives.length === 0)) {
     return (
       <div className="flex h-full flex-col items-center justify-center py-12 text-center">
         <Database className="text-muted-foreground/50 mb-4 size-12" />
@@ -89,6 +84,8 @@ export function SharePointDrivesTable({
     <DataTable
       columns={columns}
       data={drives}
+      isLoading={isLoading}
+      approxRowCount={5}
       getRowId={(row) => row.id}
       onRowClick={(row) => onDriveClick(row.original)}
     />

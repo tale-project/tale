@@ -1534,12 +1534,16 @@
         "webhookUrl": "Webhook URL",
         "deleteTitle": "Delete webhook",
         "deleteDescription": "This will permanently delete this webhook endpoint. Any integrations using this URL will stop working.",
+        "deleteWebhook": "Delete webhook",
         "toast": {
           "created": "Webhook created",
           "deleted": "Webhook deleted",
           "enabled": "Webhook enabled",
           "disabled": "Webhook disabled",
-          "urlCopied": "Webhook URL copied"
+          "urlCopied": "Webhook URL copied",
+          "createFailed": "Failed to create webhook",
+          "toggleFailed": "Failed to toggle webhook",
+          "deleteFailed": "Failed to delete webhook"
         }
       },
       "events": {

@@ -6,9 +6,10 @@ import { useForm } from 'react-hook-form';
 import type { ToneOfVoiceWithExamples } from '@/convex/tone_of_voice/types';
 import type { ExampleMessageUI } from '@/types/tone-of-voice';
 
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Form } from '@/app/components/ui/forms/form';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
@@ -27,19 +28,42 @@ import { AddExampleDialog } from './example-add-dialog';
 import { ExampleMessagesTable } from './example-messages-table';
 import { ViewEditExampleDialog } from './example-view-edit-dialog';
 
-interface ToneOfVoiceFormClientProps {
+interface ToneOfVoiceFormProps {
   organizationId: string;
   toneOfVoice: ToneOfVoiceWithExamples | null;
+  isLoading?: boolean;
+  exampleCount?: number;
 }
 
 interface ToneFormData {
   tone: string;
 }
 
-export function ToneOfVoiceFormClient({
+function ToneFormSkeleton() {
+  return (
+    <Stack gap={5}>
+      <Stack gap={1}>
+        <HStack gap={2} align="center">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-4 w-16 rounded-full" />
+        </HStack>
+        <Skeleton className="h-4 w-72" />
+      </Stack>
+      <Skeleton className="h-36 w-full rounded-lg" />
+      <HStack gap={2} justify="end">
+        <Skeleton className="h-9 w-32" />
+        <Skeleton className="h-9 w-28" />
+      </HStack>
+    </Stack>
+  );
+}
+
+export function ToneOfVoiceForm({
   organizationId,
   toneOfVoice: toneOfVoiceData,
-}: ToneOfVoiceFormClientProps) {
+  isLoading,
+  exampleCount,
+}: ToneOfVoiceFormProps) {
   const { t: tTone } = useT('toneOfVoice');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
@@ -204,51 +228,57 @@ export function ToneOfVoiceFormClient({
     <Stack gap={8}>
       <ExampleMessagesTable
         examples={examples}
+        isLoading={isLoading}
+        approxRowCount={exampleCount}
         onAddExample={() => setIsAddDialogOpen(true)}
         onViewExample={handleViewExample}
         onEditExample={handleEditExample}
         onDeleteExample={handleDeleteExample}
       />
 
-      <Form onSubmit={handleSubmit(onSubmit)}>
-        <SectionHeader
-          as="h3"
-          size="lg"
-          title={
-            <>
-              {tTone('form.title')}
-              <span className="text-muted-foreground ml-2 text-xs font-normal">
-                {tTone('form.optional')}
-              </span>
-            </>
-          }
-          description={tTone('form.description')}
-        />
+      {isLoading ? (
+        <ToneFormSkeleton />
+      ) : (
+        <Form onSubmit={handleSubmit(onSubmit)}>
+          <SectionHeader
+            as="h3"
+            size="lg"
+            title={
+              <>
+                {tTone('form.title')}
+                <span className="text-muted-foreground ml-2 text-xs font-normal">
+                  {tTone('form.optional')}
+                </span>
+              </>
+            }
+            description={tTone('form.description')}
+          />
 
-        <Textarea
-          {...register('tone')}
-          defaultValue={toneOfVoiceData?.toneOfVoice?.generatedTone || ''}
-          disabled={isSubmitting}
-          placeholder={tTone('form.placeholder')}
-          rows={6}
-        />
-        <HStack gap={2} justify="end">
-          <Button
-            variant="secondary"
-            onClick={handleGenerateTone}
-            disabled={isGenerating}
-          >
-            {isGenerating
-              ? tTone('form.generating')
-              : tTone('form.generateTone')}
-          </Button>
-          <Button disabled={!isDirty} type="submit">
-            {isSubmitting
-              ? tCommon('actions.saving')
-              : tCommon('actions.saveChanges')}
-          </Button>
-        </HStack>
-      </Form>
+          <Textarea
+            {...register('tone')}
+            defaultValue={toneOfVoiceData?.toneOfVoice?.generatedTone || ''}
+            disabled={isSubmitting}
+            placeholder={tTone('form.placeholder')}
+            rows={6}
+          />
+          <HStack gap={2} justify="end">
+            <Button
+              variant="secondary"
+              onClick={handleGenerateTone}
+              disabled={isGenerating}
+            >
+              {isGenerating
+                ? tTone('form.generating')
+                : tTone('form.generateTone')}
+            </Button>
+            <Button disabled={!isDirty} type="submit">
+              {isSubmitting
+                ? tCommon('actions.saving')
+                : tCommon('actions.saveChanges')}
+            </Button>
+          </HStack>
+        </Form>
+      )}
 
       <AddExampleDialog
         isOpen={isAddDialogOpen}

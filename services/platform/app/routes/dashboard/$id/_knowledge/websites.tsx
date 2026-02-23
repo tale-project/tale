@@ -2,12 +2,7 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import { WebsitesEmptyState } from '@/app/features/websites/components/websites-empty-state';
 import { WebsitesTable } from '@/app/features/websites/components/websites-table';
-import {
-  useApproxWebsiteCount,
-  useListWebsitesPaginated,
-} from '@/app/features/websites/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -42,25 +37,7 @@ function WebsitesPage() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
 
-  const { data: count } = useApproxWebsiteCount(organizationId);
-
-  const paginatedResult = useListWebsitesPaginated({
-    organizationId,
-    status: search.status,
-    initialNumItems: 10,
-  });
-
-  if (count === undefined) return null;
-
-  if (count === 0) {
-    return <WebsitesEmptyState organizationId={organizationId} />;
-  }
-
   return (
-    <WebsitesTable
-      organizationId={organizationId}
-      paginatedResult={paginatedResult}
-      status={search.status}
-    />
+    <WebsitesTable organizationId={organizationId} status={search.status} />
   );
 }

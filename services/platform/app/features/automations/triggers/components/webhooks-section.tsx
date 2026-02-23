@@ -70,7 +70,10 @@ export function WebhooksSection({
         variant: 'success',
       });
     } catch {
-      toast({ title: 'Failed to create webhook', variant: 'destructive' });
+      toast({
+        title: t('triggers.webhooks.toast.createFailed'),
+        variant: 'destructive',
+      });
     }
   }, [createWebhook, organizationId, workflowRootId, toast, t, getWebhookUrl]);
 
@@ -85,7 +88,10 @@ export function WebhooksSection({
           variant: 'success',
         });
       } catch {
-        toast({ title: 'Failed to toggle webhook', variant: 'destructive' });
+        toast({
+          title: t('triggers.webhooks.toast.toggleFailed'),
+          variant: 'destructive',
+        });
       }
     },
     [toggleWebhook, toast, t],
@@ -105,7 +111,7 @@ export function WebhooksSection({
         },
         onError: () => {
           toast({
-            title: 'Failed to delete webhook',
+            title: t('triggers.webhooks.toast.deleteFailed'),
             variant: 'destructive',
           });
         },
@@ -208,7 +214,7 @@ export function WebhooksSection({
               variant="ghost"
               size="sm"
               onClick={() => setDeleteTarget(row.original)}
-              aria-label="Delete webhook"
+              aria-label={t('triggers.webhooks.deleteWebhook')}
             >
               <Trash2 className="size-4" />
             </Button>

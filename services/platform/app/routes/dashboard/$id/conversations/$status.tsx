@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
-import { ConversationsClient } from '@/app/features/conversations/components/conversations-client';
+import { Conversations } from '@/app/features/conversations/components/conversations';
 import {
   useApproxConversationCountByStatus,
   useListConversationsPaginated,
@@ -75,7 +75,7 @@ function ConversationsStatusPage() {
   });
 
   return (
-    <ConversationsClient
+    <Conversations
       key={`${organizationId}-${status}`}
       status={mappedStatus}
       organizationId={organizationId}

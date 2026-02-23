@@ -19,11 +19,11 @@ import { useT } from '@/lib/i18n/client';
 import { formatDuration } from '@/lib/utils/format/number';
 
 import {
+  useApproxExecutionCount,
   useExecutionJournal,
   useListExecutions,
   useSearchExecution,
 } from '../hooks/queries';
-import { ExecutionsTableSkeleton } from './executions-table-skeleton';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 
 interface ExecutionsTableProps {
@@ -133,6 +133,8 @@ export function ExecutionsTable({
 
   const { searchPlaceholder, stickyLayout, pageSize } =
     useExecutionsTableConfig();
+
+  const { data: count } = useApproxExecutionCount(amId);
 
   const isSearching = !!searchTerm;
 
@@ -428,6 +430,7 @@ export function ExecutionsTable({
       configs: filterConfigs,
       onClear: handleClearFilters,
     },
+    approxRowCount: count,
   });
 
   const renderExpandedRow = useCallback(
@@ -446,10 +449,6 @@ export function ExecutionsTable({
     ? searchResult === undefined
     : paginatedResult.status === 'LoadingFirstPage' && !hasServerFilters;
 
-  if (isInitialLoading) {
-    return <ExecutionsTableSkeleton />;
-  }
-
   return (
     <DataTable<Execution>
       className="px-4 py-6"
@@ -457,6 +456,7 @@ export function ExecutionsTable({
       enableExpanding
       renderExpandedRow={renderExpandedRow}
       stickyLayout={stickyLayout}
+      isLoading={isInitialLoading}
       dateRange={{
         from: dateFrom ? parseISO(dateFrom) : undefined,
         to: dateTo ? parseISO(dateTo) : undefined,

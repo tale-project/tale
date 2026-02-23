@@ -6,7 +6,6 @@ import { useMemo } from 'react';
 
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
 
@@ -72,11 +71,7 @@ export function SharePointSitesTable({
     [tTables, t],
   );
 
-  if (isLoading) {
-    return <DataTableSkeleton columns={columns} rows={5} />;
-  }
-
-  if (!sites || sites.length === 0) {
+  if (!isLoading && (!sites || sites.length === 0)) {
     return (
       <div className="flex h-full flex-col items-center justify-center py-12 text-center">
         <SharePointIcon className="mb-4 size-12 opacity-50" />
@@ -94,6 +89,8 @@ export function SharePointSitesTable({
     <DataTable
       columns={columns}
       data={sites}
+      isLoading={isLoading}
+      approxRowCount={5}
       getRowId={(row) => row.id}
       onRowClick={(row) => onSiteClick(row.original)}
     />

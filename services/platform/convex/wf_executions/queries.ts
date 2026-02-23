@@ -57,3 +57,23 @@ export const getRawExecution = queryWithRLS({
     return await getRawExecutionHelper(ctx, args.executionId);
   },
 });
+
+export const approxCountExecutions = queryWithRLS({
+  args: {
+    wfDefinitionId: v.id('wfDefinitions'),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const cap = 20;
+    let count = 0;
+    for await (const _ of ctx.db
+      .query('wfExecutions')
+      .withIndex('by_definition', (q) =>
+        q.eq('wfDefinitionId', args.wfDefinitionId),
+      )) {
+      count++;
+      if (count >= cap) break;
+    }
+    return count;
+  },
+});

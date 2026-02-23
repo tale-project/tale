@@ -76,7 +76,7 @@ interface UseListPageOptions<TData> {
   filters?: ManagedFilters | ControlledFilters;
   getRowId?: (row: TData) => string;
   /** Approximate item count for skeleton row count during initial loading */
-  skeletonRows?: number;
+  approxRowCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ interface ListPageTableProps<TData> {
     isLoadingMore: boolean;
     isInitialLoading: boolean;
   };
-  skeletonRows?: number;
+  approxRowCount?: number;
 }
 
 interface UseListPageReturn<TData> {
@@ -129,7 +129,7 @@ function isControlledFilters(
 export function useListPage<TData>(
   options: UseListPageOptions<TData>,
 ): UseListPageReturn<TData> {
-  const { dataSource, pageSize, search, filters, getRowId, skeletonRows } =
+  const { dataSource, pageSize, search, filters, getRowId, approxRowCount } =
     options;
 
   // 1. Normalize data source
@@ -318,7 +318,7 @@ export function useListPage<TData>(
             ? dataSource.status === 'LoadingFirstPage'
             : dataSource.data === undefined,
       },
-      skeletonRows,
+      approxRowCount,
     },
     processedData: processed,
     totalCount: rawData.length,

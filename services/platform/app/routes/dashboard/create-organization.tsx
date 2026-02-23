@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { OrganizationFormClient } from '@/app/features/organization/components/organization-form-client';
+import { OrganizationForm } from '@/app/features/organization/components/organization-form';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
 import { seo } from '@/lib/utils/seo';
 
@@ -47,5 +47,5 @@ function CreateOrganizationPage() {
     return null;
   }
 
-  return <OrganizationFormClient />;
+  return <OrganizationForm />;
 }

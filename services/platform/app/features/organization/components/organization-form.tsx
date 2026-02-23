@@ -21,7 +21,7 @@ import { useInitializeDefaultWorkflows } from '../hooks/actions';
 
 type FormData = { name: string };
 
-export function OrganizationFormClient() {
+export function OrganizationForm() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t } = useT('settings');

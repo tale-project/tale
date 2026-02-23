@@ -3,13 +3,13 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { ConversationListPanel } from './conversation-list-panel';
 import { ConversationListToolbar } from './conversation-list-toolbar';
 
-interface ConversationsClientSkeletonProps {
+interface ConversationsSkeletonProps {
   rows?: number;
 }
 
-export function ConversationsClientSkeleton({
+export function ConversationsSkeleton({
   rows = 8,
-}: ConversationsClientSkeletonProps) {
+}: ConversationsSkeletonProps) {
   return (
     <>
       <ConversationListPanel>

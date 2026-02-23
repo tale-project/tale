@@ -19,17 +19,17 @@ import { SSOCard } from './sso-card';
 
 type Integration = Doc<'integrations'> & { iconUrl?: string | null };
 
-interface IntegrationsClientProps {
+interface IntegrationsProps {
   organizationId: string;
   integrations: Integration[];
   ssoProvider: SsoProvider | null;
 }
 
-export function IntegrationsClient({
+export function Integrations({
   organizationId,
   integrations,
   ssoProvider,
-}: IntegrationsClientProps) {
+}: IntegrationsProps) {
   const { t } = useT('settings');
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);

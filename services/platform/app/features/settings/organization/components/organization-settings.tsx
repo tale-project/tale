@@ -8,7 +8,7 @@ import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useDebounce } from '@/app/hooks/use-debounce';
@@ -32,7 +32,7 @@ type MemberContext = {
   canChangePassword?: boolean;
 };
 
-interface OrganizationSettingsClientProps {
+interface OrganizationSettingsProps {
   organization: { _id: string; name: string } | null;
   memberContext: MemberContext | null;
 }
@@ -41,10 +41,10 @@ interface OrganizationFormData {
   name: string;
 }
 
-export function OrganizationSettingsClient({
+export function OrganizationSettings({
   organization,
   memberContext,
-}: OrganizationSettingsClientProps) {
+}: OrganizationSettingsProps) {
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
@@ -64,7 +64,9 @@ export function OrganizationSettingsClient({
   const { formState, handleSubmit, register, reset } = form;
   const { isDirty, isSubmitting } = formState;
 
-  const { members: allMembers } = useMembers(organization?._id ?? '');
+  const { members: allMembers, isLoading: isMembersLoading } = useMembers(
+    organization?._id ?? '',
+  );
 
   const members = useMemo(() => {
     if (!allMembers) return null;
@@ -168,6 +170,8 @@ export function OrganizationSettingsClient({
         <MemberTable
           members={members || []}
           sortOrder={sortOrder}
+          isLoading={isMembersLoading}
+          approxRowCount={5}
           memberContext={
             memberContext
               ? {

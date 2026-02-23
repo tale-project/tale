@@ -7,10 +7,7 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { SettingsNavigation } from '@/app/features/settings/components/settings-navigation';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -24,32 +21,6 @@ export const Route = createFileRoute('/dashboard/$id/settings')({
 function SettingsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('settings');
-
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { isLoading } = useCurrentMemberContext(
-    organizationId,
-    isAuthLoading || !isAuthenticated,
-  );
-
-  if (isAuthLoading || isLoading) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        <StickyHeader>
-          <AdaptiveHeaderRoot standalone={false}>
-            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
-          </AdaptiveHeaderRoot>
-          <div className="flex gap-2 p-2">
-            <Skeleton className="h-8 w-24" />
-            <Skeleton className="h-8 w-24" />
-            <Skeleton className="h-8 w-24" />
-          </div>
-        </StickyHeader>
-        <ContentWrapper className="p-4">
-          <Skeleton className="h-96 w-full" />
-        </ContentWrapper>
-      </div>
-    );
-  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">

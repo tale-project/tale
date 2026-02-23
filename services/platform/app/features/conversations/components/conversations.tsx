@@ -24,10 +24,10 @@ import { BulkSendDialog } from './bulk-send-dialog';
 import { ConversationListPanel } from './conversation-list-panel';
 import { ConversationListToolbar } from './conversation-list-toolbar';
 import { ConversationPanel } from './conversation-panel';
-import { ConversationsClientSkeleton } from './conversations-client-skeleton';
 import { ConversationsList } from './conversations-list';
+import { ConversationsSkeleton } from './conversations-skeleton';
 
-interface ConversationsClientProps {
+interface ConversationsProps {
   status?: Conversation['status'];
   organizationId: string;
   search?: string;
@@ -35,13 +35,13 @@ interface ConversationsClientProps {
   conversationCount: number | undefined;
 }
 
-export function ConversationsClient({
+export function Conversations({
   status,
   organizationId,
   search: initialSearch,
   paginatedResult,
   conversationCount,
-}: ConversationsClientProps) {
+}: ConversationsProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
   >(null);
@@ -102,9 +102,7 @@ export function ConversationsClient({
   }
 
   if (paginatedResult.status === 'LoadingFirstPage') {
-    return (
-      <ConversationsClientSkeleton rows={Math.min(conversationCount ?? 8, 8)} />
-    );
+    return <ConversationsSkeleton rows={Math.min(conversationCount ?? 8, 8)} />;
   }
 
   const handleConversationSelect = (conversation: Conversation) => {

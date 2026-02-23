@@ -7,10 +7,7 @@ import {
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
-import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -26,29 +23,12 @@ function CustomAgentsLayout() {
   const { t } = useT('settings');
   const { t: tAccessDenied } = useT('accessDenied');
 
+  const ability = useAbility();
+
   const isDetailPage = useMatch({
     from: '/dashboard/$id/custom-agents/$agentId',
     shouldThrow: false,
   });
-
-  const ability = useAbility();
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { isLoading } = useCurrentMemberContext(
-    organizationId,
-    isAuthLoading || !isAuthenticated,
-  );
-
-  if (isAuthLoading || isLoading) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        <StickyHeader>
-          <AdaptiveHeaderRoot standalone={false}>
-            <Skeleton className="h-5 w-40" />
-          </AdaptiveHeaderRoot>
-        </StickyHeader>
-      </div>
-    );
-  }
 
   if (ability.cannot('write', 'customAgents')) {
     return <AccessDenied message={tAccessDenied('customAgents')} />;

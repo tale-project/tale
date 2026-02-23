@@ -6,14 +6,12 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Card } from '@/app/components/ui/layout/card';
 import { Stack, Grid, HStack } from '@/app/components/ui/layout/layout';
-import { IntegrationsClient } from '@/app/features/settings/integrations/components/integrations-client';
+import { Integrations } from '@/app/features/settings/integrations/components/integrations';
 import {
   useIntegrations,
   useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -88,30 +86,21 @@ function IntegrationsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  const { isLoading: isMemberLoading } = useCurrentMemberContext(
-    organizationId,
-    isAuthLoading || !isAuthenticated,
-  );
+
   const { integrations, isLoading: isIntegrationsLoading } =
     useIntegrations(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
-
-  if (
-    isAuthLoading ||
-    isMemberLoading ||
-    isIntegrationsLoading ||
-    isSsoLoading
-  ) {
-    return <IntegrationsSkeleton />;
-  }
 
   if (ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('integrations')} />;
   }
 
+  if (isIntegrationsLoading || isSsoLoading) {
+    return <IntegrationsSkeleton />;
+  }
+
   return (
-    <IntegrationsClient
+    <Integrations
       organizationId={organizationId}
       integrations={integrations}
       ssoProvider={ssoProvider ?? null}
