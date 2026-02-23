@@ -2,7 +2,7 @@
 
 import type { ColumnDef } from '@tanstack/react-table';
 
-import { ChevronDownIcon } from 'lucide-react';
+import { ChevronDownIcon, Users } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 
 import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-cell';
@@ -36,6 +36,8 @@ interface MemberTableProps {
   sortOrder: 'asc' | 'desc';
   memberContext?: MemberContext | null;
   onSortChange: (sortOrder: 'asc' | 'desc') => void;
+  isLoading?: boolean;
+  approxRowCount?: number;
 }
 
 export function MemberTable({
@@ -43,9 +45,12 @@ export function MemberTable({
   sortOrder,
   memberContext,
   onSortChange,
+  isLoading,
+  approxRowCount,
 }: MemberTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tSettings } = useT('settings');
+  const { t: tEmpty } = useT('emptyStates');
   const handleSort = useCallback(() => {
     onSortChange(sortOrder === 'asc' ? 'desc' : 'asc');
   }, [sortOrder, onSortChange]);
@@ -137,6 +142,17 @@ export function MemberTable({
   );
 
   return (
-    <DataTable columns={columns} data={members} getRowId={(row) => row._id} />
+    <DataTable
+      columns={columns}
+      data={members}
+      getRowId={(row) => row._id}
+      isLoading={isLoading}
+      approxRowCount={approxRowCount}
+      emptyState={{
+        icon: Users,
+        title: tEmpty('members.title'),
+        description: tEmpty('members.description'),
+      }}
+    />
   );
 }

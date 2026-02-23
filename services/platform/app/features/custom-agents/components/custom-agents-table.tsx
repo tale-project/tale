@@ -1,6 +1,6 @@
 'use client';
 
-import type { ColumnDef, Row } from '@tanstack/react-table';
+import type { Row } from '@tanstack/react-table';
 import type { UsePaginatedQueryResult } from 'convex/react';
 
 import { useNavigate } from '@tanstack/react-router';
@@ -10,16 +10,12 @@ import { useMemo, useCallback } from 'react';
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Badge } from '@/app/components/ui/feedback/badge';
-import { HStack } from '@/app/components/ui/layout/layout';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
-import { isKeyOf } from '@/lib/utils/type-guards';
 
 import { useApproxCustomAgentCount, useModelPresets } from '../hooks/queries';
-import { CustomAgentActiveToggle } from './custom-agent-active-toggle';
-import { CustomAgentRowActions } from './custom-agent-row-actions';
+import { useCustomAgentsTableConfig } from '../hooks/use-custom-agents-table-config';
 import { CustomAgentsActionMenu } from './custom-agents-action-menu';
 
 export interface CustomAgentRow {
@@ -53,9 +49,6 @@ export function CustomAgentsTable({
   organizationId,
   paginatedResult,
 }: CustomAgentsTableProps) {
-  const { t } = useT('settings');
-  const { t: tCommon } = useT('common');
-  const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
@@ -85,104 +78,8 @@ export function CustomAgentsTable({
     return map;
   }, [teams]);
 
-  const columns = useMemo<ColumnDef<CustomAgentRow>[]>(
-    () => [
-      {
-        id: 'displayName',
-        header: t('customAgents.columns.displayName'),
-        cell: ({ row }) => (
-          <span className="text-foreground font-medium">
-            {row.original.displayName}
-          </span>
-        ),
-        size: 250,
-      },
-      {
-        id: 'status',
-        header: tTables('headers.status'),
-        cell: ({ row }) => {
-          const { status } = row.original;
-          return (
-            <Badge dot variant={status === 'active' ? 'green' : 'outline'}>
-              {status === 'active'
-                ? tCommon('status.published')
-                : status === 'archived'
-                  ? tCommon('status.archived')
-                  : tCommon('status.draft')}
-            </Badge>
-          );
-        },
-        size: 140,
-      },
-      {
-        id: 'active',
-        header: t('customAgents.columns.active'),
-        size: 80,
-        cell: ({ row }) => <CustomAgentActiveToggle agent={row.original} />,
-      },
-      {
-        id: 'modelPreset',
-        header: t('customAgents.columns.modelPreset'),
-        cell: ({ row }) => {
-          const preset = row.original.modelPreset;
-          const presetLabel = t(`customAgents.form.modelPresets.${preset}`);
-          const modelName =
-            modelPresets && isKeyOf(preset, modelPresets)
-              ? modelPresets[preset]
-              : undefined;
-          return (
-            <Badge variant="outline">
-              {presetLabel}
-              {modelName && (
-                <span className="text-muted-foreground/60 ml-1">
-                  {modelName}
-                </span>
-              )}
-            </Badge>
-          );
-        },
-        size: 200,
-      },
-      {
-        id: 'tools',
-        header: t('customAgents.columns.tools'),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground text-sm">
-            {row.original.toolNames.length}
-          </span>
-        ),
-        size: 100,
-      },
-      {
-        id: 'team',
-        header: t('customAgents.columns.team'),
-        cell: ({ row }) => {
-          const { teamId: rowTeamId } = row.original;
-          if (!rowTeamId) {
-            return (
-              <span className="text-muted-foreground text-xs">
-                {t('customAgents.columns.orgWide')}
-              </span>
-            );
-          }
-          const teamName = teamNameMap.get(rowTeamId) ?? rowTeamId;
-          return <Badge variant="blue">{teamName}</Badge>;
-        },
-        size: 140,
-      },
-      {
-        id: 'actions',
-        header: '',
-        cell: ({ row }) => (
-          <HStack gap={1} justify="end">
-            <CustomAgentRowActions agent={row.original} />
-          </HStack>
-        ),
-        size: 80,
-      },
-    ],
-    [t, tCommon, tTables, teamNameMap, modelPresets],
-  );
+  const { columns, searchPlaceholder, stickyLayout, pageSize } =
+    useCustomAgentsTableConfig({ teamNameMap, modelPresets });
 
   const list = useListPage<CustomAgentRow>({
     dataSource: {
@@ -192,10 +89,10 @@ export function CustomAgentsTable({
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
     },
-    pageSize: 25,
+    pageSize,
     search: {
       fields: ['displayName', 'name'],
-      placeholder: t('customAgents.searchAgent'),
+      placeholder: searchPlaceholder,
     },
     approxRowCount: count,
   });
@@ -204,6 +101,7 @@ export function CustomAgentsTable({
     <DataTable
       {...list.tableProps}
       columns={columns}
+      stickyLayout={stickyLayout}
       onRowClick={handleRowClick}
       actionMenu={<CustomAgentsActionMenu organizationId={organizationId} />}
       emptyState={{

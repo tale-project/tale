@@ -5,7 +5,6 @@ import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
@@ -49,7 +48,6 @@ export function OrganizationSettings({
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
-  const { t: tTables } = useT('tables');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
@@ -169,48 +167,37 @@ export function OrganizationSettings({
           )}
         </HStack>
 
-        {isMembersLoading ? (
-          <DataTableSkeleton
-            rows={5}
-            columns={[
-              { header: tTables('headers.member'), size: 348 },
-              { header: tTables('headers.role'), size: 200 },
-              { header: tTables('headers.joined'), align: 'right' },
-              { isAction: true, size: 140 },
-            ]}
-            showHeader
-          />
-        ) : (
-          <MemberTable
-            members={members || []}
-            sortOrder={sortOrder}
-            memberContext={
-              memberContext
-                ? {
-                    member: memberContext.memberId
-                      ? {
-                          _id: memberContext.memberId,
-                          createdAt: memberContext.createdAt ?? 0,
-                          organizationId: memberContext.organizationId ?? '',
-                          userId: memberContext.userId ?? '',
-                          role: memberContext.role ?? undefined,
-                          displayName: memberContext.displayName,
-                        }
-                      : null,
-                    role: memberContext.role || null,
-                    isAdmin: memberContext.isAdmin || false,
-                    canManageMembers:
-                      memberContext.canManageMembers ??
-                      memberContext.isAdmin ??
-                      false,
-                  }
-                : undefined
-            }
-            onSortChange={(newSortOrder) => {
-              setSortOrder(newSortOrder);
-            }}
-          />
-        )}
+        <MemberTable
+          members={members || []}
+          sortOrder={sortOrder}
+          isLoading={isMembersLoading}
+          approxRowCount={5}
+          memberContext={
+            memberContext
+              ? {
+                  member: memberContext.memberId
+                    ? {
+                        _id: memberContext.memberId,
+                        createdAt: memberContext.createdAt ?? 0,
+                        organizationId: memberContext.organizationId ?? '',
+                        userId: memberContext.userId ?? '',
+                        role: memberContext.role ?? undefined,
+                        displayName: memberContext.displayName,
+                      }
+                    : null,
+                  role: memberContext.role || null,
+                  isAdmin: memberContext.isAdmin || false,
+                  canManageMembers:
+                    memberContext.canManageMembers ??
+                    memberContext.isAdmin ??
+                    false,
+                }
+              : undefined
+          }
+          onSortChange={(newSortOrder) => {
+            setSortOrder(newSortOrder);
+          }}
+        />
       </PageSection>
 
       {organization && (

@@ -6,7 +6,6 @@ import { useForm } from 'react-hook-form';
 import type { ToneOfVoiceWithExamples } from '@/convex/tone_of_voice/types';
 import type { ExampleMessageUI } from '@/types/tone-of-voice';
 
-import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Form } from '@/app/components/ui/forms/form';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -38,31 +37,6 @@ interface ToneOfVoiceFormProps {
 
 interface ToneFormData {
   tone: string;
-}
-
-function ExampleSectionSkeleton({ rows }: { rows: number }) {
-  const { t } = useT('tables');
-
-  return (
-    <Stack gap={5}>
-      <HStack justify="between" align="start">
-        <Stack gap={1}>
-          <Skeleton className="h-5 w-44" />
-          <Skeleton className="h-4 w-64" />
-        </Stack>
-        <Skeleton className="h-9 w-32 shrink-0" />
-      </HStack>
-      <DataTableSkeleton
-        rows={rows}
-        columns={[
-          { header: t('headers.message') },
-          { header: t('headers.updated'), size: 140 },
-          { isAction: true, size: 60 },
-        ]}
-        showHeader
-      />
-    </Stack>
-  );
 }
 
 function ToneFormSkeleton() {
@@ -252,19 +226,15 @@ export function ToneOfVoiceForm({
 
   return (
     <Stack gap={8}>
-      {isLoading ? (
-        exampleCount && exampleCount > 0 ? (
-          <ExampleSectionSkeleton rows={Math.min(exampleCount, 5)} />
-        ) : null
-      ) : (
-        <ExampleMessagesTable
-          examples={examples}
-          onAddExample={() => setIsAddDialogOpen(true)}
-          onViewExample={handleViewExample}
-          onEditExample={handleEditExample}
-          onDeleteExample={handleDeleteExample}
-        />
-      )}
+      <ExampleMessagesTable
+        examples={examples}
+        isLoading={isLoading}
+        approxRowCount={exampleCount}
+        onAddExample={() => setIsAddDialogOpen(true)}
+        onViewExample={handleViewExample}
+        onEditExample={handleEditExample}
+        onDeleteExample={handleDeleteExample}
+      />
 
       {isLoading ? (
         <ToneFormSkeleton />

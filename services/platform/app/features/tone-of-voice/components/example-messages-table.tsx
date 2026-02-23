@@ -33,6 +33,8 @@ interface ExampleMessagesTableProps {
   onViewExample: (example: ExampleMessage) => void;
   onEditExample: (example: ExampleMessage) => void;
   onDeleteExample: (exampleId: string) => Promise<void>;
+  isLoading?: boolean;
+  approxRowCount?: number;
 }
 
 const truncateMessage = (message: string, maxLength: number = 100) => {
@@ -48,6 +50,8 @@ export function ExampleMessagesTable({
   onViewExample,
   onEditExample,
   onDeleteExample,
+  isLoading,
+  approxRowCount,
 }: ExampleMessagesTableProps) {
   const { t: tCommon } = useT('common');
   const { t: tTone } = useT('toneOfVoice');
@@ -132,6 +136,7 @@ export function ExampleMessagesTable({
     dataSource: { type: 'query', data: examples },
     pageSize: PAGE_SIZE,
     getRowId: (row) => row.id,
+    approxRowCount,
   });
 
   return (
@@ -144,6 +149,7 @@ export function ExampleMessagesTable({
     >
       <DataTable
         columns={columns}
+        isLoading={isLoading}
         actionMenu={
           <DataTableActionMenu
             label={tTone('exampleMessages.addButton')}
