@@ -63,7 +63,7 @@
     "vitest": "4.0.18"
   },
   "optionalDependencies": {
-    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.18"
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.2.0"
   },
   "overrides": {
     "react-is": "^19.2.4",
