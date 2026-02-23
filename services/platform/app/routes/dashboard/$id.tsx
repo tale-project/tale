@@ -28,25 +28,24 @@ export const Route = createFileRoute('/dashboard/$id')({
 
 function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
-
   const { data: memberContext } = useCurrentMemberContext(organizationId);
 
-  const abilityRef = useRef<AppAbility>(defineAbilityFor(memberContext?.role));
-  const lastRoleRef = useRef<string | undefined>(memberContext?.role);
+  const abilityRef = useRef<{ role: string | null; ability: AppAbility }>(null);
 
-  if (
-    memberContext &&
-    memberContext.role !== undefined &&
-    memberContext.role !== lastRoleRef.current
-  ) {
-    lastRoleRef.current = memberContext.role;
-    abilityRef.current = defineAbilityFor(memberContext.role);
+  const currentRole = memberContext?.role ?? null;
+
+  if (!abilityRef.current || abilityRef.current.role !== currentRole) {
+    abilityRef.current = {
+      role: currentRole,
+      ability: defineAbilityFor(currentRole),
+    };
   }
 
-  const hasRole = !!memberContext?.role;
+  const { role, ability } = abilityRef.current;
+  const hasRole = role !== null;
 
   return (
-    <AbilityContext.Provider value={abilityRef.current}>
+    <AbilityContext.Provider value={ability}>
       <BrandingProvider organizationId={organizationId}>
         <TeamFilterProvider organizationId={organizationId}>
           <AdaptiveHeaderProvider>

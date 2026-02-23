@@ -9,8 +9,6 @@ export const Route = createFileRoute('/dashboard/$id/custom-agents/')({
   head: () => ({
     meta: seo('customAgents'),
   }),
-  pendingComponent: () => null,
-  pendingMs: 0,
   loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.custom_agents.queries.approxCountCustomAgents, {

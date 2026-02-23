@@ -17,8 +17,6 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/products')({
     meta: seo('products'),
   }),
   validateSearch: searchSchema,
-  pendingComponent: () => null,
-  pendingMs: 0,
   loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.products.queries.approxCountProducts, {
