@@ -18,14 +18,14 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/websites')({
   validateSearch: searchSchema,
   pendingComponent: () => null,
   pendingMs: 0,
-  loader: async ({ context, params }) => {
+  loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
-      convexQuery(api.websites.queries.listWebsites, {
+      convexQuery(api.websites.queries.approxCountWebsites, {
         organizationId: params.id,
       }),
     );
-    await context.queryClient.ensureQueryData(
-      convexQuery(api.websites.queries.approxCountWebsites, {
+    void context.queryClient.prefetchQuery(
+      convexQuery(api.websites.queries.listWebsites, {
         organizationId: params.id,
       }),
     );

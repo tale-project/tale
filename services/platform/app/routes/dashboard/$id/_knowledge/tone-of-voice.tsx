@@ -22,14 +22,14 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')(
     validateSearch: searchSchema,
     pendingComponent: () => null,
     pendingMs: 0,
-    loader: async ({ context, params }) => {
+    loader: ({ context, params }) => {
       void context.queryClient.prefetchQuery(
-        convexQuery(api.tone_of_voice.queries.getToneOfVoiceWithExamples, {
+        convexQuery(api.tone_of_voice.queries.approxCountExampleMessages, {
           organizationId: params.id,
         }),
       );
-      await context.queryClient.ensureQueryData(
-        convexQuery(api.tone_of_voice.queries.approxCountExampleMessages, {
+      void context.queryClient.prefetchQuery(
+        convexQuery(api.tone_of_voice.queries.getToneOfVoiceWithExamples, {
           organizationId: params.id,
         }),
       );
