@@ -25,7 +25,6 @@ export interface PendingMessage {
 export interface SelectedAgent {
   _id: string;
   displayName: string;
-  isSystemDefault?: boolean;
 }
 
 interface ChatLayoutContextType {
