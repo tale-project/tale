@@ -18,6 +18,7 @@ import { useUIMessages } from '@convex-dev/agent/react';
 import {
   useMessageProcessing,
   stripInternalFileReferences,
+  extractFileAttachments,
 } from '../use-message-processing';
 
 const mockUseUIMessages = vi.mocked(useUIMessages);
@@ -333,6 +334,139 @@ describe('useMessageProcessing', () => {
     });
   });
 
+  describe('sticky isStreaming', () => {
+    it('keeps isStreaming true when status transitions from streaming to pending', () => {
+      const msgKey = 'msg-2';
+
+      // First render: message is streaming
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: 'Hello...',
+            status: 'streaming',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result, rerender } = renderHook(() =>
+        useMessageProcessing('thread-1'),
+      );
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(true);
+
+      // Second render: status falls back to pending (reconnection)
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'pending',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      rerender();
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(true);
+    });
+
+    it('sets isStreaming false when status reaches success', () => {
+      const msgKey = 'msg-2';
+
+      // First render: streaming
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: 'Hello',
+            status: 'streaming',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result, rerender } = renderHook(() =>
+        useMessageProcessing('thread-1'),
+      );
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(true);
+
+      // Second render: completed
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: 'Hello world!',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      rerender();
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(false);
+    });
+
+    it('does not treat a never-streaming pending message as streaming', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'pending',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(
+        result.current.messages.find((m) => m.key === 'msg-2')?.isStreaming,
+      ).toBe(false);
+    });
+  });
+
   describe('stripInternalFileReferences', () => {
     it('removes the attached files marker', () => {
       const input =
@@ -413,6 +547,92 @@ describe('useMessageProcessing', () => {
           '📄 [notes.txt](https://example.com/txt) (512 B)',
         ].join('\n'),
       );
+    });
+
+    it('strips entire enriched attachment block (markdown line + marker)', () => {
+      const input =
+        '![photo.jpg](https://example.com/img.jpg)\n*(fileId: abc123 | fileName: photo.jpg | fileType: image/jpeg | fileSize: 54321)*';
+      expect(stripInternalFileReferences(input)).toBe('');
+    });
+
+    it('strips multiple enriched blocks from mixed attachment types', () => {
+      const input = [
+        'Check these files',
+        '',
+        '📄 [report.pdf](https://example.com/pdf) (application/pdf, 2 MB)',
+        '*(fileId: pdf123 | fileName: report.pdf | fileType: application/pdf | fileSize: 2097152)*',
+        '',
+        '![screenshot.png](https://example.com/img.png)',
+        '*(fileId: img456 | fileName: screenshot.png | fileType: image/png | fileSize: 102400)*',
+      ].join('\n');
+      expect(stripInternalFileReferences(input)).toBe('Check these files');
+    });
+  });
+
+  describe('extractFileAttachments', () => {
+    it('extracts a single image attachment', () => {
+      const input =
+        '![photo.jpg](https://example.com/img.jpg)\n*(fileId: abc123def456 | fileName: photo.jpg | fileType: image/jpeg | fileSize: 54321)*';
+      const result = extractFileAttachments(input);
+      expect(result).toEqual([
+        {
+          fileId: 'abc123def456',
+          fileName: 'photo.jpg',
+          fileType: 'image/jpeg',
+          fileSize: 54321,
+        },
+      ]);
+    });
+
+    it('extracts multiple attachments of mixed types', () => {
+      const input = [
+        'Please review',
+        '',
+        '📎 [report.pdf](https://example.com/pdf) (application/pdf, 2 MB)',
+        '*(fileId: pdf123 | fileName: report.pdf | fileType: application/pdf | fileSize: 2097152)*',
+        '',
+        '📄 [notes.txt](https://example.com/txt) (512 B)',
+        '*(fileId: txt456 | fileName: notes.txt | fileType: text/plain | fileSize: 512)*',
+        '',
+        '![screenshot.png](https://example.com/img.png)',
+        '*(fileId: img789 | fileName: screenshot.png | fileType: image/png | fileSize: 102400)*',
+      ].join('\n');
+      const result = extractFileAttachments(input);
+      expect(result).toEqual([
+        {
+          fileId: 'pdf123',
+          fileName: 'report.pdf',
+          fileType: 'application/pdf',
+          fileSize: 2097152,
+        },
+        {
+          fileId: 'txt456',
+          fileName: 'notes.txt',
+          fileType: 'text/plain',
+          fileSize: 512,
+        },
+        {
+          fileId: 'img789',
+          fileName: 'screenshot.png',
+          fileType: 'image/png',
+          fileSize: 102400,
+        },
+      ]);
+    });
+
+    it('returns empty array when no enriched markers exist', () => {
+      const input = 'Just a normal message with no attachments';
+      expect(extractFileAttachments(input)).toEqual([]);
+    });
+
+    it('returns empty array for empty string', () => {
+      expect(extractFileAttachments('')).toEqual([]);
+    });
+
+    it('ignores legacy fileId-only markers', () => {
+      const input =
+        '![photo.jpg](https://example.com/img.jpg)\n*(fileId: abc123)*';
+      expect(extractFileAttachments(input)).toEqual([]);
     });
   });
 });

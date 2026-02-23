@@ -14,7 +14,8 @@ import {
 import type { DataModel } from '../../../_generated/dataModel';
 
 import { mutation, type MutationCtx } from '../../../_generated/server';
-import { getAuthenticatedUser } from '../auth/get_authenticated_user';
+import { getUserTeamIds } from '../../get_user_teams';
+import { getAuthUserIdentity } from '../auth/get_auth_user_identity';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import { rlsRules } from './rls_rules';
 
@@ -33,12 +34,16 @@ const rlsConfig: RLSConfig = {
 export const mutationWithRLS = customMutation(
   mutation,
   customCtx(async (ctx: MutationCtx) => {
-    // Fetch auth data ONCE to avoid duplicate queries
-    const user = await getAuthenticatedUser(ctx);
-    const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
+    const user = await getAuthUserIdentity(ctx);
 
-    // Pass pre-fetched data to rlsRules to avoid duplicate fetches
-    const rules = await rlsRules(ctx, { user, userOrganizations });
+    const [userOrganizations, userTeamIds] = user
+      ? await Promise.all([
+          getUserOrganizations(ctx, user),
+          getUserTeamIds(ctx, user.userId).then((ids) => new Set(ids)),
+        ])
+      : [[], new Set<string>()];
+
+    const rules = await rlsRules(ctx, { user, userOrganizations, userTeamIds });
 
     return {
       db: wrapDatabaseWriter<

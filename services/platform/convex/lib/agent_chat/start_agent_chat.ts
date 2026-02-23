@@ -293,7 +293,7 @@ async function buildMessageWithAttachments(
     for (const { attachment, url } of documentUrls) {
       if (url) {
         docMarkdown.push(
-          `📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${formatFileSize(attachment.fileSize)})\n*(fileId: ${attachment.fileId})*`,
+          `📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${formatFileSize(attachment.fileSize)})\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
         );
       }
     }
@@ -308,7 +308,7 @@ async function buildMessageWithAttachments(
     for (const { attachment, url } of textFileUrls) {
       if (url) {
         textFileMarkdown.push(
-          `📄 [${attachment.fileName}](${url}) (${formatFileSize(attachment.fileSize)})\n*(fileId: ${attachment.fileId})*`,
+          `📄 [${attachment.fileName}](${url}) (${formatFileSize(attachment.fileSize)})\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
         );
       }
     }
@@ -325,7 +325,7 @@ async function buildMessageWithAttachments(
     for (const { attachment, url } of imageUrls) {
       if (url) {
         imageMarkdown.push(
-          `![${attachment.fileName}](${url})\n*(fileId: ${attachment.fileId})*`,
+          `![${attachment.fileName}](${url})\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
         );
       }
     }

@@ -1,5 +1,7 @@
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
+
+import type { Id } from '@/convex/_generated/dataModel';
 
 import { api } from '@/convex/_generated/api';
 
@@ -10,11 +12,35 @@ const HUMAN_INPUT_RESPONSE_PREFIX = 'User responded to question';
 const INTERNAL_ATTACHMENT_MARKER =
   /\n?\n?\[ATTACHED FILES - Pre-analysis was not available\. Use your tools to process these files\.\]/;
 const INTERNAL_FILE_REF = /\n?📎 \*\*[^*]+\*\* \([^)]*fileId: [a-z0-9]+\)/g;
-const INTERNAL_FILEID_ITALIC = /\n?\*\(fileId: [a-z0-9]+\)\*/g;
+const INTERNAL_FILEID_ITALIC =
+  /\n?\*\(fileId: [a-z0-9]+(?: \| fileName: .+? \| fileType: .+? \| fileSize: \d+)?\)\*/g;
+
+// Matches a full enriched attachment block: markdown line + enriched fileId marker.
+// Only strips the markdown line when paired with an enriched marker (old messages keep their links).
+const INTERNAL_ENRICHED_BLOCK =
+  /\n?\n?(?:📎 \[[^\]]+\]\([^)]+\) \([^)]+\)|📄 \[[^\]]+\]\([^)]+\) \([^)]+\)|!\[[^\]]+\]\([^)]+\))\n\*\(fileId: [a-z0-9]+ \| fileName: .+? \| fileType: .+? \| fileSize: \d+\)\*/g;
+
+const ENRICHED_ATTACHMENT_MARKER =
+  /\*\(fileId: ([a-z0-9]+) \| fileName: (.+?) \| fileType: (.+?) \| fileSize: (\d+)\)\*/g;
+
+export function extractFileAttachments(text: string): FileAttachment[] {
+  const attachments: FileAttachment[] = [];
+  for (const match of text.matchAll(ENRICHED_ATTACHMENT_MARKER)) {
+    attachments.push({
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fileId from marker is a Convex storage ID string
+      fileId: match[1] as Id<'_storage'>,
+      fileName: match[2],
+      fileType: match[3],
+      fileSize: Number(match[4]),
+    });
+  }
+  return attachments;
+}
 
 export function stripInternalFileReferences(text: string) {
   return text
     .replace(INTERNAL_ATTACHMENT_MARKER, '')
+    .replace(INTERNAL_ENRICHED_BLOCK, '')
     .replace(INTERNAL_FILE_REF, '')
     .replace(INTERNAL_FILEID_ITALIC, '')
     .trim();
@@ -83,6 +109,12 @@ export function useMessageProcessing(
   const hasFirstMessage = uiMessages?.some((m) => m.order === 0) ?? false;
   const canLoadMore = paginationStatus === 'CanLoadMore' && !hasFirstMessage;
 
+  // Track which messages have been seen as streaming. Once streaming,
+  // stay streaming until a terminal status (success/failed) is observed.
+  // This prevents transient reconnection states (status briefly "pending")
+  // from resetting the typewriter animation.
+  const streamingKeysRef = useRef(new Set<string>());
+
   // Convert UIMessage to ChatMessage format
   // Handles orphan filtering (Issue #184) and file part extraction
   const messages: ChatMessage[] = useMemo(() => {
@@ -94,7 +126,9 @@ export function useMessageProcessing(
         ? Math.min(...userMessages.map((m) => m.order))
         : 0;
 
-    return uiMessages
+    const currentKeys = new Set<string>();
+
+    const result = uiMessages
       .filter((m) => {
         // Keep user and assistant messages
         if (m.role === 'user') return true;
@@ -131,19 +165,46 @@ export function useMessageProcessing(
           m.role === 'system' &&
           m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX);
 
+        currentKeys.add(m.key);
+
+        let isStreaming = false;
+        if (m.status === 'streaming') {
+          streamingKeysRef.current.add(m.key);
+          isStreaming = true;
+        } else if (m.status === 'success' || m.status === 'failed') {
+          streamingKeysRef.current.delete(m.key);
+        } else {
+          isStreaming = streamingKeysRef.current.has(m.key);
+        }
+
+        const attachments =
+          m.role === 'user' && m.text
+            ? extractFileAttachments(m.text)
+            : undefined;
+
         return {
           id: m.id,
           key: m.key,
           content: m.text ? stripInternalFileReferences(m.text) : '',
-          // UIMessage.role is string — cast required to narrow to expected union
           role: m.role,
           timestamp: new Date(m._creationTime),
+          attachments:
+            attachments && attachments.length > 0 ? attachments : undefined,
           fileParts: fileParts.length > 0 ? fileParts : undefined,
           _creationTime: m._creationTime,
-          isStreaming: m.status === 'streaming',
+          isStreaming,
           isHumanInputResponse,
         };
       });
+
+    // Clean up stale entries for messages no longer in the list
+    for (const key of streamingKeysRef.current) {
+      if (!currentKeys.has(key)) {
+        streamingKeysRef.current.delete(key);
+      }
+    }
+
+    return result;
   }, [uiMessages]);
 
   // Find streaming message
