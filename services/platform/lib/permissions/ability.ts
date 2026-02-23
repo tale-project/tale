@@ -50,7 +50,7 @@ export type AppAbility = MongoAbility<[AppAction, AppSubject]>;
  * Builds a CASL ability instance for the given platform role.
  * Mirrors the permission matrix defined in convex/auth.ts.
  */
-export function defineAbilityFor(role?: string | null): AppAbility {
+export function defineAbilityFor(role: string | null): AppAbility {
   const { can, cannot, build } = new AbilityBuilder<AppAbility>(
     createMongoAbility,
   );

@@ -12,8 +12,6 @@ export const Route = createFileRoute('/dashboard/$id/automations/')({
   head: () => ({
     meta: seo('automations'),
   }),
-  pendingComponent: () => null,
-  pendingMs: 0,
   loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.wf_definitions.queries.approxCountAutomations, {

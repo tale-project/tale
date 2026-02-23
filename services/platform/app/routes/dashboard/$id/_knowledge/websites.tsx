@@ -16,8 +16,6 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/websites')({
     meta: seo('websites'),
   }),
   validateSearch: searchSchema,
-  pendingComponent: () => null,
-  pendingMs: 0,
   loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.websites.queries.approxCountWebsites, {

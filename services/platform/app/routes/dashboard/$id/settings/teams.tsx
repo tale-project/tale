@@ -13,8 +13,6 @@ export const Route = createFileRoute('/dashboard/$id/settings/teams')({
   head: () => ({
     meta: seo('teams'),
   }),
-  pendingComponent: () => null,
-  pendingMs: 0,
   loader: async ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.members.queries.getMyTeams, {

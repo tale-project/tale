@@ -18,8 +18,6 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/customers')({
     meta: seo('customers'),
   }),
   validateSearch: searchSchema,
-  pendingComponent: () => null,
-  pendingMs: 0,
   loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
       convexQuery(api.customers.queries.approxCountCustomers, {
