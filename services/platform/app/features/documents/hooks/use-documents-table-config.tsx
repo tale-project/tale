@@ -20,6 +20,49 @@ import { formatBytes } from '@/lib/utils/format/number';
 import { DocumentRowActions } from '../components/document-row-actions';
 import { RagStatusBadge } from '../components/rag-status-badge';
 
+type DocumentsT = ReturnType<typeof useT<'documents'>>['t'];
+
+interface SourceInfo {
+  icon: React.ReactElement;
+  title: string;
+  synced: boolean;
+}
+
+function getSourceInfo(
+  sourceProvider: DocumentItem['sourceProvider'],
+  sourceMode: DocumentItem['sourceMode'],
+  t: DocumentsT,
+): SourceInfo | null {
+  if (sourceProvider === 'onedrive') {
+    return {
+      icon: <OneDriveIcon className="size-6" />,
+      title:
+        sourceMode === 'auto'
+          ? t('sourceType.oneDriveSynced')
+          : t('sourceType.oneDrive'),
+      synced: sourceMode === 'auto',
+    };
+  }
+  if (sourceProvider === 'sharepoint') {
+    return {
+      icon: <SharePointIcon className="size-6" />,
+      title:
+        sourceMode === 'auto'
+          ? t('sourceType.sharePointSynced')
+          : t('sourceType.sharePoint'),
+      synced: sourceMode === 'auto',
+    };
+  }
+  if (sourceProvider === 'upload') {
+    return {
+      icon: <Monitor className="size-6" />,
+      title: t('sourceType.uploaded'),
+      synced: false,
+    };
+  }
+  return null;
+}
+
 interface DocumentsTableConfigParams {
   onDocumentClick: (item: DocumentItem, e: React.MouseEvent) => void;
   isLoadingTeams: boolean;
@@ -99,47 +142,27 @@ export function useDocumentsTableConfig({
           headerLabel: tTables('headers.source'),
           align: 'center' as const,
         },
-        cell: ({ row }) => (
-          <HStack gap={2} justify="center">
-            {row.original.sourceProvider === 'onedrive' &&
-              row.original.sourceMode === 'auto' && (
-                <div
-                  className="relative"
-                  title={tDocuments('sourceType.oneDriveSynced')}
-                >
-                  <OneDriveIcon className="size-6" />
+        cell: ({ row }) => {
+          const source = getSourceInfo(
+            row.original.sourceProvider,
+            row.original.sourceMode,
+            tDocuments,
+          );
+          if (!source) return null;
+          return (
+            <HStack gap={2} justify="center">
+              <div
+                className={source.synced ? 'relative' : undefined}
+                title={source.title}
+              >
+                {source.icon}
+                {source.synced && (
                   <RefreshCw className="text-background bg-foreground absolute right-0.5 bottom-0 size-4 rounded-full p-0.5" />
-                </div>
-              )}
-            {row.original.sourceProvider === 'onedrive' &&
-              row.original.sourceMode === 'manual' && (
-                <div title={tDocuments('sourceType.oneDrive')}>
-                  <OneDriveIcon className="size-6" />
-                </div>
-              )}
-            {row.original.sourceProvider === 'sharepoint' &&
-              row.original.sourceMode === 'auto' && (
-                <div
-                  className="relative"
-                  title={tDocuments('sourceType.sharePointSynced')}
-                >
-                  <SharePointIcon className="size-6" />
-                  <RefreshCw className="text-background bg-foreground absolute right-0.5 bottom-0 size-4 rounded-full p-0.5" />
-                </div>
-              )}
-            {row.original.sourceProvider === 'sharepoint' &&
-              row.original.sourceMode === 'manual' && (
-                <div title={tDocuments('sourceType.sharePoint')}>
-                  <SharePointIcon className="size-6" />
-                </div>
-              )}
-            {row.original.sourceProvider === 'upload' && (
-              <div title={tDocuments('sourceType.uploaded')}>
-                <Monitor className="size-6" />
+                )}
               </div>
-            )}
-          </HStack>
-        ),
+            </HStack>
+          );
+        },
       },
       {
         id: 'ragStatus',
@@ -171,20 +194,22 @@ export function useDocumentsTableConfig({
           if (isLoadingTeams) {
             return <Skeleton className="h-5 w-20" />;
           }
+          const filteredTags = tags
+            .map((tagId) => ({ tagId, teamName: teamMap.get(tagId) }))
+            .filter(
+              (item): item is { tagId: string; teamName: string } =>
+                !!item.teamName,
+            );
           return (
             <HStack gap={1} className="flex-wrap">
-              {tags.slice(0, 2).map((tagId) => {
-                const teamName = teamMap.get(tagId);
-                if (!teamName) return null;
-                return (
-                  <Badge key={tagId} variant="blue" className="text-xs">
-                    {teamName}
-                  </Badge>
-                );
-              })}
-              {tags.length > 2 && (
+              {filteredTags.slice(0, 2).map(({ tagId, teamName }) => (
+                <Badge key={tagId} variant="blue" className="text-xs">
+                  {teamName}
+                </Badge>
+              ))}
+              {filteredTags.length > 2 && (
                 <Badge variant="outline" className="text-xs">
-                  +{tags.length - 2}
+                  +{filteredTags.length - 2}
                 </Badge>
               )}
             </HStack>

@@ -24,8 +24,8 @@ import { BulkSendDialog } from './bulk-send-dialog';
 import { ConversationListPanel } from './conversation-list-panel';
 import { ConversationListToolbar } from './conversation-list-toolbar';
 import { ConversationPanel } from './conversation-panel';
-import { ConversationsClientSkeleton } from './conversations-client-skeleton';
 import { ConversationsList } from './conversations-list';
+import { ConversationsSkeleton } from './conversations-skeleton';
 
 interface ConversationsProps {
   status?: Conversation['status'];
@@ -102,9 +102,7 @@ export function Conversations({
   }
 
   if (paginatedResult.status === 'LoadingFirstPage') {
-    return (
-      <ConversationsClientSkeleton rows={Math.min(conversationCount ?? 8, 8)} />
-    );
+    return <ConversationsSkeleton rows={Math.min(conversationCount ?? 8, 8)} />;
   }
 
   const handleConversationSelect = (conversation: Conversation) => {

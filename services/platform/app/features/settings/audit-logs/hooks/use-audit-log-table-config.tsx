@@ -31,7 +31,10 @@ export function useAuditLogTableConfig(): AuditLogTableConfig {
           </span>
         ),
         size: 140,
-        meta: { headerLabel: t('logs.audit.columns.timestamp') },
+        meta: {
+          headerLabel: t('logs.audit.columns.timestamp'),
+          align: 'right' as const,
+        },
         cell: ({ row }) => (
           <TableDateCell
             date={row.original.timestamp}
@@ -83,6 +86,7 @@ export function useAuditLogTableConfig(): AuditLogTableConfig {
       {
         accessorKey: 'category',
         header: t('logs.audit.columns.category'),
+        meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => (
           <Badge variant="outline" className="capitalize">
             {row.original.category}
@@ -93,6 +97,7 @@ export function useAuditLogTableConfig(): AuditLogTableConfig {
       {
         accessorKey: 'status',
         header: t('logs.audit.columns.status'),
+        meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => {
           const status = row.original.status;
           return (

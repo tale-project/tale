@@ -51,10 +51,5 @@ function AccountPage() {
     return null;
   }
 
-  return (
-    <AccountForm
-      organizationId={organizationId}
-      memberContext={memberContext}
-    />
-  );
+  return <AccountForm memberContext={memberContext} />;
 }

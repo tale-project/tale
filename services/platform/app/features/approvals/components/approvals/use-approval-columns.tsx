@@ -18,12 +18,92 @@ import {
 import { ProductListCell } from './product-list-cell';
 
 type ApprovalItem = Doc<'approvals'>;
+type ApprovalsT = ReturnType<typeof useT<'approvals'>>['t'];
 
 interface UseApprovalColumnsParams {
   approving: string | null;
   rejecting: string | null;
   onApprove: (approvalId: string) => void;
   onReject: (approvalId: string) => void;
+}
+
+function createSharedColumns(
+  t: ApprovalsT,
+  getCustomerLabel: (approval: ApprovalItem) => string,
+  getLabel: (resourceType: string) => string,
+): ColumnDef<ApprovalItem>[] {
+  return [
+    {
+      id: 'approval',
+      header: t('columns.approvalRecipient'),
+      size: 256,
+      meta: { skeleton: { type: 'avatar-text' as const } },
+      cell: ({ row }) => (
+        <div className="flex min-h-[41px] flex-col gap-1.5">
+          <div className="flex items-center gap-3">
+            <span className="text-foreground text-sm font-medium tracking-tight">
+              {getLabel(row.original.resourceType)}
+            </span>
+            <Info className="text-muted-foreground size-4 flex-shrink-0 flex-grow-0" />
+          </div>
+          <div className="text-muted-foreground text-sm font-normal tracking-tight">
+            {getCustomerLabel(row.original)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'event',
+      header: t('columns.event'),
+      size: 256,
+      meta: { skeleton: { type: 'text' as const } },
+      cell: ({ row }) => {
+        const metadata = row.original.metadata ?? {};
+        return (
+          <div className="flex flex-col gap-1.5">
+            <div className="text-foreground text-xs font-medium">
+              {t('labels.purchase')}
+            </div>
+            <CellErrorBoundary
+              fallback={
+                <span className="text-muted-foreground text-xs">—</span>
+              }
+            >
+              <ProductListCell
+                products={safeGetArray(metadata, 'eventProducts', [])}
+              />
+            </CellErrorBoundary>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'action',
+      header: t('columns.action'),
+      size: 256,
+      meta: { skeleton: { type: 'text' as const } },
+      cell: ({ row }) => {
+        const metadata = row.original.metadata ?? {};
+        return (
+          <div className="flex flex-col gap-1.5">
+            <div className="text-foreground text-xs font-medium">
+              {t('labels.recommendation')}
+            </div>
+            <CellErrorBoundary
+              fallback={
+                <span className="text-muted-foreground text-xs">—</span>
+              }
+            >
+              <ProductListCell
+                products={safeGetArray(metadata, 'recommendedProducts', [])}
+                isRecommendation
+              />
+            </CellErrorBoundary>
+          </div>
+        );
+      },
+    },
+  ];
 }
 
 export function useApprovalColumns({
@@ -77,76 +157,7 @@ export function useApprovalColumns({
 
   const pendingColumns = useMemo(
     (): ColumnDef<ApprovalItem>[] => [
-      {
-        id: 'approval',
-        header: t('columns.approvalRecipient'),
-        size: 256,
-        meta: { skeleton: { type: 'avatar-text' as const } },
-        cell: ({ row }) => (
-          <div className="flex min-h-[41px] flex-col gap-1.5">
-            <div className="flex items-center gap-3">
-              <span className="text-foreground text-sm font-medium tracking-tight">
-                {getApprovalTypeLabel(row.original.resourceType)}
-              </span>
-              <Info className="text-muted-foreground size-4 flex-shrink-0 flex-grow-0" />
-            </div>
-            <div className="text-muted-foreground text-sm font-normal tracking-tight">
-              {getCustomerLabel(row.original)}
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: 'event',
-        header: t('columns.event'),
-        size: 256,
-        meta: { skeleton: { type: 'avatar-text' as const } },
-        cell: ({ row }) => {
-          const metadata = row.original.metadata ?? {};
-          return (
-            <div className="flex flex-col gap-1.5">
-              <div className="text-foreground text-xs font-medium">
-                {t('labels.purchase')}
-              </div>
-              <CellErrorBoundary
-                fallback={
-                  <span className="text-muted-foreground text-xs">—</span>
-                }
-              >
-                <ProductListCell
-                  products={safeGetArray(metadata, 'eventProducts', [])}
-                />
-              </CellErrorBoundary>
-            </div>
-          );
-        },
-      },
-      {
-        id: 'action',
-        header: t('columns.action'),
-        size: 256,
-        meta: { skeleton: { type: 'avatar-text' as const } },
-        cell: ({ row }) => {
-          const metadata = row.original.metadata ?? {};
-          return (
-            <div className="flex flex-col gap-1.5">
-              <div className="text-foreground text-xs font-medium">
-                {t('labels.recommendation')}
-              </div>
-              <CellErrorBoundary
-                fallback={
-                  <span className="text-muted-foreground text-xs">—</span>
-                }
-              >
-                <ProductListCell
-                  products={safeGetArray(metadata, 'recommendedProducts', [])}
-                  isRecommendation
-                />
-              </CellErrorBoundary>
-            </div>
-          );
-        },
-      },
+      ...createSharedColumns(t, getCustomerLabel, getApprovalTypeLabel),
       {
         id: 'confidence',
         header: () => (
@@ -229,79 +240,13 @@ export function useApprovalColumns({
 
   const resolvedColumns = useMemo(
     (): ColumnDef<ApprovalItem>[] => [
-      {
-        id: 'approval',
-        header: t('columns.approvalRecipient'),
-        size: 256,
-        meta: { skeleton: { type: 'avatar-text' as const } },
-        cell: ({ row }) => (
-          <div className="flex min-h-[41px] flex-col gap-1.5">
-            <div className="flex items-center gap-3">
-              <span className="text-foreground text-sm font-medium tracking-tight">
-                {t('types.recommendProduct')}
-              </span>
-              <Info className="text-muted-foreground size-4 flex-shrink-0 flex-grow-0" />
-            </div>
-            <div className="text-muted-foreground text-sm font-normal tracking-tight">
-              {getCustomerLabel(row.original)}
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: 'event',
-        header: t('columns.event'),
-        size: 256,
-        meta: { skeleton: { type: 'avatar-text' as const } },
-        cell: ({ row }) => {
-          const metadata = row.original.metadata ?? {};
-          return (
-            <div className="flex flex-col gap-1.5">
-              <div className="text-foreground text-xs font-medium">
-                {t('labels.purchase')}
-              </div>
-              <CellErrorBoundary
-                fallback={
-                  <span className="text-muted-foreground text-xs">—</span>
-                }
-              >
-                <ProductListCell
-                  products={safeGetArray(metadata, 'eventProducts', [])}
-                />
-              </CellErrorBoundary>
-            </div>
-          );
-        },
-      },
-      {
-        id: 'action',
-        header: t('columns.action'),
-        size: 256,
-        meta: { skeleton: { type: 'avatar-text' as const } },
-        cell: ({ row }) => {
-          const metadata = row.original.metadata ?? {};
-          return (
-            <div className="flex flex-col gap-1.5">
-              <div className="text-foreground text-xs font-medium">
-                {t('labels.recommendation')}
-              </div>
-              <CellErrorBoundary
-                fallback={
-                  <span className="text-muted-foreground text-xs">—</span>
-                }
-              >
-                <ProductListCell
-                  products={safeGetArray(metadata, 'recommendedProducts', [])}
-                  isRecommendation
-                />
-              </CellErrorBoundary>
-            </div>
-          );
-        },
-      },
+      ...createSharedColumns(t, getCustomerLabel, () =>
+        t('types.recommendProduct'),
+      ),
       {
         id: 'reviewer',
         header: t('columns.reviewer'),
+        meta: { skeleton: { type: 'text' as const } },
         cell: ({ row }) => {
           const metadata = row.original.metadata ?? {};
           return (
@@ -336,7 +281,10 @@ export function useApprovalColumns({
           </span>
         ),
         size: 100,
-        meta: { headerLabel: t('columns.approved') },
+        meta: {
+          headerLabel: t('columns.approved'),
+          skeleton: { type: 'action' as const },
+        },
         cell: ({ row }) => (
           <div className="px-4 text-center">
             {row.original.status === 'approved' ? (

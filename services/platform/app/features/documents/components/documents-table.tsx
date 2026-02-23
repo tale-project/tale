@@ -32,8 +32,6 @@ interface DocumentsTableProps {
   hasMicrosoftAccount?: boolean;
 }
 
-const PAGE_SIZE = 20;
-
 export function DocumentsTable({
   organizationId,
   searchQuery,
@@ -61,7 +59,7 @@ export function DocumentsTable({
 
   const paginatedResult = useListDocumentsPaginated({
     organizationId,
-    initialNumItems: PAGE_SIZE,
+    initialNumItems: 20,
   });
 
   const filteredResults = useMemo(() => {
@@ -167,11 +165,12 @@ export function DocumentsTable({
     [handleFolderClick, openPreview],
   );
 
-  const { columns } = useDocumentsTableConfig({
-    onDocumentClick: handleDocumentClick,
-    isLoadingTeams,
-    teamMap,
-  });
+  const { columns, stickyLayout, pageSize, searchPlaceholder } =
+    useDocumentsTableConfig({
+      onDocumentClick: handleDocumentClick,
+      isLoadingTeams,
+      teamMap,
+    });
 
   const list = useListPage({
     dataSource: {
@@ -181,7 +180,7 @@ export function DocumentsTable({
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
     },
-    pageSize: PAGE_SIZE,
+    pageSize,
     search: {
       value: query,
       onChange: (value: string) => {
@@ -196,7 +195,7 @@ export function DocumentsTable({
           },
         });
       },
-      placeholder: tDocuments('searchPlaceholder'),
+      placeholder: searchPlaceholder,
     },
     getRowId: (row) => row.id,
     approxRowCount: docCount,
@@ -212,7 +211,7 @@ export function DocumentsTable({
         columns={columns}
         onRowClick={handleRowClick}
         rowClassName={getRowClassName}
-        stickyLayout
+        stickyLayout={stickyLayout}
         actionMenu={
           <DocumentsActionMenu
             organizationId={organizationId}

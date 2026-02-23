@@ -34,7 +34,7 @@ export function AuditLogTable({
   const { t } = useT('settings');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
-  const { columns, pageSize } = useAuditLogTableConfig();
+  const { columns, stickyLayout, pageSize } = useAuditLogTableConfig();
 
   const handleCategoryChange = useCallback(
     (values: string[]) => {
@@ -102,7 +102,7 @@ export function AuditLogTable({
       <DataTable
         columns={columns}
         caption={t('logs.audit.tableCaption')}
-        stickyLayout
+        stickyLayout={stickyLayout}
         emptyState={{
           title: t('logs.audit.emptyTitle'),
           description: t('logs.audit.emptyDescription'),

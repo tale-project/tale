@@ -29,7 +29,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/logs')({
 });
 
 function LogsSkeleton() {
-  const { columns } = useAuditLogTableConfig();
+  const { columns, stickyLayout } = useAuditLogTableConfig();
 
   return (
     <Stack gap={4}>
@@ -43,6 +43,7 @@ function LogsSkeleton() {
         <DataTableSkeleton
           rows={10}
           columns={columns}
+          stickyLayout={stickyLayout}
           showHeader
           noFirstColumnAvatar
         />

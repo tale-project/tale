@@ -24,7 +24,6 @@ interface MemberContext {
 }
 
 interface AccountFormProps {
-  organizationId: string;
   memberContext: MemberContext | null;
 }
 
