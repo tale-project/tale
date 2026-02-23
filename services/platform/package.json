@@ -92,7 +92,7 @@
     "jose": "6.1.3",
     "jszip": "^3.10.1",
     "lodash": "4.17.23",
-    "lucide-react": "0.564.0",
+    "lucide-react": "0.575.0",
     "mammoth": "1.11.0",
     "mssql": "12.2.0",
     "mustache": "4.2.0",
