@@ -13,12 +13,17 @@ interface LayoutErrorBoundaryProps {
   organizationId?: string;
 }
 
-function isConvexTransientError(error: Error): boolean {
+export function isConvexTransientError(error: Error): boolean {
   const msg = error.message || '';
   return (
     msg.includes('timed out') ||
     msg.includes('Function execution') ||
-    msg.includes('overloaded')
+    msg.includes('overloaded') ||
+    // Convex agent SDK reactive hooks can briefly see undefined properties
+    // during WebSocket reconnection (e.g., useDeltaStreams accessing
+    // streams.messages before query results settle)
+    (error instanceof TypeError &&
+      msg.includes('Cannot read properties of undefined'))
   );
 }
 
