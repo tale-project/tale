@@ -135,7 +135,7 @@
     "@types/express": "5.0.6",
     "@types/he": "1.2.3",
     "@types/jexl": "2.3.4",
-    "@types/lodash": "4.17.23",
+    "@types/lodash": "4.17.24",
     "@types/mssql": "9.1.9",
     "@types/mustache": "4.2.6",
     "@types/pg": "8.16.0",
