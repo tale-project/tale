@@ -100,6 +100,7 @@ export function CustomAgentsTable({ organizationId }: CustomAgentsTableProps) {
 
   return (
     <DataTable
+      className="p-4"
       {...list.tableProps}
       columns={columns}
       stickyLayout={stickyLayout}

@@ -451,7 +451,7 @@ export function ExecutionsTable({
 
   return (
     <DataTable<Execution>
-      className="px-4 py-6"
+      className="p-4"
       columns={columns}
       enableExpanding
       renderExpandedRow={renderExpandedRow}
