@@ -187,18 +187,31 @@ export const getCustomAgentByVersion = query({
     }
 
     // No versionNumber: prefer draft -> active -> latest archived
-    const allVersions = ctx.db
-      .query('customAgents')
-      .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId))
-      .order('desc');
+    // Concurrent targeted lookups via by_root_status index
+    const rootId = args.customAgentId;
+    const [draft, active, archived] = await Promise.all([
+      ctx.db
+        .query('customAgents')
+        .withIndex('by_root_status', (q) =>
+          q.eq('rootVersionId', rootId).eq('status', 'draft'),
+        )
+        .first(),
+      ctx.db
+        .query('customAgents')
+        .withIndex('by_root_status', (q) =>
+          q.eq('rootVersionId', rootId).eq('status', 'active'),
+        )
+        .first(),
+      ctx.db
+        .query('customAgents')
+        .withIndex('by_root_status', (q) =>
+          q.eq('rootVersionId', rootId).eq('status', 'archived'),
+        )
+        .order('desc')
+        .first(),
+    ]);
 
-    let bestFallback: typeof rootAgent | null = null;
-    for await (const version of allVersions) {
-      if (version.status === 'draft') return version;
-      if (version.status === 'active') return version;
-      if (!bestFallback) bestFallback = version;
-    }
-    return bestFallback;
+    return draft ?? active ?? archived ?? null;
   },
 });
 
