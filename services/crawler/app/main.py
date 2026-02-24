@@ -14,7 +14,7 @@ This module follows Clean Architecture principles:
 
 import asyncio
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -68,10 +68,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 
     # Stop scheduler
     scheduler_task.cancel()
-    try:
+    with suppress(asyncio.CancelledError):
         await scheduler_task
-    except asyncio.CancelledError:
-        pass
     logger.info("Scheduler stopped")
 
     # Close all website stores
