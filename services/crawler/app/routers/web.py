@@ -104,30 +104,32 @@ async def _download_file(url_str: str, timeout: float) -> tuple[bytes, str]:
     Raises:
         HTTPException: If file exceeds max size or download fails.
     """
-    async with httpx.AsyncClient(follow_redirects=True, timeout=timeout, headers=_HTTP_HEADERS) as client:
-        async with client.stream("GET", url_str) as response:
-            response.raise_for_status()
-            content_type = response.headers.get("content-type", "")
-            content_length = response.headers.get("content-length")
+    async with (
+        httpx.AsyncClient(follow_redirects=True, timeout=timeout, headers=_HTTP_HEADERS) as client,
+        client.stream("GET", url_str) as response,
+    ):
+        response.raise_for_status()
+        content_type = response.headers.get("content-type", "")
+        content_length = response.headers.get("content-length")
 
-            if content_length and int(content_length) > MAX_FILE_DOWNLOAD_BYTES:
+        if content_length and int(content_length) > MAX_FILE_DOWNLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File too large ({int(content_length)} bytes). Maximum: {MAX_FILE_DOWNLOAD_BYTES} bytes.",
+            )
+
+        chunks = []
+        total = 0
+        async for chunk in response.aiter_bytes():
+            total += len(chunk)
+            if total > MAX_FILE_DOWNLOAD_BYTES:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"File too large ({int(content_length)} bytes). Maximum: {MAX_FILE_DOWNLOAD_BYTES} bytes.",
+                    detail=f"File too large (>{MAX_FILE_DOWNLOAD_BYTES} bytes). Download aborted.",
                 )
+            chunks.append(chunk)
 
-            chunks = []
-            total = 0
-            async for chunk in response.aiter_bytes():
-                total += len(chunk)
-                if total > MAX_FILE_DOWNLOAD_BYTES:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"File too large (>{MAX_FILE_DOWNLOAD_BYTES} bytes). Download aborted.",
-                    )
-                chunks.append(chunk)
-
-            return b"".join(chunks), content_type
+        return b"".join(chunks), content_type
 
 
 def _build_filename(hostname: str, ext: str) -> str:
