@@ -90,13 +90,13 @@ describe('ThinkingAnimation', () => {
     expect(screen.getByText('Thinking')).toBeInTheDocument();
   });
 
-  it('shows thinking when text is streaming with no active tools', () => {
-    render(
+  it('hides when text is streaming with no active tools', () => {
+    const { container } = render(
       <ThinkingAnimation
         streamingMessage={makeStreamingMessage({ text: 'Some streamed text' })}
       />,
     );
-    expect(screen.getByText('Thinking')).toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it('shows detailed tool status when no text and tool is active', () => {

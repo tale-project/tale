@@ -233,7 +233,17 @@ const StreamingMarkdown = memo(
             startOffset < revealedLen &&
             endOffset > revealedLen;
 
+          // Skip cursor injection into elements whose revealed content is
+          // entirely whitespace — e.g. trailing empty <p> from a final \n.
+          const hasContent =
+            startOffset === undefined ||
+            endOffset === undefined ||
+            revealedTextRef.current
+              .slice(startOffset, Math.min(endOffset, revealedLen))
+              .trim() !== '';
+
           const isLastElement =
+            hasContent &&
             !hasCursorEligibleChild &&
             (isCurrentlyTyping ||
               endOffset === revealedLen ||
