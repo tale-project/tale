@@ -7,8 +7,7 @@ export type TableName =
   | 'conversations'
   | 'approvals'
   | 'onedriveSyncConfigs'
-  | 'websitePages'
-  | 'exampleMessages';
+  | 'websitePages';
 
 // The model layer returns { documents: T[], count } but actions extract just the first document
 // because execute_action_node wraps the result in output: { type: 'action', data: result }

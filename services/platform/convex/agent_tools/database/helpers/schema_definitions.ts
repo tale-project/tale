@@ -205,18 +205,6 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
     ],
     examples: ['status == "active"'],
   },
-
-  exampleMessages: {
-    tableName: 'exampleMessages',
-    description: 'Example messages for training and testing',
-    filterableFields: [
-      {
-        field: '_creationTime',
-        type: 'datetime',
-      },
-    ],
-    examples: [],
-  },
 };
 
 /**

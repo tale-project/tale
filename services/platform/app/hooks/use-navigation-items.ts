@@ -81,12 +81,6 @@ export function useNavigationItems(businessId: string): NavItem[] {
         icon: BrainIcon,
         subItems: [
           {
-            label: tKnowledge('toneOfVoice'),
-            to: '/dashboard/$id/tone-of-voice',
-            params: { id: businessId },
-            href: `/dashboard/${businessId}/tone-of-voice`,
-          },
-          {
             label: tKnowledge('documents'),
             to: '/dashboard/$id/documents',
             params: { id: businessId },

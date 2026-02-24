@@ -15,8 +15,7 @@ type KnowledgeLabelKey =
   | 'websites'
   | 'products'
   | 'customers'
-  | 'vendors'
-  | 'toneOfVoice';
+  | 'vendors';
 
 export function KnowledgeNavigation({
   organizationId,
@@ -51,11 +50,6 @@ export function KnowledgeNavigation({
       labelKey: 'vendors',
       label: t('vendors'),
       href: `/dashboard/${organizationId}/vendors`,
-    },
-    {
-      labelKey: 'toneOfVoice',
-      label: t('toneOfVoice'),
-      href: `/dashboard/${organizationId}/tone-of-voice`,
     },
   ];
 

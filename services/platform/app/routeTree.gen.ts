@@ -46,7 +46,6 @@ import { Route as DashboardIdAutomationsAmIdRouteImport } from './routes/dashboa
 import { Route as DashboardIdApprovalsStatusRouteImport } from './routes/dashboard/$id/approvals/$status'
 import { Route as DashboardIdKnowledgeWebsitesRouteImport } from './routes/dashboard/$id/_knowledge/websites'
 import { Route as DashboardIdKnowledgeVendorsRouteImport } from './routes/dashboard/$id/_knowledge/vendors'
-import { Route as DashboardIdKnowledgeToneOfVoiceRouteImport } from './routes/dashboard/$id/_knowledge/tone-of-voice'
 import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashboard/$id/_knowledge/products'
 import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents'
 import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers'
@@ -261,12 +260,6 @@ const DashboardIdKnowledgeVendorsRoute =
     path: '/vendors',
     getParentRoute: () => DashboardIdKnowledgeRoute,
   } as any)
-const DashboardIdKnowledgeToneOfVoiceRoute =
-  DashboardIdKnowledgeToneOfVoiceRouteImport.update({
-    id: '/tone-of-voice',
-    path: '/tone-of-voice',
-    getParentRoute: () => DashboardIdKnowledgeRoute,
-  } as any)
 const DashboardIdKnowledgeProductsRoute =
   DashboardIdKnowledgeProductsRouteImport.update({
     id: '/products',
@@ -360,7 +353,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
-  '/dashboard/$id/tone-of-voice': typeof DashboardIdKnowledgeToneOfVoiceRoute
   '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute
   '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
@@ -404,7 +396,6 @@ export interface FileRoutesByTo {
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
-  '/dashboard/$id/tone-of-voice': typeof DashboardIdKnowledgeToneOfVoiceRoute
   '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute
   '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
@@ -456,7 +447,6 @@ export interface FileRoutesById {
   '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute
   '/dashboard/$id/_knowledge/documents': typeof DashboardIdKnowledgeDocumentsRoute
   '/dashboard/$id/_knowledge/products': typeof DashboardIdKnowledgeProductsRoute
-  '/dashboard/$id/_knowledge/tone-of-voice': typeof DashboardIdKnowledgeToneOfVoiceRoute
   '/dashboard/$id/_knowledge/vendors': typeof DashboardIdKnowledgeVendorsRoute
   '/dashboard/$id/_knowledge/websites': typeof DashboardIdKnowledgeWebsitesRoute
   '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
@@ -508,7 +498,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/products'
-    | '/dashboard/$id/tone-of-voice'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
     | '/dashboard/$id/approvals/$status'
@@ -552,7 +541,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/products'
-    | '/dashboard/$id/tone-of-voice'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
     | '/dashboard/$id/approvals/$status'
@@ -603,7 +591,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/_knowledge/customers'
     | '/dashboard/$id/_knowledge/documents'
     | '/dashboard/$id/_knowledge/products'
-    | '/dashboard/$id/_knowledge/tone-of-voice'
     | '/dashboard/$id/_knowledge/vendors'
     | '/dashboard/$id/_knowledge/websites'
     | '/dashboard/$id/approvals/$status'
@@ -903,13 +890,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdKnowledgeVendorsRouteImport
       parentRoute: typeof DashboardIdKnowledgeRoute
     }
-    '/dashboard/$id/_knowledge/tone-of-voice': {
-      id: '/dashboard/$id/_knowledge/tone-of-voice'
-      path: '/tone-of-voice'
-      fullPath: '/dashboard/$id/tone-of-voice'
-      preLoaderRoute: typeof DashboardIdKnowledgeToneOfVoiceRouteImport
-      parentRoute: typeof DashboardIdKnowledgeRoute
-    }
     '/dashboard/$id/_knowledge/products': {
       id: '/dashboard/$id/_knowledge/products'
       path: '/products'
@@ -1013,7 +993,6 @@ interface DashboardIdKnowledgeRouteChildren {
   DashboardIdKnowledgeCustomersRoute: typeof DashboardIdKnowledgeCustomersRoute
   DashboardIdKnowledgeDocumentsRoute: typeof DashboardIdKnowledgeDocumentsRoute
   DashboardIdKnowledgeProductsRoute: typeof DashboardIdKnowledgeProductsRoute
-  DashboardIdKnowledgeToneOfVoiceRoute: typeof DashboardIdKnowledgeToneOfVoiceRoute
   DashboardIdKnowledgeVendorsRoute: typeof DashboardIdKnowledgeVendorsRoute
   DashboardIdKnowledgeWebsitesRoute: typeof DashboardIdKnowledgeWebsitesRoute
 }
@@ -1022,7 +1001,6 @@ const DashboardIdKnowledgeRouteChildren: DashboardIdKnowledgeRouteChildren = {
   DashboardIdKnowledgeCustomersRoute: DashboardIdKnowledgeCustomersRoute,
   DashboardIdKnowledgeDocumentsRoute: DashboardIdKnowledgeDocumentsRoute,
   DashboardIdKnowledgeProductsRoute: DashboardIdKnowledgeProductsRoute,
-  DashboardIdKnowledgeToneOfVoiceRoute: DashboardIdKnowledgeToneOfVoiceRoute,
   DashboardIdKnowledgeVendorsRoute: DashboardIdKnowledgeVendorsRoute,
   DashboardIdKnowledgeWebsitesRoute: DashboardIdKnowledgeWebsitesRoute,
 }

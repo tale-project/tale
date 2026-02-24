@@ -15,11 +15,9 @@ export type PlatformResource =
   | 'customAgents'
   | 'customers'
   | 'documents'
-  | 'exampleMessages'
   | 'integrations'
   | 'onedriveSyncConfigs'
   | 'products'
-  | 'toneOfVoice'
   | 'vendors'
   | 'websites'
   | 'wfDefinitions'
@@ -83,9 +81,7 @@ export function defineAbilityFor(role: string | null): AppAbility {
         'customAgents',
         'customers',
         'documents',
-        'exampleMessages',
         'products',
-        'toneOfVoice',
         'vendors',
         'websites',
       ];

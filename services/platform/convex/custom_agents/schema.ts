@@ -41,7 +41,6 @@ export const customAgentsTable = defineTable({
   knowledgeEnabled: v.optional(v.boolean()),
   includeOrgKnowledge: v.optional(v.boolean()),
   knowledgeTopK: v.optional(v.number()),
-  toneOfVoiceId: v.optional(v.id('toneOfVoice')),
   filePreprocessingEnabled: v.optional(v.boolean()),
   structuredResponsesEnabled: v.optional(v.boolean()),
 
