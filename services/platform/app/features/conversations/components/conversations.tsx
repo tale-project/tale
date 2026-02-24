@@ -25,7 +25,10 @@ import { ConversationListPanel } from './conversation-list-panel';
 import { ConversationListToolbar } from './conversation-list-toolbar';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationsList } from './conversations-list';
-import { ConversationsSkeleton } from './conversations-skeleton';
+import {
+  ConversationPanelSkeleton,
+  ConversationsListSkeleton,
+} from './conversations-skeleton';
 
 interface ConversationsProps {
   status?: Conversation['status'];
@@ -33,6 +36,40 @@ interface ConversationsProps {
   search?: string;
   paginatedResult: UsePaginatedQueryResult<ConversationItem>;
   conversationCount: number | undefined;
+  totalConversationCount: number | undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Body state machine
+//
+// Derives what the conversation list body should render from three signals:
+//   1. totalConversationCount — drives activate-empty vs content
+//   2. conversationCount      — drives skeleton row count
+//   3. paginatedResult.status — whether data has arrived
+//
+// States:
+//   'activate-empty' — no conversations at all, show onboarding CTA
+//   'loading'        — counts unknown, show placeholder skeleton
+//   'skeleton'       — count known > 0, show skeleton rows
+//   'data'           — rows available
+// ---------------------------------------------------------------------------
+type BodyState = 'activate-empty' | 'loading' | 'skeleton' | 'data';
+
+function deriveBodyState(
+  totalConversationCount: number | undefined,
+  conversationCount: number | undefined,
+  paginatedStatus: UsePaginatedQueryResult<ConversationItem>['status'],
+): BodyState {
+  const isDataLoading = paginatedStatus === 'LoadingFirstPage';
+
+  if (totalConversationCount === 0) return 'activate-empty';
+
+  if (!isDataLoading) return 'data';
+
+  if (conversationCount !== undefined && conversationCount > 0)
+    return 'skeleton';
+
+  return 'loading';
 }
 
 export function Conversations({
@@ -41,6 +78,7 @@ export function Conversations({
   search: initialSearch,
   paginatedResult,
   conversationCount,
+  totalConversationCount,
 }: ConversationsProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
@@ -51,6 +89,16 @@ export function Conversations({
   const { t: tChat } = useT('chat');
   const { t: tConversations } = useT('conversations');
   const { t: tCommon } = useT('common');
+
+  const bodyState = useMemo(
+    () =>
+      deriveBodyState(
+        totalConversationCount,
+        conversationCount,
+        paginatedResult.status,
+      ),
+    [totalConversationCount, conversationCount, paginatedResult.status],
+  );
 
   const filteredConversations = useMemo(() => {
     const searchTerm = searchQuery || initialSearch;
@@ -97,13 +145,12 @@ export function Conversations({
     onComplete: onBulkComplete,
   });
 
-  if (conversationCount === 0) {
+  if (bodyState === 'activate-empty') {
     return <ActivateConversationsEmptyState organizationId={organizationId} />;
   }
 
-  if (paginatedResult.status === 'LoadingFirstPage') {
-    return <ConversationsSkeleton rows={Math.min(conversationCount ?? 8, 8)} />;
-  }
+  const isLoading = bodyState === 'loading' || bodyState === 'skeleton';
+  const skeletonRows = Math.min(conversationCount ?? 3, 8);
 
   const handleConversationSelect = (conversation: Conversation) => {
     setSelectedConversationId(conversation.id);
@@ -119,6 +166,7 @@ export function Conversations({
               checked={selectAllChecked}
               onCheckedChange={handleSelectAll}
               aria-label={tCommon('aria.selectAll')}
+              disabled={isLoading}
             />
           </div>
 
@@ -170,19 +218,24 @@ export function Conversations({
               onChange={(e) => setSearchQuery(e.target.value)}
               wrapperClassName="flex-1"
               className="bg-transparent pr-3 text-sm shadow-none"
+              disabled={isLoading}
             />
           )}
         </ConversationListToolbar>
 
-        <ConversationsList
-          conversations={filteredConversations}
-          selectedConversationId={selectedConversationId}
-          onConversationSelect={handleConversationSelect}
-          onConversationCheck={handleConversationCheck}
-          isConversationSelected={isConversationSelected}
-          paginationStatus={paginatedResult.status}
-          loadMore={paginatedResult.loadMore}
-        />
+        {isLoading ? (
+          <ConversationsListSkeleton rows={skeletonRows} />
+        ) : (
+          <ConversationsList
+            conversations={filteredConversations}
+            selectedConversationId={selectedConversationId}
+            onConversationSelect={handleConversationSelect}
+            onConversationCheck={handleConversationCheck}
+            isConversationSelected={isConversationSelected}
+            paginationStatus={paginatedResult.status}
+            loadMore={paginatedResult.loadMore}
+          />
+        )}
         {isBulkProcessing && (
           <LoadingOverlay message={tConversations('updating')} />
         )}
@@ -194,10 +247,14 @@ export function Conversations({
           selectedConversationId ? 'flex' : 'hidden md:flex',
         )}
       >
-        <ConversationPanel
-          selectedConversationId={selectedConversationId}
-          onSelectedConversationChange={setSelectedConversationId}
-        />
+        {isLoading ? (
+          <ConversationPanelSkeleton />
+        ) : (
+          <ConversationPanel
+            selectedConversationId={selectedConversationId}
+            onSelectedConversationChange={setSelectedConversationId}
+          />
+        )}
       </div>
 
       {bulkSendDialog.isOpen && (

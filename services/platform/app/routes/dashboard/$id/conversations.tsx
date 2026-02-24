@@ -25,7 +25,7 @@ export const Route = createFileRoute('/dashboard/$id/conversations')({
       });
     }
   },
-  loader: async ({ context, params }) => {
+  loader: ({ context, params }) => {
     const statuses = ['open', 'closed', 'spam', 'archived'] as const;
     for (const status of statuses) {
       void context.queryClient.prefetchQuery(
