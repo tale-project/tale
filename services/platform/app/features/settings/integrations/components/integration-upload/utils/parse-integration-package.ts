@@ -2,26 +2,15 @@ import JSZip from 'jszip';
 
 import type { IntegrationConfig } from './validate-config';
 
+import {
+  ICON_FILE_NAMES,
+  ICON_MIME_TYPES,
+  MAX_ICON_SIZE,
+} from '../../../constants';
 import { validateConfig } from './validate-config';
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 const MAX_CONNECTOR_SIZE = 512 * 1024; // 512KB
-const MAX_ICON_SIZE = 256 * 1024; // 256KB
-
-const ICON_FILE_NAMES = [
-  'icon.png',
-  'icon.svg',
-  'icon.jpg',
-  'icon.jpeg',
-  'icon.webp',
-];
-const ICON_MIME_TYPES: Record<string, string> = {
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-};
 
 export interface ParsedPackage {
   config: IntegrationConfig;

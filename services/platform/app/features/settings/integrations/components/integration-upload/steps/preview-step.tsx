@@ -12,13 +12,7 @@ import { useT } from '@/lib/i18n/client';
 
 import type { ParsedPackage } from '../utils/parse-integration-package';
 
-const MAX_ICON_SIZE = 256 * 1024; // 256KB
-const ACCEPTED_ICON_TYPES = new Set([
-  'image/png',
-  'image/svg+xml',
-  'image/jpeg',
-  'image/webp',
-]);
+import { ACCEPTED_ICON_TYPES, MAX_ICON_SIZE } from '../../../constants';
 
 interface PreviewStepProps {
   parsedPackage: ParsedPackage;
