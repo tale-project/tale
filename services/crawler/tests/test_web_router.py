@@ -1,7 +1,11 @@
-"""Tests for URL content type detection and routing logic."""
+"""Tests for URL content type detection, routing logic, and web page extraction."""
+
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.models import WebFetchExtractResponse
+from app.routers.web import _extract_from_webpage
 from app.utils.content_type import detect_type_from_content_type, detect_type_from_url
 
 
@@ -131,3 +135,140 @@ class TestDetectTypeFromContentType:
         ext, category = detect_type_from_content_type(content_type)
         assert ext is None
         assert category == "unknown"
+
+
+class TestExtractFromWebpage:
+    """Tests for _extract_from_webpage() using Crawl4AI + image extraction."""
+
+    @patch("app.routers.web.extract_and_describe_images", new_callable=AsyncMock)
+    @patch("app.routers.web.get_crawler_service")
+    async def test_happy_path(self, mock_get_crawler, mock_extract_images):
+        mock_crawler = AsyncMock()
+        mock_crawler.initialized = True
+        mock_crawler.crawl_single_url = AsyncMock(
+            return_value={
+                "url": "https://example.com",
+                "title": "Example Page",
+                "content": "Hello world content",
+                "word_count": 3,
+                "metadata": {"title": "Example Page"},
+                "structured_data": {},
+                "media_images": [{"src": "https://example.com/img.jpg", "score": 5.0}],
+            }
+        )
+        mock_get_crawler.return_value = mock_crawler
+        mock_extract_images.return_value = (["[Image: A sunset photo]"], True)
+
+        result = await _extract_from_webpage("https://example.com", "example.com", None, 60.0)
+
+        assert result.success is True
+        assert "Hello world content" in result.content
+        assert "[Image: A sunset photo]" in result.content
+        assert result.title == "Example Page"
+        assert result.vision_used is True
+        assert result.content_type == "text/html"
+        assert result.page_count == 0
+
+    @patch("app.routers.web.extract_and_describe_images", new_callable=AsyncMock)
+    @patch("app.routers.web.get_crawler_service")
+    async def test_no_images_found(self, mock_get_crawler, mock_extract_images):
+        mock_crawler = AsyncMock()
+        mock_crawler.initialized = True
+        mock_crawler.crawl_single_url = AsyncMock(
+            return_value={
+                "url": "https://example.com",
+                "title": "Text Only",
+                "content": "Just text content here",
+                "word_count": 4,
+                "metadata": {},
+                "structured_data": {},
+                "media_images": [],
+            }
+        )
+        mock_get_crawler.return_value = mock_crawler
+        mock_extract_images.return_value = ([], False)
+
+        result = await _extract_from_webpage("https://example.com", "example.com", None, 60.0)
+
+        assert result.success is True
+        assert result.content == "Just text content here"
+        assert result.vision_used is False
+
+    @patch("app.routers.web.get_crawler_service")
+    async def test_timeout_error(self, mock_get_crawler):
+        mock_crawler = AsyncMock()
+        mock_crawler.initialized = True
+        mock_crawler.crawl_single_url = AsyncMock(side_effect=TimeoutError("timed out"))
+        mock_get_crawler.return_value = mock_crawler
+
+        result = await _extract_from_webpage("https://example.com", "example.com", None, 60.0)
+
+        assert result.success is False
+        assert "Timed out" in result.error
+
+    @patch("app.routers.web.get_crawler_service")
+    async def test_runtime_error(self, mock_get_crawler):
+        mock_crawler = AsyncMock()
+        mock_crawler.initialized = True
+        mock_crawler.crawl_single_url = AsyncMock(side_effect=RuntimeError("Crawl failed: 404"))
+        mock_get_crawler.return_value = mock_crawler
+
+        result = await _extract_from_webpage("https://example.com", "example.com", None, 60.0)
+
+        assert result.success is False
+        assert "Crawl failed" in result.error
+
+    @patch("app.routers.web.extract_and_describe_images", new_callable=AsyncMock)
+    @patch("app.routers.web.get_crawler_service")
+    async def test_instruction_triggers_llm_processing(self, mock_get_crawler, mock_extract_images):
+        mock_crawler = AsyncMock()
+        mock_crawler.initialized = True
+        mock_crawler.crawl_single_url = AsyncMock(
+            return_value={
+                "url": "https://example.com",
+                "title": "Test",
+                "content": "Original content with lots of info",
+                "word_count": 6,
+                "metadata": {},
+                "structured_data": {},
+                "media_images": [],
+            }
+        )
+        mock_get_crawler.return_value = mock_crawler
+        mock_extract_images.return_value = ([], False)
+
+        with patch(
+            "app.services.vision.openai_client.process_pages_with_llm",
+            new_callable=AsyncMock,
+            return_value=["Processed extraction result"],
+        ) as mock_llm:
+            result = await _extract_from_webpage("https://example.com", "example.com", "Extract key facts", 60.0)
+
+            mock_llm.assert_called_once()
+            assert result.content == "Processed extraction result"
+
+    @patch("app.routers.web.extract_and_describe_images", new_callable=AsyncMock)
+    @patch("app.routers.web.get_crawler_service")
+    async def test_no_instruction_skips_llm(self, mock_get_crawler, mock_extract_images):
+        mock_crawler = AsyncMock()
+        mock_crawler.initialized = True
+        mock_crawler.crawl_single_url = AsyncMock(
+            return_value={
+                "url": "https://example.com",
+                "title": "Test",
+                "content": "Some content",
+                "word_count": 2,
+                "metadata": {},
+                "structured_data": {},
+                "media_images": [],
+            }
+        )
+        mock_get_crawler.return_value = mock_crawler
+        mock_extract_images.return_value = ([], False)
+
+        with patch(
+            "app.services.vision.openai_client.process_pages_with_llm",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            await _extract_from_webpage("https://example.com", "example.com", None, 60.0)
+            mock_llm.assert_not_called()

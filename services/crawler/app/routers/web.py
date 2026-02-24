@@ -1,8 +1,7 @@
 """
 Web Router - URL content extraction endpoint.
 
-Combines URL-to-PDF conversion with Vision-based text extraction.
-Supports web pages (via Playwright), document files (PDF, DOCX, PPTX),
+Extracts content from web pages (via Crawl4AI), document files (PDF, DOCX, PPTX),
 and image files (PNG, JPG, GIF, WebP, BMP, TIFF, SVG).
 """
 
@@ -15,8 +14,9 @@ from fastapi import APIRouter, HTTPException, status
 from loguru import logger
 
 from app.models import WebFetchExtractRequest, WebFetchExtractResponse
+from app.services.crawler_service import get_crawler_service
 from app.services.file_parser_service import get_file_parser_service
-from app.services.pdf_service import get_pdf_service
+from app.services.web_image_extractor import extract_and_describe_images
 from app.utils.content_type import detect_type_from_content_type, detect_type_from_url
 
 router = APIRouter(prefix="/api/v1/web", tags=["Web"])
@@ -239,27 +239,36 @@ async def _extract_from_webpage(
     url_str: str,
     hostname: str,
     instruction: str | None,
-    timeout: int,
+    timeout: float,
 ) -> WebFetchExtractResponse:
-    """Render a web page via Playwright → PDF and extract content."""
-    pdf_service = get_pdf_service()
-    if not pdf_service.initialized:
-        await pdf_service.initialize()
+    """Extract content from a web page using Crawl4AI for text and Vision API for images.
 
-    logger.info(f"Fetching URL as PDF: {url_str}")
-    pdf_bytes = await pdf_service.url_to_pdf(url=url_str, timeout=timeout)
+    Pipeline:
+    1. Crawl4AI extracts markdown text + discovers page images
+    2. Significant images are downloaded and described via Vision API
+    3. Text and image descriptions are combined
+    4. Optionally processed with LLM using the provided instruction
 
-    logger.info(f"Extracting content from PDF ({len(pdf_bytes)} bytes)")
-    parser = get_file_parser_service()
-    result = await parser.parse_pdf_with_vision(
-        pdf_bytes,
-        filename=f"{hostname}.pdf",
-        user_input=instruction,
-        process_images=True,
-        ocr_scanned_pages=True,
-    )
+    Args:
+        url_str: URL to extract content from
+        hostname: Validated hostname
+        instruction: Optional AI instruction for content extraction
+        timeout: Timeout in seconds
 
-    if not result.get("success"):
+    Returns:
+        Extracted content with metadata
+    """
+    from app.services.vision.openai_client import process_pages_with_llm
+
+    crawler = get_crawler_service()
+    if not crawler.initialized:
+        await crawler.initialize()
+
+    logger.info(f"Crawling web page: {url_str}")
+
+    try:
+        crawl_result = await crawler.crawl_single_url(url_str, timeout=timeout)
+    except TimeoutError:
         return WebFetchExtractResponse(
             success=False,
             url=url_str,
@@ -267,38 +276,63 @@ async def _extract_from_webpage(
             content_type="text/html",
             word_count=0,
             page_count=0,
-            error=result.get("error", "Failed to extract content from PDF"),
+            error=f"Timed out crawling {url_str}",
+        )
+    except RuntimeError as e:
+        return WebFetchExtractResponse(
+            success=False,
+            url=url_str,
+            content="",
+            content_type="text/html",
+            word_count=0,
+            page_count=0,
+            error=str(e),
         )
 
-    full_text = result.get("full_text", "")
+    markdown_content = crawl_result["content"]
+    title = crawl_result.get("title")
+    media_images = crawl_result.get("media_images", [])
+
+    image_descriptions, vision_used = await extract_and_describe_images(media_images, url_str)
+
+    parts = [markdown_content]
+    if image_descriptions:
+        parts.extend(image_descriptions)
+
+    full_text = "\n\n".join(filter(None, parts))
+
+    if instruction and full_text:
+        processed = await process_pages_with_llm([full_text], instruction, max_concurrent=3)
+        full_text = "\n\n".join(processed)
+
     word_count = len(full_text.split()) if full_text else 0
 
     logger.info(
-        f"Content extracted: {word_count} words, {result.get('page_count', 0)} pages, "
-        f"vision_used={result.get('vision_used', False)}"
+        f"Web page extracted: {word_count} words, {len(image_descriptions)} images described, vision_used={vision_used}"
     )
 
     return WebFetchExtractResponse(
         success=True,
         url=url_str,
+        title=title,
         content=full_text,
         content_type="text/html",
         word_count=word_count,
-        page_count=result.get("page_count", 0),
-        vision_used=result.get("vision_used", False),
+        page_count=0,
+        vision_used=vision_used,
     )
 
 
 @router.post("/fetch-and-extract", response_model=WebFetchExtractResponse)
 async def fetch_and_extract(request: WebFetchExtractRequest):
     """
-    Fetch a URL, convert to PDF, and extract text content.
+    Fetch a URL and extract text content.
 
     Pipeline:
     1. Probe URL to detect content type (file link, image, or web page)
     2a. For documents (PDF, DOCX, PPTX): download and parse directly
     2b. For images (PNG, JPG, GIF, WebP, etc.): download and extract via Vision API
-    2c. For web pages: navigate with Playwright, render as PDF, extract text
+    2c. For web pages: extract text via Crawl4AI, describe images via Vision API
     3. Optionally process with AI using the provided instruction
 
     Args:
@@ -325,7 +359,7 @@ async def fetch_and_extract(request: WebFetchExtractRequest):
         if category == "image":
             return await _extract_from_image(url_str, content_type, request.instruction, timeout_seconds)
 
-        return await _extract_from_webpage(url_str, hostname, request.instruction, request.timeout)
+        return await _extract_from_webpage(url_str, hostname, request.instruction, timeout_seconds)
 
     except HTTPException:
         raise

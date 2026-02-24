@@ -23,6 +23,7 @@ const documentSourceTypeValidator = v.union(
 const documentOutputFormatValidator = v.union(
   v.literal('pdf'),
   v.literal('image'),
+  v.literal('docx'),
 );
 
 const pdfOptionsValidator = v.optional(

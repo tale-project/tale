@@ -158,6 +158,21 @@ class UrlToImageRequest(BaseModel):
     timeout: int = Field(60000, description="Navigation timeout in milliseconds (default: 60s)", ge=5000, le=120000)
 
 
+# ==================== DOCX from Markdown/HTML Models ====================
+
+
+class MarkdownToDocxRequest(BaseModel):
+    """Request to convert Markdown to DOCX."""
+
+    content: str = Field(..., description="Markdown content to convert")
+
+
+class HtmlToDocxRequest(BaseModel):
+    """Request to convert HTML to DOCX."""
+
+    html: str = Field(..., description="HTML content to convert")
+
+
 # ==================== PPTX Models ====================
 
 
