@@ -13,7 +13,6 @@ const executionStatusLiterals = [
   'failed',
 ] as const;
 export const executionStatusSchema = z.enum(executionStatusLiterals);
-export type ExecutionStatus = z.infer<typeof executionStatusSchema>;
 
 export const updateExecutionStatusArgsSchema = z.object({
   executionId: z.string(),

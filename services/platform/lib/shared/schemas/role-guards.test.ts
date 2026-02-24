@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { memberRoleSchema } from './organizations';
+import { isMemberRole } from '@/app/features/settings/organization/utils/role-guards';
 
-function isMemberRole(role: string | undefined): boolean {
-  return memberRoleSchema.safeParse(role).success;
-}
-
-describe('isMemberRole (memberRoleSchema guard)', () => {
+describe('isMemberRole', () => {
   it('returns true for valid roles', () => {
     expect(isMemberRole('admin')).toBe(true);
     expect(isMemberRole('developer')).toBe(true);

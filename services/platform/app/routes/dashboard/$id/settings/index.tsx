@@ -5,11 +5,11 @@ import { api } from '@/convex/_generated/api';
 import { getDefaultSettingsRoute } from '@/lib/permissions/get-default-settings-route';
 
 export const Route = createFileRoute('/dashboard/$id/settings/')({
-  beforeLoad: ({ context, params }) => {
-    const memberContext = context.queryClient.getQueryData(
+  loader: async ({ context, params }) => {
+    const memberContext = await context.queryClient.ensureQueryData(
       convexQuery(api.members.queries.getCurrentMemberContext, {
         organizationId: params.id,
-      }).queryKey,
+      }),
     );
 
     throw redirect({
