@@ -2109,6 +2109,7 @@
       "usingAgent": "Using {name}",
       "searchPlaceholder": "Search agents...",
       "noResults": "No agents found",
+      "addAgent": "Add agent",
       "builtinAgents": {
         "chat": {
           "name": "Assistant",

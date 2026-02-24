@@ -167,9 +167,10 @@ export function ChatMessages({
         return null;
       })}
 
-      {/* Thinking animation area */}
+      {/* Thinking animation area — hidden once the streaming message has text,
+          since the typewriter is the loading indicator at that point */}
       <div ref={aiResponseAreaRef}>
-        {hasIncompleteAssistantMessage && (
+        {hasIncompleteAssistantMessage && !streamingMessage?.text && (
           <ThinkingAnimation streamingMessage={streamingMessage} />
         )}
       </div>

@@ -264,9 +264,11 @@ export function useMessageProcessing(
   }, [uiMessages]);
 
   // Check if the thread is waiting for an assistant response.
-  // Only hide loading when the newest message is a completed assistant response.
-  // This is the most stable signal — avoids gaps between tool call steps
-  // where individual message statuses might briefly be terminal.
+  // True when the newest message is not a completed assistant response,
+  // OR when any assistant message is still in-flight. The second condition
+  // prevents the thinking animation from briefly disappearing between
+  // multi-step tool call transitions, where an intermediate assistant
+  // message may complete while the next step hasn't started yet.
   const hasIncompleteAssistantMessage = useMemo(() => {
     if (!uiMessages?.length) return false;
 
@@ -274,9 +276,18 @@ export function useMessageProcessing(
       a._creationTime > b._creationTime ? a : b,
     );
 
-    return !(
+    const newestIsComplete =
       newestMessage.role === 'assistant' &&
-      (newestMessage.status === 'success' || newestMessage.status === 'failed')
+      (newestMessage.status === 'success' || newestMessage.status === 'failed');
+
+    if (!newestIsComplete) return true;
+
+    // Even if the newest message looks complete, keep loading if any
+    // assistant message is still in-flight (streaming or pending).
+    return uiMessages.some(
+      (m) =>
+        m.role === 'assistant' &&
+        (m.status === 'streaming' || m.status === 'pending'),
     );
   }, [uiMessages]);
 
