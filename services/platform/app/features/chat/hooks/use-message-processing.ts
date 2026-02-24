@@ -1,5 +1,5 @@
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
@@ -108,6 +108,38 @@ export function useMessageProcessing(
   // because pagination is based on MessageDoc count, not UIMessage count
   const hasFirstMessage = uiMessages?.some((m) => m.order === 0) ?? false;
   const canLoadMore = paginationStatus === 'CanLoadMore' && !hasFirstMessage;
+
+  // Adaptive auto-load: pagination is based on MessageDoc count, not UIMessage count.
+  // A single tool-heavy turn can consume most of the initial page (N tool calls =
+  // N*2+2 MessageDocs). When too few user messages are visible, load more automatically
+  // so the user always sees enough conversation context.
+  //
+  // Uses paginationStatus directly instead of canLoadMore because canLoadMore
+  // includes a hasFirstMessage guard (any message with order=0), which becomes
+  // true as soon as assistant tool messages (order=0) load — even when the user
+  // message (also order=0) hasn't been fetched yet.
+  //
+  // Safety: capped at MAX_AUTO_LOADS to prevent excessive requests in extreme
+  // tool-heavy threads. After the cap, the user can still manually "Load More".
+  const MAX_AUTO_LOADS = 5;
+  const autoLoadCountRef = useRef(0);
+
+  const visibleUserMessageCount = useMemo(
+    () => uiMessages?.filter((m) => m.role === 'user').length ?? 0,
+    [uiMessages],
+  );
+
+  useEffect(() => {
+    if (
+      paginationStatus === 'CanLoadMore' &&
+      !isLoadingMore &&
+      visibleUserMessageCount < 3 &&
+      autoLoadCountRef.current < MAX_AUTO_LOADS
+    ) {
+      autoLoadCountRef.current++;
+      loadMore(30);
+    }
+  }, [paginationStatus, isLoadingMore, visibleUserMessageCount, loadMore]);
 
   // Track which messages have been seen as streaming. Once streaming,
   // stay streaming until a terminal status (success/failed) is observed.
