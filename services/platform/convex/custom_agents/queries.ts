@@ -10,17 +10,11 @@ import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import { TOOL_NAMES } from '../agent_tools/tool_names';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
+import { STATUS_PRIORITY } from '../lib/helpers/status_priority';
 import { getAuthUserIdentity } from '../lib/rls';
 import { hasTeamAccess } from '../lib/team_access';
 import { listCustomAgentsPaginated as listCustomAgentsPaginatedHelper } from './list_custom_agents_paginated';
-
-const COUNT_CAP = 20;
-
-const STATUS_PRIORITY: Record<string, number> = {
-  active: 0,
-  draft: 1,
-  archived: 2,
-};
 
 export const approxCountCustomAgents = query({
   args: {
@@ -45,7 +39,7 @@ export const approxCountCustomAgents = query({
 
       const rootId = agent.rootVersionId ?? agent._id;
       seenRoots.add(rootId);
-      if (seenRoots.size >= COUNT_CAP) break;
+      if (seenRoots.size >= DEFAULT_COUNT_CAP) break;
     }
 
     return seenRoots.size;
@@ -120,8 +114,8 @@ export const listCustomAgents = query({
       const existing = bestByRoot.get(rootId);
       if (
         !existing ||
-        (STATUS_PRIORITY[agent.status] ?? 99) <
-          (STATUS_PRIORITY[existing.status] ?? 99)
+        (STATUS_PRIORITY[agent.status] ?? 0) >
+          (STATUS_PRIORITY[existing.status] ?? 0)
       ) {
         bestByRoot.set(rootId, agent);
       }

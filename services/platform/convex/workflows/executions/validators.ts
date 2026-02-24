@@ -13,6 +13,7 @@ import {
   jsonValueValidator,
 } from '../../../lib/shared/schemas/utils/json-value';
 import {
+  executionStatusSchema,
   executionSortOrderSchema,
   updateExecutionStatusArgsSchema,
   failExecutionArgsSchema,
@@ -24,6 +25,7 @@ import {
 } from '../../../lib/shared/schemas/wf_executions';
 
 export {
+  executionStatusSchema,
   executionSortOrderSchema,
   updateExecutionStatusArgsSchema,
   completeExecutionArgsSchema,
@@ -38,6 +40,7 @@ export {
 } from '../../../lib/shared/schemas/wf_executions';
 
 // Simple schemas without z.lazy()
+export const executionStatusValidator = zodToConvex(executionStatusSchema);
 export const executionSortOrderValidator = zodToConvex(
   executionSortOrderSchema,
 );

@@ -1,5 +1,6 @@
 import type { PaginationOptions, PaginationResult } from 'convex/server';
 
+import type { WorkflowStatus } from '../../../lib/shared/schemas/wf_definitions';
 import type { Doc } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
 
@@ -11,7 +12,7 @@ function resolveEffectiveStatus(
   name: string,
   activeByName: Map<string, Doc<'wfDefinitions'>>,
   archivedNames: Set<string>,
-): string {
+): WorkflowStatus {
   if (activeByName.has(name)) return 'active';
   if (archivedNames.has(name)) return 'archived';
   return 'draft';

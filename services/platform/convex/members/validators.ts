@@ -35,7 +35,7 @@ export const memberListItemValidator = v.object({
   organizationId: v.string(),
   identityId: v.optional(v.string()),
   email: v.optional(v.string()),
-  role: v.optional(v.string()),
+  role: v.optional(memberRoleValidator),
   displayName: v.optional(v.string()),
   metadata: v.optional(jsonRecordValidator),
 });

@@ -2,12 +2,13 @@
  * Update workflow status
  */
 
+import type { WorkflowStatus } from '../../../lib/shared/schemas/wf_definitions';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 
 export interface UpdateWorkflowStatusArgs {
   wfDefinitionId: Id<'wfDefinitions'>;
-  status: string;
+  status: WorkflowStatus;
   updatedBy: string;
 }
 

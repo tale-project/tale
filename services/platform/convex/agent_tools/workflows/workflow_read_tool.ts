@@ -23,6 +23,7 @@ import type {
   WorkflowReadListVersionHistoryResult,
 } from './helpers/types';
 
+import { workflowStatusSchema } from '../../../lib/shared/schemas/wf_definitions';
 import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import { readActiveVersionSteps } from './helpers/read_active_version_steps';
@@ -59,8 +60,7 @@ const workflowReadArgs = z.object({
       'Required for \'get_step\': The step record ID (Convex Id<"wfStepDefs">)',
     ),
   // For list_all operation
-  status: z
-    .string()
+  status: workflowStatusSchema
     .optional()
     .describe(
       "For 'list_all': Optional status filter ('draft', 'active', or 'archived'). If not provided, returns all workflows.",

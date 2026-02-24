@@ -5,21 +5,16 @@
 import type { QueryCtx } from '../../../_generated/server';
 import type { AuthenticatedUser, OrganizationMember } from '../types';
 
+import {
+  memberRoleSchema,
+  type MemberRole,
+} from '../../../../lib/shared/schemas/organizations';
 import { components } from '../../../_generated/api';
 import { getTrustedAuthData } from '../auth/get_trusted_auth_data';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 
-const VALID_ROLES = [
-  'disabled',
-  'member',
-  'editor',
-  'developer',
-  'admin',
-] as const;
-type ValidRole = (typeof VALID_ROLES)[number];
-
-function isValidRole(role: string): role is ValidRole {
-  return VALID_ROLES.some((r) => r === role);
+function isValidRole(role: string): role is MemberRole {
+  return memberRoleSchema.safeParse(role).success;
 }
 
 /**
@@ -34,7 +29,7 @@ export async function getUserOrganizations(
 ): Promise<
   Array<{
     organizationId: string;
-    role: 'disabled' | 'member' | 'editor' | 'developer' | 'admin';
+    role: MemberRole;
     member: OrganizationMember;
   }>
 > {
@@ -68,7 +63,7 @@ export async function getUserOrganizations(
       // Get role from trusted headers if available, otherwise from database
       const rawRole = trustedData?.trustedRole || member.role || 'member';
       const normalizedRole = rawRole.toLowerCase();
-      const role: ValidRole = isValidRole(normalizedRole)
+      const role: MemberRole = isValidRole(normalizedRole)
         ? normalizedRole
         : 'member';
 

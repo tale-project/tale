@@ -25,7 +25,7 @@ export interface DeserializedWorkflowExecution extends Omit<
 
 export interface UpdateExecutionStatusArgs {
   executionId: Doc<'wfExecutions'>['_id'];
-  status: string;
+  status: ExecutionStatus;
   currentStepSlug?: string;
   waitingFor?: string;
   error?: string;

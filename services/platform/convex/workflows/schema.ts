@@ -6,12 +6,14 @@ import {
   jsonValueValidator,
 } from '../../lib/shared/schemas/utils/json-value';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
+import { workflowStatusValidator } from './definitions/validators';
+import { executionStatusValidator } from './executions/validators';
 
 export const wfDefinitionsTable = defineTable({
   organizationId: v.string(),
   version: v.string(),
   versionNumber: v.number(),
-  status: v.string(),
+  status: workflowStatusValidator,
   workflowType: v.literal('predefined'),
   name: v.string(),
   description: v.optional(v.string()),
@@ -127,7 +129,7 @@ export const wfExecutionsTable = defineTable({
   rootWfDefinitionId: v.optional(v.id('wfDefinitions')),
   workflowSlug: v.optional(v.string()),
   workflowVersion: v.optional(v.string()),
-  status: v.string(),
+  status: executionStatusValidator,
   currentStepSlug: v.string(),
   waitingFor: v.optional(v.string()),
   startedAt: v.number(),

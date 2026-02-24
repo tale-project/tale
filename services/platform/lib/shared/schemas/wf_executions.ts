@@ -6,9 +6,17 @@ import { jsonRecordSchema, jsonValueSchema } from './utils/json-value';
 export const executionSortOrderSchema = z.enum(sortOrderLiterals);
 type ExecutionSortOrder = z.infer<typeof executionSortOrderSchema>;
 
+const executionStatusLiterals = [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+] as const;
+export const executionStatusSchema = z.enum(executionStatusLiterals);
+
 export const updateExecutionStatusArgsSchema = z.object({
   executionId: z.string(),
-  status: z.string(),
+  status: executionStatusSchema,
   currentStepSlug: z.string().optional(),
   waitingFor: z.string().optional(),
   error: z.string().optional(),
@@ -83,7 +91,7 @@ type UpdateExecutionVariablesArgs = z.infer<
 
 export const listExecutionsArgsSchema = z.object({
   wfDefinitionId: z.string(),
-  status: z.string().optional(),
+  status: executionStatusSchema.optional(),
   limit: z.number().optional(),
   search: z.string().optional(),
   triggeredBy: z.string().optional(),
@@ -98,7 +106,7 @@ export const listExecutionsCursorArgsSchema = z.object({
   numItems: z.number().optional(),
   cursor: z.string().nullable(),
   searchTerm: z.string().optional(),
-  status: z.array(z.string()).optional(),
+  status: z.array(executionStatusSchema).optional(),
   triggeredBy: z.array(z.string()).optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),

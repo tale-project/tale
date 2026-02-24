@@ -19,7 +19,11 @@ import { TOOL_NAMES } from '../agent_tools/tool_names';
 import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
-import { modelPresetValidator, retrievalModeValidator } from './schema';
+import {
+  modelPresetValidator,
+  retrievalModeValidator,
+  roleRestrictionValidator,
+} from './schema';
 
 const toolNamesValidator = v.array(v.string());
 
@@ -45,7 +49,7 @@ const agentFieldsValidator = {
   maxSteps: v.optional(v.number()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
-  roleRestriction: v.optional(v.string()),
+  roleRestriction: v.optional(roleRestrictionValidator),
 };
 
 function validateToolNames(toolNames: string[]) {
@@ -253,7 +257,7 @@ export const updateCustomAgent = mutation({
     maxSteps: v.optional(v.number()),
     timeoutMs: v.optional(v.number()),
     outputReserve: v.optional(v.number()),
-    roleRestriction: v.optional(v.string()),
+    roleRestriction: v.optional(roleRestrictionValidator),
   },
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);

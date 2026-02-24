@@ -7,6 +7,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import { useRemoveMember } from '../hooks/mutations';
+import { isMemberRole } from '../utils/role-guards';
 
 type MemberLite = {
   _id: string;
@@ -69,7 +70,7 @@ export function DeleteMemberDialog({
       isDeleting={isDeleting}
       onDelete={handleConfirm}
       warning={
-        member.role === 'admin'
+        isMemberRole(member.role) && member.role === 'admin'
           ? t('organization.adminSecurityWarning')
           : undefined
       }

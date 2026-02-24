@@ -2,6 +2,7 @@
  * Update workflow
  */
 
+import type { WorkflowStatus } from '../../../lib/shared/schemas/wf_definitions';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import type { WorkflowConfig } from './types';
@@ -12,7 +13,7 @@ export interface UpdateWorkflowArgs {
     name?: string;
     description?: string;
     version?: string;
-    status?: string;
+    status?: WorkflowStatus;
     workflowType?: 'predefined';
     config?: WorkflowConfig;
     metadata?: unknown;

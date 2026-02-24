@@ -1,12 +1,13 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
+import type { WorkflowStatus } from '../../../../lib/shared/schemas/wf_definitions';
 import type { Doc } from '../../../_generated/dataModel';
 import type { WorkflowReadListAllResult, WorkflowSummary } from './types';
 
 import { internal } from '../../../_generated/api';
 
 export interface ReadAllWorkflowsArgs {
-  status?: string;
+  status?: WorkflowStatus;
   includeStepCount?: boolean;
 }
 

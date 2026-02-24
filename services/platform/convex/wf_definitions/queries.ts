@@ -5,6 +5,7 @@ import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
+import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { queryWithRLS } from '../lib/rls';
 import { executeDryRun } from '../workflow_engine/execution/dry_run_executor';
 import { listAutomations as listAutomationsHandler } from '../workflows/definitions/list_automations';
@@ -47,8 +48,6 @@ export const listVersions = queryWithRLS({
   },
 });
 
-const COUNT_CAP = 20;
-
 export const approxCountAutomations = queryWithRLS({
   args: {
     organizationId: v.string(),
@@ -62,7 +61,7 @@ export const approxCountAutomations = queryWithRLS({
         q.eq('organizationId', args.organizationId).eq('versionNumber', 1),
       )) {
       count++;
-      if (count >= COUNT_CAP) break;
+      if (count >= DEFAULT_COUNT_CAP) break;
     }
     return count;
   },

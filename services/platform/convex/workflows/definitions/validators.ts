@@ -66,7 +66,7 @@ export const workflowDefinitionValidator = v.object({
   organizationId: v.string(),
   version: v.string(),
   versionNumber: v.number(),
-  status: v.string(),
+  status: workflowStatusValidator,
   workflowType: workflowTypeValidator,
   name: v.string(),
   description: v.optional(v.string()),

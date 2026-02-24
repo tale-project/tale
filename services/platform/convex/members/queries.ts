@@ -2,6 +2,10 @@ import { v } from 'convex/values';
 
 import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
 
+import {
+  memberRoleSchema,
+  type MemberRole,
+} from '../../lib/shared/schemas/organizations';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import {
@@ -9,6 +13,7 @@ import {
   getOrganizationMember,
   getUserOrganizations,
 } from '../lib/rls';
+import { memberRoleValidator } from './validators';
 
 interface BetterAuthTeam {
   _id: string;
@@ -24,17 +29,8 @@ interface BetterAuthTeamMember {
   createdAt?: number | null;
 }
 
-const VALID_ROLES = [
-  'disabled',
-  'member',
-  'editor',
-  'developer',
-  'admin',
-] as const;
-type ValidRole = (typeof VALID_ROLES)[number];
-
-function isValidRole(role: string): role is ValidRole {
-  return VALID_ROLES.some((r) => r === role);
+function isValidRole(role: string): role is MemberRole {
+  return memberRoleSchema.safeParse(role).success;
 }
 
 export const getCurrentMemberContext = query({
@@ -44,13 +40,7 @@ export const getCurrentMemberContext = query({
       memberId: v.string(),
       organizationId: v.string(),
       userId: v.string(),
-      role: v.union(
-        v.literal('admin'),
-        v.literal('member'),
-        v.literal('editor'),
-        v.literal('developer'),
-        v.literal('disabled'),
-      ),
+      role: memberRoleValidator,
       createdAt: v.number(),
       displayName: v.optional(v.string()),
       isAdmin: v.boolean(),
@@ -98,7 +88,7 @@ export const listByOrganization = query({
       _id: v.string(),
       organizationId: v.string(),
       userId: v.string(),
-      role: v.string(),
+      role: memberRoleValidator,
       createdAt: v.number(),
       displayName: v.optional(v.string()),
       email: v.optional(v.string()),
@@ -143,11 +133,16 @@ export const listByOrganization = query({
           },
         );
 
+        const parsedRole = memberRoleSchema.safeParse(member.role);
+        const role: MemberRole = parsedRole.success
+          ? parsedRole.data
+          : 'member';
+
         return {
           _id: member._id,
           organizationId: member.organizationId,
           userId: member.userId,
-          role: member.role || 'member',
+          role,
           createdAt: member.createdAt,
           displayName: userResult?.name,
           email: userResult?.email,
@@ -181,7 +176,7 @@ export const getUserOrganizationsList = query({
   returns: v.array(
     v.object({
       organizationId: v.string(),
-      role: v.string(),
+      role: memberRoleValidator,
     }),
   ),
   handler: async (ctx) => {
