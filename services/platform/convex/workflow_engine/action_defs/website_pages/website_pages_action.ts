@@ -5,6 +5,7 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { WebsitePagesActionParams } from './helpers/types';
 
 import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { isRecord, getRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toConvexJsonValue } from '../../../lib/type_cast_helpers';
@@ -234,17 +235,15 @@ async function executeSyncPendingPages(
     urlsType: typeof params.urls,
     isArray: Array.isArray(params.urls),
     urlsLength: Array.isArray(params.urls) ? params.urls.length : 'N/A',
-    registerUrlsStep: (variables.steps as Record<string, unknown>)
-      ?.register_urls
-      ? 'exists'
-      : 'missing',
+    registerUrlsStep: (() => {
+      const steps = isRecord(variables.steps) ? variables.steps : undefined;
+      return steps?.register_urls ? 'exists' : 'missing';
+    })(),
     registerUrlsOutput: (() => {
-      const steps = variables.steps as
-        | Record<string, Record<string, unknown>>
-        | undefined;
-      const step = steps?.register_urls;
-      const output = step?.output as Record<string, unknown> | undefined;
-      const data = output?.data as Record<string, unknown> | undefined;
+      const steps = isRecord(variables.steps) ? variables.steps : undefined;
+      const step = steps ? getRecord(steps, 'register_urls') : undefined;
+      const output = step ? getRecord(step, 'output') : undefined;
+      const data = output ? getRecord(output, 'data') : undefined;
       return {
         hasOutput: !!output,
         hasData: !!data,
