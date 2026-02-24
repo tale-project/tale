@@ -158,6 +158,21 @@ class UrlToImageRequest(BaseModel):
     timeout: int = Field(60000, description="Navigation timeout in milliseconds (default: 60s)", ge=5000, le=120000)
 
 
+# ==================== DOCX from Markdown/HTML Models ====================
+
+
+class MarkdownToDocxRequest(BaseModel):
+    """Request to convert Markdown to DOCX."""
+
+    content: str = Field(..., description="Markdown content to convert")
+
+
+class HtmlToDocxRequest(BaseModel):
+    """Request to convert HTML to DOCX."""
+
+    html: str = Field(..., description="HTML content to convert")
+
+
 # ==================== PPTX Models ====================
 
 
@@ -264,6 +279,7 @@ class WebFetchExtractResponse(BaseModel):
     url: str = Field(..., description="The fetched URL")
     title: str | None = Field(None, description="Page title")
     content: str = Field(..., description="Extracted text content")
+    content_type: str = Field("text/html", description="Detected content type (e.g. text/html, application/pdf)")
     word_count: int = Field(..., description="Number of words in content")
     page_count: int = Field(..., description="Number of pages in PDF")
     vision_used: bool = Field(False, description="Whether Vision API was used for extraction")

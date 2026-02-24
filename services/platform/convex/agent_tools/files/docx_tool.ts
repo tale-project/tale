@@ -115,6 +115,19 @@ const docxArgs = z.object({
     .describe(
       "For 'generate': Content sections. Each section can be a heading, paragraph, bullets, numbered list, table, quote, or code block.",
     ),
+  // For generate from markdown/html (same content as PDF tool)
+  sourceType: z
+    .enum(['markdown', 'html'])
+    .optional()
+    .describe(
+      "For 'generate': Source type when generating from markdown or HTML content instead of sections. Use this to quickly convert existing markdown/HTML to DOCX.",
+    ),
+  content: z
+    .string()
+    .optional()
+    .describe(
+      "For 'generate': Markdown or HTML text content. Use with sourceType. This is the fastest way to generate DOCX from the same content used for PDF generation.",
+    ),
   // For parse operation
   fileId: z
     .string()
@@ -145,11 +158,26 @@ OPERATIONS:
    Returns all DOCX documents available in the organization.
    Returns: { templates, totalCount, message }
 
-2. generate - Generate a DOCX with your content
-   Pass templateStorageId to use a template as base (preserves headers, footers, fonts, page setup).
-   Pass sections with your content. Each section can have:
-   - type: "heading" | "paragraph" | "bullets" | "numbered" | "table" | "quote" | "code"
-   - text, level, items, headers, rows as appropriate
+2. generate - Generate a DOCX document
+
+   TWO MODES:
+
+   a) From Markdown/HTML (PREFERRED for format conversion):
+      Use sourceType + content to generate DOCX directly from markdown or HTML.
+      This is the FASTEST way when you already have markdown/HTML content
+      (e.g., converting from a previously generated PDF).
+      Parameters:
+      - fileName: Base name for the DOCX file (without extension)
+      - sourceType: "markdown" or "html"
+      - content: The markdown or HTML text
+      Returns: { success, url, fileName, contentType, size }
+
+   b) From structured sections:
+      Use sections array for fine-grained control over document structure.
+      Pass templateStorageId to use a template as base.
+      Parameters:
+      - fileName, title, subtitle, sections, templateStorageId
+      Returns: { success, url, fileName, contentType, size }
 
 3. parse - Extract text content from an existing DOCX file
    USE THIS when a user uploads a DOCX and you need to read its content.
@@ -160,8 +188,11 @@ OPERATIONS:
    Returns: { success, full_text, paragraph_count, metadata }
 
 EXAMPLES:
+• From markdown: { "operation": "generate", "fileName": "report", "sourceType": "markdown", "content": "# Report\\n..." }
+• From HTML: { "operation": "generate", "fileName": "report", "sourceType": "html", "content": "<h1>Report</h1>..." }
+• From sections: { "operation": "generate", "fileName": "report", "sections": [...] }
+• With template: { "operation": "generate", "templateStorageId": "kg...", "fileName": "report", "sections": [...] }
 • List templates: { "operation": "list_templates" }
-• Generate: { "operation": "generate", "templateStorageId": "kg...", "fileName": "report", "sections": [...] }
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "document.docx", "user_input": "Extract the main points" }
 
 CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.
@@ -262,8 +293,49 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
       if (!args.fileName) {
         throw new Error("Missing required 'fileName' for generate operation");
       }
+
+      // Mode A: Generate from markdown/html content
+      if (args.sourceType && args.content) {
+        debugLog('tool:docx generate from content start', {
+          fileName: args.fileName,
+          sourceType: args.sourceType,
+        });
+
+        try {
+          const result = await ctx.runAction(
+            internal.documents.internal_actions.generateDocument,
+            {
+              fileName: args.fileName,
+              sourceType: args.sourceType,
+              outputFormat: 'docx',
+              content: args.content,
+            },
+          );
+
+          debugLog('tool:docx generate from content success', {
+            fileName: result.fileName,
+            fileId: result.fileId,
+            size: result.size,
+          });
+
+          return {
+            operation: 'generate',
+            ...result,
+          } as GenerateDocxResult;
+        } catch (error) {
+          console.error('[tool:docx generate from content] error', {
+            fileName: args.fileName,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        }
+      }
+
+      // Mode B: Generate from structured sections
       if (!args.sections || args.sections.length === 0) {
-        throw new Error("Missing required 'sections' for generate operation");
+        throw new Error(
+          "Missing content for generate operation. Provide either 'sourceType' + 'content' (markdown/HTML) or 'sections' array.",
+        );
       }
 
       // Validate that sections have actual content

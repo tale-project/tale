@@ -3,7 +3,7 @@
  */
 
 // =============================================================================
-// FETCH URL RESULT (via PDF pipeline)
+// FETCH URL RESULT (web pages, documents, images)
 // =============================================================================
 
 export type WebFetchUrlResult = {
@@ -46,6 +46,7 @@ export interface WebFetchExtractApiResponse {
   url: string;
   title?: string;
   content: string;
+  content_type?: string;
   word_count: number;
   page_count: number;
   vision_used: boolean;

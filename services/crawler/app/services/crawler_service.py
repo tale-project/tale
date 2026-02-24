@@ -376,6 +376,82 @@ class CrawlerService:
 
         return results
 
+    async def crawl_single_url(
+        self,
+        url: str,
+        word_count_threshold: int = 10,
+        timeout: float = 60.0,
+    ) -> dict[str, Any]:
+        """Crawl a single URL and return rich content including media metadata.
+
+        Unlike crawl_urls() which is optimized for batch website scanning,
+        this method returns additional data (media images) useful for
+        single-page content extraction.
+
+        Args:
+            url: URL to crawl
+            word_count_threshold: Minimum word count for content
+            timeout: Timeout in seconds for the crawl operation
+
+        Returns:
+            Dictionary with url, title, content, word_count, metadata,
+            structured_data, and media_images
+
+        Raises:
+            TimeoutError: If crawl exceeds timeout
+            RuntimeError: If crawl fails
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.content_filter_strategy import PruningContentFilter
+        from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+
+        config = CrawlerRunConfig(
+            only_text=False,
+            word_count_threshold=word_count_threshold,
+            cache_mode="bypass",
+            screenshot=False,
+            pdf=False,
+            excluded_tags=["nav", "footer", "header", "aside", "select", "option"],
+            exclude_social_media_links=True,
+            markdown_generator=DefaultMarkdownGenerator(
+                content_filter=PruningContentFilter(threshold=0.4),
+            ),
+        )
+
+        logger.info(f"Crawling single URL: {url}")
+
+        try:
+            result = await asyncio.wait_for(
+                self._crawler.arun(url=url, config=config),
+                timeout=timeout,
+            )
+
+            if not result.success:
+                raise RuntimeError(f"Failed to crawl {url}: {result.error_message}")
+
+            markdown_content = result.markdown.fit_markdown or result.markdown.raw_markdown
+            structured_data = self._extract_structured_data_from_html(result.html)
+            media_images = result.media.get("images", []) if result.media else []
+
+            logger.info(f"Single URL crawled: {len(markdown_content.split())} words, {len(media_images)} images found")
+
+            return {
+                "url": result.url,
+                "title": result.metadata.get("title") if result.metadata else None,
+                "content": markdown_content,
+                "word_count": len(markdown_content.split()),
+                "metadata": result.metadata,
+                "structured_data": structured_data,
+                "media_images": media_images,
+            }
+        finally:
+            _cleanup_memory()
+            self._increment_crawl_count(1)
+            await self._maybe_restart_browser()
+
 
 # Global service instance
 _crawler_service: CrawlerService | None = None

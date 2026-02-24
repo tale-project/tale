@@ -1,8 +1,8 @@
 /**
- * Helper: fetchUrlViaPdf
+ * Helper: fetchAndExtract
  *
- * Fetches a URL's content using the PDF extraction pipeline:
- * URL -> PDF (Playwright) -> Extract (Vision API)
+ * Fetches a URL's content and extracts text using the crawler service.
+ * Supports web pages, documents (PDF, DOCX, PPTX), and images (PNG, JPG, etc.).
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -17,7 +17,7 @@ const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 const MAX_CONTENT_LENGTH = 100_000;
 
-export async function fetchUrlViaPdf(
+export async function fetchAndExtract(
   ctx: ToolCtx,
   args: {
     url: string;
@@ -27,7 +27,7 @@ export async function fetchUrlViaPdf(
   const crawlerServiceUrl = getCrawlerServiceUrl(ctx.variables);
   const apiUrl = `${crawlerServiceUrl}/api/v1/web/fetch-and-extract`;
 
-  debugLog('tool:web:fetch_url start', {
+  debugLog('tool:web:fetch_and_extract start', {
     url: args.url,
     hasInstruction: !!args.instruction,
   });
@@ -57,7 +57,7 @@ export async function fetchUrlViaPdf(
     const result = await fetchJson<WebFetchExtractApiResponse>(response);
 
     if (!result.success) {
-      debugLog('tool:web:fetch_url failed', {
+      debugLog('tool:web:fetch_and_extract failed', {
         url: args.url,
         error: result.error,
       });
@@ -79,7 +79,7 @@ export async function fetchUrlViaPdf(
       content = content.slice(0, MAX_CONTENT_LENGTH);
     }
 
-    debugLog('tool:web:fetch_url success', {
+    debugLog('tool:web:fetch_and_extract success', {
       url: args.url,
       wordCount: result.word_count,
       pageCount: result.page_count,
@@ -101,7 +101,7 @@ export async function fetchUrlViaPdf(
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
-    console.error('[tool:web:fetch_url] error', {
+    console.error('[tool:web:fetch_and_extract] error', {
       url: args.url,
       error: errorMessage,
     });

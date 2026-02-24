@@ -28,7 +28,12 @@ export function getEndpointPath(
   sourceType: DocumentSourceType,
   outputFormat: DocumentOutputFormat,
 ): string {
-  const formatPath = outputFormat === 'pdf' ? 'pdf' : 'images';
+  const formatPath =
+    outputFormat === 'pdf'
+      ? 'pdf'
+      : outputFormat === 'docx'
+        ? 'docx'
+        : 'images';
   return `/api/v1/${formatPath}/from-${sourceType}`;
 }
 
@@ -101,7 +106,7 @@ export function buildRequestBody(
     }
   }
 
-  // Set options based on output format
+  // Set options based on output format (DOCX needs no rendering options)
   if (outputFormat === 'pdf') {
     body.options = {
       format: pdfOptions?.format ?? 'A4',
@@ -112,18 +117,18 @@ export function buildRequestBody(
       margin_right: pdfOptions?.marginRight ?? '20mm',
       print_background: pdfOptions?.printBackground ?? true,
     };
-  } else {
+  } else if (outputFormat === 'image') {
     body.options = {
       image_type: imageOptions?.imageType ?? 'png',
       quality: imageOptions?.quality ?? 100,
       full_page: imageOptions?.fullPage ?? true,
       width: imageOptions?.width ?? 1200,
-      scale: imageOptions?.scale ?? 2.0,
+      scale: imageOptions?.scale ?? 1.0,
     };
   }
 
-  // Add extra CSS for markdown/html sources
-  if (sourceType !== 'url' && extraCss) {
+  // Add extra CSS for markdown/html sources (not applicable to DOCX)
+  if (outputFormat !== 'docx' && sourceType !== 'url' && extraCss) {
     body.extra_css = extraCss;
   }
 
@@ -139,6 +144,13 @@ export function getOutputInfo(
 ): { contentType: string; extension: string } {
   if (outputFormat === 'pdf') {
     return { contentType: 'application/pdf', extension: 'pdf' };
+  }
+  if (outputFormat === 'docx') {
+    return {
+      contentType:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      extension: 'docx',
+    };
   }
   const type = imageType ?? 'png';
   return {

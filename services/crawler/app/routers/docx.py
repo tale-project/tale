@@ -6,13 +6,17 @@ import base64
 import json
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import Response
 from loguru import logger
 
 from app.models import (
     GenerateDocxRequest,
     GenerateDocxResponse,
+    HtmlToDocxRequest,
+    MarkdownToDocxRequest,
     ParseFileResponse,
 )
+from app.services.docx_service import get_docx_service
 from app.services.file_parser_service import get_file_parser_service
 from app.services.template_service import get_template_service
 
@@ -207,6 +211,73 @@ async def generate_docx_from_template(
             success=False,
             error="Failed to generate DOCX",
         )
+
+
+_DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+@router.post("/from-markdown")
+async def convert_markdown_to_docx(request: MarkdownToDocxRequest):
+    """
+    Convert Markdown content to DOCX.
+
+    Parses markdown into HTML, then extracts structure (headings, paragraphs,
+    lists, tables, etc.) and generates a Word document.
+
+    Args:
+        request: Markdown content
+
+    Returns:
+        DOCX file as binary response
+    """
+    try:
+        docx_service = get_docx_service()
+        docx_bytes = await docx_service.markdown_to_docx(request.content)
+
+        return Response(
+            content=docx_bytes,
+            media_type=_DOCX_CONTENT_TYPE,
+            headers={"Content-Disposition": "attachment; filename=document.docx"},
+        )
+
+    except Exception:
+        logger.exception("Error converting markdown to DOCX")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to convert markdown to DOCX",
+        ) from None
+
+
+@router.post("/from-html")
+async def convert_html_to_docx(request: HtmlToDocxRequest):
+    """
+    Convert HTML content to DOCX.
+
+    Parses HTML to extract structure (headings, paragraphs, lists, tables, etc.)
+    and generates a Word document.
+
+    Args:
+        request: HTML content
+
+    Returns:
+        DOCX file as binary response
+    """
+    try:
+        docx_service = get_docx_service()
+        docx_bytes = await docx_service.html_to_docx(request.html)
+
+        return Response(
+            content=docx_bytes,
+            media_type=_DOCX_CONTENT_TYPE,
+            headers={"Content-Disposition": "attachment; filename=document.docx"},
+        )
+
+    except Exception:
+        logger.exception("Error converting HTML to DOCX")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to convert HTML to DOCX",
+        ) from None
 
 
 @router.post("/parse", response_model=ParseFileResponse)

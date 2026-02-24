@@ -164,6 +164,34 @@ class DocxService:
         doc.add_paragraph()  # Spacer after table
 
     # =========================================================================
+    # MARKDOWN / HTML → DOCX
+    # =========================================================================
+
+    async def html_to_docx(self, html: str) -> bytes:
+        """
+        Convert HTML content to a DOCX document.
+
+        Parses HTML to extract structure (headings, paragraphs, lists, tables, etc.)
+        and generates a DOCX using the existing structured-content pipeline.
+        """
+        from app.services.html_to_docx_converter import html_to_sections
+
+        content = html_to_sections(html)
+        return await self.generate_docx(content)
+
+    async def markdown_to_docx(self, markdown_text: str) -> bytes:
+        """
+        Convert Markdown content to a DOCX document.
+
+        Converts markdown → HTML first, then HTML → DOCX.
+        """
+        from app.services.base_converter import BaseConverterService
+
+        converter = BaseConverterService()
+        html = await converter.markdown_to_html(markdown_text)
+        return await self.html_to_docx(html)
+
+    # =========================================================================
     # TEMPLATE-BASED GENERATION
     # =========================================================================
 
