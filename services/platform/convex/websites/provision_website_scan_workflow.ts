@@ -46,6 +46,27 @@ function scanIntervalToCron(interval: string): {
   }
 }
 
+function scanIntervalToSeconds(interval: string): number {
+  switch (interval) {
+    case '60m':
+      return 3600;
+    case '6h':
+      return 21600;
+    case '12h':
+      return 43200;
+    case '1d':
+      return 86400;
+    case '5d':
+      return 432000;
+    case '7d':
+      return 604800;
+    case '30d':
+      return 2592000;
+    default:
+      return 21600;
+  }
+}
+
 export async function provisionWebsiteScanWorkflow(
   ctx: ActionCtx,
   args: ProvisionWebsiteScanWorkflowArgs,
@@ -57,6 +78,22 @@ export async function provisionWebsiteScanWorkflow(
   const websiteUrl = `${u.protocol}//${u.host}${u.pathname || ''}`;
   const websiteDomain = u.hostname;
 
+  // Register website with crawler service for autonomous background scanning
+  const crawlerUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
+  try {
+    await fetch(`${crawlerUrl}/api/v1/websites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        domain: websiteDomain,
+        scan_interval: scanIntervalToSeconds(args.scanInterval),
+      }),
+    });
+  } catch (e) {
+    // Non-fatal: crawler registration can be retried on next scan
+    console.warn('Failed to register website with crawler:', e);
+  }
+
   const { schedule, timezone } = scanIntervalToCron(args.scanInterval);
 
   const rawVars = websiteScanWorkflow.workflowConfig.config?.variables;
@@ -65,6 +102,7 @@ export async function provisionWebsiteScanWorkflow(
   const variables = toConvexJsonRecord({
     ...templateVars,
     organizationId: args.organizationId,
+    websiteId: args.websiteId,
     websiteUrl,
     websiteDomain,
     scanInterval: args.scanInterval,
@@ -136,19 +174,20 @@ export async function provisionWebsiteScanWorkflow(
 
   await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
     websiteId: args.websiteId,
-    metadata: { ...existingMeta, workflowId: saved.workflowId },
+    metadata: {
+      ...existingMeta,
+      workflowId: saved.workflowId,
+    },
   });
 
   if (args.autoTriggerInitialScan === true) {
-    // Optimistically update the website's scanned time so the UI reflects
-    // that an initial scan has been queued, similar to manual rescans.
     await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
       websiteId: args.websiteId,
       lastScannedAt: Date.now(),
     });
 
     await ctx.scheduler.runAfter(
-      0,
+      300000,
       internal.workflow_engine.internal_mutations.startWorkflow,
       {
         organizationId: args.organizationId,

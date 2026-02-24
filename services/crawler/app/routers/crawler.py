@@ -1,5 +1,5 @@
 """
-Crawler Router - URL discovery and content fetching endpoints.
+Crawler Router - Content fetching and URL check endpoints.
 """
 
 from typing import Annotated
@@ -9,71 +9,14 @@ from loguru import logger
 from pydantic import HttpUrl
 
 from app.models import (
-    DiscoveredUrl,
-    DiscoverRequest,
-    DiscoverResponse,
     FetchUrlsRequest,
     FetchUrlsResponse,
     PageContent,
 )
 from app.services.crawler_service import get_crawler_service
+from app.services.website_store import get_website_store_manager
 
 router = APIRouter(prefix="/api/v1/urls", tags=["Crawler"])
-
-
-@router.post("/discover", response_model=DiscoverResponse)
-async def discover_urls(request: DiscoverRequest):
-    """
-    Discover URLs on a website using sitemaps and Common Crawl.
-
-    This endpoint discovers URLs without crawling their content.
-    Useful for previewing what will be crawled.
-
-    Args:
-        request: Discovery request with domain and options
-
-    Returns:
-        Discovery response with discovered URLs
-    """
-    try:
-        crawler = get_crawler_service()
-
-        # Ensure crawler is initialized
-        if not crawler.initialized:
-            await crawler.initialize()
-
-        # Discover URLs
-        discovered = await crawler.discover_urls(
-            domain=request.domain,
-            max_urls=request.max_urls,
-            pattern=request.pattern,
-            query=request.query,
-            timeout=request.timeout or 1800.0,
-        )
-
-        # Convert to response model
-        urls = [
-            DiscoveredUrl(
-                url=url_data["url"],
-                status=url_data.get("status", "unknown"),
-                metadata=url_data,
-            )
-            for url_data in discovered
-        ]
-
-        return DiscoverResponse(
-            success=True,
-            domain=request.domain,
-            urls_discovered=len(urls),
-            urls=urls,
-        )
-
-    except Exception:
-        logger.exception("Error discovering URLs")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to discover URLs",
-        ) from None
 
 
 @router.post("/fetch", response_model=FetchUrlsResponse)
@@ -81,40 +24,40 @@ async def fetch_urls(request: FetchUrlsRequest):
     """
     Fetch content from a list of specific URLs.
 
-    This endpoint takes a list of URLs and fetches their content without
-    performing URL discovery. Useful when you already know which URLs
-    you want to crawl.
-
-    Args:
-        request: Fetch request with list of URLs and options
-
-    Returns:
-        Fetch response with content from each URL
+    Returns cached content when available from the per-site content store,
+    falling back to live crawling for cache misses.
     """
     try:
-        crawler = get_crawler_service()
+        store_manager = get_website_store_manager()
+        cached, urls_to_crawl = store_manager.get_cached_pages(request.urls)
 
-        # Ensure crawler is initialized
-        if not crawler.initialized:
-            await crawler.initialize()
+        # Filter cached pages by word_count_threshold
+        threshold = request.word_count_threshold
+        cached = [p for p in cached if p.get("word_count", 0) >= threshold]
 
-        # Crawl the provided URLs
-        crawled_pages = await crawler.crawl_urls(
-            urls=request.urls,
-            word_count_threshold=request.word_count_threshold,
-        )
+        crawled_pages: list[dict] = []
+        if urls_to_crawl:
+            crawler = get_crawler_service()
+            if not crawler.initialized:
+                await crawler.initialize()
+            crawled_pages = await crawler.crawl_urls(
+                urls=urls_to_crawl,
+                word_count_threshold=threshold,
+            )
 
-        # Convert to response model
+        if cached:
+            logger.info(f"Served {len(cached)} pages from cache, crawled {len(crawled_pages)} live")
+
         pages = [
             PageContent(
                 url=page["url"],
                 title=page.get("title"),
                 content=page["content"],
-                word_count=page["word_count"],
+                word_count=page.get("word_count", 0),
                 metadata=page.get("metadata"),
                 structured_data=page.get("structured_data"),
             )
-            for page in crawled_pages
+            for page in cached + crawled_pages
         ]
 
         return FetchUrlsResponse(
@@ -138,16 +81,9 @@ async def check_url(
 ):
     """
     Check if a URL is a website or a single document.
-
-    Args:
-        url: The URL to check (must be a valid HTTP/HTTPS URL)
-
-    Returns:
-        Dictionary with is_website boolean
     """
     try:
         crawler = get_crawler_service()
-        # Convert HttpUrl to string for the crawler service
         url_str = str(url)
         is_website = crawler.is_website_url(url_str)
 
