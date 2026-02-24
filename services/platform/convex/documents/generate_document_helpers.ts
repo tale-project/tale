@@ -123,7 +123,7 @@ export function buildRequestBody(
       quality: imageOptions?.quality ?? 100,
       full_page: imageOptions?.fullPage ?? true,
       width: imageOptions?.width ?? 1200,
-      scale: imageOptions?.scale ?? 2.0,
+      scale: imageOptions?.scale ?? 1.0,
     };
   }
 
