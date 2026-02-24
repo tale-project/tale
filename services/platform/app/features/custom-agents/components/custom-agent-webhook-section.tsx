@@ -16,6 +16,7 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
@@ -148,15 +149,13 @@ export function CustomAgentWebhookSection({
     [getWebhookUrl, toast, t],
   );
 
-  const formatDate = useCallback(
+  const { formatDate: formatDateLong } = useFormatDate();
+  const formatTimestamp = useCallback(
     (timestamp?: number) => {
       if (!timestamp) return t('customAgents.webhook.never');
-      return new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(new Date(timestamp));
+      return formatDateLong(new Date(timestamp), 'long');
     },
-    [t],
+    [t, formatDateLong],
   );
 
   const columns = useMemo<ColumnDef<WebhookRow>[]>(
@@ -211,7 +210,7 @@ export function CustomAgentWebhookSection({
         header: t('customAgents.webhook.columns.lastTriggered'),
         cell: ({ row }) => (
           <span className="text-muted-foreground text-sm">
-            {formatDate(row.original.lastTriggeredAt)}
+            {formatTimestamp(row.original.lastTriggeredAt)}
           </span>
         ),
         size: 180,
@@ -242,7 +241,14 @@ export function CustomAgentWebhookSection({
         size: 100,
       },
     ],
-    [t, getWebhookUrl, handleToggle, handleCopyUrl, formatDate, copiedToken],
+    [
+      t,
+      getWebhookUrl,
+      handleToggle,
+      handleCopyUrl,
+      formatTimestamp,
+      copiedToken,
+    ],
   );
 
   const usageUrl = usageTarget ? getWebhookUrl(usageTarget.token) : '';

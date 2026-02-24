@@ -11,6 +11,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -86,15 +87,13 @@ export function SchedulesSection({
     }
   }, [deleteTarget, deleteScheduleMutation, toast, t]);
 
-  const formatDate = useCallback(
+  const { formatDate: formatDateLong } = useFormatDate();
+  const formatTimestamp = useCallback(
     (timestamp?: number) => {
       if (!timestamp) return t('triggers.common.never');
-      return new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(new Date(timestamp));
+      return formatDateLong(new Date(timestamp), 'long');
     },
-    [t],
+    [t, formatDateLong],
   );
 
   const columns = useMemo<ColumnDef<Schedule>[]>(
@@ -133,7 +132,7 @@ export function SchedulesSection({
         header: t('triggers.schedules.columns.lastTriggered'),
         cell: ({ row }) => (
           <span className="text-muted-foreground text-sm">
-            {formatDate(row.original.lastTriggeredAt)}
+            {formatTimestamp(row.original.lastTriggeredAt)}
           </span>
         ),
         size: 180,
@@ -174,7 +173,7 @@ export function SchedulesSection({
         size: 100,
       },
     ],
-    [t, handleToggle, formatDate],
+    [t, handleToggle, formatTimestamp],
   );
 
   return (

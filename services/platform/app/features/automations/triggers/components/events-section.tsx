@@ -12,6 +12,7 @@ import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import {
   EVENT_TYPES,
@@ -109,15 +110,13 @@ export function EventsSection({
     }
   }, [deleteTarget, deleteSubscriptionMutation, toast, t]);
 
-  const formatDate = useCallback(
+  const { formatDate: formatDateLong } = useFormatDate();
+  const formatTimestamp = useCallback(
     (timestamp?: number) => {
       if (!timestamp) return t('triggers.common.never');
-      return new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(new Date(timestamp));
+      return formatDateLong(new Date(timestamp), 'long');
     },
-    [t],
+    [t, formatDateLong],
   );
 
   const getEventLabel = useCallback((eventType: string) => {
@@ -197,7 +196,7 @@ export function EventsSection({
         header: t('triggers.events.columns.lastTriggered'),
         cell: ({ row }) => (
           <span className="text-muted-foreground text-sm">
-            {formatDate(row.original.lastTriggeredAt)}
+            {formatTimestamp(row.original.lastTriggeredAt)}
           </span>
         ),
         size: 180,
@@ -238,7 +237,7 @@ export function EventsSection({
         size: 100,
       },
     ],
-    [t, handleToggle, formatDate, getEventLabel, resolveFilterLabel],
+    [t, handleToggle, formatTimestamp, getEventLabel, resolveFilterLabel],
   );
 
   return (

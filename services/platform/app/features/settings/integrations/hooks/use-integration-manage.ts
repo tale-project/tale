@@ -12,6 +12,7 @@ import { fetchJson } from '@/lib/utils/type-cast-helpers';
 import type { ParsedPackage } from '../components/integration-upload/utils/parse-integration-package';
 
 import { parseIntegrationFiles } from '../components/integration-upload/utils/parse-integration-package';
+import { ACCEPTED_ICON_TYPES, MAX_ICON_SIZE } from '../constants';
 import {
   useGenerateIntegrationOAuth2Url,
   useSaveOAuth2Credentials,
@@ -40,14 +41,6 @@ const AUTH_HANDLED_KEYS: Record<string, string[]> = {
   basic_auth: ['username', 'password'],
   oauth2: ['accessToken', 'refreshToken'],
 };
-
-const MAX_ICON_SIZE = 256 * 1024;
-const ACCEPTED_ICON_TYPES = new Set([
-  'image/png',
-  'image/svg+xml',
-  'image/jpeg',
-  'image/webp',
-]);
 
 function maskValue(value: string, visibleChars = 6): string {
   if (value.length <= visibleChars) return '\u00d7'.repeat(8);
