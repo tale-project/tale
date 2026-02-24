@@ -2,6 +2,9 @@
 
 import { Trash2, X } from 'lucide-react';
 
+import { isConvexTransientError } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
+import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
+import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
@@ -126,10 +129,25 @@ function TestChatPanelContent({
   );
 }
 
+const MAX_RETRIES = 3;
+
 export function TestChatPanel(props: TestChatPanelProps) {
   return (
-    <FileUpload.Root>
-      <TestChatPanelContent {...props} />
-    </FileUpload.Root>
+    <ErrorBoundaryBase
+      organizationId={props.organizationId}
+      maxRetries={MAX_RETRIES}
+      isRetryableError={isConvexTransientError}
+      fallback={({ error, reset, organizationId }) => (
+        <ErrorDisplayCompact
+          error={error}
+          organizationId={organizationId}
+          reset={reset}
+        />
+      )}
+    >
+      <FileUpload.Root>
+        <TestChatPanelContent {...props} />
+      </FileUpload.Root>
+    </ErrorBoundaryBase>
   );
 }
