@@ -2,6 +2,7 @@ import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
+import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import * as ApprovalsHelpers from './helpers';
 import { listApprovalsPaginated as listApprovalsPaginatedHelper } from './list_approvals_paginated';
@@ -10,8 +11,6 @@ import {
   approvalStatusValidator,
   approvalResourceTypeValidator,
 } from './validators';
-
-const APPROVALS_COUNT_CAP = 20;
 
 export const approxCountApprovalsByStatus = query({
   args: {
@@ -39,7 +38,7 @@ export const approxCountApprovalsByStatus = query({
           q.eq('organizationId', args.organizationId).eq('status', 'pending'),
         )) {
         count++;
-        if (count >= APPROVALS_COUNT_CAP) break;
+        if (count >= DEFAULT_COUNT_CAP) break;
       }
       return count;
     }
@@ -51,7 +50,7 @@ export const approxCountApprovalsByStatus = query({
         q.eq('organizationId', args.organizationId).eq('status', 'approved'),
       )) {
       count++;
-      if (count >= APPROVALS_COUNT_CAP) break;
+      if (count >= DEFAULT_COUNT_CAP) break;
     }
     for await (const _ of ctx.db
       .query('approvals')
@@ -59,7 +58,7 @@ export const approxCountApprovalsByStatus = query({
         q.eq('organizationId', args.organizationId).eq('status', 'rejected'),
       )) {
       count++;
-      if (count >= APPROVALS_COUNT_CAP) break;
+      if (count >= DEFAULT_COUNT_CAP) break;
     }
     return count;
   },

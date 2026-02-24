@@ -41,7 +41,7 @@ export interface DelegateAgentMeta {
   agentConfig: SerializableAgentConfig;
   model: string;
   provider: string;
-  roleRestriction?: string;
+  roleRestriction?: 'admin_developer';
 }
 
 export function createDelegationTool(delegate: DelegateAgentMeta) {

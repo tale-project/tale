@@ -38,8 +38,15 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
       throw notFound();
     }
   },
-  loader: async ({ context, params }) => {
+  loader: ({ context, params }) => {
     if (isValidStatus(params.status)) {
+      void context.queryClient.prefetchQuery(
+        convexQuery(api.conversations.queries.listConversationsPaginated, {
+          organizationId: params.id,
+          status: params.status,
+          paginationOpts: { numItems: 30, cursor: null },
+        }),
+      );
       void context.queryClient.prefetchQuery(
         convexQuery(
           api.conversations.queries.approxCountConversationsByStatus,
@@ -62,10 +69,20 @@ function ConversationsStatusPage() {
     (isValidStatus(status) ? conversationStatusMap[status] : undefined) ??
     'open';
 
-  const { data: conversationCount } = useApproxConversationCountByStatus(
-    organizationId,
-    mappedStatus,
-  );
+  const counts = {
+    open: useApproxConversationCountByStatus(organizationId, 'open').data,
+    closed: useApproxConversationCountByStatus(organizationId, 'closed').data,
+    spam: useApproxConversationCountByStatus(organizationId, 'spam').data,
+    archived: useApproxConversationCountByStatus(organizationId, 'archived')
+      .data,
+  };
+
+  const conversationCount = counts[mappedStatus];
+
+  const allCounts = Object.values(counts);
+  const totalConversationCount = allCounts.some((c) => c === undefined)
+    ? undefined
+    : allCounts.reduce<number>((sum, c) => sum + (c ?? 0), 0);
 
   const paginatedResult = useListConversationsPaginated({
     organizationId,
@@ -82,6 +99,7 @@ function ConversationsStatusPage() {
       search={search && search.length > 0 ? search : undefined}
       paginatedResult={paginatedResult}
       conversationCount={conversationCount}
+      totalConversationCount={totalConversationCount}
     />
   );
 }

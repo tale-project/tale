@@ -8,6 +8,7 @@ import {
   cancelAndDeleteExecutionsBatch,
   deleteAuditLogsBatch,
   deleteSteps,
+  deleteTriggerLogsBatch,
 } from '../workflows/definitions/delete_workflow';
 import { publishDraft as publishDraftHandler } from '../workflows/definitions/publish_draft';
 import { saveWorkflowWithSteps as saveWorkflowWithStepsHelper } from '../workflows/definitions/save_workflow_with_steps';
@@ -155,6 +156,49 @@ export const batchDeleteWorkflowAuditLogs = internalMutation({
       await ctx.scheduler.runAfter(
         0,
         internal.wf_definitions.internal_mutations.batchDeleteWorkflowAuditLogs,
+        {
+          wfDefinitionIds,
+          currentIndex,
+        },
+      );
+    } else {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.wf_definitions.internal_mutations
+          .batchDeleteWorkflowTriggerLogs,
+        {
+          wfDefinitionIds,
+          currentIndex,
+        },
+      );
+    }
+  },
+});
+
+export const batchDeleteWorkflowTriggerLogs = internalMutation({
+  args: {
+    wfDefinitionIds: v.array(v.id('wfDefinitions')),
+    currentIndex: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { wfDefinitionIds, currentIndex } = args;
+
+    if (currentIndex >= wfDefinitionIds.length) {
+      return;
+    }
+
+    const currentDefinitionId = wfDefinitionIds[currentIndex];
+    if (!currentDefinitionId) {
+      return;
+    }
+
+    const result = await deleteTriggerLogsBatch(ctx, currentDefinitionId);
+
+    if (result.hasMore) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.wf_definitions.internal_mutations
+          .batchDeleteWorkflowTriggerLogs,
         {
           wfDefinitionIds,
           currentIndex,

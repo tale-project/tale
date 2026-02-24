@@ -7,20 +7,17 @@
  * Supports optional search filtering by name and description.
  */
 
+import type { WorkflowStatus } from '../../../lib/shared/schemas/wf_definitions';
 import type { QueryCtx } from '../../_generated/server';
 import type { WorkflowDefinition } from './types';
 
+import { STATUS_PRIORITY } from '../../lib/helpers/status_priority';
+
 export interface ListWorkflowsWithBestVersionArgs {
   organizationId: string;
-  status?: string;
+  status?: WorkflowStatus;
   search?: string;
 }
-
-const statusPriority: Record<string, number> = {
-  active: 3,
-  draft: 2,
-  archived: 1,
-};
 
 export async function listWorkflowsWithBestVersion(
   ctx: QueryCtx,
@@ -64,8 +61,8 @@ export async function listWorkflowsWithBestVersion(
       continue;
     }
 
-    const currentPriority = statusPriority[workflow.status] ?? 0;
-    const existingPriority = statusPriority[existing.status] ?? 0;
+    const currentPriority = STATUS_PRIORITY[workflow.status] ?? 0;
+    const existingPriority = STATUS_PRIORITY[existing.status] ?? 0;
 
     if (currentPriority > existingPriority) {
       workflowMap.set(key, workflow);

@@ -23,6 +23,7 @@ import {
   useUpdateMemberDisplayName,
   useUpdateMemberRole,
 } from '../hooks/mutations';
+import { isMemberRole } from '../utils/role-guards';
 
 type EditMemberFormData = {
   displayName: string;
@@ -39,10 +40,6 @@ type MemberLite = {
   role?: string;
   email?: string;
 };
-
-function isValidRole(role?: string): role is MemberRole {
-  return memberRoleSchema.safeParse(role).success;
-}
 
 interface EditMemberDialogProps {
   open: boolean;
@@ -78,7 +75,7 @@ export function EditMemberDialog({
     resolver: zodResolver(editMemberSchema),
     defaultValues: {
       displayName: member?.displayName,
-      role: isValidRole(member?.role) ? member.role : undefined,
+      role: isMemberRole(member?.role) ? member.role : undefined,
       email: member?.email,
       updatePassword: false,
       password: '',
@@ -215,7 +212,8 @@ export function EditMemberDialog({
           </p>
         )}
         {!isEditingSelf &&
-          member?.role === 'admin' &&
+          isMemberRole(member?.role) &&
+          member.role === 'admin' &&
           watch('role') !== 'admin' && (
             <Banner
               variant="warning"

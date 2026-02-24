@@ -68,7 +68,7 @@ import type * as agent_tools_tool_names from "../agent_tools/tool_names.js";
 import type * as agent_tools_tool_registry from "../agent_tools/tool_registry.js";
 import type * as agent_tools_types from "../agent_tools/types.js";
 import type * as agent_tools_web_helpers_browser_operate from "../agent_tools/web/helpers/browser_operate.js";
-import type * as agent_tools_web_helpers_fetch_url_via_pdf from "../agent_tools/web/helpers/fetch_url_via_pdf.js";
+import type * as agent_tools_web_helpers_fetch_and_extract from "../agent_tools/web/helpers/fetch_and_extract.js";
 import type * as agent_tools_web_helpers_get_crawler_service_url from "../agent_tools/web/helpers/get_crawler_service_url.js";
 import type * as agent_tools_web_helpers_get_operator_service_url from "../agent_tools/web/helpers/get_operator_service_url.js";
 import type * as agent_tools_web_helpers_query_web_context from "../agent_tools/web/helpers/query_web_context.js";
@@ -313,6 +313,8 @@ import type * as lib_get_user_teams from "../lib/get_user_teams.js";
 import type * as lib_helpers_build_audit_context from "../lib/helpers/build_audit_context.js";
 import type * as lib_helpers_count_items_in_org from "../lib/helpers/count_items_in_org.js";
 import type * as lib_helpers_has_records_in_org from "../lib/helpers/has_records_in_org.js";
+import type * as lib_helpers_rag_config from "../lib/helpers/rag_config.js";
+import type * as lib_helpers_status_priority from "../lib/helpers/status_priority.js";
 import type * as lib_message_deduplication from "../lib/message_deduplication.js";
 import type * as lib_metadata_get_metadata_string from "../lib/metadata/get_metadata_string.js";
 import type * as lib_openai_provider from "../lib/openai_provider.js";
@@ -448,7 +450,6 @@ import type * as predefined_workflows_product_recommendation_email from "../pred
 import type * as predefined_workflows_product_relationship_analysis from "../predefined_workflows/product_relationship_analysis.js";
 import type * as predefined_workflows_shopify_sync_customers from "../predefined_workflows/shopify_sync_customers.js";
 import type * as predefined_workflows_shopify_sync_products from "../predefined_workflows/shopify_sync_products.js";
-import type * as predefined_workflows_website_pages_rag_sync from "../predefined_workflows/website_pages_rag_sync.js";
 import type * as predefined_workflows_website_scan from "../predefined_workflows/website_scan.js";
 import type * as predefined_workflows_workflow_rag_sync from "../predefined_workflows/workflow_rag_sync.js";
 import type * as products_create_product from "../products/create_product.js";
@@ -554,6 +555,7 @@ import type * as website_page_embeddings_internal_queries from "../website_page_
 import type * as website_page_embeddings_rrf from "../website_page_embeddings/rrf.js";
 import type * as websites_bulk_create_websites from "../websites/bulk_create_websites.js";
 import type * as websites_bulk_upsert_pages from "../websites/bulk_upsert_pages.js";
+import type * as websites_cleanup_website from "../websites/cleanup_website.js";
 import type * as websites_create_website from "../websites/create_website.js";
 import type * as websites_delete_website from "../websites/delete_website.js";
 import type * as websites_get_page_by_url from "../websites/get_page_by_url.js";
@@ -570,6 +572,7 @@ import type * as websites_list_websites_paginated from "../websites/list_website
 import type * as websites_mutations from "../websites/mutations.js";
 import type * as websites_provision_website_scan_workflow from "../websites/provision_website_scan_workflow.js";
 import type * as websites_queries from "../websites/queries.js";
+import type * as websites_register_discovered_urls from "../websites/register_discovered_urls.js";
 import type * as websites_rescan_website from "../websites/rescan_website.js";
 import type * as websites_search_websites from "../websites/search_websites.js";
 import type * as websites_types from "../websites/types.js";
@@ -916,7 +919,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/tool_registry": typeof agent_tools_tool_registry;
   "agent_tools/types": typeof agent_tools_types;
   "agent_tools/web/helpers/browser_operate": typeof agent_tools_web_helpers_browser_operate;
-  "agent_tools/web/helpers/fetch_url_via_pdf": typeof agent_tools_web_helpers_fetch_url_via_pdf;
+  "agent_tools/web/helpers/fetch_and_extract": typeof agent_tools_web_helpers_fetch_and_extract;
   "agent_tools/web/helpers/get_crawler_service_url": typeof agent_tools_web_helpers_get_crawler_service_url;
   "agent_tools/web/helpers/get_operator_service_url": typeof agent_tools_web_helpers_get_operator_service_url;
   "agent_tools/web/helpers/query_web_context": typeof agent_tools_web_helpers_query_web_context;
@@ -1161,6 +1164,8 @@ declare const fullApi: ApiFromModules<{
   "lib/helpers/build_audit_context": typeof lib_helpers_build_audit_context;
   "lib/helpers/count_items_in_org": typeof lib_helpers_count_items_in_org;
   "lib/helpers/has_records_in_org": typeof lib_helpers_has_records_in_org;
+  "lib/helpers/rag_config": typeof lib_helpers_rag_config;
+  "lib/helpers/status_priority": typeof lib_helpers_status_priority;
   "lib/message_deduplication": typeof lib_message_deduplication;
   "lib/metadata/get_metadata_string": typeof lib_metadata_get_metadata_string;
   "lib/openai_provider": typeof lib_openai_provider;
@@ -1296,7 +1301,6 @@ declare const fullApi: ApiFromModules<{
   "predefined_workflows/product_relationship_analysis": typeof predefined_workflows_product_relationship_analysis;
   "predefined_workflows/shopify_sync_customers": typeof predefined_workflows_shopify_sync_customers;
   "predefined_workflows/shopify_sync_products": typeof predefined_workflows_shopify_sync_products;
-  "predefined_workflows/website_pages_rag_sync": typeof predefined_workflows_website_pages_rag_sync;
   "predefined_workflows/website_scan": typeof predefined_workflows_website_scan;
   "predefined_workflows/workflow_rag_sync": typeof predefined_workflows_workflow_rag_sync;
   "products/create_product": typeof products_create_product;
@@ -1402,6 +1406,7 @@ declare const fullApi: ApiFromModules<{
   "website_page_embeddings/rrf": typeof website_page_embeddings_rrf;
   "websites/bulk_create_websites": typeof websites_bulk_create_websites;
   "websites/bulk_upsert_pages": typeof websites_bulk_upsert_pages;
+  "websites/cleanup_website": typeof websites_cleanup_website;
   "websites/create_website": typeof websites_create_website;
   "websites/delete_website": typeof websites_delete_website;
   "websites/get_page_by_url": typeof websites_get_page_by_url;
@@ -1418,6 +1423,7 @@ declare const fullApi: ApiFromModules<{
   "websites/mutations": typeof websites_mutations;
   "websites/provision_website_scan_workflow": typeof websites_provision_website_scan_workflow;
   "websites/queries": typeof websites_queries;
+  "websites/register_discovered_urls": typeof websites_register_discovered_urls;
   "websites/rescan_website": typeof websites_rescan_website;
   "websites/search_websites": typeof websites_search_websites;
   "websites/types": typeof websites_types;

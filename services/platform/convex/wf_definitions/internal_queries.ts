@@ -7,6 +7,7 @@ import { internalQuery } from '../_generated/server';
 import { getActiveVersion as getActiveVersionHelper } from '../workflows/definitions/get_active_version';
 import { getWorkflowByName as getWorkflowByNameHelper } from '../workflows/definitions/get_workflow_by_name';
 import { listWorkflows as listWorkflowsHelper } from '../workflows/definitions/list_workflows';
+import { workflowStatusValidator } from '../workflows/definitions/validators';
 
 type WorkflowDefinition = Doc<'wfDefinitions'>;
 
@@ -68,7 +69,7 @@ export const listVersionsByName = internalQuery({
 export const listWorkflows = internalQuery({
   args: {
     organizationId: v.string(),
-    status: v.optional(v.string()),
+    status: v.optional(workflowStatusValidator),
   },
   handler: async (ctx, args) => {
     return await listWorkflowsHelper(ctx, args);

@@ -11,6 +11,7 @@ import { fetchJson } from '../../lib/utils/type-cast-helpers';
 import { isRecord, getBoolean } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 import * as DocumentsHelpers from './helpers';
 
@@ -23,6 +24,7 @@ const documentSourceTypeValidator = v.union(
 const documentOutputFormatValidator = v.union(
   v.literal('pdf'),
   v.literal('image'),
+  v.literal('docx'),
 );
 
 const pdfOptionsValidator = v.optional(
@@ -224,7 +226,7 @@ export const checkRagJobStatus = internalAction({
     }
 
     // Query RAG service for job status
-    const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
+    const ragUrl = getRagConfig().serviceUrl;
     const url = `${ragUrl}/api/v1/jobs/${document.ragInfo.jobId}`;
 
     try {
@@ -315,7 +317,7 @@ export const deleteDocumentFromRag = internalAction({
   },
   returns: v.null(),
   handler: async (_ctx, args): Promise<null> => {
-    const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
+    const ragUrl = getRagConfig().serviceUrl;
 
     try {
       const response = await fetch(
@@ -349,7 +351,7 @@ export const reindexDocumentRag = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
+    const ragUrl = getRagConfig().serviceUrl;
 
     // Step 1: Delete document from RAG
     try {

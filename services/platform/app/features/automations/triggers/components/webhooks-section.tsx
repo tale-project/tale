@@ -230,6 +230,7 @@ export function WebhooksSection({
       id="webhooks"
       icon={Webhook}
       title={t('triggers.webhooks.title')}
+      defaultOpen={(webhooks?.length ?? 0) > 0}
     >
       <DataTable
         columns={columns}

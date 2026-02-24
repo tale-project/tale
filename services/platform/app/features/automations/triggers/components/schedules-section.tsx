@@ -181,7 +181,7 @@ export function SchedulesSection({
       id="schedules"
       icon={Calendar}
       title={t('triggers.schedules.title')}
-      defaultOpen
+      defaultOpen={(schedules?.length ?? 0) > 0}
     >
       <DataTable
         columns={columns}

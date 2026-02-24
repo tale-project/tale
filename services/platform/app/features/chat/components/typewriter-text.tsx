@@ -34,11 +34,9 @@
  * />
  */
 
-import { memo, useRef, useEffect, useCallback } from 'react';
+import { memo, useRef, useEffect } from 'react';
 
 import type { MarkdownComponentMap } from '@/lib/utils/markdown-types';
-
-import { cn } from '@/lib/utils/cn';
 
 import { useStreamBuffer } from '../hooks/use-stream-buffer';
 import { IncrementalMarkdown } from './incremental-markdown';
@@ -82,10 +80,6 @@ const TYPEWRITER_CONFIG = {
 /**
  * TypewriterText renders streaming text with a smooth reveal animation.
  *
- * The component uses a hybrid CSS+JS approach:
- * - CSS handles the actual reveal animation (GPU-accelerated)
- * - JS handles timing, word boundaries, and state management
- *
  * Text is split into stable (memoized) and streaming portions for
  * optimal markdown parsing performance.
  */
@@ -104,9 +98,6 @@ function TypewriterTextComponent({
       targetCPS: TYPEWRITER_CONFIG.targetCPS,
       initialBufferChars: TYPEWRITER_CONFIG.initialBufferChars,
     });
-
-  // Ref for the streaming container (used for CSS variable updates)
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // Track completion to fire onComplete callback
   const hasCompletedRef = useRef(false);
@@ -129,32 +120,13 @@ function TypewriterTextComponent({
     }
   }, [progress, isStreaming, onComplete]);
 
-  // Update CSS custom property for reveal position
-  // This is called frequently but doesn't cause React re-renders
-  const updateRevealPosition = useCallback((chars: number) => {
-    if (containerRef.current) {
-      containerRef.current.style.setProperty('--reveal-chars', String(chars));
-    }
-  }, []);
-
-  // Keep CSS variable in sync with display length
-  useEffect(() => {
-    updateRevealPosition(displayLength);
-  }, [displayLength, updateRevealPosition]);
-
   // Show cursor while text is being revealed — covers both the live streaming
   // phase (isStreaming) and the post-stream drain phase (isDraining). isTyping
   // guards against showing a cursor on a message that finished animating.
   const showCursor = (isStreaming || isDraining) && isTyping;
 
   return (
-    <div
-      ref={containerRef}
-      className={cn('typewriter-container', className)}
-      style={{
-        '--reveal-chars': displayLength,
-      }}
-    >
+    <div className={className}>
       {/* Render text with incremental markdown parsing */}
       <IncrementalMarkdown
         content={text}

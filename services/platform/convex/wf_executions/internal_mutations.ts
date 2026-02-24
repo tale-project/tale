@@ -7,6 +7,7 @@ import { completeExecution as completeExecutionHandler } from '../workflows/exec
 import { failExecution as failExecutionHandler } from '../workflows/executions/fail_execution';
 import { updateExecutionStatus as updateExecutionStatusHandler } from '../workflows/executions/update_execution_status';
 import { updateExecutionVariables as updateExecutionVariablesHandler } from '../workflows/executions/update_execution_variables';
+import { executionStatusValidator } from '../workflows/executions/validators';
 
 export const cleanupExecutionStorage = internalMutation({
   args: {
@@ -48,7 +49,7 @@ export const completeExecution = internalMutation({
 export const updateExecutionStatus = internalMutation({
   args: {
     executionId: v.id('wfExecutions'),
-    status: v.string(),
+    status: executionStatusValidator,
     currentStepSlug: v.optional(v.string()),
     waitingFor: v.optional(v.string()),
     error: v.optional(v.string()),

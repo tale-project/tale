@@ -2,13 +2,13 @@ import type { DatabaseReader } from '../../_generated/server';
 
 type OrgTable = 'customers' | 'documents' | 'products' | 'vendors' | 'websites';
 
-const DEFAULT_CAP = 20;
+export const DEFAULT_COUNT_CAP = 20;
 
 export async function countItemsInOrg(
   db: DatabaseReader,
   table: OrgTable,
   organizationId: string,
-  cap = DEFAULT_CAP,
+  cap = DEFAULT_COUNT_CAP,
 ): Promise<number> {
   let count = 0;
   for await (const _ of db

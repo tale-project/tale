@@ -10,6 +10,7 @@ import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 
+import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { queryWithRLS } from '../lib/rls';
 import * as ConversationsHelpers from './helpers';
 import { listConversationsPaginated as listConversationsPaginatedHelper } from './list_conversations_paginated';
@@ -49,8 +50,6 @@ export const listConversations = queryWithRLS({
   },
 });
 
-const CONVERSATIONS_COUNT_CAP = 20;
-
 export const approxCountConversationsByStatus = queryWithRLS({
   args: {
     organizationId: v.string(),
@@ -70,7 +69,7 @@ export const approxCountConversationsByStatus = queryWithRLS({
         q.eq('organizationId', args.organizationId).eq('status', args.status),
       )) {
       count++;
-      if (count >= CONVERSATIONS_COUNT_CAP) break;
+      if (count >= DEFAULT_COUNT_CAP) break;
     }
     return count;
   },
