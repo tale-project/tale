@@ -11,11 +11,9 @@
 
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
+import { getRagConfig } from '../../lib/helpers/rag_config';
 
 const debugLog = createDebugLog('DEBUG_RAG_QUERY', '[RAGQuery]');
-
-// Configuration constants
-const DEFAULT_RAG_SERVICE_URL = 'http://localhost:8001';
 const DEFAULT_TOP_K = 10;
 const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
 const RAG_REQUEST_TIMEOUT_MS = 10000; // 10 seconds
@@ -45,13 +43,6 @@ interface QueryResponse {
 export interface RecentMessage {
   role: 'user' | 'assistant';
   content: string;
-}
-
-/**
- * Get RAG service URL from environment variables
- */
-function getRagServiceUrl(): string {
-  return process.env.RAG_URL || DEFAULT_RAG_SERVICE_URL;
 }
 
 /**
@@ -164,7 +155,7 @@ export async function queryRagContext(
   options?: RagContextOptions,
 ): Promise<string | undefined> {
   try {
-    const ragServiceUrl = getRagServiceUrl();
+    const ragServiceUrl = getRagConfig().serviceUrl;
     const url = `${ragServiceUrl}/api/v1/search`;
 
     // Build expanded query with conversation context

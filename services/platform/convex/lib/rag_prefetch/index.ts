@@ -16,10 +16,9 @@ import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { narrowStringUnion } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
 import { createDebugLog } from '../debug_log';
+import { getRagConfig } from '../helpers/rag_config';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[RagPrefetch]');
-
-const DEFAULT_RAG_SERVICE_URL = 'http://localhost:8001';
 const RAG_REQUEST_TIMEOUT_MS = 30000;
 
 const MAX_CONTEXT_MESSAGES = 3;
@@ -48,10 +47,6 @@ export interface RagPrefetchCache {
   consumed: boolean;
   /** Timestamp when the prefetch was started */
   timestamp: number;
-}
-
-function getRagServiceUrl(): string {
-  return process.env.RAG_URL || DEFAULT_RAG_SERVICE_URL;
 }
 
 /**
@@ -160,7 +155,7 @@ async function fetchRagGenerate(options: {
   teamIds: string[];
   userId: string;
 }): Promise<string> {
-  const ragServiceUrl = getRagServiceUrl();
+  const ragServiceUrl = getRagConfig().serviceUrl;
   const url = `${ragServiceUrl}/api/v1/generate`;
 
   const payload = {

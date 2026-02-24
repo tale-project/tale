@@ -14,6 +14,7 @@ import type { ToolDefinition } from '../types';
 
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
+import { getRagConfig } from '../../lib/helpers/rag_config';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -22,13 +23,6 @@ interface RagServiceResponse {
   query: string;
   response: string;
   processing_time_ms: number;
-}
-
-/**
- * Get RAG service URL from environment variable
- */
-function getRagServiceUrl(): string {
-  return process.env.RAG_URL || 'http://localhost:8001';
 }
 
 export const ragSearchTool = {
@@ -103,7 +97,7 @@ Returns a generated response based on the most relevant documents.`,
         );
       }
 
-      const ragServiceUrl = getRagServiceUrl();
+      const ragServiceUrl = getRagConfig().serviceUrl;
       const url = `${ragServiceUrl}/api/v1/generate`;
 
       const payload = {
