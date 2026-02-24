@@ -4536,7 +4536,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.2" },
     { name = "tenacity", specifier = "==9.1.4" },
     { name = "unidecode", specifier = "==1.4.0" },
-    { name = "unstructured", extras = ["xlsx", "docx", "pptx"], specifier = "==0.21.2" },
+    { name = "unstructured", extras = ["xlsx", "docx", "pptx"], specifier = "==0.21.5" },
 ]
 provides-extras = ["dev"]
 
@@ -4851,7 +4851,7 @@ wheels = [
 
 [[package]]
 name = "unstructured"
-version = "0.21.2"
+version = "0.21.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -4878,9 +4878,9 @@ dependencies = [
     { name = "unstructured-client" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e0/c6/0fa824d5f9e10dea7500113d02ae8e3518e1763918a08cabf4e59555405f/unstructured-0.21.2.tar.gz", hash = "sha256:2a8986e2d9d9d67eb4a863d14e3d22db3e541dc898699f96f21eef5050a15c86", size = 1500816, upload-time = "2026-02-23T01:16:53.336Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b3/e6/fbef61517d130af1def3b81681e253a5679f19de2f04e439afbbf1f021e0/unstructured-0.21.5.tar.gz", hash = "sha256:3e220d0c2b9c8ec12c99767162b95ab0acfca75e979b82c66c15ca15caa60139", size = 1501811, upload-time = "2026-02-24T15:29:27.84Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/b6/a25b9edfe7dca561c5a3f91be22f8fb907f53f983809efac8e5654ea1a52/unstructured-0.21.2-py3-none-any.whl", hash = "sha256:4194bddaa1cd16deaa70c4e2b7fcdd78510d42c903fb10ed0bd04fbdf8a47a70", size = 1553948, upload-time = "2026-02-23T01:16:51.109Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/b6/7e6dd60bde81d5a4d4ddf426f566a5d1b4c30490053caed69e47f55c676f/unstructured-0.21.5-py3-none-any.whl", hash = "sha256:d88a277c368462b69a8843b9cb22476f3cc4d0a58455536520359387224b3366", size = 1554925, upload-time = "2026-02-24T15:29:26.009Z" },
 ]
 
 [package.optional-dependencies]

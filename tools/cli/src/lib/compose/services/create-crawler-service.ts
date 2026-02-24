@@ -19,6 +19,7 @@ export function createCrawlerService(
       retries: 2,
       start_period: '40s',
     },
+    volumes: ['crawler-data:/app/data'],
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {

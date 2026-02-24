@@ -26,7 +26,12 @@ import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 
-const REQUIRED_VOLUMES = ['platform-convex-data', 'caddy-data', 'rag-data'];
+const REQUIRED_VOLUMES = [
+  'platform-convex-data',
+  'caddy-data',
+  'rag-data',
+  'crawler-data',
+];
 
 async function ensureInfrastructure(
   prefix: string,

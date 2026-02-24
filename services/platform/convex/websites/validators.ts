@@ -47,4 +47,5 @@ export const websitePageValidator = v.object({
   lastCrawledAt: v.number(),
   metadata: v.optional(jsonRecordValidator),
   structuredData: v.optional(jsonRecordValidator),
+  syncStatus: v.optional(v.union(v.literal('pending'), v.literal('synced'))),
 });

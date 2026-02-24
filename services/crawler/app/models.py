@@ -21,36 +21,30 @@ class PageContent(BaseModel):
     structured_data: dict[str, Any] | None = Field(None, description="Structured data (price, images, etc.)")
 
 
-class DiscoverRequest(BaseModel):
-    """Request to discover URLs on a website."""
+class RegisterWebsiteRequest(BaseModel):
+    """Request to register a website for tracking."""
 
-    domain: str = Field(..., description="The domain to discover URLs from (e.g., 'docs.example.com')")
-    max_urls: int = Field(100, description="Maximum number of URLs to discover", ge=1, le=1000)
-    pattern: str | None = Field(None, description="Optional URL pattern filter")
-    query: str | None = Field(None, description="Optional search query for BM25 scoring")
-    timeout: float | None = Field(
-        1800.0,
-        description="Timeout in seconds for URL discovery (default: 30 minutes)",
-        ge=1,
-    )
+    domain: str = Field(..., description="The domain to register (e.g., 'docs.example.com')")
+    scan_interval: int = Field(21600, description="Scan interval in seconds (default: 6h)", ge=60)
 
 
-class DiscoveredUrl(BaseModel):
-    """A discovered URL with metadata."""
+class WebsiteUrl(BaseModel):
+    """A tracked URL with content hash."""
 
-    url: str = Field(..., description="The discovered URL")
-    status: str = Field(..., description="Status of the URL (e.g., 'valid')")
-    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
+    url: str = Field(..., description="The URL")
+    content_hash: str | None = Field(None, description="SHA-256 content hash")
+    status: str = Field("active", description="URL status (discovered, active, deleted)")
+    last_crawled_at: float | None = Field(None, description="Last crawl timestamp")
 
 
-class DiscoverResponse(BaseModel):
-    """Response from a URL discovery operation."""
+class WebsiteUrlsResponse(BaseModel):
+    """Paginated response of website URLs."""
 
-    success: bool = Field(..., description="Whether the discovery was successful")
-    domain: str = Field(..., description="The domain that was searched")
-    urls_discovered: int = Field(..., description="Number of URLs discovered")
-    urls: list[DiscoveredUrl] = Field(default_factory=list, description="Discovered URLs")
-    error: str | None = Field(None, description="Error message if discovery failed")
+    domain: str = Field(..., description="The website domain")
+    urls: list[WebsiteUrl] = Field(default_factory=list, description="URL entries")
+    total: int = Field(0, description="Total URL count")
+    offset: int = Field(0, description="Current offset")
+    has_more: bool = Field(False, description="Whether more pages are available")
 
 
 class FetchUrlsRequest(BaseModel):
@@ -164,6 +158,21 @@ class UrlToImageRequest(BaseModel):
     timeout: int = Field(60000, description="Navigation timeout in milliseconds (default: 60s)", ge=5000, le=120000)
 
 
+# ==================== DOCX from Markdown/HTML Models ====================
+
+
+class MarkdownToDocxRequest(BaseModel):
+    """Request to convert Markdown to DOCX."""
+
+    content: str = Field(..., description="Markdown content to convert")
+
+
+class HtmlToDocxRequest(BaseModel):
+    """Request to convert HTML to DOCX."""
+
+    html: str = Field(..., description="HTML content to convert")
+
+
 # ==================== PPTX Models ====================
 
 
@@ -270,6 +279,7 @@ class WebFetchExtractResponse(BaseModel):
     url: str = Field(..., description="The fetched URL")
     title: str | None = Field(None, description="Page title")
     content: str = Field(..., description="Extracted text content")
+    content_type: str = Field("text/html", description="Detected content type (e.g. text/html, application/pdf)")
     word_count: int = Field(..., description="Number of words in content")
     page_count: int = Field(..., description="Number of pages in PDF")
     vision_used: bool = Field(False, description="Whether Vision API was used for extraction")
