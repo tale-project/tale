@@ -147,6 +147,106 @@ describe('IncrementalMarkdown — cursor injection', () => {
 });
 
 // ============================================================================
+// MID-STREAM CURSOR (partial reveal)
+// ============================================================================
+
+describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', () => {
+  it('renders cursor when reveal is mid-paragraph', () => {
+    const content = 'Hello world, this is streaming text.';
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={10}
+        anchorPosition={0}
+        showCursor
+      />,
+    );
+
+    expect(countCursors(container)).toBe(1);
+  });
+
+  it('renders cursor after anchor advances and new paragraph is mid-stream', () => {
+    // Simulates the post-anchor case: first paragraph is stable,
+    // second paragraph is partially revealed in the streaming bucket.
+    const content = 'First paragraph.\n\nSecond paragraph being typed.';
+    const anchorPosition = 18; // after "First paragraph.\n\n"
+
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={28}
+        anchorPosition={anchorPosition}
+        showCursor
+      />,
+    );
+
+    expect(countCursors(container)).toBe(1);
+  });
+
+  it('renders cursor mid-list item', () => {
+    const content = '- First item\n- Second item being typed';
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={20}
+        anchorPosition={0}
+        showCursor
+      />,
+    );
+
+    expect(countCursors(container)).toBe(1);
+  });
+
+  it('renders cursor mid-heading', () => {
+    const content = '## This heading is still being typ';
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={20}
+        anchorPosition={0}
+        showCursor
+      />,
+    );
+
+    expect(countCursors(container)).toBe(1);
+  });
+
+  it('renders exactly one cursor across multiple reveals of the same content', () => {
+    const content = 'Streaming paragraph content here.';
+
+    const { container, rerender } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={5}
+        anchorPosition={0}
+        showCursor
+      />,
+    );
+    expect(countCursors(container)).toBe(1);
+
+    rerender(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={15}
+        anchorPosition={0}
+        showCursor
+      />,
+    );
+    expect(countCursors(container)).toBe(1);
+
+    rerender(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        anchorPosition={0}
+        showCursor
+      />,
+    );
+    expect(countCursors(container)).toBe(1);
+  });
+});
+
+// ============================================================================
 // SPLIT STABILITY (scroll jump prevention)
 // ============================================================================
 

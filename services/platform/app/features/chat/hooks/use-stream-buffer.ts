@@ -78,6 +78,8 @@ interface UseStreamBufferResult {
   isTyping: boolean;
   /** Number of characters remaining in buffer */
   bufferSize: number;
+  /** True while the buffer still has content to reveal after streaming ends */
+  isDraining: boolean;
 }
 
 // ============================================================================
@@ -347,5 +349,6 @@ export function useStreamBuffer({
     progress,
     isTyping,
     bufferSize,
+    isDraining: wasStreamingRef.current && !isStreamingRef.current,
   };
 }

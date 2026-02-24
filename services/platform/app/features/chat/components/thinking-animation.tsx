@@ -126,6 +126,12 @@ export function ThinkingAnimation({
     }
   }
 
+  // Hide entirely once text is streaming with no active tools — the visible
+  // typewriter text already shows progress, no indicator needed.
+  if (streamingMessage?.text && toolDetails.length === 0) {
+    return null;
+  }
+
   let displayText = t('thinking.default');
 
   const hasDelegateTools = toolDetails.some((d) =>
