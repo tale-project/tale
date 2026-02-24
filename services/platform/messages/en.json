@@ -2092,7 +2092,8 @@
       "searchingMore": "Searching {first}, {second} and {count} more",
       "multipleTools": "{first} and {second}",
       "multipleToolsMore": "{first}, {second} and {count} more",
-      "and": "and"
+      "and": "and",
+      "delegating": "Asking {agent}"
     },
     "tools": {
       "customerRead": "Reading customer data",
