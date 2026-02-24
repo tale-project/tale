@@ -197,11 +197,13 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
         )}
       </Popover>
 
-      <CreateCustomAgentDialog
-        open={createAgentDialog.isOpen}
-        onOpenChange={createAgentDialog.onOpenChange}
-        organizationId={organizationId}
-      />
+      {canManageAgents && (
+        <CreateCustomAgentDialog
+          open={createAgentDialog.isOpen}
+          onOpenChange={createAgentDialog.onOpenChange}
+          organizationId={organizationId}
+        />
+      )}
     </>
   );
 }
