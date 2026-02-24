@@ -237,7 +237,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
           });
 
           const siteUrl = process.env.SITE_URL || '';
-          const knowledgeUrl = `${siteUrl}/dashboard/${organizationId}/knowledge/documents`;
+          const knowledgeUrl = `${siteUrl}/dashboard/${organizationId}/documents`;
 
           return {
             operation: 'list_templates',
