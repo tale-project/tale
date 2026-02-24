@@ -52,5 +52,5 @@ def detect_type_from_content_type(content_type: str) -> tuple[str | None, str]:
     if doc_ext:
         return doc_ext, "document"
     if ct in IMAGE_CONTENT_TYPES:
-        return ct.split("/")[1].split("+")[0], "image"
+        return "." + ct.split("/")[1].split("+")[0], "image"
     return None, "unknown"

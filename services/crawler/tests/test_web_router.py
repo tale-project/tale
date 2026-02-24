@@ -119,7 +119,7 @@ class TestDetectTypeFromContentType:
     def test_svg_extension_strips_plus(self):
         ext, category = detect_type_from_content_type("image/svg+xml")
         assert category == "image"
-        assert ext == "svg"
+        assert ext == ".svg"
 
     @pytest.mark.parametrize(
         "content_type",
