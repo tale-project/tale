@@ -1,21 +1,19 @@
 /**
  * Get messages for a thread with streaming support.
  *
- * Uses listUIMessages and syncStreams to support real-time streaming.
- * This enables the UI to show tool calls and text as they happen.
+ * Uses listMessages (with excludeToolMessages) and syncStreams to support
+ * real-time streaming while keeping pagination efficient.
  *
- * PAGINATION NOTE:
- * - listUIMessages paginates based on MessageDoc count, not UIMessage count
- * - A single AI response with N tool calls = N*2+2 MessageDocs but only 2 UIMessages
- * - This means `numItems` refers to MessageDocs, and the actual UIMessage count varies
- * - usePaginatedQuery in the frontend accumulates results across pages correctly
- * - IMPORTANT: Each conversation turn creates ~5 MessageDocs (user, system, tool-call,
- *   tool-result, assistant-text). Set initialNumItems high enough to avoid pagination
- *   cutting off messages mid-turn, which causes "tool result without preceding tool call"
- *   warnings and missing user messages.
+ * Tool messages (tool-call + tool-result) are excluded from the paginated
+ * query so that numItems maps more closely to visible UIMessages. Without
+ * this, a single AI response with N tool calls creates N*2+2 MessageDocs,
+ * which can push user messages out of the initial page.
+ *
+ * Streaming tool call UI is unaffected — syncStreams provides real-time
+ * tool parts independently of the paginated results.
  */
 
-import { listUIMessages, syncStreams } from '@convex-dev/agent';
+import { listMessages, syncStreams, toUIMessages } from '@convex-dev/agent';
 
 import type {
   GetThreadMessagesStreamingArgs,
@@ -32,10 +30,11 @@ export async function getThreadMessagesStreaming(
   // Only include 'streaming' status - NOT 'finished'. Including 'finished' causes
   // duplicate messages because listUIMessages and syncStreams use different stepOrder
   // values, so dedupeMessages treats them as distinct entries.
-  const [result, streams] = await Promise.all([
-    listUIMessages(ctx, components.agent, {
+  const [messageResult, streams] = await Promise.all([
+    listMessages(ctx, components.agent, {
       threadId: args.threadId,
       paginationOpts: args.paginationOpts,
+      excludeToolMessages: true,
     }),
     syncStreams(ctx, components.agent, {
       ...args,
@@ -44,9 +43,9 @@ export async function getThreadMessagesStreaming(
   ]);
 
   return {
-    page: result.page,
-    isDone: result.isDone,
-    continueCursor: result.continueCursor,
+    page: toUIMessages(messageResult.page),
+    isDone: messageResult.isDone,
+    continueCursor: messageResult.continueCursor,
     streams,
   };
 }
