@@ -68,7 +68,7 @@ import type * as agent_tools_tool_names from "../agent_tools/tool_names.js";
 import type * as agent_tools_tool_registry from "../agent_tools/tool_registry.js";
 import type * as agent_tools_types from "../agent_tools/types.js";
 import type * as agent_tools_web_helpers_browser_operate from "../agent_tools/web/helpers/browser_operate.js";
-import type * as agent_tools_web_helpers_fetch_url_via_pdf from "../agent_tools/web/helpers/fetch_url_via_pdf.js";
+import type * as agent_tools_web_helpers_fetch_and_extract from "../agent_tools/web/helpers/fetch_and_extract.js";
 import type * as agent_tools_web_helpers_get_crawler_service_url from "../agent_tools/web/helpers/get_crawler_service_url.js";
 import type * as agent_tools_web_helpers_get_operator_service_url from "../agent_tools/web/helpers/get_operator_service_url.js";
 import type * as agent_tools_web_helpers_query_web_context from "../agent_tools/web/helpers/query_web_context.js";
@@ -917,7 +917,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/tool_registry": typeof agent_tools_tool_registry;
   "agent_tools/types": typeof agent_tools_types;
   "agent_tools/web/helpers/browser_operate": typeof agent_tools_web_helpers_browser_operate;
-  "agent_tools/web/helpers/fetch_url_via_pdf": typeof agent_tools_web_helpers_fetch_url_via_pdf;
+  "agent_tools/web/helpers/fetch_and_extract": typeof agent_tools_web_helpers_fetch_and_extract;
   "agent_tools/web/helpers/get_crawler_service_url": typeof agent_tools_web_helpers_get_crawler_service_url;
   "agent_tools/web/helpers/get_operator_service_url": typeof agent_tools_web_helpers_get_operator_service_url;
   "agent_tools/web/helpers/query_web_context": typeof agent_tools_web_helpers_query_web_context;

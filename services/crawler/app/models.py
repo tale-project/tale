@@ -264,6 +264,7 @@ class WebFetchExtractResponse(BaseModel):
     url: str = Field(..., description="The fetched URL")
     title: str | None = Field(None, description="Page title")
     content: str = Field(..., description="Extracted text content")
+    content_type: str = Field("text/html", description="Detected content type (e.g. text/html, application/pdf)")
     word_count: int = Field(..., description="Number of words in content")
     page_count: int = Field(..., description="Number of pages in PDF")
     vision_used: bool = Field(False, description="Whether Vision API was used for extraction")
