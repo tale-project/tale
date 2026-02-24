@@ -42,16 +42,40 @@ type ImageResult = GenerateImageResult | AnalyzeImageResult;
 export const imageTool = {
   name: 'image' as const,
   tool: createTool({
-    description: `Image tool for generating and analyzing images.
+    description: `Tool for creating visual content as images and analyzing uploaded images.
+
+HOW THIS TOOL WORKS:
+You write HTML/CSS or Markdown, and this tool renders it into a high-quality PNG/JPEG image using a headless browser. Think of it as a canvas — you are the designer, and HTML/CSS is your paintbrush. You can create ANY visual content this way.
+
+WHEN A USER ASKS YOU TO "CREATE AN IMAGE" OR "GENERATE A PICTURE":
+- ALWAYS try to fulfill the request by composing HTML/CSS with inline SVG graphics.
+- For illustrations and scenes (e.g., "a puppy by a river", "a sunset over mountains"): use inline SVG with shapes, gradients, and paths to create a stylized illustration. Combine SVG elements creatively — circles, ellipses, paths, gradients, filters — to build the scene. The result will be a clean, vector-style illustration.
+- For data visuals (charts, tables, diagrams, infographics): use HTML/CSS with flexbox/grid layouts.
+- For text-heavy content (reports, cards, formatted text): use Markdown or styled HTML.
+- Only say you cannot generate an image if the request truly requires photorealistic AI generation (like a real photograph). Even then, offer to create a stylized SVG illustration as an alternative.
+
+WHEN A USER SENDS A URL OR ASKS FOR A SCREENSHOT/CAPTURE:
+- If a user sends a URL and asks to "capture", "screenshot", "save as image", or simply wants to see what a page looks like — use sourceType "url" with the URL as content.
+- This also works when a user wants to archive or share a visual snapshot of any web page.
+- You can set urlOptions.waitUntil to "networkidle" for pages with dynamic content, or "domcontentloaded" for faster capture.
+- You can set imageOptions.width/height to control the viewport size, and imageOptions.fullPage to capture the entire scrollable page.
 
 OPERATIONS:
 
-1. generate - Generate an image (screenshot) from Markdown/HTML/URL
+1. generate - Create an image by rendering your HTML/Markdown content, or capture a URL screenshot
    Parameters:
    - fileName: Base name for the image (without extension)
    - sourceType: "markdown", "html", or "url"
-   - content: The Markdown/HTML text or URL to capture
+   - content: The HTML/Markdown you wrote, or a URL to capture
    Returns: { operation, success, url, fileName, contentType, size }
+
+   DESIGN TIPS:
+   - Use sourceType "html" for most visual content — it gives you full control over layout and styling.
+   - Write complete, self-contained HTML with all styles inline or in a <style> tag.
+   - Use SVG for illustrations: <svg viewBox="0 0 800 600">...</svg> inside your HTML. Combine basic shapes (rect, circle, ellipse, path, polygon) with gradients (linearGradient, radialGradient) and transforms to create scenes.
+   - Use modern CSS (flexbox, grid, gradients, shadows, border-radius, backdrop-filter) for polished layouts.
+   - The renderer supports CJK fonts (Chinese, Japanese, Korean), emoji, and code highlighting.
+   - Use sourceType "markdown" only for simple text, lists, or basic tables.
 
 2. analyze - Analyze an uploaded image using a vision model
    **CRITICAL: You MUST provide the fileId and question parameters.**
@@ -63,7 +87,10 @@ OPERATIONS:
    Returns: { operation, success, analysis, model }
 
 EXAMPLES:
-• Generate: { "operation": "generate", "fileName": "chart", "sourceType": "html", "content": "<div>...</div>" }
+• SVG illustration: { "operation": "generate", "fileName": "puppy-by-river", "sourceType": "html", "content": "<html><body style='margin:0'><svg viewBox='0 0 800 600' xmlns='http://www.w3.org/2000/svg'><!-- sky gradient, river, trees, puppy made from SVG shapes --></svg></body></html>" }
+• Infographic: { "operation": "generate", "fileName": "sales-report", "sourceType": "html", "content": "<div style='font-family:sans-serif;padding:40px;background:linear-gradient(...)'>...</div>" }
+• Data table: { "operation": "generate", "fileName": "comparison", "sourceType": "markdown", "content": "## Feature Comparison\\n| Feature | Plan A | Plan B |\\n|---|---|---|\\n| Storage | 10GB | 100GB |" }
+• Web screenshot: { "operation": "generate", "fileName": "homepage", "sourceType": "url", "content": "https://example.com" }
 • Analyze: { "operation": "analyze", "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "question": "What is in this image?" }
 
 CRITICAL RULES:

@@ -72,7 +72,10 @@ export function ThinkingAnimation({
           .filter(Boolean)
           .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ') || toolName;
-      return { toolName, displayText: agentDisplayName };
+      return {
+        toolName,
+        displayText: t('thinking.delegating', { agent: agentDisplayName }),
+      };
     }
 
     const toolDisplayNames: Record<string, string> = {
@@ -125,9 +128,14 @@ export function ThinkingAnimation({
 
   let displayText = t('thinking.default');
 
-  // Only show detailed tool status before any text has appeared.
+  const hasDelegateTools = toolDetails.some((d) =>
+    d.toolName.startsWith('delegate_'),
+  );
+
+  // Show detailed tool status before any text has appeared.
   // Once text is flowing, detailed tool names are distracting — fall back to "Thinking…"
-  if (!streamingMessage?.text && toolDetails.length > 0) {
+  // Exception: delegate agents always show their name since they take a long time.
+  if (toolDetails.length > 0 && (hasDelegateTools || !streamingMessage?.text)) {
     if (toolDetails.length === 1) {
       displayText = toolDetails[0].displayText;
     } else {
