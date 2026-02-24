@@ -187,24 +187,6 @@
     scrollbar-width: none; /* Firefox */
   }
 
-  /* ==========================================================================
-   * TYPEWRITER ANIMATION SYSTEM
-   *
-   * These styles support the streaming text reveal animation. The system uses
-   * a hybrid CSS+JS approach for optimal performance:
-   *
-   * 1. JS calculates the reveal position (characters to show)
-   * 2. CSS handles the actual visual reveal (GPU-accelerated)
-   *
-   * This avoids layout thrashing and keeps animation smooth at 60fps.
-   * ==========================================================================
-   */
-
-  /* Container for typewriter animation - holds CSS custom property */
-  .typewriter-container {
-    --reveal-chars: 0;
-  }
-
   /* Cursor blink animation for typewriter effect */
   .animate-cursor-blink {
     animation: cursor-blink 1s ease-in-out infinite;
@@ -246,11 +228,6 @@
     .animate-cursor-blink {
       animation: none;
       opacity: 1;
-    }
-
-    .typewriter-container {
-      /* Show all text instantly */
-      --reveal-chars: 999999;
     }
   }
 }
