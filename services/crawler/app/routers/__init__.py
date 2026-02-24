@@ -2,7 +2,8 @@
 API Routers for the Tale Crawler service.
 
 This package contains modular routers following Clean Architecture principles:
-- crawler: Web crawling and URL discovery endpoints (/api/v1/urls)
+- crawler: Content fetching and URL check endpoints (/api/v1/urls)
+- websites: Website registration and URL listing (/api/v1/websites)
 - pdf: PDF conversion and parsing (/api/v1/pdf)
 - image: Image conversion (/api/v1/images)
 - docx: DOCX document generation and parsing (/api/v1/docx)
@@ -16,6 +17,7 @@ from app.routers.image import router as image_router
 from app.routers.pdf import router as pdf_router
 from app.routers.pptx import router as pptx_router
 from app.routers.web import router as web_router
+from app.routers.websites import router as websites_router
 
 __all__ = [
     "crawler_router",
@@ -24,4 +26,5 @@ __all__ = [
     "pdf_router",
     "pptx_router",
     "web_router",
+    "websites_router",
 ]

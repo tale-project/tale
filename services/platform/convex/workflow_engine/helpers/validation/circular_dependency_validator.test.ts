@@ -10,6 +10,7 @@ import { validateCircularDependencies } from './circular_dependency_validator';
 
 type TestStep = {
   stepSlug: string;
+  stepType?: string;
   nextSteps?: Record<string, string>;
 };
 
@@ -117,7 +118,7 @@ describe('Circular Dependency Validator', () => {
       expect(result.cycles.length).toBeGreaterThan(0);
     });
 
-    it('should detect cycle in conditional branch', () => {
+    it('should detect cycle in conditional branch without stepType info', () => {
       const steps: TestStep[] = [
         { stepSlug: 'trigger', nextSteps: { success: 'condition' } },
         {
@@ -125,6 +126,151 @@ describe('Circular Dependency Validator', () => {
           nextSteps: { true: 'action', false: 'trigger' },
         },
         { stepSlug: 'action', nextSteps: {} },
+      ];
+
+      const result = validateCircularDependencies(steps);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('intentional loops (allowed cycles)', () => {
+    it('should allow loop node with body steps pointing back', () => {
+      const steps: TestStep[] = [
+        {
+          stepSlug: 'start',
+          stepType: 'start',
+          nextSteps: { success: 'fetch_data' },
+        },
+        {
+          stepSlug: 'fetch_data',
+          stepType: 'action',
+          nextSteps: { success: 'loop_items' },
+        },
+        {
+          stepSlug: 'loop_items',
+          stepType: 'loop',
+          nextSteps: { loop: 'process_item', done: 'finish' },
+        },
+        {
+          stepSlug: 'process_item',
+          stepType: 'action',
+          nextSteps: { success: 'loop_items' },
+        },
+        {
+          stepSlug: 'finish',
+          stepType: 'action',
+          nextSteps: { success: 'noop' },
+        },
+      ];
+
+      const result = validateCircularDependencies(steps);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings[0]).toContain('Intentional loop detected');
+    });
+
+    it('should allow condition-based pagination cycle', () => {
+      const steps: TestStep[] = [
+        {
+          stepSlug: 'start',
+          stepType: 'start',
+          nextSteps: { success: 'discover_urls' },
+        },
+        {
+          stepSlug: 'discover_urls',
+          stepType: 'action',
+          nextSteps: { success: 'register_urls' },
+        },
+        {
+          stepSlug: 'register_urls',
+          stepType: 'action',
+          nextSteps: { success: 'check_has_more' },
+        },
+        {
+          stepSlug: 'check_has_more',
+          stepType: 'condition',
+          nextSteps: { true: 'update_offset', false: 'finish' },
+        },
+        {
+          stepSlug: 'update_offset',
+          stepType: 'action',
+          nextSteps: { success: 'discover_urls' },
+        },
+        {
+          stepSlug: 'finish',
+          stepType: 'action',
+          nextSteps: { success: 'noop' },
+        },
+      ];
+
+      const result = validateCircularDependencies(steps);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings[0]).toContain('Intentional loop detected');
+    });
+
+    it('should allow condition cycle with stepType provided', () => {
+      const steps: TestStep[] = [
+        {
+          stepSlug: 'trigger',
+          stepType: 'start',
+          nextSteps: { success: 'condition' },
+        },
+        {
+          stepSlug: 'condition',
+          stepType: 'condition',
+          nextSteps: { true: 'action', false: 'trigger' },
+        },
+        { stepSlug: 'action', stepType: 'action', nextSteps: {} },
+      ];
+
+      const result = validateCircularDependencies(steps);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.cycles.length).toBeGreaterThan(0);
+      expect(result.warnings[0]).toContain('Intentional loop detected');
+    });
+
+    it('should still flag pure action-only cycles', () => {
+      const steps: TestStep[] = [
+        {
+          stepSlug: 'action_a',
+          stepType: 'action',
+          nextSteps: { success: 'action_b' },
+        },
+        {
+          stepSlug: 'action_b',
+          stepType: 'action',
+          nextSteps: { success: 'action_a' },
+        },
+      ];
+
+      const result = validateCircularDependencies(steps);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]).toContain('Circular dependency detected');
+    });
+
+    it('should still flag self-referencing action step', () => {
+      const steps: TestStep[] = [
+        {
+          stepSlug: 'start',
+          stepType: 'start',
+          nextSteps: { success: 'action' },
+        },
+        {
+          stepSlug: 'action',
+          stepType: 'action',
+          nextSteps: { success: 'action' },
+        },
       ];
 
       const result = validateCircularDependencies(steps);

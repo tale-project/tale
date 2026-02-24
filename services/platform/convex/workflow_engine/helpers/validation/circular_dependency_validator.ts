@@ -3,12 +3,18 @@
  *
  * Detects circular dependencies in workflow step connections.
  * Uses depth-first search (DFS) with visited/visiting state tracking.
+ *
+ * Intentional cycles are allowed when the cycle contains at least one
+ * `loop` or `condition` node — loop nodes have built-in termination
+ * (maxIterations / items exhaustion) and condition nodes provide exit
+ * branches that can break the cycle.
  */
 
 import type { ValidationResult } from './types';
 
 interface StepWithNextSteps {
   stepSlug: string;
+  stepType?: string;
   nextSteps?: Record<string, string>;
 }
 
@@ -16,10 +22,16 @@ interface CircularDependencyResult extends ValidationResult {
   cycles: string[][];
 }
 
+const BREAKABLE_STEP_TYPES = new Set(['loop', 'condition']);
+
 /**
  * Detect circular dependencies in workflow steps.
  *
- * @param steps - Array of steps with stepSlug and nextSteps
+ * Cycles that contain at least one `loop` or `condition` step are
+ * considered intentional (pagination loops, for-each iteration) and
+ * are reported as warnings instead of errors.
+ *
+ * @param steps - Array of steps with stepSlug, optional stepType, and nextSteps
  * @returns Validation result with detected cycles
  */
 export function validateCircularDependencies(
@@ -30,6 +42,8 @@ export function validateCircularDependencies(
   const cycles: string[][] = [];
 
   const graph = new Map<string, string[]>();
+  const stepTypeMap = new Map<string, string | undefined>();
+
   for (const step of steps) {
     const targets: string[] = [];
     if (step.nextSteps) {
@@ -40,6 +54,7 @@ export function validateCircularDependencies(
       }
     }
     graph.set(step.stepSlug, targets);
+    stepTypeMap.set(step.stepSlug, step.stepType);
   }
 
   const visited = new Set<string>();
@@ -81,8 +96,17 @@ export function validateCircularDependencies(
     }
   }
 
-  if (cycles.length > 0) {
-    for (const cycle of cycles) {
+  for (const cycle of cycles) {
+    // Exclude the repeated tail node when checking members
+    const members = cycle.slice(0, -1);
+    const hasBreakableStep = members.some((slug) => {
+      const stepType = stepTypeMap.get(slug);
+      return stepType !== undefined && BREAKABLE_STEP_TYPES.has(stepType);
+    });
+
+    if (hasBreakableStep) {
+      warnings.push(`Intentional loop detected: ${cycle.join(' → ')}`);
+    } else {
       errors.push(`Circular dependency detected: ${cycle.join(' → ')}`);
     }
   }

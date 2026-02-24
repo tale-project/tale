@@ -67,6 +67,7 @@ OPERATIONS:
    - fileName: Base name for the image (without extension)
    - sourceType: "markdown", "html", or "url"
    - content: The HTML/Markdown you wrote, or a URL to capture
+   - quality: "low" (1x JPEG, smallest file, default), "standard" (1x PNG), "high" (2x PNG), "ultra" (4x PNG). Use "low" unless user requests higher quality.
    Returns: { operation, success, url, fileName, contentType, size }
 
    DESIGN TIPS:
@@ -120,12 +121,17 @@ CRITICAL RULES:
         .describe(
           "For 'generate': Markdown text, HTML content, or URL to capture",
         ),
+      quality: z
+        .enum(['low', 'standard', 'high', 'ultra'])
+        .optional()
+        .describe(
+          "For 'generate': Image quality/resolution. 'low' (1x JPEG, smallest file), 'standard' (1x PNG), 'high' (2x PNG), 'ultra' (4x PNG, largest file). Defaults to 'low'. Only increase if user explicitly requests higher quality.",
+        ),
       imageOptions: z
         .object({
           width: z.number().optional(),
           height: z.number().optional(),
           fullPage: z.boolean().optional(),
-          scale: z.number().min(1).max(4).optional(),
         })
         .optional()
         .describe(
@@ -255,6 +261,14 @@ CRITICAL RULES:
         sourceType: args.sourceType,
       });
 
+      const qualityPresets = {
+        low: { scale: 1, imageType: 'jpeg', quality: 80 },
+        standard: { scale: 1, imageType: 'png', quality: 100 },
+        high: { scale: 2, imageType: 'png', quality: 100 },
+        ultra: { scale: 4, imageType: 'png', quality: 100 },
+      } as const;
+      const preset = qualityPresets[args.quality ?? 'low'];
+
       try {
         const result = await ctx.runAction(
           internal.documents.internal_actions.generateDocument,
@@ -263,7 +277,12 @@ CRITICAL RULES:
             sourceType: args.sourceType,
             outputFormat: 'image',
             content: args.content,
-            imageOptions: args.imageOptions,
+            imageOptions: {
+              ...args.imageOptions,
+              scale: preset.scale,
+              imageType: preset.imageType,
+              quality: preset.quality,
+            },
             urlOptions: args.urlOptions,
             extraCss: args.extraCss,
             wrapInTemplate: args.wrapInTemplate,
