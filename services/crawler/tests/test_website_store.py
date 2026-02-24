@@ -200,6 +200,100 @@ class TestWebsiteStore:
         needing = site_store.get_urls_needing_recrawl(limit=3)
         assert len(needing) == 3
 
+    def test_get_urls_needing_recrawl_crawled_before_excludes_recent(self, site_store):
+        import time
+
+        site_store.save_discovered_urls(
+            [
+                {"url": "https://example.com/a"},
+                {"url": "https://example.com/b"},
+            ]
+        )
+        cutoff = time.time()
+        # Crawl one URL after the cutoff
+        site_store.update_content_hashes([{"url": "https://example.com/a", "content_hash": "h1"}])
+
+        needing = site_store.get_urls_needing_recrawl(limit=10, crawled_before=cutoff)
+        assert needing == ["https://example.com/b"]
+
+    def test_get_urls_needing_recrawl_crawled_before_includes_stale(self, site_store):
+        import time
+
+        site_store.save_discovered_urls(
+            [
+                {"url": "https://example.com/a"},
+                {"url": "https://example.com/b"},
+            ]
+        )
+        # Crawl both URLs
+        site_store.update_content_hashes(
+            [
+                {"url": "https://example.com/a", "content_hash": "h1"},
+                {"url": "https://example.com/b", "content_hash": "h2"},
+            ]
+        )
+        cutoff = time.time()
+
+        # Both were crawled before cutoff, so both should be returned
+        needing = site_store.get_urls_needing_recrawl(limit=10, crawled_before=cutoff)
+        assert len(needing) == 2
+
+    def test_increment_fail_count(self, site_store):
+        site_store.save_discovered_urls([{"url": "https://example.com/flaky"}])
+
+        site_store.increment_fail_count(["https://example.com/flaky"])
+        conn = site_store._get_conn()
+        row = conn.execute(
+            "SELECT fail_count, last_crawled_at FROM website_urls WHERE url = ?",
+            ("https://example.com/flaky",),
+        ).fetchone()
+        assert row["fail_count"] == 1
+        assert row["last_crawled_at"] is not None
+
+    def test_increment_fail_count_accumulates(self, site_store):
+        site_store.save_discovered_urls([{"url": "https://example.com/flaky"}])
+
+        site_store.increment_fail_count(["https://example.com/flaky"])
+        site_store.increment_fail_count(["https://example.com/flaky"])
+        site_store.increment_fail_count(["https://example.com/flaky"])
+
+        conn = site_store._get_conn()
+        row = conn.execute(
+            "SELECT fail_count FROM website_urls WHERE url = ?",
+            ("https://example.com/flaky",),
+        ).fetchone()
+        assert row["fail_count"] == 3
+
+    def test_increment_fail_count_empty(self, site_store):
+        site_store.increment_fail_count([])
+
+    def test_successful_crawl_resets_fail_count(self, site_store):
+        site_store.save_discovered_urls([{"url": "https://example.com/flaky"}])
+        site_store.increment_fail_count(["https://example.com/flaky"])
+        site_store.increment_fail_count(["https://example.com/flaky"])
+
+        site_store.update_content_hashes([{"url": "https://example.com/flaky", "content_hash": "h1"}])
+
+        conn = site_store._get_conn()
+        row = conn.execute(
+            "SELECT fail_count FROM website_urls WHERE url = ?",
+            ("https://example.com/flaky",),
+        ).fetchone()
+        assert row["fail_count"] == 0
+
+    def test_increment_fail_count_sets_last_crawled_at_for_session_scoping(self, site_store):
+        import time
+
+        site_store.save_discovered_urls([{"url": "https://example.com/fail"}])
+        cutoff = time.time()
+
+        # Increment fail count (sets last_crawled_at to now, which is after cutoff)
+        site_store.increment_fail_count(["https://example.com/fail"])
+
+        # URL should no longer appear in this scan session
+        needing = site_store.get_urls_needing_recrawl(limit=10, crawled_before=cutoff)
+        assert needing == []
+
     def test_get_total_count(self, site_store):
         assert site_store.get_total_count() == 0
 
@@ -338,6 +432,42 @@ class TestWebsiteStore:
         pages = store2.get_urls_page()
         assert pages[0]["url"] == "https://example.com/persist"
         store2.close()
+
+    def test_schema_migration_adds_fail_count(self, tmp_path):
+        db_path = tmp_path / "legacy_fc.db"
+        import sqlite3
+
+        conn = sqlite3.connect(str(db_path))
+        conn.executescript("""
+            CREATE TABLE website_urls (
+                url TEXT PRIMARY KEY,
+                content_hash TEXT,
+                status TEXT NOT NULL DEFAULT 'discovered',
+                last_crawled_at REAL,
+                discovered_at REAL NOT NULL,
+                title TEXT,
+                content TEXT,
+                word_count INTEGER,
+                metadata TEXT,
+                structured_data TEXT
+            );
+        """)
+        conn.execute(
+            "INSERT INTO website_urls (url, discovered_at) VALUES (?, ?)",
+            ("https://example.com/old", 1000.0),
+        )
+        conn.commit()
+        conn.close()
+
+        store = WebsiteStore(db_path)
+        # fail_count column should exist after migration
+        c = store._get_conn()
+        row = c.execute(
+            "SELECT fail_count FROM website_urls WHERE url = ?",
+            ("https://example.com/old",),
+        ).fetchone()
+        assert row["fail_count"] == 0
+        store.close()
 
     def test_schema_migration_adds_columns(self, tmp_path):
         db_path = tmp_path / "legacy.db"

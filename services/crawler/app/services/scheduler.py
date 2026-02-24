@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import time
 
 from app.services.crawler_service import CrawlerService
 from app.services.website_store import WebsiteStoreManager
@@ -83,9 +84,10 @@ async def _scan_website(
         logger.info(f"Scan [{domain}]: discovered {len(discovered)} URLs")
 
         # Phase 2: Crawl URLs in batches and cache content + hashes
+        scan_start = time.time()
         crawled_total = 0
         while True:
-            to_crawl = site_store.get_urls_needing_recrawl(limit=CRAWL_BATCH_SIZE)
+            to_crawl = site_store.get_urls_needing_recrawl(limit=CRAWL_BATCH_SIZE, crawled_before=scan_start)
             if not to_crawl:
                 break
 
@@ -93,6 +95,9 @@ async def _scan_website(
                 f"Scan [{domain}]: Phase 2 — crawling batch of {len(to_crawl)} URLs (total so far: {crawled_total})"
             )
             results = await crawler_service.crawl_urls(urls=to_crawl)
+            succeeded_urls = {p["url"] for p in results}
+            failed_urls = [u for u in to_crawl if u not in succeeded_urls]
+
             updates = [
                 {
                     "url": p["url"],
@@ -108,6 +113,10 @@ async def _scan_website(
             ]
             site_store.update_content_hashes(updates)
             crawled_total += len(updates)
+
+            if failed_urls:
+                logger.warning(f"Scan [{domain}]: {len(failed_urls)} URLs failed in batch")
+                site_store.increment_fail_count(failed_urls)
 
         logger.info(f"Scan [{domain}]: crawled {crawled_total} URLs total")
 

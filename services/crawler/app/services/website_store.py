@@ -57,7 +57,8 @@ class WebsiteStore:
                 content TEXT,
                 word_count INTEGER,
                 metadata TEXT,
-                structured_data TEXT
+                structured_data TEXT,
+                fail_count INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE INDEX IF NOT EXISTS idx_crawl_order
@@ -72,6 +73,7 @@ class WebsiteStore:
             ("word_count", "INTEGER"),
             ("metadata", "TEXT"),
             ("structured_data", "TEXT"),
+            ("fail_count", "INTEGER NOT NULL DEFAULT 0"),
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE website_urls ADD COLUMN {col} {col_type}")
@@ -120,17 +122,40 @@ class WebsiteStore:
             for r in rows
         ]
 
-    def get_urls_needing_recrawl(self, limit: int = 20) -> list[str]:
+    def get_urls_needing_recrawl(self, limit: int = 20, crawled_before: float | None = None) -> list[str]:
         conn = self._get_conn()
-        rows = conn.execute(
-            "SELECT url FROM website_urls "
-            "WHERE status != 'deleted' "
-            "ORDER BY CASE WHEN content_hash IS NULL THEN 0 ELSE 1 END, "
-            "last_crawled_at ASC NULLS FIRST "
-            "LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if crawled_before is not None:
+            rows = conn.execute(
+                "SELECT url FROM website_urls "
+                "WHERE status != 'deleted' "
+                "AND (last_crawled_at IS NULL OR last_crawled_at < ?) "
+                "ORDER BY CASE WHEN content_hash IS NULL THEN 0 ELSE 1 END, "
+                "last_crawled_at ASC NULLS FIRST "
+                "LIMIT ?",
+                (crawled_before, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT url FROM website_urls "
+                "WHERE status != 'deleted' "
+                "ORDER BY CASE WHEN content_hash IS NULL THEN 0 ELSE 1 END, "
+                "last_crawled_at ASC NULLS FIRST "
+                "LIMIT ?",
+                (limit,),
+            ).fetchall()
         return [r["url"] for r in rows]
+
+    def increment_fail_count(self, urls: list[str]):
+        if not urls:
+            return
+
+        now = time.time()
+        conn = self._get_conn()
+        conn.executemany(
+            "UPDATE website_urls SET fail_count = fail_count + 1, last_crawled_at = ? WHERE url = ?",
+            [(now, url) for url in urls],
+        )
+        conn.commit()
 
     def update_content_hashes(self, updates: list[dict]):
         if not updates:
@@ -141,7 +166,8 @@ class WebsiteStore:
         conn.executemany(
             "UPDATE website_urls "
             "SET content_hash = ?, status = ?, last_crawled_at = ?, "
-            "    title = ?, content = ?, word_count = ?, metadata = ?, structured_data = ? "
+            "    title = ?, content = ?, word_count = ?, metadata = ?, structured_data = ?, "
+            "    fail_count = 0 "
             "WHERE url = ?",
             [
                 (
