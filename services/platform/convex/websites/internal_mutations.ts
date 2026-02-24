@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { internal } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
 import * as WebsitesHelpers from './helpers';
 
@@ -51,6 +52,7 @@ export const bulkUpsertPages = internalMutation({
         title: v.optional(v.string()),
         content: v.optional(v.string()),
         wordCount: v.optional(v.number()),
+        contentHash: v.optional(v.string()),
         metadata: v.optional(jsonRecordValidator),
         structuredData: v.optional(jsonRecordValidator),
       }),
@@ -58,5 +60,42 @@ export const bulkUpsertPages = internalMutation({
   },
   handler: async (ctx, args) => {
     return await WebsitesHelpers.bulkUpsertPages(ctx, args);
+  },
+});
+
+export const registerDiscoveredUrls = internalMutation({
+  args: {
+    organizationId: v.string(),
+    websiteId: v.string(),
+    urls: v.array(
+      v.object({
+        url: v.string(),
+        contentHash: v.optional(v.string()),
+        status: v.optional(v.string()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    return await WebsitesHelpers.registerDiscoveredUrls(ctx, args);
+  },
+});
+
+export const batchCleanupWebsitePages = internalMutation({
+  args: {
+    websiteId: v.id('websites'),
+  },
+  handler: async (ctx, args) => {
+    const result = await WebsitesHelpers.cleanupWebsitePagesBatch(
+      ctx,
+      args.websiteId,
+    );
+
+    if (result.hasMore) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.websites.internal_mutations.batchCleanupWebsitePages,
+        { websiteId: args.websiteId },
+      );
+    }
   },
 });

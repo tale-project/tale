@@ -81,6 +81,7 @@ export interface BulkUpsertPagesArgs {
     title?: string;
     content?: string;
     wordCount?: number;
+    contentHash?: string;
     metadata?: ConvexJsonRecord;
     structuredData?: ConvexJsonRecord;
   }>;

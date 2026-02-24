@@ -214,6 +214,7 @@ class CrawlerService:
         pattern: str | None = None,
         query: str | None = None,
         timeout: float = 1800.0,
+        extract_head: bool = False,
     ) -> list[dict[str, Any]]:
         """
         Discover all URLs on a website using sitemaps and Common Crawl.
@@ -224,6 +225,7 @@ class CrawlerService:
             pattern: Optional URL pattern filter (e.g., "*/docs/*")
             query: Optional search query for BM25 scoring
             timeout: Timeout in seconds for URL discovery (default: 1800 seconds / 30 minutes)
+            extract_head: Whether to fetch and parse <head> for each URL (slower but richer metadata)
 
         Returns:
             List of discovered URLs with metadata
@@ -242,7 +244,7 @@ class CrawlerService:
             try:
                 config = SeedingConfig(
                     source=source,
-                    extract_head=True,
+                    extract_head=extract_head,
                     max_urls=max_urls if max_urls > 0 else -1,
                     filter_nonsense_urls=True,
                     pattern=pattern,

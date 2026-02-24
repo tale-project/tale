@@ -148,6 +148,11 @@ services:
     #       cpus: '1'
     #       memory: 2G
 
+    # Volume mounts
+    # Persist crawler data (website registry + per-site URL databases)
+    volumes:
+      - crawler-data:/app/data
+
     # Logging configuration
     logging:
       driver: 'json-file'
@@ -559,6 +564,10 @@ volumes:
 
   # Persistent storage for Caddy proxy configuration
   caddy-config:
+    driver: local
+
+  # Persistent storage for Crawler data (website registry + per-site URL databases)
+  crawler-data:
     driver: local
 
 # ============================================================================

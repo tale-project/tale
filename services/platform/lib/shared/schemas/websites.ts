@@ -34,6 +34,7 @@ export const websitePageSchema = z.object({
   lastCrawledAt: z.number(),
   metadata: jsonRecordSchema.optional(),
   structuredData: jsonRecordSchema.optional(),
+  syncStatus: z.enum(['pending', 'synced']).optional(),
 });
 
 type WebsitePage = z.infer<typeof websitePageSchema>;

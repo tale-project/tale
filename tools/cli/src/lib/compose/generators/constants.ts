@@ -6,6 +6,7 @@ export const VOLUMES = {
   'platform-convex-data': { driver: 'local' },
   'caddy-data': { driver: 'local' },
   'caddy-config': { driver: 'local' },
+  'crawler-data': { driver: 'local' },
 };
 
 export const NETWORKS = {

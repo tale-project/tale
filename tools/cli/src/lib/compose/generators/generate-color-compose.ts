@@ -32,6 +32,10 @@ export function generateColorCompose(
         external: true,
         name: `${PROJECT_NAME}_rag-data`,
       },
+      'crawler-data': {
+        external: true,
+        name: `${PROJECT_NAME}_crawler-data`,
+      },
     },
     networks: {
       internal: {

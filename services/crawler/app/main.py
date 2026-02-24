@@ -12,8 +12,9 @@ This module follows Clean Architecture principles:
 - models: Data transfer objects (DTOs) and request/response schemas
 """
 
+import asyncio
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,10 +30,13 @@ from app.routers import (
     pdf_router,
     pptx_router,
     web_router,
+    websites_router,
 )
 from app.services.crawler_service import get_crawler_service
 from app.services.image_service import get_image_service
 from app.services.pdf_service import get_pdf_service
+from app.services.scheduler import run_scheduler
+from app.services.website_store import get_website_store_manager
 
 
 @asynccontextmanager
@@ -52,10 +56,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         logger.exception("Failed to initialize crawler service")
         # Don't fail startup - allow lazy initialization
 
+    # Start background scheduler
+    store_manager = get_website_store_manager()
+    scheduler_task = asyncio.create_task(run_scheduler(store_manager, get_crawler_service()))
+    logger.info("Background scheduler started")
+
     yield
 
     # Shutdown
     logger.info("Shutting down Tale Crawler service...")
+
+    # Stop scheduler
+    scheduler_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await scheduler_task
+    logger.info("Scheduler stopped")
+
+    # Close all website stores
+    store_manager.close_all()
 
     # Cleanup crawler service
     try:
@@ -90,6 +108,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(crawler_router)
+app.include_router(websites_router)
 app.include_router(pdf_router)
 app.include_router(image_router)
 app.include_router(docx_router)

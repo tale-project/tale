@@ -30,8 +30,11 @@ export const websitePagesTable = defineTable({
   lastCrawledAt: v.number(),
   metadata: v.optional(jsonRecordValidator),
   structuredData: v.optional(jsonRecordValidator),
+  contentHash: v.optional(v.string()),
+  syncStatus: v.optional(v.union(v.literal('pending'), v.literal('synced'))),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_websiteId', ['websiteId'])
   .index('by_websiteId_and_lastCrawledAt', ['websiteId', 'lastCrawledAt'])
-  .index('by_organizationId_and_url', ['organizationId', 'url']);
+  .index('by_organizationId_and_url', ['organizationId', 'url'])
+  .index('by_websiteId_and_syncStatus', ['websiteId', 'syncStatus']);
