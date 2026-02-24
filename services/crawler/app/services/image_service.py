@@ -117,9 +117,6 @@ class ImageService(BaseConverterService):
 
             await page.set_content(html, wait_until="networkidle")
 
-            # Wait for Twemoji to parse and render all emojis
-            await self._wait_for_twemoji(page)
-
             screenshot_options = {
                 "type": image_type,
                 "full_page": full_page,

@@ -85,7 +85,8 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     systemAgentSlug: 'document',
     name: 'document-assistant',
     displayName: 'Document assistant',
-    description: 'Reads and creates documents (PDF, Word, Excel, etc.)',
+    description:
+      'Reads and creates documents (PDF, Word, Excel, etc.). Can also create visual images by rendering HTML/CSS/SVG — use it for illustrations, charts, infographics, diagrams, and web page screenshots.',
     systemInstructions: DOCUMENT_AGENT_INSTRUCTIONS,
     toolNames: ['pdf', 'image', 'docx', 'pptx', 'txt', 'excel'],
     delegateSlugs: [],
