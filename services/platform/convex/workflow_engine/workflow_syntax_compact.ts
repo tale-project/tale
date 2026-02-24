@@ -116,10 +116,6 @@ Ops: create_approval
 Params (create_approval): resourceType (required), resourceId (required), priority (required: 'low'|'medium'|'high'|'urgent'), requestedBy?, dueDate?, description?, executionId?, stepSlug?, metadata?
 Output: \`{ data: {...approval} }\` - returns created approval entity
 
-### tone_of_voice
-Ops: get_tone_of_voice
-Output: \`{ data: {...toneOfVoice} | null }\`
-
 ### onedrive
 Ops: get_user_token, refresh_token, read_file, list_folder_contents, sync_folder_files, upload_to_storage, update_sync_config
 Params (get_user_token): userId (required)

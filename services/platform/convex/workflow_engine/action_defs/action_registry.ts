@@ -10,7 +10,6 @@ import { onedriveAction } from './onedrive/onedrive_action';
 import { productAction } from './product/product_action';
 import { ragAction } from './rag/rag_action';
 import { setVariablesAction } from './set_variables_action';
-import { toneOfVoiceAction } from './tone_of_voice/tone_of_voice_action';
 import { websiteAction } from './website/website_action';
 import { websitePagesAction } from './website_pages/website_pages_action';
 import { workflowAction } from './workflow/workflow_action';
@@ -46,7 +45,6 @@ export const ACTIONS: AnyActionDefinition[] = [
   ragAction,
   workflowProcessingRecordsAction,
   approvalAction,
-  toneOfVoiceAction,
   onedriveAction,
   crawlerAction,
   websiteAction,

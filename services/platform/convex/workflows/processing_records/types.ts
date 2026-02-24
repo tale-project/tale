@@ -13,8 +13,7 @@ export type TableName =
   | 'conversationMessages'
   | 'approvals'
   | 'onedriveSyncConfigs'
-  | 'websitePages'
-  | 'exampleMessages';
+  | 'websitePages';
 
 /**
  * Arguments for finding and claiming a single unprocessed document with custom query

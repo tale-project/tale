@@ -429,30 +429,6 @@ const ragSchemas: Record<string, OutputSchema> = {
 };
 
 // =============================================================================
-// TONE OF VOICE ACTION SCHEMAS (Constrained by Doc<'toneOfVoice'>)
-// =============================================================================
-
-/**
- * Tone of voice fields - type-checked against Doc<'toneOfVoice'> schema.
- */
-const toneOfVoiceFields = createDocFields('toneOfVoice', {
-  _id: idField('toneOfVoice'),
-  _creationTime: { type: 'number' },
-  organizationId: { type: 'string' },
-  generatedTone: { type: 'string', optional: true },
-  lastUpdated: { type: 'number' },
-  metadata: { type: 'any', optional: true },
-});
-
-const toneOfVoiceSchemas: Record<string, OutputSchema> = {
-  get_tone_of_voice: {
-    description: 'Tone of voice configuration or null',
-    nullable: true,
-    fields: toneOfVoiceFields,
-  },
-};
-
-// =============================================================================
 // ONEDRIVE ACTION SCHEMAS
 // =============================================================================
 
@@ -672,7 +648,6 @@ const workflowSchemas: Record<string, OutputSchema> = {
  * - rag: RAG document upload
  * - workflow_processing_records: Processing record tracking
  * - approval: Approval workflow operations
- * - tone_of_voice: Tone of voice configuration
  * - integration: Dynamic integration connectors
  * - onedrive: OneDrive file operations
  * - crawler: Website crawling
@@ -690,7 +665,6 @@ export const actionOutputSchemaRegistry: ActionOutputSchemaRegistry = {
   document: documentSchemas,
   integration: integrationSchemas,
   rag: ragSchemas,
-  tone_of_voice: toneOfVoiceSchemas,
   onedrive: onedriveSchemas,
   crawler: crawlerSchemas,
   website: websiteSchemas,

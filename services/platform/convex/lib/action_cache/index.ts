@@ -54,29 +54,3 @@ export const imageAnalysisCache: ActionCache<
   name: `image_analysis_${CACHE_VERSION}`,
   ttl: TTL.INDEFINITE,
 });
-
-// ============================================
-// Organization Configuration Caches
-// ============================================
-
-/**
- * Cache for tone of voice generation results.
- * Stable until example messages change.
- * 24-hour TTL for daily refresh.
- */
-// Note: The internal_actions module needs to be regenerated (run `npx convex dev`)
-
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal.tone_of_voice is auto-generated; TypeScript cannot resolve the shape until `npx convex dev` regenerates the API module
-const toneOfVoiceModule = internal.tone_of_voice as unknown as {
-  internal_actions: {
-    generateToneOfVoiceUncached: FunctionReference<'action', 'internal'>;
-  };
-};
-
-export const toneOfVoiceCache: ActionCache<
-  FunctionReference<'action', 'internal'>
-> = new ActionCache(components.actionCache, {
-  action: toneOfVoiceModule.internal_actions.generateToneOfVoiceUncached,
-  name: `tone_of_voice_${CACHE_VERSION}`,
-  ttl: TTL.ONE_DAY,
-});

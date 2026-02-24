@@ -237,7 +237,6 @@
   },
   "knowledge": {
     "title": "Knowledge",
-    "toneOfVoice": "Tone of voice",
     "documents": "Documents",
     "websites": "Websites",
     "products": "Products",
@@ -386,14 +385,7 @@
       "automationRenameFailed": "Failed to rename automation",
       "automationDeleteFailed": "Failed to delete automation",
       "automationDeactivateFailed": "Failed to deactivate automation",
-      "automationPublishFailed": "Failed to publish automation",
-      "exampleAddFailed": "Failed to add example",
-      "exampleUpdateFailed": "Failed to update example",
-      "exampleDeleteFailed": "Failed to delete example",
-      "noExampleMessages": "No example messages",
-      "addExampleFirst": "Please add at least one example message",
-      "toneGenerateFailed": "Failed to generate tone of voice",
-      "toneSaveFailed": "Failed to save tone of voice"
+      "automationPublishFailed": "Failed to publish automation"
     }
   },
   "dialogs": {
@@ -2238,27 +2230,6 @@
       "nextSteps": "Suggested follow-ups"
     }
   },
-  "toneOfVoice": {
-    "title": "Tone of voice",
-    "exampleMessages": {
-      "title": "Example messages",
-      "description": "Samples to guide the AI to match your tone and style.",
-      "addButton": "Add example",
-      "noExamples": "No example messages",
-      "viewExample": "View example",
-      "editExample": "Edit example",
-      "placeholder": "e.g. Hello, I hope this finds you well.",
-      "adding": "Adding..."
-    },
-    "form": {
-      "title": "Tone of voice",
-      "optional": "(optional)",
-      "description": "Set your tone of voice — or have it auto-generated from your examples.",
-      "placeholder": "Describe your brand tone",
-      "generating": "Generating...",
-      "generateTone": "Generate tone"
-    }
-  },
   "documents": {
     "title": "Documents",
     "searchPlaceholder": "Search documents...",
@@ -2847,10 +2818,6 @@
     "websites": {
       "title": "Websites",
       "description": "Manage websites for knowledge extraction."
-    },
-    "toneOfVoice": {
-      "title": "Tone of voice",
-      "description": "Configure your brand's tone of voice."
     },
     "settings": {
       "title": "Settings",

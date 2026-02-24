@@ -437,62 +437,6 @@ export async function rlsRules(
       },
     },
 
-    // Tone of Voice - organization-scoped
-    toneOfVoice: {
-      read: async (_, tone) => {
-        if (!user) return false;
-        if (!userOrgIds.has(tone.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === tone.organizationId,
-        );
-        return authorizeRls(membership?.role, 'toneOfVoice', 'read');
-      },
-      modify: async (_, tone) => {
-        if (!user) return false;
-        if (!userOrgIds.has(tone.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === tone.organizationId,
-        );
-        return authorizeRls(membership?.role, 'toneOfVoice', 'write');
-      },
-      insert: async ({ user: ruleUser }, tone) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(tone.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === tone.organizationId,
-        );
-        return authorizeRls(membership?.role, 'toneOfVoice', 'write');
-      },
-    },
-
-    // Example Messages - organization-scoped
-    exampleMessages: {
-      read: async (_, message) => {
-        if (!user) return false;
-        if (!userOrgIds.has(message.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === message.organizationId,
-        );
-        return authorizeRls(membership?.role, 'exampleMessages', 'read');
-      },
-      modify: async (_, message) => {
-        if (!user) return false;
-        if (!userOrgIds.has(message.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === message.organizationId,
-        );
-        return authorizeRls(membership?.role, 'exampleMessages', 'write');
-      },
-      insert: async ({ user: ruleUser }, message) => {
-        if (!ruleUser) return false;
-        if (!userOrgIds.has(message.organizationId)) return false;
-        const membership = userOrganizations.find(
-          (m) => m.organizationId === message.organizationId,
-        );
-        return authorizeRls(membership?.role, 'exampleMessages', 'write');
-      },
-    },
-
     // Websites - organization-scoped
     websites: {
       read: async (_, website) => {

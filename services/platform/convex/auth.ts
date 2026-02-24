@@ -34,8 +34,6 @@ const platformResourceStatements = {
   wfStepAuditLogs: ['read', 'write'],
   wfExecutions: ['read', 'write'],
   approvals: ['read', 'write'],
-  toneOfVoice: ['read', 'write'],
-  exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   auditLogs: ['read', 'write'],
@@ -66,8 +64,6 @@ const admin = ac.newRole({
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
-  toneOfVoice: ['read', 'write'],
-  exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
 });
@@ -88,8 +84,6 @@ const developer = ac.newRole({
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
-  toneOfVoice: ['read', 'write'],
-  exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
 });
@@ -111,8 +105,6 @@ const editor = ac.newRole({
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
   approvals: ['read', 'write'],
-  toneOfVoice: ['read', 'write'],
-  exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
   // No access to: settings, automations (frontend menu restricted)
@@ -134,8 +126,6 @@ const member = ac.newRole({
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
   approvals: ['read'],
-  toneOfVoice: ['read'],
-  exampleMessages: ['read'],
   websites: ['read'],
   auditLogs: ['read'],
   // No access to: settings, automations (frontend menu restricted)
@@ -157,8 +147,6 @@ const disabled = ac.newRole({
   wfExecutions: [],
   workflowProcessingRecords: [],
   approvals: [],
-  toneOfVoice: [],
-  exampleMessages: [],
   websites: [],
   auditLogs: [],
 });

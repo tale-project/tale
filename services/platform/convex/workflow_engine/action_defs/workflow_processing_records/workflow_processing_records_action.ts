@@ -33,7 +33,6 @@ const tableNameValidator = v.union(
   v.literal('approvals'),
   v.literal('onedriveSyncConfigs'),
   v.literal('websitePages'),
-  v.literal('exampleMessages'),
 );
 
 // Type for workflow processing records operation params (discriminated union)
