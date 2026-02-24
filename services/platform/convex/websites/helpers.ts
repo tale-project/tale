@@ -21,3 +21,4 @@ export * from './register_discovered_urls';
 export * from './find_pending_pages';
 export * from './mark_pages_synced';
 export * from './delete_pages';
+export * from './cleanup_website';
