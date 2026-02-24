@@ -97,12 +97,14 @@ function TypewriterTextComponent({
   className,
 }: TypewriterTextProps) {
   // Use the stream buffer hook for animation management
-  const { displayLength, anchorPosition, progress } = useStreamBuffer({
-    text,
-    isStreaming,
-    targetCPS: TYPEWRITER_CONFIG.targetCPS,
-    initialBufferChars: TYPEWRITER_CONFIG.initialBufferChars,
-  });
+  const { displayLength, anchorPosition, progress, isTyping } = useStreamBuffer(
+    {
+      text,
+      isStreaming,
+      targetCPS: TYPEWRITER_CONFIG.targetCPS,
+      initialBufferChars: TYPEWRITER_CONFIG.initialBufferChars,
+    },
+  );
 
   // Ref for the streaming container (used for CSS variable updates)
   const containerRef = useRef<HTMLDivElement>(null);
@@ -141,8 +143,10 @@ function TypewriterTextComponent({
     updateRevealPosition(displayLength);
   }, [displayLength, updateRevealPosition]);
 
-  // Show cursor throughout the entire streaming phase (including buffer-empty pauses)
-  const showCursor = isStreaming && text.length > 0;
+  // Show cursor while the buffer is actively draining — this includes both the
+  // live streaming phase and the drain phase after isStreaming flips to false,
+  // so the cursor stays visible until the last character is revealed.
+  const showCursor = isTyping;
 
   return (
     <div

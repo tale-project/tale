@@ -204,7 +204,10 @@ const StreamingMarkdown = memo(
           ...props
         }: Record<string, unknown> & {
           node?: {
-            position?: { end?: { offset?: number } };
+            position?: {
+              start?: { offset?: number };
+              end?: { offset?: number };
+            };
             children?: { tagName?: string }[];
           };
           children?: ReactNode;
@@ -215,13 +218,27 @@ const StreamingMarkdown = memo(
             (child) => child.tagName && CURSOR_ELIGIBLE_TAGS.has(child.tagName),
           );
 
+          const startOffset = node?.position?.start?.offset;
+          const endOffset = node?.position?.end?.offset;
+          const revealedLen = revealedLenRef.current;
+
+          // An element is "current" if the reveal position falls inside it
+          // (started but not yet ended). This is the mid-block case that was
+          // previously missed: the parser hasn't closed the element yet so
+          // endOffset > revealedLen, meaning neither of the completed-element
+          // checks below would ever match.
+          const isCurrentlyTyping =
+            startOffset !== undefined &&
+            endOffset !== undefined &&
+            startOffset < revealedLen &&
+            endOffset > revealedLen;
+
           const isLastElement =
             !hasCursorEligibleChild &&
-            (node?.position?.end?.offset === revealedLenRef.current ||
-              (node?.position?.end?.offset &&
-                revealedTextRef.current
-                  .slice(node.position.end.offset)
-                  .trim() === ''));
+            (isCurrentlyTyping ||
+              endOffset === revealedLen ||
+              (endOffset &&
+                revealedTextRef.current.slice(endOffset).trim() === ''));
 
           if (CustomComponent) {
             return (
