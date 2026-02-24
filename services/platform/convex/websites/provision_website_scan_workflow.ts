@@ -10,7 +10,6 @@ import type { ActionCtx } from '../_generated/server';
 import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
-import websitePageSyncWorkflow from '../predefined_workflows/website_page_sync';
 import websiteScanWorkflow from '../predefined_workflows/website_scan';
 import { toPredefinedWorkflowPayload } from '../workflows/definitions/types';
 
@@ -47,6 +46,27 @@ function scanIntervalToCron(interval: string): {
   }
 }
 
+function scanIntervalToSeconds(interval: string): number {
+  switch (interval) {
+    case '60m':
+      return 3600;
+    case '6h':
+      return 21600;
+    case '12h':
+      return 43200;
+    case '1d':
+      return 86400;
+    case '5d':
+      return 432000;
+    case '7d':
+      return 604800;
+    case '30d':
+      return 2592000;
+    default:
+      return 21600;
+  }
+}
+
 export async function provisionWebsiteScanWorkflow(
   ctx: ActionCtx,
   args: ProvisionWebsiteScanWorkflowArgs,
@@ -58,6 +78,22 @@ export async function provisionWebsiteScanWorkflow(
   const websiteUrl = `${u.protocol}//${u.host}${u.pathname || ''}`;
   const websiteDomain = u.hostname;
 
+  // Register website with crawler service for autonomous background scanning
+  const crawlerUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
+  try {
+    await fetch(`${crawlerUrl}/api/v1/websites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        domain: websiteDomain,
+        scan_interval: scanIntervalToSeconds(args.scanInterval),
+      }),
+    });
+  } catch (e) {
+    // Non-fatal: crawler registration can be retried on next scan
+    console.warn('Failed to register website with crawler:', e);
+  }
+
   const { schedule, timezone } = scanIntervalToCron(args.scanInterval);
 
   const rawVars = websiteScanWorkflow.workflowConfig.config?.variables;
@@ -66,6 +102,7 @@ export async function provisionWebsiteScanWorkflow(
   const variables = toConvexJsonRecord({
     ...templateVars,
     organizationId: args.organizationId,
+    websiteId: args.websiteId,
     websiteUrl,
     websiteDomain,
     scanInterval: args.scanInterval,
@@ -127,54 +164,6 @@ export async function provisionWebsiteScanWorkflow(
     },
   );
 
-  const syncRawVars = websitePageSyncWorkflow.workflowConfig.config?.variables;
-  const syncTemplateVars = isRecord(syncRawVars) ? syncRawVars : {};
-
-  const syncVariables = toConvexJsonRecord({
-    ...syncTemplateVars,
-    organizationId: args.organizationId,
-    websiteId: args.websiteId,
-    websiteDomain,
-  });
-
-  const syncWorkflowName = `Website Page Sync - ${websiteDomain}`;
-
-  const syncPayload = toPredefinedWorkflowPayload(websitePageSyncWorkflow, {
-    name: syncWorkflowName,
-    config: {
-      ...websitePageSyncWorkflow.workflowConfig.config,
-      variables: syncVariables,
-    },
-  });
-
-  const savedSync = await ctx.runMutation(
-    internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps,
-    {
-      organizationId: args.organizationId,
-      ...syncPayload,
-    },
-  );
-
-  await ctx.runMutation(
-    internal.wf_definitions.internal_mutations.provisionPublishDraft,
-    {
-      wfDefinitionId: savedSync.workflowId,
-      publishedBy: 'system',
-      changeLog: 'Auto-created sync workflow for website page syncing',
-    },
-  );
-
-  await ctx.runMutation(
-    internal.workflows.triggers.internal_mutations.provisionSchedule,
-    {
-      organizationId: args.organizationId,
-      workflowRootId: savedSync.workflowId,
-      cronExpression: '0 * * * *',
-      timezone,
-      createdBy: 'system',
-    },
-  );
-
   const current = await ctx.runQuery(
     internal.websites.internal_queries.getWebsite,
     {
@@ -188,7 +177,6 @@ export async function provisionWebsiteScanWorkflow(
     metadata: {
       ...existingMeta,
       workflowId: saved.workflowId,
-      syncWorkflowId: savedSync.workflowId,
     },
   });
 
@@ -199,7 +187,7 @@ export async function provisionWebsiteScanWorkflow(
     });
 
     await ctx.scheduler.runAfter(
-      0,
+      300000,
       internal.workflow_engine.internal_mutations.startWorkflow,
       {
         organizationId: args.organizationId,

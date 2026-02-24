@@ -31,13 +31,3 @@ export const getWebsitePageByUrl = internalQuery({
     return await WebsitesHelpers.getPageByUrl(ctx, args);
   },
 });
-
-export const findPendingPages = internalQuery({
-  args: {
-    websiteId: v.id('websites'),
-    limit: v.number(),
-  },
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.findPendingPages(ctx, args);
-  },
-});

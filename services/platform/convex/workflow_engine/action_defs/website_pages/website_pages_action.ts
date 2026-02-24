@@ -40,12 +40,18 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
     v.object({
       operation: v.literal('register_discovered_urls'),
       websiteId: v.id('websites'),
-      urls: v.array(v.string()),
+      urls: v.array(
+        v.object({
+          url: v.string(),
+          contentHash: v.optional(v.union(v.string(), v.null())),
+          status: v.optional(v.string()),
+        }),
+      ),
     }),
     v.object({
       operation: v.literal('sync_pending_pages'),
       websiteId: v.id('websites'),
-      batchSize: v.optional(v.number()),
+      urls: v.array(v.string()),
       wordCountThreshold: v.optional(v.number()),
       crawlerTimeoutMs: v.optional(v.number()),
     }),
@@ -149,10 +155,20 @@ async function executeRegisterDiscoveredUrls(
   );
 
   let totalRegistered = 0;
+  let totalUpdated = 0;
+  let totalDeleted = 0;
   let totalSkipped = 0;
+  const allUrlsToSync: string[] = [];
 
-  for (let i = 0; i < params.urls.length; i += BATCH_SIZE) {
-    const batch = params.urls.slice(i, i + BATCH_SIZE);
+  // Normalize entries: map null contentHash to undefined for Convex
+  const entries = params.urls.map((entry) => ({
+    url: entry.url,
+    contentHash: entry.contentHash ?? undefined,
+    status: entry.status,
+  }));
+
+  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    const batch = entries.slice(i, i + BATCH_SIZE);
 
     debugLog(
       `Registering URL batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} URLs)`,
@@ -168,18 +184,24 @@ async function executeRegisterDiscoveredUrls(
     );
 
     totalRegistered += result.registered;
+    totalUpdated += result.updated;
+    totalDeleted += result.deleted;
     totalSkipped += result.skipped;
+    allUrlsToSync.push(...result.urlsToSync);
   }
 
   debugLog(
-    `Registered ${totalRegistered} URLs, skipped ${totalSkipped} duplicates`,
+    `Registered ${totalRegistered}, updated ${totalUpdated}, deleted ${totalDeleted}, skipped ${totalSkipped}`,
   );
 
   return {
     operation: 'register_discovered_urls' as const,
     registered: totalRegistered,
+    updated: totalUpdated,
+    deleted: totalDeleted,
     skipped: totalSkipped,
     total: params.urls.length,
+    urlsToSync: allUrlsToSync,
     success: true,
     timestamp: Date.now(),
   };
@@ -197,7 +219,7 @@ interface CrawlerFetchResponse {
     metadata?: Record<string, unknown>;
     structured_data?: Record<string, unknown>;
   }>;
-  failed: Array<{ url: string; status_code: number | null; error: string }>;
+  failed?: Array<{ url: string; status_code: number | null; error: string }>;
 }
 
 async function executeSyncPendingPages(
@@ -206,32 +228,52 @@ async function executeSyncPendingPages(
   variables: Record<string, unknown>,
 ) {
   const organizationId = getOrganizationId(variables, 'sync_pending_pages');
-  const batchSize = params.batchSize ?? 50;
-  const wordCountThreshold = params.wordCountThreshold ?? 100;
-  const crawlerTimeout = params.crawlerTimeoutMs ?? 1800000;
-  const serviceUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
 
-  const pendingResult = await ctx.runQuery(
-    internal.websites.internal_queries.findPendingPages,
-    { websiteId: params.websiteId, limit: batchSize },
-  );
+  debugLog('sync_pending_pages params.urls:', {
+    hasUrls: params.urls !== undefined,
+    urlsType: typeof params.urls,
+    isArray: Array.isArray(params.urls),
+    urlsLength: Array.isArray(params.urls) ? params.urls.length : 'N/A',
+    registerUrlsStep: (variables.steps as Record<string, unknown>)
+      ?.register_urls
+      ? 'exists'
+      : 'missing',
+    registerUrlsOutput: (() => {
+      const steps = variables.steps as
+        | Record<string, Record<string, unknown>>
+        | undefined;
+      const step = steps?.register_urls;
+      const output = step?.output as Record<string, unknown> | undefined;
+      const data = output?.data as Record<string, unknown> | undefined;
+      return {
+        hasOutput: !!output,
+        hasData: !!data,
+        hasUrlsToSync: data?.urlsToSync !== undefined,
+        urlsToSyncType: typeof data?.urlsToSync,
+        urlsToSyncIsArray: Array.isArray(data?.urlsToSync),
+      };
+    })(),
+  });
 
-  if (pendingResult.pages.length === 0) {
-    debugLog('No pending pages to sync');
+  const urls = params.urls ?? [];
+
+  if (urls.length === 0) {
+    debugLog('No URLs to sync');
     return {
       operation: 'sync_pending_pages' as const,
       processed: 0,
       failed: 0,
-      deleted: 0,
-      hasMore: false,
+      total: 0,
       success: true,
       timestamp: Date.now(),
     };
   }
 
-  debugLog(`Fetching ${pendingResult.pages.length} pending pages via crawler`);
+  const wordCountThreshold = params.wordCountThreshold ?? 100;
+  const crawlerTimeout = params.crawlerTimeoutMs ?? 300000;
+  const serviceUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
 
-  const urls = pendingResult.pages.map((p) => p.url);
+  debugLog(`Fetching ${urls.length} pages via crawler`);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), crawlerTimeout);
@@ -262,8 +304,10 @@ async function executeSyncPendingPages(
     throw new Error(`URL fetch failed: ${errorMessage}`);
   }
 
+  const failedCount = fetchResult.failed?.length ?? 0;
+
   debugLog(
-    `Crawler returned ${fetchResult.pages.length} pages, ${fetchResult.failed.length} failures`,
+    `Crawler returned ${fetchResult.pages.length} pages, ${failedCount} failures`,
   );
 
   if (fetchResult.pages.length > 0) {
@@ -288,46 +332,11 @@ async function executeSyncPendingPages(
     );
   }
 
-  const pageUrlToId = new Map(pendingResult.pages.map((p) => [p.url, p._id]));
-
-  const pagesToDelete = [];
-  const pagesToMarkSynced = [];
-
-  for (const failure of fetchResult.failed) {
-    const pageId = pageUrlToId.get(failure.url);
-    if (!pageId) continue;
-
-    if (failure.status_code === 404 || failure.status_code === 410) {
-      pagesToDelete.push(pageId);
-    } else {
-      pagesToMarkSynced.push(pageId);
-    }
-  }
-
-  if (pagesToDelete.length > 0) {
-    debugLog(`Deleting ${pagesToDelete.length} pages (404/410)`);
-    await ctx.runMutation(internal.websites.internal_mutations.deletePages, {
-      websiteId: params.websiteId,
-      pageIds: pagesToDelete,
-    });
-  }
-
-  if (pagesToMarkSynced.length > 0) {
-    debugLog(
-      `Marking ${pagesToMarkSynced.length} failed pages as synced (non-404/410 errors)`,
-    );
-    await ctx.runMutation(
-      internal.websites.internal_mutations.markPagesSynced,
-      { pageIds: pagesToMarkSynced },
-    );
-  }
-
   return {
     operation: 'sync_pending_pages' as const,
     processed: fetchResult.pages.length,
-    failed: fetchResult.failed.length,
-    deleted: pagesToDelete.length,
-    hasMore: pendingResult.hasMore,
+    failed: failedCount,
+    total: urls.length,
     success: true,
     timestamp: Date.now(),
   };

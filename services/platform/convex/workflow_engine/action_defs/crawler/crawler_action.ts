@@ -7,6 +7,8 @@ import type {
   DiscoverUrlsResult,
   FetchUrlsData,
   FetchUrlsResult,
+  QueryUrlsRawData,
+  QueryUrlsResult,
 } from './helpers/types';
 
 import { createDebugLog } from '../../../lib/debug_log';
@@ -17,7 +19,7 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
   type: 'crawler',
   title: 'Website Crawler',
   description:
-    'Crawl websites and extract content using the crawler service. Supports discover_urls and fetch_urls operations.',
+    'Crawl websites and extract content using the crawler service. Supports discover_urls, fetch_urls, and query_urls operations.',
 
   parametersValidator: v.union(
     // discover_urls: Discover URLs from a domain
@@ -39,21 +41,28 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
       wordCountThreshold: v.optional(v.number()),
       timeout: v.optional(v.number()),
     }),
+    // query_urls: Query crawler's URL registry for a domain
+    v.object({
+      operation: v.literal('query_urls'),
+      domain: v.string(),
+      offset: v.optional(v.number()),
+      limit: v.optional(v.number()),
+      status: v.optional(v.string()),
+      timeout: v.optional(v.number()),
+    }),
   ),
 
   async execute(_ctx, params) {
-    // Get crawler service URL from environment or default
-    // Priority: CRAWLER_URL environment variable > default (http://localhost:8002)
     const serviceUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
+    const timeout = params.timeout || 1800000;
 
-    const timeout = params.timeout || 1800000; // 1800 seconds (30 minutes) default
-
-    // Handle different operations
     switch (params.operation) {
       case 'discover_urls':
         return await discoverUrls(params, serviceUrl, timeout);
       case 'fetch_urls':
         return await fetchUrls(params, serviceUrl, timeout);
+      case 'query_urls':
+        return await queryUrls(params, serviceUrl, timeout);
       default:
         throw new Error(
           `Unknown crawler operation: ${(params as { operation: string }).operation}`,
@@ -62,16 +71,19 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
   },
 };
 
-// Type for discover_urls operation
 type DiscoverUrlsParams = Extract<
   CrawlerActionParams,
   { operation: 'discover_urls' }
 >;
 
-// Type for fetch_urls operation
 type FetchUrlsParams = Extract<
   CrawlerActionParams,
   { operation: 'fetch_urls' }
+>;
+
+type QueryUrlsParams = Extract<
+  CrawlerActionParams,
+  { operation: 'query_urls' }
 >;
 
 async function discoverUrls(
@@ -79,7 +91,6 @@ async function discoverUrls(
   serviceUrl: string,
   timeout: number,
 ): Promise<DiscoverUrlsResult> {
-  // Extract domain from URL or use domain directly
   let domain = params.domain;
   if (!domain && params.url) {
     const url = new URL(params.url);
@@ -96,7 +107,7 @@ async function discoverUrls(
     offset: params.offset || 0,
     ...(params.pattern && { pattern: params.pattern }),
     ...(params.query && { query: params.query }),
-    timeout: timeout / 1000, // Convert milliseconds to seconds
+    timeout: timeout / 1000,
   };
 
   debugLog(`Discovering URLs from: ${domain} with timeout: ${timeout}ms`);
@@ -130,15 +141,15 @@ async function discoverUrls(
     throw new Error(`URL discovery failed: ${errorMessage}`);
   }
 
-  debugLog(`Discovered ${result.urls_discovered} URLs from ${domain}`);
+  debugLog(
+    `Discovered ${result.urls_discovered} URLs from ${domain} (total: ${result.total_urls}, offset: ${result.offset}, is_complete: ${result.is_complete})`,
+  );
 
-  // Return simplified result - only keep URL strings to avoid memory issues
-  // The full metadata from crawler service can be 10+ MB for 1000 URLs,
-  // which exceeds Convex's 64 MB memory limit during serialization
   return {
     success: result.success,
     domain: result.domain,
     urls_discovered: result.urls_discovered,
+    total_urls: result.total_urls,
     urls: result.urls.map((u) => u.url),
     is_complete: result.is_complete,
     offset: result.offset,
@@ -150,7 +161,6 @@ async function fetchUrls(
   serviceUrl: string,
   timeout: number,
 ): Promise<FetchUrlsResult> {
-  // urls is required by validator
   const payload = {
     urls: params.urls,
     word_count_threshold: params.wordCountThreshold || 100,
@@ -191,6 +201,55 @@ async function fetchUrls(
     `Successfully fetched ${result.urls_fetched} of ${result.urls_requested} URLs`,
   );
 
-  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   return result;
+}
+
+async function queryUrls(
+  params: QueryUrlsParams,
+  serviceUrl: string,
+  timeout: number,
+): Promise<QueryUrlsResult> {
+  const searchParams = new URLSearchParams();
+  searchParams.set('offset', String(params.offset ?? 0));
+  searchParams.set('limit', String(params.limit ?? 1000));
+  if (params.status) {
+    searchParams.set('status', params.status);
+  }
+
+  debugLog(
+    `Querying URLs for ${params.domain} (offset=${params.offset ?? 0}, limit=${params.limit ?? 1000})`,
+  );
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  const response = await fetch(
+    `${serviceUrl}/api/v1/websites/${encodeURIComponent(params.domain)}/urls?${searchParams}`,
+    { signal: controller.signal },
+  );
+
+  clearTimeout(timeoutId);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Crawler service error (${response.status}): ${errorText}`);
+  }
+
+  const result: QueryUrlsRawData = await response.json();
+
+  debugLog(
+    `Query returned ${result.urls.length} URLs for ${params.domain} (total: ${result.total}, has_more: ${result.has_more})`,
+  );
+
+  return {
+    domain: result.domain,
+    urls: result.urls.map((u) => ({
+      url: u.url,
+      contentHash: u.content_hash,
+      status: u.status,
+    })),
+    total: result.total,
+    offset: result.offset,
+    has_more: result.has_more,
+  };
 }

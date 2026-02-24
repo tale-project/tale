@@ -52,6 +52,7 @@ export const bulkUpsertPages = internalMutation({
         title: v.optional(v.string()),
         content: v.optional(v.string()),
         wordCount: v.optional(v.number()),
+        contentHash: v.optional(v.string()),
         metadata: v.optional(jsonRecordValidator),
         structuredData: v.optional(jsonRecordValidator),
       }),
@@ -66,29 +67,16 @@ export const registerDiscoveredUrls = internalMutation({
   args: {
     organizationId: v.string(),
     websiteId: v.string(),
-    urls: v.array(v.string()),
+    urls: v.array(
+      v.object({
+        url: v.string(),
+        contentHash: v.optional(v.string()),
+        status: v.optional(v.string()),
+      }),
+    ),
   },
   handler: async (ctx, args) => {
     return await WebsitesHelpers.registerDiscoveredUrls(ctx, args);
-  },
-});
-
-export const markPagesSynced = internalMutation({
-  args: {
-    pageIds: v.array(v.id('websitePages')),
-  },
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.markPagesSynced(ctx, args.pageIds);
-  },
-});
-
-export const deletePages = internalMutation({
-  args: {
-    websiteId: v.id('websites'),
-    pageIds: v.array(v.id('websitePages')),
-  },
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.deletePages(ctx, args);
   },
 });
 

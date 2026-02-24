@@ -2,7 +2,7 @@
  * Delete a website and cascade-cleanup all related resources.
  *
  * Synchronous (immediate):
- *   - Delete scan workflow + sync workflow (via shared deleteWorkflow helper,
+ *   - Delete scan workflow (via shared deleteWorkflow helper,
  *     which also cleans triggers, executions, audit logs, etc.)
  *   - Delete the website record
  *
@@ -32,16 +32,12 @@ export async function deleteWebsite(
   const scanWorkflowId = metadata
     ? getString(metadata, 'workflowId')
     : undefined;
-  const syncWorkflowId = metadata
-    ? getString(metadata, 'syncWorkflowId')
-    : undefined;
 
   if (scanWorkflowId) {
     await deleteWorkflow(ctx, toId<'wfDefinitions'>(scanWorkflowId));
   }
-  if (syncWorkflowId) {
-    await deleteWorkflow(ctx, toId<'wfDefinitions'>(syncWorkflowId));
-  }
+
+  const domain = website.domain;
 
   await ctx.db.delete(websiteId);
 
@@ -49,6 +45,12 @@ export async function deleteWebsite(
     0,
     internal.websites.internal_mutations.batchCleanupWebsitePages,
     { websiteId },
+  );
+
+  await ctx.scheduler.runAfter(
+    0,
+    internal.websites.internal_actions.deregisterWebsiteFromCrawler,
+    { domain },
   );
 
   return null;

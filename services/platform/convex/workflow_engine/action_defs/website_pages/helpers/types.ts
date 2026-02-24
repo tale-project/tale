@@ -32,12 +32,16 @@ export type WebsitePagesActionParams =
   | {
       operation: 'register_discovered_urls';
       websiteId: Id<'websites'>;
-      urls: string[];
+      urls: Array<{
+        url: string;
+        contentHash?: string | null;
+        status?: string;
+      }>;
     }
   | {
       operation: 'sync_pending_pages';
       websiteId: Id<'websites'>;
-      batchSize?: number;
+      urls: string[];
       wordCountThreshold?: number;
       crawlerTimeoutMs?: number;
     };

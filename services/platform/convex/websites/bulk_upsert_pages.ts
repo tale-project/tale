@@ -30,7 +30,7 @@ export async function bulkUpsertPages(
         .withIndex('by_organizationId_and_url', (q) =>
           q.eq('organizationId', args.organizationId).eq('url', page.url),
         )
-        .unique(),
+        .first(),
     ),
   );
 
@@ -72,19 +72,22 @@ export async function bulkUpsertPages(
 
   const websiteId = toId<'websites'>(args.websiteId);
 
-  // Execute updates in parallel
+  // Execute updates in parallel — only patch fields that are explicitly provided
   await Promise.all(
-    updates.map(({ id, page }) =>
-      ctx.db.patch(id, {
-        title: page.title,
-        content: page.content,
-        wordCount: page.wordCount,
+    updates.map(({ id, page }) => {
+      const patch: Record<string, unknown> = {
         lastCrawledAt: now,
-        metadata: page.metadata,
-        structuredData: page.structuredData,
         syncStatus: 'synced' as const,
-      }),
-    ),
+      };
+      if (page.title !== undefined) patch.title = page.title;
+      if (page.content !== undefined) patch.content = page.content;
+      if (page.wordCount !== undefined) patch.wordCount = page.wordCount;
+      if (page.contentHash !== undefined) patch.contentHash = page.contentHash;
+      if (page.metadata !== undefined) patch.metadata = page.metadata;
+      if (page.structuredData !== undefined)
+        patch.structuredData = page.structuredData;
+      return ctx.db.patch(id, patch);
+    }),
   );
 
   // Execute inserts in parallel and collect new IDs
@@ -97,6 +100,7 @@ export async function bulkUpsertPages(
         title: page.title,
         content: page.content,
         wordCount: page.wordCount,
+        contentHash: page.contentHash,
         lastCrawledAt: now,
         metadata: page.metadata,
         structuredData: page.structuredData,

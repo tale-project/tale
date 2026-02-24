@@ -16,17 +16,26 @@ export type CrawlerActionParams =
       urls: string[];
       wordCountThreshold?: number;
       timeout?: number;
+    }
+  | {
+      operation: 'query_urls';
+      domain: string;
+      offset?: number;
+      limit?: number;
+      status?: string;
+      timeout?: number;
     };
 
-// Raw response from crawler service (includes metadata)
+// Raw response from crawler service
 export interface DiscoverUrlsRawData {
   success: boolean;
   domain: string;
   urls_discovered: number;
+  total_urls: number;
   urls: Array<{
     url: string;
     status: string;
-    metadata?: Record<string, unknown>;
+    lastmod: string | null;
   }>;
   is_complete: boolean;
   offset: number;
@@ -37,6 +46,7 @@ export interface DiscoverUrlsData {
   success: boolean;
   domain: string;
   urls_discovered: number;
+  total_urls: number;
   urls: string[];
   is_complete: boolean;
   offset: number;
@@ -55,6 +65,32 @@ export interface FetchUrlsData {
     structured_data?: Record<string, unknown>;
   }>;
   failed: Array<{ url: string; status_code: number | null; error: string }>;
+}
+
+// Response from GET /api/v1/websites/{domain}/urls
+export interface QueryUrlsRawData {
+  domain: string;
+  urls: Array<{
+    url: string;
+    content_hash: string | null;
+    status: string;
+    last_crawled_at: number | null;
+  }>;
+  total: number;
+  offset: number;
+  has_more: boolean;
+}
+
+export interface QueryUrlsResult {
+  domain: string;
+  urls: Array<{
+    url: string;
+    contentHash: string | null;
+    status: string;
+  }>;
+  total: number;
+  offset: number;
+  has_more: boolean;
 }
 
 // Actions should return data directly (not wrapped in { data: ... })

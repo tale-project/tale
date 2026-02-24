@@ -15,3 +15,19 @@ export const provisionWebsiteScanWorkflow = internalAction({
     return await WebsitesHelpers.provisionWebsiteScanWorkflow(ctx, args);
   },
 });
+
+export const deregisterWebsiteFromCrawler = internalAction({
+  args: {
+    domain: v.string(),
+  },
+  handler: async (_ctx, args) => {
+    const crawlerUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
+    try {
+      await fetch(`${crawlerUrl}/api/v1/websites/${args.domain}`, {
+        method: 'DELETE',
+      });
+    } catch (e) {
+      console.warn('Failed to deregister website from crawler:', e);
+    }
+  },
+});

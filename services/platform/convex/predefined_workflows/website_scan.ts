@@ -1,44 +1,38 @@
 /**
- * Website Scan Workflow — Discovery Only
+ * Website Scan Workflow — Discover URLs, register changes, and sync content
  *
- * This workflow discovers URLs for a website and registers them as pending pages.
- * Actual page content fetching is handled by the separate Website Page Sync workflow.
+ * This workflow reads URLs (with content hashes) from the crawler service's
+ * persistent registry, registers new/changed/deleted pages in Convex,
+ * and fetches content for new/updated pages.
  *
- * Features:
- * - Fetches main page first to extract title and description from metadata
- * - Updates website record with title and description before URL discovery
- * - Discovers URLs using the crawler service (/api/v1/urls/discover)
- * - Registers discovered URLs as pending website pages
- * - Supports paginated discovery via offset-based looping
- * - Creates or updates website record with proper metadata
- * - Can be triggered manually or scheduled based on scanInterval
+ * Flow:
+ * start → fetch_main_page → update_metadata → query_urls → register_urls
+ *       → sync_pages → check_has_more → (loop or update_status)
  */
 
 const websiteScanWorkflow = {
   workflowConfig: {
     name: 'Website Scan',
-    description:
-      'Discover URLs for a website and register them as pending pages for later syncing.',
-    version: '1.0.0',
+    description: 'Discover URLs, register changes, and sync page content.',
+    version: '3.0.0',
     workflowType: 'predefined',
     config: {
-      timeout: 1800000, // 30 minutes
+      timeout: 1800000,
       retryPolicy: { maxRetries: 2, backoffMs: 5000 },
       variables: {
         organizationId: 'org_demo',
         websiteUrl: 'https://burgenstockresort.com/',
         websiteDomain: 'burgenstockresort.com',
         scanInterval: '6h',
-        maxPages: 1000,
+        maxPages: 100,
+        wordCountThreshold: 100,
         crawlerTimeoutMs: 1800000,
         offset: 0,
-        discoveryId: '',
       },
     },
   },
 
   stepsConfig: [
-    // Step 1: Trigger - Manual or Scheduled
     {
       stepSlug: 'start',
       name: 'start',
@@ -48,7 +42,6 @@ const websiteScanWorkflow = {
       nextSteps: { success: 'fetch_main_page' },
     },
 
-    // Step 2: Fetch Main Page to Get Title and Description
     {
       stepSlug: 'fetch_main_page',
       name: 'Fetch Main Page',
@@ -59,90 +52,23 @@ const websiteScanWorkflow = {
         parameters: {
           operation: 'fetch_urls',
           urls: ['{{websiteUrl}}'],
-          wordCountThreshold: 100,
+          wordCountThreshold: '{{wordCountThreshold}}',
           timeout: '{{crawlerTimeoutMs}}',
         },
       },
-      nextSteps: {
-        success: 'check_existing_website_for_metadata',
-      },
+      nextSteps: { success: 'update_metadata' },
     },
 
-    // Step 3: Check if Website Already Exists (for metadata update)
     {
-      stepSlug: 'check_existing_website_for_metadata',
-      name: 'Check Existing Website For Metadata',
+      stepSlug: 'update_metadata',
+      name: 'Update Website Metadata',
       stepType: 'action',
       order: 3,
       config: {
         type: 'website',
         parameters: {
-          operation: 'get_by_domain',
-          domain: '{{websiteDomain}}',
-        },
-      },
-      nextSteps: {
-        success: 'decide_create_or_update_metadata',
-      },
-    },
-
-    // Step 4: Decide Whether to Create or Update (for metadata)
-    {
-      stepSlug: 'decide_create_or_update_metadata',
-      name: 'Decide Create or Update Metadata',
-      stepType: 'condition',
-      order: 4,
-      config: {
-        expression:
-          'steps.check_existing_website_for_metadata.output.data != null',
-      },
-      nextSteps: {
-        true: 'update_website_metadata',
-        false: 'create_website_with_metadata',
-      },
-    },
-
-    // Step 5a: Create New Website with Metadata
-    {
-      stepSlug: 'create_website_with_metadata',
-      name: 'Create Website With Metadata',
-      stepType: 'action',
-      order: 5,
-      config: {
-        type: 'website',
-        parameters: {
-          operation: 'create',
-          domain: '{{websiteDomain}}',
-          title:
-            '{{steps.fetch_main_page.output.data.pages[0].metadata.title || steps.fetch_main_page.output.data.pages[0].title || websiteDomain}}',
-          description:
-            '{{steps.fetch_main_page.output.data.pages[0].metadata.description || ""}}',
-          scanInterval: '{{scanInterval}}',
-          lastScannedAt: '{{nowMs}}',
-          status: 'active',
-          metadata: {
-            scan_status: 'fetching_metadata',
-            last_crawl_timestamp: '{{nowMs}}',
-          },
-        },
-      },
-      nextSteps: {
-        success: 'discover_urls',
-      },
-    },
-
-    // Step 5b: Update Existing Website with Metadata
-    {
-      stepSlug: 'update_website_metadata',
-      name: 'Update Website Metadata',
-      stepType: 'action',
-      order: 6,
-      config: {
-        type: 'website',
-        parameters: {
           operation: 'update',
-          websiteId:
-            '{{steps.check_existing_website_for_metadata.output.data._id}}',
+          websiteId: '{{websiteId}}',
           title:
             '{{steps.fetch_main_page.output.data.pages[0].metadata.title || steps.fetch_main_page.output.data.pages[0].title || websiteDomain}}',
           description:
@@ -150,139 +76,113 @@ const websiteScanWorkflow = {
           lastScannedAt: '{{nowMs}}',
           status: 'active',
           metadata: {
-            scan_status: 'fetching_metadata',
+            scan_status: 'scanning',
             last_crawl_timestamp: '{{nowMs}}',
           },
         },
       },
-      nextSteps: {
-        success: 'discover_urls',
-      },
+      nextSteps: { success: 'query_urls' },
     },
 
-    // Step 7: Discover URLs (with offset for pagination)
     {
-      stepSlug: 'discover_urls',
-      name: 'Discover URLs',
+      stepSlug: 'query_urls',
+      name: 'Query URLs',
       stepType: 'action',
-      order: 7,
+      order: 4,
       config: {
         type: 'crawler',
         parameters: {
-          operation: 'discover_urls',
-          url: '{{websiteUrl}}',
+          operation: 'query_urls',
           domain: '{{websiteDomain}}',
-          maxUrls: '{{maxPages}}',
           offset: '{{offset}}',
+          limit: '{{maxPages}}',
           timeout: '{{crawlerTimeoutMs}}',
         },
       },
-      nextSteps: {
-        success: 'update_website_with_discovered_urls',
-      },
+      nextSteps: { success: 'register_urls' },
     },
 
-    // Step 8: Update Website with Discovered URLs Count
     {
-      stepSlug: 'update_website_with_discovered_urls',
-      name: 'Update Website With Discovered URLs',
+      stepSlug: 'register_urls',
+      name: 'Register URLs',
       stepType: 'action',
-      order: 8,
-      config: {
-        type: 'website',
-        parameters: {
-          operation: 'update',
-          websiteId:
-            '{{steps.create_website_with_metadata.output.data._id || steps.check_existing_website_for_metadata.output.data._id}}',
-          metadata: {
-            urls_discovered:
-              '{{steps.discover_urls.output.data.urls_discovered}}',
-            urls_fetched: 0,
-            scan_status: 'in_progress',
-            last_crawl_timestamp: '{{nowMs}}',
-          },
-        },
-      },
-      nextSteps: {
-        success: 'register_discovered_urls',
-      },
-    },
-
-    // Step 9: Register Discovered URLs as Pending Pages
-    {
-      stepSlug: 'register_discovered_urls',
-      name: 'Register Discovered URLs',
-      stepType: 'action',
-      order: 9,
+      order: 5,
       config: {
         type: 'websitePages',
         parameters: {
           operation: 'register_discovered_urls',
-          websiteId:
-            '{{steps.create_website_with_metadata.output.data._id || steps.check_existing_website_for_metadata.output.data._id}}',
-          urls: '{{steps.discover_urls.output.data.urls}}',
+          websiteId: '{{websiteId}}',
+          urls: '{{steps.query_urls.output.data.urls}}',
         },
       },
-      nextSteps: { success: 'check_discovery_has_more' },
+      nextSteps: { success: 'sync_pages' },
     },
 
-    // Step 10: Check if Discovery Has More Pages
     {
-      stepSlug: 'check_discovery_has_more',
-      name: 'Check Discovery Has More',
-      stepType: 'condition',
-      order: 10,
+      stepSlug: 'sync_pages',
+      name: 'Sync Pages',
+      stepType: 'action',
+      order: 6,
       config: {
-        expression: 'steps.discover_urls.output.data.is_complete == false',
+        type: 'websitePages',
+        parameters: {
+          operation: 'sync_pending_pages',
+          websiteId: '{{websiteId}}',
+          urls: '{{steps.register_urls.output.data.urlsToSync}}',
+          wordCountThreshold: '{{wordCountThreshold}}',
+          crawlerTimeoutMs: '{{crawlerTimeoutMs}}',
+        },
+      },
+      nextSteps: { success: 'check_has_more' },
+    },
+
+    {
+      stepSlug: 'check_has_more',
+      name: 'Check Has More',
+      stepType: 'condition',
+      order: 7,
+      config: {
+        expression: 'steps.query_urls.output.data.has_more == true',
       },
       nextSteps: {
-        true: 'update_discovery_offset',
-        false: 'update_website_status',
+        true: 'update_offset',
+        false: 'update_status',
       },
     },
 
-    // Step 11: Update Discovery Offset for Next Page
     {
-      stepSlug: 'update_discovery_offset',
-      name: 'Update Discovery Offset',
+      stepSlug: 'update_offset',
+      name: 'Update Offset',
       stepType: 'action',
-      order: 11,
+      order: 8,
       config: {
         type: 'set_variables',
         parameters: {
           variables: [{ name: 'offset', value: '{{offset + maxPages}}' }],
         },
       },
-      nextSteps: { success: 'discover_urls' },
+      nextSteps: { success: 'query_urls' },
     },
 
-    // Step 12: Update Website - Mark Discovery Complete
     {
-      stepSlug: 'update_website_status',
-      name: 'Update Website - Mark Discovery Complete',
+      stepSlug: 'update_status',
+      name: 'Update Website Status',
       stepType: 'action',
-      order: 12,
+      order: 9,
       config: {
         type: 'website',
         parameters: {
           operation: 'update',
-          websiteId:
-            '{{steps.create_website_with_metadata.output.data._id || steps.check_existing_website_for_metadata.output.data._id}}',
+          websiteId: '{{websiteId}}',
           status: 'active',
           lastScannedAt: '{{nowMs}}',
           metadata: {
-            urls_discovered:
-              '{{steps.discover_urls.output.data.urls_discovered}}',
-            urls_registered:
-              '{{steps.register_discovered_urls.output.data.registered}}',
-            scan_status: 'discovery_complete',
+            scan_status: 'complete',
             last_crawl_timestamp: '{{nowMs}}',
           },
         },
       },
-      nextSteps: {
-        success: 'noop',
-      },
+      nextSteps: { success: 'noop' },
     },
   ],
 };
