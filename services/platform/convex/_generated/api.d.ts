@@ -314,6 +314,7 @@ import type * as lib_helpers_build_audit_context from "../lib/helpers/build_audi
 import type * as lib_helpers_count_items_in_org from "../lib/helpers/count_items_in_org.js";
 import type * as lib_helpers_has_records_in_org from "../lib/helpers/has_records_in_org.js";
 import type * as lib_helpers_rag_config from "../lib/helpers/rag_config.js";
+import type * as lib_helpers_status_priority from "../lib/helpers/status_priority.js";
 import type * as lib_message_deduplication from "../lib/message_deduplication.js";
 import type * as lib_metadata_get_metadata_string from "../lib/metadata/get_metadata_string.js";
 import type * as lib_openai_provider from "../lib/openai_provider.js";
@@ -1164,6 +1165,7 @@ declare const fullApi: ApiFromModules<{
   "lib/helpers/count_items_in_org": typeof lib_helpers_count_items_in_org;
   "lib/helpers/has_records_in_org": typeof lib_helpers_has_records_in_org;
   "lib/helpers/rag_config": typeof lib_helpers_rag_config;
+  "lib/helpers/status_priority": typeof lib_helpers_status_priority;
   "lib/message_deduplication": typeof lib_message_deduplication;
   "lib/metadata/get_metadata_string": typeof lib_metadata_get_metadata_string;
   "lib/openai_provider": typeof lib_openai_provider;

@@ -28,7 +28,7 @@ export interface SystemDefaultAgentTemplate {
   timeoutMs: number;
   outputReserve: number;
   modelPreset: 'fast' | 'standard' | 'advanced';
-  roleRestriction?: string;
+  roleRestriction?: 'admin_developer';
   knowledgeEnabled?: boolean;
   includeOrgKnowledge?: boolean;
   filePreprocessingEnabled?: boolean;

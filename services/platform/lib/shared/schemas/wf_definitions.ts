@@ -4,7 +4,7 @@ import { jsonRecordSchema } from './utils/json-value';
 
 const workflowStatusLiterals = ['draft', 'active', 'archived'] as const;
 export const workflowStatusSchema = z.enum(workflowStatusLiterals);
-type WorkflowStatus = z.infer<typeof workflowStatusSchema>;
+export type WorkflowStatus = z.infer<typeof workflowStatusSchema>;
 
 const workflowTypeLiterals = ['predefined'] as const;
 export const workflowTypeSchema = z.literal('predefined');

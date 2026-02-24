@@ -1,41 +1,11 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-const platformRoleValidator = v.union(
-  v.literal('admin'),
-  v.literal('developer'),
-  v.literal('editor'),
-  v.literal('member'),
-  v.literal('disabled'),
-);
-
-const roleMappingSourceValidator = v.union(
-  v.literal('jobTitle'),
-  v.literal('appRole'),
-  v.literal('group'),
-  v.literal('claim'),
-);
-
-const roleMappingRuleValidator = v.object({
-  source: roleMappingSourceValidator,
-  pattern: v.string(),
-  targetRole: platformRoleValidator,
-});
-
-const entraIdFeaturesValidator = v.object({
-  enableOneDriveAccess: v.optional(v.boolean()),
-  autoProvisionTeam: v.optional(v.boolean()),
-  excludeGroups: v.optional(v.array(v.string())),
-});
-
-const googleWorkspaceFeaturesValidator = v.object({
-  enableGoogleDriveAccess: v.optional(v.boolean()),
-});
-
-const providerFeaturesValidator = v.object({
-  entraId: v.optional(entraIdFeaturesValidator),
-  googleWorkspace: v.optional(googleWorkspaceFeaturesValidator),
-});
+import {
+  platformRoleValidator,
+  providerFeaturesValidator,
+  roleMappingRuleValidator,
+} from './validators';
 
 export const ssoProvidersTable = defineTable({
   organizationId: v.string(),

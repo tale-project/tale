@@ -2,13 +2,14 @@
  * Validate organization access for any resource using Better Auth
  */
 
+import type { MemberRole } from '../../../../lib/shared/schemas/organizations';
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
 import type { AuthenticatedUser, RLSContext } from '../types';
 
 import { createRLSContext } from '../context/create_rls_context';
 import { UnauthorizedError } from '../errors';
 
-export type OrgRole = 'admin' | 'developer' | 'editor' | 'member' | 'disabled';
+export type OrgRole = MemberRole;
 
 export const MEMBER_PLUS: readonly OrgRole[] = [
   'member',
@@ -44,7 +45,7 @@ export async function validateOrganizationAccess(
   // Determine allowed roles (default: any non-disabled member)
   const allowedList: readonly OrgRole[] = allowed ?? MEMBER_PLUS;
 
-  if (!(allowedList as readonly string[]).includes(role)) {
+  if (!allowedList.some((r) => r === role)) {
     throw new UnauthorizedError('insufficient role');
   }
 

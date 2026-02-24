@@ -1,5 +1,6 @@
 import { z } from 'zod/v4';
 
+import { memberRoleSchema } from './organizations';
 import { jsonRecordSchema } from './utils/json-value';
 
 export const memberListItemSchema = z.object({
@@ -8,7 +9,7 @@ export const memberListItemSchema = z.object({
   organizationId: z.string(),
   identityId: z.string().optional(),
   email: z.string().optional(),
-  role: z.string().optional(),
+  role: memberRoleSchema.optional(),
   displayName: z.string().optional(),
   metadata: jsonRecordSchema.optional(),
 });
@@ -20,14 +21,14 @@ export const memberSchema = z.object({
   organizationId: z.string(),
   identityId: z.string().optional(),
   email: z.string().optional(),
-  role: z.string().optional(),
+  role: memberRoleSchema.optional(),
   displayName: z.string().optional(),
 });
 type Member = z.infer<typeof memberSchema>;
 
 export const memberContextSchema = z.object({
   member: memberSchema.nullable(),
-  role: z.string().nullable(),
+  role: memberRoleSchema.nullable(),
   isAdmin: z.boolean(),
   canManageMembers: z.boolean(),
   canChangePassword: z.boolean(),

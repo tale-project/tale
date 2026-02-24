@@ -14,6 +14,8 @@
 import type { QueryCtx } from '../../_generated/server';
 import type { WorkflowDefinition } from './types';
 
+import { STATUS_PRIORITY } from '../../lib/helpers/status_priority';
+
 export interface GetAutomationsCursorArgs {
   organizationId: string;
   numItems: number;
@@ -27,12 +29,6 @@ export interface GetAutomationsCursorResult {
   isDone: boolean;
   continueCursor: string;
 }
-
-const statusPriority: Record<string, number> = {
-  active: 3,
-  draft: 2,
-  archived: 1,
-};
 
 export async function getAutomationsCursor(
   ctx: QueryCtx,
@@ -74,8 +70,8 @@ export async function getAutomationsCursor(
     }
 
     // Keep the best version: active > draft > archived, then highest versionNumber
-    const currentPriority = statusPriority[workflow.status] ?? 0;
-    const existingPriority = statusPriority[existing.status] ?? 0;
+    const currentPriority = STATUS_PRIORITY[workflow.status] ?? 0;
+    const existingPriority = STATUS_PRIORITY[existing.status] ?? 0;
 
     if (currentPriority > existingPriority) {
       workflowMap.set(key, workflow);

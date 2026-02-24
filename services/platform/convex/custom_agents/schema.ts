@@ -20,6 +20,8 @@ export const versionStatusValidator = v.union(
   v.literal('archived'),
 );
 
+export const roleRestrictionValidator = v.literal('admin_developer');
+
 export const customAgentsTable = defineTable({
   organizationId: v.string(),
 
@@ -55,7 +57,7 @@ export const customAgentsTable = defineTable({
   maxSteps: v.optional(v.number()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
-  roleRestriction: v.optional(v.string()),
+  roleRestriction: v.optional(roleRestrictionValidator),
   visibleInChat: v.optional(v.boolean()),
 
   isSystemDefault: v.optional(v.boolean()),

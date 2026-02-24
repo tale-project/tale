@@ -9,7 +9,6 @@ export type WorkflowExecutionStats = {
   total: number;
   completed: number;
   failed: number;
-  suspended: number;
   running: number;
   successRate: number;
   avgExecutionTimeSeconds: number;
@@ -19,7 +18,6 @@ export type WorkflowExecutionStats = {
 interface ExecutionCounts {
   completed: number;
   failed: number;
-  suspended: number;
   running: number;
   completedExecutionTimeSum: number;
   completedWithTimeCount: number;
@@ -53,9 +51,6 @@ export async function getWorkflowExecutionStats(
         case 'failed':
           acc.failed++;
           break;
-        case 'suspended':
-          acc.suspended++;
-          break;
         case 'running':
           acc.running++;
           break;
@@ -65,7 +60,6 @@ export async function getWorkflowExecutionStats(
     {
       completed: 0,
       failed: 0,
-      suspended: 0,
       running: 0,
       completedExecutionTimeSum: 0,
       completedWithTimeCount: 0,
@@ -81,7 +75,6 @@ export async function getWorkflowExecutionStats(
     total,
     completed: counts.completed,
     failed: counts.failed,
-    suspended: counts.suspended,
     running: counts.running,
     successRate: total > 0 ? (counts.completed / total) * 100 : 0,
     avgExecutionTimeSeconds: Math.round(avgExecutionTimeMs / 1000),

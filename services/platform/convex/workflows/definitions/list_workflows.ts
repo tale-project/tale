@@ -4,12 +4,13 @@
  * Optimized to use async iteration with early filtering.
  */
 
+import type { WorkflowStatus } from '../../../lib/shared/schemas/wf_definitions';
 import type { QueryCtx } from '../../_generated/server';
 import type { WorkflowDefinition } from './types';
 
 export interface ListWorkflowsArgs {
   organizationId: string;
-  status?: string;
+  status?: WorkflowStatus;
 }
 
 export async function listWorkflows(
