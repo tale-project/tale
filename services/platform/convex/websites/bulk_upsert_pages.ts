@@ -8,6 +8,7 @@ import type { BulkUpsertPagesArgs, BulkUpsertPagesResult } from './types';
 
 import { internal } from '../_generated/api';
 import { toId } from '../lib/type_cast_helpers';
+import { embeddingPool } from '../website_page_embeddings/embedding_pool';
 
 export type { BulkUpsertPagesArgs, BulkUpsertPagesResult };
 
@@ -136,10 +137,14 @@ export async function bulkUpsertPages(
       }
     }
 
+    // Enqueue into a workpool (maxParallelism=1) so embedding jobs run
+    // one at a time with automatic retries. Without the pool, bulk scans
+    // would fire hundreds of concurrent embedding API calls across
+    // multiple batches, causing rate-limit failures and server instability.
     for (const pageId of pageIdsToEmbed) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.website_page_embeddings.internal_actions.generateForPage,
+      await embeddingPool.enqueueAction(
+        ctx,
+        internal.website_page_embeddings.internal_actions.embedPage,
         {
           organizationId: args.organizationId,
           websiteId,

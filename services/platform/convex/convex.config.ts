@@ -3,6 +3,7 @@ import agent from '@convex-dev/agent/convex.config';
 import persistentTextStreaming from '@convex-dev/persistent-text-streaming/convex.config';
 import rateLimiter from '@convex-dev/rate-limiter/convex.config';
 import workflow from '@convex-dev/workflow/convex.config';
+import workpool from '@convex-dev/workpool/convex.config';
 import { defineApp } from 'convex/server';
 
 import betterAuth from './betterAuth/convex.config';
@@ -17,5 +18,6 @@ app.use(agent);
 app.use(rateLimiter);
 app.use(actionCache);
 app.use(persistentTextStreaming);
+app.use(workpool, { name: 'embeddingPool' });
 
 export default app;

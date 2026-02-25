@@ -7,7 +7,7 @@
  *
  * Flow:
  * start → fetch_main_page → update_metadata → query_urls → register_urls
- *       → sync_pages → check_has_more → (loop or update_status)
+ *       → crawl_and_upsert_pages → check_has_more → (loop or update_status)
  */
 
 const websiteScanWorkflow = {
@@ -110,7 +110,7 @@ const websiteScanWorkflow = {
       config: {
         type: 'websitePages',
         parameters: {
-          operation: 'register_discovered_urls',
+          operation: 'register_urls',
           websiteId: '{{websiteId}}',
           urls: '{{steps.query_urls.output.data.urls}}',
         },
@@ -126,7 +126,7 @@ const websiteScanWorkflow = {
       config: {
         type: 'websitePages',
         parameters: {
-          operation: 'sync_pending_pages',
+          operation: 'crawl_and_upsert',
           websiteId: '{{websiteId}}',
           urls: '{{steps.register_urls.output.data.urlsToSync}}',
           wordCountThreshold: '{{wordCountThreshold}}',

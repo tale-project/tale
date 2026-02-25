@@ -22,24 +22,21 @@ import { chunkContent } from './chunk_content';
 import { computeContentHash } from './content_hash';
 import { mergeWithRRF } from './rrf';
 
-const RETRY_DELAY_MS = 30_000;
 const MAX_SEARCH_LIMIT = 256;
 
 const debugLog = createDebugLog('DEBUG_EMBEDDINGS', '[WebsitePageEmbeddings]');
 
-export const generateForPage = internalAction({
+export const embedPage = internalAction({
   args: {
     organizationId: v.string(),
     websiteId: v.id('websites'),
     pageId: v.id('websitePages'),
-    retryCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { organizationId, websiteId, pageId } = args;
-    const retryCount = args.retryCount ?? 0;
     const dimension = getEmbeddingDimension();
 
-    debugLog('generateForPage start', { pageId, dimension, retryCount });
+    debugLog('embedPage start', { pageId, dimension });
 
     // 1. Load page content
     const page = await ctx.runQuery(
@@ -48,7 +45,7 @@ export const generateForPage = internalAction({
     );
 
     if (!page || !page.content) {
-      debugLog('generateForPage skip - no content', { pageId });
+      debugLog('embedPage skip - no content', { pageId });
       return { status: 'skipped', reason: 'no_content' };
     }
 
@@ -61,7 +58,7 @@ export const generateForPage = internalAction({
     );
 
     if (existing?.contentHash === contentHash) {
-      debugLog('generateForPage skip - content unchanged', {
+      debugLog('embedPage skip - content unchanged', {
         pageId,
         contentHash,
       });
@@ -71,53 +68,26 @@ export const generateForPage = internalAction({
     // 3. Chunk content
     const chunks = chunkContent(page.content, page.title);
     if (chunks.length === 0) {
-      debugLog('generateForPage skip - no chunks', { pageId });
+      debugLog('embedPage skip - no chunks', { pageId });
       return { status: 'skipped', reason: 'no_chunks' };
     }
 
-    debugLog('generateForPage chunked', {
+    debugLog('embedPage chunked', {
       pageId,
       chunkCount: chunks.length,
     });
 
     // 4. Generate embeddings via agent component
-    let embeddings: number[][];
-    try {
-      const textEmbeddingModel = getTextEmbeddingModel();
-      const result = await embedMany(ctx, {
-        userId: undefined,
-        threadId: undefined,
-        values: chunks.map((c) => c.content),
-        textEmbeddingModel,
-      });
-      embeddings = result.embeddings;
-    } catch (error) {
-      const classification = classifyError(error);
+    // Retries are handled by the workpool (embeddingPool) — just throw on failure.
+    const textEmbeddingModel = getTextEmbeddingModel();
+    const { embeddings } = await embedMany(ctx, {
+      userId: undefined,
+      threadId: undefined,
+      values: chunks.map((c) => c.content),
+      textEmbeddingModel,
+    });
 
-      if (classification.shouldRetry && retryCount < 1) {
-        debugLog('generateForPage embedMany failed, scheduling retry', {
-          pageId,
-          retryCount,
-          reason: classification.reason,
-          delayMs: RETRY_DELAY_MS,
-        });
-        await ctx.scheduler.runAfter(
-          RETRY_DELAY_MS,
-          internal.website_page_embeddings.internal_actions.generateForPage,
-          { organizationId, websiteId, pageId, retryCount: retryCount + 1 },
-        );
-        return { status: 'retry_scheduled', reason: classification.reason };
-      }
-
-      debugLog('generateForPage embedMany failed, no retry', {
-        pageId,
-        retryCount,
-        reason: classification.reason,
-      });
-      throw error;
-    }
-
-    debugLog('generateForPage embedded', {
+    debugLog('embedPage embedded', {
       pageId,
       embeddingCount: embeddings.length,
       dimension,
@@ -145,7 +115,7 @@ export const generateForPage = internalAction({
       });
     }
 
-    debugLog('generateForPage complete', {
+    debugLog('embedPage complete', {
       pageId,
       chunksStored: chunks.length,
     });

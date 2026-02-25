@@ -602,6 +602,43 @@ const websitePagesSchemas: Record<string, OutputSchema> = {
       total: { type: 'number', description: 'Total pages processed' },
     },
   },
+  register_urls: {
+    description: 'Register URLs result',
+    fields: {
+      registered: {
+        type: 'number',
+        description: 'Number of new URLs registered',
+      },
+      updated: {
+        type: 'number',
+        description: 'Number of URLs with changed content hash',
+      },
+      deleted: { type: 'number', description: 'Number of URLs deleted' },
+      skipped: {
+        type: 'number',
+        description: 'Number of unchanged URLs skipped',
+      },
+      total: { type: 'number', description: 'Total URLs processed' },
+      urlsToSync: {
+        type: 'array',
+        description: 'URLs that need content fetching',
+      },
+    },
+  },
+  crawl_and_upsert: {
+    description: 'Crawl and upsert result',
+    fields: {
+      processed: {
+        type: 'number',
+        description: 'Number of pages successfully crawled',
+      },
+      failed: {
+        type: 'number',
+        description: 'Number of pages that failed to crawl',
+      },
+      total: { type: 'number', description: 'Total URLs requested' },
+    },
+  },
 };
 
 // =============================================================================

@@ -142,9 +142,13 @@ Params (get_by_domain): domain (required)
 Output: \`{ data: {...website} | null }\`
 
 ### websitePages
-Ops: bulk_upsert
-Params: websiteId (required), pages (required - array of { url, title?, description?, content?, wordCount?, metadata?, structuredData? })
-Output: \`{ data: { created, updated, total } }\`
+Ops: bulk_upsert, register_urls, crawl_and_upsert
+Params (bulk_upsert): websiteId (required), pages (required - array of { url, title?, description?, content?, wordCount?, metadata?, structuredData? })
+Output (bulk_upsert): \`{ data: { created, updated, total } }\`
+Params (register_urls): websiteId (required), urls (required - array of { url, contentHash?, status? })
+Output (register_urls): \`{ data: { registered, updated, deleted, skipped, total, urlsToSync } }\`
+Params (crawl_and_upsert): websiteId (required), urls (required - array of URL strings), wordCountThreshold?, crawlerTimeoutMs?
+Output (crawl_and_upsert): \`{ data: { processed, failed, total } }\`
 
 ### workflow
 Ops: upload_all_workflows

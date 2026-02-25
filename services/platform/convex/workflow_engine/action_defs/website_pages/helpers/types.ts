@@ -30,7 +30,7 @@ export type WebsitePagesActionParams =
       pages: PageData[];
     }
   | {
-      operation: 'register_discovered_urls';
+      operation: 'register_urls';
       websiteId: Id<'websites'>;
       urls: Array<{
         url: string;
@@ -39,7 +39,7 @@ export type WebsitePagesActionParams =
       }>;
     }
   | {
-      operation: 'sync_pending_pages';
+      operation: 'crawl_and_upsert';
       websiteId: Id<'websites'>;
       urls: string[];
       wordCountThreshold?: number;

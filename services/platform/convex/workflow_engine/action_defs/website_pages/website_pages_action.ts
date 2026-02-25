@@ -30,7 +30,7 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
   type: 'websitePages',
   title: 'Website Pages',
   description:
-    'Manage website pages (bulk upsert, register discovered URLs, sync pending pages). organizationId is automatically read from workflow context variables.',
+    'Manage website pages (bulk upsert, register URLs, crawl and upsert). organizationId is automatically read from workflow context variables.',
 
   parametersValidator: v.union(
     v.object({
@@ -39,7 +39,7 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
       pages: v.array(pageValidator),
     }),
     v.object({
-      operation: v.literal('register_discovered_urls'),
+      operation: v.literal('register_urls'),
       websiteId: v.id('websites'),
       urls: v.array(
         v.object({
@@ -50,7 +50,7 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
       ),
     }),
     v.object({
-      operation: v.literal('sync_pending_pages'),
+      operation: v.literal('crawl_and_upsert'),
       websiteId: v.id('websites'),
       urls: v.array(v.string()),
       wordCountThreshold: v.optional(v.number()),
@@ -62,10 +62,10 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
     switch (params.operation) {
       case 'bulk_upsert':
         return await executeBulkUpsert(ctx, params, variables);
-      case 'register_discovered_urls':
-        return await executeRegisterDiscoveredUrls(ctx, params, variables);
-      case 'sync_pending_pages':
-        return await executeSyncPendingPages(ctx, params, variables);
+      case 'register_urls':
+        return await executeRegisterUrls(ctx, params, variables);
+      case 'crawl_and_upsert':
+        return await executeCrawlAndUpsert(ctx, params, variables);
       default:
         throw new Error(
           `Unknown websitePages operation: ${(params as { operation: string }).operation}`,
@@ -79,14 +79,14 @@ type BulkUpsertParams = Extract<
   { operation: 'bulk_upsert' }
 >;
 
-type RegisterDiscoveredUrlsParams = Extract<
+type RegisterUrlsParams = Extract<
   WebsitePagesActionParams,
-  { operation: 'register_discovered_urls' }
+  { operation: 'register_urls' }
 >;
 
-type SyncPendingPagesParams = Extract<
+type CrawlAndUpsertParams = Extract<
   WebsitePagesActionParams,
-  { operation: 'sync_pending_pages' }
+  { operation: 'crawl_and_upsert' }
 >;
 
 function getOrganizationId(
@@ -145,15 +145,12 @@ async function executeBulkUpsert(
   };
 }
 
-async function executeRegisterDiscoveredUrls(
+async function executeRegisterUrls(
   ctx: ActionCtx,
-  params: RegisterDiscoveredUrlsParams,
+  params: RegisterUrlsParams,
   variables: Record<string, unknown>,
 ) {
-  const organizationId = getOrganizationId(
-    variables,
-    'register_discovered_urls',
-  );
+  const organizationId = getOrganizationId(variables, 'register_urls');
 
   let totalRegistered = 0;
   let totalUpdated = 0;
@@ -176,7 +173,7 @@ async function executeRegisterDiscoveredUrls(
     );
 
     const result = await ctx.runMutation(
-      internal.websites.internal_mutations.registerDiscoveredUrls,
+      internal.websites.internal_mutations.registerUrls,
       {
         organizationId,
         websiteId: params.websiteId,
@@ -196,7 +193,7 @@ async function executeRegisterDiscoveredUrls(
   );
 
   return {
-    operation: 'register_discovered_urls' as const,
+    operation: 'register_urls' as const,
     registered: totalRegistered,
     updated: totalUpdated,
     deleted: totalDeleted,
@@ -223,14 +220,14 @@ interface CrawlerFetchResponse {
   failed?: Array<{ url: string; status_code: number | null; error: string }>;
 }
 
-async function executeSyncPendingPages(
+async function executeCrawlAndUpsert(
   ctx: ActionCtx,
-  params: SyncPendingPagesParams,
+  params: CrawlAndUpsertParams,
   variables: Record<string, unknown>,
 ) {
-  const organizationId = getOrganizationId(variables, 'sync_pending_pages');
+  const organizationId = getOrganizationId(variables, 'crawl_and_upsert');
 
-  debugLog('sync_pending_pages params.urls:', {
+  debugLog('crawl_and_upsert params.urls:', {
     hasUrls: params.urls !== undefined,
     urlsType: typeof params.urls,
     isArray: Array.isArray(params.urls),
@@ -259,7 +256,7 @@ async function executeSyncPendingPages(
   if (urls.length === 0) {
     debugLog('No URLs to sync');
     return {
-      operation: 'sync_pending_pages' as const,
+      operation: 'crawl_and_upsert' as const,
       processed: 0,
       failed: 0,
       total: 0,
@@ -332,7 +329,7 @@ async function executeSyncPendingPages(
   }
 
   return {
-    operation: 'sync_pending_pages' as const,
+    operation: 'crawl_and_upsert' as const,
     processed: fetchResult.pages.length,
     failed: failedCount,
     total: urls.length,

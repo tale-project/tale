@@ -12,19 +12,19 @@ const EMBEDDING_TABLES = [
   'websitePageEmbeddings4096',
 ] as const;
 
-export interface DiscoveredUrlEntry {
+export interface UrlEntry {
   url: string;
   contentHash?: string;
   status?: string;
 }
 
-export interface RegisterDiscoveredUrlsArgs {
+export interface RegisterUrlsArgs {
   organizationId: string;
   websiteId: string;
-  urls: DiscoveredUrlEntry[];
+  urls: UrlEntry[];
 }
 
-export interface RegisterDiscoveredUrlsResult {
+export interface RegisterUrlsResult {
   registered: number;
   updated: number;
   deleted: number;
@@ -33,10 +33,10 @@ export interface RegisterDiscoveredUrlsResult {
   urlsToSync: string[];
 }
 
-export async function registerDiscoveredUrls(
+export async function registerUrls(
   ctx: MutationCtx,
-  args: RegisterDiscoveredUrlsArgs,
-): Promise<RegisterDiscoveredUrlsResult> {
+  args: RegisterUrlsArgs,
+): Promise<RegisterUrlsResult> {
   const now = Date.now();
   const websiteId = toId<'websites'>(args.websiteId);
   let registered = 0;
