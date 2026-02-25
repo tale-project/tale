@@ -1,14 +1,14 @@
 import { Link } from '@tanstack/react-router';
-import { Upload, Trash2 } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
 import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
+import { FilePreviewCard } from '@/app/components/ui/data-display/file-preview-card';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
@@ -64,7 +64,7 @@ export function CustomerImportForm({
   const fileValue: File | null = watch('file');
 
   return (
-    <div className="space-y-5">
+    <Stack gap={5}>
       {!hideTabs && !mode && (
         <Tabs
           value={dataSource}
@@ -116,7 +116,7 @@ export function CustomerImportForm({
         </Link>
       )}
       {dataSource === 'manual_import' && (
-        <Stack gap={4}>
+        <FormSection>
           <Textarea
             placeholder={
               'customer@example.com\ncustomer2@example.com,en\ncustomer3@example.com,zh'
@@ -135,10 +135,10 @@ export function CustomerImportForm({
               <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
             </ul>
           </Text>
-        </Stack>
+        </FormSection>
       )}
       {dataSource === 'file_upload' && (
-        <Stack gap={4}>
+        <FormSection>
           <FileUpload.Root
             errorMessage={
               typeof errors.file?.message === 'string'
@@ -171,32 +171,13 @@ export function CustomerImportForm({
             </ul>
           </Text>
           {fileValue && (
-            <VStack
-              gap={2}
-              className="border-border relative rounded-xl border p-3"
-            >
-              <HStack gap={3} className="w-full">
-                <HStack gap={2} className="min-w-0 flex-1">
-                  <DocumentIcon fileName={fileValue.name} />
-                  <VStack gap={0} className="min-w-0 flex-1">
-                    <Text as="div" variant="label" truncate>
-                      {fileValue.name}
-                    </Text>
-                  </VStack>
-                </HStack>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  onClick={() => setValue('file', null)}
-                  aria-label={tCommon('actions.remove')}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </HStack>
-            </VStack>
+            <FilePreviewCard
+              fileName={fileValue.name}
+              onRemove={() => setValue('file', null)}
+            />
           )}
-        </Stack>
+        </FormSection>
       )}
-    </div>
+    </Stack>
   );
 }

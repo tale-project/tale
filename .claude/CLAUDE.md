@@ -38,7 +38,7 @@
 
 - ALWAYS add Storybook stories for new UI components in `components/ui/`. Stories should demonstrate all variants, sizes, and key states.
 - Do NOT hardcode text, use the translation hooks/functions instead for user-facing UI.
-- CONSIDER ALWAYS TO use reusable components.
+- CONSIDER ALWAYS TO use reusable components and standardized styles.
 - USE `useMemo`, `useCallback` and `memo` the right moment.
 - DO NOT overuse `useEffect`.
 - ALWAYS USE `cva` for named variants (e.g., `size: 'sm' | 'md' | 'lg'`, `variant: 'primary' | 'secondary'`). But DO NOT use `cva` for boolean states (e.g., `isActive`, `error`, `muted`). For boolean conditions, use conditional `cn()` patterns instead (e.g., `cn('base-classes', isActive && 'active-classes')`).

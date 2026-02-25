@@ -6,10 +6,10 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Select } from '@/app/components/ui/forms/select';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -245,7 +245,7 @@ export function CreateStepDialog({
         ]}
       />
 
-      <Stack gap={4}>
+      <FormSection>
         <JsonInput
           id="step-config"
           label={t('createStep.configLabel')}
@@ -263,7 +263,7 @@ export function CreateStepDialog({
           stepOptions={stepOptions}
           disabled={isSubmitting}
         />
-      </Stack>
+      </FormSection>
     </FormDialog>
   );
 }

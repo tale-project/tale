@@ -1,13 +1,12 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 
-import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
 import { ContentWrapper } from '@/app/components/layout/content-wrapper';
-import { StickyHeader } from '@/app/components/layout/sticky-header';
+import { PageLayout } from '@/app/components/layout/page-layout';
 import { ConversationsNavigation } from '@/app/features/conversations/components/conversations-navigation';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -47,18 +46,20 @@ function ConversationsLayout() {
   const { t } = useT('conversations');
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-      <StickyHeader>
-        <AdaptiveHeaderRoot standalone={false}>
-          <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
-        </AdaptiveHeaderRoot>
-        <ConversationsNavigation organizationId={organizationId} />
-      </StickyHeader>
-      <LayoutErrorBoundary organizationId={organizationId}>
-        <ContentWrapper className="flex size-full max-h-full flex-1 flex-row">
-          <Outlet />
-        </ContentWrapper>
-      </LayoutErrorBoundary>
-    </div>
+    <PageLayout
+      organizationId={organizationId}
+      header={
+        <>
+          <AdaptiveHeaderRoot standalone={false}>
+            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+          </AdaptiveHeaderRoot>
+          <ConversationsNavigation organizationId={organizationId} />
+        </>
+      }
+    >
+      <ContentWrapper className="flex size-full max-h-full flex-1 flex-row">
+        <Outlet />
+      </ContentWrapper>
+    </PageLayout>
   );
 }

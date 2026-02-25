@@ -1,16 +1,11 @@
 'use client';
 
-import {
-  AlertCircle,
-  ChevronRight,
-  Code,
-  Loader2,
-  Upload,
-  Zap,
-} from 'lucide-react';
+import { AlertCircle, Code, Loader2, Upload, Zap } from 'lucide-react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
@@ -43,12 +38,14 @@ export function IntegrationUpdateSection({
   const { t: tCommon } = useT('common');
 
   return (
-    <details className="group">
-      <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium select-none">
-        <ChevronRight className="text-muted-foreground size-3.5 shrink-0 transition-transform duration-200 group-open:rotate-90" />
-        <Upload className="size-4 shrink-0" />
-        <span>{t('integrations.manageDialog.updateIntegration')}</span>
-      </summary>
+    <CollapsibleDetails
+      summary={
+        <>
+          <Upload className="size-4 shrink-0" />
+          <span>{t('integrations.manageDialog.updateIntegration')}</span>
+        </>
+      }
+    >
       <Stack gap={3} className="mt-2 ml-6">
         <Text variant="caption">
           {t('integrations.manageDialog.updateIntegrationDescription')}
@@ -124,7 +121,7 @@ export function IntegrationUpdateSection({
               </HStack>
             </Stack>
 
-            <HStack gap={2}>
+            <ActionRow gap={2}>
               <Button
                 onClick={onApplyUpdate}
                 disabled={busy}
@@ -148,10 +145,10 @@ export function IntegrationUpdateSection({
               >
                 {tCommon('actions.cancel')}
               </Button>
-            </HStack>
+            </ActionRow>
           </Stack>
         )}
       </Stack>
-    </details>
+    </CollapsibleDetails>
   );
 }

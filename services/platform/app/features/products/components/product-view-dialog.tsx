@@ -2,8 +2,8 @@
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Field } from '@/app/components/ui/forms/field';
-import { Stack, HStack, Grid } from '@/app/components/ui/layout/layout';
+import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import { HStack, Grid } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
@@ -49,7 +49,7 @@ export function ProductViewDialog({
       description={tProducts('view.description')}
       className="sm:max-w-[600px]"
     >
-      <Stack gap={4}>
+      <FieldGroup gap={4}>
         {/* Product Image and Basic Info */}
         <HStack gap={4} className="items-start">
           <ProductImage
@@ -152,7 +152,7 @@ export function ProductViewDialog({
             {product._id}
           </code>
         </Field>
-      </Stack>
+      </FieldGroup>
     </ViewDialog>
   );
 }

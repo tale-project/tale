@@ -7,8 +7,9 @@ import { useForm } from 'react-hook-form';
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { Form } from '@/app/components/ui/forms/form';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
@@ -152,7 +153,7 @@ export function BrandingForm({
       className="w-full max-w-sm shrink-0 space-y-0"
     >
       <div className="flex h-full flex-col justify-between">
-        <Stack gap={6}>
+        <FormSection>
           <Input
             id="branding-app-name"
             label={t('branding.appName')}
@@ -267,7 +268,7 @@ export function BrandingForm({
             onChange={handleAccentColorChange}
             label={t('branding.accentColor')}
           />
-        </Stack>
+        </FormSection>
 
         <div className="ml-auto pt-6">
           <Button

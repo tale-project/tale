@@ -32,6 +32,7 @@ import React, {
   useCallback,
 } from 'react';
 import '@xyflow/react/dist/style.css';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -454,14 +455,14 @@ function AutomationStepsInner({
 
             {!hasSteps && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="space-y-2 text-center">
+                <Stack gap={2} className="text-center">
                   <Text as="div" variant="muted">
                     {t('emptyState.noSteps')}
                   </Text>
                   <Text as="div" variant="muted">
                     {t('emptyState.createStepsHint')}
                   </Text>
-                </div>
+                </Stack>
               </div>
             )}
 
@@ -496,8 +497,11 @@ function AutomationStepsInner({
             )}
 
             <Panel position="bottom-center" className="mb-4">
-              <div className="ring-border bg-background flex items-center gap-2 rounded-lg p-1 shadow-sm ring-1">
-                <div className="flex items-center gap-2">
+              <HStack
+                gap={2}
+                className="ring-border bg-background rounded-lg p-1 shadow-sm ring-1"
+              >
+                <HStack gap={2}>
                   <Button
                     variant="secondary"
                     size="icon"
@@ -541,8 +545,8 @@ function AutomationStepsInner({
                   >
                     <TestTubeDiagonal className="size-4" />
                   </Button>
-                </div>
-              </div>
+                </HStack>
+              </HStack>
             </Panel>
           </ReactFlow>
         </div>

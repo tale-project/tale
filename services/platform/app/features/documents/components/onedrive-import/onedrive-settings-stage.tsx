@@ -2,6 +2,7 @@
 
 import { Database, Loader2, Users } from 'lucide-react';
 
+import { SelectableRow } from '@/app/components/ui/data-display/selectable-row';
 import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
@@ -110,35 +111,37 @@ export function OneDriveSettingsStage({
           }}
           className="space-y-2"
         >
-          <div className="border-border hover:bg-muted rounded-lg border p-3">
-            <div className="flex items-center gap-3">
-              <RadioGroupItem value="one-time" id="one-time" />
-              <div className="flex-1">
-                <label
-                  htmlFor="one-time"
-                  className="cursor-pointer text-base font-medium"
-                >
-                  {t('onedrive.oneTimeImport')}
-                </label>
-                <Description>{t('onedrive.oneTimeDescription')}</Description>
-              </div>
+          <SelectableRow
+            selected={importType === 'one-time'}
+            onClick={() => onImportTypeChange('one-time')}
+          >
+            <RadioGroupItem value="one-time" id="one-time" />
+            <div className="flex-1">
+              <label
+                htmlFor="one-time"
+                className="cursor-pointer text-base font-medium"
+              >
+                {t('onedrive.oneTimeImport')}
+              </label>
+              <Description>{t('onedrive.oneTimeDescription')}</Description>
             </div>
-          </div>
+          </SelectableRow>
 
-          <div className="border-border hover:bg-muted rounded-lg border p-3">
-            <div className="flex items-center gap-3">
-              <RadioGroupItem value="sync" id="sync" />
-              <div className="flex-1">
-                <label
-                  htmlFor="sync"
-                  className="cursor-pointer text-base font-medium"
-                >
-                  {t('onedrive.syncImport')}
-                </label>
-                <Description>{t('onedrive.syncDescription')}</Description>
-              </div>
+          <SelectableRow
+            selected={importType === 'sync'}
+            onClick={() => onImportTypeChange('sync')}
+          >
+            <RadioGroupItem value="sync" id="sync" />
+            <div className="flex-1">
+              <label
+                htmlFor="sync"
+                className="cursor-pointer text-base font-medium"
+              >
+                {t('onedrive.syncImport')}
+              </label>
+              <Description>{t('onedrive.syncDescription')}</Description>
             </div>
-          </div>
+          </SelectableRow>
         </RadioGroup>
 
         <Separator />
@@ -158,9 +161,10 @@ export function OneDriveSettingsStage({
           ) : (
             <Stack gap={2}>
               {teams.map((team) => (
-                <div
+                <SelectableRow
                   key={team.id}
-                  className="bg-card hover:bg-accent/50 rounded-lg border p-3 transition-colors"
+                  onClick={() => onToggleTeam(team.id)}
+                  disabled={isImporting}
                 >
                   <Checkbox
                     id={`onedrive-team-${team.id}`}
@@ -169,7 +173,7 @@ export function OneDriveSettingsStage({
                     disabled={isImporting}
                     label={team.name}
                   />
-                </div>
+                </SelectableRow>
               ))}
             </Stack>
           )}

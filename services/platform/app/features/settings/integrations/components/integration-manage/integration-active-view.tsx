@@ -4,6 +4,8 @@ import { ExternalLink, Loader2 } from 'lucide-react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
+import { ActionRow } from '@/app/components/ui/layout/action-row';
+import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
@@ -48,7 +50,7 @@ export function IntegrationActiveView({
 
   return (
     <Stack gap={3}>
-      <Stack gap={2} className="border-border rounded-lg border p-4">
+      <BorderedSection gap={2}>
         <Text variant="label">
           {t('integrations.manageDialog.authentication')}
         </Text>
@@ -151,7 +153,7 @@ export function IntegrationActiveView({
             </Text>
           </HStack>
         )}
-      </Stack>
+      </BorderedSection>
 
       <Button
         variant="secondary"
@@ -169,7 +171,7 @@ export function IntegrationActiveView({
         )}
       </Button>
 
-      <HStack gap={2}>
+      <ActionRow gap={2}>
         {hasOAuth2Config &&
           integration.authMethod === 'oauth2' &&
           integration.oauth2Config?.clientId && (
@@ -207,7 +209,7 @@ export function IntegrationActiveView({
             t('integrations.disconnect')
           )}
         </Button>
-      </HStack>
+      </ActionRow>
 
       {testResult && (
         <TestResultFeedback

@@ -1,4 +1,7 @@
+import { PanelFooter } from '@/app/components/layout/panel-footer';
+import { PanelHeader } from '@/app/components/layout/panel-header';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { HStack, VStack } from '@/app/components/ui/layout/layout';
 
 interface ConversationsListSkeletonProps {
   rows?: number;
@@ -20,9 +23,9 @@ export function ConversationsListSkeleton({
                 <Skeleton className="h-4 w-2/3" />
                 <Skeleton className="ml-4 h-3 w-12" />
               </div>
-              <div className="mb-3 flex items-center justify-between gap-2">
+              <HStack gap={2} justify="between" className="mb-3">
                 <Skeleton className="h-4 w-full" />
-              </div>
+              </HStack>
               <div className="flex gap-2">
                 {i % 3 === 0 && <Skeleton className="h-5 w-16 rounded-full" />}
                 {i % 2 === 0 && <Skeleton className="h-5 w-20 rounded-full" />}
@@ -37,19 +40,19 @@ export function ConversationsListSkeleton({
 
 export function ConversationPanelSkeleton() {
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
-      <div className="bg-background/50 border-border sticky top-0 z-50 flex h-16 flex-[0_0_auto] border-b px-4 py-3 backdrop-blur-sm">
-        <div className="flex flex-1 items-center gap-3">
+    <VStack className="min-w-0 flex-1">
+      <PanelHeader>
+        <HStack gap={3} className="flex-1">
           <Skeleton className="size-10 rounded-full" />
-          <div className="flex flex-1 flex-col gap-1.5">
+          <VStack className="flex-1 gap-1.5">
             <Skeleton className="h-4 w-40" />
             <Skeleton className="h-3 w-24" />
-          </div>
-        </div>
-      </div>
+          </VStack>
+        </HStack>
+      </PanelHeader>
 
       <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-6">
-        <div className="mb-8 flex flex-col gap-4">
+        <VStack gap={4} className="mb-8">
           <div className="flex justify-start">
             <div className="relative">
               <Skeleton className="h-24 w-96 rounded-2xl" />
@@ -65,14 +68,14 @@ export function ConversationPanelSkeleton() {
               <Skeleton className="mt-1 h-3 w-20" />
             </div>
           </div>
-        </div>
+        </VStack>
       </div>
 
-      <div className="bg-background sticky bottom-0 z-50 px-2">
+      <PanelFooter className="px-2">
         <div className="mx-auto w-full max-w-3xl px-4 py-4">
           <Skeleton className="h-32 w-full rounded-lg" />
         </div>
-      </div>
-    </div>
+      </PanelFooter>
+    </VStack>
   );
 }

@@ -2,6 +2,8 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
+import { Spinner } from '@/app/components/ui/feedback/spinner';
+import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
@@ -49,8 +51,8 @@ function DashboardIndex() {
   }, [isAuthLoading, isAuthenticated, isOrgsLoading, organizations, navigate]);
 
   return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="animate-pulse">Loading...</div>
-    </div>
+    <FullPageCenter>
+      <Spinner size="lg" />
+    </FullPageCenter>
   );
 }

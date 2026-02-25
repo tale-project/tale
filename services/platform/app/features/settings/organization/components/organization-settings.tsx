@@ -5,9 +5,11 @@ import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
+import { Field } from '@/app/components/ui/forms/field';
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
+import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -131,19 +133,12 @@ export function OrganizationSettings({
       </Form>
 
       {organization && (
-        <HStack
-          gap={2}
-          align="center"
-          className="text-muted-foreground text-sm"
-        >
-          <span className="text-nowrap">
-            {tSettings('organization.organizationId')}:
-          </span>
+        <Field label={tSettings('organization.organizationId')}>
           <CopyableText
             value={organization._id}
             className="min-w-0 [&>span]:truncate"
           />
-        </HStack>
+        </Field>
       )}
 
       <PageSection
@@ -151,7 +146,7 @@ export function OrganizationSettings({
         description={tSettings('organization.manageAccess')}
         className="pt-4"
       >
-        <HStack justify="between">
+        <ActionRow justify="between">
           <SearchInput
             placeholder={tSettings('organization.searchMember')}
             value={searchQuery}
@@ -165,7 +160,7 @@ export function OrganizationSettings({
               {tSettings('organization.addMember')}
             </Button>
           )}
-        </HStack>
+        </ActionRow>
 
         <MemberTable
           members={members || []}

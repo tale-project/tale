@@ -5,7 +5,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { HStack } from '@/app/components/ui/layout/layout';
+import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
@@ -74,7 +74,7 @@ export function ChatActions({
 
   return (
     <>
-      <HStack gap={1}>
+      <ActionRow gap={1}>
         <Tooltip content={tCommon('actions.rename')} side="bottom">
           <Button
             variant="ghost"
@@ -98,7 +98,7 @@ export function ChatActions({
             <Trash2 className="size-4" />
           </Button>
         </Tooltip>
-      </HStack>
+      </ActionRow>
 
       <DeleteDialog
         open={isDeleteDialogOpen}

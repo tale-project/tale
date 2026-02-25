@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
@@ -60,14 +61,11 @@ export function ShopifyDisconnectConfirmationDialog({
       onConfirm={handleConfirm}
       variant="destructive"
     >
-      <Stack gap={3}>
+      <FieldGroup gap={3}>
         {domain && (
-          <Stack gap={1}>
-            <Text variant="label">
-              {t('integrations.shopify.connectedStore')}
-            </Text>
+          <Field label={t('integrations.shopify.connectedStore')}>
             <Text variant="muted">{domain}</Text>
-          </Stack>
+          </Field>
         )}
 
         <Stack gap={2}>
@@ -81,7 +79,7 @@ export function ShopifyDisconnectConfirmationDialog({
             </Text>
           </div>
         </Stack>
-      </Stack>
+      </FieldGroup>
     </ConfirmDialog>
   );
 }

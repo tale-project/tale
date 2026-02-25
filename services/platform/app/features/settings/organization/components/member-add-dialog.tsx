@@ -9,6 +9,7 @@ import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
@@ -202,7 +203,7 @@ export function AddMemberDialog({
           errorMessage={formState.errors.email?.message}
         />
 
-        <Stack gap={2}>
+        <FormSection>
           <Input
             id="password"
             type="password"
@@ -217,7 +218,7 @@ export function AddMemberDialog({
               className="text-xs"
             />
           )}
-        </Stack>
+        </FormSection>
 
         <Select
           value={selectedRole}

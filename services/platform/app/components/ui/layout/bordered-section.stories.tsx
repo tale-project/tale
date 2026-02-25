@@ -1,0 +1,101 @@
+import type { Meta, StoryObj } from '@storybook/react';
+
+import { Input } from '../forms/input';
+import { Switch } from '../forms/switch';
+import { BorderedSection } from './bordered-section';
+
+const meta: Meta<typeof BorderedSection> = {
+  title: 'Layout/BorderedSection',
+  component: BorderedSection,
+  tags: ['autodocs'],
+  parameters: {
+    layout: 'padded',
+    docs: {
+      description: {
+        component: `
+A bordered container with configurable padding and gap for grouping related content.
+
+## Usage
+\`\`\`tsx
+import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
+
+<BorderedSection>
+  <p>Content goes here.</p>
+</BorderedSection>
+\`\`\`
+        `,
+      },
+    },
+  },
+  decorators: [
+    (Story) => (
+      <div className="w-96">
+        <Story />
+      </div>
+    ),
+  ],
+};
+
+export default meta;
+
+type Story = StoryObj<typeof BorderedSection>;
+
+export const Default: Story = {
+  render: () => (
+    <BorderedSection>
+      <p className="text-sm">
+        Default bordered section with padding 4 and gap 3.
+      </p>
+      <p className="text-muted-foreground text-sm">A second line of content.</p>
+    </BorderedSection>
+  ),
+};
+
+export const SmallPadding: Story = {
+  render: () => (
+    <BorderedSection padding={3}>
+      <p className="text-sm">Compact section with reduced padding.</p>
+      <p className="text-muted-foreground text-sm">A second line of content.</p>
+    </BorderedSection>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Smaller internal padding for tighter layouts.',
+      },
+    },
+  },
+};
+
+export const SmallGap: Story = {
+  render: () => (
+    <BorderedSection gap={2}>
+      <p className="text-sm">Tighter gap between children.</p>
+      <p className="text-muted-foreground text-sm">A second line of content.</p>
+    </BorderedSection>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Reduced gap between child elements.',
+      },
+    },
+  },
+};
+
+export const WithForm: Story = {
+  render: () => (
+    <BorderedSection>
+      <Input label="Name" placeholder="Enter name" />
+      <Input label="Email" type="email" placeholder="name@example.com" />
+      <Switch label="Enable notifications" />
+    </BorderedSection>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Bordered section wrapping form fields for visual grouping.',
+      },
+    },
+  },
+};

@@ -4,7 +4,10 @@ import { Plus, Trash2, Users } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
+import { EmptyState } from '@/app/components/ui/feedback/empty-state';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Select } from '@/app/components/ui/forms/select';
+import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
@@ -49,7 +52,6 @@ export function TeamMembersDialog({
   type OrgMember = NonNullable<typeof orgMembers>[number];
   type TeamMemberItem = NonNullable<typeof teamMembers>[number];
 
-  // Get members that are not yet in the team
   const availableMembers = useMemo(() => {
     if (!orgMembers || !teamMembers) return [];
     const teamMemberIds = new Set(
@@ -60,7 +62,6 @@ export function TeamMembersDialog({
     );
   }, [orgMembers, teamMembers]);
 
-  // Create a lookup map for member details
   const memberDetailsMap = useMemo(() => {
     if (!orgMembers) return new Map<string, OrgMember>();
     return new Map(orgMembers.map((m: OrgMember) => [m.userId, m]));
@@ -124,42 +125,42 @@ export function TeamMembersDialog({
       title={`${team.name} - ${tSettings('teams.manageMembers')}`}
     >
       <Stack gap={4}>
-        {/* Add member section */}
-        <HStack gap={2}>
-          <div className="flex-1">
-            <Select
-              value={selectedMemberId}
-              onValueChange={setSelectedMemberId}
-              placeholder={tSettings('teams.selectMember')}
-              options={
-                availableMembers.length > 0
-                  ? availableMembers.map((m: OrgMember) => ({
-                      value: m.userId,
-                      label: m.displayName || m.email || 'Unknown',
-                    }))
-                  : []
-              }
-              disabled={availableMembers.length === 0}
-            />
-          </div>
-          <Button
-            size="sm"
-            onClick={handleAddMember}
-            disabled={!selectedMemberId || isAdding}
-            className="bg-foreground text-background hover:bg-foreground/90"
-          >
-            <Plus className="mr-1 size-4" />
-            {isAdding
-              ? tCommon('actions.adding')
-              : tSettings('teams.addMember')}
-          </Button>
-        </HStack>
+        <FormSection>
+          <HStack gap={2}>
+            <div className="flex-1">
+              <Select
+                value={selectedMemberId}
+                onValueChange={setSelectedMemberId}
+                placeholder={tSettings('teams.selectMember')}
+                options={
+                  availableMembers.length > 0
+                    ? availableMembers.map((m: OrgMember) => ({
+                        value: m.userId,
+                        label: m.displayName || m.email || 'Unknown',
+                      }))
+                    : []
+                }
+                disabled={availableMembers.length === 0}
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={handleAddMember}
+              disabled={!selectedMemberId || isAdding}
+              className="bg-foreground text-background hover:bg-foreground/90"
+            >
+              <Plus className="mr-1 size-4" />
+              {isAdding
+                ? tCommon('actions.adding')
+                : tSettings('teams.addMember')}
+            </Button>
+          </HStack>
 
-        {availableMembers.length === 0 && !isLoading && (
-          <Text variant="muted">{tSettings('teams.noMembersToAdd')}</Text>
-        )}
+          {availableMembers.length === 0 && !isLoading && (
+            <Text variant="muted">{tSettings('teams.noMembersToAdd')}</Text>
+          )}
+        </FormSection>
 
-        {/* Team members list */}
         <Stack gap={2}>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
@@ -168,21 +169,18 @@ export function TeamMembersDialog({
               </Text>
             </div>
           ) : !teamMembers || teamMembers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Users className="text-muted-foreground/50 mb-2 size-8" />
-              <Text variant="muted">{tSettings('teams.noTeamMembers')}</Text>
-            </div>
+            <EmptyState icon={Users} title={tSettings('teams.noTeamMembers')} />
           ) : (
             teamMembers.map((member: TeamMemberItem) => {
               const details = memberDetailsMap.get(member.userId);
               const hasDistinctName =
                 details?.displayName && details.displayName !== details.email;
               return (
-                <HStack
+                <BorderedSection
                   key={member._id}
-                  justify="between"
-                  align="center"
-                  className="bg-card rounded-lg border p-3"
+                  gap={2}
+                  padding={3}
+                  className="flex-row items-center justify-between"
                 >
                   <Stack gap={1}>
                     <Text as="span" variant="label">
@@ -206,7 +204,7 @@ export function TeamMembersDialog({
                   >
                     <Trash2 className="size-4" />
                   </Button>
-                </HStack>
+                </BorderedSection>
               );
             })
           )}

@@ -6,8 +6,9 @@ import { memo, useCallback, useEffect, useRef } from 'react';
 import striptags from 'striptags';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { HStack } from '@/app/components/ui/layout/layout';
+import { Center, HStack } from '@/app/components/ui/layout/layout';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -162,32 +163,23 @@ function ConversationsListSkeleton() {
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="p-4">
           <div className="flex items-start gap-3">
-            {/* Checkbox */}
             <div className="mt-1 flex items-center">
               <div className="border-muted bg-background size-4 rounded border-2" />
             </div>
 
-            {/* Conversation Details */}
             <div className="min-w-0 flex-1">
-              {/* Header with title and timestamp */}
               <div className="mb-1.5 flex items-start justify-between">
-                <div className="bg-muted h-4 w-2/3 animate-pulse rounded" />
-                <div className="bg-muted ml-4 h-3 w-12 animate-pulse rounded" />
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="ml-4 h-3 w-12" />
               </div>
 
-              {/* Last message preview */}
               <div className="mb-3 flex items-center justify-between gap-2">
-                <div className="bg-muted/70 h-4 w-full animate-pulse rounded" />
+                <Skeleton className="h-4 w-full" />
               </div>
 
-              {/* Badges */}
               <div className="flex gap-2">
-                {i % 3 === 0 && (
-                  <div className="bg-muted/50 h-5 w-16 animate-pulse rounded-full" />
-                )}
-                {i % 2 === 0 && (
-                  <div className="bg-muted/50 h-5 w-20 animate-pulse rounded-full" />
-                )}
+                {i % 3 === 0 && <Skeleton className="h-5 w-16 rounded-full" />}
+                {i % 2 === 0 && <Skeleton className="h-5 w-20 rounded-full" />}
               </div>
             </div>
           </div>
@@ -384,10 +376,10 @@ export function ConversationsList({
 
   if (conversations.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-16">
+      <Center className="flex-1 flex-col px-4 py-16">
         <Inbox className="text-muted-foreground mb-3 size-8" />
         <Text variant="muted">{t('list.empty')}</Text>
-      </div>
+      </Center>
     );
   }
 
@@ -407,9 +399,9 @@ export function ConversationsList({
         />
       ))}
       {paginationStatus === 'LoadingMore' && (
-        <div className="flex items-center justify-center py-4">
+        <Center className="py-4">
           <Loader2 className="text-muted-foreground size-5 animate-spin" />
-        </div>
+        </Center>
       )}
       {(paginationStatus === 'CanLoadMore' ||
         paginationStatus === 'LoadingMore') && (

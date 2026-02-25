@@ -11,7 +11,8 @@ import {
 import { useState } from 'react';
 
 import { JsonInput } from '@/app/components/ui/forms/json-input';
-import { Stack, VStack } from '@/app/components/ui/layout/layout';
+import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
+import { HStack, Stack, VStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
@@ -174,15 +175,15 @@ export function AutomationTester({
         />
 
         {dryRunResult && (
-          <div
+          <BorderedSection
+            padding={3}
             className={cn(
-              'rounded-lg border p-3',
               dryRunResult.success
                 ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
                 : 'bg-destructive/10 border-destructive/50',
             )}
           >
-            <div className="mb-2 flex items-center gap-2">
+            <HStack gap={2} className="mb-2">
               {dryRunResult.success ? (
                 <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
               ) : (
@@ -193,7 +194,7 @@ export function AutomationTester({
                   ? t('tester.dryRun.success')
                   : t('tester.dryRun.failed')}
               </Text>
-            </div>
+            </HStack>
 
             {dryRunResult.errors.length > 0 && (
               <div className="mb-2">
@@ -225,9 +226,9 @@ export function AutomationTester({
               <Text variant="label-sm" className="mb-2">
                 {t('tester.dryRun.executionPath')}:
               </Text>
-              <div className="flex flex-wrap items-center gap-1">
+              <HStack gap={1} wrap>
                 {dryRunResult.stepResults.map((step, i) => (
-                  <div key={step.stepSlug} className="flex items-center gap-1">
+                  <HStack key={step.stepSlug} gap={1}>
                     <span
                       className={cn(
                         'text-xs px-2 py-0.5 rounded',
@@ -239,21 +240,24 @@ export function AutomationTester({
                     {i < dryRunResult.stepResults.length - 1 && (
                       <ArrowRight className="text-muted-foreground size-3" />
                     )}
-                  </div>
+                  </HStack>
                 ))}
-              </div>
+              </HStack>
             </div>
-          </div>
+          </BorderedSection>
         )}
 
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/20">
+        <BorderedSection
+          padding={3}
+          className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20"
+        >
           <Text className="text-xs text-blue-900 dark:text-blue-100">
             {t('tester.tip')}
           </Text>
-        </div>
+        </BorderedSection>
       </Stack>
 
-      <div className="border-border flex gap-2 border-t p-3">
+      <HStack gap={2} className="border-border border-t p-3">
         <Button
           variant="secondary"
           onClick={handleDryRun}
@@ -289,7 +293,7 @@ export function AutomationTester({
             </>
           )}
         </Button>
-      </div>
+      </HStack>
     </VStack>
   );
 }

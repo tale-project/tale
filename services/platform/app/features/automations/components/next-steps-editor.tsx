@@ -4,6 +4,7 @@ import { StopCircle } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
@@ -80,7 +81,7 @@ export function NextStepsEditor({
   };
 
   return (
-    <div className="space-y-2">
+    <Stack gap={2}>
       {transitionKeys.map((key) => (
         <Select
           key={key}
@@ -91,6 +92,6 @@ export function NextStepsEditor({
           disabled={disabled}
         />
       ))}
-    </div>
+    </Stack>
   );
 }

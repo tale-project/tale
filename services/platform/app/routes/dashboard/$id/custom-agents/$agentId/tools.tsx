@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 
+import { ContentArea } from '@/app/components/layout/content-area';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
-import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
@@ -10,7 +10,6 @@ import { ToolSelector } from '@/app/features/custom-agents/components/tool-selec
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
-import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -31,23 +30,22 @@ function ToolsTab() {
   const { t } = useT('settings');
   const { agent, isReadOnly } = useCustomAgentVersion();
   const updateAgent = useUpdateCustomAgent();
-  const [saveStatus, setSaveStatus] = useState<
-    'idle' | 'saving' | 'saved' | 'error'
-  >('idle');
 
-  // Web search mode state
   const [webSearchMode, setWebSearchMode] = useState<RetrievalMode>('off');
-  const [webModeInitialized, setWebModeInitialized] = useState(false);
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [selectedBindings, setSelectedBindings] = useState<string[]>([]);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     if (!agent) return;
     const mode: RetrievalMode =
       agent.webSearchMode ?? (agent.toolNames.includes('web') ? 'tool' : 'off');
     setWebSearchMode(mode);
-    setWebModeInitialized(true);
+    setSelectedTools(agent.toolNames);
+    setSelectedBindings(agent.integrationBindings ?? []);
+    setInitialized(true);
   }, [agent, agentId]);
 
-  // Tools hidden from the checkbox list (managed by mode selectors)
   const hiddenTools = useMemo(() => {
     const hidden = new Set<string>();
     hidden.add('rag_search');
@@ -73,52 +71,31 @@ function ToolsTab() {
   const { status: webModeStatus } = useAutoSave({
     data: webModeData,
     onSave: handleWebModeSave,
-    enabled: webModeInitialized && !isReadOnly,
+    enabled: initialized && !isReadOnly,
   });
 
-  const saveWithStatus = useCallback(
-    async <T,>(updateFn: () => Promise<T>) => {
-      setSaveStatus('saving');
-      try {
-        await updateFn();
-        setSaveStatus('saved');
-      } catch (error) {
-        console.error(error);
-        setSaveStatus('error');
-        toast({
-          title: t('customAgents.agentUpdateFailed'),
-          variant: 'destructive',
-        });
-      }
-    },
-    [t],
+  // Auto-save tools and integration bindings
+  const toolsData = useMemo(
+    () => ({ toolNames: selectedTools, integrationBindings: selectedBindings }),
+    [selectedTools, selectedBindings],
   );
 
-  const handleToolChange = useCallback(
-    async (tools: string[]) => {
-      if (isReadOnly) return;
-      await saveWithStatus(() =>
-        updateAgent.mutateAsync({
-          customAgentId: toId<'customAgents'>(agentId),
-          toolNames: tools,
-        }),
-      );
+  const handleToolsSave = useCallback(
+    async (data: { toolNames: string[]; integrationBindings: string[] }) => {
+      await updateAgent.mutateAsync({
+        customAgentId: toId<'customAgents'>(agentId),
+        toolNames: data.toolNames,
+        integrationBindings: data.integrationBindings,
+      });
     },
-    [agentId, updateAgent, saveWithStatus, isReadOnly],
+    [agentId, updateAgent],
   );
 
-  const handleIntegrationBindingsChange = useCallback(
-    async (bindings: string[]) => {
-      if (isReadOnly) return;
-      await saveWithStatus(() =>
-        updateAgent.mutateAsync({
-          customAgentId: toId<'customAgents'>(agentId),
-          integrationBindings: bindings,
-        }),
-      );
-    },
-    [agentId, updateAgent, saveWithStatus, isReadOnly],
-  );
+  const { status: toolsStatus } = useAutoSave({
+    data: toolsData,
+    onSave: handleToolsSave,
+    enabled: initialized && !isReadOnly,
+  });
 
   const webModeOptions = useMemo(
     () => [
@@ -143,38 +120,36 @@ function ToolsTab() {
   );
 
   return (
-    <NarrowContainer className="py-4">
-      <Stack gap={6}>
-        <StickySectionHeader
-          title={t('customAgents.form.sectionTools')}
-          description={t('customAgents.form.sectionToolsDescription')}
-          action={<AutoSaveIndicator status={saveStatus} />}
-        />
+    <ContentArea variant="narrow" gap={6}>
+      <StickySectionHeader
+        title={t('customAgents.form.sectionTools')}
+        description={t('customAgents.form.sectionToolsDescription')}
+        action={<AutoSaveIndicator status={toolsStatus} />}
+      />
 
-        <SectionHeader
-          title={t('customAgents.tools.webSearchMode')}
-          description={t('customAgents.tools.webSearchModeDescription')}
-          action={<AutoSaveIndicator status={webModeStatus} />}
-        />
+      <SectionHeader
+        title={t('customAgents.tools.webSearchMode')}
+        description={t('customAgents.tools.webSearchModeDescription')}
+        action={<AutoSaveIndicator status={webModeStatus} />}
+      />
 
-        <RadioGroup
-          value={webSearchMode}
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
-          onValueChange={(value) => setWebSearchMode(value as RetrievalMode)}
-          options={webModeOptions}
-          disabled={isReadOnly}
-        />
+      <RadioGroup
+        value={webSearchMode}
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
+        onValueChange={(value) => setWebSearchMode(value as RetrievalMode)}
+        options={webModeOptions}
+        disabled={isReadOnly}
+      />
 
-        <ToolSelector
-          value={agent.toolNames}
-          onChange={handleToolChange}
-          integrationBindings={agent.integrationBindings ?? []}
-          onIntegrationBindingsChange={handleIntegrationBindingsChange}
-          organizationId={organizationId}
-          hiddenTools={hiddenTools}
-          disabled={isReadOnly}
-        />
-      </Stack>
-    </NarrowContainer>
+      <ToolSelector
+        value={selectedTools}
+        onChange={setSelectedTools}
+        integrationBindings={selectedBindings}
+        onIntegrationBindingsChange={setSelectedBindings}
+        organizationId={organizationId}
+        hiddenTools={hiddenTools}
+        disabled={isReadOnly}
+      />
+    </ContentArea>
   );
 }

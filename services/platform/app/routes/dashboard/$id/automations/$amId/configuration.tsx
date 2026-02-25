@@ -2,15 +2,13 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
+import { ContentArea } from '@/app/components/layout/content-area';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import {
-  Stack,
-  Grid,
-  NarrowContainer,
-} from '@/app/components/ui/layout/layout';
+import { Grid } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { AutomationActiveToggle } from '@/app/features/automations/components/automation-active-toggle';
@@ -177,47 +175,45 @@ function ConfigurationPage() {
 
   if (isWorkflowLoading) {
     return (
-      <NarrowContainer className="py-4">
-        <Stack gap={4}>
-          <Stack gap={2}>
-            <Skeleton className="h-5 w-32" />
-            <Skeleton className="h-3 w-64" />
-          </Stack>
-          <Stack gap={2}>
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-9 w-full" />
-          </Stack>
-          <Stack gap={2}>
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-24 w-full" />
-          </Stack>
-          <Grid cols={2} gap={4}>
-            <Stack gap={2}>
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-3 w-48" />
-            </Stack>
-            <Stack gap={2}>
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-3 w-40" />
-            </Stack>
-          </Grid>
-          <Stack gap={2}>
+      <ContentArea variant="narrow" gap={4}>
+        <FormSection>
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-3 w-64" />
+        </FormSection>
+        <FormSection>
+          <Skeleton className="h-4 w-12" />
+          <Skeleton className="h-9 w-full" />
+        </FormSection>
+        <FormSection>
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-24 w-full" />
+        </FormSection>
+        <Grid cols={2} gap={4}>
+          <FormSection>
             <Skeleton className="h-4 w-20" />
             <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-3 w-56" />
-          </Stack>
-          <Stack gap={2}>
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-3 w-72" />
-          </Stack>
-          <div className="pt-4">
-            <Skeleton className="h-9 w-36" />
-          </div>
-        </Stack>
-      </NarrowContainer>
+            <Skeleton className="h-3 w-48" />
+          </FormSection>
+          <FormSection>
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-3 w-40" />
+          </FormSection>
+        </Grid>
+        <FormSection>
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-3 w-56" />
+        </FormSection>
+        <FormSection>
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-3 w-72" />
+        </FormSection>
+        <div className="pt-4">
+          <Skeleton className="h-9 w-36" />
+        </div>
+      </ContentArea>
     );
   }
 
@@ -226,106 +222,104 @@ function ConfigurationPage() {
   }
 
   return (
-    <NarrowContainer className="py-4">
-      <Stack gap={4}>
-        <Stack gap={2}>
-          <AutomationActiveToggle
-            automation={workflow}
-            label={tAutomations('configuration.active')}
-          />
-          <Text variant="caption">
-            {tAutomations('configuration.activeHelp')}
-          </Text>
-        </Stack>
-
-        <Input
-          id="name"
-          label={tAutomations('configuration.name')}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={tAutomations('configuration.namePlaceholder')}
+    <ContentArea variant="narrow" gap={4}>
+      <FormSection>
+        <AutomationActiveToggle
+          automation={workflow}
+          label={tAutomations('configuration.active')}
         />
+        <Text variant="caption">
+          {tAutomations('configuration.activeHelp')}
+        </Text>
+      </FormSection>
 
-        <Textarea
-          id="description"
-          label={tAutomations('configuration.description')}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder={tAutomations('configuration.descriptionPlaceholder')}
-          rows={4}
-        />
+      <Input
+        id="name"
+        label={tAutomations('configuration.name')}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder={tAutomations('configuration.namePlaceholder')}
+      />
 
-        <Grid cols={2} gap={4}>
-          <Stack gap={2}>
-            <Input
-              id="timeout"
-              type="number"
-              label={tAutomations('configuration.timeout')}
-              value={timeout}
-              onChange={(e) =>
-                setTimeoutValue(parseInt(e.target.value) || 300000)
-              }
-              placeholder={tAutomations('configuration.timeoutPlaceholder')}
-              min={1000}
-            />
-            <Text variant="caption">
-              {tAutomations('configuration.timeoutHelp')}
-            </Text>
-          </Stack>
+      <Textarea
+        id="description"
+        label={tAutomations('configuration.description')}
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder={tAutomations('configuration.descriptionPlaceholder')}
+        rows={4}
+      />
 
-          <Stack gap={2}>
-            <Input
-              id="maxRetries"
-              type="number"
-              label={tAutomations('configuration.maxRetries')}
-              value={maxRetries}
-              onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
-              placeholder={tAutomations('configuration.maxRetriesPlaceholder')}
-              min={0}
-              max={10}
-            />
-            <Text variant="caption">
-              {tAutomations('configuration.maxRetriesHelp')}
-            </Text>
-          </Stack>
-        </Grid>
-
-        <Stack gap={2}>
+      <Grid cols={2} gap={4}>
+        <FormSection>
           <Input
-            id="backoffMs"
+            id="timeout"
             type="number"
-            label={tAutomations('configuration.backoff')}
-            value={backoffMs}
-            onChange={(e) => setBackoffMs(parseInt(e.target.value) || 1000)}
-            placeholder={tAutomations('configuration.backoffPlaceholder')}
-            min={100}
+            label={tAutomations('configuration.timeout')}
+            value={timeout}
+            onChange={(e) =>
+              setTimeoutValue(parseInt(e.target.value) || 300000)
+            }
+            placeholder={tAutomations('configuration.timeoutPlaceholder')}
+            min={1000}
           />
           <Text variant="caption">
-            {tAutomations('configuration.backoffHelp')}
+            {tAutomations('configuration.timeoutHelp')}
           </Text>
-        </Stack>
+        </FormSection>
 
-        <JsonInput
-          id="variables"
-          label={tAutomations('configuration.variables')}
-          value={variables}
-          onChange={setVariables}
-          description={tAutomations('configuration.variablesHelp')}
+        <FormSection>
+          <Input
+            id="maxRetries"
+            type="number"
+            label={tAutomations('configuration.maxRetries')}
+            value={maxRetries}
+            onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
+            placeholder={tAutomations('configuration.maxRetriesPlaceholder')}
+            min={0}
+            max={10}
+          />
+          <Text variant="caption">
+            {tAutomations('configuration.maxRetriesHelp')}
+          </Text>
+        </FormSection>
+      </Grid>
+
+      <FormSection>
+        <Input
+          id="backoffMs"
+          type="number"
+          label={tAutomations('configuration.backoff')}
+          value={backoffMs}
+          onChange={(e) => setBackoffMs(parseInt(e.target.value) || 1000)}
+          placeholder={tAutomations('configuration.backoffPlaceholder')}
+          min={100}
         />
+        <Text variant="caption">
+          {tAutomations('configuration.backoffHelp')}
+        </Text>
+      </FormSection>
 
-        <div className="pt-4">
-          <Button onClick={handleSave} disabled={!hasChanges || isSaving}>
-            {isSaving ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                {tCommon('actions.saving')}
-              </>
-            ) : (
-              tAutomations('configuration.saveButton')
-            )}
-          </Button>
-        </div>
-      </Stack>
-    </NarrowContainer>
+      <JsonInput
+        id="variables"
+        label={tAutomations('configuration.variables')}
+        value={variables}
+        onChange={setVariables}
+        description={tAutomations('configuration.variablesHelp')}
+      />
+
+      <div className="pt-4">
+        <Button onClick={handleSave} disabled={!hasChanges || isSaving}>
+          {isSaving ? (
+            <>
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              {tCommon('actions.saving')}
+            </>
+          ) : (
+            tAutomations('configuration.saveButton')
+          )}
+        </Button>
+      </div>
+    </ContentArea>
   );
 }

@@ -8,6 +8,7 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
@@ -98,7 +99,7 @@ export function IntegrationCredentialsForm({
         />
       )}
 
-      <Stack gap={3} className="border-border rounded-lg border p-4">
+      <BorderedSection gap={3}>
         <div>
           <Text variant="label">
             {t('integrations.manageDialog.authentication')}
@@ -232,7 +233,7 @@ export function IntegrationCredentialsForm({
             closeLabel={tCommon('aria.close')}
           />
         )}
-      </Stack>
+      </BorderedSection>
     </>
   );
 }
@@ -251,7 +252,7 @@ function SqlConnectionSection({
   const { t } = useT('settings');
 
   return (
-    <Stack gap={3} className="border-border rounded-lg border p-4">
+    <BorderedSection gap={3}>
       <HStack gap={2} className="items-center">
         <Text variant="label">
           {t('integrations.manageDialog.databaseConnection')}
@@ -289,7 +290,7 @@ function SqlConnectionSection({
           disabled={busy}
         />
       </HStack>
-    </Stack>
+    </BorderedSection>
   );
 }
 

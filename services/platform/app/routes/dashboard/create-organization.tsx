@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
+import { Spinner } from '@/app/components/ui/feedback/spinner';
+import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
 import { OrganizationForm } from '@/app/features/organization/components/organization-form';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
 import { seo } from '@/lib/utils/seo';
@@ -37,9 +39,9 @@ function CreateOrganizationPage() {
 
   if (isAuthLoading || isOrgsLoading || !organizations) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-pulse">Loading...</div>
-      </div>
+      <FullPageCenter>
+        <Spinner size="lg" />
+      </FullPageCenter>
     );
   }
 

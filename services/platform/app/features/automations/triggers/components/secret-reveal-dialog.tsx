@@ -5,7 +5,7 @@ import { useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Field } from '@/app/components/ui/forms/field';
-import { Stack } from '@/app/components/ui/layout/layout';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
@@ -66,7 +66,7 @@ export function SecretRevealDialog({
         </Button>
       }
     >
-      <Stack gap={4}>
+      <FormSection>
         <div
           className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20"
           role="alert"
@@ -98,7 +98,7 @@ export function SecretRevealDialog({
             </div>
           </Field>
         ))}
-      </Stack>
+      </FormSection>
     </FormDialog>
   );
 }

@@ -2,6 +2,8 @@
 
 import { memo } from 'react';
 
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -132,9 +134,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   const isImage = attachment.fileType.startsWith('image/');
 
   if (isImage && !displayUrl) {
-    return (
-      <div className="bg-muted size-11 animate-pulse overflow-hidden rounded-lg" />
-    );
+    return <Skeleton className="size-11 rounded-lg" />;
   }
 
   if (isImage) {
@@ -156,14 +156,14 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
           fileType={attachment.fileType}
           fileName={attachment.fileName}
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <VStack className="min-w-0 flex-1">
           <Text as="div" variant="label" truncate>
             {attachment.fileName}
           </Text>
           <Text as="div" variant="caption">
             {getFileTypeLabel(attachment.fileName, attachment.fileType, t)}
           </Text>
-        </div>
+        </VStack>
       </div>
     );
   }
@@ -179,14 +179,14 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
         fileType={attachment.fileType}
         fileName={attachment.fileName}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <VStack className="min-w-0 flex-1">
         <Text as="div" variant="label" truncate>
           {attachment.fileName}
         </Text>
         <Text as="div" variant="caption">
           {getFileTypeLabel(attachment.fileName, attachment.fileType, t)}
         </Text>
-      </div>
+      </VStack>
     </a>
   );
 });
@@ -222,14 +222,14 @@ export const FilePartDisplay = memo(function FilePartDisplay({
         fileType={filePart.mediaType}
         fileName={filePart.filename || t('fileTypes.file')}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <VStack className="min-w-0 flex-1">
         <Text as="div" variant="label" truncate>
           {filePart.filename || t('fileTypes.file')}
         </Text>
         <Text as="div" variant="caption">
           {getFileTypeLabel(filePart.filename || '', filePart.mediaType, t)}
         </Text>
-      </div>
+      </VStack>
     </a>
   );
 });

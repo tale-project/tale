@@ -2,7 +2,8 @@
 
 import { Trash2 } from 'lucide-react';
 
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { ActionRow } from '@/app/components/ui/layout/action-row';
+import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
@@ -23,12 +24,12 @@ export function IntegrationDeleteSection({
   const { t } = useT('settings');
 
   return (
-    <Stack gap={3} className="border-border rounded-lg border p-4">
+    <BorderedSection gap={3}>
       <Text variant="caption">
         {t('integrations.manageDialog.deleteDescription')}
       </Text>
       {confirmDelete ? (
-        <HStack gap={2}>
+        <ActionRow gap={2}>
           <Button
             variant="destructive"
             size="sm"
@@ -48,7 +49,7 @@ export function IntegrationDeleteSection({
           >
             {t('integrations.manageDialog.cancelDelete')}
           </Button>
-        </HStack>
+        </ActionRow>
       ) : (
         <Button
           variant="secondary"
@@ -61,6 +62,6 @@ export function IntegrationDeleteSection({
           {t('integrations.manageDialog.deleteIntegration')}
         </Button>
       )}
-    </Stack>
+    </BorderedSection>
   );
 }

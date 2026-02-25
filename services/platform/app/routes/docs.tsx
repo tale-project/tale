@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense, lazy, useMemo } from 'react';
 
+import { ContentArea } from '@/app/components/layout/content-area';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { seo } from '@/lib/utils/seo';
@@ -18,7 +19,7 @@ export const Route = createFileRoute('/docs')({
 
 function SwaggerSkeleton() {
   return (
-    <Stack gap={4} className="p-8">
+    <ContentArea variant="page" gap={4} className="p-8">
       <Skeleton className="h-10 w-full max-w-md" />
       <Skeleton className="h-8 w-3/4" />
       <Stack gap={2}>
@@ -27,7 +28,7 @@ function SwaggerSkeleton() {
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-24 w-full" />
       </Stack>
-    </Stack>
+    </ContentArea>
   );
 }
 

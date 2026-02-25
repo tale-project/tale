@@ -10,7 +10,7 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Description } from '@/app/components/ui/forms/description';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Stack } from '@/app/components/ui/layout/layout';
+import { Center, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -178,13 +178,13 @@ export function DocumentUploadDialog({
 
         {/* Selected files list */}
         {selectedFiles.length > 0 && (
-          <div className="space-y-2">
+          <Stack gap={2}>
             <Text variant="label">
               {tDocuments('upload.uploadingCount', {
                 count: selectedFiles.length,
               })}
             </Text>
-            <div className="max-h-32 space-y-1 overflow-y-auto">
+            <Stack gap={1} className="max-h-32 overflow-y-auto">
               {selectedFiles.map((file, index) => (
                 <div
                   key={`${file.name}-${index}`}
@@ -218,8 +218,8 @@ export function DocumentUploadDialog({
                   </Button>
                 </div>
               ))}
-            </div>
-          </div>
+            </Stack>
+          </Stack>
         )}
 
         {/* Team selection */}
@@ -228,9 +228,9 @@ export function DocumentUploadDialog({
           description={tDocuments('upload.selectTeamsDescription')}
         >
           {isLoadingTeams ? (
-            <div className="flex items-center justify-center py-4">
+            <Center className="py-4">
               <Spinner size="sm" label={tCommon('actions.loading')} />
-            </div>
+            </Center>
           ) : !teams || teams.length === 0 ? (
             <EmptyPlaceholder icon={Users}>
               {tDocuments('upload.noTeamsAvailable')}

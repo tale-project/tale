@@ -8,9 +8,9 @@ import * as z from 'zod';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Banner } from '@/app/components/ui/feedback/banner';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -170,7 +170,7 @@ export function EditMemberDialog({
       />
 
       {/* Email Field - Read-only */}
-      <Stack gap={2}>
+      <FormSection>
         <Input
           id="email"
           type="email"
@@ -182,10 +182,10 @@ export function EditMemberDialog({
           required
         />
         <Text variant="caption">{t('organization.emailCannotChange')}</Text>
-      </Stack>
+      </FormSection>
 
       {/* Role Field */}
-      <Stack gap={2}>
+      <FormSection>
         <Controller
           control={form.control}
           name="role"
@@ -219,10 +219,10 @@ export function EditMemberDialog({
               className="mt-2"
             />
           )}
-      </Stack>
+      </FormSection>
 
       {/* Password Update Section */}
-      <Stack gap={4} className="border-t pt-4">
+      <FormSection className="border-t pt-4">
         <Controller
           control={form.control}
           name="updatePassword"
@@ -237,7 +237,7 @@ export function EditMemberDialog({
         />
 
         {watch('updatePassword') && (
-          <Stack gap={2}>
+          <FormSection>
             <Input
               id="password"
               type="password"
@@ -249,9 +249,9 @@ export function EditMemberDialog({
             <Text variant="caption">
               {t('organization.userMustUpdatePassword')}
             </Text>
-          </Stack>
+          </FormSection>
         )}
-      </Stack>
+      </FormSection>
     </FormDialog>
   );
 }

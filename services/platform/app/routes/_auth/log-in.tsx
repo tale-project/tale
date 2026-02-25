@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { Form } from '@/app/components/ui/forms/form';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
@@ -133,7 +134,7 @@ function LogInPage() {
   return (
     <AuthFormLayout title={t('login.loginTitle')}>
       <Stack gap={8}>
-        <Stack gap={5}>
+        <FormSection>
           <Form onSubmit={form.handleSubmit(handleSubmit)} autoComplete="on">
             <Input
               id="email"
@@ -176,7 +177,7 @@ function LogInPage() {
               {isSubmitting ? t('login.signingIn') : t('login.loginButton')}
             </Button>
           </Form>
-        </Stack>
+        </FormSection>
 
         {showSsoButton && (
           <>

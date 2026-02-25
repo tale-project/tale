@@ -12,9 +12,8 @@ import { z } from 'zod';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
-import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
-import { StickyHeader } from '@/app/components/layout/sticky-header';
+import { PageLayout } from '@/app/components/layout/page-layout';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
@@ -207,132 +206,134 @@ function AutomationDetailLayout() {
     location.pathname === `/dashboard/${organizationId}/automations/${amId}`;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-      <StickyHeader>
-        <AdaptiveHeaderRoot standalone={false} className="gap-2">
-          <Heading level={1} size="base" truncate>
-            <Link
-              to="/dashboard/$id/automations"
-              params={{ id: organizationId }}
-              className="text-muted-foreground hidden cursor-pointer md:inline"
-            >
-              {t('title')}&nbsp;&nbsp;
-            </Link>
-            {!isLoading && automation?.name && !editMode && (
-              <button
-                type="button"
-                className="text-foreground font-inherit cursor-pointer appearance-none border-none bg-transparent p-0"
-                onClick={() => setEditMode(true)}
+    <PageLayout
+      header={
+        <>
+          <AdaptiveHeaderRoot standalone={false} className="gap-2">
+            <Heading level={1} size="base" truncate>
+              <Link
+                to="/dashboard/$id/automations"
+                params={{ id: organizationId }}
+                className="text-muted-foreground hidden cursor-pointer md:inline"
               >
-                <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-                {automation.name}
-              </button>
-            )}
-            {isLoading && (
-              <>
-                <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-                <Skeleton className="inline-block h-4 w-32 align-middle" />
-              </>
-            )}
-          </Heading>
-          {editMode && (
-            <Input
-              {...register('name')}
-              defaultValue={automation?.name ?? ''}
-              autoFocus
-              className="h-6 w-fit text-sm"
-              onBlur={handleSubmitAutomationName}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  void handleSubmitAutomationName();
-                }
-                if (e.key === 'Escape') {
-                  setEditMode(false);
-                }
-              }}
-            />
-          )}
-          {isLoading && <Skeleton className="ml-2 h-5 w-14 rounded-full" />}
-          {!isLoading && automation?.status === 'draft' && (
-            <Badge variant="outline" className="ml-2">
-              {tCommon('status.draft')}
-            </Badge>
-          )}
-          {!isLoading && automation?.status === 'active' && (
-            <Badge variant="green" className="ml-2">
-              {tCommon('status.active')}
-            </Badge>
-          )}
-          {!isLoading && automation?.status === 'archived' && (
-            <Badge variant="outline" className="ml-2">
-              {tCommon('status.archived')}
-            </Badge>
-          )}
-
-          {automation && versions && versions.length > 0 && (
-            <DropdownMenu
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-auto h-8 text-sm md:hidden"
+                {t('title')}&nbsp;&nbsp;
+              </Link>
+              {!isLoading && automation?.name && !editMode && (
+                <button
+                  type="button"
+                  className="text-foreground font-inherit cursor-pointer appearance-none border-none bg-transparent p-0"
+                  onClick={() => setEditMode(true)}
                 >
-                  {`v${automation.versionNumber}`}
-                  <ChevronDown className="ml-1 size-3" aria-hidden="true" />
-                </Button>
-              }
-              items={[
-                versions.map(
-                  (version: Doc<'wfDefinitions'>): DropdownMenuItem => ({
-                    type: 'item' as const,
-                    label: (
-                      <>
-                        <span>{`v${version.versionNumber}`}</span>
-                        <Text as="span" variant="caption" className="ml-1">
-                          {version.status === 'draft' &&
-                            tCommon('status.draft')}
-                          {version.status === 'active' &&
-                            tCommon('status.active')}
-                          {version.status === 'archived' &&
-                            tCommon('status.archived')}
-                        </Text>
-                      </>
-                    ),
-                    onClick: () => navigateToVersion(version._id),
-                  }),
-                ),
-              ]}
-              align="end"
-              contentClassName="w-40"
-            />
-          )}
-        </AdaptiveHeaderRoot>
-        <AutomationNavigation
-          organizationId={organizationId}
-          automationId={amId}
-          automation={automation}
-          isLoading={isNavigationLoading}
-        />
-      </StickyHeader>
-      <LayoutErrorBoundary organizationId={organizationId}>
-        {isExactAutomationPage ? (
-          isLoading ? (
-            <AutomationStepsSkeleton />
-          ) : (
-            <Suspense fallback={<AutomationStepsSkeleton />}>
-              <AutomationSteps
-                status={status}
-                className="flex-1"
-                steps={steps || []}
-                organizationId={organizationId}
-                automationId={automationId}
+                  <span className="hidden md:inline">/&nbsp;&nbsp;</span>
+                  {automation.name}
+                </button>
+              )}
+              {isLoading && (
+                <>
+                  <span className="hidden md:inline">/&nbsp;&nbsp;</span>
+                  <Skeleton className="inline-block h-4 w-32 align-middle" />
+                </>
+              )}
+            </Heading>
+            {editMode && (
+              <Input
+                {...register('name')}
+                defaultValue={automation?.name ?? ''}
+                autoFocus
+                className="h-6 w-fit text-sm"
+                onBlur={handleSubmitAutomationName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    void handleSubmitAutomationName();
+                  }
+                  if (e.key === 'Escape') {
+                    setEditMode(false);
+                  }
+                }}
               />
-            </Suspense>
-          )
+            )}
+            {isLoading && <Skeleton className="ml-2 h-5 w-14 rounded-full" />}
+            {!isLoading && automation?.status === 'draft' && (
+              <Badge variant="outline" className="ml-2">
+                {tCommon('status.draft')}
+              </Badge>
+            )}
+            {!isLoading && automation?.status === 'active' && (
+              <Badge variant="green" className="ml-2">
+                {tCommon('status.active')}
+              </Badge>
+            )}
+            {!isLoading && automation?.status === 'archived' && (
+              <Badge variant="outline" className="ml-2">
+                {tCommon('status.archived')}
+              </Badge>
+            )}
+
+            {automation && versions && versions.length > 0 && (
+              <DropdownMenu
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto h-8 text-sm md:hidden"
+                  >
+                    {`v${automation.versionNumber}`}
+                    <ChevronDown className="ml-1 size-3" aria-hidden="true" />
+                  </Button>
+                }
+                items={[
+                  versions.map(
+                    (version: Doc<'wfDefinitions'>): DropdownMenuItem => ({
+                      type: 'item' as const,
+                      label: (
+                        <>
+                          <span>{`v${version.versionNumber}`}</span>
+                          <Text as="span" variant="caption" className="ml-1">
+                            {version.status === 'draft' &&
+                              tCommon('status.draft')}
+                            {version.status === 'active' &&
+                              tCommon('status.active')}
+                            {version.status === 'archived' &&
+                              tCommon('status.archived')}
+                          </Text>
+                        </>
+                      ),
+                      onClick: () => navigateToVersion(version._id),
+                    }),
+                  ),
+                ]}
+                align="end"
+                contentClassName="w-40"
+              />
+            )}
+          </AdaptiveHeaderRoot>
+          <AutomationNavigation
+            organizationId={organizationId}
+            automationId={amId}
+            automation={automation}
+            isLoading={isNavigationLoading}
+          />
+        </>
+      }
+      organizationId={organizationId}
+    >
+      {isExactAutomationPage ? (
+        isLoading ? (
+          <AutomationStepsSkeleton />
         ) : (
-          <Outlet />
-        )}
-      </LayoutErrorBoundary>
-    </div>
+          <Suspense fallback={<AutomationStepsSkeleton />}>
+            <AutomationSteps
+              status={status}
+              className="flex-1"
+              steps={steps || []}
+              organizationId={organizationId}
+              automationId={automationId}
+            />
+          </Suspense>
+        )
+      ) : (
+        <Outlet />
+      )}
+    </PageLayout>
   );
 }
