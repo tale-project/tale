@@ -5,6 +5,7 @@ import {
   Outlet,
   createRootRouteWithContext,
 } from '@tanstack/react-router';
+import { LazyMotion, domAnimation } from 'framer-motion';
 
 import type { RouterContext } from '@/app/router';
 
@@ -37,7 +38,9 @@ function RootComponent() {
           <ThemeProvider defaultTheme="system">
             <ThemeColorMeta />
             <QueryClientProvider client={queryClient}>
-              <Outlet />
+              <LazyMotion features={domAnimation} strict>
+                <Outlet />
+              </LazyMotion>
             </QueryClientProvider>
             <Toaster />
           </ThemeProvider>

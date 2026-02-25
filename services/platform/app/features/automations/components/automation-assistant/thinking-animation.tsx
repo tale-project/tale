@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useEffect, useState } from 'react';
 
 interface ThinkingAnimationProps {
@@ -26,7 +26,7 @@ export function ThinkingAnimation({ steps }: ThinkingAnimationProps) {
 
   return (
     <div className="flex justify-start">
-      <motion.div
+      <m.div
         key={currentStep}
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
@@ -37,7 +37,7 @@ export function ThinkingAnimation({ steps }: ThinkingAnimationProps) {
         }}
         className="text-muted-foreground flex items-center gap-2 px-3 text-xs"
       >
-        <motion.span
+        <m.span
           key={currentStep}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -49,7 +49,7 @@ export function ThinkingAnimation({ steps }: ThinkingAnimationProps) {
           className="inline-block"
         >
           {steps[currentStep]}
-        </motion.span>
+        </m.span>
         <div className="flex space-x-1">
           <div className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full" />
           <div
@@ -61,7 +61,7 @@ export function ThinkingAnimation({ steps }: ThinkingAnimationProps) {
             style={{ animationDelay: '0.2s' }}
           />
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

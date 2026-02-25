@@ -8,7 +8,9 @@ import {
   getBezierPath,
   getStraightPath,
 } from '@xyflow/react';
-import { useMemo } from 'react';
+import { CSSProperties, useMemo } from 'react';
+
+const EMPTY_STYLE: CSSProperties = {};
 
 interface AutomationEdgeProps extends EdgeProps {
   type?: 'smoothstep' | 'bezier' | 'straight' | 'default';
@@ -38,7 +40,7 @@ export function AutomationEdge({
   targetY,
   sourcePosition,
   targetPosition,
-  style = {},
+  style = EMPTY_STYLE,
   markerEnd,
   data,
   type = 'smoothstep',

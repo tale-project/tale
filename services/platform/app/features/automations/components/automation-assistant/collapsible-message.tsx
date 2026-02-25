@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronDown, ChevronUp, Bot } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -29,18 +29,13 @@ export function CollapsibleMessage({
   viewLessLabel,
   isLastMessage = false,
 }: CollapsibleMessageProps) {
-  const [isExpanded, setIsExpanded] = useState(isLastMessage);
+  const [isExpanded, setIsExpanded] = useState(() => isLastMessage);
   const truncateLength =
     role === 'user'
       ? USER_MESSAGE_TRUNCATE_LENGTH
       : ASSISTANT_MESSAGE_TRUNCATE_LENGTH;
   const shouldTruncate = content.length > truncateLength;
 
-  useEffect(() => {
-    if (isLastMessage) {
-      setIsExpanded(true);
-    }
-  }, [isLastMessage]);
   const displayContent =
     shouldTruncate && !isExpanded
       ? content.slice(0, truncateLength) + '...'

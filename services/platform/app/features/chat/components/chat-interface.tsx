@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { useRef, useEffect, useState, useCallback } from 'react';
 
@@ -276,7 +276,7 @@ export function ChatInterface({
         <div className="relative mx-auto w-full max-w-(--chat-max-width)">
           <AnimatePresence>
             {showScrollButton && (
-              <motion.div
+              <m.div
                 initial={{ opacity: 0, y: 8, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.95 }}
@@ -292,7 +292,7 @@ export function ChatInterface({
                 >
                   <ArrowDown className="h-4 w-4" />
                 </Button>
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>

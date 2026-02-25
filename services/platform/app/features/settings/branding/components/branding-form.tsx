@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -60,10 +60,8 @@ export function BrandingForm({
   const { toast } = useToast();
   const upsertBranding = useUpsertBranding();
 
-  const schema = useMemo(() => brandingFormSchema, []);
-
   const form = useForm<BrandingFormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(brandingFormSchema),
     defaultValues: {
       appName: branding?.appName ?? '',
       textLogo: branding?.textLogo ?? '',

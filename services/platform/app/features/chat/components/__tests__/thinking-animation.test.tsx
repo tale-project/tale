@@ -39,24 +39,33 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: ({
-      children,
-      className,
-    }: {
-      children: React.ReactNode;
-      className?: string;
-    }) => <div className={className}>{children}</div>,
-    span: ({
-      children,
-      className,
-    }: {
-      children: React.ReactNode;
-      className?: string;
-    }) => <span className={className}>{children}</span>,
-  },
-}));
+vi.mock('framer-motion', () => {
+  const div = ({
+    children,
+    className,
+  }: {
+    children: React.ReactNode;
+    className?: string;
+  }) => <div className={className}>{children}</div>;
+  const span = ({
+    children,
+    className,
+  }: {
+    children: React.ReactNode;
+    className?: string;
+  }) => <span className={className}>{children}</span>;
+  return {
+    m: { div, span },
+    motion: { div, span },
+    LazyMotion: ({ children }: { children: React.ReactNode }) => (
+      <>{children}</>
+    ),
+    domAnimation: {},
+    AnimatePresence: ({ children }: { children: React.ReactNode }) => (
+      <>{children}</>
+    ),
+  };
+});
 
 // UIMessagePart requires toolCallId and specific state shapes — helper builds
 // type-safe parts without repeating boilerplate in every test.

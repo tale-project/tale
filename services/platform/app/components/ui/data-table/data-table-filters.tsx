@@ -90,6 +90,8 @@ export interface DataTableFiltersProps {
   className?: string;
 }
 
+const EMPTY_FILTERS: FilterConfig[] = [];
+
 /**
  * Composable filter bar for DataTable.
  *
@@ -100,7 +102,7 @@ export interface DataTableFiltersProps {
  */
 export function DataTableFilters({
   search,
-  filters = [],
+  filters = EMPTY_FILTERS,
   dateRange,
   isLoading = false,
   onClearAll,

@@ -1,5 +1,6 @@
 'use client';
 
+import { AnimatePresence } from 'framer-motion';
 import { Bot, LoaderCircle } from 'lucide-react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
@@ -140,15 +141,17 @@ export function MessageList({
           </div>
         </div>
       ))}
-      {(isLoading || isWaitingForResponse) && (
-        <ThinkingAnimation
-          steps={[
-            t('assistant.thinking.thinking'),
-            t('assistant.thinking.analyzing'),
-            t('assistant.thinking.compiling'),
-          ]}
-        />
-      )}
+      <AnimatePresence>
+        {(isLoading || isWaitingForResponse) && (
+          <ThinkingAnimation
+            steps={[
+              t('assistant.thinking.thinking'),
+              t('assistant.thinking.analyzing'),
+              t('assistant.thinking.compiling'),
+            ]}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

@@ -3,8 +3,8 @@
 import {
   ComponentPropsWithoutRef,
   forwardRef,
-  useState,
   useEffect,
+  useState,
 } from 'react';
 
 import { cn } from '@/lib/utils/cn';
@@ -43,24 +43,20 @@ export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
   },
   ref,
 ) {
-  const [currentSrc, setCurrentSrc] = useState(src || fallbackSrc);
-  const [hasError, setHasError] = useState(false);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const currentSrc = failedSrc === src ? fallbackSrc : src || fallbackSrc;
 
-  // Reset state when src changes
   useEffect(() => {
-    setCurrentSrc(src || fallbackSrc);
-    setHasError(false);
-  }, [src, fallbackSrc]);
+    setFailedSrc(null);
+  }, [src]);
 
   const handleError = () => {
-    if (!hasError && currentSrc !== fallbackSrc) {
-      setHasError(true);
-      setCurrentSrc(fallbackSrc);
-    }
+    setFailedSrc(src ?? null);
   };
 
   return (
     <img
+      key={src}
       ref={ref}
       src={currentSrc}
       alt={alt}

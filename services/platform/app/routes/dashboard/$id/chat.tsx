@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet } from '@tanstack/react-router';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { PanelLeftClose } from 'lucide-react';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
@@ -33,7 +33,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <AnimatePresence initial={false}>
           {isHistoryOpen && (
-            <motion.div
+            <m.div
               initial={{ width: 0 }}
               animate={{ width: '18rem' }}
               exit={{ width: 0 }}
@@ -53,7 +53,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
               >
                 <PanelLeftClose className="size-3" />
               </button>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
 
