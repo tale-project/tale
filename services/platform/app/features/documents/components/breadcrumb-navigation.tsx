@@ -97,7 +97,10 @@ export function BreadcrumbNavigation({
         const { displayName } = getSegmentInfo(segmentObj.segment);
 
         return (
-          <div key={index} className="flex items-center gap-1">
+          <div
+            key={segmentObj.originalPath}
+            className="flex items-center gap-1"
+          >
             {/* Separator */}
             <div
               className="text-muted-foreground mx-1 text-[14px] leading-4 font-medium"

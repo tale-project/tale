@@ -39,15 +39,19 @@ export function ImageUploadField({
   const [isRemoved, setIsRemoved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const prevCurrentUrlRef = useRef(currentUrl);
   const generateUploadUrl = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
 
-  const displayUrl = isRemoved ? null : (previewUrl ?? currentUrl);
+  if (prevCurrentUrlRef.current !== currentUrl) {
+    prevCurrentUrlRef.current = currentUrl;
+    if (isRemoved) {
+      setIsRemoved(false);
+    }
+  }
 
-  useEffect(() => {
-    setIsRemoved(false);
-  }, [currentUrl]);
+  const displayUrl = isRemoved ? null : (previewUrl ?? currentUrl);
 
   useEffect(() => {
     return () => {

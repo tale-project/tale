@@ -370,7 +370,7 @@ export const ClickableRows: Story = {
 
 export const WithInfiniteScroll: Story = {
   render: function InfiniteScrollStory() {
-    const [data, setData] = useState(manyUsers.slice(0, 10));
+    const [data, setData] = useState(() => manyUsers.slice(0, 10));
     const [isLoading, setIsLoading] = useState(false);
 
     const loadMore = () => {
@@ -413,7 +413,7 @@ export const WithInfiniteScroll: Story = {
 
 export const WithManualLoadMore: Story = {
   render: function ManualLoadMoreStory() {
-    const [data, setData] = useState(manyUsers.slice(0, 10));
+    const [data, setData] = useState(() => manyUsers.slice(0, 10));
     const [isLoading, setIsLoading] = useState(false);
 
     const loadMore = () => {

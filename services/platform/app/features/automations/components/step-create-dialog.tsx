@@ -34,6 +34,9 @@ interface CreateStepDialogProps {
   }>;
 }
 
+const EMPTY_STEP_OPTIONS: NonNullable<CreateStepDialogProps['stepOptions']> =
+  [];
+
 type FormData = {
   name: string;
   stepType: 'start' | 'llm' | 'condition' | 'action' | 'loop';
@@ -98,7 +101,7 @@ export function CreateStepDialog({
   open,
   onOpenChange,
   onCreateStep,
-  stepOptions = [],
+  stepOptions = EMPTY_STEP_OPTIONS,
 }: CreateStepDialogProps) {
   const { t } = useT('automations');
   const initialDefaults = getDefaultTemplates('action');

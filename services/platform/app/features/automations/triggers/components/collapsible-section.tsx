@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronRight, type LucideIcon } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { Heading } from '@/app/components/ui/typography/heading';
 import { cn } from '@/lib/utils/cn';
@@ -21,13 +21,7 @@ export function CollapsibleSection({
   defaultOpen = false,
   children,
 }: CollapsibleSectionProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  useEffect(() => {
-    if (defaultOpen) {
-      setIsOpen(true);
-    }
-  }, [defaultOpen]);
+  const [isOpen, setIsOpen] = useState(() => defaultOpen);
   const headingId = `${id}-heading`;
 
   return (
