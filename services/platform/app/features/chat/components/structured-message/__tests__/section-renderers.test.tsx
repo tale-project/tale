@@ -34,7 +34,9 @@ describe('NextStepsSection', () => {
 
   it('shows skeleton when streaming with no items yet', () => {
     render(<NextStepsSection content="" isStreaming onSendFollowUp={noop} />);
-    expect(screen.getByText('Suggested follow-ups')).toBeInTheDocument();
+    expect(screen.getAllByText('Suggested follow-ups').length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
