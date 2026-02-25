@@ -8,6 +8,7 @@ import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -115,18 +116,18 @@ export function ChatActions({
               return (
                 <>
                   {parts[0]}
-                  <span className="text-foreground font-semibold">
+                  <Text as="span" variant="body" className="font-semibold">
                     {chat.title}
-                  </span>
+                  </Text>
                   {parts[1]}
                 </>
               );
             })()}
             <br />
             <br />
-            <span className="text-muted-foreground">
+            <Text as="span" variant="muted">
               {tChat('deleteArchiveMessage')}
-            </span>
+            </Text>
           </>
         }
         deleteText={tChat('deleteChat')}

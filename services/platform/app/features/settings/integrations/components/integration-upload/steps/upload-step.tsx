@@ -5,6 +5,7 @@ import { useState, useCallback } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Stack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -46,9 +47,7 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
 
   return (
     <Stack gap={4}>
-      <p className="text-muted-foreground text-sm">
-        {t('integrations.upload.uploadDescription')}
-      </p>
+      <Text variant="muted">{t('integrations.upload.uploadDescription')}</Text>
 
       <FileUpload.Root>
         <FileUpload.DropZone
@@ -69,14 +68,14 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
           />
           <Upload className="text-muted-foreground size-8" />
           <Stack gap={1} className="text-center">
-            <p className="text-sm font-medium">
+            <Text variant="label">
               {isParsing
                 ? t('integrations.upload.parsing')
                 : t('integrations.upload.dropOrClick')}
-            </p>
-            <p className="text-muted-foreground text-xs">
+            </Text>
+            <Text variant="caption">
               {t('integrations.upload.acceptedFormats')}
-            </p>
+            </Text>
           </Stack>
         </FileUpload.DropZone>
       </FileUpload.Root>
@@ -92,15 +91,15 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
       )}
 
       <div className="text-muted-foreground text-xs">
-        <p className="font-medium">
+        <Text variant="label-sm">
           {t('integrations.upload.packageStructure')}
-        </p>
+        </Text>
         <pre className="bg-muted mt-1 rounded p-2 text-xs">
           {`Option A: my-integration.zip\n            ├── config.json\n            ├── connector.js\n            └── icon.svg (optional)\n\nOption B: Select files directly\n            ├── config.json\n            ├── connector.js\n            └── icon.svg (optional)`}
         </pre>
       </div>
 
-      <p className="text-muted-foreground text-xs">
+      <Text variant="caption">
         {t('integrations.upload.examplesHintPrefix')}{' '}
         <a
           href="https://github.com/tale-project/tale/tree/main/examples/integrations"
@@ -112,7 +111,7 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
           <ExternalLink className="ml-0.5 inline size-3 align-text-bottom" />
         </a>{' '}
         {t('integrations.upload.examplesHintSuffix')}
-      </p>
+      </Text>
     </Stack>
   );
 }

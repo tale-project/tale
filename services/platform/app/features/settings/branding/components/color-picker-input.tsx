@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from 'react';
 
+import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
 
 interface ColorPickerInputProps {
@@ -83,7 +84,9 @@ export function ColorPickerInput({
           aria-hidden="true"
         />
         <div className="flex items-center justify-center px-2 py-1.5">
-          <span className="text-muted-foreground text-sm leading-5">#</span>
+          <Text as="span" variant="muted" className="leading-5">
+            #
+          </Text>
           <input
             id={id}
             type="text"

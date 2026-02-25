@@ -1,5 +1,7 @@
 'use client';
 
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -29,10 +31,10 @@ export function AccessDenied({ title, message, className }: AccessDeniedProps) {
         className,
       )}
     >
-      <h1 className="text-foreground mb-2 text-2xl font-semibold">
+      <Heading level={1} size="2xl" className="mb-2">
         {displayTitle}
-      </h1>
-      <p className="text-muted-foreground">{message}</p>
+      </Heading>
+      <Text variant="muted">{message}</Text>
     </div>
   );
 }

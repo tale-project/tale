@@ -8,6 +8,7 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { useAvailableIntegrations, useAvailableTools } from '../hooks/queries';
@@ -143,9 +144,9 @@ export function ToolSelector({
                 />
               </div>
             )}
-            <p className="text-muted-foreground mb-1.5 text-xs font-medium">
+            <Text variant="caption" className="mb-1.5 font-medium">
               {category}
-            </p>
+            </Text>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
               {toolNames.map((toolName) => (
                 <Checkbox
@@ -202,9 +203,9 @@ function IntegrationBindingsSection({
       description={t('customAgents.form.sectionIntegrationBindingsDescription')}
     >
       {!integrations || integrations.length === 0 ? (
-        <p className="text-muted-foreground text-xs italic">
+        <Text variant="caption" className="italic">
           {t('customAgents.form.noIntegrationsAvailable')}
-        </p>
+        </Text>
       ) : (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
           {integrations.map((integration) => (

@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 
 import { Button } from '../primitives/button';
+import { Text } from '../typography/text';
 
 interface CodeBlockProps {
   children: ReactNode;
@@ -54,9 +55,9 @@ export function CodeBlock({
   return (
     <div className={className}>
       {label && (
-        <p className="text-muted-foreground mb-1.5 text-xs font-medium">
+        <Text variant="caption" className="mb-1.5 font-medium">
           {label}
-        </p>
+        </Text>
       )}
       <div className="group relative">
         <pre

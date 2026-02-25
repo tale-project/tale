@@ -12,6 +12,7 @@ import {
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -49,9 +50,9 @@ export function IntegrationUpdateSection({
         <span>{t('integrations.manageDialog.updateIntegration')}</span>
       </summary>
       <Stack gap={3} className="mt-2 ml-6">
-        <p className="text-muted-foreground text-xs">
+        <Text variant="caption">
           {t('integrations.manageDialog.updateIntegrationDescription')}
-        </p>
+        </Text>
 
         <FileUpload.Root>
           <FileUpload.DropZone
@@ -69,14 +70,14 @@ export function IntegrationUpdateSection({
           >
             <Upload className="text-muted-foreground size-5" />
             <Stack gap={1} className="text-center">
-              <p className="text-xs font-medium">
+              <Text variant="label-sm">
                 {isParsingUpdate
                   ? t('integrations.upload.parsing')
                   : t('integrations.manageDialog.dropFilesToUpdate')}
-              </p>
-              <p className="text-muted-foreground text-xs">
+              </Text>
+              <Text variant="caption">
                 {t('integrations.manageDialog.acceptedUpdateFormats')}
-              </p>
+              </Text>
             </Stack>
           </FileUpload.DropZone>
           <FileUpload.Overlay label={t('integrations.upload.dropHere')} />
@@ -97,9 +98,9 @@ export function IntegrationUpdateSection({
         {parsedUpdate && (
           <Stack gap={3}>
             <Stack gap={2} className="bg-muted/50 rounded-lg p-3">
-              <p className="text-xs font-medium">
+              <Text variant="label-sm">
                 {t('integrations.manageDialog.updatePreview')}
-              </p>
+              </Text>
               <HStack gap={3} className="text-muted-foreground text-xs">
                 <HStack gap={1} className="items-center">
                   <Zap className="size-3" />

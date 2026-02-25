@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { useTheme } from '@/app/components/theme/theme-provider';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';
 import {
@@ -100,12 +101,14 @@ export function DocumentPreviewText({
   return (
     <div className="relative mx-auto w-full flex-1 overflow-x-auto overflow-y-auto p-6">
       {loading && (
-        <div className="text-muted-foreground mt-4 text-center">
+        <Text as="div" variant="muted" align="center" className="mt-4">
           {t('preview.loading')}
-        </div>
+        </Text>
       )}
       {!loading && error && (
-        <div className="text-destructive mt-4 text-center">{error}</div>
+        <Text as="div" variant="error" align="center" className="mt-4">
+          {error}
+        </Text>
       )}
       {!loading &&
         !error &&

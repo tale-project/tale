@@ -2,6 +2,7 @@
 
 import { memo } from 'react';
 
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import {
   isTextBasedFile,
@@ -156,12 +157,12 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
           fileName={attachment.fileName}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="text-foreground truncate text-sm font-medium">
+          <Text as="div" variant="label" truncate>
             {attachment.fileName}
-          </div>
-          <div className="text-muted-foreground text-xs">
+          </Text>
+          <Text as="div" variant="caption">
             {getFileTypeLabel(attachment.fileName, attachment.fileType, t)}
-          </div>
+          </Text>
         </div>
       </div>
     );
@@ -179,12 +180,12 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
         fileName={attachment.fileName}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="text-foreground truncate text-sm font-medium">
+        <Text as="div" variant="label" truncate>
           {attachment.fileName}
-        </div>
-        <div className="text-muted-foreground text-xs">
+        </Text>
+        <Text as="div" variant="caption">
           {getFileTypeLabel(attachment.fileName, attachment.fileType, t)}
-        </div>
+        </Text>
       </div>
     </a>
   );
@@ -222,12 +223,12 @@ export const FilePartDisplay = memo(function FilePartDisplay({
         fileName={filePart.filename || t('fileTypes.file')}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="text-foreground truncate text-sm font-medium">
+        <Text as="div" variant="label" truncate>
           {filePart.filename || t('fileTypes.file')}
-        </div>
-        <div className="text-muted-foreground text-xs">
+        </Text>
+        <Text as="div" variant="caption">
           {getFileTypeLabel(filePart.filename || '', filePart.mediaType, t)}
-        </div>
+        </Text>
       </div>
     </a>
   );

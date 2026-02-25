@@ -9,6 +9,7 @@ import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
 import {
   useCustomerByEmail,
@@ -135,9 +136,9 @@ export function ApprovalDetailDialog({
             <Stack gap={3}>
               {/* Status */}
               <HStack>
-                <div className="text-muted-foreground w-[90px] text-xs">
+                <Text as="div" variant="caption" className="w-[90px]">
                   {t('detail.status')}
-                </div>
+                </Text>
                 <Badge
                   dot
                   variant={
@@ -159,9 +160,9 @@ export function ApprovalDetailDialog({
 
               {/* Type */}
               <HStack>
-                <div className="text-muted-foreground w-[90px] text-xs">
+                <Text as="div" variant="caption" className="w-[90px]">
                   {t('detail.type')}
-                </div>
+                </Text>
                 <Badge variant="outline" icon={RecommendationIcon}>
                   {t('detail.typeProductRecommendation')}
                 </Badge>
@@ -169,20 +170,20 @@ export function ApprovalDetailDialog({
 
               {/* Created at */}
               <HStack>
-                <div className="text-muted-foreground w-[90px] text-xs">
+                <Text as="div" variant="caption" className="w-[90px]">
                   {t('detail.createdAt')}
-                </div>
-                <div className="text-muted-foreground text-sm font-medium">
+                </Text>
+                <Text as="div" variant="muted" className="font-medium">
                   {formatDate(new Date(approvalDetail.createdAt), 'long')}
-                </div>
+                </Text>
               </HStack>
 
               {/* Confidence */}
               {approvalDetail.confidence !== undefined && (
                 <HStack>
-                  <div className="text-muted-foreground w-[90px] text-xs">
+                  <Text as="div" variant="caption" className="w-[90px]">
                     {t('detail.confidence')}
-                  </div>
+                  </Text>
                   <Badge variant="outline">{approvalDetail.confidence}%</Badge>
                 </HStack>
               )}

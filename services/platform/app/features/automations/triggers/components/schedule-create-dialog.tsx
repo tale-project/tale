@@ -13,6 +13,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -225,9 +226,7 @@ export function ScheduleCreateDialog({
             required
             errorMessage={formState.errors.cronExpression?.message}
           />
-          <p className="text-muted-foreground text-xs">
-            {t('triggers.schedules.form.cronHelp')}
-          </p>
+          <Text variant="caption">{t('triggers.schedules.form.cronHelp')}</Text>
           <div className="flex flex-wrap gap-2">
             {CRON_PRESETS.map((preset) => (
               <Button

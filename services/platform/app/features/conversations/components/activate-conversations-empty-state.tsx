@@ -3,6 +3,8 @@
 import { MessageSquare, Plus } from 'lucide-react';
 
 import { LinkButton } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 interface ActivateConversationsEmptyStateProps {
@@ -18,12 +20,12 @@ export function ActivateConversationsEmptyState({
     <div className="ring-border m-4 flex flex-1 items-center justify-center rounded-xl px-4 py-12 ring-1">
       <div className="flex max-w-md flex-col items-center text-center">
         <MessageSquare className="text-muted-foreground mb-4 size-6" />
-        <h2 className="text-foreground mb-1 text-lg font-semibold">
+        <Heading level={2} size="lg" className="mb-1">
           {t('activate.title')}
-        </h2>
-        <p className="text-muted-foreground mb-4 text-sm">
+        </Heading>
+        <Text variant="muted" className="mb-4">
           {t('activate.description')}
-        </p>
+        </Text>
         <LinkButton
           href={`/dashboard/${organizationId}/settings/integrations?tab=email`}
           icon={Plus}

@@ -7,6 +7,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 
 import { Image } from '@/app/components/ui/data-display/image';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
+import { Text } from '@/app/components/ui/typography/text';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 import { cn } from '@/lib/utils/cn';
@@ -157,9 +158,9 @@ export function ImageUploadField({
         )}
       </div>
       {label && (
-        <span className="text-muted-foreground text-xs font-medium">
+        <Text as="span" variant="caption" className="font-medium">
           {label}
-        </span>
+        </Text>
       )}
       <input
         ref={fileInputRef}

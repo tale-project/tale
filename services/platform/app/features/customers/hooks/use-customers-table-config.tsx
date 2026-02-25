@@ -1,6 +1,7 @@
 'use client';
 
 import { Stack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
 import { CustomerRowActions } from '../components/customer-row-actions';
@@ -18,12 +19,12 @@ export const useCustomersTableConfig = createTableConfigHook<'customers'>(
       size: 278,
       cell: ({ row }) => (
         <Stack gap={1}>
-          <span className="text-foreground text-sm font-medium">
+          <Text as="span" variant="label">
             {row.original.name || ''}
-          </span>
-          <span className="text-muted-foreground text-xs">
+          </Text>
+          <Text as="span" variant="caption">
             {row.original.email || tTables('cells.noEmail')}
-          </span>
+          </Text>
         </Stack>
       ),
     },

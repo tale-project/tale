@@ -21,6 +21,7 @@ import {
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -248,13 +249,13 @@ export function AutomationNavigation({
                   label: (
                     <>
                       <span>{`v${version.versionNumber}`}</span>
-                      <span className="text-muted-foreground ml-1 text-xs">
+                      <Text as="span" variant="caption" className="ml-1">
                         {version.status === 'draft' && tCommon('status.draft')}
                         {version.status === 'active' &&
                           tCommon('status.active')}
                         {version.status === 'archived' &&
                           tCommon('status.archived')}
-                      </span>
+                      </Text>
                     </>
                   ),
                   onClick: () => navigateToVersion(version._id),

@@ -14,6 +14,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -255,9 +257,9 @@ export function AutomationSidePanel({
                 <Sparkles className="size-4" />
               </div>
               <div className="flex-1">
-                <h2 className="text-foreground text-sm font-semibold">
+                <Heading level={2} size="sm">
                   {t('sidePanel.aiAssistant')}
-                </h2>
+                </Heading>
               </div>
             </>
           ) : showTestPanel ? (
@@ -266,9 +268,9 @@ export function AutomationSidePanel({
                 <TestTubeDiagonal className="size-4" />
               </div>
               <div className="flex-1">
-                <h2 className="text-foreground text-sm font-semibold">
+                <Heading level={2} size="sm">
                   {t('sidePanel.testAutomation')}
-                </h2>
+                </Heading>
               </div>
             </>
           ) : step ? (
@@ -295,9 +297,9 @@ export function AutomationSidePanel({
                 </div>
               </Tooltip>
               <div className="flex-1">
-                <h2 className="text-foreground text-sm font-semibold">
+                <Heading level={2} size="sm">
                   {step.name}
-                </h2>
+                </Heading>
               </div>
             </>
           ) : null}
@@ -372,10 +374,10 @@ export function AutomationSidePanel({
 
             {errors.length > 0 && (
               <div className="border-destructive/50 bg-destructive/10 rounded-md border p-3">
-                <div className="text-destructive mb-1 flex items-center gap-2 text-sm font-medium">
+                <Text variant="error" className="mb-1 flex items-center gap-2">
                   <AlertCircle className="size-4" />
                   {t('sidePanel.validationErrors')}
-                </div>
+                </Text>
                 <ul className="text-destructive space-y-1 text-xs">
                   {errors.map((error, index) => (
                     <li key={`${error}-${index}`}>• {error}</li>
@@ -386,10 +388,13 @@ export function AutomationSidePanel({
 
             {warnings.length > 0 && (
               <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
-                <div className="mb-1 flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+                <Text
+                  as="div"
+                  className="mb-1 flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400"
+                >
                   <AlertTriangle className="size-4" />
                   {t('sidePanel.validationWarnings')}
-                </div>
+                </Text>
                 <ul className="space-y-1 text-xs text-amber-600 dark:text-amber-400">
                   {warnings.map((warning, index) => (
                     <li key={`${warning}-${index}`}>• {warning}</li>

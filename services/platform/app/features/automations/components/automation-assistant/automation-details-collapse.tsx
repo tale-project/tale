@@ -3,6 +3,8 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
+import { Text } from '@/app/components/ui/typography/text';
+
 interface AutomationDetailsCollapseProps {
   context: string;
   title: string;
@@ -20,9 +22,9 @@ export function AutomationDetailsCollapse({
         onClick={() => setIsOpen(!isOpen)}
         className="bg-muted/50 hover:bg-muted flex w-full items-center justify-between px-3 py-2 text-left transition-colors"
       >
-        <span className="text-muted-foreground text-xs font-medium">
+        <Text as="span" variant="caption" className="font-medium">
           {title}
-        </span>
+        </Text>
         {isOpen ? (
           <ChevronDown className="text-muted-foreground size-3.5" />
         ) : (

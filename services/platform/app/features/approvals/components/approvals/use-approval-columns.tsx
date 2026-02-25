@@ -7,6 +7,7 @@ import type { Doc } from '@/convex/_generated/dataModel';
 
 import { CellErrorBoundary } from '@/app/components/error-boundaries/boundaries/cell-error-boundary';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -41,14 +42,14 @@ function createSharedColumns(
       cell: ({ row }) => (
         <div className="flex min-h-[41px] flex-col gap-1.5">
           <div className="flex items-center gap-3">
-            <span className="text-foreground text-sm font-medium tracking-tight">
+            <Text as="span" variant="label" className="tracking-tight">
               {getLabel(row.original.resourceType)}
-            </span>
-            <Info className="text-muted-foreground size-4 flex-shrink-0 flex-grow-0" />
+            </Text>
+            <Info className="text-muted-foreground size-4 shrink-0 grow-0" />
           </div>
-          <div className="text-muted-foreground text-sm font-normal tracking-tight">
+          <Text as="div" variant="muted" className="tracking-tight">
             {getCustomerLabel(row.original)}
-          </div>
+          </Text>
         </div>
       ),
     },
@@ -61,12 +62,14 @@ function createSharedColumns(
         const metadata = row.original.metadata ?? {};
         return (
           <div className="flex flex-col gap-1.5">
-            <div className="text-foreground text-xs font-medium">
+            <Text as="div" variant="label-sm">
               {t('labels.purchase')}
-            </div>
+            </Text>
             <CellErrorBoundary
               fallback={
-                <span className="text-muted-foreground text-xs">—</span>
+                <Text as="span" variant="caption">
+                  —
+                </Text>
               }
             >
               <ProductListCell
@@ -86,12 +89,14 @@ function createSharedColumns(
         const metadata = row.original.metadata ?? {};
         return (
           <div className="flex flex-col gap-1.5">
-            <div className="text-foreground text-xs font-medium">
+            <Text as="div" variant="label-sm">
               {t('labels.recommendation')}
-            </div>
+            </Text>
             <CellErrorBoundary
               fallback={
-                <span className="text-muted-foreground text-xs">—</span>
+                <Text as="span" variant="caption">
+                  —
+                </Text>
               }
             >
               <ProductListCell
@@ -161,24 +166,29 @@ export function useApprovalColumns({
       {
         id: 'confidence',
         header: () => (
-          <span className="block w-full text-right">
+          <Text as="span" align="right" className="block w-full">
             {t('columns.confidence')}
-          </span>
+          </Text>
         ),
         size: 100,
         meta: { headerLabel: t('columns.confidence') },
         cell: ({ row }) => (
-          <span className="text-muted-foreground block text-right text-xs font-medium">
+          <Text
+            as="span"
+            variant="caption"
+            align="right"
+            className="block font-medium"
+          >
             {getConfidencePercent(row.original)}%
-          </span>
+          </Text>
         ),
       },
       {
         id: 'actions',
         header: () => (
-          <span className="block w-full text-center">
+          <Text as="span" align="center" className="block w-full">
             {t('columns.approved')}
-          </span>
+          </Text>
         ),
         size: 100,
         meta: {
@@ -250,35 +260,35 @@ export function useApprovalColumns({
         cell: ({ row }) => {
           const metadata = row.original.metadata ?? {};
           return (
-            <div className="text-sm">
+            <Text as="div" variant="body">
               {safeGetString(metadata, 'approverName', '') ||
                 t('columns.unknown')}
-            </div>
+            </Text>
           );
         },
       },
       {
         id: 'reviewedAt',
         header: () => (
-          <span className="block w-full text-right">
+          <Text as="span" align="right" className="block w-full">
             {t('columns.reviewedAt')}
-          </span>
+          </Text>
         ),
         meta: { headerLabel: t('columns.reviewedAt') },
         cell: ({ row }) => (
-          <span className="block text-right text-sm">
+          <Text as="span" variant="body" align="right" className="block">
             {row.original.reviewedAt
               ? formatDate(new Date(row.original.reviewedAt), 'short')
               : ''}
-          </span>
+          </Text>
         ),
       },
       {
         id: 'status',
         header: () => (
-          <span className="block w-full text-right">
+          <Text as="span" align="right" className="block w-full">
             {t('columns.approved')}
-          </span>
+          </Text>
         ),
         size: 100,
         meta: {

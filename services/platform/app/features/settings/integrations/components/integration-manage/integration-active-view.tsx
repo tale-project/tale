@@ -6,6 +6,7 @@ import type { Doc } from '@/convex/_generated/dataModel';
 
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
@@ -48,21 +49,21 @@ export function IntegrationActiveView({
   return (
     <Stack gap={3}>
       <Stack gap={2} className="border-border rounded-lg border p-4">
-        <p className="text-sm font-medium">
+        <Text variant="label">
           {t('integrations.manageDialog.authentication')}
-        </p>
+        </Text>
 
         {isSql && integration.sqlConnectionConfig?.server && (
           <HStack
             gap={2}
             className="text-muted-foreground items-center text-sm"
           >
-            <span className="w-20 shrink-0 text-xs">
+            <Text as="span" variant="body-sm" className="w-20 shrink-0">
               {t('integrations.manageDialog.server')}
-            </span>
-            <span className="font-mono text-xs">
+            </Text>
+            <Text as="span" variant="code">
               {maskValue(integration.sqlConnectionConfig.server)}
-            </span>
+            </Text>
           </HStack>
         )}
 
@@ -73,21 +74,23 @@ export function IntegrationActiveView({
                 gap={2}
                 className="text-muted-foreground items-center text-sm"
               >
-                <span className="w-20 shrink-0 text-xs">
+                <Text as="span" variant="body-sm" className="w-20 shrink-0">
                   {t('integrations.manageDialog.username')}
-                </span>
-                <span className="font-mono text-xs">
+                </Text>
+                <Text as="span" variant="code">
                   {maskValue(integration.basicAuth.username)}
-                </span>
+                </Text>
               </HStack>
               <HStack
                 gap={2}
                 className="text-muted-foreground items-center text-sm"
               >
-                <span className="w-20 shrink-0 text-xs">
+                <Text as="span" variant="body-sm" className="w-20 shrink-0">
                   {t('integrations.manageDialog.password')}
-                </span>
-                <span className="font-mono text-xs">{'\u00d7'.repeat(8)}</span>
+                </Text>
+                <Text as="span" variant="code">
+                  {'\u00d7'.repeat(8)}
+                </Text>
               </HStack>
             </>
           )}
@@ -97,10 +100,12 @@ export function IntegrationActiveView({
             gap={2}
             className="text-muted-foreground items-center text-sm"
           >
-            <span className="w-20 shrink-0 text-xs">
+            <Text as="span" variant="body-sm" className="w-20 shrink-0">
               {secretBindings.find((b) => SENSITIVE_KEYS.has(b)) ?? 'apiKey'}
-            </span>
-            <span className="font-mono text-xs">{'\u00d7'.repeat(8)}</span>
+            </Text>
+            <Text as="span" variant="code">
+              {'\u00d7'.repeat(8)}
+            </Text>
           </HStack>
         )}
 
@@ -109,12 +114,14 @@ export function IntegrationActiveView({
             gap={2}
             className="text-muted-foreground items-center text-sm"
           >
-            <span className="w-20 shrink-0 text-xs">
+            <Text as="span" variant="body-sm" className="w-20 shrink-0">
               {hasOAuth2Config
                 ? t('integrations.manageDialog.connectedViaOAuth2')
                 : 'accessToken'}
-            </span>
-            <span className="font-mono text-xs">{'\u00d7'.repeat(8)}</span>
+            </Text>
+            <Text as="span" variant="code">
+              {'\u00d7'.repeat(8)}
+            </Text>
           </HStack>
         )}
 
@@ -123,10 +130,12 @@ export function IntegrationActiveView({
             gap={2}
             className="text-muted-foreground items-center text-sm"
           >
-            <span className="w-20 shrink-0 text-xs">domain</span>
-            <span className="truncate font-mono text-xs">
+            <Text as="span" variant="body-sm" className="w-20 shrink-0">
+              domain
+            </Text>
+            <Text as="span" variant="code" truncate>
               {maskValue(integration.connectionConfig.domain)}
-            </span>
+            </Text>
           </HStack>
         )}
         {integration.connectionConfig?.apiEndpoint && (
@@ -134,10 +143,12 @@ export function IntegrationActiveView({
             gap={2}
             className="text-muted-foreground items-center text-sm"
           >
-            <span className="w-20 shrink-0 text-xs">apiEndpoint</span>
-            <span className="truncate font-mono text-xs">
+            <Text as="span" variant="body-sm" className="w-20 shrink-0">
+              apiEndpoint
+            </Text>
+            <Text as="span" variant="code" truncate>
               {integration.connectionConfig.apiEndpoint}
-            </span>
+            </Text>
           </HStack>
         )}
       </Stack>

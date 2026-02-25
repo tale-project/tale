@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Stack, VStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -187,18 +188,18 @@ export function AutomationTester({
               ) : (
                 <AlertCircle className="text-destructive size-4" />
               )}
-              <span className="text-sm font-medium">
+              <Text as="span" variant="label">
                 {dryRunResult.success
                   ? t('tester.dryRun.success')
                   : t('tester.dryRun.failed')}
-              </span>
+              </Text>
             </div>
 
             {dryRunResult.errors.length > 0 && (
               <div className="mb-2">
-                <p className="text-destructive mb-1 text-xs font-medium">
+                <Text variant="error-sm" className="mb-1">
                   {t('tester.dryRun.errors')}:
-                </p>
+                </Text>
                 <ul className="text-destructive space-y-0.5 text-xs">
                   {dryRunResult.errors.map((err, index) => (
                     <li key={`${err}-${index}`}>• {err}</li>
@@ -209,9 +210,9 @@ export function AutomationTester({
 
             {dryRunResult.warnings.length > 0 && (
               <div className="mb-2">
-                <p className="mb-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                <Text className="mb-1 text-xs font-medium text-amber-600 dark:text-amber-400">
                   {t('tester.dryRun.warnings')}:
-                </p>
+                </Text>
                 <ul className="space-y-0.5 text-xs text-amber-600 dark:text-amber-400">
                   {dryRunResult.warnings.map((warn, index) => (
                     <li key={`${warn}-${index}`}>• {warn}</li>
@@ -221,9 +222,9 @@ export function AutomationTester({
             )}
 
             <div>
-              <p className="text-foreground mb-2 text-xs font-medium">
+              <Text variant="label-sm" className="mb-2">
                 {t('tester.dryRun.executionPath')}:
-              </p>
+              </Text>
               <div className="flex flex-wrap items-center gap-1">
                 {dryRunResult.stepResults.map((step, i) => (
                   <div key={step.stepSlug} className="flex items-center gap-1">
@@ -246,9 +247,9 @@ export function AutomationTester({
         )}
 
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/20">
-          <p className="text-xs text-blue-900 dark:text-blue-100">
+          <Text className="text-xs text-blue-900 dark:text-blue-100">
             {t('tester.tip')}
-          </p>
+          </Text>
         </div>
       </Stack>
 

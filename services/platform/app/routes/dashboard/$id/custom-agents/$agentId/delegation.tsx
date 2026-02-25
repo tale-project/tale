@@ -5,6 +5,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { NarrowContainer, Stack } from '@/app/components/ui/layout/layout';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
+import { Text } from '@/app/components/ui/typography/text';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
 import { useCustomAgents } from '@/app/features/custom-agents/hooks/queries';
@@ -119,9 +120,9 @@ function DelegationTab() {
               ))}
             </div>
           ) : availableAgents.length === 0 ? (
-            <p className="text-muted-foreground text-sm italic">
+            <Text variant="muted" className="italic">
               {t('customAgents.delegation.noDelegatesAvailable')}
-            </p>
+            </Text>
           ) : (
             <div className="space-y-1.5">
               {availableAgents.map((a) => {
@@ -134,9 +135,9 @@ function DelegationTab() {
                       onCheckedChange={() => toggleAgent(rootId)}
                     />
                     {a.description && (
-                      <span className="text-muted-foreground truncate text-xs">
+                      <Text as="span" variant="caption" truncate>
                         {a.description}
-                      </span>
+                      </Text>
                     )}
                   </div>
                 );

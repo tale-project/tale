@@ -14,6 +14,7 @@ import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell'
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
@@ -105,9 +106,14 @@ export function useDocumentsTableConfig({
                 className="text-left"
                 onClick={(e) => onDocumentClick(row.original, e)}
               >
-                <div className="text-primary max-w-[30rem] truncate text-sm font-medium hover:underline">
+                <Text
+                  as="div"
+                  variant="label"
+                  truncate
+                  className="text-primary max-w-[30rem] hover:underline"
+                >
                   {fileName}
-                </div>
+                </Text>
               </button>
             </HStack>
           );
@@ -116,26 +122,26 @@ export function useDocumentsTableConfig({
       {
         accessorKey: 'size',
         header: () => (
-          <span className="block w-full text-right">
+          <Text as="span" align="right" className="block w-full">
             {tTables('headers.size')}
-          </span>
+          </Text>
         ),
         size: 128,
         meta: { headerLabel: tTables('headers.size'), align: 'right' as const },
         cell: ({ row }) => (
-          <span className="block text-right whitespace-nowrap">
+          <Text as="span" align="right" className="block whitespace-nowrap">
             {row.original.type === 'folder' || !row.original.size
               ? '—'
               : formatBytes(row.original.size)}
-          </span>
+          </Text>
         ),
       },
       {
         id: 'source',
         header: () => (
-          <span className="block w-full text-center">
+          <Text as="span" align="center" className="block w-full">
             {tTables('headers.source')}
-          </span>
+          </Text>
         ),
         size: 96,
         meta: {
@@ -171,7 +177,9 @@ export function useDocumentsTableConfig({
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) =>
           row.original.type === 'folder' ? (
-            <span className="text-muted-foreground text-sm">—</span>
+            <Text as="span" variant="muted">
+              —
+            </Text>
           ) : (
             <RagStatusBadge
               status={row.original.ragStatus}
@@ -189,7 +197,11 @@ export function useDocumentsTableConfig({
         cell: ({ row }) => {
           const tags = row.original.teamTags;
           if (row.original.type === 'folder' || !tags || tags.length === 0) {
-            return <span className="text-muted-foreground text-sm">—</span>;
+            return (
+              <Text as="span" variant="muted">
+                —
+              </Text>
+            );
           }
           if (isLoadingTeams) {
             return <Skeleton className="h-5 w-20" />;
@@ -222,21 +234,25 @@ export function useDocumentsTableConfig({
         size: 160,
         cell: ({ row }) => {
           if (row.original.type === 'folder') {
-            return <span className="text-muted-foreground text-sm">—</span>;
+            return (
+              <Text as="span" variant="muted">
+                —
+              </Text>
+            );
           }
           return (
-            <span className="text-muted-foreground max-w-[10rem] truncate text-sm">
+            <Text as="span" variant="muted" truncate className="max-w-[10rem]">
               {row.original.createdByName ?? '—'}
-            </span>
+            </Text>
           );
         },
       },
       {
         accessorKey: 'lastModified',
         header: () => (
-          <span className="block w-full text-right">
+          <Text as="span" align="right" className="block w-full">
             {tTables('headers.modified')}
-          </span>
+          </Text>
         ),
         size: 192,
         meta: {

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { Text } from '@/app/components/ui/typography/text';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
@@ -161,9 +162,13 @@ export function ChatSearchDialog({
     >
       <div className="h-[13.75rem] overflow-y-auto p-3">
         {threadsData !== null && chats.length === 0 ? (
-          <div className="text-muted-foreground flex size-full items-center justify-center px-4 py-6 text-sm">
+          <Text
+            as="div"
+            variant="muted"
+            className="flex size-full items-center justify-center px-4 py-6"
+          >
             {t('searchChat.noResults')}
-          </div>
+          </Text>
         ) : (
           <ul className="py-1">
             {(() => {
@@ -171,9 +176,13 @@ export function ChatSearchDialog({
               return groupedChats.map((group) => (
                 <li key={group.label}>
                   {group.label && (
-                    <div className="text-muted-foreground px-2 pt-2 pb-1 text-xs font-medium">
+                    <Text
+                      as="div"
+                      variant="label-sm"
+                      className="text-muted-foreground px-2 pt-2 pb-1"
+                    >
                       {group.label}
-                    </div>
+                    </Text>
                   )}
                   <ul>
                     {group.chats.map((chat) => {
@@ -199,9 +208,9 @@ export function ChatSearchDialog({
                               close();
                             }}
                           >
-                            <span className="text-foreground truncate text-sm">
+                            <Text as="span" truncate>
                               {chat.title}
-                            </span>
+                            </Text>
                           </button>
                         </li>
                       );

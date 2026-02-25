@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
 import { Image } from '@/app/components/ui/data-display/image';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -101,14 +102,14 @@ function AttachmentCard({
         <span className="text-sm">{icon}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium" title={attachment.filename}>
+        <Text variant="label-sm" truncate title={attachment.filename}>
           {attachment.filename}
-        </p>
-        <p className="text-muted-foreground text-[10px]">
+        </Text>
+        <Text variant="caption" className="text-[10px]">
           {isDownloading
             ? t('attachment.downloading')
             : formatFileSize(attachment.size, tCommon)}
-        </p>
+        </Text>
       </div>
       {isDownloading ? (
         <div className="text-muted-foreground flex size-6 shrink-0 items-center justify-center">
@@ -282,18 +283,18 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
               }
               return null;
             })()}
-            <div className="text-xs leading-5">
+            <Text as="div" variant="body-sm" className="leading-5">
               <EmailPreview html={message.content} cidMap={cidMap} />
-            </div>
+            </Text>
             {displayAttachments.length > 0 && (
               <div className="flex flex-col gap-1.5 px-3 pb-3">
-                <div className="text-muted-foreground flex items-center gap-1 text-[10px]">
-                  <Paperclip className="size-3" />
-                  <span>
+                <div className="flex items-center gap-1">
+                  <Paperclip className="text-muted-foreground size-3" />
+                  <Text as="span" variant="caption" className="text-[10px]">
                     {t('attachment.attachments', {
                       count: displayAttachments.length,
                     })}
-                  </span>
+                  </Text>
                 </div>
                 <div className="flex flex-col gap-1">
                   {displayAttachments.map((att) => (
@@ -312,11 +313,13 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
               </div>
             )}
           </div>
-          <div
+          <Text
+            as="div"
+            variant="caption"
             className={cn(
-              'text-xs flex items-center gap-1.5 justify-end text-nowrap',
+              'flex items-center gap-1.5 justify-end text-nowrap',
               message.isCustomer
-                ? 'text-muted-foreground text-left'
+                ? 'text-left'
                 : 'text-muted-foreground/70 text-right mb-4',
             )}
           >
@@ -326,7 +329,7 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
                 {getDeliveryIcon(message.status)}
               </span>
             )}
-          </div>
+          </Text>
         </div>
       </div>
     </div>

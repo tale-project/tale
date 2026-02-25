@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 
 import { VStack, Center } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 
 export interface DataTableEmptyStateProps {
   /** Icon to display */
@@ -29,10 +30,8 @@ export function DataTableEmptyState({
             aria-hidden="true"
           />
         )}
-        <h4 className="text-sm font-medium">{title}</h4>
-        {description && (
-          <p className="text-muted-foreground text-sm">{description}</p>
-        )}
+        <Text variant="label">{title}</Text>
+        {description && <Text variant="muted">{description}</Text>}
       </VStack>
     </Center>
   );

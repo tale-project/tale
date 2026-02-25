@@ -5,6 +5,8 @@ import { useEffect } from 'react';
 
 import { Stack, Center, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { useErrorLogger } from '../hooks/use-error-logger';
@@ -71,14 +73,12 @@ export function ErrorDisplayCompact({
         </Center>
 
         {/* Title */}
-        <h2 className="text-foreground text-lg font-semibold">
+        <Heading level={2} size="lg">
           {t('errors.somethingWentWrong')}
-        </h2>
+        </Heading>
 
         {/* Description */}
-        <p className="text-muted-foreground text-sm">
-          {t('errors.errorLoadingPage')}
-        </p>
+        <Text variant="muted">{t('errors.errorLoadingPage')}</Text>
 
         {/* Action button */}
         <HStack gap={2} className="justify-center">
@@ -93,11 +93,7 @@ export function ErrorDisplayCompact({
         </HStack>
 
         {/* Support message */}
-        <p
-          className="text-muted-foreground text-sm"
-          role="status"
-          aria-live="polite"
-        >
+        <Text variant="muted" role="status" aria-live="polite">
           {t('errors.persistsProblem')}{' '}
           <a
             href={
@@ -112,7 +108,7 @@ export function ErrorDisplayCompact({
             {t('errors.contactSupport')}
           </a>
           .
-        </p>
+        </Text>
       </Stack>
     </Center>
   );

@@ -9,6 +9,7 @@ import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
@@ -219,15 +220,16 @@ function DetailRow({
 }) {
   return (
     <div className="grid grid-cols-3 gap-4">
-      <span className="text-muted-foreground text-sm font-medium">{label}</span>
-      <span
-        className={cn(
-          'col-span-2 text-sm capitalize',
-          isError && 'text-destructive',
-        )}
+      <Text as="span" variant="muted" className="font-medium">
+        {label}
+      </Text>
+      <Text
+        as="span"
+        variant="body"
+        className={cn('col-span-2 capitalize', isError && 'text-destructive')}
       >
         {value}
-      </span>
+      </Text>
     </div>
   );
 }
@@ -241,7 +243,9 @@ function DetailSection({
 }) {
   return (
     <div className="space-y-2">
-      <span className="text-muted-foreground text-sm font-medium">{label}</span>
+      <Text as="span" variant="muted" className="font-medium">
+        {label}
+      </Text>
       <pre className="bg-muted/50 max-h-40 overflow-auto rounded-lg p-3 text-xs">
         {JSON.stringify(data, null, 2)}
       </pre>

@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils/cn';
 
 import { Stack } from '../layout/layout';
+import { Text } from '../typography/text';
 
 export interface ItemPreviewProps {
   /** Primary text (e.g., item name) */
@@ -23,9 +24,13 @@ export function ItemPreview({
 }: ItemPreviewProps) {
   return (
     <Stack gap={1} className={cn('bg-secondary/20 rounded-lg p-4', className)}>
-      <div className="text-foreground text-sm font-medium">{primary}</div>
+      <Text as="div" variant="label">
+        {primary}
+      </Text>
       {secondary && (
-        <div className="text-muted-foreground text-xs">{secondary}</div>
+        <Text as="div" variant="caption">
+          {secondary}
+        </Text>
       )}
     </Stack>
   );

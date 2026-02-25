@@ -37,7 +37,7 @@ export interface TabNavigationProps {
   className?: string;
   /** Accessible label for the navigation */
   ariaLabel?: string;
-  /** Whether to prefetch linked pages */
+  /** Whether to prefetch linked pages (defaults to true) */
   prefetch?: boolean;
   /** Additional content to render (e.g., buttons, dropdowns) */
   children?: ReactNode;
@@ -54,7 +54,7 @@ export function TabNavigation({
   matchMode = 'startsWith',
   className,
   ariaLabel,
-  prefetch,
+  prefetch = true,
   children,
   standalone = true,
 }: TabNavigationProps) {
@@ -162,7 +162,7 @@ export function TabNavigation({
             }}
             to={path}
             search={item.search ?? hrefSearch}
-            preload={prefetch ? 'intent' : false}
+            preload={prefetch ? 'render' : false}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
               'relative h-full flex items-center py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0',

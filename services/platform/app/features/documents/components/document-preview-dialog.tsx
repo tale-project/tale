@@ -9,6 +9,8 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -115,9 +117,14 @@ export function DocumentPreviewDialog({
               <DocumentIcon fileName={displayName} />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate text-base leading-none font-semibold tracking-tight">
+              <Heading
+                level={2}
+                tracking="tight"
+                truncate
+                className="leading-none"
+              >
                 {displayName}
-              </h2>
+              </Heading>
             </div>
           </HStack>
 
@@ -149,16 +156,16 @@ export function DocumentPreviewDialog({
     >
       {isLoading && (
         <div className="grid flex-1 place-items-center p-6">
-          <div className="text-muted-foreground text-sm">
+          <Text as="div" variant="muted">
             {t('preview.loading')}
-          </div>
+          </Text>
         </div>
       )}
       {!isLoading && !doc && open && (
         <div className="grid flex-1 place-items-center p-6">
-          <div className="text-destructive text-sm">
+          <Text as="div" variant="error">
             {t('preview.failedToLoad')}
-          </div>
+          </Text>
         </div>
       )}
       {!isLoading && doc?.url && (

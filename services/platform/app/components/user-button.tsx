@@ -1,7 +1,7 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { useNavigate, useParams, useRouter } from '@tanstack/react-router';
 import {
   LogOut,
   Settings,
@@ -23,6 +23,7 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
@@ -49,6 +50,7 @@ export function UserButton({
   const { t } = useT('auth');
   const { t: tNav } = useT('navigation');
   const { user, signOut, isLoading: loading } = useAuth();
+  const router = useRouter();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const organizationId = params.id;
@@ -106,13 +108,9 @@ export function UserButton({
                 </>
               ) : (
                 <>
-                  <p className="text-foreground text-sm font-semibold">
-                    {displayName}
-                  </p>
+                  <Text className="font-semibold">{displayName}</Text>
                   {displayName !== user.email && (
-                    <p className="text-muted-foreground text-sm">
-                      {user.email}
-                    </p>
+                    <Text variant="muted">{user.email}</Text>
                   )}
                 </>
               )}
@@ -249,8 +247,24 @@ export function UserButton({
       )}
     >
       <UserCircle className="text-muted-foreground size-5 shrink-0" />
-      {label && <span className="text-sm font-medium">{label}</span>}
+      {label && (
+        <Text as="span" variant="label">
+          {label}
+        </Text>
+      )}
     </div>
+  );
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open && organizationId) {
+        void router.preloadRoute({
+          to: '/dashboard/$id/settings',
+          params: { id: organizationId },
+        });
+      }
+    },
+    [router, organizationId],
   );
 
   if (label) {
@@ -260,6 +274,7 @@ export function UserButton({
         items={menuItems}
         align={align}
         contentClassName="w-64"
+        onOpenChange={handleOpenChange}
       />
     );
   }
@@ -276,6 +291,7 @@ export function UserButton({
           items={menuItems}
           align={align}
           contentClassName="w-64"
+          onOpenChange={handleOpenChange}
         />
         <TooltipPrimitive.Content
           side="right"

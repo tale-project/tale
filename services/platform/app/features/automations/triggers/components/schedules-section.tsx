@@ -11,6 +11,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -106,9 +107,9 @@ export function SchedulesSection({
             <code className="bg-muted rounded px-2 py-0.5 font-mono text-sm">
               {row.original.cronExpression}
             </code>
-            <span className="text-muted-foreground text-xs">
+            <Text as="span" variant="caption">
               {row.original.timezone}
-            </span>
+            </Text>
           </div>
         ),
         size: 220,
@@ -131,9 +132,9 @@ export function SchedulesSection({
         id: 'lastTriggered',
         header: t('triggers.schedules.columns.lastTriggered'),
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-sm">
+          <Text as="span" variant="muted">
             {formatTimestamp(row.original.lastTriggeredAt)}
-          </span>
+          </Text>
         ),
         size: 180,
       },
@@ -141,9 +142,9 @@ export function SchedulesSection({
         id: 'createdBy',
         header: t('triggers.schedules.columns.createdBy'),
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-sm">
+          <Text as="span" variant="muted">
             {row.original.createdBy}
-          </span>
+          </Text>
         ),
         size: 160,
       },

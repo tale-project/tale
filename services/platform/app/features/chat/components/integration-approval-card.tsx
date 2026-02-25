@@ -13,6 +13,7 @@ import { memo, useState } from 'react';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useExecuteApprovedIntegrationOperation } from '@/app/features/approvals/hooks/actions';
 import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -112,8 +113,10 @@ function IntegrationApprovalCardComponent({
     if (entries.length === 0) return null;
     const visible = isExpanded ? entries : entries.slice(0, 3);
     return visible.map(([key, value]) => (
-      <div key={key} className="text-muted-foreground text-xs break-words">
-        <span className="font-medium">{key}:</span>{' '}
+      <Text as="div" key={key} variant="caption" className="break-words">
+        <Text as="span" variant="label-sm">
+          {key}:
+        </Text>{' '}
         <span>
           {typeof value === 'string'
             ? value
@@ -121,7 +124,7 @@ function IntegrationApprovalCardComponent({
               ? String(value)
               : JSON.stringify(value)}
         </span>
-      </div>
+      </Text>
     ));
   };
 
@@ -144,10 +147,12 @@ function IntegrationApprovalCardComponent({
             <IntegrationIcon className="text-muted-foreground size-4" />
           </div>
           <div>
-            <div className="text-sm font-medium">{metadata.operationTitle}</div>
-            <div className="text-muted-foreground text-xs">
+            <Text as="div" variant="label">
+              {metadata.operationTitle}
+            </Text>
+            <Text as="div" variant="caption">
               {metadata.integrationName}
-            </div>
+            </Text>
           </div>
         </div>
         <Badge
@@ -173,9 +178,9 @@ function IntegrationApprovalCardComponent({
             ) : null}
             {metadata.operationType}
           </Badge>
-          <span className="text-muted-foreground font-mono text-xs">
+          <Text as="span" variant="code" className="text-muted-foreground">
             {metadata.operationName}
-          </span>
+          </Text>
         </div>
 
         {/* Parameters Preview */}
@@ -200,9 +205,9 @@ function IntegrationApprovalCardComponent({
 
         {/* Estimated Impact */}
         {metadata.estimatedImpact && (
-          <div className="text-muted-foreground text-xs break-words italic">
+          <Text as="div" variant="caption" className="break-words italic">
             {metadata.estimatedImpact}
-          </div>
+          </Text>
         )}
       </div>
 
@@ -271,13 +276,13 @@ function IntegrationApprovalCardComponent({
 
       {/* Status message for resolved approvals */}
       {!isPending && (
-        <div className="text-muted-foreground text-xs">
+        <Text as="div" variant="caption">
           {status === 'approved' && executionError
             ? t('statusApprovedFailed')
             : status === 'approved'
               ? t('statusApprovedSuccess')
               : t('statusRejected')}
-        </div>
+        </Text>
       )}
     </div>
   );

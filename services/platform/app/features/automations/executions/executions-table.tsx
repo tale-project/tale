@@ -13,6 +13,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
@@ -211,12 +212,9 @@ export function ExecutionsTable({
         size: 160,
         cell: ({ row }) => (
           <HStack gap={2}>
-            <span
-              className="truncate font-mono text-xs"
-              title={row.original._id}
-            >
+            <Text as="span" variant="code" truncate title={row.original._id}>
               {row.original._id}
-            </span>
+            </Text>
             <Button
               variant="ghost"
               size="icon"
@@ -251,9 +249,13 @@ export function ExecutionsTable({
         size: 192,
         meta: { headerLabel: tTables('headers.startedAt') },
         cell: ({ row }) => (
-          <span className="text-muted-foreground block w-full text-right text-sm whitespace-nowrap">
+          <Text
+            as="span"
+            variant="muted"
+            className="block w-full text-right whitespace-nowrap"
+          >
             {formatTimestampWithMillis(row.original.startedAt)}
-          </span>
+          </Text>
         ),
       },
       {
@@ -265,9 +267,9 @@ export function ExecutionsTable({
         ),
         size: 128,
         cell: ({ row }) => (
-          <span className="text-muted-foreground block w-full text-right text-xs">
+          <Text as="span" variant="caption" className="block w-full text-right">
             {calculateDuration(row.original)}
-          </span>
+          </Text>
         ),
       },
       {
@@ -275,9 +277,9 @@ export function ExecutionsTable({
         header: tTables('headers.triggeredBy'),
         size: 128,
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-xs">
+          <Text as="span" variant="caption">
             {row.original.triggeredBy || tTables('cells.empty')}
-          </span>
+          </Text>
         ),
       },
     ],

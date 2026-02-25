@@ -6,6 +6,7 @@ import { useState, useMemo } from 'react';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Center, VStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { getFileExtension } from '@/lib/utils/document-helpers';
@@ -134,12 +135,12 @@ export function DocumentPreview({ url, fileName }: DocumentPreviewProps) {
         className="text-muted-foreground max-w-[24rem] text-center"
       >
         <Image className="mx-auto mb-2 size-16 p-2" />
-        <div className="text-foreground mb-1 text-base font-medium">
+        <Text as="div" variant="label" className="mb-1 text-base">
           {t('preview.notAvailable')}
-        </div>
-        <div className="mb-6 text-sm">
+        </Text>
+        <Text as="div" variant="muted" className="mb-6">
           {t('preview.notAvailableDescription')}
-        </div>
+        </Text>
         <Button size="sm" onClick={handleDownload} disabled={isDownloading}>
           {isDownloading ? (
             <>

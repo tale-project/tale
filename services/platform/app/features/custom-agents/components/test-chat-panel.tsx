@@ -7,6 +7,7 @@ import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
+import { Heading } from '@/app/components/ui/typography/heading';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
 import { useT } from '@/lib/i18n/client';
 
@@ -60,9 +61,9 @@ function TestChatPanelContent({
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
-        <h2 className="truncate text-sm font-semibold">
+        <Heading level={2} size="sm" truncate>
           {t('customAgents.testChat.title')}
-        </h2>
+        </Heading>
         <div className="flex items-center gap-1">
           {displayItems.length > 0 && threadId && (
             <IconButton

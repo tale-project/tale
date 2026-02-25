@@ -3,6 +3,8 @@
 import { Position } from '@xyflow/react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -105,9 +107,9 @@ export function AutomationStep({ data }: AutomationStepProps) {
         {/* Content in center */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-foreground text-sm font-semibold">
+            <Heading level={3} size="sm">
               {data.label}
-            </h3>
+            </Heading>
             {/* Terminal Node Indicator */}
             {data.isTerminalNode && (
               <span className="bg-muted text-muted-foreground border-muted-foreground/30 rounded border px-2 py-0.5 text-xs font-medium">
@@ -116,9 +118,9 @@ export function AutomationStep({ data }: AutomationStepProps) {
             )}
           </div>
           {data.description && (
-            <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">
+            <Text variant="caption" className="mt-1 line-clamp-2">
               {data.description}
-            </p>
+            </Text>
           )}
         </div>
 

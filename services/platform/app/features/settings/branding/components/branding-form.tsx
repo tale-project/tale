@@ -10,6 +10,7 @@ import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -166,9 +167,9 @@ export function BrandingForm({
               className="text-foreground text-sm leading-5 font-medium"
             >
               {t('branding.textLogo')}{' '}
-              <span className="text-muted-foreground text-xs font-normal">
+              <Text as="span" variant="caption" className="font-normal">
                 {t('branding.textLogoOptional')}
-              </span>
+              </Text>
             </label>
             <Input
               id="branding-text-logo"
@@ -180,12 +181,16 @@ export function BrandingForm({
 
           <HStack justify="between" align="center">
             <div className="flex flex-col gap-1">
-              <span className="text-foreground text-sm leading-6 font-medium tracking-tight">
+              <Text
+                as="span"
+                variant="label"
+                className="leading-6 tracking-tight"
+              >
                 {t('branding.logo')}
-              </span>
-              <span className="text-muted-foreground text-xs tracking-tight">
+              </Text>
+              <Text as="span" variant="caption" className="tracking-tight">
                 {t('branding.logoDescription')}
-              </span>
+              </Text>
             </div>
             <ImageUploadField
               currentUrl={branding?.logoUrl}
@@ -203,12 +208,16 @@ export function BrandingForm({
 
           <HStack justify="between" align="center">
             <div className="flex flex-col gap-1">
-              <span className="text-foreground text-sm leading-6 font-medium tracking-tight">
+              <Text
+                as="span"
+                variant="label"
+                className="leading-6 tracking-tight"
+              >
                 {t('branding.favicon')}
-              </span>
-              <span className="text-muted-foreground text-xs tracking-tight">
+              </Text>
+              <Text as="span" variant="caption" className="tracking-tight">
                 {t('branding.faviconDescription')}
-              </span>
+              </Text>
             </div>
             <HStack gap={2}>
               <ImageUploadField

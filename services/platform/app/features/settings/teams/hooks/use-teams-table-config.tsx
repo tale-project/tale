@@ -5,6 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { Team } from './queries';
@@ -29,9 +30,9 @@ export function useTeamsTableConfig(organizationId: string): TeamsTableConfig {
         header: tSettings('teams.columns.name'),
         size: 300,
         cell: ({ row }) => (
-          <span className="text-foreground text-sm font-medium">
+          <Text as="span" variant="label">
             {row.original.name}
-          </span>
+          </Text>
         ),
       },
       {

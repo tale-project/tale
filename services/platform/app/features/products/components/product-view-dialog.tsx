@@ -5,6 +5,8 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Field } from '@/app/components/ui/forms/field';
 import { Stack, HStack, Grid } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { formatCurrency } from '@/lib/utils/format/number';
@@ -53,16 +55,16 @@ export function ProductViewDialog({
           <ProductImage
             images={product.imageUrl ? [product.imageUrl] : []}
             productName={product.name}
-            className="size-20 flex-shrink-0 rounded-lg"
+            className="size-20 shrink-0 rounded-lg"
           />
           <div className="min-w-0 flex-1">
-            <h3 className="text-foreground truncate font-semibold">
+            <Heading level={3} truncate>
               {product.name}
-            </h3>
+            </Heading>
             {product.description && (
-              <p className="text-muted-foreground mt-1 line-clamp-2 text-sm">
+              <Text variant="muted" className="mt-1 line-clamp-2">
                 {product.description}
-              </p>
+              </Text>
             )}
             {product.status && (
               <Badge
@@ -126,7 +128,7 @@ export function ProductViewDialog({
         {/* Full Description */}
         {product.description && (
           <Field label={tProducts('view.labels.fullDescription')}>
-            <p className="leading-relaxed">{product.description}</p>
+            <Text className="leading-relaxed">{product.description}</Text>
           </Field>
         )}
 

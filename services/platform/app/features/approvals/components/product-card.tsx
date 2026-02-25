@@ -6,6 +6,8 @@ import { Image } from '@/app/components/ui/data-display/image';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
@@ -50,18 +52,23 @@ export function ProductCard({
         <div className="min-w-0 flex-1">
           <Stack gap={3}>
             <Stack gap={1}>
-              <h4 className="text-foreground text-sm leading-normal font-medium">
+              <Heading
+                level={4}
+                size="sm"
+                weight="medium"
+                className="leading-normal"
+              >
                 {product.name}
-              </h4>
+              </Heading>
               {product.description && (
-                <p className="text-muted-foreground line-clamp-2 text-sm leading-5">
+                <Text variant="muted" className="line-clamp-2 leading-5">
                   {product.description}
-                </p>
+                </Text>
               )}
               {product.reasoning && (
-                <p className="text-muted-foreground text-sm leading-5">
+                <Text variant="muted" className="leading-5">
                   {product.reasoning}
-                </p>
+                </Text>
               )}
             </Stack>
             <HStack gap={2}>
@@ -112,13 +119,11 @@ export function ProductCard({
             />
           </div>
           <Stack gap={1}>
-            <h4 className="text-foreground text-sm font-medium">
+            <Heading level={4} size="sm" weight="medium">
               {purchase.productName}
-            </h4>
+            </Heading>
             {purchase.purchaseDate && (
-              <p className="text-muted-foreground text-xs">
-                {formatDate(purchase.purchaseDate)}
-              </p>
+              <Text variant="caption">{formatDate(purchase.purchaseDate)}</Text>
             )}
           </Stack>
         </HStack>

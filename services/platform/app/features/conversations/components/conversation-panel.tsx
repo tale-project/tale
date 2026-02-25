@@ -6,6 +6,8 @@ import { useEffect, useRef } from 'react';
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { Stack, VStack, Center } from '@/app/components/ui/layout/layout';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -222,12 +224,15 @@ export function ConversationPanel({
         <VStack gap={6} align="center" className="w-full max-w-[316px]">
           <MessageSquareMoreIcon className="text-muted-foreground size-5" />
           <VStack gap={3} align="center" className="h-14 w-full text-center">
-            <h2 className="text-foreground text-lg font-semibold tracking-[-0.12px]">
+            <Heading level={2} size="lg" className="tracking-[-0.12px]">
               {tConversations('panel.noSelected')}
-            </h2>
-            <p className="text-muted-foreground text-sm leading-[20px] font-normal tracking-[-0.084px]">
+            </Heading>
+            <Text
+              variant="muted"
+              className="leading-[20px] font-normal tracking-[-0.084px]"
+            >
               {tConversations('panel.selectToView')}
-            </p>
+            </Text>
           </VStack>
         </VStack>
       </Center>
@@ -304,7 +309,7 @@ export function ConversationPanel({
   if (!conversation) {
     return (
       <Center className="flex-1">
-        <p>{tConversations('panel.notFound')}</p>
+        <Text>{tConversations('panel.notFound')}</Text>
       </Center>
     );
   }
@@ -352,8 +357,8 @@ export function ConversationPanel({
       </div>
       <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
         {messageGroups.length === 0 ? (
-          <div className="text-muted-foreground flex h-full items-center justify-center">
-            <p className="text-sm">{tConversations('panel.noMessages')}</p>
+          <div className="flex h-full items-center justify-center">
+            <Text variant="muted">{tConversations('panel.noMessages')}</Text>
           </div>
         ) : (
           messageGroups.map((group) => (
@@ -362,9 +367,9 @@ export function ConversationPanel({
               <div className="sticky top-16 z-10 mb-4 py-2">
                 <div className="flex justify-center">
                   <div className="bg-background border-border rounded-full border px-2 py-0.5 shadow-sm">
-                    <span className="text-primary text-xs font-medium">
+                    <Text as="span" variant="label-sm" className="text-primary">
                       {formatDateHeader(group.date)}
-                    </span>
+                    </Text>
                   </div>
                 </div>
               </div>
@@ -422,11 +427,11 @@ export function ConversationPanel({
           </div>
         ) : (
           <div className="px-8 py-10">
-            <p className="text-muted-foreground text-center text-sm">
+            <Text variant="muted" align="center">
               {conversation.status === 'spam'
                 ? tConversations('panel.markedAsSpam')
                 : tConversations('panel.markedAsClosed')}
-            </p>
+            </Text>
           </div>
         )}
       </div>

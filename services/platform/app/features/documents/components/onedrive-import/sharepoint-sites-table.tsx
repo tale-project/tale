@@ -7,6 +7,8 @@ import { useMemo } from 'react';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { SharePointSite } from './types';
@@ -44,9 +46,14 @@ export function SharePointSitesTable({
                   {site.displayName}
                 </div>
                 {site.description && (
-                  <div className="text-muted-foreground max-w-md truncate text-xs">
+                  <Text
+                    as="div"
+                    variant="caption"
+                    truncate
+                    className="max-w-md"
+                  >
                     {site.description}
-                  </div>
+                  </Text>
                 )}
               </div>
             </HStack>
@@ -59,12 +66,16 @@ export function SharePointSitesTable({
           <div className="text-right">{t('microsoft365.siteUrl')}</div>
         ),
         cell: ({ row }) => (
-          <div
-            className="text-muted-foreground max-w-[200px] truncate text-right text-sm"
+          <Text
+            as="div"
+            variant="muted"
+            truncate
+            align="right"
+            className="max-w-[200px]"
             title={row.original.webUrl}
           >
             {getPathFromUrl(row.original.webUrl)}
-          </div>
+          </Text>
         ),
       },
     ],
@@ -75,12 +86,12 @@ export function SharePointSitesTable({
     return (
       <div className="flex h-full flex-col items-center justify-center py-12 text-center">
         <SharePointIcon className="mb-4 size-12 opacity-50" />
-        <h3 className="text-foreground mb-2 text-lg font-medium">
+        <Heading level={3} size="lg" weight="medium" className="mb-2">
           {t('microsoft365.noSites')}
-        </h3>
-        <p className="text-muted-foreground max-w-md text-sm">
+        </Heading>
+        <Text variant="muted" className="max-w-md">
           {t('microsoft365.noSitesDescription')}
-        </p>
+        </Text>
       </div>
     );
   }

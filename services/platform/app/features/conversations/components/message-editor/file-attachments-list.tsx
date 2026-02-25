@@ -3,6 +3,7 @@
 import { XIcon } from 'lucide-react';
 import { memo } from 'react';
 
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { AttachedFile } from './types';
@@ -47,10 +48,12 @@ export const FileAttachmentsList = memo(function FileAttachmentsList({
             className="bg-muted flex items-center gap-2 rounded-md px-3 py-2 text-sm"
           >
             {getFileIcon(file.type)}
-            <span className="max-w-[200px] truncate">{file.file?.name}</span>
-            <span className="text-muted-foreground text-xs">
+            <Text as="span" truncate className="max-w-[200px]">
+              {file.file?.name}
+            </Text>
+            <Text as="span" variant="caption">
               {file.file && formatFileSize(file.file.size, tCommon)}
-            </span>
+            </Text>
             <button
               type="button"
               onClick={() => onRemove(file.id)}

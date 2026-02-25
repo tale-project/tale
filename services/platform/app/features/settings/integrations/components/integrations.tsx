@@ -11,6 +11,8 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Card } from '@/app/components/ui/layout/card';
 import { Stack, HStack, Grid, Center } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { IntegrationManageDialog } from './integration-manage-dialog';
@@ -80,13 +82,18 @@ export function Integrations({
               </Center>
               <Stack gap={1}>
                 <HStack gap={2}>
-                  <span className="text-base leading-none font-semibold tracking-tight">
+                  <Heading
+                    level={3}
+                    size="base"
+                    tracking="tight"
+                    className="leading-none"
+                  >
                     {integration.title}
-                  </span>
+                  </Heading>
                 </HStack>
-                <p className="text-muted-foreground text-sm">
+                <Text variant="muted">
                   {integration.description ?? integration.name}
-                </p>
+                </Text>
               </Stack>
             </Stack>
           </Card>
@@ -102,10 +109,14 @@ export function Integrations({
             className="border-border hover:border-primary/50 flex cursor-pointer flex-col justify-between border-dashed transition-colors"
             contentClassName="p-5"
             footer={
-              <span className="text-primary flex h-6 items-center gap-1 text-sm font-medium">
+              <Text
+                as="span"
+                variant="label"
+                className="text-primary flex h-6 items-center gap-1"
+              >
                 <Plus className="size-4" />
                 {t('integrations.upload.uploadPackage')}
-              </span>
+              </Text>
             }
             footerClassName="border-border border-t px-5 py-4"
           >
@@ -114,12 +125,17 @@ export function Integrations({
                 <Plus className="text-muted-foreground size-6" />
               </Center>
               <Stack gap={1}>
-                <span className="text-base leading-none font-semibold tracking-tight">
+                <Heading
+                  level={3}
+                  size="base"
+                  tracking="tight"
+                  className="leading-none"
+                >
                   {t('integrations.upload.addIntegration')}
-                </span>
-                <p className="text-muted-foreground text-sm">
+                </Heading>
+                <Text variant="muted">
                   {t('integrations.upload.addDescription')}
-                </p>
+                </Text>
               </Stack>
             </Stack>
           </Card>

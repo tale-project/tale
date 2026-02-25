@@ -12,6 +12,7 @@ import {
   NarrowContainer,
 } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { AutomationActiveToggle } from '@/app/features/automations/components/automation-active-toggle';
 import { useUpdateAutomation } from '@/app/features/automations/hooks/mutations';
 import { useWorkflow } from '@/app/features/automations/hooks/queries';
@@ -232,9 +233,9 @@ function ConfigurationPage() {
             automation={workflow}
             label={tAutomations('configuration.active')}
           />
-          <p className="text-muted-foreground text-xs">
+          <Text variant="caption">
             {tAutomations('configuration.activeHelp')}
-          </p>
+          </Text>
         </Stack>
 
         <Input
@@ -267,9 +268,9 @@ function ConfigurationPage() {
               placeholder={tAutomations('configuration.timeoutPlaceholder')}
               min={1000}
             />
-            <p className="text-muted-foreground text-xs">
+            <Text variant="caption">
               {tAutomations('configuration.timeoutHelp')}
-            </p>
+            </Text>
           </Stack>
 
           <Stack gap={2}>
@@ -283,9 +284,9 @@ function ConfigurationPage() {
               min={0}
               max={10}
             />
-            <p className="text-muted-foreground text-xs">
+            <Text variant="caption">
               {tAutomations('configuration.maxRetriesHelp')}
-            </p>
+            </Text>
           </Stack>
         </Grid>
 
@@ -299,9 +300,9 @@ function ConfigurationPage() {
             placeholder={tAutomations('configuration.backoffPlaceholder')}
             min={100}
           />
-          <p className="text-muted-foreground text-xs">
+          <Text variant="caption">
             {tAutomations('configuration.backoffHelp')}
-          </p>
+          </Text>
         </Stack>
 
         <JsonInput

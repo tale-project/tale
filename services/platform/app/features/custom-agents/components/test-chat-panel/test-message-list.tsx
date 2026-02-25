@@ -8,6 +8,7 @@ import type { ChatItem } from '@/app/features/chat/hooks/use-merged-chat-items';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Image } from '@/app/components/ui/data-display/image';
+import { Text } from '@/app/components/ui/typography/text';
 import { HumanInputRequestCard } from '@/app/features/chat/components/human-input-request-card';
 import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
 import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
@@ -40,7 +41,7 @@ export function TestMessageList({
             <Bot className="text-muted-foreground size-3.5" />
           </div>
           <div className="bg-muted text-foreground max-w-[85%] rounded-lg px-3 py-2">
-            <p className="text-xs">{t('customAgents.testChat.welcome')}</p>
+            <Text variant="body-sm">{t('customAgents.testChat.welcome')}</Text>
           </div>
         </div>
       </div>
@@ -141,9 +142,9 @@ export function TestMessageList({
                       >
                         <DocumentIcon fileName={part.filename || 'file'} />
                         <div className="flex min-w-0 flex-1 flex-col">
-                          <div className="text-foreground truncate text-sm font-medium">
+                          <Text as="div" variant="label" truncate>
                             {part.filename || 'File'}
-                          </div>
+                          </Text>
                         </div>
                       </a>
                     ),
@@ -169,9 +170,12 @@ export function TestMessageList({
                       </div>
                     </div>
                   ) : (
-                    <p className="text-xs leading-relaxed break-words whitespace-pre-wrap">
+                    <Text
+                      variant="body-sm"
+                      className="leading-relaxed break-words whitespace-pre-wrap"
+                    >
                       {message.content}
-                    </p>
+                    </Text>
                   )}
                 </div>
               )}

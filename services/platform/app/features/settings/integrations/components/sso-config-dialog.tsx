@@ -15,6 +15,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 import { useSsoConfigForm } from '../hooks/use-sso-config-form';
@@ -134,7 +135,9 @@ export function SSOConfigDialog({
       <Stack gap={4}>
         <HStack gap={2} align="center" className="bg-muted rounded-md p-3">
           <MicrosoftIcon />
-          <span className="text-sm font-medium">Microsoft Entra ID</span>
+          <Text as="span" variant="label">
+            Microsoft Entra ID
+          </Text>
         </HStack>
 
         <Input

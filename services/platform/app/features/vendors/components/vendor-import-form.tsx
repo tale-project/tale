@@ -7,6 +7,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -88,11 +89,11 @@ export function VendorImportForm({
             }
             {...register('vendors')}
           />
-          <div className="text-muted-foreground text-xs leading-relaxed">
+          <Text as="div" variant="caption" className="leading-relaxed">
             <ul className="list-outside list-disc space-y-2 pl-4">
               <li>{t('importForm.localeHint')}</li>
             </ul>
-          </div>
+          </Text>
         </Stack>
       )}
       {dataSource === 'file_upload' && (
@@ -116,28 +117,26 @@ export function VendorImportForm({
             >
               <FileUpload.Overlay className="rounded-lg" />
               <Upload className="text-muted-foreground mx-auto mb-2 size-8" />
-              <p className="text-sm font-medium">
-                {tCommon('upload.clickToUpload')}
-              </p>
-              <p className="text-muted-foreground mt-1 text-xs">
+              <Text variant="label">{tCommon('upload.clickToUpload')}</Text>
+              <Text variant="caption" className="mt-1">
                 {tCommon('upload.supportedFormats')}
-              </p>
+              </Text>
             </FileUpload.DropZone>
           </FileUpload.Root>
-          <div className="text-muted-foreground text-xs leading-relaxed">
+          <Text as="div" variant="caption" className="leading-relaxed">
             <ul className="list-outside list-disc space-y-2 pl-4">
               <li>{t('importForm.localeHint')}</li>
             </ul>
-          </div>
+          </Text>
           {fileValue && (
             <VStack gap={2} className="border-border rounded-xl border p-3">
               <HStack gap={3} className="w-full">
                 <HStack gap={2} className="min-w-0 flex-1">
                   <DocumentIcon fileName={fileValue.name} />
                   <VStack gap={0} className="min-w-0 flex-1">
-                    <div className="text-foreground truncate text-sm font-medium">
+                    <Text as="div" variant="label" truncate>
                       {fileValue.name}
-                    </div>
+                    </Text>
                   </VStack>
                 </HStack>
                 <Button

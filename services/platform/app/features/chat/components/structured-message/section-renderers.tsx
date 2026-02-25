@@ -11,6 +11,7 @@
 import { memo, useMemo } from 'react';
 
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { parseFollowUpItems } from '@/lib/utils/parse-follow-up-items';
@@ -40,9 +41,9 @@ export const NextStepsSection = memo(
 
     return (
       <section aria-label={t('structured.nextSteps')}>
-        <p className="text-muted-foreground mb-2 text-xs font-medium">
+        <Text variant="label-sm" className="text-muted-foreground mb-2">
           {t('structured.nextSteps')}
-        </p>
+        </Text>
         <div className="structured-next-steps">
           {items.map((item) => (
             <Button

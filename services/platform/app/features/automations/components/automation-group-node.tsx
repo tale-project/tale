@@ -1,5 +1,7 @@
 import React from 'react';
 
+import { Text } from '@/app/components/ui/typography/text';
+
 interface AutomationGroupNodeProps {
   data: {
     label: string;
@@ -9,9 +11,13 @@ interface AutomationGroupNodeProps {
 export function AutomationGroupNode({ data }: AutomationGroupNodeProps) {
   return (
     <div className="flex h-full w-full items-start justify-start p-2">
-      <span className="text-muted-foreground/60 text-xs font-medium">
+      <Text
+        as="span"
+        variant="caption"
+        className="text-muted-foreground/60 font-medium"
+      >
         {data.label}
-      </span>
+      </Text>
     </div>
   );
 }

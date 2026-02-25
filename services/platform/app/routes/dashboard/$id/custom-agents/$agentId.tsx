@@ -13,6 +13,8 @@ import {
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { CustomAgentNavigation } from '@/app/features/custom-agents/components/custom-agent-navigation';
 import { TestChatPanel } from '@/app/features/custom-agents/components/test-chat-panel';
 import {
@@ -77,7 +79,7 @@ function CustomAgentDetailLayout() {
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <StickyHeader>
           <AdaptiveHeaderRoot standalone={false} className="gap-2">
-            <h1 className="truncate text-base font-semibold">
+            <Heading level={1} size="base" truncate>
               <Link
                 to="/dashboard/$id/custom-agents"
                 params={{ id: organizationId }}
@@ -87,7 +89,7 @@ function CustomAgentDetailLayout() {
               </Link>
               <span className="hidden md:inline">/&nbsp;&nbsp;</span>
               <Skeleton className="inline-block h-4 w-32 align-middle" />
-            </h1>
+            </Heading>
             <Skeleton className="ml-2 h-5 w-16 rounded-full" />
           </AdaptiveHeaderRoot>
           <TabNavigation
@@ -172,9 +174,7 @@ function CustomAgentDetailLayout() {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <NarrowContainer className="py-6">
-          <p className="text-muted-foreground">
-            {t('customAgents.agentNotFound')}
-          </p>
+          <Text variant="muted">{t('customAgents.agentNotFound')}</Text>
         </NarrowContainer>
       </div>
     );
@@ -185,7 +185,7 @@ function CustomAgentDetailLayout() {
       <div className="relative flex min-h-0 flex-1 flex-col overflow-auto">
         <StickyHeader>
           <AdaptiveHeaderRoot standalone={false} className="gap-2">
-            <h1 className="truncate text-base font-semibold">
+            <Heading level={1} size="base" truncate>
               <Link
                 to="/dashboard/$id/custom-agents"
                 params={{ id: organizationId }}
@@ -202,7 +202,7 @@ function CustomAgentDetailLayout() {
                   {agent.displayName}
                 </span>
               )}
-            </h1>
+            </Heading>
             <Badge
               variant={agent.status === 'active' ? 'green' : 'outline'}
               className="ml-2"

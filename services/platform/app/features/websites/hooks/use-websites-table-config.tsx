@@ -5,6 +5,7 @@ import { Loader } from 'lucide-react';
 import { WebsiteIcon } from '@/app/components/icons/website-icon';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
 import { WebsitePagesCell } from '../components/website-pages-cell';
@@ -25,9 +26,9 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
           <div className="bg-muted flex size-5 shrink-0 items-center justify-center rounded">
             <WebsiteIcon className="text-muted-foreground size-3" />
           </div>
-          <span className="text-foreground truncate text-sm font-medium">
+          <Text as="span" variant="label" truncate>
             {row.original.domain}
-          </span>
+          </Text>
         </HStack>
       ),
     },
@@ -36,9 +37,9 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       header: tTables('headers.title'),
       size: 192,
       cell: ({ row }) => (
-        <div className="text-foreground max-w-sm truncate text-sm">
+        <Text as="div" truncate className="max-w-sm">
           {row.original.title || tTables('cells.empty')}
-        </div>
+        </Text>
       ),
     },
     {
@@ -46,11 +47,11 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       header: tTables('headers.description'),
       size: 256,
       cell: ({ row }) => (
-        <div className="text-muted-foreground max-w-sm truncate text-xs">
+        <Text as="div" variant="caption" truncate className="max-w-sm">
           {row.original.description
             ? `"${row.original.description}"`
             : tTables('cells.empty')}
-        </div>
+        </Text>
       ),
     },
     {
@@ -91,9 +92,9 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       size: 96,
       meta: { headerLabel: tTables('headers.interval') },
       cell: ({ row }) => (
-        <span className="text-muted-foreground block w-full text-right text-xs">
+        <Text as="span" variant="caption" className="block w-full text-right">
           {row.original.scanInterval}
-        </span>
+        </Text>
       ),
     },
     builders.createActionsColumn(WebsiteRowActions, 'website', {

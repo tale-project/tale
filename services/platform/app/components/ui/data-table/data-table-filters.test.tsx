@@ -128,8 +128,8 @@ describe('DataTableFilters', () => {
   });
 
   describe('grid layout', () => {
-    it('renders radio options in a grid when grid prop is set', async () => {
-      const filter = createFilter({ grid: true });
+    it('renders radio options in a grid when columns is 2', async () => {
+      const filter = createFilter({ columns: 2 });
 
       const { user } = render(<DataTableFilters filters={[filter]} />);
 

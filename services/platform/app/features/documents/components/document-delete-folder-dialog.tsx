@@ -2,6 +2,7 @@
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Stack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 interface DocumentDeleteFolderDialogProps {
@@ -37,9 +38,9 @@ export function DocumentDeleteFolderDialog({
     >
       <Stack gap={4}>
         <Stack gap={2}>
-          <p className="text-muted-foreground text-sm">
+          <Text variant="muted">
             {tDocuments('deleteSyncFolder.thisWillDelete')}
-          </p>
+          </Text>
           <ul className="text-muted-foreground ml-4 list-disc space-y-1 text-sm">
             <li>
               {tDocuments('deleteSyncFolder.willDelete.filesAndSubfolders')}
@@ -49,13 +50,13 @@ export function DocumentDeleteFolderDialog({
           </ul>
         </Stack>
         <Stack gap={2}>
-          <p className="text-muted-foreground text-sm">
+          <Text variant="muted">
             {tDocuments('deleteSyncFolder.willNotDelete.prefix')}{' '}
             <strong className="text-foreground">
               {tDocuments('deleteSyncFolder.willNotDelete.not')}
             </strong>{' '}
             {tDocuments('deleteSyncFolder.willNotDelete.suffix')}
-          </p>
+          </Text>
         </Stack>
       </Stack>
     </DeleteDialog>

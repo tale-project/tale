@@ -5,6 +5,7 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Card } from '@/app/components/ui/layout/card';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
+import { Text } from '@/app/components/ui/typography/text';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -65,9 +66,7 @@ function LogsPage() {
             label: t('logs.activityLogs'),
             content: (
               <Card title={t('logs.activityLogs')}>
-                <p className="text-muted-foreground text-sm">
-                  {t('logs.activityDescription')}
-                </p>
+                <Text variant="muted">{t('logs.activityDescription')}</Text>
               </Card>
             ),
           },
@@ -76,9 +75,7 @@ function LogsPage() {
             label: t('logs.errorLogs'),
             content: (
               <Card title={t('logs.errorLogs')}>
-                <p className="text-muted-foreground text-sm">
-                  {t('logs.errorDescription')}
-                </p>
+                <Text variant="muted">{t('logs.errorDescription')}</Text>
               </Card>
             ),
           },

@@ -15,6 +15,7 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Popover } from '@/app/components/ui/overlays/popover';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -45,8 +46,11 @@ export interface FilterConfig {
   selectedValues: string[];
   /** Callback when selection changes */
   onChange: (values: string[]) => void;
-  /** Whether to show options in a grid layout */
-  grid?: boolean;
+  /**
+   * Number of columns for the options grid.
+   * @default 1
+   */
+  columns?: 1 | 2;
   /** Whether multiple options can be selected (default: false) */
   multiSelect?: boolean;
 }
@@ -182,9 +186,9 @@ export function DataTableFilters({
               }
             >
               <div className="border-border flex items-center justify-between p-3">
-                <h4 className="text-foreground text-base font-medium">
+                <Text as="span" variant="label" className="text-base">
                   {t('labels.filters')}
-                </h4>
+                </Text>
                 {totalActiveFilters > 0 && (
                   <button
                     type="button"
@@ -218,7 +222,7 @@ export function DataTableFilters({
                     <div
                       className={cn(
                         'flex flex-col gap-1',
-                        filter.grid && 'grid grid-cols-2',
+                        filter.columns === 2 && 'grid grid-cols-2',
                       )}
                     >
                       {filter.options.map((option) => {
@@ -246,9 +250,13 @@ export function DataTableFilters({
                                 )
                               }
                             />
-                            <span className="text-muted-foreground text-sm font-medium">
+                            <Text
+                              as="span"
+                              variant="muted"
+                              className="font-medium"
+                            >
                               {option.label}
-                            </span>
+                            </Text>
                           </label>
                         );
                       })}
@@ -259,7 +267,7 @@ export function DataTableFilters({
                       aria-label={filter.title}
                       className={cn(
                         'flex flex-col gap-1',
-                        filter.grid && 'grid grid-cols-2',
+                        filter.columns === 2 && 'grid grid-cols-2',
                       )}
                     >
                       {filter.options.map((option) => {
@@ -292,9 +300,13 @@ export function DataTableFilters({
                                 <Circle className="size-2.5 fill-current" />
                               )}
                             </span>
-                            <span className="text-muted-foreground text-sm font-medium">
+                            <Text
+                              as="span"
+                              variant="muted"
+                              className="font-medium"
+                            >
                               {option.label}
-                            </span>
+                            </Text>
                           </button>
                         );
                       })}
@@ -310,9 +322,9 @@ export function DataTableFilters({
           <SuspenseBoundary
             fallback={<Skeleton className="h-9 w-[24rem]" />}
             errorFallback={
-              <span className="text-muted-foreground text-sm">
+              <Text as="span" variant="muted">
                 Date filter unavailable
-              </span>
+              </Text>
             }
           >
             <DatePickerWithRange

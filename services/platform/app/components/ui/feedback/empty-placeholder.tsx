@@ -2,6 +2,7 @@
 
 import { type ComponentType, type ReactNode } from 'react';
 
+import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
 
 interface EmptyPlaceholderProps {
@@ -28,7 +29,9 @@ export function EmptyPlaceholder({
           aria-hidden="true"
         />
       )}
-      <div className="text-muted-foreground text-sm">{children}</div>
+      <Text as="div" variant="muted">
+        {children}
+      </Text>
     </div>
   );
 }

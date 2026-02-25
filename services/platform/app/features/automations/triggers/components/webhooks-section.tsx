@@ -11,6 +11,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -198,9 +199,9 @@ export function WebhooksSection({
         id: 'lastTriggered',
         header: t('triggers.webhooks.columns.lastTriggered'),
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-sm">
+          <Text as="span" variant="muted">
             {formatTimestamp(row.original.lastTriggeredAt)}
-          </span>
+          </Text>
         ),
         size: 180,
       },

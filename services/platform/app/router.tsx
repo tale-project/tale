@@ -36,6 +36,9 @@ export function createRouter() {
       convexQueryClient,
     },
     defaultPreload: 'intent',
+    defaultPreloadDelay: 10,
+    defaultPreloadGcTime: 3 * 60 * 1000,
+    defaultPreloadStaleTime: 10 * 1000,
     scrollRestoration: true,
     defaultErrorComponent: ({ error, reset }) => (
       <GlobalErrorDisplay error={error} reset={reset} />

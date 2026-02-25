@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 
+import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
 
 interface CardProps {
@@ -40,7 +41,9 @@ export function Card({
             </div>
           )}
           {description && (
-            <div className="text-muted-foreground text-sm">{description}</div>
+            <Text as="div" variant="muted">
+              {description}
+            </Text>
           )}
         </div>
       )}

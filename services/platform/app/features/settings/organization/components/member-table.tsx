@@ -9,6 +9,7 @@ import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
 
@@ -77,15 +78,15 @@ export function MemberTable({
           const member = row.original;
           return (
             <Stack gap={0}>
-              <span className="text-foreground block text-sm font-medium">
+              <Text as="span" variant="label" className="block">
                 {member.displayName || member.email || tTables('cells.unknown')}
-              </span>
+              </Text>
               {member.displayName &&
                 member.email &&
                 member.displayName !== member.email && (
-                  <span className="text-muted-foreground block text-xs">
+                  <Text as="span" variant="caption" className="block">
                     {member.email}
-                  </span>
+                  </Text>
                 )}
             </Stack>
           );

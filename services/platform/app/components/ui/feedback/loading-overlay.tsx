@@ -1,5 +1,6 @@
 'use client';
 
+import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
 
 import { Spinner } from './spinner';
@@ -21,7 +22,7 @@ export function LoadingOverlay({ message, className }: LoadingOverlayProps) {
     >
       <div className="text-muted-foreground flex items-center gap-2">
         <Spinner size="sm" label={message} />
-        <span className="text-sm">{message}</span>
+        <Text as="span">{message}</Text>
       </div>
     </div>
   );

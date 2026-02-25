@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Text } from '@/app/components/ui/typography/text';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
 import { AutomationActiveToggle } from '../components/automation-active-toggle';
@@ -18,9 +19,9 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
       header: tTables('headers.automation'),
       size: 328,
       cell: ({ row }) => (
-        <span className="text-foreground truncate px-2 text-sm font-medium">
+        <Text as="span" variant="label" truncate className="px-2">
           {row.original.name}
-        </span>
+        </Text>
       ),
     },
     {
@@ -56,9 +57,9 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
       size: 100,
       meta: { headerLabel: tTables('headers.version') },
       cell: ({ row }) => (
-        <span className="text-muted-foreground block text-right text-xs">
+        <Text as="span" variant="caption" className="block text-right">
           {row.original.version}
-        </span>
+        </Text>
       ),
     },
     builders.createCreationTimeColumn(tTables),

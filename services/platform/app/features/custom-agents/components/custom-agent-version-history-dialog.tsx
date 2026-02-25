@@ -9,6 +9,7 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -90,9 +91,9 @@ export function CustomAgentVersionHistoryDialog({
             <Skeleton key={i} className="h-16 w-full" />
           ))
         ) : !versions || versions.length === 0 ? (
-          <p className="text-muted-foreground py-4 text-center text-sm">
+          <Text variant="muted" align="center" className="py-4">
             {t('customAgents.versions.noVersions')}
-          </p>
+          </Text>
         ) : (
           versions.map((version) => (
             <div
@@ -101,11 +102,11 @@ export function CustomAgentVersionHistoryDialog({
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">
+                  <Text as="span" variant="label">
                     {t('customAgents.versions.version', {
                       number: version.versionNumber,
                     })}
-                  </span>
+                  </Text>
                   {(() => {
                     const status: VersionStatus = version.status;
                     return (
@@ -119,13 +120,13 @@ export function CustomAgentVersionHistoryDialog({
                   })()}
                 </div>
                 {version.changeLog && (
-                  <p className="text-muted-foreground mt-0.5 truncate text-xs">
+                  <Text variant="caption" truncate className="mt-0.5">
                     {version.changeLog}
-                  </p>
+                  </Text>
                 )}
-                <p className="text-muted-foreground mt-0.5 text-xs">
+                <Text variant="caption" className="mt-0.5">
                   {formatDate(new Date(version._creationTime), 'medium')}
-                </p>
+                </Text>
               </div>
               {version.status === 'archived' && (
                 <Button
