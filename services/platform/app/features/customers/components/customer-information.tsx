@@ -1,6 +1,8 @@
 'use client';
 
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -22,52 +24,68 @@ export function CustomerInformation({ customer }: CustomerInformationProps) {
       <Stack gap={5}>
         {/* Customer Name & Email */}
         <Stack gap={1}>
-          <div className="text-foreground text-lg leading-none font-semibold">
+          <Heading level={3} size="lg" className="leading-none">
             {customer.name || t('labels.notAvailable')}
-          </div>
-          <div className="text-muted-foreground text-sm tracking-tight">
+          </Heading>
+          <Text as="div" variant="muted" className="tracking-tight">
             {customer.email || t('labels.notAvailable')}
-          </div>
+          </Text>
         </Stack>
 
         {/* Customer Details Grid */}
         <Stack gap={3}>
           <HStack>
-            <div className="text-muted-foreground w-[5.625rem] text-xs tracking-tight">
+            <Text
+              as="div"
+              variant="caption"
+              className="w-[5.625rem] tracking-tight"
+            >
               {t('labels.status')}
-            </div>
+            </Text>
             {customer.status && (
               <CustomerStatusBadge status={customer.status} />
             )}
           </HStack>
 
           <HStack>
-            <div className="text-muted-foreground w-[5.625rem] text-xs tracking-tight">
+            <Text
+              as="div"
+              variant="caption"
+              className="w-[5.625rem] tracking-tight"
+            >
               {t('labels.source')}
-            </div>
-            <div className="text-foreground text-sm font-medium tracking-tight">
+            </Text>
+            <Text as="div" variant="label" className="tracking-tight">
               {customer.source || t('labels.notAvailable')}
-            </div>
+            </Text>
           </HStack>
 
           <HStack>
-            <div className="text-muted-foreground w-[5.625rem] text-xs tracking-tight">
+            <Text
+              as="div"
+              variant="caption"
+              className="w-[5.625rem] tracking-tight"
+            >
               {t('labels.created')}
-            </div>
-            <div className="text-foreground text-sm font-medium tracking-tight">
+            </Text>
+            <Text as="div" variant="label" className="tracking-tight">
               {customer._creationTime
                 ? formatDate(new Date(customer._creationTime), 'long')
                 : t('labels.notAvailable')}
-            </div>
+            </Text>
           </HStack>
 
           <HStack>
-            <div className="text-muted-foreground w-[5.625rem] text-xs tracking-tight">
+            <Text
+              as="div"
+              variant="caption"
+              className="w-[5.625rem] tracking-tight"
+            >
               {t('labels.locale')}
-            </div>
-            <div className="text-foreground text-base font-medium tracking-tight">
+            </Text>
+            <Text as="div" variant="label" className="text-base tracking-tight">
               {customer.locale || 'en'}
-            </div>
+            </Text>
           </HStack>
         </Stack>
       </Stack>

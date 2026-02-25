@@ -1,5 +1,6 @@
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -65,7 +66,7 @@ export function VendorInformation({ vendor }: VendorInformationProps) {
 
       {vendor.notes && (
         <Field label={t('labels.notes')}>
-          <p className="text-sm">{vendor.notes}</p>
+          <Text>{vendor.notes}</Text>
         </Field>
       )}
 

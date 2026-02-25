@@ -12,6 +12,7 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
@@ -168,23 +169,21 @@ export function DocumentUploadDialog({
           >
             <FileUpload.Overlay className="rounded-lg" />
             <Upload className="text-muted-foreground mx-auto mb-2 size-8" />
-            <p className="text-sm font-medium">
-              {tCommon('upload.clickToUpload')}
-            </p>
-            <p className="text-muted-foreground mt-1 text-xs">
+            <Text variant="label">{tCommon('upload.clickToUpload')}</Text>
+            <Text variant="caption" className="mt-1">
               {tDocuments('upload.fromComputerDescription')}
-            </p>
+            </Text>
           </FileUpload.DropZone>
         </FileUpload.Root>
 
         {/* Selected files list */}
         {selectedFiles.length > 0 && (
           <div className="space-y-2">
-            <p className="text-sm font-medium">
+            <Text variant="label">
               {tDocuments('upload.uploadingCount', {
                 count: selectedFiles.length,
               })}
-            </p>
+            </Text>
             <div className="max-h-32 space-y-1 overflow-y-auto">
               {selectedFiles.map((file, index) => (
                 <div
@@ -192,12 +191,20 @@ export function DocumentUploadDialog({
                   className="bg-muted/50 flex items-start gap-2 rounded-md p-2"
                 >
                   <FileText className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-                  <span className="min-w-0 flex-1 text-sm wrap-anywhere">
+                  <Text
+                    as="span"
+                    variant="body"
+                    className="min-w-0 flex-1 wrap-anywhere"
+                  >
                     {file.name}
-                  </span>
-                  <span className="text-muted-foreground shrink-0 text-xs leading-6 whitespace-nowrap">
+                  </Text>
+                  <Text
+                    as="span"
+                    variant="caption"
+                    className="shrink-0 leading-6 whitespace-nowrap"
+                  >
                     {formatBytes(file.size)}
-                  </span>
+                  </Text>
                   <Button
                     type="button"
                     variant="ghost"

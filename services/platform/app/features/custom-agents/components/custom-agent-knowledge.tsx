@@ -11,6 +11,7 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
+import { Text } from '@/app/components/ui/typography/text';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
 import { useDocuments } from '@/app/features/documents/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
@@ -47,13 +48,13 @@ function DocumentRow({ doc }: { doc: DocumentEntry }) {
         className="text-muted-foreground size-4 shrink-0"
         aria-hidden="true"
       />
-      <span className="min-w-0 flex-1 truncate text-sm">
+      <Text as="span" variant="body" truncate className="min-w-0 flex-1">
         {doc.name ?? doc.id}
-      </span>
+      </Text>
       {doc.extension && (
-        <span className="text-muted-foreground shrink-0 text-xs uppercase">
+        <Text as="span" variant="caption" className="shrink-0 uppercase">
           {doc.extension}
-        </span>
+        </Text>
       )}
       <RagStatusBadge
         status={doc.ragStatus}
@@ -189,15 +190,15 @@ export function CustomAgentKnowledge({
         {isEnabled && (
           <>
             {agent.teamId && teamName ? (
-              <p className="text-muted-foreground text-sm">
+              <Text variant="muted">
                 {t('customAgents.knowledge.teamDocumentsInfo', {
                   teamName,
                 })}
-              </p>
+              </Text>
             ) : (
-              <p className="text-muted-foreground text-sm">
+              <Text variant="muted">
                 {t('customAgents.knowledge.noTeamAssigned')}
-              </p>
+              </Text>
             )}
 
             <Switch

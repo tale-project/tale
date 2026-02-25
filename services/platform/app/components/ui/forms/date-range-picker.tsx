@@ -36,6 +36,7 @@ import {
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -161,7 +162,7 @@ const DateInputHeader = memo(function DateInputHeader({
       >
         <ChevronLeft className="text-foreground size-3.5" />
       </Button>
-      <p className="text-foreground text-sm">{format(date, 'MMMM yyyy')}</p>
+      <Text>{format(date, 'MMMM yyyy')}</Text>
       <Button
         type="button"
         variant="secondary"
@@ -223,9 +224,9 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
         )}
 
         {(value || placeholder) && (
-          <span className="text-muted-foreground text-sm font-normal">
+          <Text as="span" variant="muted" className="font-normal">
             {value || placeholder}
-          </span>
+          </Text>
         )}
       </Button>
       <DropdownMenu
@@ -236,9 +237,9 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
             disabled={isLoading}
             className="w-[8.25rem] justify-between gap-1.5 rounded-l-none px-2.5 ring-0"
           >
-            <span className="text-muted-foreground text-sm font-normal">
+            <Text as="span" variant="muted" className="font-normal">
               {presetLabel}
-            </span>
+            </Text>
             <ChevronDown className="text-muted-foreground size-4" />
           </Button>
         }
@@ -413,15 +414,16 @@ export function DatePickerWithRange({
       )}
       {picker}
       {errorMessage && (
-        <p
+        <Text
           id={errorId}
           role="alert"
           aria-live="polite"
-          className="text-destructive flex items-center gap-1.5 text-sm"
+          variant="error"
+          className="flex items-center gap-1.5"
         >
           <Info className="size-4" aria-hidden="true" />
           {errorMessage}
-        </p>
+        </Text>
       )}
       {description && (
         <Description id={descriptionId} className="text-xs">

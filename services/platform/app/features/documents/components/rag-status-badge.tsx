@@ -8,6 +8,7 @@ import type { RagStatus } from '@/types/documents';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Badge, type BadgeProps } from '@/app/components/ui/feedback/badge';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -153,12 +154,12 @@ export function RagStatusBadge({
           description={t('rag.dialog.indexed.description')}
         >
           <div className="mt-4">
-            <p className="text-sm">
-              <span className="font-medium">
+            <Text>
+              <Text as="span" variant="label">
                 {t('rag.dialog.indexed.indexedOn')}
-              </span>{' '}
+              </Text>{' '}
               {formattedDate}
-            </p>
+            </Text>
           </div>
         </ViewDialog>
       </>
@@ -189,9 +190,9 @@ export function RagStatusBadge({
           description={t('rag.dialog.failed.description')}
         >
           <div className="mt-4">
-            <p className="mb-2 text-sm font-medium">
+            <Text variant="label" className="mb-2">
               {t('rag.dialog.failed.errorDetails')}
-            </p>
+            </Text>
             <pre className="bg-muted max-h-[200px] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
               {error || t('rag.dialog.failed.unknownError')}
             </pre>

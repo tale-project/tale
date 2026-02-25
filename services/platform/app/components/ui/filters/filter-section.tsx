@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react';
 
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -30,9 +31,13 @@ export function FilterSection({
         className="flex w-full items-center gap-1 px-2 py-2"
         aria-expanded={isExpanded}
       >
-        <span className="text-muted-foreground/80 flex-1 text-left text-xs font-medium uppercase">
+        <Text
+          as="span"
+          variant="label-sm"
+          className="text-muted-foreground/80 flex-1 text-left uppercase"
+        >
           {title}
-        </span>
+        </Text>
         {selectedCount > 0 && (
           <span className="rounded-xl bg-blue-100/20 px-1.5 py-0.5 text-[10px] leading-3 font-medium text-blue-600">
             {t('labels.nSelected', { count: selectedCount })}

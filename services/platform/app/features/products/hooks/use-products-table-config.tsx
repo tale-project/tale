@@ -3,6 +3,7 @@
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
 import { ProductImage } from '../components/product-image';
@@ -27,9 +28,9 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
             productName={row.original.name}
             className="size-8 shrink-0 rounded"
           />
-          <span className="text-foreground text-sm font-medium">
+          <Text as="span" variant="label">
             {row.original.name}
-          </span>
+          </Text>
         </HStack>
       ),
     },
@@ -37,9 +38,9 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
       accessorKey: 'description',
       header: tTables('headers.description'),
       cell: ({ row }) => (
-        <div className="text-muted-foreground max-w-sm truncate text-xs">
+        <Text as="div" variant="caption" truncate className="max-w-sm">
           {row.original.description ? `"${row.original.description}"` : '-'}
-        </div>
+        </Text>
       ),
     },
     {

@@ -5,6 +5,7 @@ import { useRef, useState, useEffect, useCallback, memo } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -120,9 +121,9 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
       className="bg-muted flex flex-col border-0 p-0 ring-0 sm:p-0"
       customHeader={
         <div className="absolute top-4 right-4 left-4 z-10 flex items-center justify-between">
-          <span className="text-foreground/80 max-w-[60%] truncate text-sm">
+          <Text as="span" truncate className="text-foreground/80 max-w-[60%]">
             {alt}
-          </span>
+          </Text>
           <div className="bg-muted flex items-center gap-1 rounded-lg p-1">
             <Button
               variant="ghost"
@@ -134,9 +135,9 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
             >
               <ZoomOut className="size-4" />
             </Button>
-            <span className="text-foreground min-w-[3rem] text-center text-sm">
+            <Text as="span" align="center" className="min-w-[3rem]">
               {Math.round(zoom * 100)}%
-            </span>
+            </Text>
             <Button
               variant="ghost"
               size="icon"

@@ -7,6 +7,8 @@ import { Image } from '@/app/components/ui/data-display/image';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Center } from '@/app/components/ui/layout/layout';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -90,11 +92,11 @@ export function PreviewStep({ parsedPackage, onIconChange }: PreviewStepProps) {
           </span>
         </button>
         <Stack gap={1}>
-          <h3 className="text-sm font-medium">{config.title}</h3>
+          <Heading level={3} size="sm" weight="medium">
+            {config.title}
+          </Heading>
           {config.description && (
-            <p className="text-muted-foreground text-sm">
-              {config.description}
-            </p>
+            <Text variant="muted">{config.description}</Text>
           )}
           <HStack gap={2} className="mt-1 flex-wrap">
             <Badge variant="outline">{config.authMethod}</Badge>
@@ -117,11 +119,13 @@ export function PreviewStep({ parsedPackage, onIconChange }: PreviewStepProps) {
         >
           {config.operations.map((op) => (
             <li key={op.name} className="flex min-w-0 items-center gap-2">
-              <span className="truncate font-mono text-xs">{op.name}</span>
+              <Text as="span" variant="code" truncate>
+                {op.name}
+              </Text>
               {op.title && (
-                <span className="text-muted-foreground shrink-0 text-xs">
+                <Text as="span" variant="caption" className="shrink-0">
                   — {op.title}
-                </span>
+                </Text>
               )}
               {op.operationType === 'write' && (
                 <Badge variant="outline" className="shrink-0 text-xs">

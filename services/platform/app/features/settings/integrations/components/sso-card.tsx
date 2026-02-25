@@ -10,6 +10,8 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Card } from '@/app/components/ui/layout/card';
 import { Stack, HStack, Center } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { SSOConfigDialog } from './sso-config-dialog';
@@ -73,18 +75,21 @@ export function SSOCard({
           </Center>
           <Stack gap={1}>
             <HStack gap={2}>
-              <span className="text-base leading-none font-semibold tracking-tight">
+              <Heading
+                level={3}
+                size="base"
+                tracking="tight"
+                className="leading-none"
+              >
                 {t('integrations.sso.name')}
-              </span>
+              </Heading>
               {isConnected && (
                 <Badge variant="green" className="text-xs">
                   {t('integrations.sso.connected')}
                 </Badge>
               )}
             </HStack>
-            <p className="text-muted-foreground text-sm">
-              {t('integrations.sso.description')}
-            </p>
+            <Text variant="muted">{t('integrations.sso.description')}</Text>
           </Stack>
         </Stack>
       </Card>

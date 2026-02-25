@@ -45,6 +45,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useInfiniteScroll } from '@/app/hooks/use-infinite-scroll';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
@@ -136,6 +137,8 @@ export interface DataTableProps<TData, TValue = unknown> {
   onRowClick?: (row: Row<TData>) => void;
   /** Whether rows are clickable (adds cursor pointer) */
   clickableRows?: boolean;
+  /** Called when the pointer enters a row; use with usePreloadRoute for programmatic preloading */
+  onRowMouseEnter?: (row: Row<TData>) => void;
 
   // ============================================================================
   // Header configuration
@@ -198,6 +201,7 @@ export function DataTable<TData, TValue = unknown>({
   className,
   rowClassName,
   onRowClick,
+  onRowMouseEnter,
   clickableRows = false,
   // Header configuration props
   search,
@@ -231,7 +235,7 @@ export function DataTable<TData, TValue = unknown>({
   const [internalPagination, setInternalPagination] = useState<PaginationState>(
     {
       pageIndex: currentPage - 1,
-      pageSize: pagination?.pageSize ?? 10,
+      pageSize: pagination?.pageSize ?? 20,
     },
   );
 
@@ -553,6 +557,7 @@ export function DataTable<TData, TValue = unknown>({
                     rowClassNameValue,
                   )}
                   data-state={row.getIsSelected() ? 'selected' : undefined}
+                  onMouseEnter={() => onRowMouseEnter?.(row)}
                   onClick={() => {
                     if (enableExpanding) {
                       row.toggleExpanded();
@@ -651,7 +656,7 @@ export function DataTable<TData, TValue = unknown>({
             {infiniteScroll.isLoadingMore ? (
               <div className="text-muted-foreground flex items-center gap-2 text-sm">
                 <Spinner size="sm" label={t('pagination.loading')} />
-                <span>{t('pagination.loading')}</span>
+                <Text as="span">{t('pagination.loading')}</Text>
               </div>
             ) : infiniteScroll.autoLoad === false ? (
               <Button

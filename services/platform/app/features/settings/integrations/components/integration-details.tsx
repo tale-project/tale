@@ -15,6 +15,7 @@ import type { Doc } from '@/convex/_generated/dataModel';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-guards';
@@ -127,7 +128,9 @@ function ParametersDisplay({
           <div key={param.name} className="col-span-2 grid grid-cols-subgrid">
             <dt className="flex items-center gap-1.5">
               <code className="font-mono">{param.name}</code>
-              <span className="text-muted-foreground">{param.type}</span>
+              <Text as="span" variant="caption">
+                {param.type}
+              </Text>
               {param.required && (
                 <Badge variant="orange" className="text-[10px] leading-tight">
                   {t('integrations.manageDialog.required')}
@@ -232,17 +235,17 @@ export function IntegrationDetails({
             {restOperations.map((op) => (
               <li key={op.name} className="flex min-w-0 flex-col gap-0.5">
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-mono text-xs">{op.name}</span>
+                  <Text as="span" variant="code" truncate>
+                    {op.name}
+                  </Text>
                   {op.title && (
-                    <span className="text-muted-foreground shrink-0 text-xs">
+                    <Text as="span" variant="caption" className="shrink-0">
                       — {op.title}
-                    </span>
+                    </Text>
                   )}
                 </div>
                 {op.description && (
-                  <p className="text-muted-foreground text-xs">
-                    {op.description}
-                  </p>
+                  <Text variant="caption">{op.description}</Text>
                 )}
                 <ParametersDisplay schema={op.parametersSchema} t={t} />
               </li>
@@ -270,11 +273,13 @@ export function IntegrationDetails({
             {sqlOperations.map((op) => (
               <li key={op.name}>
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-mono text-xs">{op.name}</span>
+                  <Text as="span" variant="code" truncate>
+                    {op.name}
+                  </Text>
                   {op.title && (
-                    <span className="text-muted-foreground shrink-0 text-xs">
+                    <Text as="span" variant="caption" className="shrink-0">
                       — {op.title}
-                    </span>
+                    </Text>
                   )}
                   {op.operationType === 'write' && (
                     <Badge variant="outline" className="shrink-0 text-xs">
@@ -288,9 +293,9 @@ export function IntegrationDetails({
                   )}
                 </div>
                 {op.description && (
-                  <p className="text-muted-foreground mt-0.5 text-xs">
+                  <Text variant="caption" className="mt-0.5">
                     {op.description}
-                  </p>
+                  </Text>
                 )}
                 <details className="group/query mt-1">
                   <summary className="text-muted-foreground flex cursor-pointer items-center gap-1 text-xs select-none">

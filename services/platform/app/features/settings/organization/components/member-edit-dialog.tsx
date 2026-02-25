@@ -11,6 +11,7 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -180,9 +181,7 @@ export function EditMemberDialog({
           disabled
           required
         />
-        <p className="text-muted-foreground text-xs">
-          {t('organization.emailCannotChange')}
-        </p>
+        <Text variant="caption">{t('organization.emailCannotChange')}</Text>
       </Stack>
 
       {/* Role Field */}
@@ -207,9 +206,7 @@ export function EditMemberDialog({
           )}
         />
         {isEditingSelf && (
-          <p className="text-muted-foreground text-sm">
-            {t('organization.cannotChangeOwnRole')}
-          </p>
+          <Text variant="muted">{t('organization.cannotChangeOwnRole')}</Text>
         )}
         {!isEditingSelf &&
           isMemberRole(member?.role) &&
@@ -249,9 +246,9 @@ export function EditMemberDialog({
               {...register('password')}
               className="w-full"
             />
-            <p className="text-muted-foreground text-xs">
+            <Text variant="caption">
               {t('organization.userMustUpdatePassword')}
-            </p>
+            </Text>
           </Stack>
         )}
       </Stack>

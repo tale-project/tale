@@ -9,6 +9,7 @@ import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -350,11 +351,15 @@ function SharePointBreadcrumb({
               ))}
             </>
           ) : (
-            <span className="text-foreground">{selectedDrive.name}</span>
+            <Text as="span" variant="body">
+              {selectedDrive.name}
+            </Text>
           )}
         </>
       ) : (
-        <span className="text-foreground">{selectedSite.displayName}</span>
+        <Text as="span" variant="body">
+          {selectedSite.displayName}
+        </Text>
       )}
     </HStack>
   );

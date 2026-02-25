@@ -1,5 +1,6 @@
 import { Image } from '@/app/components/ui/data-display/image';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { safeGetString, safeGetNumber } from '@/lib/utils/safe-parsers';
 
@@ -37,7 +38,7 @@ export function ProductListCell({
 
         return (
           <HStack key={id} gap={2}>
-            <div className="bg-muted size-5 flex-shrink-0 overflow-hidden rounded">
+            <div className="bg-muted size-5 shrink-0 overflow-hidden rounded">
               <Image
                 src={image}
                 alt={name}
@@ -46,9 +47,13 @@ export function ProductListCell({
                 className="h-full w-full object-cover"
               />
             </div>
-            <span className="text-muted-foreground text-xs leading-normal font-normal whitespace-nowrap">
+            <Text
+              as="span"
+              variant="caption"
+              className="leading-normal whitespace-nowrap"
+            >
               {name}
-            </span>
+            </Text>
           </HStack>
         );
       })}
@@ -84,7 +89,7 @@ function RecommendationProductList({
   return (
     <Stack gap={1}>
       <HStack gap={2}>
-        <div className="bg-muted size-5 flex-shrink-0 overflow-hidden rounded">
+        <div className="bg-muted size-5 shrink-0 overflow-hidden rounded">
           <Image
             src={firstImage}
             alt={firstName}
@@ -93,13 +98,17 @@ function RecommendationProductList({
             className="h-full w-full object-cover"
           />
         </div>
-        <span className="text-muted-foreground text-xs leading-normal font-normal whitespace-nowrap">
+        <Text
+          as="span"
+          variant="caption"
+          className="leading-normal whitespace-nowrap"
+        >
           {firstName}
-        </span>
+        </Text>
       </HStack>
       {remainingCount > 0 && secondProduct != null && (
         <HStack gap={2}>
-          <div className="bg-muted size-5 flex-shrink-0 overflow-hidden rounded">
+          <div className="bg-muted size-5 shrink-0 overflow-hidden rounded">
             <Image
               src={
                 safeGetString(secondProduct, 'image', '') ||
@@ -115,9 +124,13 @@ function RecommendationProductList({
               className="h-full w-full object-cover"
             />
           </div>
-          <span className="text-muted-foreground text-xs leading-normal font-normal whitespace-nowrap">
+          <Text
+            as="span"
+            variant="caption"
+            className="leading-normal whitespace-nowrap"
+          >
             {t('labels.otherProducts', { count: remainingCount })}
-          </span>
+          </Text>
         </HStack>
       )}
     </Stack>

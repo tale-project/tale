@@ -16,6 +16,8 @@ import {
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
 import {
   useCustomerById,
@@ -206,7 +208,12 @@ export function ConversationHeader({
         )}
         <Stack className="min-w-0 space-y-1 overflow-hidden">
           {/* Title */}
-          <h2 className="text-foreground flex items-center gap-2 text-base font-medium tracking-tight whitespace-nowrap [&>*]:leading-none">
+          <Heading
+            level={2}
+            weight="medium"
+            tracking="tight"
+            className="flex items-center gap-2 whitespace-nowrap *:leading-none"
+          >
             {customer.name && (
               <>
                 <button
@@ -215,13 +222,18 @@ export function ConversationHeader({
                 >
                   {customer.name}
                 </button>
-                <DotIcon className="flex-shrink-0" />
+                <DotIcon className="shrink-0" />
               </>
             )}
-            <span title={conversation.title} className="max-w-xl truncate">
+            <Text
+              as="span"
+              truncate
+              className="max-w-xl"
+              title={conversation.title}
+            >
               {conversation.title}
-            </span>
-          </h2>
+            </Text>
+          </Heading>
 
           {/* Metadata */}
           <HStack
@@ -236,8 +248,8 @@ export function ConversationHeader({
             </button>
             {customer.locale && (
               <>
-                <DotIcon className="flex-shrink-0" />
-                <span>{customer.locale}</span>
+                <DotIcon className="shrink-0" />
+                <Text as="span">{customer.locale}</Text>
               </>
             )}
           </HStack>

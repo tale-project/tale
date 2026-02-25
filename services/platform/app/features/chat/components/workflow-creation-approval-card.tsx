@@ -17,6 +17,7 @@ import { memo, useMemo, useState } from 'react';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useExecuteApprovedWorkflowCreation } from '@/app/features/approvals/hooks/actions';
 import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -310,11 +311,13 @@ function WorkflowCreationApprovalCardComponent({
             <Workflow className="text-primary size-4" />
           </div>
           <div>
-            <div className="text-sm font-medium">{metadata.workflowName}</div>
+            <Text as="div" variant="label">
+              {metadata.workflowName}
+            </Text>
             {metadata.workflowDescription && (
-              <div className="text-muted-foreground line-clamp-2 text-xs">
+              <Text as="div" variant="caption" className="line-clamp-2">
                 {metadata.workflowDescription}
-              </div>
+              </Text>
             )}
           </div>
         </div>
@@ -399,18 +402,23 @@ function WorkflowCreationApprovalCardComponent({
                         isExpanded && 'rotate-90',
                       )}
                     />
-                    <span className="text-muted-foreground w-4 shrink-0 text-xs">
+                    <Text as="span" variant="caption" className="w-4 shrink-0">
                       {index + 1}.
-                    </span>
+                    </Text>
                     <Badge
                       variant={getStepTypeBadgeVariant(step.stepType)}
                       className="py-0 text-[10px]"
                     >
                       {step.stepType}
                     </Badge>
-                    <span className="flex-1 truncate text-left text-xs">
+                    <Text
+                      as="span"
+                      variant="body-sm"
+                      truncate
+                      className="flex-1 text-left"
+                    >
                       {step.name}
-                    </span>
+                    </Text>
                   </button>
 
                   {isExpanded && configEntries.length > 0 && (
@@ -519,13 +527,13 @@ function WorkflowCreationApprovalCardComponent({
 
       {/* Status message for resolved approvals */}
       {!isPending && (
-        <div className="text-muted-foreground text-xs">
+        <Text as="div" variant="caption">
           {status === 'approved' && executionError
             ? 'Workflow creation was approved but failed.'
             : status === 'approved'
               ? 'Workflow was created successfully.'
               : 'Workflow creation was cancelled.'}
-        </div>
+        </Text>
       )}
     </div>
   );

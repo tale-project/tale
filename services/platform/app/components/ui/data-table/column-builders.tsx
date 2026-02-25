@@ -9,6 +9,7 @@ import {
   TableDateCell,
 } from '@/app/components/ui/data-display/table-date-cell';
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { startCase } from '@/lib/utils/string';
 
 const DEFAULT_LANGUAGE_TO_COUNTRY: Record<string, string> = {
@@ -200,11 +201,11 @@ export function createSourceColumn<TData extends { source?: string | null }>(
     header: tTables('headers.source'),
     size: options?.size ?? 140,
     cell: ({ row }) => (
-      <span className="text-muted-foreground text-xs">
+      <Text as="span" variant="caption">
         {row.original.source
           ? startCase(row.original.source.toLowerCase())
           : tTables('cells.unknown')}
-      </span>
+      </Text>
     ),
   };
 }
@@ -255,14 +256,16 @@ export function createTextColumn<TData, K extends keyof TData>(
       const value = row.original[accessorKey];
       const text = value ? String(value) : (options?.emptyText ?? '-');
       return (
-        <span
+        <Text
+          as="span"
+          variant="caption"
           className={
             options?.className ??
-            `text-muted-foreground text-xs ${options?.truncate ? 'block max-w-sm truncate' : ''}`
+            (options?.truncate ? 'block max-w-sm truncate' : undefined)
           }
         >
           {text}
-        </span>
+        </Text>
       );
     },
   };

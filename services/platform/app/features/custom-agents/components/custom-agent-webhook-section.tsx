@@ -16,6 +16,7 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -209,9 +210,9 @@ export function CustomAgentWebhookSection({
         id: 'lastTriggered',
         header: t('customAgents.webhook.columns.lastTriggered'),
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-sm">
+          <Text as="span" variant="muted">
             {formatTimestamp(row.original.lastTriggeredAt)}
-          </span>
+          </Text>
         ),
         size: 180,
       },

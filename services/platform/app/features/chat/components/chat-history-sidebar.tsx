@@ -11,6 +11,8 @@ import {
 } from 'react';
 
 import { Stack } from '@/app/components/ui/layout/layout';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -174,18 +176,23 @@ export function ChatHistorySidebar({
       )}
       {...restProps}
     >
-      <h2 className="text-muted-foreground px-2 text-sm font-medium">
+      <Heading
+        level={2}
+        size="sm"
+        weight="medium"
+        className="text-muted-foreground px-2"
+      >
         {t('chatHistory')}
-      </h2>
+      </Heading>
       <Stack gap={1}>
         {!isMounted || !chats ? (
-          <div className="text-muted-foreground px-2 text-sm text-nowrap">
+          <Text as="div" variant="muted" className="px-2 text-nowrap">
             {t('history.loading')}
-          </div>
+          </Text>
         ) : chats.length === 0 ? (
-          <div className="text-muted-foreground px-2 text-sm text-nowrap">
+          <Text as="div" variant="muted" className="px-2 text-nowrap">
             {t('history.empty')}
-          </div>
+          </Text>
         ) : (
           <>
             {chats.map((chat) => {

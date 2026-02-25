@@ -16,6 +16,7 @@ import {
 } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { cn } from '@/lib/utils/cn';
 
@@ -234,11 +235,13 @@ function HumanInputRequestCardComponent({
 
     return (
       <div className="bg-muted/50 space-y-2 rounded-lg p-4">
-        <div className="text-sm font-medium">{displayValue}</div>
-        <div className="text-muted-foreground text-xs">
+        <Text as="div" variant="label">
+          {displayValue}
+        </Text>
+        <Text as="div" variant="caption">
           Responded by {respondedBy} at{' '}
           {formatDate(new Date(timestamp), 'long')}
-        </div>
+        </Text>
       </div>
     );
   };
@@ -278,11 +281,11 @@ function HumanInputRequestCardComponent({
 
       {/* Question */}
       <div className="mb-4">
-        <p className="text-sm leading-relaxed">{metadata.question}</p>
+        <Text className="leading-relaxed">{metadata.question}</Text>
         {metadata.context && (
-          <p className="text-muted-foreground mt-2 text-xs">
+          <Text variant="caption" className="mt-2">
             {metadata.context}
-          </p>
+          </Text>
         )}
       </div>
 

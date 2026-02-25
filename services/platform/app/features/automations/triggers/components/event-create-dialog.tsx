@@ -8,6 +8,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import {
   EVENT_TYPES,
@@ -191,16 +192,16 @@ export function EventCreateDialog({
       <Stack gap={4}>
         {isEditMode ? (
           <div>
-            <p className="mb-1 text-sm font-medium">
+            <Text variant="label" className="mb-1">
               {t('triggers.events.form.eventType')}
-            </p>
+            </Text>
             <div className="flex items-center gap-2">
               <code className="bg-muted rounded px-2 py-1 font-mono text-sm">
                 {selectedEventType}
               </code>
-              <span className="text-muted-foreground text-xs">
+              <Text as="span" variant="caption">
                 {selectedMeta?.label}
-              </span>
+              </Text>
             </div>
           </div>
         ) : (
@@ -214,15 +215,13 @@ export function EventCreateDialog({
           />
         )}
         {selectedMeta && !isEditMode && (
-          <p className="text-muted-foreground text-sm">
-            {selectedMeta.description}
-          </p>
+          <Text variant="muted">{selectedMeta.description}</Text>
         )}
         {filterFields.length > 0 && (
           <div className="space-y-3 rounded-md border p-3">
-            <p className="text-sm font-medium">
+            <Text variant="label">
               {t('triggers.events.form.filtersLabel')}
-            </p>
+            </Text>
             {filterFields.map((field) => (
               <FilterFieldInput
                 key={field.key}

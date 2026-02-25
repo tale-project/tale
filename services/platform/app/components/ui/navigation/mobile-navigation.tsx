@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { UserButton } from '@/app/components/user-button';
 import { useAbility } from '@/app/hooks/use-ability';
 import {
@@ -62,7 +63,9 @@ function MobileNavigationItem({ item, onClose }: MobileNavigationItemProps) {
         )}
       >
         {Icon && <Icon className="size-5 shrink-0" />}
-        <span className="text-sm font-medium">{item.label}</span>
+        <Text as="span" variant="label">
+          {item.label}
+        </Text>
       </Link>
       {item.subItems && isActive && (
         <div className="mt-2 ml-8 space-y-2">

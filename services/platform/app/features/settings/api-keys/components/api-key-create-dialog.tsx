@@ -11,6 +11,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -158,9 +159,9 @@ export function ApiKeyCreateDialog({
         }
       >
         <Stack gap={4}>
-          <p className="text-muted-foreground text-sm">
+          <Text variant="muted">
             {tSettings('apiKeys.keyCreatedDescription')}
-          </p>
+          </Text>
           <div className="relative">
             <code className="bg-muted block w-full rounded-md p-3 pr-12 font-mono text-sm break-all">
               {createdKey}

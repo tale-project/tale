@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { Popover } from '@/app/components/ui/overlays/popover';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { CreateCustomAgentDialog } from '@/app/features/custom-agents/components/custom-agent-create-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDialogSearchParam } from '@/app/hooks/use-dialog-search-param';
@@ -176,9 +177,9 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
           ))}
 
           {hasNoResults && (
-            <div className="text-muted-foreground px-3 py-4 text-center text-sm">
+            <Text as="div" variant="muted" align="center" className="px-3 py-4">
               {t('agentSelector.noResults')}
-            </div>
+            </Text>
           )}
         </div>
 
@@ -226,13 +227,13 @@ function OptionButton({
       className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors"
     >
       <div className="min-w-0 flex-1">
-        <div className="text-foreground text-sm font-medium">
+        <Text as="div" variant="label">
           {option.label}
-        </div>
+        </Text>
         {option.description && (
-          <div className="text-muted-foreground text-xs">
+          <Text as="div" variant="caption">
             {option.description}
-          </div>
+          </Text>
         )}
       </div>
       {isSelected && (

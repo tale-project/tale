@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
 
 const USER_MESSAGE_TRUNCATE_LENGTH = 120;
@@ -54,9 +55,9 @@ export function CollapsibleMessage({
           </ReactMarkdown>
         </div>
       ) : (
-        <p className="text-xs leading-relaxed whitespace-pre-wrap">
+        <Text variant="body-sm" className="leading-relaxed whitespace-pre-wrap">
           {displayContent}
-        </p>
+        </Text>
       )}
       {shouldTruncate && (
         <button

@@ -8,6 +8,7 @@ import { useTheme } from '@/app/components/theme/theme-provider';
 import { Description } from '@/app/components/ui/forms/description';
 import { Label } from '@/app/components/ui/forms/label';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -402,19 +403,24 @@ export function JsonInput({
       </div>
 
       {displayError && (
-        <p
+        <Text
           id={errorId}
           role="alert"
           aria-live="polite"
-          className="text-destructive flex items-center gap-1.5 text-sm"
+          variant="error"
+          className="flex items-center gap-1.5"
         >
           <Info className="size-4 shrink-0" aria-hidden="true" />
           {displayError}
-        </p>
+        </Text>
       )}
 
       {isEditing && (
-        <div className="text-muted-foreground flex items-center justify-between text-xs">
+        <Text
+          as="div"
+          variant="caption"
+          className="flex items-center justify-between"
+        >
           <div>
             Press{' '}
             <kbd className="bg-muted rounded px-1 py-0.5 text-xs">
@@ -431,7 +437,7 @@ export function JsonInput({
               {t('unsavedChanges')}
             </span>
           )}
-        </div>
+        </Text>
       )}
 
       {description && (

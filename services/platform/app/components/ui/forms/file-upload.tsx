@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -97,15 +98,16 @@ function Root({
       )}
       <div className={cn(showShake && 'animate-shake')}>{content}</div>
       {errorMessage && (
-        <p
+        <Text
           id={errorId}
           role="alert"
           aria-live="polite"
-          className="text-destructive flex items-center gap-1.5 text-sm"
+          variant="error"
+          className="flex items-center gap-1.5"
         >
           <Info className="size-4" aria-hidden="true" />
           {errorMessage}
-        </p>
+        </Text>
       )}
       {description && (
         <Description id={descriptionId} className="text-xs">
@@ -261,9 +263,9 @@ function Overlay({ className, label }: OverlayProps) {
       )}
     >
       <ImagePlus className="text-muted-foreground size-8" />
-      <span className="text-muted-foreground text-sm">
+      <Text as="span" variant="muted">
         {label ?? t('upload.dropFilesHere')}
-      </span>
+      </Text>
     </div>
   );
 }

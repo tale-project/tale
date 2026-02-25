@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { ApiKey } from '../types';
@@ -32,9 +33,9 @@ export function useApiKeysTableConfig(
         header: tSettings('apiKeys.columns.name'),
         size: 200,
         cell: ({ row }) => (
-          <span className="text-foreground text-sm font-medium">
+          <Text as="span" variant="label">
             {row.original.name || '-'}
-          </span>
+          </Text>
         ),
       },
       {

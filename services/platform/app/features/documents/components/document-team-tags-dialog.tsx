@@ -7,6 +7,7 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -134,22 +135,20 @@ function DocumentTeamTagsDialogContent({
     >
       <Stack gap={4} className="min-w-0">
         {documentName && (
-          <p className="text-muted-foreground text-sm break-words">
+          <Text variant="muted" className="wrap-break-word">
             {tDocuments('teamTags.description', { name: displayName })}
-          </p>
+          </Text>
         )}
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <span className="text-muted-foreground">
+            <Text as="span" variant="muted">
               {tCommon('actions.loading')}
-            </span>
+            </Text>
           </div>
         ) : !teams || teams.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Users className="text-muted-foreground/50 mb-2 size-8" />
-            <p className="text-muted-foreground text-sm">
-              {tDocuments('teamTags.noTeams')}
-            </p>
+            <Text variant="muted">{tDocuments('teamTags.noTeams')}</Text>
           </div>
         ) : (
           <Stack gap={2}>
@@ -169,9 +168,7 @@ function DocumentTeamTagsDialogContent({
           </Stack>
         )}
 
-        <p className="text-muted-foreground text-xs">
-          {tDocuments('teamTags.hint')}
-        </p>
+        <Text variant="caption">{tDocuments('teamTags.hint')}</Text>
       </Stack>
     </Dialog>
   );

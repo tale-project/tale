@@ -55,3 +55,6 @@ storybook-static/
 
 # Stress test reports
 stress-tests/report-*.json
+
+# TanStack
+.tanstack/tmp

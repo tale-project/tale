@@ -1,6 +1,8 @@
 import { Loader2Icon } from 'lucide-react';
 
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 interface BulkSendDialogProps {
@@ -22,12 +24,12 @@ export function BulkSendDialog({
   return (
     <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
       <div className="bg-background mx-4 w-full max-w-md rounded-lg border p-6">
-        <h3 className="mb-4 text-lg font-semibold">
+        <Heading level={3} size="lg" className="mb-4">
           {tConversations('bulkSend.title', { count: selectedCount })}
-        </h3>
-        <p className="text-muted-foreground mb-6">
+        </Heading>
+        <Text variant="muted" className="mb-6">
           {tConversations('bulkSend.description', { count: selectedCount })}
-        </p>
+        </Text>
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={onCancel} disabled={isSending}>
             {tCommon('actions.cancel')}

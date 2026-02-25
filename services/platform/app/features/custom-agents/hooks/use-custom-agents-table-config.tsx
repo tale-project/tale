@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { isKeyOf } from '@/lib/utils/type-guards';
 
@@ -40,9 +41,9 @@ export function useCustomAgentsTableConfig({
         id: 'displayName',
         header: t('customAgents.columns.displayName'),
         cell: ({ row }) => (
-          <span className="text-foreground font-medium">
+          <Text as="span" variant="label">
             {row.original.displayName}
-          </span>
+          </Text>
         ),
         size: 250,
       },
@@ -96,9 +97,9 @@ export function useCustomAgentsTableConfig({
         id: 'tools',
         header: t('customAgents.columns.tools'),
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-sm">
+          <Text as="span" variant="muted">
             {row.original.toolNames.length}
-          </span>
+          </Text>
         ),
         size: 100,
       },
@@ -109,9 +110,9 @@ export function useCustomAgentsTableConfig({
           const { teamId: rowTeamId } = row.original;
           if (!rowTeamId) {
             return (
-              <span className="text-muted-foreground text-xs">
+              <Text as="span" variant="caption">
                 {t('customAgents.columns.orgWide')}
-              </span>
+              </Text>
             );
           }
           const teamName = teamNameMap.get(rowTeamId) ?? rowTeamId;

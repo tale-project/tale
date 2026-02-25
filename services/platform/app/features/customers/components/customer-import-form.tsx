@@ -9,6 +9,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -101,12 +102,16 @@ export function CustomerImportForm({
             </div>
           </div>
           <div className="relative shrink-0 items-start justify-start not-italic">
-            <div className="text-foreground relative w-full shrink-0 text-base font-medium">
-              <p>{t('importForm.fromShopify')}</p>
-            </div>
-            <div className="text-muted-foreground relative w-full shrink-0 text-sm">
-              <p>{t('importForm.syncBusinessData')}</p>
-            </div>
+            <Text
+              as="div"
+              variant="label"
+              className="relative w-full shrink-0 text-base"
+            >
+              {t('importForm.fromShopify')}
+            </Text>
+            <Text as="div" variant="muted" className="relative w-full shrink-0">
+              {t('importForm.syncBusinessData')}
+            </Text>
           </div>
         </Link>
       )}
@@ -124,12 +129,12 @@ export function CustomerImportForm({
             }
             {...register('customers')}
           />
-          <div className="text-muted-foreground text-xs leading-relaxed">
+          <Text as="div" variant="caption" className="leading-relaxed">
             <ul className="list-outside list-disc space-y-2 pl-4">
               <li>{t('importForm.localeHint')}</li>
               <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
             </ul>
-          </div>
+          </Text>
         </Stack>
       )}
       {dataSource === 'file_upload' && (
@@ -153,20 +158,18 @@ export function CustomerImportForm({
             >
               <FileUpload.Overlay className="rounded-lg" />
               <Upload className="text-muted-foreground mx-auto mb-2 size-8" />
-              <p className="text-sm font-medium">
-                {tCommon('upload.clickToUpload')}
-              </p>
-              <p className="text-muted-foreground mt-1 text-xs">
+              <Text variant="label">{tCommon('upload.clickToUpload')}</Text>
+              <Text variant="caption" className="mt-1">
                 {tCommon('upload.supportedFormats')}
-              </p>
+              </Text>
             </FileUpload.DropZone>
           </FileUpload.Root>
-          <div className="text-muted-foreground text-xs leading-relaxed">
+          <Text as="div" variant="caption" className="leading-relaxed">
             <ul className="list-outside list-disc space-y-2 pl-4">
               <li>{t('importForm.localeHint')}</li>
               <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
             </ul>
-          </div>
+          </Text>
           {fileValue && (
             <VStack
               gap={2}
@@ -176,9 +179,9 @@ export function CustomerImportForm({
                 <HStack gap={2} className="min-w-0 flex-1">
                   <DocumentIcon fileName={fileValue.name} />
                   <VStack gap={0} className="min-w-0 flex-1">
-                    <div className="text-foreground truncate text-sm font-medium">
+                    <Text as="div" variant="label" truncate>
                       {fileValue.name}
-                    </div>
+                    </Text>
                   </VStack>
                 </HStack>
                 <Button

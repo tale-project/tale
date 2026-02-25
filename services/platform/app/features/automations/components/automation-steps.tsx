@@ -33,6 +33,7 @@ import React, {
 } from 'react';
 import '@xyflow/react/dist/style.css';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
@@ -454,12 +455,12 @@ function AutomationStepsInner({
             {!hasSteps && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <div className="space-y-2 text-center">
-                  <div className="text-muted-foreground">
+                  <Text as="div" variant="muted">
                     {t('emptyState.noSteps')}
-                  </div>
-                  <div className="text-muted-foreground text-sm">
+                  </Text>
+                  <Text as="div" variant="muted">
                     {t('emptyState.createStepsHint')}
-                  </div>
+                  </Text>
                 </div>
               </div>
             )}
@@ -468,9 +469,9 @@ function AutomationStepsInner({
               <Panel position="top-center" className="mx-4 mt-4 w-full px-8">
                 <div className="mx-auto flex max-w-xl items-center gap-2.5 rounded-lg bg-blue-50 px-4 py-3 shadow-sm ring-1 ring-blue-200">
                   <Info className="size-5 shrink-0 text-blue-600" />
-                  <p className="text-sm text-blue-600">
+                  <Text className="text-sm text-blue-600">
                     {t('steps.banners.draftNotPublished')}
-                  </p>
+                  </Text>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -487,9 +488,9 @@ function AutomationStepsInner({
               <Panel position="top-center" className="mx-4 mt-4 w-full px-4">
                 <div className="mx-auto flex max-w-3xl items-center gap-2.5 rounded-lg bg-amber-50 px-4 py-3 shadow-sm ring-1 ring-amber-200">
                   <AlertTriangle className="size-5 shrink-0 text-amber-600" />
-                  <p className="text-sm text-amber-600">
+                  <Text className="text-sm text-amber-600">
                     {t('steps.banners.activeCannotModify')}
-                  </p>
+                  </Text>
                 </div>
               </Panel>
             )}

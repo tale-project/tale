@@ -24,6 +24,8 @@ import {
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
 import { useUpdateAutomation } from '@/app/features/automations/hooks/mutations';
 import {
@@ -208,7 +210,7 @@ function AutomationDetailLayout() {
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       <StickyHeader>
         <AdaptiveHeaderRoot standalone={false} className="gap-2">
-          <h1 className="truncate text-base font-semibold">
+          <Heading level={1} size="base" truncate>
             <Link
               to="/dashboard/$id/automations"
               params={{ id: organizationId }}
@@ -232,7 +234,7 @@ function AutomationDetailLayout() {
                 <Skeleton className="inline-block h-4 w-32 align-middle" />
               </>
             )}
-          </h1>
+          </Heading>
           {editMode && (
             <Input
               {...register('name')}
@@ -286,14 +288,14 @@ function AutomationDetailLayout() {
                     label: (
                       <>
                         <span>{`v${version.versionNumber}`}</span>
-                        <span className="text-muted-foreground ml-1 text-xs">
+                        <Text as="span" variant="caption" className="ml-1">
                           {version.status === 'draft' &&
                             tCommon('status.draft')}
                           {version.status === 'active' &&
                             tCommon('status.active')}
                           {version.status === 'archived' &&
                             tCommon('status.archived')}
-                        </span>
+                        </Text>
                       </>
                     ),
                     onClick: () => navigateToVersion(version._id),

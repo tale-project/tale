@@ -10,6 +10,7 @@ import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ACCEPT,
@@ -203,14 +204,23 @@ export function ChatInput({
                   >
                     <DocumentIcon fileName={attachment.fileName} />
                     <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="text-foreground ellipsis truncate text-sm font-medium">
+                      <Text
+                        as="div"
+                        variant="label"
+                        truncate
+                        className="ellipsis"
+                      >
                         {attachment.fileName}
-                      </div>
-                      <div className="text-muted-foreground/50 text-xs">
+                      </Text>
+                      <Text
+                        as="div"
+                        variant="caption"
+                        className="text-muted-foreground/50"
+                      >
                         {tChat(
                           `fileTypes.${getFileTypeLabelKey(attachment.fileType)}`,
                         )}
-                      </div>
+                      </Text>
                     </div>
                     <button
                       type="button"
@@ -246,18 +256,26 @@ export function ChatInput({
                 placeholder=""
               />
               {value.length === 0 && !disabled && (
-                <div className="text-muted-foreground pointer-events-none absolute top-0 left-0 flex items-center gap-1 text-sm">
+                <Text
+                  as="div"
+                  variant="muted"
+                  className="pointer-events-none absolute top-0 left-0 flex items-center gap-1"
+                >
                   {defaultPlaceholder}
                   <div className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
                     <EnterKeyIcon />
                   </div>
                   {tDialogs('toSend')}
-                </div>
+                </Text>
               )}
               {disabled && (
-                <div className="text-muted-foreground pointer-events-none absolute top-0 left-0 text-sm">
+                <Text
+                  as="div"
+                  variant="muted"
+                  className="pointer-events-none absolute top-0 left-0"
+                >
                   {tChat('noAgentsAvailable')}
-                </div>
+                </Text>
               )}
             </div>
 
@@ -270,7 +288,9 @@ export function ChatInput({
                 title={tDialogs('attach')}
               >
                 <Paperclip className="size-4" />
-                <span className="text-xs">{tDialogs('attach')}</span>
+                <Text as="span" variant="body-sm">
+                  {tDialogs('attach')}
+                </Text>
               </button>
               <AgentSelector organizationId={organizationId} />
             </div>

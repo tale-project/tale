@@ -3,6 +3,7 @@
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { Stack, Grid } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
@@ -47,52 +48,52 @@ export function SubAgentDetailsDialog({
       <FieldGroup gap={4}>
         {usage.model && (
           <Field label={t('messageInfo.model')}>
-            <div className="text-sm">
+            <Text as="div">
               {usage.model}
               {usage.provider && ` (${usage.provider})`}
-            </div>
+            </Text>
           </Field>
         )}
 
         {usage.totalTokens !== undefined && (
           <Field label={t('messageInfo.tokenUsage')}>
-            <Grid cols={2} gap={2} className="text-sm">
+            <Grid cols={2} gap={2}>
               {usage.inputTokens !== undefined && (
                 <Stack gap={0}>
-                  <div className="text-muted-foreground text-xs">
+                  <Text as="div" variant="caption">
                     {t('messageInfo.input')}
-                  </div>
-                  <div className="font-medium">
+                  </Text>
+                  <Text as="div" variant="label">
                     {formatNumber(usage.inputTokens, locale)}
-                  </div>
+                  </Text>
                 </Stack>
               )}
               {usage.outputTokens !== undefined && (
                 <Stack gap={0}>
-                  <div className="text-muted-foreground text-xs">
+                  <Text as="div" variant="caption">
                     {t('messageInfo.output')}
-                  </div>
-                  <div className="font-medium">
+                  </Text>
+                  <Text as="div" variant="label">
                     {formatNumber(usage.outputTokens, locale)}
-                  </div>
+                  </Text>
                 </Stack>
               )}
               <Stack gap={0}>
-                <div className="text-muted-foreground text-xs">
+                <Text as="div" variant="caption">
                   {t('messageInfo.total')}
-                </div>
-                <div className="font-medium">
+                </Text>
+                <Text as="div" variant="label">
                   {formatNumber(usage.totalTokens, locale)}
-                </div>
+                </Text>
               </Stack>
               {usage.durationMs !== undefined && (
                 <Stack gap={0}>
-                  <div className="text-muted-foreground text-xs">
+                  <Text as="div" variant="caption">
                     {t('messageInfo.duration')}
-                  </div>
-                  <div className="font-medium">
+                  </Text>
+                  <Text as="div" variant="label">
                     {(usage.durationMs / 1000).toFixed(2)}s
-                  </div>
+                  </Text>
                 </Stack>
               )}
             </Grid>

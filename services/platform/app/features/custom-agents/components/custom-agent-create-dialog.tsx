@@ -9,6 +9,7 @@ import { z } from 'zod/v4';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -123,9 +124,9 @@ export function CreateCustomAgentDialog({
         placeholder={t('customAgents.form.namePlaceholder')}
         errorMessage={errors.name?.message}
       />
-      <p className="text-muted-foreground -mt-2 text-xs">
+      <Text variant="caption" className="-mt-2">
         {t('customAgents.form.nameHelp')}
-      </p>
+      </Text>
 
       <Input
         id="displayName"

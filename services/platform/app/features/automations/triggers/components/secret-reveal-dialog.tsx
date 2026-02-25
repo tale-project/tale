@@ -7,6 +7,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Field } from '@/app/components/ui/forms/field';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -70,9 +71,9 @@ export function SecretRevealDialog({
           className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20"
           role="alert"
         >
-          <p className="text-sm text-amber-800 dark:text-amber-200">
+          <Text className="text-sm text-amber-800 dark:text-amber-200">
             {warning}
-          </p>
+          </Text>
         </div>
         {secrets.map((secret, index) => (
           <Field key={secret.label} label={secret.label}>

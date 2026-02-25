@@ -40,7 +40,7 @@ const gridFilter: FilterConfig = {
   ],
   selectedValues: [],
   onChange: () => {},
-  grid: true,
+  columns: 2,
 };
 
 const meta: Meta<typeof DataTableFilters> = {

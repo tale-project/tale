@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react';
 
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 interface IntegrationDeleteSectionProps {
@@ -23,9 +24,9 @@ export function IntegrationDeleteSection({
 
   return (
     <Stack gap={3} className="border-border rounded-lg border p-4">
-      <p className="text-muted-foreground text-xs">
+      <Text variant="caption">
         {t('integrations.manageDialog.deleteDescription')}
-      </p>
+      </Text>
       {confirmDelete ? (
         <HStack gap={2}>
           <Button

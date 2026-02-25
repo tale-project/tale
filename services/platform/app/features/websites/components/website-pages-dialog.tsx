@@ -11,6 +11,8 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import {
   markdownComponents,
   markdownWrapperStyles,
@@ -124,7 +126,7 @@ export function WebsitePagesDialog({
         {!isLoadingFirst && results.length === 0 && (
           <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-12">
             <FileText className="size-8" />
-            <p className="text-sm">{t('pagesDialog.noPages')}</p>
+            <Text>{t('pagesDialog.noPages')}</Text>
           </div>
         )}
 
@@ -133,18 +135,20 @@ export function WebsitePagesDialog({
             key={page._id}
             className="border-border rounded-lg border p-4"
           >
-            <h3 className="text-foreground mb-1 text-sm font-medium">
+            <Heading level={3} size="sm" weight="medium" className="mb-1">
               {page.title || page.url}
-            </h3>
+            </Heading>
             {page.title && (
-              <p className="text-muted-foreground mb-3 text-xs">{page.url}</p>
+              <Text variant="caption" className="mb-3">
+                {page.url}
+              </Text>
             )}
             {page.content ? (
               <CollapsibleMarkdown content={page.content} />
             ) : (
-              <p className="text-muted-foreground text-xs italic">
+              <Text variant="caption" className="italic">
                 {t('pagesDialog.noContent')}
-              </p>
+              </Text>
             )}
           </article>
         ))}

@@ -75,7 +75,12 @@ function NavigationItem({ item }: { item: NavItem }) {
   return (
     <NavigationMenuItem className={cn('relative')}>
       <Tooltip content={item.label} side="right">
-        <Link to={item.to} params={item.params} className="block">
+        <Link
+          to={item.to}
+          params={item.params}
+          preload="render"
+          className="block"
+        >
           <div
             className={cn(
               'relative flex items-center justify-center p-2 rounded-lg transition-colors',

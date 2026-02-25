@@ -8,6 +8,8 @@ import striptags from 'striptags';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -255,18 +257,29 @@ const ConversationRow = memo(function ConversationRow({
 
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex items-start justify-between">
-            <h3 className="text-foreground flex-1 truncate text-sm font-medium tracking-tight">
+            <Heading
+              level={3}
+              size="sm"
+              weight="medium"
+              tracking="tight"
+              truncate
+              className="flex-1"
+            >
               {conversation?.title || conversation.customer?.name || 'Unknown'}
-            </h3>
-            <span className="text-muted-foreground ml-4 flex-shrink-0 text-xs font-medium tracking-tight">
+            </Heading>
+            <Text
+              as="span"
+              variant="label-sm"
+              className="text-muted-foreground ml-4 shrink-0 tracking-tight"
+            >
               {formatDateSmart(conversation.last_message_at || '')}
-            </span>
+            </Text>
           </div>
 
           <div className="mb-3 flex items-center justify-between gap-2">
-            <p className="text-muted-foreground flex-1 truncate text-sm tracking-tight">
+            <Text variant="muted" truncate className="flex-1 tracking-tight">
               {getLastMessagePreview(conversation)}
-            </p>
+            </Text>
             {conversation.unread_count > 0 && (
               <div className="text-primary-foreground flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 px-1 py-2 text-xs leading-none">
                 {conversation.unread_count}
@@ -373,7 +386,7 @@ export function ConversationsList({
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-16">
         <Inbox className="text-muted-foreground mb-3 size-8" />
-        <p className="text-muted-foreground text-sm">{t('list.empty')}</p>
+        <Text variant="muted">{t('list.empty')}</Text>
       </div>
     );
   }

@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 import { Select } from '@/app/components/ui/forms/select';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -97,9 +98,9 @@ export function DataTablePagination({
     >
       {showPageSizeSelector && onPageSizeChange && (
         <div className="mr-4 hidden items-center gap-2 sm:flex">
-          <span className="text-muted-foreground text-xs">
+          <Text as="span" variant="caption">
             {t('pagination.rowsPerPage')}
-          </span>
+          </Text>
           <Select
             value={pageSize.toString()}
             onValueChange={(value) => onPageSizeChange(parseInt(value, 10))}
@@ -155,9 +156,13 @@ export function DataTablePagination({
       </Button>
 
       {total > 0 && (
-        <span className="text-muted-foreground hidden text-xs font-semibold whitespace-nowrap sm:inline">
+        <Text
+          as="span"
+          variant="caption"
+          className="hidden font-semibold whitespace-nowrap sm:inline"
+        >
           {t('pagination.showing', { start: startIdx, end: endIdx, total })}
-        </span>
+        </Text>
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { Repeat } from 'lucide-react';
 import React from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Heading } from '@/app/components/ui/typography/heading';
 import { useT } from '@/lib/i18n/client';
 
 import { InvisibleHandle } from './invisible-handle';
@@ -94,9 +95,9 @@ export function AutomationLoopContainer({
 
             {/* Title in center */}
             <div className="min-w-0 flex-1">
-              <h3 className="text-foreground text-sm font-semibold">
+              <Heading level={3} size="sm">
                 {data.label}
-              </h3>
+              </Heading>
             </div>
 
             {/* Step type label on right */}

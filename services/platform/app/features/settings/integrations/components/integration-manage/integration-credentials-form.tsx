@@ -10,6 +10,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
@@ -99,12 +100,12 @@ export function IntegrationCredentialsForm({
 
       <Stack gap={3} className="border-border rounded-lg border p-4">
         <div>
-          <p className="text-sm font-medium">
+          <Text variant="label">
             {t('integrations.manageDialog.authentication')}
-          </p>
-          <p className="text-muted-foreground mt-1 text-xs">
+          </Text>
+          <Text variant="caption" className="mt-1">
             {t('integrations.upload.updateCredentialsHint')}
-          </p>
+          </Text>
         </div>
 
         {hasMultipleAuthMethods && (
@@ -252,9 +253,9 @@ function SqlConnectionSection({
   return (
     <Stack gap={3} className="border-border rounded-lg border p-4">
       <HStack gap={2} className="items-center">
-        <p className="text-sm font-medium">
+        <Text variant="label">
           {t('integrations.manageDialog.databaseConnection')}
-        </p>
+        </Text>
         {integration.sqlConnectionConfig?.engine && (
           <Badge variant="outline" className="ml-auto text-xs">
             {integration.sqlConnectionConfig.engine}
@@ -311,18 +312,20 @@ function OAuth2CredentialsSummary({
     <>
       <Stack gap={2}>
         <HStack gap={2} className="text-muted-foreground items-center text-sm">
-          <span className="w-20 shrink-0 text-xs">
+          <Text as="span" variant="body-sm" className="w-20 shrink-0">
             {t('integrations.manageDialog.clientId')}
-          </span>
-          <span className="truncate font-mono text-xs">
+          </Text>
+          <Text as="span" variant="code" truncate>
             {maskValue(integration.oauth2Config?.clientId ?? '')}
-          </span>
+          </Text>
         </HStack>
         <HStack gap={2} className="text-muted-foreground items-center text-sm">
-          <span className="w-20 shrink-0 text-xs">
+          <Text as="span" variant="body-sm" className="w-20 shrink-0">
             {t('integrations.manageDialog.clientSecret')}
-          </span>
-          <span className="font-mono text-xs">{'\u00d7'.repeat(8)}</span>
+          </Text>
+          <Text as="span" variant="code">
+            {'\u00d7'.repeat(8)}
+          </Text>
         </HStack>
         {integration.oauth2Config?.scopes &&
           integration.oauth2Config.scopes.length > 0 && (
@@ -330,12 +333,12 @@ function OAuth2CredentialsSummary({
               gap={2}
               className="text-muted-foreground items-start text-sm"
             >
-              <span className="w-20 shrink-0 text-xs">
+              <Text as="span" variant="body-sm" className="w-20 shrink-0">
                 {t('integrations.manageDialog.scopes')}
-              </span>
-              <span className="font-mono text-xs break-all">
+              </Text>
+              <Text as="span" variant="code" className="break-all">
                 {integration.oauth2Config.scopes.join(', ')}
-              </span>
+              </Text>
             </HStack>
           )}
       </Stack>

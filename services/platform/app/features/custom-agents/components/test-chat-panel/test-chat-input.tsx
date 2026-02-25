@@ -8,6 +8,7 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
 
@@ -78,9 +79,9 @@ export function TestChatInput({
                   className="bg-muted flex items-center gap-1 rounded-lg px-2 py-1"
                 >
                   <LoaderCircle className="size-3 animate-spin" />
-                  <span className="text-muted-foreground text-xs">
+                  <Text as="span" variant="caption">
                     {t('customAgents.testChat.uploading')}
-                  </span>
+                  </Text>
                 </div>
               ))}
               {attachments
@@ -110,9 +111,9 @@ export function TestChatInput({
                   >
                     <DocumentIcon fileName={attachment.fileName} />
                     <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="text-foreground truncate text-xs font-medium">
+                      <Text as="div" variant="label-sm" truncate>
                         {attachment.fileName}
-                      </div>
+                      </Text>
                     </div>
                     <button
                       type="button"

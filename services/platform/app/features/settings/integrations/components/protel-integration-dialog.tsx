@@ -8,6 +8,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -145,14 +146,14 @@ export function ProtelIntegrationDialog({
     >
       {isConnected ? (
         <div className="bg-success/10 rounded-md p-4">
-          <p className="text-success text-sm font-medium">
+          <Text variant="success">
             {t('integrations.protel.connectedTo', {
               server: credentials?.server ?? '',
             })}
-          </p>
-          <p className="text-success/80 mt-1 text-xs">
+          </Text>
+          <Text variant="caption" className="text-success/80 mt-1">
             {t('integrations.protel.database')}: {credentials?.database}
-          </p>
+          </Text>
         </div>
       ) : (
         <>

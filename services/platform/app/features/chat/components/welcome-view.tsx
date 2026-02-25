@@ -1,5 +1,6 @@
 'use client';
 
+import { Heading } from '@/app/components/ui/typography/heading';
 import { useT } from '@/lib/i18n/client';
 
 import { LoadingDots } from './thinking-animation';
@@ -20,9 +21,13 @@ export function WelcomeView({ isPending }: WelcomeViewProps) {
       {isPending ? (
         <LoadingDots />
       ) : (
-        <h1 className="text-center text-[2rem] font-semibold">
+        <Heading
+          level={1}
+          weight="semibold"
+          className="text-center text-[2rem]"
+        >
           {t('welcome')}
-        </h1>
+        </Heading>
       )}
     </div>
   );

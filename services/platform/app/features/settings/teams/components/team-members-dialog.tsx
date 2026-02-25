@@ -7,6 +7,7 @@ import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -155,25 +156,21 @@ export function TeamMembersDialog({
         </HStack>
 
         {availableMembers.length === 0 && !isLoading && (
-          <p className="text-muted-foreground text-sm">
-            {tSettings('teams.noMembersToAdd')}
-          </p>
+          <Text variant="muted">{tSettings('teams.noMembersToAdd')}</Text>
         )}
 
         {/* Team members list */}
         <Stack gap={2}>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <span className="text-muted-foreground">
+              <Text as="span" variant="muted">
                 {tCommon('actions.loading')}
-              </span>
+              </Text>
             </div>
           ) : !teamMembers || teamMembers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Users className="text-muted-foreground/50 mb-2 size-8" />
-              <p className="text-muted-foreground text-sm">
-                {tSettings('teams.noTeamMembers')}
-              </p>
+              <Text variant="muted">{tSettings('teams.noTeamMembers')}</Text>
             </div>
           ) : (
             teamMembers.map((member: TeamMemberItem) => {
@@ -188,15 +185,15 @@ export function TeamMembersDialog({
                   className="bg-card rounded-lg border p-3"
                 >
                   <Stack gap={1}>
-                    <span className="text-sm font-medium">
+                    <Text as="span" variant="label">
                       {hasDistinctName
                         ? details.displayName
                         : details?.email || 'Unknown'}
-                    </span>
+                    </Text>
                     {hasDistinctName && (
-                      <span className="text-muted-foreground text-xs">
+                      <Text as="span" variant="caption">
                         {details.email}
-                      </span>
+                      </Text>
                     )}
                   </Stack>
                   <Button

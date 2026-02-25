@@ -6,6 +6,7 @@ import { useState, useEffect, useTransition } from 'react';
 
 import { Select } from '@/app/components/ui/forms/select';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 
 interface PaginationProps {
   currentPage: number;
@@ -168,9 +169,13 @@ export function Pagination({
         )}
       </Button>
 
-      <span className="text-muted-foreground text-xs font-semibold whitespace-nowrap">
+      <Text
+        as="span"
+        variant="caption"
+        className="font-semibold whitespace-nowrap"
+      >
         {isEmpty ? 'No items' : `${startIdx}-${endIdx} of ${total}`}
-      </span>
+      </Text>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 
+import { Text } from '@/app/components/ui/typography/text';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -360,9 +361,9 @@ function MilkdownEditorInner({
           {isImproving && (
             <div className="flex h-full items-center justify-center pt-12 pb-4">
               <LoaderIcon className="text-muted-foreground size-6 animate-spin" />
-              <span className="text-muted-foreground ml-2 text-sm">
+              <Text as="span" variant="muted" className="ml-2">
                 {tConversations('editor.improving')}
-              </span>
+              </Text>
             </div>
           )}
         </div>

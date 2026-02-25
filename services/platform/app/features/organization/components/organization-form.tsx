@@ -11,6 +11,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { VStack, Center } from '@/app/components/ui/layout/layout';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Heading } from '@/app/components/ui/typography/heading';
 import { UserButton } from '@/app/components/user-button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
@@ -95,9 +96,9 @@ export function OrganizationForm() {
       </header>
       <Center className="flex-1 items-start px-4 py-16 pt-[15vh]">
         <VStack className="w-full max-w-[24rem]">
-          <h1 className="mb-8 text-center text-base font-semibold">
+          <Heading level={1} className="mb-8 text-center">
             {t('organization.createOrganization')}
-          </h1>
+          </Heading>
           <Form onSubmit={handleSubmit}>
             <Input
               id="org-name"

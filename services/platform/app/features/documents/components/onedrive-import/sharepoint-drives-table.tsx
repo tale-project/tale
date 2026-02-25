@@ -7,6 +7,8 @@ import { useMemo } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Heading } from '@/app/components/ui/typography/heading';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { SharePointDrive } from './types';
@@ -42,9 +44,14 @@ export function SharePointDrivesTable({
                   {drive.name}
                 </div>
                 {drive.description && (
-                  <div className="text-muted-foreground max-w-md truncate text-xs">
+                  <Text
+                    as="div"
+                    variant="caption"
+                    truncate
+                    className="max-w-md"
+                  >
                     {drive.description}
-                  </div>
+                  </Text>
                 )}
               </div>
             </HStack>
@@ -57,9 +64,9 @@ export function SharePointDrivesTable({
           <div className="text-right">{t('microsoft365.driveType')}</div>
         ),
         cell: ({ row }) => (
-          <div className="text-muted-foreground text-right text-sm capitalize">
+          <Text as="div" variant="muted" align="right" className="capitalize">
             {row.original.driveType}
-          </div>
+          </Text>
         ),
       },
     ],
@@ -70,12 +77,12 @@ export function SharePointDrivesTable({
     return (
       <div className="flex h-full flex-col items-center justify-center py-12 text-center">
         <Database className="text-muted-foreground/50 mb-4 size-12" />
-        <h3 className="text-foreground mb-2 text-lg font-medium">
+        <Heading level={3} size="lg" weight="medium" className="mb-2">
           {t('microsoft365.noDrives')}
-        </h3>
-        <p className="text-muted-foreground max-w-md text-sm">
+        </Heading>
+        <Text variant="muted" className="max-w-md">
           {t('microsoft365.noDrivesDescription')}
-        </p>
+        </Text>
       </div>
     );
   }

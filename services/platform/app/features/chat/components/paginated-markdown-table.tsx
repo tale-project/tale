@@ -13,6 +13,7 @@ import {
 
 import { TableBody, TableCell } from '@/app/components/ui/data-display/table';
 import { Select } from '@/app/components/ui/forms/select';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 interface PaginatedMarkdownTableProps {
@@ -184,13 +185,17 @@ export function PaginatedMarkdownTable({
           </div>
 
           {/* Page info text */}
-          <span className="text-muted-foreground text-xs font-medium whitespace-nowrap">
+          <Text
+            as="span"
+            variant="label-sm"
+            className="text-muted-foreground whitespace-nowrap"
+          >
             {t('pagination.showing', {
               start: startIdx + 1,
               end: endIdx,
               total: totalRows,
             })}
-          </span>
+          </Text>
         </div>
       )}
     </div>

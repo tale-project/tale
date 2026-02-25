@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Stack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -62,22 +63,22 @@ export function ShopifyDisconnectConfirmationDialog({
       <Stack gap={3}>
         {domain && (
           <Stack gap={1}>
-            <p className="text-foreground text-sm font-medium">
+            <Text variant="label">
               {t('integrations.shopify.connectedStore')}
-            </p>
-            <p className="text-muted-foreground text-sm">{domain}</p>
+            </Text>
+            <Text variant="muted">{domain}</Text>
           </Stack>
         )}
 
         <Stack gap={2}>
-          <p className="text-foreground text-sm">
+          <Text variant="body">
             {t('integrations.shopify.disconnectQuestion')}
-          </p>
+          </Text>
 
           <div className="bg-destructive/10 border-destructive/20 rounded-md border p-3">
-            <p className="text-destructive text-sm">
+            <Text variant="error">
               {t('integrations.shopify.disconnectWarning')}
-            </p>
+            </Text>
           </div>
         </Stack>
       </Stack>

@@ -11,6 +11,7 @@ import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { Stack, Grid } from '@/app/components/ui/layout/layout';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
@@ -38,8 +39,12 @@ interface StatItemProps {
 function StatItem({ label, value }: StatItemProps) {
   return (
     <Stack gap={0}>
-      <div className="text-muted-foreground text-xs">{label}</div>
-      <div className="font-medium">{value}</div>
+      <Text as="div" variant="caption">
+        {label}
+      </Text>
+      <Text as="div" className="font-medium">
+        {value}
+      </Text>
     </Stack>
   );
 }
@@ -66,9 +71,9 @@ function ContextWindowToken({
   return (
     <>
       <Stack gap={0}>
-        <div className="text-muted-foreground text-xs">
+        <Text as="div" variant="caption">
           {t('messageInfo.contextWindow')}
-        </div>
+        </Text>
         <button
           type="button"
           onClick={() => setIsDialogOpen(true)}
@@ -151,21 +156,21 @@ export function MessageInfoDialog({
     >
       <FieldGroup gap={4}>
         <Field label={t('messageInfo.timestamp')}>
-          <div className="text-sm">{formatDate(timestamp, 'long')}</div>
+          <Text as="div">{formatDate(timestamp, 'long')}</Text>
         </Field>
 
         <Field label={t('messageInfo.messageId')}>
-          <div className="bg-muted rounded px-2 py-1 font-mono text-xs">
+          <Text as="div" variant="code" className="bg-muted rounded px-2 py-1">
             {messageId}
-          </div>
+          </Text>
         </Field>
 
         {metadata ? (
           <>
             <Field label={t('messageInfo.model')}>
-              <div className="text-sm">
+              <Text as="div">
                 {metadata.model} ({metadata.provider})
-              </div>
+              </Text>
             </Field>
 
             {(metadata.contextWindow ||
@@ -241,17 +246,21 @@ export function MessageInfoDialog({
                       onClick={() => setSelectedSubAgent(usage)}
                       className="bg-muted hover:bg-muted/80 cursor-pointer rounded px-3 py-2 text-left text-sm transition-colors"
                     >
-                      <div className="mb-1 font-medium">
+                      <Text as="div" variant="label" className="mb-1">
                         {formatAgentName(usage.toolName)}
                         {usage.model && (
-                          <span className="text-muted-foreground ml-2 font-normal">
+                          <Text
+                            as="span"
+                            variant="muted"
+                            className="ml-2 font-normal"
+                          >
                             {usage.model}
                             {usage.provider && ` (${usage.provider})`}
-                          </span>
+                          </Text>
                         )}
-                      </div>
+                      </Text>
                       {usage.totalTokens !== undefined && (
-                        <div className="text-muted-foreground text-xs">
+                        <Text as="div" variant="caption">
                           {t('messageInfo.input')}:{' '}
                           {formatNumber(usage.inputTokens ?? 0, locale)}
                           {' · '}
@@ -267,7 +276,7 @@ export function MessageInfoDialog({
                               {(usage.durationMs / 1000).toFixed(2)}s
                             </>
                           )}
-                        </div>
+                        </Text>
                       )}
                     </button>
                   ))}
@@ -277,16 +286,19 @@ export function MessageInfoDialog({
 
             {metadata.reasoning && (
               <Field label={t('messageInfo.reasoning')}>
-                <div className="bg-muted max-h-40 overflow-y-auto rounded px-3 py-2 text-sm">
+                <Text
+                  as="div"
+                  className="bg-muted max-h-40 overflow-y-auto rounded px-3 py-2"
+                >
                   {metadata.reasoning}
-                </div>
+                </Text>
               </Field>
             )}
           </>
         ) : (
-          <div className="text-muted-foreground text-sm">
+          <Text as="div" variant="muted">
             {t('messageInfo.noMetadata')}
-          </div>
+          </Text>
         )}
       </FieldGroup>
 

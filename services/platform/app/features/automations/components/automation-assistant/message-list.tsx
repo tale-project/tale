@@ -4,6 +4,7 @@ import { Bot, LoaderCircle } from 'lucide-react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Image } from '@/app/components/ui/data-display/image';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -41,20 +42,16 @@ export function MessageList({
             {workflow === undefined ? (
               <div className="flex items-center gap-2">
                 <LoaderCircle className="text-muted-foreground size-3 animate-spin" />
-                <p className="text-muted-foreground text-xs">
-                  {t('assistant.loading')}
-                </p>
+                <Text variant="caption">{t('assistant.loading')}</Text>
               </div>
             ) : workflow === null ? (
-              <p className="text-muted-foreground text-xs">
-                {t('assistant.notFound')}
-              </p>
+              <Text variant="caption">{t('assistant.notFound')}</Text>
             ) : (
-              <p className="text-xs">
+              <Text variant="body-sm">
                 {workflow.status === 'draft'
                   ? t('assistant.welcomeDraft')
                   : t('assistant.welcomeActive')}
-              </p>
+              </Text>
             )}
           </div>
         </div>
@@ -112,9 +109,9 @@ export function MessageList({
                     >
                       <DocumentIcon fileName={part.filename || 'file'} />
                       <div className="flex min-w-0 flex-1 flex-col">
-                        <div className="text-foreground truncate text-sm font-medium">
+                        <Text as="div" variant="label" truncate>
                           {part.filename || t('assistant.fallbackFile')}
-                        </div>
+                        </Text>
                       </div>
                     </a>
                   ),

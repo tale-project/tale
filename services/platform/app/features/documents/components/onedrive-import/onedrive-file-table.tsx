@@ -8,6 +8,7 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
@@ -124,11 +125,15 @@ export function OneDriveFileTable({
           <div className="text-right">{tTables('headers.modified')}</div>
         ),
         cell: ({ row }) => (
-          <div className="text-muted-foreground text-right text-sm whitespace-nowrap">
+          <Text
+            as="div"
+            variant="muted"
+            className="text-right whitespace-nowrap"
+          >
             {row.original.lastModified
               ? formatDate(new Date(row.original.lastModified), 'short')
               : ''}
-          </div>
+          </Text>
         ),
       },
       {
@@ -137,9 +142,13 @@ export function OneDriveFileTable({
           <div className="text-right">{tTables('headers.size')}</div>
         ),
         cell: ({ row }) => (
-          <div className="text-muted-foreground text-right text-sm whitespace-nowrap">
+          <Text
+            as="div"
+            variant="muted"
+            className="text-right whitespace-nowrap"
+          >
             {row.original.size ? formatBytes(row.original.size) : ''}
-          </div>
+          </Text>
         ),
       },
     ],

@@ -96,6 +96,38 @@ export const WithDescription: Story = {
   ),
 };
 
+export const WithOptionDescriptions: Story = {
+  render: () => (
+    <RadioGroup
+      defaultValue="tool"
+      label="Retrieval mode"
+      options={[
+        {
+          value: 'off',
+          label: 'Off',
+          description: 'Knowledge base disabled',
+        },
+        {
+          value: 'tool',
+          label: 'Tool',
+          description: 'Agent searches on demand',
+        },
+        {
+          value: 'context',
+          label: 'Context',
+          description:
+            'Automatically inject relevant knowledge into every response',
+        },
+        {
+          value: 'both',
+          label: 'Both',
+          description: 'Auto-inject context and allow on-demand search',
+        },
+      ]}
+    />
+  ),
+};
+
 export const WithDisabledOption: Story = {
   render: () => (
     <RadioGroup
@@ -108,6 +140,31 @@ export const WithDisabledOption: Story = {
       ]}
     />
   ),
+};
+
+export const TwoColumns: Story = {
+  render: () => (
+    <RadioGroup
+      defaultValue="en"
+      label="Language"
+      columns={2}
+      options={[
+        { value: 'en', label: 'English' },
+        { value: 'es', label: 'Spanish' },
+        { value: 'fr', label: 'French' },
+        { value: 'de', label: 'German' },
+        { value: 'it', label: 'Italian' },
+        { value: 'pt', label: 'Portuguese' },
+      ]}
+    />
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'Radio items arranged in a 2-column grid layout.',
+      },
+    },
+  },
 };
 
 export const Horizontal: Story = {

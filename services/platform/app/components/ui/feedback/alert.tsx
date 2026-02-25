@@ -3,6 +3,7 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import { type ComponentType, type ReactNode } from 'react';
 
+import { Heading } from '@/app/components/ui/typography/heading';
 import { cn } from '@/lib/utils/cn';
 
 const alertVariants = cva(
@@ -50,9 +51,15 @@ export function Alert({
     >
       {Icon && <Icon className="size-4" aria-hidden="true" />}
       {title && (
-        <h5 className="mb-1 leading-none font-medium tracking-tight">
+        <Heading
+          level={5}
+          size="sm"
+          weight="medium"
+          tracking="tight"
+          className="mb-1 leading-none"
+        >
           {title}
-        </h5>
+        </Heading>
       )}
       {description && (
         <div className="text-sm [&_p]:leading-relaxed">{description}</div>

@@ -8,6 +8,7 @@ import type { Doc } from '@/convex/_generated/dataModel';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 type AuditLog = Doc<'auditLogs'>;
@@ -26,9 +27,9 @@ export function useAuditLogTableConfig(): AuditLogTableConfig {
       {
         accessorKey: 'timestamp',
         header: () => (
-          <span className="block w-full text-right">
+          <Text as="span" align="right" className="block w-full">
             {t('logs.audit.columns.timestamp')}
-          </span>
+          </Text>
         ),
         size: 140,
         meta: {
@@ -47,9 +48,9 @@ export function useAuditLogTableConfig(): AuditLogTableConfig {
         accessorKey: 'action',
         header: t('logs.audit.columns.action'),
         cell: ({ row }) => (
-          <span className="font-medium">
+          <Text as="span" variant="label">
             {row.original.action.replace(/_/g, ' ')}
-          </span>
+          </Text>
         ),
         size: 160,
       },
@@ -57,9 +58,9 @@ export function useAuditLogTableConfig(): AuditLogTableConfig {
         accessorKey: 'actorEmail',
         header: t('logs.audit.columns.actor'),
         cell: ({ row }) => (
-          <span className="text-sm">
+          <Text as="span" variant="body">
             {row.original.actorEmail ?? row.original.actorId}
-          </span>
+          </Text>
         ),
         size: 200,
       },
@@ -67,9 +68,9 @@ export function useAuditLogTableConfig(): AuditLogTableConfig {
         accessorKey: 'resourceType',
         header: t('logs.audit.columns.resource'),
         cell: ({ row }) => (
-          <span className="text-sm capitalize">
+          <Text as="span" variant="body" className="capitalize">
             {row.original.resourceType}
-          </span>
+          </Text>
         ),
         size: 120,
       },
@@ -77,9 +78,14 @@ export function useAuditLogTableConfig(): AuditLogTableConfig {
         accessorKey: 'resourceName',
         header: t('logs.audit.columns.target'),
         cell: ({ row }) => (
-          <span className="text-muted-foreground block max-w-[200px] truncate text-sm">
+          <Text
+            as="span"
+            variant="muted"
+            truncate
+            className="block max-w-[200px]"
+          >
             {row.original.resourceName ?? row.original.resourceId ?? '-'}
-          </span>
+          </Text>
         ),
         size: 200,
       },

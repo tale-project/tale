@@ -83,6 +83,7 @@ vi.mock('@/app/hooks/use-team-filter', () => ({
 
 // Mock router
 vi.mock('@tanstack/react-router', () => ({
+  useRouter: () => ({ preloadRoute: vi.fn() }),
   useNavigate: () => vi.fn(),
   useParams: () => ({ id: 'org-123' }),
 }));
