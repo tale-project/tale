@@ -16,6 +16,7 @@ import {
   useCallback,
   useMemo,
   memo,
+  type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
@@ -84,7 +85,7 @@ const ValidationMessages = memo(function ValidationMessages({
             <AlertCircle className="size-4" />
             {errorLabel}
           </Text>
-          <ul className="text-destructive space-y-1 text-xs">
+          <ul role="list" className="text-destructive space-y-1 text-xs">
             {uniqueErrors.map((error) => (
               <li key={error}>• {error}</li>
             ))}
@@ -101,7 +102,10 @@ const ValidationMessages = memo(function ValidationMessages({
             <AlertTriangle className="size-4" />
             {warningLabel}
           </Text>
-          <ul className="space-y-1 text-xs text-amber-600 dark:text-amber-400">
+          <ul
+            role="list"
+            className="space-y-1 text-xs text-amber-600 dark:text-amber-400"
+          >
             {uniqueWarnings.map((warning) => (
               <li key={warning}>• {warning}</li>
             ))}
@@ -193,6 +197,8 @@ const StepEditorContent = memo(function StepEditorContent({
 const MIN_WIDTH = 280;
 const MAX_WIDTH = 600;
 
+const RESIZE_STEP = 20;
+
 function useResizable(panelRef: RefObject<HTMLDivElement | null>) {
   const [width, setWidth] = useState(384);
   const [isResizing, setIsResizing] = useState(false);
@@ -200,6 +206,16 @@ function useResizable(panelRef: RefObject<HTMLDivElement | null>) {
   const handleMouseDown = useCallback((e: ReactMouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
+  }, []);
+
+  const handleKeyDown = useCallback((e: ReactKeyboardEvent) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      const delta = e.key === 'ArrowLeft' ? RESIZE_STEP : -RESIZE_STEP;
+      setWidth((prev) =>
+        Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, prev + delta)),
+      );
+    }
   }, []);
 
   useEffect(() => {
@@ -229,7 +245,7 @@ function useResizable(panelRef: RefObject<HTMLDivElement | null>) {
     };
   }, [isResizing, panelRef]);
 
-  return { width, handleMouseDown };
+  return { width, handleMouseDown, handleKeyDown };
 }
 
 const EMPTY_STEP_OPTIONS: NonNullable<AutomationSidePanelProps['stepOptions']> =
@@ -267,7 +283,7 @@ export function AutomationSidePanel({
   const [canClearChat, setCanClearChat] = useState(false);
   const clearChatRef = useRef<(() => void) | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { width, handleMouseDown } = useResizable(panelRef);
+  const { width, handleMouseDown, handleKeyDown } = useResizable(panelRef);
 
   const [editState, setEditState] = useState<EditState>({
     config: '',
@@ -394,6 +410,10 @@ export function AutomationSidePanel({
         aria-orientation="vertical"
         tabIndex={0}
         onMouseDown={handleMouseDown}
+        onKeyDown={handleKeyDown}
+        aria-valuemin={MIN_WIDTH}
+        aria-valuemax={MAX_WIDTH}
+        aria-valuenow={width}
         className={cn(
           'absolute left-0 top-0 bottom-0 w-px cursor-col-resize z-10 max-md:hidden',
           'hover:bg-border transition-colors',
@@ -515,7 +535,7 @@ export function AutomationSidePanel({
           isValidating={isValidating}
           errors={errors}
           warnings={warnings}
-          stepOptions={stepOptions ?? EMPTY_STEP_OPTIONS}
+          stepOptions={stepOptions}
         />
       ) : null}
     </div>

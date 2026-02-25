@@ -7,8 +7,8 @@ import { useReactQuery } from '@/app/hooks/use-react-query';
 export function useDocxPreview(url: string) {
   return useReactQuery({
     queryKey: ['docx-preview', url],
-    queryFn: async () => {
-      const res = await fetch(url);
+    queryFn: async ({ signal }) => {
+      const res = await fetch(url, { signal });
       if (!res.ok) throw new Error(`Failed to fetch document (${res.status})`);
       const ab = await res.arrayBuffer();
       const mammoth = await import('mammoth');
@@ -22,8 +22,8 @@ export function useDocxPreview(url: string) {
 export function useXlsxPreview(url: string) {
   return useReactQuery({
     queryKey: ['xlsx-preview', url],
-    queryFn: async () => {
-      const res = await fetch(url);
+    queryFn: async ({ signal }) => {
+      const res = await fetch(url, { signal });
       if (!res.ok)
         throw new Error(`Failed to fetch spreadsheet (${res.status})`);
       const ab = await res.arrayBuffer();

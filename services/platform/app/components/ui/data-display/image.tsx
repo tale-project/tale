@@ -1,6 +1,11 @@
 'use client';
 
-import { ComponentPropsWithoutRef, forwardRef, useState } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  forwardRef,
+  useEffect,
+  useState,
+} from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
@@ -38,13 +43,15 @@ export const Image = forwardRef<HTMLImageElement, ImageProps>(function Image(
   },
   ref,
 ) {
-  const [hasError, setHasError] = useState(false);
-  const currentSrc = hasError ? fallbackSrc : src || fallbackSrc;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const currentSrc = failedSrc === src ? fallbackSrc : src || fallbackSrc;
+
+  useEffect(() => {
+    setFailedSrc(null);
+  }, [src]);
 
   const handleError = () => {
-    if (!hasError) {
-      setHasError(true);
-    }
+    setFailedSrc(src ?? null);
   };
 
   return (

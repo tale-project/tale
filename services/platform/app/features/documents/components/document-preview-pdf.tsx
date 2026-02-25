@@ -167,12 +167,6 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
       canvas.height = Math.ceil(scaledViewport.height);
 
       ctx.drawImage(bufferCanvas, 0, 0);
-
-      if (state.pageNumPending !== null) {
-        const pending = state.pageNumPending;
-        dispatch({ type: 'CONSUME_PENDING' });
-        void renderPageRef.current?.(pending);
-      }
     } catch (error) {
       console.error('Error rendering page:', error);
     } finally {
@@ -191,35 +185,48 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
     [state.pageRendering],
   );
 
-  const urlRef = useRef(url);
-  urlRef.current = url;
+  useEffect(() => {
+    if (!state.pageRendering && state.pageNumPending !== null) {
+      const pending = state.pageNumPending;
+      dispatch({ type: 'CONSUME_PENDING' });
+      void renderPageRef.current?.(pending);
+    }
+  }, [state.pageRendering, state.pageNumPending]);
 
   useEffect(() => {
+    if (!state.pdfDoc) return;
+    void renderPageRef.current?.({ pageNum: 1, scale: initialState.scale });
+  }, [state.pdfDoc]);
+
+  useEffect(() => {
+    let loadingTask: PDFDocumentLoadingTask | null = null;
     const script = document.createElement('script');
     script.src =
       'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    script.addEventListener('load', () => {
+    const onLoad = () => {
       if ('pdfjsLib' in window) {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pdfjsLib is injected by the CDN script loaded above
         const lib = (window as unknown as { pdfjsLib: PdfJsLib }).pdfjsLib;
         lib.GlobalWorkerOptions.workerSrc =
           'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        const loadingTask = lib.getDocument(urlRef.current);
+        loadingTask = lib.getDocument(url);
         loadingTask.promise
           .then((doc: PDFDocumentProxy) => {
             dispatch({ type: 'PDF_LOADED', doc });
-            void renderPageRef.current?.({
-              pageNum: 1,
-              scale: initialState.scale,
-            });
           })
           .catch((error: unknown) => {
             console.error('Error loading PDF:', error);
           });
       }
-    });
+    };
+    script.addEventListener('load', onLoad);
     document.head.appendChild(script);
-  }, []);
+
+    return () => {
+      script.removeEventListener('load', onLoad);
+      script.remove();
+    };
+  }, [url]);
 
   useEffect(() => {
     bufferCanvasRef.current = document.createElement('canvas');

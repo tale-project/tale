@@ -116,8 +116,8 @@ export function ProductViewDialog({
         {product.tags && product.tags.length > 0 && (
           <Field label={tProducts('view.labels.tags')}>
             <HStack gap={2} className="flex-wrap">
-              {product.tags.map((tag) => (
-                <Badge key={tag} variant="outline">
+              {product.tags.map((tag, index) => (
+                <Badge key={`${tag}-${index}`} variant="outline">
                   {tag}
                 </Badge>
               ))}

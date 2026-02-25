@@ -137,7 +137,7 @@ function JsonViewerDisplay({
   onEdit,
 }: JsonViewerDisplayProps) {
   return (
-    <div className="p-3" role="region" aria-describedby={describedBy}>
+    <div className="p-3" aria-describedby={describedBy}>
       <ReactJsonView
         name={false}
         quotesOnKeys
@@ -198,7 +198,7 @@ function JsonTextEditor({
       id={inputId}
       aria-describedby={describedBy}
       className={cn(
-        'w-full resize-none border-0 bg-transparent p-3 text-xs focus:outline-none focus:ring-0 h-[12.5rem] overflow-y-auto',
+        'w-full resize-none border-0 bg-transparent p-3 text-xs focus:outline-none focus:ring-0 min-h-[12.5rem] overflow-y-auto',
         'font-mono leading-relaxed',
         'placeholder:text-muted-foreground',
         theme === 'dark'
@@ -310,10 +310,9 @@ export function JsonInput({
       return {};
     }
   });
-  const [validation, setValidation] = useState<ValidationState>({
-    isValid: true,
-    error: '',
-  });
+  const [validation, setValidation] = useState<ValidationState>(() =>
+    computeValidation(value, schema, t),
+  );
 
   const prevValueRef = useRef(value);
   const shakeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -393,9 +392,10 @@ export function JsonInput({
   };
 
   const handleCancel = () => {
-    setTextValue(JSON.stringify(parsedValue, null, 2));
+    const restoredValue = JSON.stringify(parsedValue, null, 2);
+    setTextValue(restoredValue);
     setEditing({ isEditing: false, isDirty: false });
-    setValidation({ isValid: true, error: '' });
+    setValidation(computeValidation(restoredValue, schema, t));
   };
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
