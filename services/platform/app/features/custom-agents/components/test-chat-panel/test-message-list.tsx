@@ -114,10 +114,10 @@ export function TestMessageList({
             <div className="flex max-w-[92.5%] min-w-0 flex-col gap-2">
               {message.fileParts && message.fileParts.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {message.fileParts.map((part, idx) =>
+                  {message.fileParts.map((part) =>
                     part.mediaType.startsWith('image/') ? (
                       <button
-                        key={idx}
+                        key={part.url}
                         type="button"
                         onClick={() =>
                           onImagePreview(part.url, part.filename || 'Image')
@@ -134,7 +134,7 @@ export function TestMessageList({
                       </button>
                     ) : (
                       <a
-                        key={idx}
+                        key={part.url}
                         href={part.url}
                         target="_blank"
                         rel="noopener noreferrer"

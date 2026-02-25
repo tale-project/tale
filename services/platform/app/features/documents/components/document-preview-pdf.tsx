@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronUp, ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useReducer, useEffect, useRef, useCallback } from 'react';
 
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
@@ -40,82 +40,89 @@ interface PdfJsLib {
   GlobalWorkerOptions: { workerSrc: string };
 }
 
+interface ViewerState {
+  pdfDoc: PDFDocumentProxy | null;
+  pageNum: number;
+  pageRendering: boolean;
+  pageNumPending: RenderParams | null;
+  totalPages: number;
+  scale: number;
+}
+
+interface RenderParams {
+  pageNum: number;
+  scale: number;
+}
+
+type ViewerAction =
+  | { type: 'PDF_LOADED'; doc: PDFDocumentProxy }
+  | { type: 'SET_PAGE'; page: number }
+  | { type: 'SET_SCALE'; scale: number }
+  | { type: 'RENDER_START' }
+  | { type: 'RENDER_COMPLETE' }
+  | { type: 'QUEUE_PENDING'; params: RenderParams }
+  | { type: 'CONSUME_PENDING' };
+
+const initialState: ViewerState = {
+  pdfDoc: null,
+  pageNum: 1,
+  pageRendering: false,
+  pageNumPending: null,
+  totalPages: 0,
+  scale: 1.0,
+};
+
+function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
+  switch (action.type) {
+    case 'PDF_LOADED':
+      return {
+        ...state,
+        pdfDoc: action.doc,
+        totalPages: action.doc.numPages,
+        pageNum: 1,
+      };
+    case 'SET_PAGE':
+      return { ...state, pageNum: action.page };
+    case 'SET_SCALE':
+      return { ...state, scale: action.scale };
+    case 'RENDER_START':
+      return { ...state, pageRendering: true };
+    case 'RENDER_COMPLETE':
+      return { ...state, pageRendering: false };
+    case 'QUEUE_PENDING':
+      return { ...state, pageNumPending: action.params };
+    case 'CONSUME_PENDING':
+      return { ...state, pageNumPending: null };
+    default:
+      return state;
+  }
+}
+
 export const DocumentPreviewPDF = ({ url }: { url: string }) => {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
-  const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
-  const [pageNum, setPageNum] = useState<number>(1);
-  const [pageRendering, setPageRendering] = useState<boolean>(false);
-  const [pageNumPending, setPageNumPending] = useState<number | null>(null);
-  const [totalPages, setTotalPages] = useState<number>(0);
-  const [scale, setScale] = useState<number>(1.0);
-  const [pdfjsLib, setPdfjsLib] = useState<PdfJsLib | null>(null);
+  const [state, dispatch] = useReducer(viewerReducer, initialState);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const bufferCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
 
-  // Load PDF.js library
-  useEffect(() => {
-    const loadPdfJs = async () => {
-      try {
-        // Load PDF.js from CDN
-        const script = document.createElement('script');
-        script.src =
-          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-        script.addEventListener('load', () => {
-          if ('pdfjsLib' in window) {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pdfjsLib is injected by the CDN script loaded above
-            const lib = (window as unknown as { pdfjsLib: PdfJsLib }).pdfjsLib;
-            lib.GlobalWorkerOptions.workerSrc =
-              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-            setPdfjsLib(lib);
-          }
-        });
-        document.head.appendChild(script);
-      } catch (error) {
-        console.error('Error loading PDF.js:', error);
-      }
-    };
+  const renderPageRef = useRef<
+    ((params: RenderParams) => Promise<void>) | undefined
+  >(undefined);
+  renderPageRef.current = async (params: RenderParams) => {
+    if (!state.pdfDoc || !canvasRef.current) return;
 
-    void loadPdfJs();
-  }, []);
-
-  // Initialize offscreen buffer canvas and cleanup
-  useEffect(() => {
-    bufferCanvasRef.current = document.createElement('canvas');
-    return () => {
-      try {
-        if (
-          renderTaskRef.current &&
-          typeof renderTaskRef.current.cancel === 'function'
-        ) {
-          renderTaskRef.current.cancel();
-        }
-      } catch {}
-      bufferCanvasRef.current = null;
-    };
-  }, []);
-
-  // Render page function stored in a ref so queueRenderPage stays stable
-  const renderPageRef = useRef<((num: number) => Promise<void>) | undefined>(
-    undefined,
-  );
-  renderPageRef.current = async (num: number) => {
-    if (!pdfDoc || !canvasRef.current) return;
-
-    setPageRendering(true);
+    dispatch({ type: 'RENDER_START' });
 
     try {
-      const page: PDFPageProxy = await pdfDoc.getPage(num);
+      const page: PDFPageProxy = await state.pdfDoc.getPage(params.pageNum);
 
-      // Respect device pixel ratio to avoid blurry output and layout thrash
       const deviceScale = Math.max(window.devicePixelRatio || 1, 1);
       const scaledViewport: PageViewport = page.getViewport({
-        scale: scale * deviceScale,
+        scale: params.scale * deviceScale,
       });
 
-      // Prepare offscreen buffer to render into (prevents visible flicker)
       const bufferCanvas = bufferCanvasRef.current;
       if (!bufferCanvas) return;
       bufferCanvas.width = Math.ceil(scaledViewport.width);
@@ -123,7 +130,6 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
       const bufferCtx = bufferCanvas.getContext('2d', { alpha: false });
       if (!bufferCtx) return;
 
-      // Cancel any in-flight render before starting a new one
       if (
         renderTaskRef.current &&
         typeof renderTaskRef.current.cancel === 'function'
@@ -143,18 +149,16 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
 
       await renderTask.promise.catch((err: Error) => {
         if (err && err.name === 'RenderingCancelledException') {
-          return; // swallow cancellation
+          return;
         }
         throw err;
       });
 
-      // Blit buffer into the visible canvas in one operation
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) return;
 
-      // Update visible canvas size (in CSS and pixels) just before drawing
       const cssWidth = Math.ceil(scaledViewport.width / deviceScale);
       const cssHeight = Math.ceil(scaledViewport.height / deviceScale);
       canvas.style.width = `${cssWidth}px`;
@@ -164,77 +168,113 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
 
       ctx.drawImage(bufferCanvas, 0, 0);
 
-      // Handle pending page render
-      if (pageNumPending !== null) {
-        void renderPageRef.current?.(pageNumPending);
-        setPageNumPending(null);
+      if (state.pageNumPending !== null) {
+        const pending = state.pageNumPending;
+        dispatch({ type: 'CONSUME_PENDING' });
+        void renderPageRef.current?.(pending);
       }
     } catch (error) {
       console.error('Error rendering page:', error);
     } finally {
-      setPageRendering(false);
+      dispatch({ type: 'RENDER_COMPLETE' });
     }
   };
 
-  // Queue page render
   const queueRenderPage = useCallback(
-    (num: number) => {
-      if (pageRendering) {
-        setPageNumPending(num);
+    (params: RenderParams) => {
+      if (state.pageRendering) {
+        dispatch({ type: 'QUEUE_PENDING', params });
       } else {
-        void renderPageRef.current?.(num);
+        void renderPageRef.current?.(params);
       }
     },
-    [pageRendering],
+    [state.pageRendering],
   );
 
-  // Navigation functions
+  const urlRef = useRef(url);
+  urlRef.current = url;
+
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.addEventListener('load', () => {
+      if ('pdfjsLib' in window) {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pdfjsLib is injected by the CDN script loaded above
+        const lib = (window as unknown as { pdfjsLib: PdfJsLib }).pdfjsLib;
+        lib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const loadingTask = lib.getDocument(urlRef.current);
+        loadingTask.promise
+          .then((doc: PDFDocumentProxy) => {
+            dispatch({ type: 'PDF_LOADED', doc });
+            void renderPageRef.current?.({
+              pageNum: 1,
+              scale: initialState.scale,
+            });
+          })
+          .catch((error: unknown) => {
+            console.error('Error loading PDF:', error);
+          });
+      }
+    });
+    document.head.appendChild(script);
+  }, []);
+
+  useEffect(() => {
+    bufferCanvasRef.current = document.createElement('canvas');
+    return () => {
+      try {
+        if (
+          renderTaskRef.current &&
+          typeof renderTaskRef.current.cancel === 'function'
+        ) {
+          renderTaskRef.current.cancel();
+        }
+      } catch {}
+      bufferCanvasRef.current = null;
+    };
+  }, []);
+
   const onPrevPage = () => {
-    if (pageNum <= 1) return;
-    setPageNum(pageNum - 1);
+    const newPage = Math.max(1, state.pageNum - 1);
+    if (newPage !== state.pageNum) {
+      dispatch({ type: 'SET_PAGE', page: newPage });
+      queueRenderPage({ pageNum: newPage, scale: state.scale });
+    }
   };
 
   const onNextPage = () => {
-    if (pageNum >= totalPages) return;
-    setPageNum(pageNum + 1);
+    const newPage = Math.min(state.totalPages, state.pageNum + 1);
+    if (newPage !== state.pageNum) {
+      dispatch({ type: 'SET_PAGE', page: newPage });
+      queueRenderPage({ pageNum: newPage, scale: state.scale });
+    }
   };
 
   const onZoomOut = () => {
-    setScale((s) => Math.max(0.5, Number((s - 0.1).toFixed(2))));
+    const newScale = Math.max(0.5, Number((state.scale - 0.1).toFixed(2)));
+    if (newScale !== state.scale) {
+      dispatch({ type: 'SET_SCALE', scale: newScale });
+      queueRenderPage({ pageNum: state.pageNum, scale: newScale });
+    }
   };
 
   const onZoomIn = () => {
-    setScale((s) => Math.min(2.0, Number((s + 0.1).toFixed(2))));
+    const newScale = Math.min(2.0, Number((state.scale + 0.1).toFixed(2)));
+    if (newScale !== state.scale) {
+      dispatch({ type: 'SET_SCALE', scale: newScale });
+      queueRenderPage({ pageNum: state.pageNum, scale: newScale });
+    }
   };
 
   const onPageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = Number(e.target.value);
     if (Number.isNaN(value)) return;
-    const bounded = Math.min(Math.max(value, 1), totalPages || 1);
-    setPageNum(bounded);
+    const bounded = Math.min(Math.max(value, 1), state.totalPages || 1);
+    dispatch({ type: 'SET_PAGE', page: bounded });
+    queueRenderPage({ pageNum: bounded, scale: state.scale });
   };
-
-  // Effect to render page when pageNum changes
-  useEffect(() => {
-    if (pdfDoc) {
-      queueRenderPage(pageNum);
-    }
-  }, [scale, pageNum, pdfDoc, queueRenderPage]);
-
-  // Load PDF document
-  useEffect(() => {
-    if (pdfjsLib) {
-      const loadingTask = pdfjsLib.getDocument(url);
-      loadingTask.promise
-        .then((doc: PDFDocumentProxy) => {
-          setPdfDoc(doc);
-          setTotalPages(doc.numPages);
-        })
-        .catch((error: unknown) => {
-          console.error('Error loading PDF:', error);
-        });
-    }
-  }, [pdfjsLib, url]);
 
   return (
     <>
@@ -243,7 +283,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
         <canvas
           ref={canvasRef}
           className="absolute top-0 left-1/2 block -translate-x-1/2"
-          style={{ maxWidth: `calc(48rem * ${scale})`, height: 'auto' }}
+          style={{ maxWidth: `calc(48rem * ${state.scale})`, height: 'auto' }}
         />
         {/* Sticky center-bottom toolbar */}
         <div className="sticky top-[95%] z-50 flex w-full justify-center">
@@ -254,7 +294,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
             <HStack gap={2}>
               <button
                 onClick={onPrevPage}
-                disabled={pageNum <= 1}
+                disabled={state.pageNum <= 1}
                 className="grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:opacity-35"
                 aria-label={tCommon('aria.previousPage')}
               >
@@ -262,7 +302,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
               </button>
               <button
                 onClick={onNextPage}
-                disabled={pageNum >= totalPages}
+                disabled={state.pageNum >= state.totalPages}
                 className="grid size-8 place-items-center rounded-full transition hover:bg-white/10 disabled:opacity-35"
                 aria-label={tCommon('aria.nextPage')}
               >
@@ -272,14 +312,14 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
             <input
               type="number"
               min={1}
-              max={Math.max(1, totalPages)}
-              value={pageNum}
+              max={Math.max(1, state.totalPages)}
+              value={state.pageNum}
               onChange={onPageInputChange}
               className="bg-background w-10 appearance-none rounded-md py-1 text-center text-sm ring-1 ring-white/20 focus:ring-white/40 focus:outline-none"
             />
             <div>/</div>
             <div className="w-4 text-center text-sm tabular-nums">
-              {totalPages || 0}
+              {state.totalPages || 0}
             </div>
             <HStack gap={2}>
               <button
@@ -299,7 +339,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
             </HStack>
           </HStack>
         </div>
-        {!pdfDoc && (
+        {!state.pdfDoc && (
           <div className="mt-4 text-center text-gray-500">
             {t('preview.loading')}
           </div>

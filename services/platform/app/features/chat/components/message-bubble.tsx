@@ -94,8 +94,8 @@ function MessageBubbleComponent({
       >
         {message.fileParts && message.fileParts.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1">
-            {message.fileParts.map((part, index) => (
-              <FilePartDisplay key={index} filePart={part} />
+            {message.fileParts.map((part) => (
+              <FilePartDisplay key={part.url} filePart={part} />
             ))}
           </div>
         )}
@@ -112,8 +112,11 @@ function MessageBubbleComponent({
 
         {message.attachments && message.attachments.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
-            {message.attachments.map((attachment, index) => (
-              <FileAttachmentDisplay key={index} attachment={attachment} />
+            {message.attachments.map((attachment) => (
+              <FileAttachmentDisplay
+                key={attachment.fileId}
+                attachment={attachment}
+              />
             ))}
           </div>
         )}

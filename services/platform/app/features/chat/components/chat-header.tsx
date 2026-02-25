@@ -2,7 +2,7 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { Clock, Search, Plus } from 'lucide-react';
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
@@ -39,12 +39,9 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
     }
   }, []);
 
-  const findShortcut = useMemo(() => (isMac ? '⌘ K' : 'CTRL + K'), [isMac]);
-  const newChatShortcut = useMemo(
-    () => (isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N'),
-    [isMac],
-  );
-  const historyShortcut = useMemo(() => (isMac ? '⌘ H' : 'CTRL + H'), [isMac]);
+  const findShortcut = isMac ? '⌘ K' : 'CTRL + K';
+  const newChatShortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';
+  const historyShortcut = isMac ? '⌘ H' : 'CTRL + H';
 
   const handleToggleSearch = useCallback(() => {
     setIsSearchOpen((prev) => !prev);

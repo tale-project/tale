@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useTheme } from './theme-provider';
 
@@ -11,19 +11,17 @@ const THEME_COLORS = {
 
 export function ThemeColorMeta() {
   const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const hasMounted = useRef(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
 
     const color =
       resolvedTheme === 'dark' ? THEME_COLORS.dark : THEME_COLORS.light;
 
-    // Update or create the theme-color meta tag
     let metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (!metaThemeColor) {
       metaThemeColor = document.createElement('meta');
@@ -31,7 +29,7 @@ export function ThemeColorMeta() {
       document.head.appendChild(metaThemeColor);
     }
     metaThemeColor.setAttribute('content', color);
-  }, [resolvedTheme, mounted]);
+  }, [resolvedTheme]);
 
   return null;
 }

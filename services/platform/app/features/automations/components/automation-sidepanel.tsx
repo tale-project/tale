@@ -9,7 +9,16 @@ import {
   AlertCircle,
   AlertTriangle,
 } from 'lucide-react';
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+  memo,
+  type RefObject,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 
 import { PanelHeader } from '@/app/components/layout/panel-header';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
@@ -46,6 +55,186 @@ interface AutomationSidePanelProps {
   }>;
 }
 
+interface EditState {
+  config: string;
+  nextSteps: Record<string, string>;
+}
+
+interface ValidationMessagesProps {
+  errors: string[];
+  warnings: string[];
+  errorLabel: string;
+  warningLabel: string;
+}
+
+const ValidationMessages = memo(function ValidationMessages({
+  errors,
+  warnings,
+  errorLabel,
+  warningLabel,
+}: ValidationMessagesProps) {
+  const uniqueErrors = useMemo(() => [...new Set(errors)], [errors]);
+  const uniqueWarnings = useMemo(() => [...new Set(warnings)], [warnings]);
+
+  return (
+    <>
+      {uniqueErrors.length > 0 && (
+        <div className="border-destructive/50 bg-destructive/10 rounded-md border p-3">
+          <Text variant="error" className="mb-1 flex items-center gap-2">
+            <AlertCircle className="size-4" />
+            {errorLabel}
+          </Text>
+          <ul className="text-destructive space-y-1 text-xs">
+            {uniqueErrors.map((error) => (
+              <li key={error}>• {error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {uniqueWarnings.length > 0 && (
+        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
+          <Text
+            as="div"
+            className="mb-1 flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400"
+          >
+            <AlertTriangle className="size-4" />
+            {warningLabel}
+          </Text>
+          <ul className="space-y-1 text-xs text-amber-600 dark:text-amber-400">
+            {uniqueWarnings.map((warning) => (
+              <li key={warning}>• {warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+});
+
+interface StepEditorContentProps {
+  step: Doc<'wfStepDefs'>;
+  editState: EditState;
+  onConfigChange: (value: string) => void;
+  onNextStepsChange: (value: Record<string, string>) => void;
+  onSave: () => void;
+  isDirty: boolean;
+  isValid: boolean;
+  isSaving: boolean;
+  isValidating: boolean;
+  errors: string[];
+  warnings: string[];
+  stepOptions: Array<{
+    stepSlug: string;
+    name: string;
+    stepType?: Doc<'wfStepDefs'>['stepType'];
+    actionType?: string;
+  }>;
+}
+
+const StepEditorContent = memo(function StepEditorContent({
+  step,
+  editState,
+  onConfigChange,
+  onNextStepsChange,
+  onSave,
+  isDirty,
+  isValid,
+  isSaving,
+  isValidating,
+  errors,
+  warnings,
+  stepOptions,
+}: StepEditorContentProps) {
+  const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
+
+  return (
+    <>
+      <VStack gap={4} className="flex-1 overflow-y-auto p-3">
+        <JsonInput
+          value={editState.config}
+          onChange={onConfigChange}
+          indentWidth={2}
+          rows={10}
+        />
+
+        <NextStepsEditor
+          stepType={step.stepType}
+          value={editState.nextSteps}
+          onChange={onNextStepsChange}
+          stepOptions={stepOptions}
+          currentStepSlug={step.stepSlug}
+        />
+
+        <ValidationMessages
+          errors={errors}
+          warnings={warnings}
+          errorLabel={t('sidePanel.validationErrors')}
+          warningLabel={t('sidePanel.validationWarnings')}
+        />
+      </VStack>
+
+      <HStack className="bg-background shrink-0 border-t p-3">
+        <Button
+          onClick={onSave}
+          disabled={!isDirty || !isValid || isSaving || isValidating}
+          size="sm"
+          className="flex-1"
+        >
+          <Save className="mr-1 size-4" />
+          {isSaving ? t('sidePanel.saving') : tCommon('actions.save')}
+        </Button>
+      </HStack>
+    </>
+  );
+});
+
+const MIN_WIDTH = 280;
+const MAX_WIDTH = 600;
+
+function useResizable(panelRef: RefObject<HTMLDivElement | null>) {
+  const [width, setWidth] = useState(384);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleMouseDown = useCallback((e: ReactMouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!panelRef.current) return;
+      const panelRect = panelRef.current.getBoundingClientRect();
+      const newWidth = panelRect.right - e.clientX;
+      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
+        setWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => setIsResizing(false);
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, panelRef]);
+
+  return { width, handleMouseDown };
+}
+
+const EMPTY_STEP_OPTIONS: NonNullable<AutomationSidePanelProps['stepOptions']> =
+  [];
+
 const getStepTypeColor = (stepType: string) => {
   switch (stepType) {
     case 'start':
@@ -71,20 +260,19 @@ export function AutomationSidePanel({
   showTestPanel = false,
   automationId,
   organizationId,
-  stepOptions = [],
+  stepOptions = EMPTY_STEP_OPTIONS,
 }: AutomationSidePanelProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
-  const [width, setWidth] = useState(384); // 96 * 4 = 384px (w-96)
-  const [isResizing, setIsResizing] = useState(false);
   const [canClearChat, setCanClearChat] = useState(false);
   const clearChatRef = useRef<(() => void) | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const { width, handleMouseDown } = useResizable(panelRef);
 
-  const [editedConfig, setEditedConfig] = useState<string>('');
-  const [editedNextSteps, setEditedNextSteps] = useState<
-    Record<string, string>
-  >({});
+  const [editState, setEditState] = useState<EditState>({
+    config: '',
+    nextSteps: {},
+  });
   const { mutate: updateStep, isPending: isSaving } = useUpdateStep();
 
   const originalConfigJson = useMemo(
@@ -98,29 +286,25 @@ export function AutomationSidePanel({
   );
 
   const isConfigDirty =
-    editedConfig !== originalConfigJson && editedConfig !== '';
+    editState.config !== originalConfigJson && editState.config !== '';
   const isNextStepsDirty =
-    JSON.stringify(editedNextSteps) !== originalNextStepsJson;
+    JSON.stringify(editState.nextSteps) !== originalNextStepsJson;
   const isDirty = isConfigDirty || isNextStepsDirty;
 
   useEffect(() => {
-    if (step?.config) {
-      setEditedConfig(JSON.stringify(step.config, null, 2));
-    }
-    if (step?.nextSteps) {
-      setEditedNextSteps(step.nextSteps);
-    } else {
-      setEditedNextSteps({});
-    }
+    setEditState({
+      config: step?.config ? JSON.stringify(step.config, null, 2) : '',
+      nextSteps: step?.nextSteps ?? {},
+    });
   }, [step?._id, step?.config, step?.nextSteps]);
 
   const parsedEditedConfig = useMemo(() => {
     try {
-      return JSON.parse(editedConfig || '{}');
+      return JSON.parse(editState.config || '{}');
     } catch {
       return null;
     }
-  }, [editedConfig]);
+  }, [editState.config]);
 
   const validationConfig = useMemo(() => {
     if (!step || !parsedEditedConfig) return null;
@@ -138,7 +322,11 @@ export function AutomationSidePanel({
   );
 
   const handleConfigChange = useCallback((value: string) => {
-    setEditedConfig(value);
+    setEditState((prev) => ({ ...prev, config: value }));
+  }, []);
+
+  const handleNextStepsChange = useCallback((value: Record<string, string>) => {
+    setEditState((prev) => ({ ...prev, nextSteps: value }));
   }, []);
 
   const handleSave = useCallback(() => {
@@ -146,7 +334,7 @@ export function AutomationSidePanel({
 
     const updates: Record<string, unknown> = { config: parsedEditedConfig };
     if (isNextStepsDirty) {
-      updates.nextSteps = editedNextSteps;
+      updates.nextSteps = editState.nextSteps;
     }
     updateStep(
       {
@@ -175,7 +363,7 @@ export function AutomationSidePanel({
     parsedEditedConfig,
     isValid,
     isNextStepsDirty,
-    editedNextSteps,
+    editState.nextSteps,
     updateStep,
     t,
   ]);
@@ -192,45 +380,6 @@ export function AutomationSidePanel({
     clearChatRef.current?.();
   }, []);
 
-  const MIN_WIDTH = 280; // ~70 in tailwind
-  const MAX_WIDTH = 600; // ~150 in tailwind
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing || !panelRef.current) return;
-
-      const panelRect = panelRef.current.getBoundingClientRect();
-      const newWidth = panelRect.right - e.clientX;
-
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-        setWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
-
-    return () => {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing, MIN_WIDTH, MAX_WIDTH]);
-
   if (!isOpen) return null;
 
   return (
@@ -241,6 +390,9 @@ export function AutomationSidePanel({
     >
       {/* Resize handle - hidden on mobile */}
       <div
+        role="separator"
+        aria-orientation="vertical"
+        tabIndex={0}
         onMouseDown={handleMouseDown}
         className={cn(
           'absolute left-0 top-0 bottom-0 w-px cursor-col-resize z-10 max-md:hidden',
@@ -351,67 +503,20 @@ export function AutomationSidePanel({
           onClearChatStateChange={handleClearChatStateChange}
         />
       ) : step ? (
-        <>
-          <VStack gap={4} className="flex-1 overflow-y-auto p-3">
-            <JsonInput
-              value={editedConfig}
-              onChange={handleConfigChange}
-              indentWidth={2}
-              rows={10}
-            />
-
-            <NextStepsEditor
-              stepType={step.stepType}
-              value={editedNextSteps}
-              onChange={setEditedNextSteps}
-              stepOptions={stepOptions}
-              currentStepSlug={step.stepSlug}
-            />
-
-            {errors.length > 0 && (
-              <div className="border-destructive/50 bg-destructive/10 rounded-md border p-3">
-                <Text variant="error" className="mb-1 flex items-center gap-2">
-                  <AlertCircle className="size-4" />
-                  {t('sidePanel.validationErrors')}
-                </Text>
-                <ul className="text-destructive space-y-1 text-xs">
-                  {errors.map((error, index) => (
-                    <li key={`${error}-${index}`}>• {error}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {warnings.length > 0 && (
-              <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
-                <Text
-                  as="div"
-                  className="mb-1 flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400"
-                >
-                  <AlertTriangle className="size-4" />
-                  {t('sidePanel.validationWarnings')}
-                </Text>
-                <ul className="space-y-1 text-xs text-amber-600 dark:text-amber-400">
-                  {warnings.map((warning, index) => (
-                    <li key={`${warning}-${index}`}>• {warning}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </VStack>
-
-          <HStack className="bg-background shrink-0 border-t p-3">
-            <Button
-              onClick={handleSave}
-              disabled={!isDirty || !isValid || isSaving || isValidating}
-              size="sm"
-              className="flex-1"
-            >
-              <Save className="mr-1 size-4" />
-              {isSaving ? t('sidePanel.saving') : tCommon('actions.save')}
-            </Button>
-          </HStack>
-        </>
+        <StepEditorContent
+          step={step}
+          editState={editState}
+          onConfigChange={handleConfigChange}
+          onNextStepsChange={handleNextStepsChange}
+          onSave={handleSave}
+          isDirty={isDirty}
+          isValid={isValid}
+          isSaving={isSaving}
+          isValidating={isValidating}
+          errors={errors}
+          warnings={warnings}
+          stepOptions={stepOptions ?? EMPTY_STEP_OPTIONS}
+        />
       ) : null}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import type { UIMessage } from '@convex-dev/agent/react';
 
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -191,7 +191,7 @@ export function ThinkingAnimation({
 
   return (
     <div className="flex justify-start">
-      <motion.div
+      <m.div
         key={animationKey}
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
@@ -202,7 +202,7 @@ export function ThinkingAnimation({
         }}
         className="text-muted-foreground flex items-center gap-2 px-4 py-3 text-sm"
       >
-        <motion.span
+        <m.span
           key={animationKey}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -214,7 +214,7 @@ export function ThinkingAnimation({
           className="inline-block"
         >
           {displayText}
-        </motion.span>
+        </m.span>
         <div className="flex space-x-1">
           <div className="bg-muted-foreground h-1 w-1 animate-bounce rounded-full" />
           <div
@@ -226,7 +226,7 @@ export function ThinkingAnimation({
             style={{ animationDelay: '0.2s' }}
           />
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

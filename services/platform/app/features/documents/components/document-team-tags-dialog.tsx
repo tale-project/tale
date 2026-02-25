@@ -25,6 +25,8 @@ interface DocumentTeamTagsDialogProps {
   currentTeamTags?: string[];
 }
 
+const EMPTY_TEAM_TAGS: string[] = [];
+
 /**
  * Internal content component containing all hooks.
  * IMPORTANT: This component must only be rendered when the dialog is open.
@@ -36,7 +38,7 @@ function DocumentTeamTagsDialogContent({
   onOpenChange,
   documentId,
   documentName,
-  currentTeamTags = [],
+  currentTeamTags = EMPTY_TEAM_TAGS,
 }: DocumentTeamTagsDialogProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');

@@ -171,13 +171,8 @@ export function IntegrationDetails({
   const connectorCode = integration.connector?.code ?? '';
   const isSql = integration.type === 'sql';
 
-  const lineCount = useMemo(
-    () =>
-      connectorCode.trim().length > 0
-        ? connectorCode.trim().split('\n').length
-        : 0,
-    [connectorCode],
-  );
+  const trimmedCode = connectorCode.trim();
+  const lineCount = trimmedCode.length > 0 ? trimmedCode.split('\n').length : 0;
 
   const operationsSummary = useMemo(
     () =>
