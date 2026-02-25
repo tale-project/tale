@@ -318,7 +318,7 @@ describe('useAutoScroll', () => {
   });
 
   describe('scrollToBottom', () => {
-    it('scrolls to bottom with smooth behavior', () => {
+    it('scrolls to bottom with instant behavior', () => {
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
 
@@ -335,7 +335,45 @@ describe('useAutoScroll', () => {
 
       expect(container.scrollToSpy).toHaveBeenCalledWith({
         top: 1000,
-        behavior: 'smooth',
+        behavior: 'instant',
+      });
+    });
+
+    it('resumes auto-scroll during streaming after user scrolled away', () => {
+      const container = createMockContainer();
+      container.setScrollGeometry(1000, 400);
+      container.scrollTop = 600; // at bottom
+
+      const { result, rerender } = setupStreamingHook(container);
+
+      rerender({ enabled: true });
+
+      // User scrolls away
+      act(() => {
+        container.scrollTop = 100;
+        container.fireScrollEvent();
+      });
+
+      container.scrollToSpy.mockClear();
+
+      // Content growth should NOT auto-scroll (user is away)
+      container.setScrollGeometry(1100, 400);
+      simulateContentGrowth(700);
+      expect(container.scrollToSpy).not.toHaveBeenCalled();
+
+      // User clicks scroll-to-bottom button
+      act(() => {
+        result.current.scrollToBottom();
+      });
+
+      container.scrollToSpy.mockClear();
+
+      // Content growth should now auto-scroll again
+      container.setScrollGeometry(1200, 400);
+      simulateContentGrowth(800);
+      expect(container.scrollToSpy).toHaveBeenCalledWith({
+        top: 1200,
+        behavior: 'instant',
       });
     });
   });

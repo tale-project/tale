@@ -40,9 +40,10 @@ interface UseAutoScrollReturn {
  * - Yes → scroll to the new bottom (follow the stream)
  * - No → don't scroll (user is reading above)
  *
- * Position is the sole source of truth — no input-event sniffing, no flags,
- * no direction tracking. This eliminates race conditions between wheel, touch,
- * and scroll events and works correctly with ALL scroll methods (mouse wheel,
+ * Position is the sole source of truth — no input-event sniffing, no direction
+ * tracking. A programmatic scroll guard distinguishes our own scrollTo calls
+ * from user scrolls, preventing async scroll events from falsely updating the
+ * position state. Works correctly with ALL scroll methods (mouse wheel,
  * trackpad, scrollbar drag, keyboard, programmatic scroll).
  *
  * Nested scrollable containers (e.g. code blocks) are handled automatically:
@@ -59,6 +60,13 @@ export function useAutoScroll({
   // Whether the user was "at bottom" as of the last scroll position update.
   // Read by the ResizeObserver to decide if content growth should auto-scroll.
   const wasAtBottomRef = useRef(true);
+
+  // Guard: marks the next scroll event as originating from our own scrollTo
+  // call, preventing it from overriding wasAtBottomRef via the isAtBottom()
+  // geometry check. Without this, the async scroll event from a programmatic
+  // scrollTo can arrive after content has grown, causing isAtBottom() to
+  // return false and permanently breaking auto-scroll.
+  const programmaticScrollRef = useRef(false);
 
   // Track content height to only auto-scroll on growth (not shrinkage).
   const lastContentHeightRef = useRef(0);
@@ -77,9 +85,11 @@ export function useAutoScroll({
     const container = containerRef.current;
     if (!container) return;
 
+    wasAtBottomRef.current = true;
+    programmaticScrollRef.current = true;
     container.scrollTo({
       top: container.scrollHeight,
-      behavior: 'smooth',
+      behavior: 'instant',
     });
   }, []);
 
@@ -107,6 +117,11 @@ export function useAutoScroll({
     wasAtBottomRef.current = isAtBottom();
 
     const handleScroll = () => {
+      if (programmaticScrollRef.current) {
+        programmaticScrollRef.current = false;
+        wasAtBottomRef.current = true;
+        return;
+      }
       wasAtBottomRef.current = isAtBottom();
     };
 
@@ -122,6 +137,7 @@ export function useAutoScroll({
       // the bottom. This is safe because the observer is only active
       // while `enabled` is true (i.e., during streaming).
       if (changed && wasAtBottomRef.current) {
+        programmaticScrollRef.current = true;
         container.scrollTo({
           top: container.scrollHeight,
           behavior: 'instant',
