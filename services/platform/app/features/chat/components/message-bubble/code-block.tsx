@@ -25,6 +25,11 @@ function extractShikiCodeContent(html: string): string {
   return codeMatch ? codeMatch[1] : html;
 }
 
+/** Debounce delay for Shiki highlighting. During streaming, code changes
+ * every ~50ms so the timer resets each time and highlighting never fires.
+ * After streaming ends, 150ms of stability triggers one clean highlight. */
+const HIGHLIGHT_DEBOUNCE_MS = 150;
+
 export const HighlightedCode = memo(function HighlightedCode({
   lang,
   code,
@@ -33,20 +38,27 @@ export const HighlightedCode = memo(function HighlightedCode({
   code: string;
 }) {
   const [html, setHtml] = useState<string>('');
+  const highlightedForRef = useRef('');
   const { resolvedTheme } = useTheme();
   const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
 
   useEffect(() => {
     let cancelled = false;
-    void highlightCode(code, lang, shikiTheme).then((result) => {
-      if (!cancelled && result) setHtml(extractShikiCodeContent(result));
-    });
+    const timeout = setTimeout(() => {
+      void highlightCode(code, lang, shikiTheme).then((result) => {
+        if (!cancelled && result) {
+          highlightedForRef.current = code;
+          setHtml(extractShikiCodeContent(result));
+        }
+      });
+    }, HIGHLIGHT_DEBOUNCE_MS);
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
     };
   }, [code, lang, shikiTheme]);
 
-  if (!html) {
+  if (!html || highlightedForRef.current !== code) {
     const lines = code.split('\n');
     return (
       <code>

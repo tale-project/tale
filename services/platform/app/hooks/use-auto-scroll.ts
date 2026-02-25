@@ -24,7 +24,7 @@ interface UseAutoScrollReturn {
    */
   contentRef: React.RefObject<HTMLDivElement | null>;
   /**
-   * Manually scroll to bottom and re-enable auto-scroll
+   * Manually scroll to bottom
    */
   scrollToBottom: () => void;
   /**
@@ -34,39 +34,20 @@ interface UseAutoScrollReturn {
 }
 
 /**
- * Check if any scrollable ancestor between target and boundary can absorb
- * an upward scroll (i.e., is vertically scrollable and has scrollTop > 0).
- * This prevents wheel/touch events inside nested scrollable containers
- * (e.g. code blocks with overflow-auto + max-h) from falsely disabling
- * auto-scroll on the main container.
- */
-function canNestedContainerScrollUp(
-  target: EventTarget | null,
-  boundary: HTMLElement,
-) {
-  let el = target instanceof HTMLElement ? target : null;
-  while (el && el !== boundary) {
-    if (el.scrollHeight > el.clientHeight && el.scrollTop > 0) {
-      return true;
-    }
-    el = el.parentElement;
-  }
-  return false;
-}
-
-/**
- * useAutoScroll - Intelligent auto-scrolling during streaming content
+ * useAutoScroll - Position-based auto-scrolling for streaming content.
  *
- * Detects user scroll intent via direct input events (wheel, touch) rather
- * than inferring from scrollTop changes. This avoids false positives from
- * browser scroll clamping, programmatic scrolls, and nested scrollable
- * containers (e.g. code blocks).
+ * Uses a single principle: "Was the user at the bottom before content grew?"
+ * - Yes → scroll to the new bottom (follow the stream)
+ * - No → don't scroll (user is reading above)
  *
- * Key behaviors:
- * - If user is at bottom and content grows → scroll to follow
- * - If user scrolls up (wheel/touch) → stop auto-scrolling, let them read
- * - If user scrolls back to bottom → resume auto-scrolling
- * - Scroll-to-bottom button re-enables auto-scroll
+ * Position is the sole source of truth — no input-event sniffing, no flags,
+ * no direction tracking. This eliminates race conditions between wheel, touch,
+ * and scroll events and works correctly with ALL scroll methods (mouse wheel,
+ * trackpad, scrollbar drag, keyboard, programmatic scroll).
+ *
+ * Nested scrollable containers (e.g. code blocks) are handled automatically:
+ * when a nested container absorbs the scroll, the outer container's scrollTop
+ * doesn't change, so wasAtBottomRef stays correct.
  */
 export function useAutoScroll({
   enabled,
@@ -75,12 +56,15 @@ export function useAutoScroll({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
-  // Track if auto-scroll is currently enabled (user hasn't scrolled away)
-  const autoScrollEnabledRef = useRef(true);
+  // Whether the user was "at bottom" as of the last scroll position update.
+  // Read by the ResizeObserver to decide if content growth should auto-scroll.
+  const wasAtBottomRef = useRef(true);
 
-  /**
-   * Check if the container is scrolled to the bottom (within threshold)
-   */
+  // Track content height to only auto-scroll on growth (not shrinkage).
+  const lastContentHeightRef = useRef(0);
+  // Track enabled transitions for end-of-streaming scroll.
+  const wasEnabledRef = useRef(false);
+
   const isAtBottom = useCallback(() => {
     const container = containerRef.current;
     if (!container) return true;
@@ -89,14 +73,9 @@ export function useAutoScroll({
     return scrollHeight - scrollTop - clientHeight <= threshold;
   }, [threshold]);
 
-  /**
-   * Scroll to bottom of the container
-   */
   const scrollToBottom = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-
-    autoScrollEnabledRef.current = true;
 
     container.scrollTo({
       top: container.scrollHeight,
@@ -105,80 +84,15 @@ export function useAutoScroll({
   }, []);
 
   /**
-   * Detect user scroll-away intent via direct input events.
+   * Scroll tracking + ResizeObserver in a single effect.
    *
-   * wheel/touch events only fire from real user input — never from
-   * programmatic scrollTo() or browser scroll clamping — eliminating the
-   * false-positive problems that scrollTop comparison had.
+   * The scroll handler keeps wasAtBottomRef in sync with the user's position.
+   * The ResizeObserver reads wasAtBottomRef (set BEFORE growth) to decide
+   * whether to follow content growth — avoiding the isAtBottom()-after-growth
+   * trap that would break auto-scroll on large DOM changes (>threshold).
    *
-   * Re-enabling is handled by the scroll event: when the user returns to
-   * the bottom (via any method), auto-scroll resumes.
-   */
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (e.deltaY < 0 && !canNestedContainerScrollUp(e.target, container)) {
-        autoScrollEnabledRef.current = false;
-      }
-    };
-
-    let lastTouchY = 0;
-    const handleTouchStart = (e: TouchEvent) => {
-      lastTouchY = e.touches[0]?.clientY ?? 0;
-    };
-    const handleTouchMove = (e: TouchEvent) => {
-      const currentY = e.touches[0]?.clientY ?? 0;
-      if (
-        currentY > lastTouchY &&
-        !canNestedContainerScrollUp(e.target, container)
-      ) {
-        autoScrollEnabledRef.current = false;
-      }
-      lastTouchY = currentY;
-    };
-
-    const handleScroll = () => {
-      if (!autoScrollEnabledRef.current && isAtBottom()) {
-        autoScrollEnabledRef.current = true;
-      }
-    };
-
-    container.addEventListener('wheel', handleWheel, { passive: true });
-    container.addEventListener('touchstart', handleTouchStart, {
-      passive: true,
-    });
-    container.addEventListener('touchmove', handleTouchMove, {
-      passive: true,
-    });
-    container.addEventListener('scroll', handleScroll, { passive: true });
-
-    return () => {
-      container.removeEventListener('wheel', handleWheel);
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-      container.removeEventListener('scroll', handleScroll);
-    };
-  }, [isAtBottom]);
-
-  // Track content height to distinguish growth from shrinkage.
-  // Initialized to 0 so the first ResizeObserver callback always counts as
-  // growth, triggering an immediate scroll-to-bottom when streaming starts.
-  const lastContentHeightRef = useRef(0);
-  // Track previous enabled state for transition detection
-  const wasEnabledRef = useRef(false);
-
-  /**
-   * ResizeObserver to detect content growth and trigger auto-scroll.
-   *
-   * Only checks autoScrollEnabledRef (user intent), NOT isAtBottom().
-   * Reason: isAtBottom() is measured AFTER the DOM grows, so a single
-   * large growth (>threshold) would make it return false and permanently
-   * break auto-scroll until the user manually scrolls down.
-   *
-   * Also only scrolls on content growth, not shrinkage, to avoid
-   * unnecessary scroll adjustments when elements are removed (e.g. cursor).
+   * Only scrolls on content growth, not shrinkage, to avoid unnecessary
+   * adjustments when elements are removed (e.g. streaming cursor).
    */
   useEffect(() => {
     const content = contentRef.current;
@@ -190,37 +104,51 @@ export function useAutoScroll({
     // while ResizeObserver's contentRect.height does not. The mismatch would
     // cause the first N pixels of growth (= 2 × padding) to be undetected.
     lastContentHeightRef.current = 0;
+    wasAtBottomRef.current = isAtBottom();
+
+    const handleScroll = () => {
+      wasAtBottomRef.current = isAtBottom();
+    };
 
     const resizeObserver = new ResizeObserver((entries) => {
       const newHeight = entries[0]?.contentRect?.height ?? 0;
-      const grew = newHeight > lastContentHeightRef.current;
+      const changed = newHeight !== lastContentHeightRef.current;
       lastContentHeightRef.current = newHeight;
 
-      if (grew && autoScrollEnabledRef.current) {
+      // Scroll on ANY height change (not just growth) while at bottom.
+      // During streaming, temporary height decreases can occur (e.g.,
+      // markdown table structure transitions, code block max-height
+      // threshold). Scrolling on shrinkage keeps the user anchored to
+      // the bottom. This is safe because the observer is only active
+      // while `enabled` is true (i.e., during streaming).
+      if (changed && wasAtBottomRef.current) {
         container.scrollTo({
           top: container.scrollHeight,
           behavior: 'instant',
         });
+        // Sync for back-to-back observer callbacks that may fire
+        // before the asynchronous scroll event from scrollTo above.
+        wasAtBottomRef.current = true;
       }
     });
 
     resizeObserver.observe(content);
+    container.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
       resizeObserver.disconnect();
+      container.removeEventListener('scroll', handleScroll);
     };
-  }, [enabled]);
+  }, [enabled, isAtBottom]);
 
   /**
-   * Reset auto-scroll state when streaming starts.
    * When streaming ends, do one deferred scroll to catch final DOM changes
    * (e.g. copy/info buttons appearing after ResizeObserver disconnects).
    */
   useEffect(() => {
     if (enabled) {
-      autoScrollEnabledRef.current = true;
       wasEnabledRef.current = true;
-    } else if (wasEnabledRef.current && autoScrollEnabledRef.current) {
+    } else if (wasEnabledRef.current && wasAtBottomRef.current) {
       wasEnabledRef.current = false;
       const container = containerRef.current;
       if (container) {

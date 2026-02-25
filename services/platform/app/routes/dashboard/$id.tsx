@@ -7,6 +7,7 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
+import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
 import { AbilityContext } from '@/app/context/ability-context';
@@ -16,8 +17,8 @@ import { api } from '@/convex/_generated/api';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
 
 export const Route = createFileRoute('/dashboard/$id')({
-  loader: async ({ context, params }) => {
-    await context.queryClient.ensureQueryData(
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(
       convexQuery(api.members.queries.getCurrentMemberContext, {
         organizationId: params.id,
       }),
@@ -28,7 +29,8 @@ export const Route = createFileRoute('/dashboard/$id')({
 
 function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
-  const { data: memberContext } = useCurrentMemberContext(organizationId);
+  const { data: memberContext, isLoading } =
+    useCurrentMemberContext(organizationId);
 
   const abilityRef = useRef<{ role: string | null; ability: AppAbility }>(null);
 
@@ -60,7 +62,13 @@ function DashboardLayout() {
               </div>
 
               <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
-                {hasRole ? <Outlet /> : null}
+                {hasRole ? (
+                  <Outlet />
+                ) : isLoading ? (
+                  <div className="flex flex-1 items-center justify-center">
+                    <Spinner size="md" />
+                  </div>
+                ) : null}
               </div>
             </div>
           </AdaptiveHeaderProvider>

@@ -1,7 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { useStreamBuffer } from '../use-stream-buffer';
+import { findSafeAnchor, useStreamBuffer } from '../use-stream-buffer';
 
 // Mock reduced motion — default to no preference
 vi.mock('@/app/hooks/use-prefers-reduced-motion', () => ({
@@ -241,6 +241,173 @@ describe('useStreamBuffer', () => {
 
       expect(result.current.displayLength).toBe(text.length);
       expect(result.current.isTyping).toBe(false);
+    });
+  });
+});
+
+// ============================================================================
+// anchorPosition monotonicity (hook-level behavior)
+// ============================================================================
+
+describe('useStreamBuffer — anchor monotonicity', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('anchorPosition never decreases when text grows into a long table', () => {
+    // Start with text that has a paragraph boundary
+    const shortText = 'First paragraph.\n\nSecond paragraph.';
+
+    const { result, rerender } = renderHook(
+      ({ text }) => useStreamBuffer({ text, isStreaming: false }),
+      { initialProps: { text: shortText } },
+    );
+
+    const anchor1 = result.current.anchorPosition;
+    expect(anchor1).toBe(18); // after "First paragraph.\n\n"
+
+    // Add a long table (no \n\n within 200 chars of the end).
+    // findSafeAnchor would return 0 for this text, but the
+    // monotonic guard prevents regression.
+    const tableRows = Array.from(
+      { length: 20 },
+      (_, i) => `| cell_${i}_long_content | data_value_${i} |`,
+    ).join('\n');
+    const longText =
+      shortText + '\n\n| Header A | Header B |\n|---|---|\n' + tableRows;
+
+    rerender({ text: longText });
+
+    const anchor2 = result.current.anchorPosition;
+    expect(anchor2).toBeGreaterThanOrEqual(anchor1);
+  });
+
+  it('anchorPosition never decreases inside a long code block', () => {
+    const textBefore = 'Intro text.\n\n';
+    const codeLines = Array.from(
+      { length: 30 },
+      (_, i) => `  line${i} = ${i}`,
+    ).join('\n');
+    const fullText = textBefore + '```python\n' + codeLines;
+
+    const { result, rerender } = renderHook(
+      ({ text }) => useStreamBuffer({ text, isStreaming: false }),
+      { initialProps: { text: textBefore + 'Some text.' } },
+    );
+
+    const anchor1 = result.current.anchorPosition;
+    expect(anchor1).toBeGreaterThan(0);
+
+    // Now the text is a long code block — findSafeAnchor may return 0
+    rerender({ text: fullText });
+
+    const anchor2 = result.current.anchorPosition;
+    expect(anchor2).toBeGreaterThanOrEqual(anchor1);
+  });
+
+  it('anchor starts at 0 for a fresh component (new message)', () => {
+    // Each message gets its own TypewriterText component instance.
+    // A fresh mount should have anchor at 0, even for text without \n\n.
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text: 'Single paragraph no breaks',
+        isStreaming: false,
+      }),
+    );
+
+    expect(result.current.anchorPosition).toBe(0);
+  });
+});
+
+// ============================================================================
+// findSafeAnchor
+// ============================================================================
+
+describe('findSafeAnchor', () => {
+  it('returns 0 for empty text', () => {
+    expect(findSafeAnchor('', 0)).toBe(0);
+  });
+
+  it('returns 0 when currentPos is 0', () => {
+    expect(findSafeAnchor('Hello world', 0)).toBe(0);
+  });
+
+  it('anchors at paragraph boundary', () => {
+    const text = 'First paragraph.\n\nSecond paragraph.';
+    // Position deep into the second paragraph
+    const anchor = findSafeAnchor(text, text.length);
+    // Should anchor after \n\n (position 18)
+    expect(anchor).toBe(18);
+    expect(text.slice(0, anchor)).toBe('First paragraph.\n\n');
+  });
+
+  it('anchors at code block end boundary', () => {
+    const text = '```js\nfoo();\n```\nAfter code.';
+    const anchor = findSafeAnchor(text, text.length);
+    // ```\n match at position 13, +4 chars = absolutePos 17
+    expect(anchor).toBe(17);
+    expect(text.slice(0, anchor)).toBe('```js\nfoo();\n```\n');
+  });
+
+  describe('inside code block (odd fence count)', () => {
+    it('anchors before code block when blank line inside code block', () => {
+      const text = 'Hello.\n\n```python\n# comment\n\nclass Foo:\n  pass';
+      // currentPos past the \n\n inside the code block
+      const anchor = findSafeAnchor(text, text.length);
+      // Should anchor after "Hello.\n\n" — right before the code block
+      expect(anchor).toBe(8);
+      expect(text.slice(0, anchor)).toBe('Hello.\n\n');
+    });
+
+    it('returns 0 when code block is at the very start', () => {
+      const text = '```python\n# comment\n\nclass Foo:\n  pass';
+      const anchor = findSafeAnchor(text, text.length);
+      expect(anchor).toBe(0);
+    });
+
+    it('anchors correctly with multiple code blocks', () => {
+      const text =
+        '```js\nfoo();\n```\n\nBetween.\n\n```python\n# comment\n\nclass Bar:';
+      const anchor = findSafeAnchor(text, text.length);
+      // Should anchor after "Between.\n\n" — before the second code block
+      const expected = text.indexOf('```python');
+      const breakBefore = text.lastIndexOf('\n\n', expected);
+      expect(anchor).toBe(breakBefore + 2);
+      // Verify the stable content includes the first code block
+      expect(text.slice(0, anchor)).toContain('```js\nfoo();\n```');
+      expect(text.slice(0, anchor)).toContain('Between.');
+    });
+
+    it('handles long code block with blank line far from currentPos', () => {
+      // Code block with a blank line, but the blank line is >200 chars
+      // from currentPos. The 200-char search window finds the blank line
+      // inside the code block, but the fix searches the full text for the
+      // opening fence.
+      const longCode = 'x = 1\n'.repeat(50); // ~300 chars
+      const text = `Intro.\n\n\`\`\`python\n${longCode}\n\nmore_code = True`;
+      const anchor = findSafeAnchor(text, text.length);
+      // Should anchor after "Intro.\n\n"
+      expect(anchor).toBe(8);
+      expect(text.slice(0, anchor)).toBe('Intro.\n\n');
+    });
+
+    it('keeps anchor stable during code block streaming', () => {
+      // Simulate streaming: code block grows but anchor should stay fixed
+      const base = 'Hello world.\n\n```python\ndef foo():\n';
+      const v1 = base + '  x = 1\n\n  y = 2';
+      const v2 = base + '  x = 1\n\n  y = 2\n  z = 3';
+
+      const anchor1 = findSafeAnchor(v1, v1.length);
+      const anchor2 = findSafeAnchor(v2, v2.length);
+
+      // Both should anchor at the same position (before the code block)
+      expect(anchor1).toBe(anchor2);
+      expect(anchor1).toBe(14); // after "Hello world.\n\n"
     });
   });
 });
