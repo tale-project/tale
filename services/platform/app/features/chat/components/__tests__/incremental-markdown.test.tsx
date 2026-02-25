@@ -103,7 +103,7 @@ describe('IncrementalMarkdown — cursor injection', () => {
     expect(countCursors(container)).toBe(1);
   });
 
-  it('renders exactly one cursor for a fenced code block', () => {
+  it('renders no cursor for a fenced code block (cursor not injected into pre)', () => {
     const content = '```yaml\nlegal_review_date: "2025-03-14"\n```';
     const { container } = render(
       <IncrementalMarkdown
@@ -114,10 +114,10 @@ describe('IncrementalMarkdown — cursor injection', () => {
       />,
     );
 
-    expect(countCursors(container)).toBe(1);
+    expect(countCursors(container)).toBe(0);
   });
 
-  it('renders exactly one cursor for an incomplete code block (still streaming)', () => {
+  it('renders no cursor for an incomplete code block (cursor not injected into pre)', () => {
     const content = '```yaml\nline1: value\nline2: value';
     const { container } = render(
       <IncrementalMarkdown
@@ -128,11 +128,11 @@ describe('IncrementalMarkdown — cursor injection', () => {
       />,
     );
 
-    expect(countCursors(container)).toBe(1);
+    expect(countCursors(container)).toBe(0);
   });
 
-  it('renders exactly one cursor when paragraph precedes a code block', () => {
-    const content = 'Some text\n\n```js\nconst x = 1;\n```';
+  it('renders cursor in paragraph when paragraph follows a code block', () => {
+    const content = '```js\nconst x = 1;\n```\n\nSome text after';
     const { container } = render(
       <IncrementalMarkdown
         content={content}
@@ -143,6 +143,20 @@ describe('IncrementalMarkdown — cursor injection', () => {
     );
 
     expect(countCursors(container)).toBe(1);
+  });
+
+  it('renders no cursor when paragraph precedes a code block (code block is last)', () => {
+    const content = 'Some text\n\n```js\nconst x = 1;\n```';
+    const { container } = render(
+      <IncrementalMarkdown
+        content={content}
+        revealPosition={content.length}
+        anchorPosition={0}
+        showCursor
+      />,
+    );
+
+    expect(countCursors(container)).toBe(0);
   });
 });
 

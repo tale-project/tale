@@ -24,6 +24,7 @@
 
 import { spawn } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
+import { createConnection } from 'node:net';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -202,6 +203,58 @@ function runCommand(cmd, args, env = {}) {
   });
 }
 
+// Health check & auto-restart configuration
+const CONVEX_PORT = 3210;
+const CONVEX_HOST = '127.0.0.1';
+const HEALTH_CHECK_INTERVAL_MS = 30_000;
+const HEALTH_CHECK_TIMEOUT_MS = 5_000;
+const MAX_CONSECUTIVE_FAILURES = 3;
+const MAX_AUTO_RESTARTS = 5;
+const STABLE_THRESHOLD_MS = 120_000;
+
+/**
+ * TCP probe — resolves true if port accepts a connection, false otherwise.
+ */
+function tcpProbe(host, port, timeoutMs) {
+  return new Promise((resolve) => {
+    const socket = createConnection({ host, port });
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(false);
+    }, timeoutMs);
+    socket.on('connect', () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on('error', () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(false);
+    });
+  });
+}
+
+/**
+ * Kill a process tree and wait for it to exit.
+ */
+function killProcessTree(proc, signal = 'SIGKILL') {
+  return new Promise((resolve) => {
+    if (!proc || proc.killed || !proc.pid) {
+      resolve();
+      return;
+    }
+    const onExit = () => resolve();
+    proc.once('exit', onExit);
+    kill(proc.pid, signal, (err) => {
+      if (err) {
+        proc.removeListener('exit', onExit);
+        resolve();
+      }
+    });
+  });
+}
+
 async function main() {
   console.log('[dev] 🚀 Starting development environment...');
   console.log(
@@ -213,6 +266,15 @@ async function main() {
   console.log('[dev] 💡 No cloud account required - all data stays local');
   console.log('[dev] 💡 Press Ctrl+C to stop all services');
   console.log('');
+
+  let convexProcess = null;
+  let viteProcess = null;
+  let healthCheckTimer = null;
+  let shuttingDown = false;
+  let restartCount = 0;
+  let convexReadyAt = 0;
+  let consecutiveFailures = 0;
+  let restarting = false;
 
   try {
     // Step 0: Load environment variables from repository root
@@ -237,34 +299,118 @@ async function main() {
     }
     console.log('[dev] ✅ Environment normalized (env.sh parity)');
 
-    // Step 1: Start Convex in background
-    // Only use CONVEX_AGENT_MODE=anonymous when bootstrapping a new local
-    // deployment. When an existing anonymous deployment is present, Convex
-    // reuses it without requiring login. Setting agent mode on every run
-    // causes Convex to create a new deployment each time.
-    console.log('[dev] ⏳ Starting Convex backend...');
+    // Build Convex environment once (reused across restarts)
     const convexEnv = { ...process.env };
     if (!hasLocalDeployment) {
       convexEnv.CONVEX_AGENT_MODE = 'anonymous';
     }
-    const convexProcess = spawn('npx', ['--yes', 'convex', 'dev'], {
-      stdio: 'inherit',
-      cwd: platformRoot,
-      env: convexEnv,
-    });
+
+    function spawnConvex() {
+      convexProcess = spawn('npx', ['--yes', 'convex', 'dev'], {
+        stdio: 'inherit',
+        cwd: platformRoot,
+        env: convexEnv,
+      });
+      convexProcess.on('exit', (code) => {
+        if (shuttingDown || restarting) return;
+        console.log(`[dev] Convex exited with code ${code}`);
+        void shutdown();
+      });
+    }
+
+    async function waitForConvex() {
+      console.log('[dev] ⏳ Waiting for Convex backend on port 3210...');
+      await runCommand('npx', [
+        '--yes',
+        'wait-on',
+        `tcp:${CONVEX_HOST}:${CONVEX_PORT}`,
+        '--timeout',
+        '180000',
+        '--interval',
+        '250',
+      ]);
+      convexReadyAt = Date.now();
+      consecutiveFailures = 0;
+      console.log('[dev] ✅ Convex backend is ready!');
+    }
+
+    async function restartConvex() {
+      if (shuttingDown || restarting) return;
+      restarting = true;
+
+      // Reset counter if Convex was stable long enough
+      if (convexReadyAt && Date.now() - convexReadyAt > STABLE_THRESHOLD_MS) {
+        restartCount = 0;
+      }
+
+      if (restartCount >= MAX_AUTO_RESTARTS) {
+        console.error(
+          `[dev] Convex failed ${MAX_AUTO_RESTARTS} times in quick succession, shutting down`,
+        );
+        restarting = false;
+        void shutdown();
+        return;
+      }
+
+      restartCount++;
+      console.warn(
+        `[dev] Convex unresponsive, restarting... (attempt ${restartCount}/${MAX_AUTO_RESTARTS})`,
+      );
+
+      try {
+        await killProcessTree(convexProcess, 'SIGKILL');
+        spawnConvex();
+        await waitForConvex();
+        console.log('[dev] Convex recovered successfully');
+      } catch (err) {
+        console.error('[dev] Convex failed to recover:', err.message);
+        restarting = false;
+        void shutdown();
+        return;
+      }
+
+      restarting = false;
+    }
+
+    function startHealthCheck() {
+      healthCheckTimer = setInterval(async () => {
+        if (shuttingDown || restarting) return;
+
+        const alive = await tcpProbe(
+          CONVEX_HOST,
+          CONVEX_PORT,
+          HEALTH_CHECK_TIMEOUT_MS,
+        );
+
+        if (alive) {
+          consecutiveFailures = 0;
+          return;
+        }
+
+        // Process already exited — the exit handler will deal with shutdown
+        if (convexProcess?.killed || convexProcess?.exitCode != null) return;
+
+        consecutiveFailures++;
+        console.warn(
+          `[dev] Convex health check failed (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`,
+        );
+
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          consecutiveFailures = 0;
+          void restartConvex();
+        }
+      }, HEALTH_CHECK_INTERVAL_MS);
+
+      // Don't let the timer keep the process alive during shutdown
+      healthCheckTimer.unref();
+    }
+
+    // Step 1: Start Convex in background
+    console.log('[dev] ⏳ Starting Convex backend...');
+    spawnConvex();
 
     // Step 2: Wait for Convex to be ready
-    console.log('[dev] ⏳ Waiting for Convex backend on port 3210...');
-    await runCommand('npx', [
-      '--yes',
-      'wait-on',
-      'tcp:127.0.0.1:3210',
-      '--timeout',
-      '180000', // 3 minutes
-      '--interval',
-      '250',
-    ]);
-    console.log('[dev] ✅ Convex backend is ready!');
+    await waitForConvex();
 
     // Step 3: Sync environment variables
     console.log('[dev] 🔄 Syncing environment variables...');
@@ -283,7 +429,8 @@ async function main() {
 
     // Step 5: Set CONVEX_URL for Vite proxy configuration
     const convexUrl =
-      process.env.NEXT_PUBLIC_CONVEX_URL || 'http://127.0.0.1:3210';
+      process.env.NEXT_PUBLIC_CONVEX_URL ||
+      `http://${CONVEX_HOST}:${CONVEX_PORT}`;
     process.env.CONVEX_URL = convexUrl;
     console.log(`[dev] ✅ Set CONVEX_URL=${convexUrl} for Vite proxy`);
 
@@ -298,7 +445,7 @@ async function main() {
     );
     console.log('');
 
-    const viteProcess = spawn(
+    viteProcess = spawn(
       'npx',
       ['--yes', 'vite', 'dev', '--port', port, '--host', '0.0.0.0'],
       {
@@ -310,45 +457,17 @@ async function main() {
 
     // Handle shutdown
     const shutdown = async () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+
+      if (healthCheckTimer) clearInterval(healthCheckTimer);
+
       console.log('\n[dev] 👋 Shutting down...');
 
-      // Kill both process trees (including all child processes)
-      const killPromises = [];
-
-      if (convexProcess && !convexProcess.killed && convexProcess.pid) {
-        killPromises.push(
-          new Promise((resolve) => {
-            kill(convexProcess.pid, 'SIGTERM', (err) => {
-              if (err) {
-                console.warn(
-                  '[dev] ⚠️  Error killing Convex process tree:',
-                  err.message,
-                );
-              }
-              resolve();
-            });
-          }),
-        );
-      }
-
-      if (viteProcess && !viteProcess.killed && viteProcess.pid) {
-        killPromises.push(
-          new Promise((resolve) => {
-            kill(viteProcess.pid, 'SIGTERM', (err) => {
-              if (err) {
-                console.warn(
-                  '[dev] ⚠️  Error killing TanStack Start process tree:',
-                  err.message,
-                );
-              }
-              resolve();
-            });
-          }),
-        );
-      }
-
-      // Wait for all processes to be killed
-      await Promise.all(killPromises);
+      await Promise.all([
+        killProcessTree(convexProcess, 'SIGTERM'),
+        killProcessTree(viteProcess, 'SIGTERM'),
+      ]);
 
       // Wait a bit for graceful shutdown
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -361,16 +480,18 @@ async function main() {
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
 
-    // If either process exits, shut down everything
-    convexProcess.on('exit', (code) => {
-      console.log(`[dev] Convex exited with code ${code}`);
-      void shutdown();
-    });
-
+    // Vite exit shuts everything down
     viteProcess.on('exit', (code) => {
+      if (shuttingDown) return;
       console.log(`[dev] TanStack Start exited with code ${code}`);
       void shutdown();
     });
+
+    // Step 7: Start health check for Convex auto-recovery
+    startHealthCheck();
+    console.log(
+      `[dev] 🏥 Convex health check active (every ${HEALTH_CHECK_INTERVAL_MS / 1000}s)`,
+    );
 
     // Keep the script running
     await new Promise(() => {});

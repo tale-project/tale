@@ -53,6 +53,6 @@ export const recoverStuck = internalMutation({
   args: {},
   returns: v.object({ recovered: v.number() }),
   handler: async (ctx) => {
-    return await recoverStuckExecutions(ctx);
+    return await recoverStuckExecutions(ctx, workflowManagers);
   },
 });

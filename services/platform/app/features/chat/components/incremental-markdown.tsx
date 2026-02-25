@@ -67,7 +67,6 @@ const CURSOR_ELIGIBLE_TAGS = new Set([
   'li',
   'td',
   'th',
-  'pre',
   'h1',
   'h2',
   'h3',
@@ -184,18 +183,7 @@ const StreamingMarkdown = memo(
       );
 
       const createCursorWrapper = (
-        Tag:
-          | 'p'
-          | 'li'
-          | 'td'
-          | 'th'
-          | 'pre'
-          | 'h1'
-          | 'h2'
-          | 'h3'
-          | 'h4'
-          | 'h5'
-          | 'h6',
+        Tag: 'p' | 'li' | 'td' | 'th' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
         CustomComponent?: MarkdownComponentType,
       ) => {
         return function CursorWrapper({
@@ -273,7 +261,6 @@ const StreamingMarkdown = memo(
         li: createCursorWrapper('li', components?.li),
         td: createCursorWrapper('td', components?.td),
         th: createCursorWrapper('th', components?.th),
-        pre: createCursorWrapper('pre', components?.pre),
         h1: createCursorWrapper('h1', components?.h1),
         h2: createCursorWrapper('h2', components?.h2),
         h3: createCursorWrapper('h3', components?.h3),
