@@ -7,6 +7,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 
 import { Image } from '@/app/components/ui/data-display/image';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
+import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
@@ -119,7 +120,7 @@ export function ImageUploadField({
   const sizeClasses = size === 'sm' ? 'size-10' : 'size-12';
 
   return (
-    <div className="flex flex-col items-start gap-1">
+    <VStack gap={1} align="start">
       <div className="relative">
         <button
           type="button"
@@ -170,6 +171,6 @@ export function ImageUploadField({
         className="hidden"
         tabIndex={-1}
       />
-    </div>
+    </VStack>
   );
 }

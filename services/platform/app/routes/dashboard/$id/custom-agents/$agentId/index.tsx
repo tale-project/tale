@@ -2,13 +2,13 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { ContentArea } from '@/app/components/layout/content-area';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
@@ -165,63 +165,61 @@ function GeneralTab() {
   };
 
   return (
-    <NarrowContainer className="py-4">
-      <Stack gap={6}>
-        <StickySectionHeader
-          title={t('customAgents.form.sectionGeneral')}
-          description={t('customAgents.form.sectionGeneralDescription')}
-          action={<AutoSaveIndicator status={status} />}
+    <ContentArea variant="narrow" gap={6}>
+      <StickySectionHeader
+        title={t('customAgents.form.sectionGeneral')}
+        description={t('customAgents.form.sectionGeneralDescription')}
+        action={<AutoSaveIndicator status={status} />}
+      />
+
+      {agent && (
+        <FormSection>
+          <CustomAgentActiveToggle
+            agent={agent}
+            label={t('customAgents.general.active')}
+            description={t('customAgents.general.activeHelp')}
+          />
+          <Switch
+            checked={agent.visibleInChat !== false}
+            onCheckedChange={handleVisibilityChange}
+            disabled={isReadOnly || isUpdatingVisibility}
+            label={t('customAgents.general.visibleInChat')}
+            description={t('customAgents.general.visibleInChatHelp')}
+          />
+        </FormSection>
+      )}
+
+      <FormSection>
+        <Input
+          id="name"
+          label={t('customAgents.form.name')}
+          placeholder={t('customAgents.form.namePlaceholder')}
+          description={t('customAgents.form.nameHelp')}
+          {...form.register('name', { required: true })}
+          required
+          disabled={isReadOnly}
+          errorMessage={form.formState.errors.name?.message}
         />
 
-        {agent && (
-          <Stack gap={3}>
-            <CustomAgentActiveToggle
-              agent={agent}
-              label={t('customAgents.general.active')}
-              description={t('customAgents.general.activeHelp')}
-            />
-            <Switch
-              checked={agent.visibleInChat !== false}
-              onCheckedChange={handleVisibilityChange}
-              disabled={isReadOnly || isUpdatingVisibility}
-              label={t('customAgents.general.visibleInChat')}
-              description={t('customAgents.general.visibleInChatHelp')}
-            />
-          </Stack>
-        )}
+        <Input
+          id="displayName"
+          label={t('customAgents.form.displayName')}
+          placeholder={t('customAgents.form.displayNamePlaceholder')}
+          {...form.register('displayName', { required: true })}
+          required
+          disabled={isReadOnly}
+          errorMessage={form.formState.errors.displayName?.message}
+        />
 
-        <Stack gap={3}>
-          <Input
-            id="name"
-            label={t('customAgents.form.name')}
-            placeholder={t('customAgents.form.namePlaceholder')}
-            description={t('customAgents.form.nameHelp')}
-            {...form.register('name', { required: true })}
-            required
-            disabled={isReadOnly}
-            errorMessage={form.formState.errors.name?.message}
-          />
-
-          <Input
-            id="displayName"
-            label={t('customAgents.form.displayName')}
-            placeholder={t('customAgents.form.displayNamePlaceholder')}
-            {...form.register('displayName', { required: true })}
-            required
-            disabled={isReadOnly}
-            errorMessage={form.formState.errors.displayName?.message}
-          />
-
-          <Textarea
-            id="description"
-            label={t('customAgents.form.description')}
-            placeholder={t('customAgents.form.descriptionPlaceholder')}
-            {...form.register('description')}
-            rows={2}
-            disabled={isReadOnly}
-          />
-        </Stack>
-      </Stack>
+        <Textarea
+          id="description"
+          label={t('customAgents.form.description')}
+          placeholder={t('customAgents.form.descriptionPlaceholder')}
+          {...form.register('description')}
+          rows={2}
+          disabled={isReadOnly}
+        />
+      </FormSection>
 
       {teams && teams.length > 0 && (
         <PageSection
@@ -230,7 +228,7 @@ function GeneralTab() {
           gap={6}
           className="mt-8 border-t pt-8"
         >
-          <Stack gap={3}>
+          <FormSection>
             <Select
               options={teamOptions}
               label={t('customAgents.form.team')}
@@ -256,9 +254,9 @@ function GeneralTab() {
                 ))}
               </FormSection>
             )}
-          </Stack>
+          </FormSection>
         </PageSection>
       )}
-    </NarrowContainer>
+    </ContentArea>
   );
 }

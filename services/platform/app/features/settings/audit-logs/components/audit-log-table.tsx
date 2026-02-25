@@ -9,6 +9,7 @@ import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
@@ -121,7 +122,7 @@ export function AuditLogTable({
       >
         {selectedLog && (
           <div className="max-h-[60vh] overflow-y-auto">
-            <div className="space-y-4 pr-4">
+            <Stack gap={4} className="pr-4">
               <DetailRow
                 label={t('logs.audit.columns.timestamp')}
                 value={formatDate(new Date(selectedLog.timestamp), 'long')}
@@ -201,7 +202,7 @@ export function AuditLogTable({
                     data={selectedLog.metadata}
                   />
                 )}
-            </div>
+            </Stack>
           </div>
         )}
       </Dialog>
@@ -242,13 +243,13 @@ function DetailSection({
   data: Record<string, unknown>;
 }) {
   return (
-    <div className="space-y-2">
+    <Stack gap={2}>
       <Text as="span" variant="muted" className="font-medium">
         {label}
       </Text>
       <pre className="bg-muted/50 max-h-40 overflow-auto rounded-lg p-3 text-xs">
         {JSON.stringify(data, null, 2)}
       </pre>
-    </div>
+    </Stack>
   );
 }

@@ -11,7 +11,9 @@ import {
 } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
+import { PanelHeader } from '@/app/components/layout/panel-header';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
+import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
@@ -249,98 +251,92 @@ export function AutomationSidePanel({
       </div>
 
       {/* Panel header */}
-      <div className="bg-background/70 border-border sticky top-0 shrink-0 border-b p-3 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          {showAIChat ? (
-            <>
-              <div className="rounded-lg bg-purple-600 p-2 text-white dark:bg-purple-700">
-                <Sparkles className="size-4" />
-              </div>
-              <div className="flex-1">
-                <Heading level={2} size="sm">
-                  {t('sidePanel.aiAssistant')}
-                </Heading>
-              </div>
-            </>
-          ) : showTestPanel ? (
-            <>
-              <div className="rounded-lg border bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                <TestTubeDiagonal className="size-4" />
-              </div>
-              <div className="flex-1">
-                <Heading level={2} size="sm">
-                  {t('sidePanel.testAutomation')}
-                </Heading>
-              </div>
-            </>
-          ) : step ? (
-            <>
-              <Tooltip
-                content={
-                  <p>
-                    {t('sidePanel.stepTooltip', { stepType: step.stepType })}
-                  </p>
-                }
-              >
-                <div
-                  className={cn(
-                    'p-2 rounded-lg border',
-                    getStepTypeColor(step.stepType),
-                  )}
-                >
-                  {getStepIcon(
-                    step.stepType,
-                    'type' in step.config
-                      ? String(step.config.type)
-                      : undefined,
-                  )}
-                </div>
-              </Tooltip>
-              <div className="flex-1">
-                <Heading level={2} size="sm">
-                  {step.name}
-                </Heading>
-              </div>
-            </>
-          ) : null}
-          {/* Desktop action buttons */}
-          {showAIChat && canClearChat && (
-            <div className="hidden shrink-0 items-center md:flex">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                onClick={handleClearChat}
-                aria-label={tCommon('actions.delete')}
-              >
-                <Trash2 className="size-4" />
-              </Button>
+      <PanelHeader variant="compact" className="gap-3">
+        {showAIChat ? (
+          <>
+            <div className="rounded-lg bg-purple-600 p-2 text-white dark:bg-purple-700">
+              <Sparkles className="size-4" />
             </div>
-          )}
-          {/* Mobile action buttons */}
-          <div className="flex shrink-0 items-center gap-1 md:hidden">
-            {showAIChat && canClearChat && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                onClick={handleClearChat}
-                aria-label={tCommon('actions.delete')}
+            <div className="flex-1">
+              <Heading level={2} size="sm">
+                {t('sidePanel.aiAssistant')}
+              </Heading>
+            </div>
+          </>
+        ) : showTestPanel ? (
+          <>
+            <div className="rounded-lg border bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+              <TestTubeDiagonal className="size-4" />
+            </div>
+            <div className="flex-1">
+              <Heading level={2} size="sm">
+                {t('sidePanel.testAutomation')}
+              </Heading>
+            </div>
+          </>
+        ) : step ? (
+          <>
+            <Tooltip
+              content={
+                <p>{t('sidePanel.stepTooltip', { stepType: step.stepType })}</p>
+              }
+            >
+              <div
+                className={cn(
+                  'p-2 rounded-lg border',
+                  getStepTypeColor(step.stepType),
+                )}
               >
-                <Trash2 className="size-4" />
-              </Button>
-            )}
+                {getStepIcon(
+                  step.stepType,
+                  'type' in step.config ? String(step.config.type) : undefined,
+                )}
+              </div>
+            </Tooltip>
+            <div className="flex-1">
+              <Heading level={2} size="sm">
+                {step.name}
+              </Heading>
+            </div>
+          </>
+        ) : null}
+        {/* Desktop action buttons */}
+        {showAIChat && canClearChat && (
+          <div className="hidden shrink-0 items-center md:flex">
             <Button
+              variant="ghost"
               size="icon"
               className="size-8"
-              onClick={onClose}
-              aria-label={t('sidePanel.viewAutomation')}
+              onClick={handleClearChat}
+              aria-label={tCommon('actions.delete')}
             >
-              <Workflow className="size-4" />
+              <Trash2 className="size-4" />
             </Button>
           </div>
-        </div>
-      </div>
+        )}
+        {/* Mobile action buttons */}
+        <HStack gap={1} className="shrink-0 md:hidden">
+          {showAIChat && canClearChat && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={handleClearChat}
+              aria-label={tCommon('actions.delete')}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
+          <Button
+            size="icon"
+            className="size-8"
+            onClick={onClose}
+            aria-label={t('sidePanel.viewAutomation')}
+          >
+            <Workflow className="size-4" />
+          </Button>
+        </HStack>
+      </PanelHeader>
 
       {/* Panel content */}
       {showTestPanel && automationId && organizationId ? (
@@ -356,7 +352,7 @@ export function AutomationSidePanel({
         />
       ) : step ? (
         <>
-          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-3">
+          <VStack gap={4} className="flex-1 overflow-y-auto p-3">
             <JsonInput
               value={editedConfig}
               onChange={handleConfigChange}
@@ -402,9 +398,9 @@ export function AutomationSidePanel({
                 </ul>
               </div>
             )}
-          </div>
+          </VStack>
 
-          <div className="bg-background flex shrink-0 border-t p-3">
+          <HStack className="bg-background shrink-0 border-t p-3">
             <Button
               onClick={handleSave}
               disabled={!isDirty || !isValid || isSaving || isValidating}
@@ -414,7 +410,7 @@ export function AutomationSidePanel({
               <Save className="mr-1 size-4" />
               {isSaving ? t('sidePanel.saving') : tCommon('actions.save')}
             </Button>
-          </div>
+          </HStack>
         </>
       ) : null}
     </div>

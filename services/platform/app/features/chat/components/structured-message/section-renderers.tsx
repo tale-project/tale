@@ -10,6 +10,7 @@
 
 import { memo, useMemo } from 'react';
 
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
@@ -60,11 +61,7 @@ export const NextStepsSection = memo(
             </Button>
           ))}
           {isStreaming && (
-            <div
-              className="bg-muted/40 h-7 w-28 animate-pulse rounded-md"
-              role="status"
-              aria-label={t('structured.nextSteps')}
-            />
+            <Skeleton className="h-7 w-28" label={t('structured.nextSteps')} />
           )}
         </div>
       </section>

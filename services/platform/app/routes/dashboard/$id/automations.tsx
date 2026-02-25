@@ -1,11 +1,10 @@
 import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
 
-import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
-import { StickyHeader } from '@/app/components/layout/sticky-header';
+import { PageLayout } from '@/app/components/layout/page-layout';
 import { AutomationsListNavigation } from '@/app/features/automations/components/automations-list-navigation';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -27,18 +26,20 @@ function AutomationsLayout() {
   });
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-      {!isSpecificAutomation && (
-        <StickyHeader>
-          <AdaptiveHeaderRoot standalone={false}>
-            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
-          </AdaptiveHeaderRoot>
-          <AutomationsListNavigation organizationId={organizationId} />
-        </StickyHeader>
-      )}
-      <LayoutErrorBoundary organizationId={organizationId}>
-        <Outlet />
-      </LayoutErrorBoundary>
-    </div>
+    <PageLayout
+      organizationId={organizationId}
+      header={
+        !isSpecificAutomation ? (
+          <>
+            <AdaptiveHeaderRoot standalone={false}>
+              <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+            </AdaptiveHeaderRoot>
+            <AutomationsListNavigation organizationId={organizationId} />
+          </>
+        ) : undefined
+      }
+    >
+      <Outlet />
+    </PageLayout>
   );
 }

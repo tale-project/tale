@@ -1,20 +1,14 @@
 'use client';
 
-import {
-  Check,
-  ChevronRight,
-  Code,
-  Copy,
-  Database,
-  Globe,
-  Zap,
-} from 'lucide-react';
+import { Check, Code, Copy, Database, Globe, Zap } from 'lucide-react';
 import { useMemo } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
+import { HStack } from '@/app/components/ui/layout/layout';
+import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
 import { Text } from '@/app/components/ui/typography/text';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
@@ -115,14 +109,18 @@ function ParametersDisplay({
   if (params.length === 0) return null;
 
   return (
-    <details className="group/params mt-1">
-      <summary className="text-muted-foreground flex cursor-pointer items-center gap-1 text-xs select-none">
-        <ChevronRight className="size-3 shrink-0 transition-transform duration-200 group-open/params:rotate-90" />
-        {t('integrations.manageDialog.parameters')}
-        <Badge variant="outline" className="text-[10px] leading-tight">
-          {params.length}
-        </Badge>
-      </summary>
+    <CollapsibleDetails
+      variant="compact"
+      className="mt-1"
+      summary={
+        <>
+          {t('integrations.manageDialog.parameters')}
+          <Badge variant="outline" className="text-[10px] leading-tight">
+            {params.length}
+          </Badge>
+        </>
+      }
+    >
       <dl className="bg-background mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 rounded border p-2 text-xs">
         {params.map((param) => (
           <div key={param.name} className="col-span-2 grid grid-cols-subgrid">
@@ -145,7 +143,7 @@ function ParametersDisplay({
           </div>
         ))}
       </dl>
-    </details>
+    </CollapsibleDetails>
   );
 }
 
@@ -209,25 +207,21 @@ export function IntegrationDetails({
 
   if (!hasAnyDetails) return null;
 
-  const summaryClasses =
-    'flex cursor-pointer items-center gap-2 text-sm font-medium select-none';
-  const chevronClasses =
-    'size-3.5 text-muted-foreground shrink-0 transition-transform duration-200 group-open:rotate-90';
-
   return (
-    <Stack gap={3} className="border-border rounded-lg border p-4">
-      {/* REST operations */}
+    <BorderedSection gap={3}>
       {restOperations.length > 0 && (
-        <details className="group">
-          <summary className={summaryClasses}>
-            <ChevronRight className={chevronClasses} />
-            <Zap className="size-4 shrink-0" />
-            <span>{t('integrations.upload.operations')}</span>
-            <Badge variant="outline" className="text-xs">
-              {restOperations.length}
-            </Badge>
-            <CopyButton value={operationsSummary} />
-          </summary>
+        <CollapsibleDetails
+          summary={
+            <>
+              <Zap className="size-4 shrink-0" />
+              <span>{t('integrations.upload.operations')}</span>
+              <Badge variant="outline" className="text-xs">
+                {restOperations.length}
+              </Badge>
+              <CopyButton value={operationsSummary} />
+            </>
+          }
+        >
           <ul
             className="bg-muted mt-2 ml-6 max-h-48 space-y-1 overflow-y-auto rounded-md p-3 text-sm"
             role="list"
@@ -251,21 +245,22 @@ export function IntegrationDetails({
               </li>
             ))}
           </ul>
-        </details>
+        </CollapsibleDetails>
       )}
 
-      {/* SQL operations */}
       {sqlOperations.length > 0 && (
-        <details className="group">
-          <summary className={summaryClasses}>
-            <ChevronRight className={chevronClasses} />
-            <Database className="size-4 shrink-0" />
-            <span>{t('integrations.manageDialog.sqlOperations')}</span>
-            <Badge variant="outline" className="text-xs">
-              {sqlOperations.length}
-            </Badge>
-            <CopyButton value={sqlOperationsSummary} />
-          </summary>
+        <CollapsibleDetails
+          summary={
+            <>
+              <Database className="size-4 shrink-0" />
+              <span>{t('integrations.manageDialog.sqlOperations')}</span>
+              <Badge variant="outline" className="text-xs">
+                {sqlOperations.length}
+              </Badge>
+              <CopyButton value={sqlOperationsSummary} />
+            </>
+          }
+        >
           <ul
             className="bg-muted mt-2 ml-6 max-h-60 space-y-2 overflow-y-auto rounded-md p-3 text-sm"
             role="list"
@@ -297,31 +292,36 @@ export function IntegrationDetails({
                     {op.description}
                   </Text>
                 )}
-                <details className="group/query mt-1">
-                  <summary className="text-muted-foreground flex cursor-pointer items-center gap-1 text-xs select-none">
-                    <ChevronRight className="size-3 shrink-0 transition-transform duration-200 group-open/query:rotate-90" />
-                    {t('integrations.manageDialog.query')}
-                    <SqlQueryCopyButton query={op.query} />
-                  </summary>
+                <CollapsibleDetails
+                  variant="compact"
+                  className="mt-1"
+                  summary={
+                    <>
+                      {t('integrations.manageDialog.query')}
+                      <SqlQueryCopyButton query={op.query} />
+                    </>
+                  }
+                >
                   <pre className="bg-background mt-1 max-h-32 overflow-y-auto rounded border p-2 text-xs break-words whitespace-pre-wrap">
                     {op.query}
                   </pre>
-                </details>
+                </CollapsibleDetails>
                 <ParametersDisplay schema={op.parametersSchema} t={t} />
               </li>
             ))}
           </ul>
-        </details>
+        </CollapsibleDetails>
       )}
 
-      {/* SQL config (read-only, only when active — inactive shows editable fields) */}
       {isSql && integration.isActive && integration.sqlConnectionConfig && (
-        <details className="group">
-          <summary className={summaryClasses}>
-            <ChevronRight className={chevronClasses} />
-            <Database className="size-4 shrink-0" />
-            <span>{t('integrations.upload.sqlConfig')}</span>
-          </summary>
+        <CollapsibleDetails
+          summary={
+            <>
+              <Database className="size-4 shrink-0" />
+              <span>{t('integrations.upload.sqlConfig')}</span>
+            </>
+          }
+        >
           <dl className="bg-muted mt-2 ml-6 grid grid-cols-2 gap-x-4 gap-y-1 rounded-md p-3 text-xs">
             <dt className="text-muted-foreground">
               {t('integrations.upload.engine')}
@@ -372,17 +372,18 @@ export function IntegrationDetails({
               </>
             )}
           </dl>
-        </details>
+        </CollapsibleDetails>
       )}
 
-      {/* Allowed hosts */}
       {allowedHosts.length > 0 && (
-        <details className="group">
-          <summary className={summaryClasses}>
-            <ChevronRight className={chevronClasses} />
-            <Globe className="size-4 shrink-0" />
-            <span>{t('integrations.upload.allowedHosts')}</span>
-          </summary>
+        <CollapsibleDetails
+          summary={
+            <>
+              <Globe className="size-4 shrink-0" />
+              <span>{t('integrations.upload.allowedHosts')}</span>
+            </>
+          }
+        >
           <HStack gap={1} className="mt-2 ml-6 flex-wrap">
             {allowedHosts.map((host) => (
               <Badge key={host} variant="outline">
@@ -390,28 +391,30 @@ export function IntegrationDetails({
               </Badge>
             ))}
           </HStack>
-        </details>
+        </CollapsibleDetails>
       )}
 
-      {/* Connector code (REST API only) */}
       {lineCount > 0 && !isSql && (
-        <details className="group min-w-0">
-          <summary className={summaryClasses}>
-            <ChevronRight className={chevronClasses} />
-            <Code className="size-4 shrink-0" />
-            <span>{t('integrations.upload.connectorCode')}</span>
-            <Badge variant="outline" className="text-xs">
-              {lineCount} {t('integrations.upload.lines')}
-            </Badge>
-            <CopyButton value={connectorCode} />
-          </summary>
+        <CollapsibleDetails
+          className="min-w-0"
+          summary={
+            <>
+              <Code className="size-4 shrink-0" />
+              <span>{t('integrations.upload.connectorCode')}</span>
+              <Badge variant="outline" className="text-xs">
+                {lineCount} {t('integrations.upload.lines')}
+              </Badge>
+              <CopyButton value={connectorCode} />
+            </>
+          }
+        >
           <pre className="bg-muted mt-2 ml-6 max-h-96 overflow-y-auto rounded-md p-3 text-xs break-words whitespace-pre-wrap">
             <code>{connectorCode}</code>
           </pre>
-        </details>
+        </CollapsibleDetails>
       )}
 
       {children}
-    </Stack>
+    </BorderedSection>
   );
 }

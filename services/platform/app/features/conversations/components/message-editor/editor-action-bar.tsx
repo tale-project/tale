@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { memo, useRef } from 'react';
 
+import { HStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
@@ -63,9 +64,9 @@ export const EditorActionBar = memo(function EditorActionBar({
   };
 
   return (
-    <div className="flex items-center justify-between py-2">
+    <HStack justify="between" className="py-2">
       {!isImproveMode && (
-        <div className="flex items-center gap-2">
+        <HStack gap={2}>
           <input
             ref={fileInputRef}
             type="file"
@@ -97,7 +98,7 @@ export const EditorActionBar = memo(function EditorActionBar({
               )}
             </Button>
           </Tooltip>
-        </div>
+        </HStack>
       )}
       {isImproveMode && <div />}
 
@@ -143,6 +144,6 @@ export const EditorActionBar = memo(function EditorActionBar({
           </Button>
         </Tooltip>
       )}
-    </div>
+    </HStack>
   );
 });

@@ -4,9 +4,11 @@ import { LoaderCircle, Paperclip, Send, X } from 'lucide-react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
+import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
@@ -64,106 +66,109 @@ export function TestChatInput({
         style={{ display: 'none' }}
       />
 
-      <FileUpload.DropZone
-        className="border-muted sticky bottom-0 z-50 mx-2 shrink-0 rounded-t-3xl border-[0.5rem] border-b-0"
-        onFilesSelected={uploadFiles}
-        clickable={false}
-      >
-        <FileUpload.Overlay className="rounded-t-2xl" />
-        <div className="bg-background border-muted-foreground/50 relative rounded-t-[0.875rem] border border-b-0 p-1">
-          {(attachments.length > 0 || uploadingFiles.length > 0) && (
-            <div className="flex flex-wrap gap-2 p-1">
-              {uploadingFiles.map((fileId) => (
-                <div
-                  key={fileId}
-                  className="bg-muted flex items-center gap-1 rounded-lg px-2 py-1"
-                >
-                  <LoaderCircle className="size-3 animate-spin" />
-                  <Text as="span" variant="caption">
-                    {t('customAgents.testChat.uploading')}
-                  </Text>
-                </div>
-              ))}
-              {attachments
-                .filter((att) => att.fileType.startsWith('image/'))
-                .map((attachment) => (
-                  <div key={attachment.fileId} className="group relative">
-                    <img
-                      src={attachment.previewUrl}
-                      alt={attachment.fileName}
-                      className="border-border size-8 rounded-lg border object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(attachment.fileId)}
-                      className="bg-destructive text-destructive-foreground absolute -top-1 -right-1 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ))}
-              {attachments
-                .filter((att) => !att.fileType.startsWith('image/'))
-                .map((attachment) => (
-                  <div
-                    key={attachment.fileId}
-                    className="group bg-secondary/20 relative flex max-w-[150px] items-center gap-2 rounded-lg px-2 py-1"
+      <PanelFooter>
+        <FileUpload.DropZone
+          className="border-muted mx-2 shrink-0 rounded-t-3xl border-8 border-b-0"
+          onFilesSelected={uploadFiles}
+          clickable={false}
+        >
+          <FileUpload.Overlay className="rounded-t-2xl" />
+          <div className="bg-background border-muted-foreground/50 relative rounded-t-[0.875rem] border border-b-0 p-1">
+            {(attachments.length > 0 || uploadingFiles.length > 0) && (
+              <HStack gap={2} wrap className="p-1">
+                {uploadingFiles.map((fileId) => (
+                  <HStack
+                    key={fileId}
+                    gap={1}
+                    className="bg-muted rounded-lg px-2 py-1"
                   >
-                    <DocumentIcon fileName={attachment.fileName} />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <Text as="div" variant="label-sm" truncate>
-                        {attachment.fileName}
-                      </Text>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(attachment.fileId)}
-                      className="text-muted-foreground hover:text-destructive transition-colors"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </div>
+                    <LoaderCircle className="size-3 animate-spin" />
+                    <Text as="span" variant="caption">
+                      {t('customAgents.testChat.uploading')}
+                    </Text>
+                  </HStack>
                 ))}
+                {attachments
+                  .filter((att) => att.fileType.startsWith('image/'))
+                  .map((attachment) => (
+                    <div key={attachment.fileId} className="group relative">
+                      <img
+                        src={attachment.previewUrl}
+                        alt={attachment.fileName}
+                        className="border-border size-8 rounded-lg border object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(attachment.fileId)}
+                        className="bg-destructive text-destructive-foreground absolute -top-1 -right-1 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                {attachments
+                  .filter((att) => !att.fileType.startsWith('image/'))
+                  .map((attachment) => (
+                    <div
+                      key={attachment.fileId}
+                      className="group bg-secondary/20 relative flex max-w-[150px] items-center gap-2 rounded-lg px-2 py-1"
+                    >
+                      <DocumentIcon fileName={attachment.fileName} />
+                      <VStack className="min-w-0 flex-1">
+                        <Text as="div" variant="label-sm" truncate>
+                          {attachment.fileName}
+                        </Text>
+                      </VStack>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(attachment.fileId)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+              </HStack>
+            )}
+
+            <div className="h-[5rem] overflow-y-auto transition-all duration-300 ease-in-out">
+              <Textarea
+                value={inputValue}
+                onChange={(e) => onInputChange(e.target.value)}
+                onKeyDown={onKeyDown}
+                onPaste={onPaste}
+                placeholder={t('customAgents.testChat.messagePlaceholder')}
+                className="resize-none border-0 bg-transparent p-2 text-sm outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                disabled={isBusy}
+              />
             </div>
-          )}
+            <HStack justify="between" className="px-1">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isBusy}
+                className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                title={t('customAgents.testChat.attachFiles')}
+              >
+                <Paperclip className="size-4" />
+              </button>
 
-          <div className="h-[5rem] overflow-y-auto transition-all duration-300 ease-in-out">
-            <Textarea
-              value={inputValue}
-              onChange={(e) => onInputChange(e.target.value)}
-              onKeyDown={onKeyDown}
-              onPaste={onPaste}
-              placeholder={t('customAgents.testChat.messagePlaceholder')}
-              className="resize-none border-0 bg-transparent p-2 text-sm outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              disabled={isBusy}
-            />
+              <Button
+                onClick={onSend}
+                disabled={
+                  (!inputValue.trim() && attachments.length === 0) ||
+                  isBusy ||
+                  isUploading
+                }
+                size="icon"
+                className="rounded-full"
+              >
+                <Send className="size-4" />
+              </Button>
+            </HStack>
           </div>
-          <div className="flex items-center justify-between px-1">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isBusy}
-              className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              title={t('customAgents.testChat.attachFiles')}
-            >
-              <Paperclip className="size-4" />
-            </button>
-
-            <Button
-              onClick={onSend}
-              disabled={
-                (!inputValue.trim() && attachments.length === 0) ||
-                isBusy ||
-                isUploading
-              }
-              size="icon"
-              className="rounded-full"
-            >
-              <Send className="size-4" />
-            </Button>
-          </div>
-        </div>
-      </FileUpload.DropZone>
+        </FileUpload.DropZone>
+      </PanelFooter>
     </>
   );
 }

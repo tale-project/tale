@@ -1,12 +1,12 @@
 'use client';
 
-import { Upload, Trash2 } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
+import { FilePreviewCard } from '@/app/components/ui/data-display/file-preview-card';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
+import { FormSection } from '@/app/components/ui/forms/form-section';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -53,8 +53,8 @@ export function ProductImportForm({
   const fileValue: File | null = watch('file');
 
   return (
-    <div className="space-y-5">
-      <Stack gap={4}>
+    <Stack gap={5}>
+      <FormSection>
         <FileUpload.Root
           errorMessage={
             typeof errors.file?.message === 'string'
@@ -87,27 +87,12 @@ export function ProductImportForm({
           </ul>
         </Text>
         {fileValue && (
-          <VStack gap={2} className="border-border rounded-xl border p-3">
-            <HStack gap={3} className="w-full">
-              <HStack gap={2} className="min-w-0 flex-1">
-                <DocumentIcon fileName={fileValue.name} />
-                <VStack gap={0} className="min-w-0 flex-1">
-                  <Text as="div" variant="label" truncate>
-                    {fileValue.name}
-                  </Text>
-                </VStack>
-              </HStack>
-              <Button
-                variant="secondary"
-                size="icon"
-                onClick={() => setValue('file', null)}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </HStack>
-          </VStack>
+          <FilePreviewCard
+            fileName={fileValue.name}
+            onRemove={() => setValue('file', null)}
+          />
         )}
-      </Stack>
-    </div>
+      </FormSection>
+    </Stack>
   );
 }

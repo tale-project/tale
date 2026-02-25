@@ -1,16 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { ContentArea } from '@/app/components/layout/content-area';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { NarrowContainer, Stack } from '@/app/components/ui/layout/layout';
+import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { Text } from '@/app/components/ui/typography/text';
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
 import { useCustomAgents } from '@/app/features/custom-agents/hooks/queries';
+import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
-import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -30,9 +31,6 @@ function DelegationTab() {
   const { agent, isReadOnly } = useCustomAgentVersion();
   const updateAgent = useUpdateCustomAgent();
   const { agents, isLoading } = useCustomAgents(organizationId);
-  const [saveStatus, setSaveStatus] = useState<
-    'idle' | 'saving' | 'saved' | 'error'
-  >('idle');
 
   const currentRootId = agent.rootVersionId ?? agent._id;
 
@@ -47,105 +45,75 @@ function DelegationTab() {
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [agents, currentRootId]);
 
-  const serverSelected = useMemo(
-    () => new Set(agent.delegateAgentIds?.map(String) ?? []),
-    [agent.delegateAgentIds],
+  const [selectedValues, setSelectedValues] = useState<string[]>([]);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!agent) return;
+    setSelectedValues(agent.delegateAgentIds?.map(String) ?? []);
+    setInitialized(true);
+  }, [agent, agentId]);
+
+  const delegateOptions = useMemo(
+    () =>
+      availableAgents.map((a) => ({
+        value: String(a.rootVersionId ?? a._id),
+        label: a.displayName,
+        description: a.description,
+      })),
+    [availableAgents],
   );
 
-  const [pendingDelegates, setPendingDelegates] = useState<Set<string> | null>(
-    null,
+  const delegateData = useMemo(
+    () => ({ delegateAgentIds: selectedValues }),
+    [selectedValues],
   );
-  const inflightRef = useRef(0);
 
-  const selectedSet = pendingDelegates ?? serverSelected;
-
-  const saveWithStatus = useCallback(
-    async <T,>(updateFn: () => Promise<T>) => {
-      setSaveStatus('saving');
-      try {
-        await updateFn();
-        setSaveStatus('saved');
-      } catch (error) {
-        console.error(error);
-        setSaveStatus('error');
-        toast({
-          title: t('customAgents.agentUpdateFailed'),
-          variant: 'destructive',
-        });
-      }
+  const handleSave = useCallback(
+    async (data: { delegateAgentIds: string[] }) => {
+      await updateAgent.mutateAsync({
+        customAgentId: toId<'customAgents'>(agentId),
+        delegateAgentIds: data.delegateAgentIds.map((id) =>
+          toId<'customAgents'>(id),
+        ),
+      });
     },
-    [t],
+    [agentId, updateAgent],
   );
 
-  const toggleAgent = useCallback(
-    async (targetRootId: string) => {
-      if (isReadOnly) return;
-
-      const next = selectedSet.has(targetRootId)
-        ? [...selectedSet].filter((id) => id !== targetRootId)
-        : [...selectedSet, targetRootId];
-
-      setPendingDelegates(new Set(next));
-      inflightRef.current += 1;
-
-      await saveWithStatus(() =>
-        updateAgent.mutateAsync({
-          customAgentId: toId<'customAgents'>(agentId),
-          delegateAgentIds: next.map((id) => toId<'customAgents'>(id)),
-        }),
-      );
-
-      inflightRef.current -= 1;
-      if (inflightRef.current === 0) {
-        setPendingDelegates(null);
-      }
-    },
-    [agentId, selectedSet, updateAgent, saveWithStatus, isReadOnly],
-  );
+  const { status } = useAutoSave({
+    data: delegateData,
+    onSave: handleSave,
+    enabled: initialized && !isReadOnly,
+  });
 
   return (
-    <NarrowContainer className="py-4">
-      <Stack gap={6}>
-        <StickySectionHeader
-          title={t('customAgents.delegation.title')}
-          description={t('customAgents.delegation.description')}
-          action={<AutoSaveIndicator status={saveStatus} />}
-        />
+    <ContentArea variant="narrow" gap={6}>
+      <StickySectionHeader
+        title={t('customAgents.delegation.title')}
+        description={t('customAgents.delegation.description')}
+        action={<AutoSaveIndicator status={status} />}
+      />
 
-        <fieldset disabled={isReadOnly}>
-          {isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-6 w-full" />
-              ))}
-            </div>
-          ) : availableAgents.length === 0 ? (
-            <Text variant="muted" className="italic">
-              {t('customAgents.delegation.noDelegatesAvailable')}
-            </Text>
-          ) : (
-            <div className="space-y-1.5">
-              {availableAgents.map((a) => {
-                const rootId = String(a.rootVersionId ?? a._id);
-                return (
-                  <div key={rootId} className="flex items-center gap-2">
-                    <Checkbox
-                      label={a.displayName}
-                      checked={selectedSet.has(rootId)}
-                      onCheckedChange={() => toggleAgent(rootId)}
-                    />
-                    {a.description && (
-                      <Text as="span" variant="caption" truncate>
-                        {a.description}
-                      </Text>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </fieldset>
-      </Stack>
-    </NarrowContainer>
+      {isLoading ? (
+        <Stack gap={2}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-6 w-full" />
+          ))}
+        </Stack>
+      ) : availableAgents.length === 0 ? (
+        <Text variant="muted" className="italic">
+          {t('customAgents.delegation.noDelegatesAvailable')}
+        </Text>
+      ) : (
+        <CheckboxGroup
+          options={delegateOptions}
+          value={selectedValues}
+          onValueChange={setSelectedValues}
+          disabled={isReadOnly}
+          columns={1}
+        />
+      )}
+    </ContentArea>
   );
 }

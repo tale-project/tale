@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PanelLeftClose } from 'lucide-react';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
+import { PageLayout } from '@/app/components/layout/page-layout';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import {
@@ -24,7 +25,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   const { t: tChat } = useT('chat');
 
   return (
-    <div className="bg-background flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <PageLayout className="bg-background h-full overflow-hidden">
       <LayoutErrorBoundary organizationId={organizationId}>
         <ChatHeader organizationId={organizationId} />
       </LayoutErrorBoundary>
@@ -62,7 +63,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
           </LayoutErrorBoundary>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
 

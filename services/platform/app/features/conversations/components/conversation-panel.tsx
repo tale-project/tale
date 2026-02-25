@@ -5,8 +5,16 @@ import { useEffect, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
-import { Stack, VStack, Center } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
+import { PanelFooter } from '@/app/components/layout/panel-footer';
+import { PanelHeader } from '@/app/components/layout/panel-header';
+import { EmptyState } from '@/app/components/ui/feedback/empty-state';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import {
+  Center,
+  HStack,
+  Stack,
+  VStack,
+} from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { toast } from '@/app/hooks/use-toast';
@@ -29,9 +37,9 @@ const MessageEditor = lazyComponent(
     import('./message-editor').then((mod) => ({ default: mod.MessageEditor })),
   {
     loading: () => (
-      <div className="flex items-center justify-center p-4">
+      <Center className="p-4">
         <Loader2Icon className="text-muted-foreground size-6 animate-spin" />
-      </div>
+      </Center>
     ),
   },
 );
@@ -221,20 +229,11 @@ export function ConversationPanel({
   if (!selectedConversationId) {
     return (
       <Center className="flex-1 px-4">
-        <VStack gap={6} align="center" className="w-full max-w-[316px]">
-          <MessageSquareMoreIcon className="text-muted-foreground size-5" />
-          <VStack gap={3} align="center" className="h-14 w-full text-center">
-            <Heading level={2} size="lg" className="tracking-[-0.12px]">
-              {tConversations('panel.noSelected')}
-            </Heading>
-            <Text
-              variant="muted"
-              className="leading-[20px] font-normal tracking-[-0.084px]"
-            >
-              {tConversations('panel.selectToView')}
-            </Text>
-          </VStack>
-        </VStack>
+        <EmptyState
+          icon={MessageSquareMoreIcon}
+          title={tConversations('panel.noSelected')}
+          description={tConversations('panel.selectToView')}
+        />
       </Center>
     );
   }
@@ -245,63 +244,45 @@ export function ConversationPanel({
         ref={containerRef}
         className="relative flex flex-[1_1_0] flex-col overflow-y-auto"
       >
-        {/* Skeleton Header */}
-        <div className="bg-background/50 border-border sticky top-0 z-50 flex h-16 flex-[0_0_auto] border-b px-4 py-3 backdrop-blur-sm">
-          <div className="flex flex-1 items-center gap-3">
-            <div className="bg-muted size-10 animate-pulse rounded-full" />
-            <div className="flex flex-1 flex-col gap-1.5">
-              <div className="bg-muted h-4 w-40 animate-pulse rounded" />
-              <div className="bg-muted h-3 w-24 animate-pulse rounded" />
-            </div>
-          </div>
-        </div>
+        <PanelHeader>
+          <HStack gap={3} className="flex-1">
+            <Skeleton className="size-10 rounded-full" />
+            <VStack className="flex-1 gap-1.5">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-24" />
+            </VStack>
+          </HStack>
+        </PanelHeader>
 
-        {/* Skeleton Messages */}
         <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-6">
           <Stack gap={4} className="mb-8">
-            {/* Left-aligned message */}
-            <div className="flex flex-col">
-              <div className="flex justify-start">
-                <div className="relative">
-                  <div className="max-w-[40rem] overflow-hidden rounded-2xl bg-white">
-                    <div className="bg-muted h-24 w-96 animate-pulse" />
-                  </div>
-                  <div className="bg-muted/60 mt-1 h-3 w-20 animate-pulse rounded" />
-                </div>
+            <div className="flex justify-start">
+              <div className="relative">
+                <Skeleton className="h-24 w-96 rounded-2xl" />
+                <Skeleton className="mt-1 h-3 w-20" />
               </div>
             </div>
 
-            {/* Right-aligned message */}
-            <div className="flex flex-col">
-              <div className="flex justify-end">
-                <div className="relative mb-6">
-                  <div className="bg-muted max-w-[40rem] overflow-hidden rounded-2xl shadow-sm">
-                    <div className="bg-muted/80 h-20 w-80 animate-pulse" />
-                  </div>
-                </div>
+            <div className="flex justify-end">
+              <div className="relative mb-6">
+                <Skeleton className="h-20 w-80 rounded-2xl" />
               </div>
             </div>
 
-            {/* Left-aligned message */}
-            <div className="flex flex-col">
-              <div className="flex justify-start">
-                <div className="relative">
-                  <div className="max-w-[40rem] overflow-hidden rounded-2xl bg-white">
-                    <div className="bg-muted h-16 w-72 animate-pulse" />
-                  </div>
-                  <div className="bg-muted/60 mt-1 h-3 w-20 animate-pulse rounded" />
-                </div>
+            <div className="flex justify-start">
+              <div className="relative">
+                <Skeleton className="h-16 w-72 rounded-2xl" />
+                <Skeleton className="mt-1 h-3 w-20" />
               </div>
             </div>
           </Stack>
         </div>
 
-        {/* Skeleton Message Editor */}
-        <div className="bg-background sticky bottom-0 z-50 px-2">
+        <PanelFooter className="px-2">
           <div className="mx-auto w-full max-w-3xl px-4 py-4">
-            <div className="bg-muted/40 border-border h-32 w-full animate-pulse rounded-lg border" />
+            <Skeleton className="h-32 w-full rounded-lg" />
           </div>
-        </div>
+        </PanelFooter>
       </div>
     );
   }
@@ -340,7 +321,7 @@ export function ConversationPanel({
       ref={containerRef}
       className="relative flex flex-[1_1_0] flex-col overflow-y-auto"
     >
-      <div className="bg-background/50 border-border sticky top-0 z-50 flex h-16 flex-[0_0_auto] border-b px-4 py-3 backdrop-blur-sm">
+      <PanelHeader>
         <ConversationHeader
           conversation={conversation}
           organizationId={conversation.organizationId}
@@ -354,12 +335,12 @@ export function ConversationPanel({
             onSelectedConversationChange(null);
           }}
         />
-      </div>
+      </PanelHeader>
       <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
         {messageGroups.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
+          <Center className="h-full">
             <Text variant="muted">{tConversations('panel.noMessages')}</Text>
-          </div>
+          </Center>
         ) : (
           messageGroups.map((group) => (
             <div key={group.date} className="relative">
@@ -406,7 +387,7 @@ export function ConversationPanel({
           ))
         )}
       </div>
-      <div className="bg-background sticky bottom-0 z-50 px-2">
+      <PanelFooter className="px-2">
         {conversation.status === 'open' ? (
           <div ref={messageComposerRef} className="mx-auto w-full max-w-3xl">
             <MessageEditor
@@ -434,7 +415,7 @@ export function ConversationPanel({
             </Text>
           </div>
         )}
-      </div>
+      </PanelFooter>
     </div>
   );
 }

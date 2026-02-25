@@ -7,14 +7,14 @@ import { useState, useMemo, useCallback } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
+import { ContentArea } from '@/app/components/layout/content-area';
 import { CodeBlock } from '@/app/components/ui/data-display/code-block';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { Stack } from '@/app/components/ui/layout/layout';
-import { SectionHeader } from '@/app/components/ui/layout/section-header';
+import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -286,13 +286,11 @@ export function CustomAgentWebhookSection({
   }, [usageUrl, t]);
 
   return (
-    <div className="w-full px-6 py-4">
-      <Stack gap={6}>
-        <SectionHeader
-          title={t('customAgents.webhook.title')}
-          description={t('customAgents.webhook.description')}
-        />
-
+    <ContentArea variant="panel" gap={6}>
+      <PageSection
+        title={t('customAgents.webhook.title')}
+        description={t('customAgents.webhook.description')}
+      >
         {!isPublished && (
           <Alert
             variant="warning"
@@ -371,7 +369,7 @@ export function CustomAgentWebhookSection({
           isDeleting={isDeleting}
           onDelete={handleDelete}
         />
-      </Stack>
-    </div>
+      </PageSection>
+    </ContentArea>
   );
 }

@@ -5,10 +5,10 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import type { RagStatus } from '@/types/documents';
 
+import { ContentArea } from '@/app/components/layout/content-area';
 import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Text } from '@/app/components/ui/typography/text';
@@ -170,95 +170,93 @@ export function CustomAgentKnowledge({
   );
 
   return (
-    <NarrowContainer className="py-4">
-      <Stack gap={6}>
-        <SectionHeader
-          title={t('customAgents.form.sectionKnowledge')}
-          description={t('customAgents.form.sectionKnowledgeDescription')}
-          action={<AutoSaveIndicator status={status} />}
-        />
+    <ContentArea variant="narrow" gap={6}>
+      <SectionHeader
+        title={t('customAgents.form.sectionKnowledge')}
+        description={t('customAgents.form.sectionKnowledgeDescription')}
+        action={<AutoSaveIndicator status={status} />}
+      />
 
-        <RadioGroup
-          label={t('customAgents.knowledge.retrievalMode')}
-          value={knowledgeMode ?? 'off'}
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
-          onValueChange={(value) => setKnowledgeMode(value as RetrievalMode)}
-          options={modeOptions}
-          disabled={isReadOnly}
-        />
+      <RadioGroup
+        label={t('customAgents.knowledge.retrievalMode')}
+        value={knowledgeMode ?? 'off'}
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
+        onValueChange={(value) => setKnowledgeMode(value as RetrievalMode)}
+        options={modeOptions}
+        disabled={isReadOnly}
+      />
 
-        {isEnabled && (
-          <>
-            {agent.teamId && teamName ? (
-              <Text variant="muted">
-                {t('customAgents.knowledge.teamDocumentsInfo', {
-                  teamName,
-                })}
-              </Text>
-            ) : (
-              <Text variant="muted">
-                {t('customAgents.knowledge.noTeamAssigned')}
-              </Text>
+      {isEnabled && (
+        <>
+          {agent.teamId && teamName ? (
+            <Text variant="muted">
+              {t('customAgents.knowledge.teamDocumentsInfo', {
+                teamName,
+              })}
+            </Text>
+          ) : (
+            <Text variant="muted">
+              {t('customAgents.knowledge.noTeamAssigned')}
+            </Text>
+          )}
+
+          <Switch
+            checked={includeOrgKnowledge ?? false}
+            onCheckedChange={(checked) => setIncludeOrgKnowledge(checked)}
+            label={t('customAgents.knowledge.includeOrgKnowledge')}
+            description={t('customAgents.knowledge.includeOrgKnowledgeHelp')}
+            disabled={isReadOnly}
+          />
+
+          {agent.teamId && teamDocuments.length > 0 && (
+            <PageSection
+              as="h3"
+              titleSize="sm"
+              titleWeight="medium"
+              title={t('customAgents.knowledge.teamDocuments')}
+              gap={3}
+            >
+              <div className="divide-y rounded-lg border">
+                {teamDocuments.map((doc) => (
+                  <DocumentRow key={doc.id} doc={doc} />
+                ))}
+              </div>
+            </PageSection>
+          )}
+
+          {agent.teamId &&
+            teamDocuments.length === 0 &&
+            !isDocumentsLoading && (
+              <EmptyPlaceholder icon={FileText}>
+                {t('customAgents.knowledge.emptyState')}
+              </EmptyPlaceholder>
             )}
 
-            <Switch
-              checked={includeOrgKnowledge ?? false}
-              onCheckedChange={(checked) => setIncludeOrgKnowledge(checked)}
-              label={t('customAgents.knowledge.includeOrgKnowledge')}
-              description={t('customAgents.knowledge.includeOrgKnowledgeHelp')}
-              disabled={isReadOnly}
-            />
+          {includeOrgKnowledge && orgDocuments.length > 0 && (
+            <PageSection
+              as="h3"
+              titleSize="sm"
+              titleWeight="medium"
+              title={t('customAgents.knowledge.orgDocuments')}
+              gap={3}
+            >
+              <div className="divide-y rounded-lg border">
+                {orgDocuments.map((doc) => (
+                  <DocumentRow key={doc.id} doc={doc} />
+                ))}
+              </div>
+            </PageSection>
+          )}
 
-            {agent.teamId && teamDocuments.length > 0 && (
-              <PageSection
-                as="h3"
-                titleSize="sm"
-                titleWeight="medium"
-                title={t('customAgents.knowledge.teamDocuments')}
-                gap={3}
-              >
-                <div className="divide-y rounded-lg border">
-                  {teamDocuments.map((doc) => (
-                    <DocumentRow key={doc.id} doc={doc} />
-                  ))}
-                </div>
-              </PageSection>
+          {includeOrgKnowledge &&
+            orgDocuments.length === 0 &&
+            !isDocumentsLoading && (
+              <EmptyPlaceholder icon={FileText}>
+                {t('customAgents.knowledge.orgDocumentsEmptyState')}
+              </EmptyPlaceholder>
             )}
-
-            {agent.teamId &&
-              teamDocuments.length === 0 &&
-              !isDocumentsLoading && (
-                <EmptyPlaceholder icon={FileText}>
-                  {t('customAgents.knowledge.emptyState')}
-                </EmptyPlaceholder>
-              )}
-
-            {includeOrgKnowledge && orgDocuments.length > 0 && (
-              <PageSection
-                as="h3"
-                titleSize="sm"
-                titleWeight="medium"
-                title={t('customAgents.knowledge.orgDocuments')}
-                gap={3}
-              >
-                <div className="divide-y rounded-lg border">
-                  {orgDocuments.map((doc) => (
-                    <DocumentRow key={doc.id} doc={doc} />
-                  ))}
-                </div>
-              </PageSection>
-            )}
-
-            {includeOrgKnowledge &&
-              orgDocuments.length === 0 &&
-              !isDocumentsLoading && (
-                <EmptyPlaceholder icon={FileText}>
-                  {t('customAgents.knowledge.orgDocumentsEmptyState')}
-                </EmptyPlaceholder>
-              )}
-          </>
-        )}
-      </Stack>
-    </NarrowContainer>
+        </>
+      )}
+    </ContentArea>
   );
 }

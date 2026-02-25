@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { Form } from '@/app/components/ui/forms/form';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
@@ -115,7 +116,7 @@ function SignUpPage() {
   return (
     <AuthFormLayout title={t('signup.signupTitle')}>
       <Stack gap={8}>
-        <Stack gap={5}>
+        <FormSection>
           <Form onSubmit={form.handleSubmit(handleSubmit)} autoComplete="on">
             <Input
               id="email"
@@ -144,10 +145,7 @@ function SignUpPage() {
                 {...form.register('password')}
               />
               {password && (
-                <Stack
-                  gap={1}
-                  className="text-muted-foreground list-none text-xs"
-                >
+                <ul className="text-muted-foreground flex list-none flex-col gap-1 text-xs">
                   <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
                     {t('requirements.length')}
                   </li>
@@ -163,7 +161,7 @@ function SignUpPage() {
                   <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
                     {t('requirements.specialChar')}
                   </li>
-                </Stack>
+                </ul>
               )}
             </Stack>
 
@@ -182,7 +180,7 @@ function SignUpPage() {
               {isSubmitting ? t('signup.creating') : t('signup.createButton')}
             </Button>
           </Form>
-        </Stack>
+        </FormSection>
 
         {showSsoButton && (
           <>

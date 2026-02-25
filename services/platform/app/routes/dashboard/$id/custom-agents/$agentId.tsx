@@ -2,12 +2,12 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
 
-import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
-import { StickyHeader } from '@/app/components/layout/sticky-header';
+import { ContentArea } from '@/app/components/layout/content-area';
+import { PageLayout } from '@/app/components/layout/page-layout';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Stack, NarrowContainer } from '@/app/components/ui/layout/layout';
+import { Stack } from '@/app/components/ui/layout/layout';
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -76,67 +76,70 @@ function CustomAgentDetailLayout() {
 
   if (isLoadingAgent || isLoadingVersions) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        <StickyHeader>
-          <AdaptiveHeaderRoot standalone={false} className="gap-2">
-            <Heading level={1} size="base" truncate>
-              <Link
-                to="/dashboard/$id/custom-agents"
-                params={{ id: organizationId }}
-                className="text-muted-foreground hidden md:inline"
-              >
-                {t('customAgents.title')}&nbsp;&nbsp;
-              </Link>
-              <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-              <Skeleton className="inline-block h-4 w-32 align-middle" />
-            </Heading>
-            <Skeleton className="ml-2 h-5 w-16 rounded-full" />
-          </AdaptiveHeaderRoot>
-          <TabNavigation
-            items={
-              [
-                {
-                  label: t('customAgents.navigation.general'),
-                  href: `/dashboard/${organizationId}/custom-agents/${agentId}`,
-                  matchMode: 'exact',
-                },
-                {
-                  label: t('customAgents.navigation.instructionsModel'),
-                  href: `/dashboard/${organizationId}/custom-agents/${agentId}/instructions`,
-                  matchMode: 'exact',
-                },
-                {
-                  label: t('customAgents.navigation.tools'),
-                  href: `/dashboard/${organizationId}/custom-agents/${agentId}/tools`,
-                  matchMode: 'exact',
-                },
-                {
-                  label: t('customAgents.navigation.knowledge'),
-                  href: `/dashboard/${organizationId}/custom-agents/${agentId}/knowledge`,
-                  matchMode: 'exact',
-                },
-                {
-                  label: t('customAgents.navigation.delegation'),
-                  href: `/dashboard/${organizationId}/custom-agents/${agentId}/delegation`,
-                  matchMode: 'exact',
-                },
-                {
-                  label: t('customAgents.navigation.webhook'),
-                  href: `/dashboard/${organizationId}/custom-agents/${agentId}/webhook`,
-                  matchMode: 'exact',
-                },
-              ] satisfies TabNavigationItem[]
-            }
-            standalone={false}
-            ariaLabel={tCommon('aria.customAgentsNavigation')}
-          >
-            <div className="ml-auto flex items-center gap-2">
-              <Skeleton className="h-8 w-14 rounded-md" />
-              <Skeleton className="h-8 w-20 rounded-md" />
-            </div>
-          </TabNavigation>
-        </StickyHeader>
-        <NarrowContainer className="py-4">
+      <PageLayout
+        header={
+          <>
+            <AdaptiveHeaderRoot standalone={false} className="gap-2">
+              <Heading level={1} size="base" truncate>
+                <Link
+                  to="/dashboard/$id/custom-agents"
+                  params={{ id: organizationId }}
+                  className="text-muted-foreground hidden md:inline"
+                >
+                  {t('customAgents.title')}&nbsp;&nbsp;
+                </Link>
+                <span className="hidden md:inline">/&nbsp;&nbsp;</span>
+                <Skeleton className="inline-block h-4 w-32 align-middle" />
+              </Heading>
+              <Skeleton className="ml-2 h-5 w-16 rounded-full" />
+            </AdaptiveHeaderRoot>
+            <TabNavigation
+              items={
+                [
+                  {
+                    label: t('customAgents.navigation.general'),
+                    href: `/dashboard/${organizationId}/custom-agents/${agentId}`,
+                    matchMode: 'exact',
+                  },
+                  {
+                    label: t('customAgents.navigation.instructionsModel'),
+                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/instructions`,
+                    matchMode: 'exact',
+                  },
+                  {
+                    label: t('customAgents.navigation.tools'),
+                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/tools`,
+                    matchMode: 'exact',
+                  },
+                  {
+                    label: t('customAgents.navigation.knowledge'),
+                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/knowledge`,
+                    matchMode: 'exact',
+                  },
+                  {
+                    label: t('customAgents.navigation.delegation'),
+                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/delegation`,
+                    matchMode: 'exact',
+                  },
+                  {
+                    label: t('customAgents.navigation.webhook'),
+                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/webhook`,
+                    matchMode: 'exact',
+                  },
+                ] satisfies TabNavigationItem[]
+              }
+              standalone={false}
+              ariaLabel={tCommon('aria.customAgentsNavigation')}
+            >
+              <div className="ml-auto flex items-center gap-2">
+                <Skeleton className="h-8 w-14 rounded-md" />
+                <Skeleton className="h-8 w-20 rounded-md" />
+              </div>
+            </TabNavigation>
+          </>
+        }
+      >
+        <ContentArea variant="narrow" className="py-4">
           <Stack gap={6}>
             <Stack gap={1}>
               <Skeleton className="h-5 w-20" />
@@ -165,61 +168,63 @@ function CustomAgentDetailLayout() {
               </Stack>
             </Stack>
           </Stack>
-        </NarrowContainer>
-      </div>
+        </ContentArea>
+      </PageLayout>
     );
   }
 
   if (!agent) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        <NarrowContainer className="py-6">
+      <PageLayout>
+        <ContentArea variant="narrow" className="py-6">
           <Text variant="muted">{t('customAgents.agentNotFound')}</Text>
-        </NarrowContainer>
-      </div>
+        </ContentArea>
+      </PageLayout>
     );
   }
 
   return (
     <CustomAgentVersionProvider agent={agent} versions={versions ?? []}>
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-auto">
-        <StickyHeader>
-          <AdaptiveHeaderRoot standalone={false} className="gap-2">
-            <Heading level={1} size="base" truncate>
-              <Link
-                to="/dashboard/$id/custom-agents"
-                params={{ id: organizationId }}
-                className={cn(
-                  'hidden md:inline text-foreground',
-                  agent.displayName && 'text-muted-foreground cursor-pointer',
+      <PageLayout
+        header={
+          <>
+            <AdaptiveHeaderRoot standalone={false} className="gap-2">
+              <Heading level={1} size="base" truncate>
+                <Link
+                  to="/dashboard/$id/custom-agents"
+                  params={{ id: organizationId }}
+                  className={cn(
+                    'hidden md:inline text-foreground',
+                    agent.displayName && 'text-muted-foreground cursor-pointer',
+                  )}
+                >
+                  {t('customAgents.title')}&nbsp;&nbsp;
+                </Link>
+                {agent.displayName && (
+                  <span className="text-foreground">
+                    <span className="hidden md:inline">/&nbsp;&nbsp;</span>
+                    {agent.displayName}
+                  </span>
                 )}
+              </Heading>
+              <Badge
+                variant={agent.status === 'active' ? 'green' : 'outline'}
+                className="ml-2"
               >
-                {t('customAgents.title')}&nbsp;&nbsp;
-              </Link>
-              {agent.displayName && (
-                <span className="text-foreground">
-                  <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-                  {agent.displayName}
-                </span>
-              )}
-            </Heading>
-            <Badge
-              variant={agent.status === 'active' ? 'green' : 'outline'}
-              className="ml-2"
-            >
-              {tCommon(`status.${agent.status}`)}
-            </Badge>
-          </AdaptiveHeaderRoot>
-          <CustomAgentNavigation
-            organizationId={organizationId}
-            agentId={agentId}
-            onTestClick={() => setIsTestOpen(true)}
-          />
-        </StickyHeader>
-
-        <LayoutErrorBoundary organizationId={organizationId}>
-          <Outlet />
-        </LayoutErrorBoundary>
+                {tCommon(`status.${agent.status}`)}
+              </Badge>
+            </AdaptiveHeaderRoot>
+            <CustomAgentNavigation
+              organizationId={organizationId}
+              agentId={agentId}
+              onTestClick={() => setIsTestOpen(true)}
+            />
+          </>
+        }
+        organizationId={organizationId}
+        className="relative"
+      >
+        <Outlet />
 
         <Sheet
           open={isTestOpen}
@@ -236,7 +241,7 @@ function CustomAgentDetailLayout() {
             onReset={handleTestReset}
           />
         </Sheet>
-      </div>
+      </PageLayout>
     </CustomAgentVersionProvider>
   );
 }

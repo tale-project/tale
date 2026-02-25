@@ -9,7 +9,9 @@ import ReactMarkdown from 'react-markdown';
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
+import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
@@ -124,25 +126,15 @@ export function WebsitePagesDialog({
         )}
 
         {!isLoadingFirst && results.length === 0 && (
-          <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-12">
-            <FileText className="size-8" />
-            <Text>{t('pagesDialog.noPages')}</Text>
-          </div>
+          <EmptyState icon={FileText} title={t('pagesDialog.noPages')} />
         )}
 
         {results.map((page) => (
-          <article
-            key={page._id}
-            className="border-border rounded-lg border p-4"
-          >
-            <Heading level={3} size="sm" weight="medium" className="mb-1">
+          <BorderedSection key={page._id} padding={4} gap={2}>
+            <Heading level={3} size="sm" weight="medium">
               {page.title || page.url}
             </Heading>
-            {page.title && (
-              <Text variant="caption" className="mb-3">
-                {page.url}
-              </Text>
-            )}
+            {page.title && <Text variant="caption">{page.url}</Text>}
             {page.content ? (
               <CollapsibleMarkdown content={page.content} />
             ) : (
@@ -150,7 +142,7 @@ export function WebsitePagesDialog({
                 {t('pagesDialog.noContent')}
               </Text>
             )}
-          </article>
+          </BorderedSection>
         ))}
 
         {!isDone && !isLoadingFirst && (

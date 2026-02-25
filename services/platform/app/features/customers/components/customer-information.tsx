@@ -1,6 +1,7 @@
 'use client';
 
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -20,9 +21,7 @@ export function CustomerInformation({ customer }: CustomerInformationProps) {
 
   return (
     <>
-      {/* Customer Info Section */}
       <Stack gap={5}>
-        {/* Customer Name & Email */}
         <Stack gap={1}>
           <Heading level={3} size="lg" className="leading-none">
             {customer.name || t('labels.notAvailable')}
@@ -32,62 +31,35 @@ export function CustomerInformation({ customer }: CustomerInformationProps) {
           </Text>
         </Stack>
 
-        {/* Customer Details Grid */}
-        <Stack gap={3}>
-          <HStack>
-            <Text
-              as="div"
-              variant="caption"
-              className="w-[5.625rem] tracking-tight"
-            >
-              {t('labels.status')}
-            </Text>
-            {customer.status && (
+        <FieldGroup gap={3}>
+          <Field label={t('labels.status')}>
+            {customer.status ? (
               <CustomerStatusBadge status={customer.status} />
+            ) : (
+              t('labels.notAvailable')
             )}
-          </HStack>
+          </Field>
 
-          <HStack>
-            <Text
-              as="div"
-              variant="caption"
-              className="w-[5.625rem] tracking-tight"
-            >
-              {t('labels.source')}
-            </Text>
+          <Field label={t('labels.source')}>
             <Text as="div" variant="label" className="tracking-tight">
               {customer.source || t('labels.notAvailable')}
             </Text>
-          </HStack>
+          </Field>
 
-          <HStack>
-            <Text
-              as="div"
-              variant="caption"
-              className="w-[5.625rem] tracking-tight"
-            >
-              {t('labels.created')}
-            </Text>
+          <Field label={t('labels.created')}>
             <Text as="div" variant="label" className="tracking-tight">
               {customer._creationTime
                 ? formatDate(new Date(customer._creationTime), 'long')
                 : t('labels.notAvailable')}
             </Text>
-          </HStack>
+          </Field>
 
-          <HStack>
-            <Text
-              as="div"
-              variant="caption"
-              className="w-[5.625rem] tracking-tight"
-            >
-              {t('labels.locale')}
-            </Text>
+          <Field label={t('labels.locale')}>
             <Text as="div" variant="label" className="text-base tracking-tight">
               {customer.locale || 'en'}
             </Text>
-          </HStack>
-        </Stack>
+          </Field>
+        </FieldGroup>
       </Stack>
     </>
   );

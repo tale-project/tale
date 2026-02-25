@@ -3,6 +3,7 @@
 import { ChevronRight, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
+import { Heading } from '@/app/components/ui/typography/heading';
 import { cn } from '@/lib/utils/cn';
 
 interface CollapsibleSectionProps {
@@ -31,7 +32,7 @@ export function CollapsibleSection({
 
   return (
     <section aria-labelledby={headingId}>
-      <h3 id={headingId} className="text-foreground text-sm font-medium">
+      <Heading id={headingId} level={3} size="sm" weight="medium">
         <button
           type="button"
           aria-expanded={isOpen}
@@ -48,7 +49,7 @@ export function CollapsibleSection({
           <Icon className="text-muted-foreground size-4" />
           <span>{title}</span>
         </button>
-      </h3>
+      </Heading>
       {isOpen && (
         <div id={`${id}-content`} className="mt-3">
           {children}

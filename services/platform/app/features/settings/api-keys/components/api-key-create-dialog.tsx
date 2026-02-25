@@ -7,9 +7,9 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
@@ -158,7 +158,7 @@ export function ApiKeyCreateDialog({
           </Button>
         }
       >
-        <Stack gap={4}>
+        <FormSection>
           <Text variant="muted">
             {tSettings('apiKeys.keyCreatedDescription')}
           </Text>
@@ -181,7 +181,7 @@ export function ApiKeyCreateDialog({
               )}
             </Button>
           </div>
-        </Stack>
+        </FormSection>
       </FormDialog>
     );
   }
@@ -196,7 +196,7 @@ export function ApiKeyCreateDialog({
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit(onSubmit)}
     >
-      <Stack gap={4}>
+      <FormSection>
         <Input
           id="name"
           label={tSettings('apiKeys.form.name')}
@@ -213,7 +213,7 @@ export function ApiKeyCreateDialog({
           onValueChange={(value) => setValue('expiresIn', value)}
           options={expiresOptions}
         />
-      </Stack>
+      </FormSection>
     </FormDialog>
   );
 }

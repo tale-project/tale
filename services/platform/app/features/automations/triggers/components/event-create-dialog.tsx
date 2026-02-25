@@ -5,9 +5,9 @@ import { useState, useMemo, useEffect } from 'react';
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import {
@@ -189,7 +189,7 @@ export function EventCreateDialog({
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
-      <Stack gap={4}>
+      <FormSection>
         {isEditMode ? (
           <div>
             <Text variant="label" className="mb-1">
@@ -234,7 +234,7 @@ export function EventCreateDialog({
             ))}
           </div>
         )}
-      </Stack>
+      </FormSection>
     </FormDialog>
   );
 }

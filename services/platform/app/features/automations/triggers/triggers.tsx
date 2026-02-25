@@ -2,8 +2,8 @@
 
 import type { Id } from '@/convex/_generated/dataModel';
 
+import { ContentArea } from '@/app/components/layout/content-area';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Stack } from '@/app/components/ui/layout/layout';
 
 import { useWorkflow } from '../hooks/queries';
 import { EventsSection } from './components/events-section';
@@ -20,37 +20,33 @@ export function Triggers({ automationId, organizationId }: TriggersProps) {
 
   if (!workflow) {
     return (
-      <div className="w-full px-4 py-6">
-        <Stack gap={4}>
-          <Skeleton className="h-10 w-80" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-10 w-80" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-10 w-80" />
-          <Skeleton className="h-32 w-full" />
-        </Stack>
-      </div>
+      <ContentArea gap={4}>
+        <Skeleton className="h-10 w-80" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-10 w-80" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-10 w-80" />
+        <Skeleton className="h-32 w-full" />
+      </ContentArea>
     );
   }
 
   const workflowRootId = workflow.rootVersionId ?? workflow._id;
 
   return (
-    <div className="w-full px-4 py-6">
-      <Stack gap={6}>
-        <SchedulesSection
-          workflowRootId={workflowRootId}
-          organizationId={organizationId}
-        />
-        <WebhooksSection
-          workflowRootId={workflowRootId}
-          organizationId={organizationId}
-        />
-        <EventsSection
-          workflowRootId={workflowRootId}
-          organizationId={organizationId}
-        />
-      </Stack>
-    </div>
+    <ContentArea gap={6}>
+      <SchedulesSection
+        workflowRootId={workflowRootId}
+        organizationId={organizationId}
+      />
+      <WebhooksSection
+        workflowRootId={workflowRootId}
+        organizationId={organizationId}
+      />
+      <EventsSection
+        workflowRootId={workflowRootId}
+        organizationId={organizationId}
+      />
+    </ContentArea>
   );
 }

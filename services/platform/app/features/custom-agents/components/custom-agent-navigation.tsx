@@ -307,7 +307,6 @@ export function CustomAgentNavigation({
               onClick={handleCreateDraft}
               disabled={isCreatingDraft}
               size="sm"
-              variant="secondary"
             >
               <Pencil className="mr-1.5 size-3.5" aria-hidden="true" />
               {hasDraft
@@ -328,7 +327,6 @@ export function CustomAgentNavigation({
               onClick={handleCreateDraft}
               disabled={isCreatingDraft}
               size="sm"
-              variant="secondary"
             >
               <Pencil className="mr-1.5 size-3.5" aria-hidden="true" />
               {hasDraft

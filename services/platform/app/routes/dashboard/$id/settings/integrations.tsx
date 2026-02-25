@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Card } from '@/app/components/ui/layout/card';
-import { Stack, Grid, HStack } from '@/app/components/ui/layout/layout';
+import { Grid, HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Integrations } from '@/app/features/settings/integrations/components/integrations';
 import {
   useIntegrations,
@@ -56,13 +56,9 @@ function IntegrationCardSkeleton() {
           <Skeleton className="size-6 rounded-sm" />
         </div>
         <Stack gap={1}>
-          <HStack gap={2}>
-            <Skeleton className="h-5 w-24" />
-          </HStack>
-          <div className="space-y-1">
-            <Skeleton className="h-5 w-full" />
-            <Skeleton className="h-5 w-4/5" />
-          </div>
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-4/5" />
         </Stack>
       </Stack>
     </Card>
@@ -71,13 +67,11 @@ function IntegrationCardSkeleton() {
 
 function IntegrationsSkeleton() {
   return (
-    <Stack>
-      <Grid cols={1} md={2} lg={3}>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <IntegrationCardSkeleton key={i} />
-        ))}
-      </Grid>
-    </Stack>
+    <Grid cols={1} md={2} lg={3}>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <IntegrationCardSkeleton key={i} />
+      ))}
+    </Grid>
   );
 }
 

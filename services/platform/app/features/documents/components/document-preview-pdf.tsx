@@ -3,6 +3,7 @@
 import { ChevronUp, ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
+import { HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
 
 interface PageViewport {
@@ -246,8 +247,11 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
         />
         {/* Sticky center-bottom toolbar */}
         <div className="sticky top-[95%] z-50 flex w-full justify-center">
-          <div className="bg-background text-foreground flex items-center gap-4 rounded-full px-4 py-2 shadow-xl ring-1 ring-white/10">
-            <div className="flex items-center gap-2">
+          <HStack
+            gap={4}
+            className="bg-background text-foreground rounded-full px-4 py-2 shadow-xl ring-1 ring-white/10"
+          >
+            <HStack gap={2}>
               <button
                 onClick={onPrevPage}
                 disabled={pageNum <= 1}
@@ -264,7 +268,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
               >
                 <ChevronDown className="size-5" />
               </button>
-            </div>
+            </HStack>
             <input
               type="number"
               min={1}
@@ -277,7 +281,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
             <div className="w-4 text-center text-sm tabular-nums">
               {totalPages || 0}
             </div>
-            <div className="flex items-center gap-2">
+            <HStack gap={2}>
               <button
                 onClick={onZoomOut}
                 className="grid size-8 place-items-center rounded-full transition hover:bg-white/10"
@@ -292,8 +296,8 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
               >
                 <ZoomIn className="size-4" />
               </button>
-            </div>
-          </div>
+            </HStack>
+          </HStack>
         </div>
         {!pdfDoc && (
           <div className="mt-4 text-center text-gray-500">

@@ -15,6 +15,8 @@ import {
 import { memo, useMemo, useState } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { ActionRow } from '@/app/components/ui/layout/action-row';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
@@ -305,8 +307,8 @@ function WorkflowCreationApprovalCardComponent({
       )}
     >
       {/* Header */}
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <HStack gap={2} align="start" justify="between" className="mb-3">
+        <HStack gap={2}>
           <div className="bg-primary/10 rounded-md p-1.5">
             <Workflow className="text-primary size-4" />
           </div>
@@ -320,7 +322,7 @@ function WorkflowCreationApprovalCardComponent({
               </Text>
             )}
           </div>
-        </div>
+        </HStack>
         <Badge
           variant={
             status === 'approved'
@@ -333,11 +335,11 @@ function WorkflowCreationApprovalCardComponent({
         >
           {status}
         </Badge>
-      </div>
+      </HStack>
 
       {/* Workflow Steps Preview */}
-      <div className="mb-3 space-y-2">
-        <div className="flex items-center gap-2">
+      <Stack gap={2} className="mb-3">
+        <HStack gap={2}>
           <button
             type="button"
             onClick={() => setShowSteps(!showSteps)}
@@ -364,7 +366,7 @@ function WorkflowCreationApprovalCardComponent({
               )}
             </button>
           </Tooltip>
-        </div>
+        </HStack>
 
         {showSteps && (
           <div className="bg-muted/50 space-y-0.5 rounded-md p-2">
@@ -428,17 +430,21 @@ function WorkflowCreationApprovalCardComponent({
                           key={`${entry.label}-${idx}`}
                           className="flex gap-1.5 text-[11px]"
                         >
-                          <span className="text-muted-foreground shrink-0">
+                          <Text
+                            as="span"
+                            className="text-muted-foreground shrink-0"
+                          >
                             {entry.label}:
-                          </span>
-                          <span
+                          </Text>
+                          <Text
+                            as="span"
                             className={cn(
                               'min-w-0 break-all',
                               entry.mono && 'font-mono text-[10px]',
                             )}
                           >
                             {entry.value}
-                          </span>
+                          </Text>
                         </div>
                       ))}
                     </div>
@@ -448,15 +454,15 @@ function WorkflowCreationApprovalCardComponent({
             })}
           </div>
         )}
-      </div>
+      </Stack>
 
       {/* Execution Result (if approved and executed) */}
       {status === 'approved' && executedAt && !executionError && (
-        <div className="mb-3 space-y-1">
-          <div className="flex items-center gap-1 text-xs text-green-600">
+        <Stack gap={1} className="mb-3">
+          <HStack gap={1} className="text-xs text-green-600">
             <CheckCircle className="size-3" />
             Workflow created successfully
-          </div>
+          </HStack>
           {metadata.createdWorkflowId && (
             <Link
               to="/dashboard/$id/automations/$amId"
@@ -467,28 +473,40 @@ function WorkflowCreationApprovalCardComponent({
               <ExternalLink className="size-3" />
             </Link>
           )}
-        </div>
+        </Stack>
       )}
 
       {/* Execution Error (persisted from backend) */}
       {status === 'approved' && executionError && (
-        <div className="text-destructive mb-3 flex items-start gap-1 text-xs break-words">
+        <HStack
+          gap={1}
+          align="start"
+          className="text-destructive mb-3 text-xs wrap-break-word"
+        >
           <XCircle className="size-3 shrink-0" />
-          <span className="min-w-0">{executionError}</span>
-        </div>
+          <Text as="span" className="min-w-0">
+            {executionError}
+          </Text>
+        </HStack>
       )}
 
       {/* Error Message (temporary UI error) */}
       {error && (
-        <div className="text-destructive mb-3 flex items-start gap-1 text-xs break-words">
+        <HStack
+          gap={1}
+          align="start"
+          className="text-destructive mb-3 text-xs wrap-break-word"
+        >
           <XCircle className="size-3 shrink-0" />
-          <span className="min-w-0">{error}</span>
-        </div>
+          <Text as="span" className="min-w-0">
+            {error}
+          </Text>
+        </HStack>
       )}
 
       {/* Action Buttons */}
       {isPending && (
-        <div className="flex items-center gap-2">
+        <ActionRow gap={2}>
           <Tooltip content="Approve and create this workflow">
             <Button
               size="sm"
@@ -522,7 +540,7 @@ function WorkflowCreationApprovalCardComponent({
               Cancel
             </Button>
           </Tooltip>
-        </div>
+        </ActionRow>
       )}
 
       {/* Status message for resolved approvals */}

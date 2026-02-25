@@ -5,6 +5,7 @@ import { useState, useMemo } from 'react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -128,7 +129,7 @@ export function DocumentPreviewDialog({
             </div>
           </HStack>
 
-          <HStack gap={2}>
+          <ActionRow gap={2}>
             {doc?.url && (
               <Button
                 variant="ghost"
@@ -150,7 +151,7 @@ export function DocumentPreviewDialog({
               aria-label={t('preview.closePreview')}
               onClick={() => onOpenChange(false)}
             />
-          </HStack>
+          </ActionRow>
         </div>
       }
     >

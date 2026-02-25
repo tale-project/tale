@@ -15,6 +15,7 @@ import {
   RadioGroupItem,
 } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -117,7 +118,7 @@ function HumanInputRequestCardComponent({
     switch (metadata.format) {
       case 'text_input':
         return (
-          <div className="space-y-2">
+          <Stack gap={2}>
             <Textarea
               value={textValue}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
@@ -127,7 +128,7 @@ function HumanInputRequestCardComponent({
               className="min-h-[80px] text-sm"
               disabled={isSubmitting}
             />
-          </div>
+          </Stack>
         );
 
       case 'single_select':
@@ -180,7 +181,7 @@ function HumanInputRequestCardComponent({
 
       case 'multi_select':
         return (
-          <div className="space-y-2">
+          <Stack gap={2}>
             {(metadata.options ?? []).map((option) => {
               const value = getOptionValue(option);
               const isChecked = selectedValues.includes(value);
@@ -219,7 +220,7 @@ function HumanInputRequestCardComponent({
                 </button>
               );
             })}
-          </div>
+          </Stack>
         );
 
       default:
@@ -234,7 +235,7 @@ function HumanInputRequestCardComponent({
     const displayValue = Array.isArray(value) ? value.join(', ') : value;
 
     return (
-      <div className="bg-muted/50 space-y-2 rounded-lg p-4">
+      <Stack gap={2} className="bg-muted/50 rounded-lg p-4">
         <Text as="div" variant="label">
           {displayValue}
         </Text>
@@ -242,7 +243,7 @@ function HumanInputRequestCardComponent({
           Responded by {respondedBy} at{' '}
           {formatDate(new Date(timestamp), 'long')}
         </Text>
-      </div>
+      </Stack>
     );
   };
 
@@ -257,8 +258,8 @@ function HumanInputRequestCardComponent({
       )}
     >
       {/* Header */}
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <HStack gap={3} align="start" justify="between" className="mb-4">
+        <HStack gap={3}>
           <div className="bg-primary/10 rounded-lg p-2">
             <MessageCircleQuestion className="text-primary size-5" />
           </div>
@@ -268,7 +269,7 @@ function HumanInputRequestCardComponent({
               {metadata.format.replace('_', ' ')}
             </Badge>
           </div>
-        </div>
+        </HStack>
         {!isPending && (
           <Badge
             variant={status === 'approved' ? 'green' : 'destructive'}
@@ -277,7 +278,7 @@ function HumanInputRequestCardComponent({
             {status === 'approved' ? 'Responded' : status}
           </Badge>
         )}
-      </div>
+      </HStack>
 
       {/* Question */}
       <div className="mb-4">
@@ -291,15 +292,15 @@ function HumanInputRequestCardComponent({
 
       {/* Input or Response */}
       {isPending ? (
-        <div className="space-y-4">
+        <Stack gap={4}>
           {renderInput()}
 
           {/* Error Message */}
           {error && (
-            <div className="text-destructive flex items-center gap-1.5 text-xs">
+            <HStack className="text-destructive gap-1.5 text-xs">
               <XCircle className="size-3.5" />
               {error}
-            </div>
+            </HStack>
           )}
 
           {/* Submit Button */}
@@ -315,7 +316,7 @@ function HumanInputRequestCardComponent({
             )}
             Submit Response
           </Button>
-        </div>
+        </Stack>
       ) : (
         renderResponse()
       )}

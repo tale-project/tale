@@ -7,6 +7,7 @@ import { Image } from '@/app/components/ui/data-display/image';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Center } from '@/app/components/ui/layout/layout';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
@@ -219,18 +220,22 @@ export function PreviewStep({ parsedPackage, onIconChange }: PreviewStepProps) {
       )}
 
       {connectorCode.trim().length > 0 && config.type !== 'sql' && (
-        <details className="group min-w-0">
-          <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-            <Code className="size-4 shrink-0" />
-            {t('integrations.upload.connectorCode')}
-            <Badge variant="outline" className="text-xs">
-              {lineCount} {t('integrations.upload.lines')}
-            </Badge>
-          </summary>
+        <CollapsibleDetails
+          className="min-w-0"
+          summary={
+            <>
+              <Code className="size-4 shrink-0" />
+              {t('integrations.upload.connectorCode')}
+              <Badge variant="outline" className="text-xs">
+                {lineCount} {t('integrations.upload.lines')}
+              </Badge>
+            </>
+          }
+        >
           <pre className="bg-muted mt-2 max-h-48 overflow-auto rounded-md p-3 text-xs">
             {connectorCode}
           </pre>
-        </details>
+        </CollapsibleDetails>
       )}
     </Stack>
   );

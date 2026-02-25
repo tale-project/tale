@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { cn } from '@/lib/utils/cn';
 
@@ -46,7 +47,7 @@ export function CollapsibleMessage({
       : content;
 
   return (
-    <div className="flex flex-col gap-1">
+    <VStack gap={1}>
       {isMarkdown ? (
         <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-pre:text-[10px] prose-headings:my-1 prose-headings:text-xs [&_code]:bg-muted-foreground/10 [&_code]:text-muted-foreground max-w-none text-xs [&_code]:inline-block [&_code]:max-w-full [&_code]:rounded-md [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[10px] [&_code]:break-words [&_code]:whitespace-normal [&_h3]:mt-1 [&_h3]:text-xs [&_li]:mb-0.5 [&_ol]:mt-0.5 [&_ol]:mb-0.5 [&_ol]:list-decimal [&_ol]:pl-3 [&_p]:mt-0.5 [&_p]:mb-0.5 [&_p]:leading-relaxed [&_p]:break-words [&_pre_code]:block [&_pre_code]:overflow-auto [&_pre_code]:break-normal [&_pre_code]:whitespace-pre [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-3">
           <Bot className="text-muted-foreground mb-1.5 size-3.5" />
@@ -83,6 +84,6 @@ export function CollapsibleMessage({
           )}
         </button>
       )}
-    </div>
+    </VStack>
   );
 }

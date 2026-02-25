@@ -10,8 +10,8 @@ import * as z from 'zod';
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
@@ -173,8 +173,8 @@ export function ScheduleCreateDialog({
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit(onSubmit)}
     >
-      <Stack gap={4}>
-        <Stack gap={2}>
+      <FormSection>
+        <FormSection>
           <div className="flex gap-2">
             <Input
               id="naturalLanguage"
@@ -214,9 +214,9 @@ export function ScheduleCreateDialog({
               {cronDescription}
             </output>
           )}
-        </Stack>
+        </FormSection>
 
-        <Stack gap={2}>
+        <FormSection>
           <Input
             id="cronExpression"
             label={t('triggers.schedules.form.cronExpression')}
@@ -240,8 +240,8 @@ export function ScheduleCreateDialog({
               </Button>
             ))}
           </div>
-        </Stack>
-      </Stack>
+        </FormSection>
+      </FormSection>
     </FormDialog>
   );
 }

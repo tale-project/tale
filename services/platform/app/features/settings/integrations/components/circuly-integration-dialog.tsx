@@ -9,8 +9,8 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
 import { Description } from '@/app/components/ui/forms/description';
 import { Field } from '@/app/components/ui/forms/field';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -206,8 +206,7 @@ export function CirculyIntegrationDialog({
       isSubmitting={isSubmitting}
     >
       {isConnected ? (
-        // Connected state - show current connection info
-        <Stack gap={5}>
+        <FormSection>
           <StatusIndicator variant="success">
             {t('integrations.circuly.connectedToCirculy')}
           </StatusIndicator>
@@ -219,10 +218,9 @@ export function CirculyIntegrationDialog({
           </Field>
 
           <Description>{t('integrations.circuly.syncingData')}</Description>
-        </Stack>
+        </FormSection>
       ) : (
-        // Not connected state - show connection form
-        <Stack gap={4}>
+        <FormSection>
           <Input
             label={t('integrations.circuly.username')}
             placeholder={t('integrations.circuly.usernamePlaceholder')}
@@ -242,7 +240,7 @@ export function CirculyIntegrationDialog({
             className="border-gray-300 shadow-xs"
             {...form.register('password')}
           />
-        </Stack>
+        </FormSection>
       )}
     </FormDialog>
   );

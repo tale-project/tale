@@ -5,7 +5,8 @@ import { useState, useMemo } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -80,7 +81,7 @@ export function ApprovalDetailDialog({
 
   const footer =
     approvalDetail.status === 'pending' ? (
-      <div className="flex w-full gap-3">
+      <HStack gap={3} className="w-full">
         <Button
           onClick={() => onReject?.(approvalDetail._id)}
           disabled={isApproving || isRejecting}
@@ -96,7 +97,7 @@ export function ApprovalDetailDialog({
         >
           {t('detail.approve')}
         </Button>
-      </div>
+      </HStack>
     ) : undefined;
 
   return (
@@ -132,13 +133,8 @@ export function ApprovalDetailDialog({
               description={approvalDetail.customer.email}
             />
 
-            {/* Approval Details */}
-            <Stack gap={3}>
-              {/* Status */}
-              <HStack>
-                <Text as="div" variant="caption" className="w-[90px]">
-                  {t('detail.status')}
-                </Text>
+            <FieldGroup gap={3}>
+              <Field label={t('detail.status')}>
                 <Badge
                   dot
                   variant={
@@ -156,38 +152,26 @@ export function ApprovalDetailDialog({
                       t('detail.statusRejected')) ||
                     t('detail.statusPending')}
                 </Badge>
-              </HStack>
+              </Field>
 
-              {/* Type */}
-              <HStack>
-                <Text as="div" variant="caption" className="w-[90px]">
-                  {t('detail.type')}
-                </Text>
+              <Field label={t('detail.type')}>
                 <Badge variant="outline" icon={RecommendationIcon}>
                   {t('detail.typeProductRecommendation')}
                 </Badge>
-              </HStack>
+              </Field>
 
-              {/* Created at */}
-              <HStack>
-                <Text as="div" variant="caption" className="w-[90px]">
-                  {t('detail.createdAt')}
-                </Text>
+              <Field label={t('detail.createdAt')}>
                 <Text as="div" variant="muted" className="font-medium">
                   {formatDate(new Date(approvalDetail.createdAt), 'long')}
                 </Text>
-              </HStack>
+              </Field>
 
-              {/* Confidence */}
               {approvalDetail.confidence !== undefined && (
-                <HStack>
-                  <Text as="div" variant="caption" className="w-[90px]">
-                    {t('detail.confidence')}
-                  </Text>
+                <Field label={t('detail.confidence')}>
                   <Badge variant="outline">{approvalDetail.confidence}%</Badge>
-                </HStack>
+                </Field>
               )}
-            </Stack>
+            </FieldGroup>
           </Stack>
 
           {/* Recommended Products */}

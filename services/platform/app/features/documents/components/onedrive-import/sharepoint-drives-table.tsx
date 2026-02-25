@@ -6,8 +6,8 @@ import { Database } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { HStack } from '@/app/components/ui/layout/layout';
-import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
@@ -75,15 +75,11 @@ export function SharePointDrivesTable({
 
   if (!isLoading && (!drives || drives.length === 0)) {
     return (
-      <div className="flex h-full flex-col items-center justify-center py-12 text-center">
-        <Database className="text-muted-foreground/50 mb-4 size-12" />
-        <Heading level={3} size="lg" weight="medium" className="mb-2">
-          {t('microsoft365.noDrives')}
-        </Heading>
-        <Text variant="muted" className="max-w-md">
-          {t('microsoft365.noDrivesDescription')}
-        </Text>
-      </div>
+      <EmptyState
+        icon={Database}
+        title={t('microsoft365.noDrives')}
+        description={t('microsoft365.noDrivesDescription')}
+      />
     );
   }
 

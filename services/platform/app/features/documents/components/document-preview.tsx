@@ -3,10 +3,10 @@
 import { Image, Download, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
+import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Center, VStack } from '@/app/components/ui/layout/layout';
+import { Center } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
-import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { getFileExtension } from '@/lib/utils/document-helpers';
@@ -130,30 +130,25 @@ export function DocumentPreview({ url, fileName }: DocumentPreviewProps) {
 
   return (
     <Center className="flex-1 p-6">
-      <VStack
-        align="center"
-        className="text-muted-foreground max-w-[24rem] text-center"
-      >
-        <Image className="mx-auto mb-2 size-16 p-2" />
-        <Text as="div" variant="label" className="mb-1 text-base">
-          {t('preview.notAvailable')}
-        </Text>
-        <Text as="div" variant="muted" className="mb-6">
-          {t('preview.notAvailableDescription')}
-        </Text>
-        <Button size="sm" onClick={handleDownload} disabled={isDownloading}>
-          {isDownloading ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />{' '}
-              {t('preview.downloading')}
-            </>
-          ) : (
-            <>
-              <Download className="mr-2 size-4" /> {t('preview.download')}
-            </>
-          )}
-        </Button>
-      </VStack>
+      <EmptyState
+        icon={Image}
+        title={t('preview.notAvailable')}
+        description={t('preview.notAvailableDescription')}
+        action={
+          <Button size="sm" onClick={handleDownload} disabled={isDownloading}>
+            {isDownloading ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />{' '}
+                {t('preview.downloading')}
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 size-4" /> {t('preview.download')}
+              </>
+            )}
+          </Button>
+        }
+      />
     </Center>
   );
 }

@@ -11,6 +11,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -155,25 +156,25 @@ export function EventsSection({
           const { eventType, eventFilter } = row.original;
           const filterEntries = eventFilter ? Object.entries(eventFilter) : [];
           return (
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
+            <VStack gap={1}>
+              <HStack gap={2}>
                 <code className="bg-muted rounded px-2 py-0.5 font-mono text-sm">
                   {eventType}
                 </code>
                 <Text as="span" variant="caption">
                   {getEventLabel(eventType)}
                 </Text>
-              </div>
+              </HStack>
               {filterEntries.length > 0 && (
-                <div className="flex flex-wrap gap-1">
+                <HStack gap={1} wrap>
                   {filterEntries.map(([key, value]) => (
                     <Badge key={key} variant="outline" className="text-xs">
                       {resolveFilterLabel(eventType, key, String(value))}
                     </Badge>
                   ))}
-                </div>
+                </HStack>
               )}
-            </div>
+            </VStack>
           );
         },
         size: 320,
@@ -216,7 +217,7 @@ export function EventsSection({
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
+          <HStack gap={1} justify="end">
             <Button
               variant="ghost"
               size="sm"
@@ -233,7 +234,7 @@ export function EventsSection({
             >
               <Trash2 className="size-4" />
             </Button>
-          </div>
+          </HStack>
         ),
         size: 100,
       },

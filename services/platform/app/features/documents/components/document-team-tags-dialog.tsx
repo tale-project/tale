@@ -3,7 +3,9 @@
 import { Users } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
+import { SelectableRow } from '@/app/components/ui/data-display/selectable-row';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -146,16 +148,17 @@ function DocumentTeamTagsDialogContent({
             </Text>
           </div>
         ) : !teams || teams.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Users className="text-muted-foreground/50 mb-2 size-8" />
-            <Text variant="muted">{tDocuments('teamTags.noTeams')}</Text>
-          </div>
+          <EmptyState
+            icon={Users}
+            title={tDocuments('teamTags.noTeams')}
+            className="py-8"
+          />
         ) : (
           <Stack gap={2}>
             {teams.map((team: { id: string; name: string }) => (
-              <div
+              <SelectableRow
                 key={team.id}
-                className="bg-card hover:bg-accent/50 flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors"
+                onClick={() => handleToggleTeam(team.id)}
               >
                 <Checkbox
                   id={`team-tag-${team.id}`}
@@ -163,7 +166,7 @@ function DocumentTeamTagsDialogContent({
                   onCheckedChange={() => handleToggleTeam(team.id)}
                   label={team.name}
                 />
-              </div>
+              </SelectableRow>
             ))}
           </Stack>
         )}

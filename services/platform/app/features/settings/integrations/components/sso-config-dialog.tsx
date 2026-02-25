@@ -10,10 +10,12 @@ import type {
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { ActionRow } from '@/app/components/ui/layout/action-row';
+import { HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { narrowStringUnion } from '@/lib/utils/type-guards';
@@ -132,7 +134,7 @@ export function SSOConfigDialog({
         </StatusIndicator>
       )}
 
-      <Stack gap={4}>
+      <FormSection>
         <HStack gap={2} align="center" className="bg-muted rounded-md p-3">
           <MicrosoftIcon />
           <Text as="span" variant="label">
@@ -175,7 +177,7 @@ export function SSOConfigDialog({
           disabled={isSubmitting || isLoadingConfig}
         />
 
-        <HStack gap={3} align="center">
+        <ActionRow gap={3}>
           <Button
             type="button"
             variant="secondary"
@@ -215,7 +217,7 @@ export function SSOConfigDialog({
               )}
             </HStack>
           )}
-        </HStack>
+        </ActionRow>
 
         <Switch
           id="onedrive-access-toggle"
@@ -292,7 +294,7 @@ export function SSOConfigDialog({
           className="w-48"
           options={platformRoles}
         />
-      </Stack>
+      </FormSection>
     </FormDialog>
   );
 }

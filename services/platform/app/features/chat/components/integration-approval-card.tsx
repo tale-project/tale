@@ -11,6 +11,8 @@ import {
 import { memo, useState } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { ActionRow } from '@/app/components/ui/layout/action-row';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
@@ -113,7 +115,7 @@ function IntegrationApprovalCardComponent({
     if (entries.length === 0) return null;
     const visible = isExpanded ? entries : entries.slice(0, 3);
     return visible.map(([key, value]) => (
-      <Text as="div" key={key} variant="caption" className="break-words">
+      <Text as="div" key={key} variant="caption" className="wrap-break-word">
         <Text as="span" variant="label-sm">
           {key}:
         </Text>{' '}
@@ -141,8 +143,8 @@ function IntegrationApprovalCardComponent({
       )}
     >
       {/* Header */}
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <HStack gap={2} align="start" justify="between" className="mb-3">
+        <HStack gap={2}>
           <div className="bg-muted rounded-md p-1.5">
             <IntegrationIcon className="text-muted-foreground size-4" />
           </div>
@@ -154,7 +156,7 @@ function IntegrationApprovalCardComponent({
               {metadata.integrationName}
             </Text>
           </div>
-        </div>
+        </HStack>
         <Badge
           variant={
             status === 'approved'
@@ -167,11 +169,11 @@ function IntegrationApprovalCardComponent({
         >
           {status}
         </Badge>
-      </div>
+      </HStack>
 
       {/* Operation Details */}
-      <div className="mb-3 space-y-2">
-        <div className="flex items-center gap-2">
+      <Stack gap={2} className="mb-3">
+        <HStack gap={2}>
           <Badge variant="outline" className="text-xs">
             {metadata.operationType === 'write' ? (
               <AlertTriangle className="mr-1 size-3" />
@@ -181,7 +183,7 @@ function IntegrationApprovalCardComponent({
           <Text as="span" variant="code" className="text-muted-foreground">
             {metadata.operationName}
           </Text>
-        </div>
+        </HStack>
 
         {/* Parameters Preview */}
         {metadata.parameters && Object.keys(metadata.parameters).length > 0 && (
@@ -205,39 +207,51 @@ function IntegrationApprovalCardComponent({
 
         {/* Estimated Impact */}
         {metadata.estimatedImpact && (
-          <Text as="div" variant="caption" className="break-words italic">
+          <Text as="div" variant="caption" className="wrap-break-word italic">
             {metadata.estimatedImpact}
           </Text>
         )}
-      </div>
+      </Stack>
 
       {/* Execution Result (if approved and executed) */}
       {status === 'approved' && executedAt && !executionError && (
-        <div className="mb-3 flex items-center gap-1 text-xs text-green-600">
+        <HStack gap={1} className="mb-3 text-xs text-green-600">
           <CheckCircle className="size-3" />
           {t('executedSuccessfully')}
-        </div>
+        </HStack>
       )}
 
       {/* Execution Error (persisted from backend) */}
       {status === 'approved' && executionError && (
-        <div className="text-destructive mb-3 flex items-start gap-1 text-xs break-words">
+        <HStack
+          gap={1}
+          align="start"
+          className="text-destructive mb-3 text-xs wrap-break-word"
+        >
           <XCircle className="size-3 shrink-0" />
-          <span className="min-w-0">{executionError}</span>
-        </div>
+          <Text as="span" className="min-w-0">
+            {executionError}
+          </Text>
+        </HStack>
       )}
 
       {/* Error Message (temporary UI error) */}
       {error && (
-        <div className="text-destructive mb-3 flex items-start gap-1 text-xs break-words">
+        <HStack
+          gap={1}
+          align="start"
+          className="text-destructive mb-3 text-xs wrap-break-word"
+        >
           <XCircle className="size-3 shrink-0" />
-          <span className="min-w-0">{error}</span>
-        </div>
+          <Text as="span" className="min-w-0">
+            {error}
+          </Text>
+        </HStack>
       )}
 
       {/* Action Buttons */}
       {isPending && (
-        <div className="flex items-center gap-2">
+        <ActionRow gap={2}>
           <Tooltip content={t('approveTooltip')}>
             <Button
               size="sm"
@@ -271,7 +285,7 @@ function IntegrationApprovalCardComponent({
               {t('reject')}
             </Button>
           </Tooltip>
-        </div>
+        </ActionRow>
       )}
 
       {/* Status message for resolved approvals */}

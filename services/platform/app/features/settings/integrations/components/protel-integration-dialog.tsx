@@ -5,8 +5,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
@@ -157,7 +157,7 @@ export function ProtelIntegrationDialog({
         </div>
       ) : (
         <>
-          <HStack gap={3}>
+          <FormSection className="flex-row gap-3">
             <Input
               id="server"
               label={t('integrations.protel.serverAddress')}
@@ -177,7 +177,7 @@ export function ProtelIntegrationDialog({
               className="flex-1"
               {...register('port', { valueAsNumber: true })}
             />
-          </HStack>
+          </FormSection>
 
           <Input
             id="database"

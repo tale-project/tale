@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { useRef, useEffect, useState, useCallback } from 'react';
 
+import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
@@ -271,8 +272,7 @@ export function ChatInterface({
         )}
       </div>
 
-      <div className="sticky bottom-0 z-50">
-        {/* Scroll to bottom button */}
+      <PanelFooter>
         <div className="relative mx-auto w-full max-w-(--chat-max-width)">
           <AnimatePresence>
             {showScrollButton && (
@@ -312,7 +312,7 @@ export function ChatInterface({
             clearAttachments={clearAttachments}
           />
         </FileUpload.Root>
-      </div>
+      </PanelFooter>
     </div>
   );
 }

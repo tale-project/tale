@@ -7,7 +7,9 @@ import type { ToolName } from '@/convex/agent_tools/tool_names';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { Grid, HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
@@ -81,15 +83,13 @@ export function ToolSelector({
     [integrationBindings],
   );
 
-  const toggleTool = useCallback(
-    (toolName: string) => {
-      if (selectedSet.has(toolName)) {
-        onChange(value.filter((t) => t !== toolName));
-      } else {
-        onChange([...value, toolName]);
-      }
+  const handleCategoryChange = useCallback(
+    (categoryTools: string[], newValues: string[]) => {
+      const categorySet = new Set(categoryTools);
+      const otherValues = value.filter((v) => !categorySet.has(v));
+      onChange([...otherValues, ...newValues]);
     },
-    [value, onChange, selectedSet],
+    [value, onChange],
   );
 
   const toggleBinding = useCallback(
@@ -120,17 +120,17 @@ export function ToolSelector({
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-2">
+      <Grid cols={2} gap={2}>
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-6 w-full" />
         ))}
-      </div>
+      </Grid>
     );
   }
 
   return (
     <fieldset disabled={disabled}>
-      <div className="space-y-4">
+      <Stack gap={4}>
         {Array.from(categorized.entries()).map(([category, toolNames]) => (
           <div key={category}>
             {category === 'Other' && (
@@ -144,19 +144,14 @@ export function ToolSelector({
                 />
               </div>
             )}
-            <Text variant="caption" className="mb-1.5 font-medium">
-              {category}
-            </Text>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-              {toolNames.map((toolName) => (
-                <Checkbox
-                  key={toolName}
-                  label={toolName}
-                  checked={selectedSet.has(toolName)}
-                  onCheckedChange={() => toggleTool(toolName)}
-                />
-              ))}
-            </div>
+            <CheckboxGroup
+              label={category}
+              options={toolNames.map((name) => ({ value: name, label: name }))}
+              value={toolNames.filter((name) => selectedSet.has(name))}
+              onValueChange={(values) =>
+                handleCategoryChange(toolNames, values)
+              }
+            />
           </div>
         ))}
 
@@ -169,7 +164,7 @@ export function ToolSelector({
             t={t}
           />
         )}
-      </div>
+      </Stack>
     </fieldset>
   );
 }
@@ -207,9 +202,9 @@ function IntegrationBindingsSection({
           {t('customAgents.form.noIntegrationsAvailable')}
         </Text>
       ) : (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+        <Grid cols={2} className="gap-x-4 gap-y-1.5">
           {integrations.map((integration) => (
-            <div key={integration.name} className="flex items-center gap-2">
+            <HStack key={integration.name} gap={2}>
               <Checkbox
                 label={integration.title}
                 checked={selectedBindingsSet.has(integration.name)}
@@ -218,9 +213,9 @@ function IntegrationBindingsSection({
               <Badge variant="outline" className="px-1 py-0 text-[10px]">
                 {integration.type === 'sql' ? 'SQL' : 'API'}
               </Badge>
-            </div>
+            </HStack>
           ))}
-        </div>
+        </Grid>
       )}
     </FormSection>
   );

@@ -5,6 +5,7 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { PageSection } from '@/app/components/ui/layout/page-section';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { OrganizationSettings } from '@/app/features/settings/organization/components/organization-settings';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -31,8 +32,7 @@ function OrganizationSettingsSkeleton() {
   const { t: tTables } = useT('tables');
 
   return (
-    <Stack>
-      {/* Org name: label + input + save button */}
+    <Stack gap={6}>
       <HStack gap={3} align="end" justify="between">
         <Stack gap={1} className="max-w-sm flex-1">
           <Skeleton className="h-4 w-32" />
@@ -41,19 +41,16 @@ function OrganizationSettingsSkeleton() {
         <Skeleton className="h-9 w-28 shrink-0" />
       </HStack>
 
-      {/* Org ID row */}
       <HStack gap={2} align="center">
         <Skeleton className="h-4 w-24 shrink-0" />
         <Skeleton className="h-4 w-48" />
       </HStack>
 
-      {/* Members section */}
-      <Stack gap={4} className="pt-4">
-        <Stack gap={1}>
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-4 w-52" />
-        </Stack>
-
+      <PageSection
+        title={<Skeleton className="h-5 w-24" />}
+        description={<Skeleton className="h-4 w-52" />}
+        className="pt-4"
+      >
         <HStack justify="between">
           <Skeleton className="h-8 max-w-sm flex-1" />
         </HStack>
@@ -68,7 +65,7 @@ function OrganizationSettingsSkeleton() {
           ]}
           showHeader
         />
-      </Stack>
+      </PageSection>
     </Stack>
   );
 }

@@ -10,6 +10,7 @@ import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -155,7 +156,7 @@ export function ChatInput({
         <div className="border-muted mx-2 rounded-t-3xl border-[0.5rem] border-b-0">
           <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-4 pt-3">
             {(attachments.length > 0 || uploadingFiles.length > 0) && (
-              <div className="mb-2 flex flex-wrap gap-1">
+              <HStack gap={1} wrap className="mb-2">
                 {imageAttachments.map((attachment) => (
                   <div
                     key={attachment.fileId}
@@ -203,7 +204,7 @@ export function ChatInput({
                     className="bg-secondary/20 group relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
                   >
                     <DocumentIcon fileName={attachment.fileName} />
-                    <div className="flex min-w-0 flex-1 flex-col">
+                    <VStack className="min-w-0 flex-1">
                       <Text
                         as="div"
                         variant="label"
@@ -221,7 +222,7 @@ export function ChatInput({
                           `fileTypes.${getFileTypeLabelKey(attachment.fileType)}`,
                         )}
                       </Text>
-                    </div>
+                    </VStack>
                     <button
                       type="button"
                       aria-label={tChat('removeAttachment')}
@@ -241,7 +242,7 @@ export function ChatInput({
                     <LoaderCircleIcon className="size-4 animate-spin" />
                   </div>
                 ))}
-              </div>
+              </HStack>
             )}
 
             <div className="relative">
@@ -279,7 +280,7 @@ export function ChatInput({
               )}
             </div>
 
-            <div className="flex items-center justify-between pb-3">
+            <HStack justify="between" className="pb-3">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -293,7 +294,7 @@ export function ChatInput({
                 </Text>
               </button>
               <AgentSelector organizationId={organizationId} />
-            </div>
+            </HStack>
           </div>
         </div>
       </FileUpload.DropZone>
