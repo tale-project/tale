@@ -1,11 +1,12 @@
 /**
  * Embedding Dimension Configuration
  *
- * Reads EMBEDDING_DIMENSIONS env var to determine which vector table to use.
+ * Reads EMBEDDING_DIMENSIONS env var to determine which vector table to use
+ * and injects the dimensions parameter into embedding API calls.
  * Supports: 256, 512, 1024, 1536 (default), 2048, 2560, 4096.
  */
 
-import type { EmbeddingModel } from 'ai';
+import type { EmbeddingModelV2 } from '@ai-sdk/provider';
 import type { TableNamesInDataModel } from 'convex/server';
 
 import type { DataModel } from '../_generated/dataModel';
@@ -59,6 +60,45 @@ export function getRecommendedEmbeddingModel(): string {
   );
 }
 
-export function getTextEmbeddingModel(): EmbeddingModel {
-  return openai.embedding(getRecommendedEmbeddingModel());
+export function getTextEmbeddingModel(): EmbeddingModelV2<string> {
+  const model = openai.embedding(getRecommendedEmbeddingModel());
+  return withDimensions(model, getEmbeddingDimension());
+}
+
+/**
+ * Wraps an embedding model to inject `dimensions` into every API call
+ * via `providerOptions.openai.dimensions`.
+ *
+ * This is necessary because the `@ai-sdk/openai` `embedding()` factory
+ * does not accept a dimensions setting, and `@convex-dev/agent`'s
+ * `embedMany` only forwards `callSettings` (which excludes providerOptions).
+ * Wrapping at the model level ensures every `doEmbed` call carries the
+ * configured dimension regardless of the calling code.
+ */
+export function withDimensions(
+  model: EmbeddingModelV2<string>,
+  dimensions: number,
+): EmbeddingModelV2<string> {
+  const originalDoEmbed = model.doEmbed.bind(model);
+  return {
+    specificationVersion: model.specificationVersion,
+    modelId: model.modelId,
+    get provider() {
+      return model.provider;
+    },
+    maxEmbeddingsPerCall: model.maxEmbeddingsPerCall,
+    supportsParallelCalls: model.supportsParallelCalls,
+    doEmbed(options: Parameters<EmbeddingModelV2<string>['doEmbed']>[0]) {
+      return originalDoEmbed({
+        ...options,
+        providerOptions: {
+          ...options.providerOptions,
+          openai: {
+            ...options.providerOptions?.openai,
+            dimensions,
+          },
+        },
+      });
+    },
+  };
 }
