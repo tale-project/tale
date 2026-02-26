@@ -34,7 +34,7 @@ class WebsiteStore:
         self._db_path = db_path
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: sqlite3.Connection | None = None
-        self._init_db()
+        self._get_conn()
 
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -42,10 +42,11 @@ class WebsiteStore:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA busy_timeout=5000")
             self._conn.row_factory = sqlite3.Row
+            self._ensure_schema(self._conn)
         return self._conn
 
-    def _init_db(self):
-        conn = self._get_conn()
+    @staticmethod
+    def _ensure_schema(conn: sqlite3.Connection):
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS website_urls (
                 url TEXT PRIMARY KEY,
@@ -74,6 +75,8 @@ class WebsiteStore:
             ("metadata", "TEXT"),
             ("structured_data", "TEXT"),
             ("fail_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("etag", "TEXT"),
+            ("last_modified", "TEXT"),
         ]:
             if col not in existing:
                 conn.execute(f"ALTER TABLE website_urls ADD COLUMN {col} {col_type}")
@@ -194,6 +197,46 @@ class WebsiteStore:
         conn.executemany(
             "UPDATE website_urls SET status = 'deleted' WHERE url = ?",
             [(url,) for url in urls],
+        )
+        conn.commit()
+
+    def get_cache_headers(self, urls: list[str]) -> dict[str, dict]:
+        """Load stored etag/last_modified for URLs that have at least one header."""
+        if not urls:
+            return {}
+
+        conn = self._get_conn()
+        placeholders = ",".join("?" * len(urls))
+        rows = conn.execute(
+            "SELECT url, etag, last_modified FROM website_urls "
+            f"WHERE url IN ({placeholders}) AND (etag IS NOT NULL OR last_modified IS NOT NULL)",
+            urls,
+        ).fetchall()
+
+        return {r["url"]: {"etag": r["etag"], "last_modified": r["last_modified"]} for r in rows}
+
+    def update_cache_headers(self, updates: list[dict]):
+        """Batch store etag/last_modified from HEAD responses."""
+        if not updates:
+            return
+
+        conn = self._get_conn()
+        conn.executemany(
+            "UPDATE website_urls SET etag = ?, last_modified = ? WHERE url = ?",
+            [(u.get("etag"), u.get("last_modified"), u["url"]) for u in updates],
+        )
+        conn.commit()
+
+    def touch_crawled_at(self, urls: list[str]):
+        """Update only last_crawled_at for unchanged URLs (skipped by 304)."""
+        if not urls:
+            return
+
+        now = time.time()
+        conn = self._get_conn()
+        conn.executemany(
+            "UPDATE website_urls SET last_crawled_at = ? WHERE url = ?",
+            [(now, url) for url in urls],
         )
         conn.commit()
 

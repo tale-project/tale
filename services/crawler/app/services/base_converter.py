@@ -115,6 +115,7 @@ class BaseConverterService:
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
+                    "--disable-crashpad",
                 ],
             )
             self.initialized = True

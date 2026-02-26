@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     max_concurrent_crawls: int = 5
     default_max_pages: int = 100
     default_word_count_threshold: int = 100
-    default_concurrency: int = 20
+    default_concurrency: int = 5
     request_timeout_seconds: int = 300
 
     # OpenAI API Configuration
