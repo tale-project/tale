@@ -121,28 +121,35 @@ function simulateContentGrowth(height: number) {
 }
 
 // Helper: render the hook with refs pre-attached so effects see them.
-// Sets up container and content refs, then enables streaming.
+// Refs are set during the render phase (before effects run) so the
+// always-on ResizeObserver is created on mount.
 function setupStreamingHook(
   container: ReturnType<typeof createMockContainer>,
   opts: { threshold?: number } = {},
 ) {
   const content = document.createElement('div');
   const threshold = opts.threshold ?? 100;
+  let refsAttached = false;
 
   const harness = renderHook(
-    ({ enabled }) => useAutoScroll({ enabled, threshold }),
+    ({ enabled }) => {
+      const result = useAutoScroll({ enabled, threshold });
+      // Attach refs during render so the effect sees them on mount.
+      if (!refsAttached) {
+        refsAttached = true;
+        Object.defineProperty(result.containerRef, 'current', {
+          value: container.el,
+          writable: true,
+        });
+        Object.defineProperty(result.contentRef, 'current', {
+          value: content,
+          writable: true,
+        });
+      }
+      return result;
+    },
     { initialProps: { enabled: false } },
   );
-
-  // Attach refs before enabling (effects will see them on next render)
-  Object.defineProperty(harness.result.current.containerRef, 'current', {
-    value: container.el,
-    writable: true,
-  });
-  Object.defineProperty(harness.result.current.contentRef, 'current', {
-    value: content,
-    writable: true,
-  });
 
   return harness;
 }
@@ -439,36 +446,127 @@ describe('useAutoScroll', () => {
   });
 
   describe('ResizeObserver lifecycle', () => {
-    it('connects observer when enabled, disconnects when disabled', () => {
+    it('creates observer on mount regardless of enabled state', () => {
       const container = createMockContainer();
 
-      const { rerender } = setupStreamingHook(container);
+      setupStreamingHook(container);
 
-      expect(resizeObserverDisconnect).not.toHaveBeenCalled();
-
-      rerender({ enabled: true });
+      // Observer is created on mount even with enabled=false
       expect(resizeObserverCallback).toBeDefined();
-
-      rerender({ enabled: false });
-      expect(resizeObserverDisconnect).toHaveBeenCalled();
+      expect(resizeObserverDisconnect).not.toHaveBeenCalled();
     });
 
-    it('removes scroll handler when disabled', () => {
+    it('keeps observer active when enabled toggles', () => {
       const container = createMockContainer();
 
       const { rerender } = setupStreamingHook(container);
 
       rerender({ enabled: true });
-
-      const removeCallsBefore =
-        container.removeEventListenerSpy.mock.calls.length;
+      expect(resizeObserverDisconnect).not.toHaveBeenCalled();
 
       rerender({ enabled: false });
+      // Observer stays active — not disconnected on enabled toggle
+      expect(resizeObserverDisconnect).not.toHaveBeenCalled();
+    });
 
-      const removeCalls =
-        container.removeEventListenerSpy.mock.calls.slice(removeCallsBefore);
-      const removedScroll = removeCalls.some(([type]) => type === 'scroll');
-      expect(removedScroll).toBe(true);
+    it('disconnects observer on unmount', () => {
+      const container = createMockContainer();
+
+      const { unmount } = setupStreamingHook(container);
+
+      unmount();
+      expect(resizeObserverDisconnect).toHaveBeenCalled();
+    });
+  });
+
+  describe('post-streaming auto-scroll (typewriter drain)', () => {
+    it('follows content growth after enabled goes false (user at bottom)', () => {
+      const container = createMockContainer();
+      container.setScrollGeometry(1000, 400);
+      container.scrollTop = 600; // at bottom
+
+      const { rerender } = setupStreamingHook(container);
+
+      // Streaming phase
+      rerender({ enabled: true });
+      simulateContentGrowth(600);
+      container.scrollToSpy.mockClear();
+
+      // Streaming ends — enabled goes false
+      rerender({ enabled: false });
+      container.scrollToSpy.mockClear();
+
+      // Typewriter still draining — content grows
+      container.setScrollGeometry(1200, 400);
+      simulateContentGrowth(800);
+
+      expect(container.scrollToSpy).toHaveBeenCalledWith({
+        top: 1200,
+        behavior: 'instant',
+      });
+    });
+
+    it('does NOT follow content shrinkage after enabled goes false', () => {
+      const container = createMockContainer();
+      container.setScrollGeometry(1000, 400);
+      container.scrollTop = 600; // at bottom
+
+      const { rerender } = setupStreamingHook(container);
+
+      rerender({ enabled: true });
+      simulateContentGrowth(600);
+      container.scrollToSpy.mockClear();
+
+      // Streaming ends
+      rerender({ enabled: false });
+      container.scrollToSpy.mockClear();
+
+      // Content shrinks (e.g., layout shift) — should NOT auto-scroll
+      simulateContentGrowth(500);
+
+      expect(container.scrollToSpy).not.toHaveBeenCalled();
+    });
+
+    it('resumes auto-scroll when user scrolls to bottom after enabled goes false', () => {
+      const container = createMockContainer();
+      container.setScrollGeometry(1000, 400);
+      container.scrollTop = 600; // at bottom
+
+      const { rerender } = setupStreamingHook(container);
+
+      rerender({ enabled: true });
+      simulateContentGrowth(600);
+
+      // User scrolls away during streaming
+      act(() => {
+        container.scrollTop = 100;
+        container.fireScrollEvent();
+      });
+
+      // Streaming ends
+      rerender({ enabled: false });
+      container.scrollToSpy.mockClear();
+
+      // Content grows — should NOT auto-scroll (user is away)
+      container.setScrollGeometry(1100, 400);
+      simulateContentGrowth(700);
+      expect(container.scrollToSpy).not.toHaveBeenCalled();
+
+      // User scrolls back to bottom
+      act(() => {
+        container.scrollTop = 700; // 1100 - 700 - 400 = 0
+        container.fireScrollEvent();
+      });
+      container.scrollToSpy.mockClear();
+
+      // Content grows again — should auto-scroll now
+      container.setScrollGeometry(1200, 400);
+      simulateContentGrowth(800);
+
+      expect(container.scrollToSpy).toHaveBeenCalledWith({
+        top: 1200,
+        behavior: 'instant',
+      });
     });
   });
 });

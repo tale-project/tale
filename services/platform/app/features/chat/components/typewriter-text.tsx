@@ -74,6 +74,24 @@ const TYPEWRITER_CONFIG = {
 };
 
 // ============================================================================
+// STABLE STREAM TEXT
+// ============================================================================
+
+/**
+ * During streaming, text only grows. Temporary regression (from WebSocket
+ * reconnection delivering committed/shorter text while syncStreams
+ * reconnects) is ignored so the animation never jumps back.
+ */
+export function useStableStreamText(text: string, isStreaming: boolean) {
+  const ref = useRef(text);
+  if (isStreaming && text.length < ref.current.length) {
+    return ref.current;
+  }
+  ref.current = text;
+  return text;
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -90,10 +108,12 @@ function TypewriterTextComponent({
   components,
   className,
 }: TypewriterTextProps) {
+  const stableText = useStableStreamText(text, isStreaming);
+
   // Use the stream buffer hook for animation management
   const { displayLength, anchorPosition, progress, isTyping, isDraining } =
     useStreamBuffer({
-      text,
+      text: stableText,
       isStreaming,
       targetCPS: TYPEWRITER_CONFIG.targetCPS,
       initialBufferChars: TYPEWRITER_CONFIG.initialBufferChars,
@@ -129,7 +149,7 @@ function TypewriterTextComponent({
     <div className={className}>
       {/* Render text with incremental markdown parsing */}
       <IncrementalMarkdown
-        content={text}
+        content={stableText}
         revealPosition={displayLength}
         anchorPosition={anchorPosition}
         components={components}
