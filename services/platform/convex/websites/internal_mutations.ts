@@ -63,7 +63,7 @@ export const bulkUpsertPages = internalMutation({
   },
 });
 
-export const registerDiscoveredUrls = internalMutation({
+export const registerUrls = internalMutation({
   args: {
     organizationId: v.string(),
     websiteId: v.string(),
@@ -76,7 +76,7 @@ export const registerDiscoveredUrls = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
-    return await WebsitesHelpers.registerDiscoveredUrls(ctx, args);
+    return await WebsitesHelpers.registerUrls(ctx, args);
   },
 });
 

@@ -13,6 +13,7 @@ import {
   generateAgentResponse,
   type GenerateResponseResult,
 } from '../../lib/agent_response';
+import { getCodingModel } from '../../lib/agent_runtime_config';
 import { WORKFLOW_AGENT_CORE_INSTRUCTIONS } from '../../workflow_engine/instructions/core_instructions';
 import { createWorkflowAgent } from './agent';
 
@@ -41,7 +42,7 @@ export async function generateWorkflowResponse(
       agentType: 'workflow',
       createAgent: (options) =>
         createWorkflowAgent({ withTools: true, delegationMode, ...options }),
-      model: process.env.OPENAI_CODING_MODEL || '',
+      model: getCodingModel() ?? '',
       provider: 'openai',
       debugTag: '[WorkflowAgent]',
       instructions: WORKFLOW_AGENT_CORE_INSTRUCTIONS,

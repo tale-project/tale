@@ -30,6 +30,7 @@ import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
 import { onAgentComplete } from '../agent_completion';
+import { getFastModel } from '../agent_runtime_config';
 import {
   buildStructuredContext,
   AGENT_CONTEXT_CONFIGS,
@@ -424,7 +425,7 @@ export async function generateAgentResponse(
           const retryAgent = createAgent({
             ...agentOptions,
             withTools: false,
-            useFastModel: true,
+            model: getFastModel(),
           });
 
           const retrySystemPrompt = agentInstructions
@@ -441,7 +442,7 @@ export async function generateAgentResponse(
           debugLog('Stream tool-result retry starting', {
             timeoutMs: retryRemainingMs,
             contextTokens: retryContext.stats.totalTokens,
-            useFastModel: true,
+            model: getFastModel(),
             elapsedMs: streamRetryStartTime - startTime,
           });
 
@@ -562,7 +563,7 @@ export async function generateAgentResponse(
           const retryAgent = createAgent({
             ...agentOptions,
             withTools: false,
-            useFastModel: true,
+            model: getFastModel(),
           });
 
           const retrySystemPrompt = agentInstructions
@@ -577,7 +578,7 @@ export async function generateAgentResponse(
           debugLog('Tool-result retry starting', {
             timeoutMs: nonStreamRetryRemainingMs,
             contextTokens: retryContext.stats.totalTokens,
-            useFastModel: true,
+            model: getFastModel(),
             elapsedMs: retryStartTime - startTime,
           });
 
@@ -645,7 +646,7 @@ export async function generateAgentResponse(
           const retryAgent = createAgent({
             ...agentOptions,
             withTools: false,
-            useFastModel: true,
+            model: getFastModel(),
           });
 
           const emptyRetrySystemPrompt = agentInstructions
@@ -660,7 +661,7 @@ export async function generateAgentResponse(
           debugLog('Empty text retry starting', {
             timeoutMs: emptyRetryRemainingMs,
             contextTokens: retryContext.stats.totalTokens,
-            useFastModel: true,
+            model: getFastModel(),
             elapsedMs: emptyRetryStartTime - startTime,
           });
 
@@ -740,7 +741,7 @@ export async function generateAgentResponse(
         const recoveryAgent = createAgent({
           ...agentOptions,
           withTools: false,
-          useFastModel: true,
+          model: getFastModel(),
         });
 
         const recoverySystemPrompt = agentInstructions
@@ -763,7 +764,7 @@ export async function generateAgentResponse(
         debugLog('Timeout recovery starting', {
           timeoutMs: recoveryRemainingMs,
           contextTokens: recoveryContext.stats.totalTokens,
-          useFastModel: true,
+          model: getFastModel(),
           elapsedMs: recoveryStartTime - startTime,
         });
 

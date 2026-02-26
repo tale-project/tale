@@ -51,7 +51,6 @@ const serializableAgentConfigValidator = v.object({
   instructions: v.string(),
   convexToolNames: v.optional(v.array(v.string())),
   integrationBindings: v.optional(v.array(v.string())),
-  useFastModel: v.optional(v.boolean()),
   model: v.optional(v.string()),
   maxSteps: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
@@ -215,8 +214,9 @@ export const runAgentGeneration = internalAction({
             )
           : undefined,
         extraTools: allExtraTools,
-        useFastModel: agentConfig.useFastModel,
-        model: agentConfig.model,
+        model:
+          (typeof options?.model === 'string' ? options.model : undefined) ??
+          agentConfig.model,
         maxSteps:
           (typeof options?.maxSteps === 'number'
             ? options.maxSteps

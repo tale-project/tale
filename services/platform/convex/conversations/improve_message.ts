@@ -3,14 +3,11 @@ import { Agent } from '@convex-dev/agent';
 import type { ActionCtx } from '../_generated/server';
 
 import { components } from '../_generated/api';
-import { getEnvOrThrow } from '../lib/get_or_throw';
+import { getFastModel } from '../lib/agent_runtime_config';
 import { openai } from '../lib/openai_provider';
 
 function createImproveMessageAgent(instruction?: string) {
-  const model = getEnvOrThrow(
-    'OPENAI_FAST_MODEL',
-    'Fast model for message improvement',
-  );
+  const model = getFastModel();
 
   return new Agent(components.agent, {
     name: 'message-improver',

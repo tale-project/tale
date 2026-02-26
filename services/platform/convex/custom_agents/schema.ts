@@ -35,6 +35,7 @@ export const customAgentsTable = defineTable({
   integrationBindings: v.optional(v.array(v.string())),
 
   modelPreset: modelPresetValidator,
+  modelId: v.optional(v.string()),
 
   knowledgeMode: v.optional(retrievalModeValidator),
   webSearchMode: v.optional(retrievalModeValidator),

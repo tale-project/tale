@@ -7,7 +7,7 @@ import { z } from 'zod/v4';
 
 import { action } from '../../_generated/server';
 import { authComponent } from '../../auth';
-import { getEnvOrThrow } from '../../lib/get_or_throw';
+import { getFastModel } from '../../lib/agent_runtime_config';
 import { openai } from '../../lib/openai_provider';
 
 export const generateCronExpression = action({
@@ -32,7 +32,7 @@ export const generateCronExpression = action({
       throw new Error('Please enter a schedule description.');
     }
 
-    const model = getEnvOrThrow('OPENAI_FAST_MODEL');
+    const model = getFastModel();
 
     const result = await generateObject({
       model: openai(model),

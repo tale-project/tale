@@ -721,6 +721,7 @@
         "descriptionPlaceholder": "What does this agent do?",
         "systemInstructions": "System instructions",
         "systemInstructionsPlaceholder": "You are a helpful assistant that...",
+        "model": "Model",
         "modelPreset": "Model preset",
         "modelPresets": {
           "fast": "Fast",

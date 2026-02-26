@@ -9,6 +9,7 @@ import { Agent } from '@convex-dev/agent';
 
 import { components } from '../../_generated/api';
 import { type ToolName } from '../../agent_tools/tool_registry';
+import { getCodingModelOrThrow } from '../../lib/agent_runtime_config';
 import { createAgentConfig } from '../../lib/create_agent_config';
 import { createDebugLog } from '../../lib/debug_log';
 import {
@@ -29,13 +30,13 @@ export function createWorkflowAgent(options?: {
   convexToolNames?: ToolName[];
   workflowContext?: string;
   delegationMode?: boolean;
-  useFastModel?: boolean;
+  model?: string;
 }) {
   const withTools = options?.withTools ?? true;
   const delegationMode = options?.delegationMode ?? false;
   const maxSteps = options?.maxSteps ?? (delegationMode ? 20 : 30);
   const workflowContext = options?.workflowContext;
-  const useFastModel = options?.useFastModel ?? false;
+  const model = options?.model ?? getCodingModelOrThrow();
 
   let convexToolNames: ToolName[] = [];
 
@@ -55,7 +56,7 @@ export function createWorkflowAgent(options?: {
   debugLog('createWorkflowAgent', {
     toolCount: withTools ? convexToolNames.length : 0,
     delegationMode,
-    useFastModel,
+    model,
   });
 
   const baseInstructions = WORKFLOW_AGENT_CORE_INSTRUCTIONS;
@@ -67,23 +68,11 @@ export function createWorkflowAgent(options?: {
     ? `${selectedInstructions}\n\n${workflowContext}`
     : selectedInstructions;
 
-  const modelConfig = useFastModel
-    ? { useFastModel: true }
-    : (() => {
-        const model = (process.env.OPENAI_CODING_MODEL || '').trim();
-        if (!model) {
-          throw new Error(
-            'OPENAI_CODING_MODEL environment variable is required for Workflow Agent but is not set',
-          );
-        }
-        return { model };
-      })();
-
   const agentConfig = createAgentConfig({
     name: delegationMode
       ? 'workflow-assistant-delegated'
       : 'workflow-assistant',
-    ...modelConfig,
+    model,
     instructions: finalInstructions,
     ...(withTools ? { convexToolNames } : {}),
     maxSteps,

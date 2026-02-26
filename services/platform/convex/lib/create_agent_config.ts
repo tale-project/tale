@@ -3,6 +3,7 @@ import { Agent } from '@convex-dev/agent';
 import type { ToolName } from '../agent_tools/tool_registry';
 
 import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
+import { getDefaultModel } from './agent_runtime_config';
 import { createDebugLog } from './debug_log';
 import { getEnvOrThrow } from './get_or_throw';
 import { openai } from './openai_provider';
@@ -33,8 +34,6 @@ export function createAgentConfig(opts: {
   maxSteps?: number;
   /** Enable vector search for finding semantically relevant older messages (defaults to false) */
   enableVectorSearch?: boolean;
-  /** Use the fast model (OPENAI_FAST_MODEL) instead of the default model */
-  useFastModel?: boolean;
 }): ConstructorParameters<typeof Agent>[1] {
   // Build Convex tools as an object when names are provided
   const convexToolsObject = opts.convexToolNames?.length
@@ -115,26 +114,11 @@ Example: User asks for "John's email" and you find 3 Johns:
     estimatedInstructionTokens,
   });
 
-  // Determine which model to use (priority order):
-  // 1. Explicit model override from opts.model
-  // 2. Fast model if useFastModel is true (requires OPENAI_FAST_MODEL env var)
-  // 3. Default model (OPENAI_MODEL env var)
   const getModel = (): string => {
     if (opts.model) {
       return opts.model;
     }
-
-    if (opts.useFastModel) {
-      return getEnvOrThrow(
-        'OPENAI_FAST_MODEL',
-        'Fast model for chat agent - required when useFastModel is true',
-      );
-    }
-
-    return getEnvOrThrow(
-      'OPENAI_MODEL',
-      'Default OpenAI model - required for Agent configuration',
-    );
+    return getDefaultModel();
   };
 
   const model = getModel();

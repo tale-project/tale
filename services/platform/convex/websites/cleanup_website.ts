@@ -9,7 +9,7 @@
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
-const PAGE_BATCH_SIZE = 20;
+const PAGE_BATCH_SIZE = 2;
 
 const EMBEDDING_TABLES = [
   'websitePageEmbeddings256',

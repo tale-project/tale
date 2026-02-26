@@ -9,6 +9,7 @@ import { Agent } from '@convex-dev/agent';
 
 import { components } from '../../_generated/api';
 import { type ToolName } from '../../agent_tools/tool_registry';
+import { getDefaultModel } from '../../lib/agent_runtime_config';
 import { createAgentConfig } from '../../lib/create_agent_config';
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -117,11 +118,11 @@ Be concise. Format data clearly. Never expose credentials.`;
 export function createIntegrationAgent(options?: {
   maxSteps?: number;
   withTools?: boolean;
-  useFastModel?: boolean;
+  model?: string;
 }) {
   const maxSteps = options?.maxSteps ?? 20;
   const withTools = options?.withTools ?? true;
-  const useFastModel = options?.useFastModel ?? false;
+  const model = options?.model ?? getDefaultModel();
 
   const convexToolNames: ToolName[] = [
     'integration',
@@ -133,14 +134,14 @@ export function createIntegrationAgent(options?: {
   debugLog('createIntegrationAgent', {
     toolCount: withTools ? convexToolNames.length : 0,
     maxSteps,
-    useFastModel,
+    model,
   });
 
   const agentConfig = createAgentConfig({
     name: 'integration-assistant',
     instructions: INTEGRATION_AGENT_INSTRUCTIONS,
     ...(withTools ? { convexToolNames } : {}),
-    ...(useFastModel ? { useFastModel: true } : {}),
+    model,
     maxSteps,
   });
 

@@ -6,6 +6,8 @@ import os
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.utils.model_list import get_first_model
+
 
 class Settings(BaseSettings):
     """Application settings."""
@@ -62,14 +64,14 @@ class Settings(BaseSettings):
 
     def get_vision_model(self) -> str:
         """Get Vision model from CRAWLER_OPENAI_VISION_MODEL or OPENAI_VISION_MODEL."""
-        model = self.openai_vision_model or os.environ.get("OPENAI_VISION_MODEL")
+        model = get_first_model(self.openai_vision_model) or get_first_model(os.environ.get("OPENAI_VISION_MODEL"))
         if not model:
             raise ValueError("OPENAI_VISION_MODEL must be set in environment.")
         return model
 
     def get_fast_model(self) -> str:
         """Get Fast LLM model from CRAWLER_OPENAI_FAST_MODEL or OPENAI_FAST_MODEL."""
-        model = self.openai_fast_model or os.environ.get("OPENAI_FAST_MODEL")
+        model = get_first_model(self.openai_fast_model) or get_first_model(os.environ.get("OPENAI_FAST_MODEL"))
         if not model:
             raise ValueError("OPENAI_FAST_MODEL must be set in environment.")
         return model

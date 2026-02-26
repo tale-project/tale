@@ -549,6 +549,7 @@ import type * as vendors_queries from "../vendors/queries.js";
 import type * as vendors_validators from "../vendors/validators.js";
 import type * as website_page_embeddings_chunk_content from "../website_page_embeddings/chunk_content.js";
 import type * as website_page_embeddings_content_hash from "../website_page_embeddings/content_hash.js";
+import type * as website_page_embeddings_embedding_pool from "../website_page_embeddings/embedding_pool.js";
 import type * as website_page_embeddings_internal_actions from "../website_page_embeddings/internal_actions.js";
 import type * as website_page_embeddings_internal_mutations from "../website_page_embeddings/internal_mutations.js";
 import type * as website_page_embeddings_internal_queries from "../website_page_embeddings/internal_queries.js";
@@ -572,7 +573,7 @@ import type * as websites_list_websites_paginated from "../websites/list_website
 import type * as websites_mutations from "../websites/mutations.js";
 import type * as websites_provision_website_scan_workflow from "../websites/provision_website_scan_workflow.js";
 import type * as websites_queries from "../websites/queries.js";
-import type * as websites_register_discovered_urls from "../websites/register_discovered_urls.js";
+import type * as websites_register_urls from "../websites/register_urls.js";
 import type * as websites_rescan_website from "../websites/rescan_website.js";
 import type * as websites_search_websites from "../websites/search_websites.js";
 import type * as websites_types from "../websites/types.js";
@@ -1400,6 +1401,7 @@ declare const fullApi: ApiFromModules<{
   "vendors/validators": typeof vendors_validators;
   "website_page_embeddings/chunk_content": typeof website_page_embeddings_chunk_content;
   "website_page_embeddings/content_hash": typeof website_page_embeddings_content_hash;
+  "website_page_embeddings/embedding_pool": typeof website_page_embeddings_embedding_pool;
   "website_page_embeddings/internal_actions": typeof website_page_embeddings_internal_actions;
   "website_page_embeddings/internal_mutations": typeof website_page_embeddings_internal_mutations;
   "website_page_embeddings/internal_queries": typeof website_page_embeddings_internal_queries;
@@ -1423,7 +1425,7 @@ declare const fullApi: ApiFromModules<{
   "websites/mutations": typeof websites_mutations;
   "websites/provision_website_scan_workflow": typeof websites_provision_website_scan_workflow;
   "websites/queries": typeof websites_queries;
-  "websites/register_discovered_urls": typeof websites_register_discovered_urls;
+  "websites/register_urls": typeof websites_register_urls;
   "websites/rescan_website": typeof websites_rescan_website;
   "websites/search_websites": typeof websites_search_websites;
   "websites/types": typeof websites_types;
@@ -8370,6 +8372,93 @@ export declare const components: {
           streamId: string;
         },
         any
+      >;
+    };
+  };
+  embeddingPool: {
+    lib: {
+      cancel: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          id: string;
+          logLevel: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+        },
+        any
+      >;
+      cancelAll: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          before?: number;
+          limit?: number;
+          logLevel: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+        },
+        any
+      >;
+      enqueue: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          config: {
+            logLevel: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+            maxParallelism: number;
+          };
+          fnArgs: any;
+          fnHandle: string;
+          fnName: string;
+          fnType: "action" | "mutation" | "query";
+          onComplete?: { context?: any; fnHandle: string };
+          retryBehavior?: {
+            base: number;
+            initialBackoffMs: number;
+            maxAttempts: number;
+          };
+          runAt: number;
+        },
+        string
+      >;
+      enqueueBatch: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          config: {
+            logLevel: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
+            maxParallelism: number;
+          };
+          items: Array<{
+            fnArgs: any;
+            fnHandle: string;
+            fnName: string;
+            fnType: "action" | "mutation" | "query";
+            onComplete?: { context?: any; fnHandle: string };
+            retryBehavior?: {
+              base: number;
+              initialBackoffMs: number;
+              maxAttempts: number;
+            };
+            runAt: number;
+          }>;
+        },
+        Array<string>
+      >;
+      status: FunctionReference<
+        "query",
+        "internal",
+        { id: string },
+        | { previousAttempts: number; state: "pending" }
+        | { previousAttempts: number; state: "running" }
+        | { state: "finished" }
+      >;
+      statusBatch: FunctionReference<
+        "query",
+        "internal",
+        { ids: Array<string> },
+        Array<
+          | { previousAttempts: number; state: "pending" }
+          | { previousAttempts: number; state: "running" }
+          | { state: "finished" }
+        >
       >;
     };
   };

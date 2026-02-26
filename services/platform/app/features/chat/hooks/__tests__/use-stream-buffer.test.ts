@@ -246,6 +246,55 @@ describe('useStreamBuffer', () => {
 });
 
 // ============================================================================
+// reconnection resilience
+// ============================================================================
+
+describe('useStreamBuffer — reconnection resilience', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('displayLength does not regress when isStreaming toggles false→true', () => {
+    // Use a long text so the animation hasn't caught up before the toggle
+    const text =
+      'Streaming message that is being revealed character by character. ' +
+      'This text is intentionally long so the animation buffer does not ' +
+      'fully drain before we test the isStreaming toggle behavior during ' +
+      'a simulated WebSocket reconnection event that briefly interrupts.';
+
+    const { result, rerender } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text, isStreaming: true } },
+    );
+
+    // Advance partially — not enough to drain the full buffer
+    act(() => advanceFrames(30));
+    const lenBefore = result.current.displayLength;
+    expect(lenBefore).toBeGreaterThan(10);
+    expect(lenBefore).toBeLessThan(text.length);
+
+    // isStreaming briefly goes false (reconnection)
+    rerender({ text, isStreaming: false });
+
+    // displayLength should not have decreased
+    expect(result.current.displayLength).toBeGreaterThanOrEqual(lenBefore);
+
+    // isStreaming comes back
+    rerender({ text, isStreaming: true });
+
+    // Animation should continue from where it left off
+    act(() => advanceFrames(30));
+    expect(result.current.displayLength).toBeGreaterThan(lenBefore);
+  });
+});
+
+// ============================================================================
 // anchorPosition monotonicity (hook-level behavior)
 // ============================================================================
 
