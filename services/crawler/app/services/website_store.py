@@ -34,6 +34,7 @@ class WebsiteStore:
         self._db_path = db_path
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: sqlite3.Connection | None = None
+        self._get_conn()
 
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
