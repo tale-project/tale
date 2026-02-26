@@ -12,14 +12,18 @@ import json
 import logging
 import time
 
+import httpx
+
 from app.services.crawler_service import CrawlerService
-from app.services.website_store import WebsiteStoreManager
+from app.services.website_store import WebsiteStore, WebsiteStoreManager
 
 logger = logging.getLogger(__name__)
 
 MAX_CONCURRENT_SCANS = 2
 CRAWL_BATCH_SIZE = 10
 POLL_INTERVAL = 60  # seconds
+_HEAD_TIMEOUT = 10
+_HEAD_CONCURRENCY = 5
 
 _scan_trigger: asyncio.Event | None = None
 
@@ -65,6 +69,90 @@ async def run_scheduler(
             pass
 
 
+async def _head_check(
+    urls: list[str],
+    site_store: WebsiteStore,
+) -> tuple[list[str], list[str]]:
+    """Split URLs into (unchanged, needs_crawl) using conditional HEAD requests."""
+    stored = site_store.get_cache_headers(urls)
+
+    urls_with_headers = [u for u in urls if u in stored]
+    urls_without_headers = [u for u in urls if u not in stored]
+
+    if not urls_with_headers:
+        return [], urls
+
+    unchanged: list[str] = []
+    needs_crawl: list[str] = list(urls_without_headers)
+    header_updates: list[dict] = []
+    sem = asyncio.Semaphore(_HEAD_CONCURRENCY)
+
+    async def check_one(client: httpx.AsyncClient, url: str):
+        headers_to_send: dict[str, str] = {}
+        cached = stored[url]
+        if cached["etag"]:
+            headers_to_send["If-None-Match"] = cached["etag"]
+        if cached["last_modified"]:
+            headers_to_send["If-Modified-Since"] = cached["last_modified"]
+
+        async with sem:
+            try:
+                resp = await client.head(url, headers=headers_to_send)
+                if resp.status_code == 304:
+                    unchanged.append(url)
+                else:
+                    needs_crawl.append(url)
+                    new_etag = resp.headers.get("etag")
+                    new_lm = resp.headers.get("last-modified")
+                    if new_etag or new_lm:
+                        header_updates.append({"url": url, "etag": new_etag, "last_modified": new_lm})
+            except Exception:
+                needs_crawl.append(url)
+
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=_HEAD_TIMEOUT,
+        verify=False,
+    ) as client:
+        await asyncio.gather(*[check_one(client, u) for u in urls_with_headers])
+
+    if header_updates:
+        site_store.update_cache_headers(header_updates)
+
+    return unchanged, needs_crawl
+
+
+async def _seed_cache_headers(
+    urls: list[str],
+    site_store: WebsiteStore,
+) -> None:
+    """Seed etag/last_modified via HEAD for URLs that just completed their first crawl."""
+    sem = asyncio.Semaphore(_HEAD_CONCURRENCY)
+    header_updates: list[dict] = []
+
+    async def seed_one(client: httpx.AsyncClient, url: str):
+        async with sem:
+            try:
+                resp = await client.head(url)
+                etag = resp.headers.get("etag")
+                last_modified = resp.headers.get("last-modified")
+                if etag or last_modified:
+                    header_updates.append({"url": url, "etag": etag, "last_modified": last_modified})
+            except Exception:
+                pass
+
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=_HEAD_TIMEOUT,
+        verify=False,
+    ) as client:
+        await asyncio.gather(*[seed_one(client, u) for u in urls])
+
+    if header_updates:
+        site_store.update_cache_headers(header_updates)
+        logger.info(f"Seeded cache headers for {len(header_updates)}/{len(urls)} URLs")
+
+
 async def _scan_website(
     domain: str,
     store_manager: WebsiteStoreManager,
@@ -86,13 +174,25 @@ async def _scan_website(
         # Phase 2: Crawl URLs in batches and cache content + hashes
         scan_start = time.time()
         crawled_total = 0
+        skipped_total = 0
         while True:
-            to_crawl = site_store.get_urls_needing_recrawl(limit=CRAWL_BATCH_SIZE, crawled_before=scan_start)
-            if not to_crawl:
+            batch = site_store.get_urls_needing_recrawl(limit=CRAWL_BATCH_SIZE, crawled_before=scan_start)
+            if not batch:
                 break
 
+            # Pre-flight: skip URLs unchanged since last crawl (304)
+            had_headers = site_store.get_cache_headers(batch)
+            unchanged, to_crawl = await _head_check(batch, site_store)
+            if unchanged:
+                site_store.touch_crawled_at(unchanged)
+                skipped_total += len(unchanged)
+
+            if not to_crawl:
+                continue
+
             logger.info(
-                f"Scan [{domain}]: Phase 2 — crawling batch of {len(to_crawl)} URLs (total so far: {crawled_total})"
+                f"Scan [{domain}]: Phase 2 — crawling {len(to_crawl)} URLs "
+                f"(skipped {len(unchanged)}, total so far: {crawled_total})"
             )
             results = await crawler_service.crawl_urls(urls=to_crawl)
             succeeded_urls = {p["url"] for p in results}
@@ -118,7 +218,12 @@ async def _scan_website(
                 logger.warning(f"Scan [{domain}]: {len(failed_urls)} URLs failed in batch")
                 site_store.increment_fail_count(failed_urls)
 
-        logger.info(f"Scan [{domain}]: crawled {crawled_total} URLs total")
+            # Seed cache headers for URLs that had none before
+            first_time = [u for u in succeeded_urls if u not in had_headers]
+            if first_time:
+                await _seed_cache_headers(first_time, site_store)
+
+        logger.info(f"Scan [{domain}]: crawled {crawled_total}, skipped {skipped_total} unchanged URLs")
 
         store_manager.update_last_scanned(domain)
         store_manager.update_scan_status(domain, "idle")
