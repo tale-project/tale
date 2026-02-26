@@ -122,6 +122,38 @@ describe('useChatLoadingState', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
+    it('returns true when last assistant message is a tool message with terminal status', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: false,
+          setIsPending,
+          uiMessages: [
+            createUIMessage({
+              id: 'msg-1',
+              order: 0,
+              role: 'assistant',
+              status: 'success',
+              text: 'Let me create that for you.',
+              parts: [
+                { type: 'text', text: 'Let me create that for you.' },
+                { type: 'step-start' },
+                {
+                  type: 'tool-excel',
+                  toolCallId: 'call-1',
+                  input: { operation: 'generate' },
+                  state: 'input-available',
+                },
+              ],
+            }),
+          ],
+          threadId: THREAD_A,
+          pendingThreadId: null,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(true);
+    });
+
     it('returns true when last message is user (waiting for AI response)', () => {
       const { result } = renderHook(() =>
         useChatLoadingState({

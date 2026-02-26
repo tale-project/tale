@@ -10,12 +10,23 @@ interface UseChatLoadingStateParams {
   pendingThreadId: string | null;
 }
 
+function isToolMessage(message: UIMessage) {
+  return message.parts?.some((part: { type: string }) =>
+    part.type.startsWith('tool-'),
+  );
+}
+
 /**
  * Derives a single `isLoading` boolean that answers: "Is the AI turn active?"
  *
- * Rule: if the last message is NOT a terminal assistant (success/failed),
- * the AI is considered active. When no messages exist, falls back to
- * `isPending` to bridge the gap between send and first subscription data.
+ * The AI turn is considered complete (not loading) only when ALL three
+ * conditions are met:
+ *   1. The last message is from the assistant
+ *   2. The last message is not a tool message (no tool-call parts)
+ *   3. The last message has a terminal status (success/failed)
+ *
+ * When no messages exist, falls back to `isPending` to bridge the gap
+ * between send and first subscription data.
  *
  * The cleanup effect clears `isPending` once loading resolves, and handles
  * thread-mismatch when the user navigates away from the pending thread.
@@ -34,6 +45,7 @@ export function useChatLoadingState({
 
     return !(
       lastMessage.role === 'assistant' &&
+      !isToolMessage(lastMessage) &&
       (lastMessage.status === 'success' || lastMessage.status === 'failed')
     );
   }, [isPending, uiMessages]);
