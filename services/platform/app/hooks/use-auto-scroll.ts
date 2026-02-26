@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
 interface UseAutoScrollOptions {
   /**
@@ -75,8 +75,15 @@ export function useAutoScroll({
   // Track enabled transitions for end-of-streaming scroll.
   const wasEnabledRef = useRef(false);
   // Ref mirror of `enabled` — read inside ResizeObserver without stale closures.
+  // Deferred to useEffect so the ResizeObserver sees the PREVIOUS value during
+  // the transition frame. When enabled goes false (streaming ends), the DOM
+  // changes (ThinkingAnimation unmount) happen in the same commit. The
+  // ResizeObserver fires before useEffect, so it still sees enabled=true and
+  // follows the shrinkage — preventing a visible scroll jump.
   const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
 
   const isAtBottom = useCallback(() => {
     const container = containerRef.current;
@@ -158,23 +165,25 @@ export function useAutoScroll({
   }, [isAtBottom]);
 
   /**
-   * When streaming ends, do one deferred scroll to catch final DOM changes
-   * (e.g. copy/info buttons appearing after ResizeObserver disconnects).
+   * When streaming ends, correct scroll position synchronously before paint.
+   *
+   * useLayoutEffect fires after React commits DOM mutations (ThinkingAnimation
+   * unmount, action buttons appearing) but BEFORE the browser paints. Reading
+   * scrollHeight forces a synchronous layout, and the scrollTo applies the
+   * correction in the same frame — the user never sees an intermediate state.
    */
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (enabled) {
       wasEnabledRef.current = true;
     } else if (wasEnabledRef.current && wasAtBottomRef.current) {
       wasEnabledRef.current = false;
       const container = containerRef.current;
       if (container) {
-        const raf = requestAnimationFrame(() => {
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: 'instant',
-          });
+        programmaticScrollRef.current = true;
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'instant',
         });
-        return () => cancelAnimationFrame(raf);
       }
     }
   }, [enabled]);

@@ -83,6 +83,48 @@ interface UseStreamBufferResult {
 }
 
 // ============================================================================
+// DISPLAY POSITION CACHE
+// ============================================================================
+// Module-level cache that decouples animation state from component lifecycle.
+// When a component remounts (step transitions, marker branching, SDK rebuilds),
+// the new instance reads the cached position instead of restarting from 0.
+// Keyed by text prefix — survives key changes across step transitions.
+
+const CACHE_PREFIX_LEN = 50;
+const MAX_CACHE_ENTRIES = 20;
+const displayPositionCache = new Map<string, number>();
+
+function getCacheKey(text: string): string | null {
+  return text.length >= CACHE_PREFIX_LEN
+    ? text.slice(0, CACHE_PREFIX_LEN)
+    : null;
+}
+
+export function findCachedPosition(text: string): number {
+  for (const [prefix, position] of displayPositionCache) {
+    if (text.startsWith(prefix) && position <= text.length) {
+      return position;
+    }
+  }
+  return 0;
+}
+
+export function saveToCache(text: string, position: number) {
+  const key = getCacheKey(text);
+  if (!key || position <= 0) return;
+  displayPositionCache.delete(key);
+  displayPositionCache.set(key, position);
+  while (displayPositionCache.size > MAX_CACHE_ENTRIES) {
+    const oldest = displayPositionCache.keys().next().value;
+    if (oldest !== undefined) displayPositionCache.delete(oldest);
+  }
+}
+
+export function clearDisplayPositionCache() {
+  displayPositionCache.clear();
+}
+
+// ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
@@ -146,13 +188,18 @@ export function useStreamBuffer({
 }: UseStreamBufferOptions): UseStreamBufferResult {
   const prefersReducedMotion = usePrefersReducedMotion();
 
-  const [displayLength, setDisplayLength] = useState(0);
+  // Recover display position from cache on mount (survives remounts)
+  const [cachedPosition] = useState(() =>
+    isStreaming ? findCachedPosition(text) : 0,
+  );
+
+  const [displayLength, setDisplayLength] = useState(cachedPosition);
   const [isTyping, setIsTyping] = useState(false);
 
   // Refs for animation state (no re-renders during animation)
   const animationFrameRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(0);
-  const displayedLengthRef = useRef(0);
+  const displayedLengthRef = useRef(cachedPosition);
   const targetTextRef = useRef('');
   const isStreamingRef = useRef(false);
   const accumulatedCharsRef = useRef(0);
@@ -304,8 +351,19 @@ export function useStreamBuffer({
     if (isStreaming) {
       wasStreamingRef.current = true;
 
+      // Eagerly save position for cross-mount recovery.
+      // Runs during commit of each text update — guarantees cache
+      // is populated BEFORE any future render that triggers remount.
+      if (displayedLengthRef.current > 0) {
+        saveToCache(text, displayedLengthRef.current);
+      }
+
       if (!prevStreaming) {
-        hasStartedRevealRef.current = false;
+        if (displayedLengthRef.current > 0) {
+          hasStartedRevealRef.current = true;
+        } else {
+          hasStartedRevealRef.current = false;
+        }
         accumulatedCharsRef.current = 0;
       }
 
@@ -339,6 +397,11 @@ export function useStreamBuffer({
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
+      }
+      // Backup save for cross-mount recovery (catches final position
+      // that the streaming effect may not have saved yet)
+      if (isStreamingRef.current || wasStreamingRef.current) {
+        saveToCache(targetTextRef.current, displayedLengthRef.current);
       }
     };
   }, []);

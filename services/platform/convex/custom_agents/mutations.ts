@@ -420,7 +420,10 @@ export const duplicateCustomAgent = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    const source = await getDraftByRoot(ctx, args.customAgentId);
+    const source =
+      (await getVersionByRootAndStatus(ctx, args.customAgentId, 'active')) ??
+      (await getVersionByRootAndStatus(ctx, args.customAgentId, 'draft'));
+    if (!source) throw new Error('Agent not found');
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
     if (!hasTeamAccess(source, userTeamIds)) {
@@ -437,6 +440,8 @@ export const duplicateCustomAgent = mutation({
       createdBy: String(authUser._id),
       versionNumber: 1,
       status: 'draft',
+      isSystemDefault: undefined,
+      systemAgentSlug: undefined,
     });
 
     await ctx.db.patch(newAgentId, { rootVersionId: newAgentId });

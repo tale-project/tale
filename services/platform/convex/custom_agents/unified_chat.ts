@@ -2,18 +2,11 @@
  * Unified Chat Mutation
  *
  * Single entry point for chatting with any agent (system default or custom).
- * Replaces the three separate chat mutations:
- * - chatWithAgent (default routing agent)
- * - chatWithBuiltinAgent (builtin specialist agents)
- * - chatWithCustomAgent (user-created custom agents)
- *
- * If no agentId is provided, the organization's system default 'chat' agent is used.
+ * The caller must always provide an explicit agentId (the root version ID).
+ * Default agent resolution happens on the frontend via useEffectiveAgent.
  */
 
 import { v } from 'convex/values';
-
-import type { Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
 
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
@@ -25,33 +18,9 @@ import { getOrganizationMember } from '../lib/rls';
 import { hasTeamAccess } from '../lib/team_access';
 import { createCustomAgentHookHandles, toSerializableConfig } from './config';
 
-async function resolveAgentId(
-  ctx: MutationCtx,
-  agentId: Id<'customAgents'> | undefined,
-  organizationId: string,
-): Promise<Id<'customAgents'>> {
-  if (agentId) return agentId;
-
-  const systemChat = ctx.db
-    .query('customAgents')
-    .withIndex('by_org_system_slug', (q) =>
-      q.eq('organizationId', organizationId).eq('systemAgentSlug', 'chat'),
-    );
-
-  for await (const agent of systemChat) {
-    if (agent.status === 'active' && agent.rootVersionId) {
-      return agent.rootVersionId;
-    }
-  }
-
-  throw new Error(
-    'System default assistant agent not found. Organization may need initialization.',
-  );
-}
-
 export const chatWithAgent = mutation({
   args: {
-    agentId: v.optional(v.id('customAgents')),
+    agentId: v.id('customAgents'),
     threadId: v.string(),
     organizationId: v.string(),
     message: v.string(),
@@ -90,12 +59,7 @@ export const chatWithAgent = mutation({
       throw new Error('Thread not found');
     }
 
-    // Resolve agent: use provided ID or fall back to system default 'chat' agent
-    const rootVersionId = await resolveAgentId(
-      ctx,
-      args.agentId,
-      args.organizationId,
-    );
+    const rootVersionId = args.agentId;
 
     // Load the active published version
     const activeVersionQuery = ctx.db

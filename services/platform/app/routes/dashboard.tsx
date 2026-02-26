@@ -1,5 +1,7 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
+import { useEffect } from 'react';
 
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { authClient } from '@/lib/auth-client';
 
 const sessionQueryOptions = {
@@ -21,5 +23,18 @@ export const Route = createFileRoute('/dashboard')({
 });
 
 function DashboardRedirect() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      const returnTo = window.location.pathname + window.location.search;
+      window.location.href = `/log-in?redirectTo=${encodeURIComponent(returnTo)}`;
+    }
+  }, [isLoading, isAuthenticated]);
+
+  if (!isLoading && !isAuthenticated) {
+    return null;
+  }
+
   return <Outlet />;
 }

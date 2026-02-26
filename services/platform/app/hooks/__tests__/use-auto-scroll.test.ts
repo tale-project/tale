@@ -391,13 +391,6 @@ describe('useAutoScroll', () => {
       container.setScrollGeometry(1000, 400);
       container.scrollTop = 600; // at bottom
 
-      const rafSpy = vi
-        .spyOn(window, 'requestAnimationFrame')
-        .mockImplementation((cb) => {
-          cb(0);
-          return 0;
-        });
-
       const { rerender } = setupStreamingHook(container);
 
       rerender({ enabled: true });
@@ -409,21 +402,12 @@ describe('useAutoScroll', () => {
         top: 1000,
         behavior: 'instant',
       });
-
-      rafSpy.mockRestore();
     });
 
     it('does NOT do final scroll when user scrolled away during streaming', () => {
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
       container.scrollTop = 600; // at bottom
-
-      const rafSpy = vi
-        .spyOn(window, 'requestAnimationFrame')
-        .mockImplementation((cb) => {
-          cb(0);
-          return 0;
-        });
 
       const { rerender } = setupStreamingHook(container);
 
@@ -440,8 +424,6 @@ describe('useAutoScroll', () => {
       rerender({ enabled: false });
 
       expect(container.scrollToSpy).not.toHaveBeenCalled();
-
-      rafSpy.mockRestore();
     });
   });
 

@@ -80,11 +80,16 @@ function StructuredMessageComponent({
     [text, isStreaming],
   );
 
-  // No markers detected — render plain
-  if (!parsed.hasMarkers) {
+  // Only switch to the structural wrapper when a section type that needs
+  // its own renderer (e.g. NEXT_STEPS) is present.  Strip-only markers
+  // (CONCLUSION, KEY_POINTS, …) produce a single 'plain' section — keeping
+  // the same render path avoids unmounting TypewriterText mid-stream.
+  const hasStructuralSections = parsed.sections.some((s) => s.type !== 'plain');
+
+  if (!hasStructuralSections) {
     return (
       <TypewriterText
-        text={text}
+        text={parsed.sections[0]?.content ?? text}
         isStreaming={isStreaming}
         components={markdownComponents}
         className={markdownWrapperStyles}
