@@ -117,18 +117,20 @@ export function ChatInterface({
     humanInputRequests,
   });
 
-  // Pending state management - use setPendingWithCount to track assistant message count
-  // This enables fallback clearing when streaming detection fails (e.g., first message race condition)
-  const { setPendingWithCount } = useChatPendingState({
+  // Pending state management - effectivePending is a synchronous derivation
+  // that eliminates the one-frame gap between ThinkingAnimation disappearing
+  // and the input re-enabling
+  const { setPendingWithCount, effectivePending } = useChatPendingState({
     isPending,
     setIsPending,
     uiMessages,
   });
 
-  // Loading state — includes incomplete assistant messages to avoid flickering
-  // when status transitions between 'streaming' and 'pending' (e.g., tool calls)
+  // Loading state — uses effectivePending (synchronous) instead of isPending
+  // (async effect) so the input re-enables in the same frame as the
+  // ThinkingAnimation disappearing
   const isLoading =
-    isPending || !!streamingMessage || hasIncompleteAssistantMessage;
+    effectivePending || !!streamingMessage || hasIncompleteAssistantMessage;
 
   // Auto-scroll
   const { containerRef, contentRef, scrollToBottom, isAtBottom } =

@@ -18,7 +18,17 @@ export function useEffectiveAgent(
   const { agents } = useChatAgents(organizationId);
 
   return useMemo(() => {
-    if (selectedAgent) return selectedAgent;
+    if (selectedAgent) {
+      if (!agents) return selectedAgent;
+      const match = agents.find(
+        (a) => (a.rootVersionId ?? a._id) === selectedAgent._id,
+      );
+      if (match) {
+        const rootId = match.rootVersionId ?? match._id;
+        return { _id: rootId, displayName: match.displayName };
+      }
+    }
+
     if (!agents) return null;
 
     const defaultAgent = agents.find(

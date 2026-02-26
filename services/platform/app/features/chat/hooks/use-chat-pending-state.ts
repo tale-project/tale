@@ -1,6 +1,6 @@
 import type { UIMessage } from '@convex-dev/agent/react';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 interface UseChatPendingStateParams {
   isPending: boolean;
@@ -10,9 +10,11 @@ interface UseChatPendingStateParams {
 
 /**
  * Hook to manage pending state clearing.
- * Clears pending only when no assistant messages are in a non-terminal state.
- * This ensures loading stays visible throughout the entire AI processing lifecycle,
- * including gaps between tool calls and status transitions.
+ *
+ * Provides `effectivePending` — a synchronously derived value that determines
+ * whether a pending send is still in-flight. This eliminates the one-frame gap
+ * between the ThinkingAnimation disappearing (synchronous useMemo) and the
+ * context `isPending` being cleared (asynchronous useEffect).
  *
  * Also handles component remount during navigation (e.g., first message
  * creates a new thread and navigates to /chat/[threadId]).
@@ -36,34 +38,38 @@ export function useChatPendingState({
     setIsPending(pending);
   };
 
-  useEffect(() => {
-    if (!isPending) {
-      assistantCountRef.current = null;
-      return;
-    }
-
-    if (!uiMessages?.length) return;
+  // Synchronous derivation of the effective pending state.
+  // Uses the same logic that the effect would use, but computed during render
+  // so isLoading updates in the same frame as hasIncompleteAssistantMessage.
+  const effectivePending = useMemo(() => {
+    if (!isPending) return false;
+    if (!uiMessages?.length) return true;
 
     const assistantMessages = uiMessages.filter((m) => m.role === 'assistant');
+    const baseline =
+      assistantCountRef.current ?? Math.max(0, assistantMessages.length - 1);
 
-    // Initialize on first run (handles component remount during navigation)
-    if (assistantCountRef.current === null) {
-      assistantCountRef.current = Math.max(0, assistantMessages.length - 1);
-    }
+    // No new assistant message yet — keep pending (covers the send → message gap)
+    if (assistantMessages.length <= baseline) return true;
 
-    // Wait for a new assistant message to appear before checking terminal status
-    if (assistantMessages.length <= assistantCountRef.current) return;
-
-    // Clear only when no assistant messages are in a non-terminal state
-    const hasNonTerminal = assistantMessages.some(
+    // New assistant message exists — still pending only while non-terminal
+    return assistantMessages.some(
       (m) => m.status !== 'success' && m.status !== 'failed',
     );
+  }, [isPending, uiMessages]);
 
-    if (!hasNonTerminal) {
+  // Sync context state when the derivation determines pending is done.
+  // This is the only purpose of the effect — the derivation above is the
+  // single source of truth for consumers.
+  useEffect(() => {
+    if (isPending && !effectivePending) {
       setIsPending(false);
       assistantCountRef.current = null;
     }
-  }, [isPending, setIsPending, uiMessages]);
+    if (!isPending) {
+      assistantCountRef.current = null;
+    }
+  }, [isPending, effectivePending, setIsPending]);
 
-  return { setPendingWithCount };
+  return { setPendingWithCount, effectivePending };
 }

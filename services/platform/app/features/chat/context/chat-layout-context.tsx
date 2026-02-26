@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
+
 interface PendingMessageAttachment {
   fileId: string;
   fileName: string;
@@ -50,18 +52,24 @@ export function useChatLayout() {
 }
 
 interface ChatLayoutProviderProps {
+  organizationId: string;
   children: ReactNode;
 }
 
-export function ChatLayoutProvider({ children }: ChatLayoutProviderProps) {
+export function ChatLayoutProvider({
+  organizationId,
+  children,
+}: ChatLayoutProviderProps) {
   const [isPending, setIsPending] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
     null,
   );
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(
-    null,
-  );
+  const [selectedAgent, setSelectedAgent] =
+    usePersistedState<SelectedAgent | null>(
+      `selected-agent-${organizationId}`,
+      null,
+    );
 
   const clearChatState = useCallback(() => {
     setIsPending(false);
