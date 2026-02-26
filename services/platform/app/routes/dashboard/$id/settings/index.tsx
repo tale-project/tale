@@ -6,11 +6,13 @@ import { getDefaultSettingsRoute } from '@/lib/permissions/get-default-settings-
 
 export const Route = createFileRoute('/dashboard/$id/settings/')({
   loader: async ({ context, params }) => {
-    const memberContext = await context.queryClient.ensureQueryData(
-      convexQuery(api.members.queries.getCurrentMemberContext, {
-        organizationId: params.id,
-      }),
-    );
+    const memberContext = await context.queryClient
+      .ensureQueryData(
+        convexQuery(api.members.queries.getCurrentMemberContext, {
+          organizationId: params.id,
+        }),
+      )
+      .catch(() => null);
 
     throw redirect({
       to: getDefaultSettingsRoute(memberContext?.role ?? null),
