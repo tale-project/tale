@@ -35,15 +35,12 @@ export async function waitForHealthy(
       return true;
     }
 
-    if (health === 'unhealthy') {
-      logger.error(`${containerName} is unhealthy`);
-      return false;
-    }
-
     logger.debug(`${containerName} health status: ${health}`);
     await Bun.sleep(interval);
   }
 
-  logger.error(`Timeout waiting for ${containerName} to become healthy`);
+  logger.error(
+    `Timeout: ${containerName} did not become healthy within ${timeout}s`,
+  );
   return false;
 }

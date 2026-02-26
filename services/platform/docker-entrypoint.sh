@@ -497,12 +497,21 @@ deploy_convex_functions() {
     "DEBUG_MODE"
   )
 
-  # Fetch current env vars from Convex to compare against local values
-  # This ensures we detect mismatches even if previous syncs failed
+  # Fetch current env vars from Convex (output format: KEY=value per line)
   echo "   Fetching current Convex env vars..."
-  CONVEX_ENV_JSON=$(npx convex env list \
+  CONVEX_ENV_OUTPUT=$(npx convex env list \
     --url "http://localhost:${CONVEX_BACKEND_PORT}" \
-    --admin-key "$ADMIN_KEY" 2>/dev/null || echo "{}")
+    --admin-key "$ADMIN_KEY" 2>/dev/null || echo "")
+
+  # Parse KEY=value lines into an associative array
+  declare -A CONVEX_ENV_MAP
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    key="${line%%=*}"
+    # Skip lines without '='
+    [ "$key" = "$line" ] && continue
+    CONVEX_ENV_MAP["$key"]="${line#*=}"
+  done <<< "$CONVEX_ENV_OUTPUT"
 
   sync_count=0
   skip_count=0
@@ -516,18 +525,14 @@ deploy_convex_functions() {
       continue
     fi
 
-    # Get current value from Convex (extract from JSON output)
-    # npx convex env list outputs: VAR_NAME    value
-    convex_value=$(echo "$CONVEX_ENV_JSON" | grep -E "^${var_name}\s" | awk '{print $2}' || echo "")
-
-    if [ "$var_value" = "$convex_value" ]; then
+    # Compare against current Convex value
+    if [ "${CONVEX_ENV_MAP[$var_name]+_}" ] && [ "${CONVEX_ENV_MAP[$var_name]}" = "$var_value" ]; then
       unchanged_count=$((unchanged_count + 1))
       continue
     fi
 
-    # Value changed or missing in Convex, sync it
     local change_type="updated"
-    [ -z "$convex_value" ] && change_type="new"
+    [ -z "${CONVEX_ENV_MAP[$var_name]+_}" ] && change_type="new"
 
     if npx convex env set "$var_name" "$var_value" \
       --url "http://localhost:${CONVEX_BACKEND_PORT}" \

@@ -53,11 +53,6 @@ jobs:
             build_script: build:mac
             binary: tale
             artifact: tale_macos
-          - os: windows-latest
-            platform: windows
-            build_script: build:windows
-            binary: tale.exe
-            artifact: tale_windows.exe
 
     steps:
       - name: Checkout
@@ -79,15 +74,9 @@ jobs:
 
       - name: Inject version into package.json
         working-directory: tools/cli
-        shell: bash
         run: |
-          if command -v jq &>/dev/null; then
-            jq '.version = "${{ needs.prepare.outputs.version }}"' package.json > package.json.tmp
-            mv package.json.tmp package.json
-          else
-            # Windows fallback using node
-            node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.version='${{ needs.prepare.outputs.version }}';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
-          fi
+          jq '.version = "${{ needs.prepare.outputs.version }}"' package.json > package.json.tmp
+          mv package.json.tmp package.json
 
       - name: Build binary
         working-directory: tools/cli
@@ -95,16 +84,12 @@ jobs:
 
       - name: Rename binary
         working-directory: tools/cli/dist
-        shell: bash
         run: mv ${{ matrix.binary }} ${{ matrix.artifact }}
 
       - name: Verify binary
         working-directory: tools/cli/dist
-        shell: bash
         run: |
-          if [ "${{ matrix.platform }}" != "windows" ]; then
-            chmod +x ${{ matrix.artifact }}
-          fi
+          chmod +x ${{ matrix.artifact }}
           ./${{ matrix.artifact }} --version
 
       - name: Upload artifact
@@ -136,6 +121,5 @@ jobs:
           gh release upload ${{ github.event.inputs.release_tag }} \
             artifacts/tale_linux/* \
             artifacts/tale_macos/* \
-            artifacts/tale_windows.exe/* \
             --repo ${{ github.repository }} \
             --clobber
