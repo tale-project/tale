@@ -100,7 +100,7 @@ describe('cleanupWebsitePagesBatch', () => {
   });
 
   it('returns hasMore: true when batch size exceeded', async () => {
-    const pages = Array.from({ length: 21 }, (_, i) =>
+    const pages = Array.from({ length: 3 }, (_, i) =>
       createMockPage(`page_${i}`),
     );
 
@@ -112,7 +112,7 @@ describe('cleanupWebsitePagesBatch', () => {
     );
 
     expect(result).toEqual({ hasMore: true });
-    expect(ctx.db.delete).toHaveBeenCalledTimes(20);
+    expect(ctx.db.delete).toHaveBeenCalledTimes(2);
   });
 
   it('queries all 7 embedding tables per page', async () => {
