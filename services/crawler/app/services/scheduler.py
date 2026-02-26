@@ -17,8 +17,8 @@ from app.services.website_store import WebsiteStoreManager
 
 logger = logging.getLogger(__name__)
 
-MAX_CONCURRENT_SCANS = 3
-CRAWL_BATCH_SIZE = 20
+MAX_CONCURRENT_SCANS = 2
+CRAWL_BATCH_SIZE = 10
 POLL_INTERVAL = 60  # seconds
 
 _scan_trigger: asyncio.Event | None = None

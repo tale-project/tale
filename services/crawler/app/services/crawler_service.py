@@ -43,13 +43,16 @@ class CrawlerService:
 
         # Import here to avoid issues if crawl4ai is not installed
         try:
-            from crawl4ai import AsyncUrlSeeder, AsyncWebCrawler
+            from crawl4ai import AsyncUrlSeeder, AsyncWebCrawler, BrowserConfig
         except ImportError as e:
             logger.error(f"Failed to import crawl4ai: {e}")
             raise RuntimeError("crawl4ai is not installed. Install with: pip install crawl4ai") from e
 
+        browser_config = BrowserConfig(
+            extra_args=["--disable-crashpad"],
+        )
         self._seeder = AsyncUrlSeeder()
-        self._crawler = AsyncWebCrawler()
+        self._crawler = AsyncWebCrawler(config=browser_config)
 
         # Initialize the seeder and crawler
         await self._seeder.__aenter__()

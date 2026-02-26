@@ -34,7 +34,6 @@ class WebsiteStore:
         self._db_path = db_path
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: sqlite3.Connection | None = None
-        self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -42,10 +41,11 @@ class WebsiteStore:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA busy_timeout=5000")
             self._conn.row_factory = sqlite3.Row
+            self._ensure_schema(self._conn)
         return self._conn
 
-    def _init_db(self):
-        conn = self._get_conn()
+    @staticmethod
+    def _ensure_schema(conn: sqlite3.Connection):
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS website_urls (
                 url TEXT PRIMARY KEY,
