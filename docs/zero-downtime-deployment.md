@@ -19,7 +19,7 @@ Blue-green deployment runs two versions of stateless services simultaneously:
 
 - Docker and Docker Compose
 - At least **12-16 GB RAM** (runs 2x services during deployment)
-- Services must respond to health checks within 3 minutes
+- Services must respond to health checks within 5 minutes
 
 ## Quick Start
 
@@ -60,7 +60,7 @@ Environment variables to customize deployment:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HEALTH_CHECK_TIMEOUT` | 180s | Max time to wait for health checks |
+| `HEALTH_CHECK_TIMEOUT` | 300s | Max time to wait for health checks |
 | `HEALTH_CHECK_INTERVAL` | 3s | Interval between health checks |
 | `DRAIN_TIMEOUT` | 30s | Time to drain old containers before removal |
 

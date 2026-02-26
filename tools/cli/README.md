@@ -140,7 +140,7 @@ Remove ALL blue-green containers.
 | Variable               | Description                        | Default                     |
 | ---------------------- | ---------------------------------- | --------------------------- |
 | `GHCR_REGISTRY`        | Container registry                 | `ghcr.io/tale-project/tale` |
-| `HEALTH_CHECK_TIMEOUT` | Health check timeout (seconds)     | `180`                       |
+| `HEALTH_CHECK_TIMEOUT` | Health check timeout (seconds)     | `300`                       |
 | `DRAIN_TIMEOUT`        | Connection drain timeout (seconds) | `30`                        |
 | `PROJECT_NAME`         | Docker project name                | `tale`                      |
 | `HOST`                 | Host alias for proxy               | `tale.local`                |
