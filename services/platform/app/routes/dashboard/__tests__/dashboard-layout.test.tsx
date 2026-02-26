@@ -23,13 +23,16 @@ vi.mock('convex/react', () => ({
   useConvexAuth: () => mockUseConvexAuth(),
 }));
 
-const mockUseCurrentMemberContext = vi.fn(() => ({
-  data: null,
-  isLoading: true,
-}));
+const mockUseCurrentMemberContext = vi.fn(
+  (_organizationId?: string, _skip?: boolean) =>
+    ({ data: null, isLoading: true }) as {
+      data: Record<string, unknown> | null | undefined;
+      isLoading: boolean;
+    },
+);
 vi.mock('@/app/hooks/use-current-member-context', () => ({
-  useCurrentMemberContext: (...args: unknown[]) =>
-    mockUseCurrentMemberContext(...args),
+  useCurrentMemberContext: (organizationId?: string, skip?: boolean) =>
+    mockUseCurrentMemberContext(organizationId, skip),
 }));
 
 vi.mock('@/lib/i18n/client', () => ({
@@ -88,7 +91,8 @@ beforeEach(async () => {
   mockUseParams.mockReturnValue({ id: 'test-org-id' });
 
   const mod = await import('@/app/routes/dashboard/$id');
-  DashboardLayout = mod.Route.component as React.ComponentType;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DashboardLayout = (mod.Route as any).component as React.ComponentType;
 });
 
 afterEach(() => {
