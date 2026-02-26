@@ -194,6 +194,6 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    expect(mockUseCurrentMemberContext).toHaveBeenCalledWith('my-org-456');
+    expect(mockUseCurrentMemberContext.mock.calls[0]?.[0]).toBe('my-org-456');
   });
 });
