@@ -14,7 +14,10 @@ interface UsePendingMessagesParams {
 
 /**
  * Hook to merge pending messages from context with real messages.
- * Shows optimistic user message immediately after navigation while data loads.
+ * Shows optimistic user message only for NEW thread creation (realMessages is empty)
+ * to bridge the navigation gap. We intentionally do NOT show optimistic messages for
+ * existing threads — Convex subscriptions deliver updates fast enough, and appending
+ * an optimistic entry alongside real-time data causes duplicate messages on slow networks.
  */
 export function usePendingMessages({
   threadId,
