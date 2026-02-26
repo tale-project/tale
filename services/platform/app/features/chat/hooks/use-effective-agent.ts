@@ -19,7 +19,7 @@ export function useEffectiveAgent(
 
   return useMemo(() => {
     if (selectedAgent) {
-      if (!agents) return selectedAgent;
+      if (!agents) return null;
       const match = agents.find(
         (a) => (a.rootVersionId ?? a._id) === selectedAgent._id,
       );
