@@ -152,6 +152,7 @@ export const wfExecutionsTable = defineTable({
 })
   .index('by_org', ['organizationId'])
   .index('by_definition', ['wfDefinitionId'])
+  .index('by_definition_status', ['wfDefinitionId', 'status'])
   .index('by_definition_startedAt', ['wfDefinitionId', 'startedAt'])
   .index('by_definition_triggeredBy_startedAt', [
     'wfDefinitionId',

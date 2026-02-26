@@ -13,6 +13,7 @@ export default defineConfig({
       'app/components/**/*.test.{ts,tsx}',
       'app/features/**/*.test.{ts,tsx}',
       'app/hooks/**/*.test.{ts,tsx}',
+      'app/routes/**/*.test.{ts,tsx}',
     ],
     exclude: ['node_modules', '.next', 'dist', 'convex/**'],
     deps: {

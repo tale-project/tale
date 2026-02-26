@@ -3,6 +3,7 @@ import { Outlet, createFileRoute } from '@tanstack/react-router';
 import { useRef } from 'react';
 
 import { BrandingProvider } from '@/app/components/branding/branding-provider';
+import { AccessDenied } from '@/app/components/layout/access-denied';
 import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
@@ -11,9 +12,11 @@ import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
 import { AbilityContext } from '@/app/context/ability-context';
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
 
 export const Route = createFileRoute('/dashboard/$id')({
@@ -29,8 +32,10 @@ export const Route = createFileRoute('/dashboard/$id')({
 
 function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
-  const { data: memberContext, isLoading } =
+  const { isLoading: isAuthLoading } = useConvexAuth();
+  const { data: memberContext, isLoading: isQueryLoading } =
     useCurrentMemberContext(organizationId);
+  const { t } = useT('accessDenied');
 
   const abilityRef = useRef<{ role: string | null; ability: AppAbility }>(null);
 
@@ -45,6 +50,7 @@ function DashboardLayout() {
 
   const { role, ability } = abilityRef.current;
   const hasRole = role !== null;
+  const isLoading = isAuthLoading || isQueryLoading;
 
   return (
     <AbilityContext.Provider value={ability}>
@@ -68,7 +74,9 @@ function DashboardLayout() {
                   <div className="flex flex-1 items-center justify-center">
                     <Spinner size="md" />
                   </div>
-                ) : null}
+                ) : (
+                  <AccessDenied message={t('noMembership')} />
+                )}
               </div>
             </div>
           </AdaptiveHeaderProvider>

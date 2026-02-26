@@ -11,20 +11,22 @@ export async function hasRunningExecution(
   ctx: QueryCtx,
   args: { wfDefinitionId: Id<'wfDefinitions'> },
 ): Promise<boolean> {
-  const running = await ctx.db
-    .query('wfExecutions')
-    .withIndex('by_definition', (q) =>
-      q.eq('wfDefinitionId', args.wfDefinitionId),
-    )
-    .filter((q) =>
-      q.or(
-        q.eq(q.field('status'), 'running'),
-        q.eq(q.field('status'), 'pending'),
-      ),
-    )
-    .first();
+  const [running, pending] = await Promise.all([
+    ctx.db
+      .query('wfExecutions')
+      .withIndex('by_definition_status', (q) =>
+        q.eq('wfDefinitionId', args.wfDefinitionId).eq('status', 'running'),
+      )
+      .first(),
+    ctx.db
+      .query('wfExecutions')
+      .withIndex('by_definition_status', (q) =>
+        q.eq('wfDefinitionId', args.wfDefinitionId).eq('status', 'pending'),
+      )
+      .first(),
+  ]);
 
-  return running !== null;
+  return running !== null || pending !== null;
 }
 
 /**
