@@ -14,6 +14,7 @@ import { v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
+import { parseModelList } from '../../lib/shared/utils/model-list';
 import { mutation } from '../_generated/server';
 import { TOOL_NAMES } from '../agent_tools/tool_names';
 import { authComponent } from '../auth';
@@ -36,6 +37,7 @@ const agentFieldsValidator = {
   toolNames: toolNamesValidator,
   integrationBindings: v.optional(v.array(v.string())),
   modelPreset: modelPresetValidator,
+  modelId: v.optional(v.string()),
   knowledgeMode: v.optional(retrievalModeValidator),
   webSearchMode: v.optional(retrievalModeValidator),
   knowledgeEnabled: v.optional(v.boolean()),
@@ -51,6 +53,20 @@ const agentFieldsValidator = {
   outputReserve: v.optional(v.number()),
   roleRestriction: v.optional(roleRestrictionValidator),
 };
+
+function validateModelId(modelId: string | undefined) {
+  if (!modelId) return;
+  const allModels = [
+    ...parseModelList(process.env.OPENAI_FAST_MODEL),
+    ...parseModelList(process.env.OPENAI_MODEL),
+    ...parseModelList(process.env.OPENAI_CODING_MODEL),
+  ];
+  if (!allModels.includes(modelId)) {
+    throw new Error(
+      `Invalid model: ${modelId}. Available models: ${allModels.join(', ')}`,
+    );
+  }
+}
 
 function validateToolNames(toolNames: string[]) {
   const validNames = new Set<string>(TOOL_NAMES);
@@ -196,6 +212,7 @@ export const createCustomAgent = mutation({
     }
 
     validateToolNames(args.toolNames);
+    validateModelId(args.modelId);
 
     const { organizationId, toolNames, ...agentFields } = args;
 
@@ -244,6 +261,7 @@ export const updateCustomAgent = mutation({
     toolNames: v.optional(toolNamesValidator),
     integrationBindings: v.optional(v.array(v.string())),
     modelPreset: v.optional(modelPresetValidator),
+    modelId: v.optional(v.string()),
     knowledgeMode: v.optional(retrievalModeValidator),
     webSearchMode: v.optional(retrievalModeValidator),
     knowledgeEnabled: v.optional(v.boolean()),
@@ -268,6 +286,7 @@ export const updateCustomAgent = mutation({
     if (args.toolNames) {
       validateToolNames(args.toolNames);
     }
+    validateModelId(args.modelId);
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
     if (!hasTeamAccess(draft, userTeamIds)) {

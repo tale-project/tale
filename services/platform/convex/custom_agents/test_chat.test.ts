@@ -1,8 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 
 import type { Doc, Id } from '../_generated/dataModel';
 
 import { toSerializableConfig } from './config';
+
+beforeAll(() => {
+  process.env.OPENAI_MODEL = 'gpt-4o';
+  process.env.OPENAI_FAST_MODEL = 'gpt-4o-mini';
+  process.env.OPENAI_CODING_MODEL = 'o3';
+});
 
 function createMockDraftAgent(
   overrides: Partial<Doc<'customAgents'>> = {},
@@ -40,8 +46,7 @@ describe('testCustomAgent', () => {
         instructions: 'You are a helpful test agent.',
         convexToolNames: ['web_search', 'document_search'],
         integrationBindings: ['integration_1'],
-        useFastModel: false,
-        model: undefined,
+        model: 'gpt-4o',
         maxSteps: undefined,
         enableVectorSearch: false,
         knowledgeMode: 'off',
@@ -53,12 +58,11 @@ describe('testCustomAgent', () => {
       });
     });
 
-    it('should set useFastModel for fast preset', () => {
+    it('should resolve fast model for fast preset', () => {
       const draft = createMockDraftAgent({ modelPreset: 'fast' });
       const config = toSerializableConfig(draft);
 
-      expect(config.useFastModel).toBe(true);
-      expect(config.model).toBeUndefined();
+      expect(config.model).toBe('gpt-4o-mini');
     });
 
     it('should handle agent with no integration bindings', () => {

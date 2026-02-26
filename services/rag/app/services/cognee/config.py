@@ -280,11 +280,6 @@ def _patch_litellm_aembedding() -> None:
             )
             call_start = time.time()
 
-            # Inject dimensions so the model returns vectors matching EMBEDDING_DIMENSIONS
-            dimensions_str = os.environ.get("EMBEDDING_DIMENSIONS")
-            if dimensions_str and "dimensions" not in kwargs:
-                kwargs["dimensions"] = int(dimensions_str)
-
             # Handle string input (OpenAI-compatible APIs accept str or list[str])
             if isinstance(input, str):
                 if not input.strip():
@@ -394,12 +389,6 @@ def _patch_litellm_embedding() -> None:
 
             if optional_params and "api.openai.com" not in base_url:
                 optional_params.pop("encoding_format", None)
-
-            # Inject dimensions so the model returns vectors matching EMBEDDING_DIMENSIONS
-            if optional_params is not None:
-                dimensions_str = os.environ.get("EMBEDDING_DIMENSIONS")
-                if dimensions_str and "dimensions" not in optional_params:
-                    optional_params["dimensions"] = int(dimensions_str)
 
             # Log text preview for debugging
             if isinstance(input, list):

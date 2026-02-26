@@ -21,9 +21,7 @@ export interface SerializableAgentConfig {
   convexToolNames?: ToolName[];
   /** Integration names bound as dedicated tools (resolved at runtime) */
   integrationBindings?: string[];
-  /** Use fast model (OPENAI_FAST_MODEL) instead of default */
-  useFastModel?: boolean;
-  /** Explicit model override (takes precedence over useFastModel) */
+  /** Explicit model override */
   model?: string;
   /** Maximum number of steps for tool calls */
   maxSteps?: number;

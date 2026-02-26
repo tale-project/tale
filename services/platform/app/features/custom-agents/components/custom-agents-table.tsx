@@ -27,6 +27,7 @@ export interface CustomAgentRow {
   systemInstructions: string;
   toolNames: string[];
   modelPreset: string;
+  modelId?: string;
   temperature?: number;
   maxTokens?: number;
   maxSteps?: number;

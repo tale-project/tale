@@ -5,6 +5,8 @@ Configuration for the Tale Operator service.
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.utils.model_list import get_first_model
+
 
 class Settings(BaseSettings):
     """Application settings."""
@@ -73,17 +75,17 @@ class Settings(BaseSettings):
 
     @property
     def llm_model(self) -> str:
-        return self.openai_model
+        return get_first_model(self.openai_model) or self.openai_model
 
     @property
     def llm_vision_model(self) -> str | None:
         """Return vision model if configured, None otherwise."""
-        return self.openai_vision_model if self.openai_vision_model else None
+        return get_first_model(self.openai_vision_model) if self.openai_vision_model else None
 
     @property
     def llm_fast_model(self) -> str:
         """Return fast model for summarization, falls back to coding model."""
-        return self.openai_fast_model if self.openai_fast_model else self.openai_model
+        return get_first_model(self.openai_fast_model) if self.openai_fast_model else self.llm_model
 
 
 # Global settings instance

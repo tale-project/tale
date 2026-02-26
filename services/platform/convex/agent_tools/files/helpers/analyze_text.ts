@@ -10,6 +10,7 @@ import { Agent } from '@convex-dev/agent';
 import type { ActionCtx } from '../../../_generated/server';
 
 import { components } from '../../../_generated/api';
+import { getFastModel } from '../../../lib/agent_runtime_config';
 import { createAgentConfig } from '../../../lib/create_agent_config';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
@@ -150,7 +151,7 @@ function createTextAnalysisAgent(): Agent {
   const config = createAgentConfig({
     name: 'text-analyzer',
     instructions: TEXT_ANALYSIS_INSTRUCTIONS,
-    useFastModel: true,
+    model: getFastModel(),
   });
 
   return new Agent(components.agent, config);

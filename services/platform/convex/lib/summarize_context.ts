@@ -13,6 +13,7 @@ import { Agent } from '@convex-dev/agent';
 import type { ActionCtx } from '../_generated/server';
 
 import { components } from '../_generated/api';
+import { getDefaultModel } from './agent_runtime_config';
 import { createDebugLog } from './debug_log';
 import { openai } from './openai_provider';
 
@@ -73,12 +74,7 @@ Output ONLY the updated summary, not commentary about changes.`;
  * Create a lightweight summarizer agent (no tools, just for summarization)
  */
 function createSummarizerAgent(incremental: boolean = false): Agent {
-  const envModel = (process.env.OPENAI_MODEL || '').trim();
-  if (!envModel) {
-    throw new Error(
-      'OPENAI_MODEL environment variable is required for summarization',
-    );
-  }
+  const envModel = getDefaultModel();
 
   return new Agent(components.agent, {
     name: 'summarizer',

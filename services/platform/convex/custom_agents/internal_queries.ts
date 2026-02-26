@@ -33,24 +33,13 @@ export const getActiveDelegateAgents = internalQuery({
 
         const agentConfig = toSerializableConfig(agent);
 
-        const model =
-          agent.modelPreset === 'advanced'
-            ? (process.env.OPENAI_CODING_MODEL ??
-              process.env.OPENAI_MODEL ??
-              '')
-            : agent.modelPreset === 'fast'
-              ? (process.env.OPENAI_FAST_MODEL ??
-                process.env.OPENAI_MODEL ??
-                '')
-              : (process.env.OPENAI_MODEL ?? '');
-
         delegates.push({
           rootVersionId: rootId,
           name: agent.name,
           displayName: agent.displayName,
           description: agent.description ?? '',
           agentConfig,
-          model,
+          model: agentConfig.model ?? '',
           provider: 'openai',
           roleRestriction: agent.roleRestriction,
         });

@@ -24,7 +24,7 @@ interface CustomAgentsTableConfig {
 
 interface CustomAgentsTableConfigOptions {
   teamNameMap: Map<string, string>;
-  modelPresets: Record<string, string | null> | undefined;
+  modelPresets: Record<string, string[]> | undefined;
 }
 
 export function useCustomAgentsTableConfig({
@@ -77,9 +77,10 @@ export function useCustomAgentsTableConfig({
           const preset = row.original.modelPreset;
           const presetLabel = t(`customAgents.form.modelPresets.${preset}`);
           const modelName =
-            modelPresets && isKeyOf(preset, modelPresets)
-              ? modelPresets[preset]
-              : undefined;
+            row.original.modelId ??
+            (modelPresets && isKeyOf(preset, modelPresets)
+              ? modelPresets[preset]?.[0]
+              : undefined);
           return (
             <Badge variant="outline">
               {presetLabel}

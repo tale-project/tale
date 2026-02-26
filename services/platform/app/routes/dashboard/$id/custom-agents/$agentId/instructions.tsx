@@ -1,6 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import type { ModelPreset } from '@/lib/shared/schemas/custom_agents';
@@ -23,7 +23,6 @@ import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/st
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { FILE_PREPROCESSING_INSTRUCTIONS } from '@/lib/shared/constants/custom-agents';
-import { modelPresetSchema } from '@/lib/shared/schemas/custom_agents';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
@@ -42,12 +41,29 @@ export const Route = createFileRoute(
 
 interface InstructionsFormData {
   systemInstructions: string;
-  modelPreset: ModelPreset;
+  modelId: string;
   filePreprocessingEnabled: boolean;
   structuredResponsesEnabled: boolean;
 }
 
-const MODEL_PRESET_OPTIONS = ['fast', 'standard', 'advanced'] as const;
+const PRESET_KEYS = ['fast', 'standard', 'advanced'] as const;
+
+function derivePresetFromModelId(
+  modelId: string,
+  presets: Record<string, string[]>,
+): ModelPreset {
+  for (const key of PRESET_KEYS) {
+    if (presets[key]?.includes(modelId)) return key;
+  }
+  return 'standard';
+}
+
+function getDefaultModelId(
+  preset: string,
+  presets: Record<string, string[]> | undefined,
+): string {
+  return presets?.[preset]?.[0] ?? '';
+}
 
 function InstructionsTab() {
   const { agentId } = Route.useParams();
@@ -57,20 +73,31 @@ function InstructionsTab() {
 
   const { data: modelPresets } = useModelPresets();
 
-  const modelOptions = MODEL_PRESET_OPTIONS.map((preset) => {
-    const presetLabel = t(`customAgents.form.modelPresets.${preset}`);
-    const modelName = modelPresets?.[preset];
-    return {
-      value: preset,
-      label: modelName ? `${presetLabel} (${modelName})` : presetLabel,
-    };
-  });
+  const modelOptions = useMemo(() => {
+    if (!modelPresets) return [];
+    const options: { value: string; label: string }[] = [];
+    for (const key of PRESET_KEYS) {
+      const models = modelPresets[key] ?? [];
+      const presetLabel = t(`customAgents.form.modelPresets.${key}`);
+      for (const model of models) {
+        options.push({
+          value: model,
+          label: `${model} (${presetLabel})`,
+        });
+      }
+    }
+    return options;
+  }, [modelPresets, t]);
+
+  const initialModelId =
+    agent?.modelId ??
+    getDefaultModelId(agent?.modelPreset ?? 'standard', modelPresets);
 
   const form = useForm<InstructionsFormData>({
     values: agent
       ? {
           systemInstructions: agent.systemInstructions,
-          modelPreset: agent.modelPreset,
+          modelId: initialModelId,
           filePreprocessingEnabled: agent.filePreprocessingEnabled ?? false,
           structuredResponsesEnabled: agent.structuredResponsesEnabled ?? true,
         }
@@ -81,15 +108,20 @@ function InstructionsTab() {
 
   const handleSave = useCallback(
     async (data: InstructionsFormData) => {
+      const modelPreset = modelPresets
+        ? derivePresetFromModelId(data.modelId, modelPresets)
+        : 'standard';
+
       await updateAgent.mutateAsync({
         customAgentId: toId<'customAgents'>(agentId),
         systemInstructions: data.systemInstructions,
-        modelPreset: data.modelPreset,
+        modelPreset,
+        modelId: data.modelId,
         filePreprocessingEnabled: data.filePreprocessingEnabled,
         structuredResponsesEnabled: data.structuredResponsesEnabled,
       });
     },
-    [agentId, updateAgent],
+    [agentId, updateAgent, modelPresets],
   );
 
   const { status, save } = useAutoSave({
@@ -150,14 +182,13 @@ function InstructionsTab() {
       >
         <Select
           options={modelOptions}
-          label={t('customAgents.form.modelPreset')}
-          value={formValues.modelPreset}
+          label={t('customAgents.form.model')}
+          value={formValues.modelId}
           onValueChange={(val) => {
-            const preset = modelPresetSchema.parse(val);
-            form.setValue('modelPreset', preset);
+            form.setValue('modelId', val);
             void save({
               ...form.getValues(),
-              modelPreset: preset,
+              modelId: val,
             });
           }}
           required

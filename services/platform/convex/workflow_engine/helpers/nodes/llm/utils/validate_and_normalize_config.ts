@@ -7,6 +7,8 @@
 import type { LLMNodeConfig } from '../../../../types/nodes';
 import type { NormalizedConfig } from '../types';
 
+import { getDefaultModel } from '../../../../../lib/agent_runtime_config';
+
 /**
  * Validates and normalizes the LLM node configuration
  */
@@ -21,12 +23,7 @@ export function validateAndNormalizeConfig(
     throw new Error('Invalid LLM node configuration: systemPrompt is required');
   }
 
-  const envModel = (process.env.OPENAI_MODEL || '').trim();
-  if (!envModel) {
-    throw new Error(
-      'OPENAI_MODEL environment variable is required for LLM workflow steps but is not set',
-    );
-  }
+  const envModel = getDefaultModel();
 
   // Validate outputSchema if provided
   if (llmConfig.outputSchema) {

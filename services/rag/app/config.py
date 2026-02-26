@@ -10,6 +10,8 @@ import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.utils.model_list import get_first_model
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -144,7 +146,7 @@ class Settings(BaseSettings):
             raise ValueError("OPENAI_BASE_URL must be set in environment. No default base URL is provided.")
 
         # Model: use OPENAI_FAST_MODEL (required)
-        model = os.environ.get("OPENAI_FAST_MODEL")
+        model = get_first_model(os.environ.get("OPENAI_FAST_MODEL"))
         if not model:
             raise ValueError("OPENAI_FAST_MODEL must be set in environment. No default model is provided.")
 
@@ -234,7 +236,9 @@ class Settings(BaseSettings):
         Raises:
             ValueError: If no vision model is configured.
         """
-        vision_model = self.openai_vision_model or os.environ.get("OPENAI_VISION_MODEL")
+        vision_model = get_first_model(self.openai_vision_model) or get_first_model(
+            os.environ.get("OPENAI_VISION_MODEL")
+        )
         if not vision_model:
             raise ValueError("OPENAI_VISION_MODEL must be set in environment. No default vision model is provided.")
         return vision_model

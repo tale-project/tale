@@ -7,6 +7,7 @@ import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 
+import { parseModelList } from '../../lib/shared/utils/model-list';
 import { query } from '../_generated/server';
 import { TOOL_NAMES } from '../agent_tools/tool_names';
 import { getUserTeamIds } from '../lib/get_user_teams';
@@ -281,14 +282,14 @@ export const getAvailableIntegrations = query({
 export const getModelPresets = query({
   args: {},
   handler: async (): Promise<{
-    fast: string | null;
-    standard: string | null;
-    advanced: string | null;
+    fast: string[];
+    standard: string[];
+    advanced: string[];
   }> => {
     return {
-      fast: process.env.OPENAI_FAST_MODEL ?? null,
-      standard: process.env.OPENAI_MODEL ?? null,
-      advanced: process.env.OPENAI_CODING_MODEL ?? null,
+      fast: parseModelList(process.env.OPENAI_FAST_MODEL),
+      standard: parseModelList(process.env.OPENAI_MODEL),
+      advanced: parseModelList(process.env.OPENAI_CODING_MODEL),
     };
   },
 });

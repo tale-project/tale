@@ -5,9 +5,9 @@
  * and the existing agent pipeline.
  *
  * Model preset resolution:
- * - 'fast' → useFastModel flag (resolved in createAgentConfig via OPENAI_FAST_MODEL)
- * - 'standard' → default (resolved in createAgentConfig via OPENAI_MODEL)
- * - 'advanced' → resolved via OPENAI_CODING_MODEL env var
+ * - 'fast' → OPENAI_FAST_MODEL
+ * - 'standard' → OPENAI_MODEL (default)
+ * - 'advanced' → OPENAI_CODING_MODEL
  */
 
 import { createFunctionHandle, makeFunctionReference } from 'convex/server';
@@ -21,19 +21,26 @@ import type {
 } from '../lib/agent_chat/types';
 
 import { FILE_PREPROCESSING_INSTRUCTIONS } from '../../lib/shared/constants/custom-agents';
+import {
+  getCodingModelOrThrow,
+  getDefaultModel,
+  getFastModel,
+} from '../lib/agent_runtime_config';
 
 const beforeGenerateHookRef = makeFunctionReference<'action'>(
   'lib/agent_chat/internal_actions:beforeGenerateHook',
 );
 
-function resolveModelPreset(preset: string): string | undefined {
-  switch (preset) {
+function resolveModel(agent: Doc<'customAgents'>): string {
+  if (agent.modelId) return agent.modelId;
+
+  switch (agent.modelPreset) {
     case 'fast':
-      return undefined; // handled by useFastModel flag
+      return getFastModel();
     case 'advanced':
-      return process.env.OPENAI_CODING_MODEL;
+      return getCodingModelOrThrow();
     default:
-      return undefined; // 'standard' uses default OPENAI_MODEL
+      return getDefaultModel();
   }
 }
 
@@ -57,8 +64,7 @@ export function toSerializableConfig(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are validated via validateToolNames() on insert; always valid ToolName values
     convexToolNames: agent.toolNames as ToolName[],
     integrationBindings: agent.integrationBindings,
-    useFastModel: agent.modelPreset === 'fast',
-    model: resolveModelPreset(agent.modelPreset),
+    model: resolveModel(agent),
     maxSteps: agent.maxSteps,
     enableVectorSearch: false,
     knowledgeMode,

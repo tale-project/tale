@@ -9,6 +9,7 @@ import { Agent } from '@convex-dev/agent';
 
 import { components } from '../../_generated/api';
 import { type ToolName } from '../../agent_tools/tool_registry';
+import { getFastModel } from '../../lib/agent_runtime_config';
 import { createAgentConfig } from '../../lib/create_agent_config';
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -51,25 +52,25 @@ Do NOT:
 export function createWebAgent(options?: {
   maxSteps?: number;
   withTools?: boolean;
-  useFastModel?: boolean;
+  model?: string;
 }) {
   const maxSteps = options?.maxSteps ?? 5;
   const withTools = options?.withTools ?? true;
-  const useFastModel = options?.useFastModel ?? true;
+  const model = options?.model ?? getFastModel();
 
   const convexToolNames: ToolName[] = ['web'];
 
   debugLog('createWebAgent', {
     toolCount: withTools ? convexToolNames.length : 0,
     maxSteps,
-    useFastModel,
+    model,
   });
 
   const agentConfig = createAgentConfig({
     name: 'web-assistant',
     instructions: WEB_AGENT_INSTRUCTIONS,
     ...(withTools ? { convexToolNames } : {}),
-    ...(useFastModel ? { useFastModel: true } : {}),
+    model,
     maxSteps,
   });
 
