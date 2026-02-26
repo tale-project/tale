@@ -32,6 +32,8 @@ export interface SelectedAgent {
 interface ChatLayoutContextType {
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
+  pendingThreadId: string | null;
+  setPendingThreadId: (threadId: string | null) => void;
   clearChatState: () => void;
   pendingMessage: PendingMessage | null;
   setPendingMessage: (message: PendingMessage | null) => void;
@@ -61,6 +63,7 @@ export function ChatLayoutProvider({
   children,
 }: ChatLayoutProviderProps) {
   const [isPending, setIsPending] = useState(false);
+  const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
     null,
   );
@@ -73,6 +76,7 @@ export function ChatLayoutProvider({
 
   const clearChatState = useCallback(() => {
     setIsPending(false);
+    setPendingThreadId(null);
     setPendingMessage(null);
   }, []);
 
@@ -81,6 +85,8 @@ export function ChatLayoutProvider({
       value={{
         isPending,
         setIsPending,
+        pendingThreadId,
+        setPendingThreadId,
         clearChatState,
         pendingMessage,
         setPendingMessage,

@@ -21,7 +21,7 @@ import {
   useIntegrationApprovals,
   useWorkflowCreationApprovals,
 } from '../hooks/queries';
-import { useChatPendingState } from '../hooks/use-chat-pending-state';
+import { useChatLoadingState } from '../hooks/use-chat-loading-state';
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
@@ -50,6 +50,8 @@ export function ChatInterface({
   const {
     isPending,
     setIsPending,
+    pendingThreadId,
+    setPendingThreadId,
     clearChatState,
     pendingMessage,
     setPendingMessage,
@@ -82,7 +84,6 @@ export function ChatInterface({
     canLoadMore,
     isLoadingMore,
     streamingMessage,
-    hasIncompleteAssistantMessage,
   } = useMessageProcessing(threadId);
 
   // Merge with pending messages from context for optimistic UI
@@ -117,20 +118,14 @@ export function ChatInterface({
     humanInputRequests,
   });
 
-  // Pending state management - effectivePending is a synchronous derivation
-  // that eliminates the one-frame gap between ThinkingAnimation disappearing
-  // and the input re-enabling
-  const { setPendingWithCount, effectivePending } = useChatPendingState({
+  // Single derived loading state: "Is the AI turn active?"
+  const { isLoading, setIsPendingWithBaseline } = useChatLoadingState({
     isPending,
     setIsPending,
     uiMessages,
+    threadId,
+    pendingThreadId,
   });
-
-  // Loading state — uses effectivePending (synchronous) instead of isPending
-  // (async effect) so the input re-enables in the same frame as the
-  // ThinkingAnimation disappearing
-  const isLoading =
-    effectivePending || !!streamingMessage || hasIncompleteAssistantMessage;
 
   // Auto-scroll
   const { containerRef, contentRef, scrollToBottom, isAtBottom } =
@@ -203,12 +198,12 @@ export function ChatInterface({
     hasScrolledOnLoadRef.current = false;
   }, [threadId]);
 
-  // Message sending - use setPendingWithCount to enable fallback clearing logic
   const { sendMessage } = useSendMessage({
     organizationId,
     threadId,
     messages: rawMessages,
-    setIsPending: setPendingWithCount,
+    setIsPending: setIsPendingWithBaseline,
+    setPendingThreadId,
     setPendingMessage,
     clearChatState,
     onBeforeSend: () => {
@@ -226,9 +221,9 @@ export function ChatInterface({
   };
 
   const handleHumanInputResponseSubmitted = useCallback(() => {
-    setPendingWithCount(true, true);
+    setIsPendingWithBaseline(true);
     shouldScrollToAIRef.current = true;
-  }, [setPendingWithCount]);
+  }, [setIsPendingWithBaseline]);
 
   const handleSendFollowUp = useCallback(
     (message: string) => {
@@ -237,13 +232,10 @@ export function ChatInterface({
     [setInputValue],
   );
 
-  // Determine what to show in content area
-  // Show welcome only when idle (no threadId, no messages, no pending message, not loading)
-  const showWelcome =
-    !threadId && messages.length === 0 && !pendingMessage && !isPending;
   // Show messages view when we have content or are loading (to show ThinkingAnimation)
   const showMessages =
-    threadId || messages.length > 0 || pendingMessage || isPending;
+    threadId || messages.length > 0 || pendingMessage || isLoading;
+  const showWelcome = !showMessages;
 
   return (
     <div
@@ -257,7 +249,7 @@ export function ChatInterface({
           showWelcome && 'flex flex-col items-center justify-end',
         )}
       >
-        {showWelcome && <WelcomeView isPending={isPending} />}
+        {showWelcome && <WelcomeView isPending={isLoading} />}
 
         {showMessages && (
           <ChatMessages
@@ -268,7 +260,7 @@ export function ChatInterface({
             isLoadingMore={isLoadingMore}
             loadMore={loadMore}
             streamingMessage={streamingMessage}
-            hasIncompleteAssistantMessage={hasIncompleteAssistantMessage}
+            isLoading={isLoading}
             aiResponseAreaRef={aiResponseAreaRef}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             onSendFollowUp={handleSendFollowUp}
