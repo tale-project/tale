@@ -82,9 +82,13 @@ export function useSendMessage({
           fileSize: a.fileSize,
         }));
 
-        // Create thread if needed
+        // Create thread if needed.
+        // Optimistic message is ONLY set for new threads (no currentThreadId) to bridge
+        // the gap during thread creation + navigation. For existing threads, Convex's
+        // real-time subscription delivers the message fast enough, and adding an optimistic
+        // message risks duplicates on slow networks (the cleanup race between the optimistic
+        // entry and the real subscription update is inherently unreliable).
         if (!currentThreadId) {
-          // Store pending message immediately for optimistic UI (before API call)
           const pendingTimestamp = new Date();
           setPendingMessage({
             content: sanitizedContent,
