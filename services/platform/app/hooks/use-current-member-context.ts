@@ -2,11 +2,12 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
 /**
- * Routes under /dashboard/$id can call this without `skip` because the parent
- * route loader uses `ensureQueryData` to guarantee the member context is cached
- * before child routes render.
+ * The parent route loader (`/dashboard/$id`) prefetches this query so data is
+ * typically available on first render during client-side navigation. On a cold
+ * page refresh the data may still be loading; callers should handle `isLoading`
+ * or guard against `undefined` data.
  *
- * The `skip` parameter is still available for callers outside the $id route tree
+ * The `skip` parameter is available for callers outside the $id route tree
  * (e.g. routes that need to guard against auth token refreshes). When skipped,
  * `isLoading` is forced to `true` and the query uses `enabled: false` to preserve
  * the stable query key for cached data.

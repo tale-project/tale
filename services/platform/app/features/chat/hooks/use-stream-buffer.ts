@@ -100,7 +100,7 @@ function findNextWordBoundary(text: string, startPos: number): number {
   return startPos;
 }
 
-function findSafeAnchor(text: string, currentPos: number): number {
+export function findSafeAnchor(text: string, currentPos: number): number {
   if (currentPos <= 0) return 0;
 
   const searchStart = Math.max(0, currentPos - 200);
@@ -118,7 +118,15 @@ function findSafeAnchor(text: string, currentPos: number): number {
     const codeBlockCount = (textUpToAnchor.match(/```/g) || []).length;
 
     if (codeBlockCount % 2 !== 0) {
-      return 0;
+      // Inside a code block. The last ``` is the opening fence (fences
+      // alternate open/close; odd count means the last one opened).
+      // Anchor at the paragraph break before it so everything above
+      // the code block stays in the memoized StableMarkdown.
+      const lastFence = textUpToAnchor.lastIndexOf('```');
+      if (lastFence <= 0) return 0;
+      const breakBefore = text.lastIndexOf('\n\n', lastFence);
+      if (breakBefore === -1) return 0;
+      return breakBefore + 2;
     }
     return absolutePos;
   }
@@ -335,10 +343,27 @@ export function useStreamBuffer({
     };
   }, []);
 
-  const anchorPosition = useMemo(
+  // Monotonically advancing anchor — prevents regression when findSafeAnchor
+  // returns 0 inside long sections without \n\n boundaries (e.g., tables,
+  // long code blocks). Without this, the anchor oscillates between 0 and
+  // the correct position, causing StableMarkdown to unmount/remount the
+  // entire DOM tree on every frame.
+  const anchorRef = useRef(0);
+
+  if (displayLength === 0) {
+    anchorRef.current = 0;
+  }
+
+  const rawAnchor = useMemo(
     () => findSafeAnchor(text, displayLength),
     [text, displayLength],
   );
+
+  if (rawAnchor > anchorRef.current) {
+    anchorRef.current = rawAnchor;
+  }
+
+  const anchorPosition = anchorRef.current;
 
   const progress = text.length > 0 ? displayLength / text.length : 1;
   const bufferSize = text.length - displayLength;

@@ -75,7 +75,6 @@ interface UseMessageProcessingResult {
   streamingMessage: UIMessage | undefined;
   pendingToolResponse: UIMessage | undefined;
   hasActiveTools: boolean;
-  isProcessingToolResult: boolean;
   hasIncompleteAssistantMessage: boolean;
 }
 
@@ -262,39 +261,6 @@ export function useMessageProcessing(
     );
   }, [streamingMessage?.parts]);
 
-  // Check if agent is processing tool result (tool completed but no text after it)
-  // This handles the gap when sub-agent tools complete but agent hasn't resumed streaming
-  const isProcessingToolResult = useMemo(() => {
-    if (!uiMessages?.length) return false;
-
-    const lastAssistant = uiMessages.findLast((m) => m.role === 'assistant');
-    if (!lastAssistant?.parts?.length) return false;
-    if (lastAssistant.status === 'success' || lastAssistant.status === 'failed')
-      return false;
-
-    const lastToolIndex = lastAssistant.parts.findLastIndex(
-      (part: { type: string }) =>
-        part.type.startsWith('tool-') && part.type !== 'tool-result',
-    );
-    if (lastToolIndex === -1) return false;
-
-    // UIMessage.parts is loosely typed — cast required to access tool-specific fields
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex agent SDK returns loosely typed UIMessage.parts
-    const lastToolPart = lastAssistant.parts[lastToolIndex] as {
-      type: string;
-      state?: string;
-    };
-    if (lastToolPart?.state !== 'output-available') return false;
-
-    const partsAfterTool = lastAssistant.parts.slice(lastToolIndex + 1);
-    const hasTextAfterTool = partsAfterTool.some(
-      (part: { type: string; text?: string }) =>
-        part.type === 'text' && part.text,
-    );
-
-    return !hasTextAfterTool;
-  }, [uiMessages]);
-
   // Check if the thread is waiting for an assistant response.
   // True when the newest message is not a completed assistant response,
   // OR when any assistant message is still in-flight. The second condition
@@ -332,7 +298,6 @@ export function useMessageProcessing(
     streamingMessage,
     pendingToolResponse,
     hasActiveTools,
-    isProcessingToolResult,
     hasIncompleteAssistantMessage,
   };
 }
