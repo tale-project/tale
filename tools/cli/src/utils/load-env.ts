@@ -13,7 +13,7 @@ export interface DeploymentEnv {
 }
 
 const DEFAULT_REGISTRY = 'ghcr.io/tale-project/tale';
-const DEFAULT_HEALTH_CHECK_TIMEOUT = 180;
+const DEFAULT_HEALTH_CHECK_TIMEOUT = 300;
 const DEFAULT_DRAIN_TIMEOUT = 30;
 
 function parseIntSafe(value: string | undefined, fallback: number): number {
