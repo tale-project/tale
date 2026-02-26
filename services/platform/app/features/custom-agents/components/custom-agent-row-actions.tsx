@@ -47,7 +47,7 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
   const handleDuplicate = useCallback(() => {
     if (isDuplicating) return;
     duplicateAgent(
-      { customAgentId: toId<'customAgents'>(agent._id) },
+      { customAgentId: toId<'customAgents'>(rootId) },
       {
         onSuccess: () => {
           toast({
@@ -64,7 +64,7 @@ export function CustomAgentRowActions({ agent }: CustomAgentRowActionsProps) {
         },
       },
     );
-  }, [isDuplicating, duplicateAgent, agent._id, t]);
+  }, [isDuplicating, duplicateAgent, rootId, t]);
 
   const handlePublish = useCallback(() => {
     if (isPublishing) return;

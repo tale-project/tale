@@ -23,6 +23,7 @@ import {
 } from '../hooks/queries';
 import { useChatPendingState } from '../hooks/use-chat-pending-state';
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
+import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
 import { useMessageProcessing } from '../hooks/use-message-processing';
 import { usePendingMessages } from '../hooks/use-pending-messages';
@@ -52,8 +53,9 @@ export function ChatInterface({
     clearChatState,
     pendingMessage,
     setPendingMessage,
-    selectedAgent,
   } = useChatLayout();
+
+  const effectiveAgent = useEffectiveAgent(organizationId);
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
     chatDraftKey(threadId),
@@ -210,7 +212,7 @@ export function ChatInterface({
     onBeforeSend: () => {
       shouldScrollToAIRef.current = true;
     },
-    selectedAgent,
+    selectedAgent: effectiveAgent,
   });
 
   const handleSendMessage = async (

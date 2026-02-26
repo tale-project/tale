@@ -13,18 +13,17 @@ import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
+import { useEffectiveAgent } from '../hooks/use-effective-agent';
 
 interface AgentSelectorProps {
   organizationId: string;
 }
 
-const DEFAULT_AGENT_VALUE = '__default__';
-
 interface AgentOption {
   value: string;
   label: string;
   description: string;
-  isDefaultChat?: boolean;
+  isDefaultChat: boolean;
 }
 
 function filterOptions(options: AgentOption[], query: string) {
@@ -40,7 +39,8 @@ function filterOptions(options: AgentOption[], query: string) {
 export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const { t } = useT('chat');
   const ability = useAbility();
-  const { selectedAgent, setSelectedAgent } = useChatLayout();
+  const { setSelectedAgent } = useChatLayout();
+  const effectiveAgent = useEffectiveAgent(organizationId);
   const { agents: allAgents } = useChatAgents(organizationId);
   const canManageAgents = ability.can('write', 'customAgents');
   const [open, setOpen] = useState(false);
@@ -56,19 +56,15 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
     const result: AgentOption[] = [];
 
     for (const agent of allAgents) {
-      const rootId = agent.rootVersionId ?? agent._id;
-      const isDefaultChat =
-        Boolean(agent.isSystemDefault) && agent.systemAgentSlug === 'chat';
-
       result.push({
-        value: isDefaultChat ? DEFAULT_AGENT_VALUE : rootId,
+        value: agent.rootVersionId ?? agent._id,
         label: agent.displayName,
         description: agent.description || '',
-        isDefaultChat,
+        isDefaultChat:
+          Boolean(agent.isSystemDefault) && agent.systemAgentSlug === 'chat',
       });
     }
 
-    // Default chat agent first, then alphabetical
     result.sort((a, b) => {
       if (a.isDefaultChat) return -1;
       if (b.isDefaultChat) return 1;
@@ -83,28 +79,21 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
     [options, search],
   );
 
-  const currentValue = useMemo(() => {
-    if (!selectedAgent) return DEFAULT_AGENT_VALUE;
-    return selectedAgent._id;
-  }, [selectedAgent]);
+  const currentValue = effectiveAgent?._id ?? null;
 
   const currentLabel =
-    selectedAgent?.displayName ?? t('agentSelector.defaultAgent');
+    effectiveAgent?.displayName ?? t('agentSelector.defaultAgent');
 
   const handleSelect = useCallback(
     (value: string) => {
-      if (value === DEFAULT_AGENT_VALUE) {
-        setSelectedAgent(null);
-      } else {
-        const agent = allAgents?.find(
-          (a) => (a.rootVersionId ?? a._id) === value,
-        );
-        if (agent) {
-          setSelectedAgent({
-            _id: agent.rootVersionId ?? agent._id,
-            displayName: agent.displayName,
-          });
-        }
+      const agent = allAgents?.find(
+        (a) => (a.rootVersionId ?? a._id) === value,
+      );
+      if (agent) {
+        setSelectedAgent({
+          _id: agent.rootVersionId ?? agent._id,
+          displayName: agent.displayName,
+        });
       }
       setOpen(false);
     },

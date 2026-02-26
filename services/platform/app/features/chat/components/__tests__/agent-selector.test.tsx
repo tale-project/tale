@@ -28,27 +28,49 @@ vi.mock('../../context/chat-layout-context', () => ({
   }),
 }));
 
+interface MockAgent {
+  _id: string;
+  rootVersionId: string | null;
+  displayName: string;
+  description: string;
+  isSystemDefault: boolean;
+  systemAgentSlug: string | null;
+}
+
+const defaultAgents: MockAgent[] = [
+  {
+    _id: 'agent-1',
+    rootVersionId: null,
+    displayName: 'Default Chat',
+    description: 'Default assistant',
+    isSystemDefault: true,
+    systemAgentSlug: 'chat',
+  },
+  {
+    _id: 'agent-2',
+    rootVersionId: 'root-2',
+    displayName: 'Custom Agent',
+    description: 'A custom agent',
+    isSystemDefault: false,
+    systemAgentSlug: null,
+  },
+];
+
+let mockAgents: MockAgent[] = defaultAgents;
+
 vi.mock('../../hooks/queries', () => ({
   useChatAgents: () => ({
-    agents: [
-      {
-        _id: 'agent-1',
-        rootVersionId: null,
-        displayName: 'Default Chat',
-        description: 'Default assistant',
-        isSystemDefault: true,
-        systemAgentSlug: 'chat',
-      },
-      {
-        _id: 'agent-2',
-        rootVersionId: 'root-2',
-        displayName: 'Agent',
-        description: 'A custom agent',
-        isSystemDefault: false,
-        systemAgentSlug: null,
-      },
-    ],
+    agents: mockAgents,
   }),
+}));
+
+let mockEffectiveAgent: { _id: string; displayName: string } | null = {
+  _id: 'agent-1',
+  displayName: 'Default Chat',
+};
+
+vi.mock('../../hooks/use-effective-agent', () => ({
+  useEffectiveAgent: () => mockEffectiveAgent,
 }));
 
 let mockCanWrite = true;
@@ -101,12 +123,25 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockCanWrite = true;
   mockDialogIsOpen = false;
+  mockAgents = defaultAgents;
+  mockEffectiveAgent = { _id: 'agent-1', displayName: 'Default Chat' };
 });
 
 describe('AgentSelector', () => {
   it('renders the agent selector trigger', () => {
     render(<AgentSelector organizationId="org-1" />);
     expect(screen.getByLabelText('Select agent')).toBeInTheDocument();
+  });
+
+  it('displays the effective agent name', () => {
+    render(<AgentSelector organizationId="org-1" />);
+    expect(screen.getByText('Default Chat')).toBeInTheDocument();
+  });
+
+  it('falls back to translation when no effective agent', () => {
+    mockEffectiveAgent = null;
+    render(<AgentSelector organizationId="org-1" />);
+    expect(screen.getByText('Default agent')).toBeInTheDocument();
   });
 
   it('shows "Add agent" button when user has write permission', async () => {
@@ -155,5 +190,71 @@ describe('AgentSelector', () => {
     render(<AgentSelector organizationId="org-1" />);
 
     expect(screen.queryByTestId('create-agent-dialog')).not.toBeInTheDocument();
+  });
+
+  it('calls setSelectedAgent with real agent ID when option is clicked', async () => {
+    const { user } = render(<AgentSelector organizationId="org-1" />);
+
+    const trigger = screen.getByLabelText('Select agent');
+    await user.click(trigger);
+
+    const customOption = screen.getByText('Custom Agent');
+    await user.click(customOption);
+
+    expect(mockSetSelectedAgent).toHaveBeenCalledWith({
+      _id: 'root-2',
+      displayName: 'Custom Agent',
+    });
+  });
+
+  it('calls setSelectedAgent with real ID even for system default agent', async () => {
+    mockEffectiveAgent = { _id: 'root-2', displayName: 'Custom Agent' };
+
+    const { user } = render(<AgentSelector organizationId="org-1" />);
+
+    const trigger = screen.getByLabelText('Select agent');
+    await user.click(trigger);
+
+    const defaultOption = screen.getByText('Default Chat');
+    await user.click(defaultOption);
+
+    expect(mockSetSelectedAgent).toHaveBeenCalledWith({
+      _id: 'agent-1',
+      displayName: 'Default Chat',
+    });
+  });
+
+  it('only highlights one agent when multiple have isSystemDefault', async () => {
+    mockAgents = [
+      {
+        _id: 'agent-1',
+        rootVersionId: null,
+        displayName: 'Assistant',
+        description: 'Default assistant',
+        isSystemDefault: true,
+        systemAgentSlug: 'chat',
+      },
+      {
+        _id: 'agent-3',
+        rootVersionId: 'root-3',
+        displayName: 'Duplicated Default',
+        description: 'Also marked as default',
+        isSystemDefault: true,
+        systemAgentSlug: 'chat',
+      },
+    ];
+    mockEffectiveAgent = { _id: 'agent-1', displayName: 'Assistant' };
+
+    const { user } = render(<AgentSelector organizationId="org-1" />);
+
+    const trigger = screen.getByLabelText('Select agent');
+    await user.click(trigger);
+
+    const selectedOptions = screen.getAllByRole('option');
+    const selected = selectedOptions.filter(
+      (el) => el.getAttribute('aria-selected') === 'true',
+    );
+    expect(selected).toHaveLength(1);
+    expect(selected[0]).toHaveTextContent('Assistant');
   });
 });

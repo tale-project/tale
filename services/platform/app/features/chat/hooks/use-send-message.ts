@@ -27,7 +27,7 @@ interface UseSendMessageParams {
   setPendingMessage: (message: PendingMessage | null) => void;
   clearChatState: () => void;
   onBeforeSend?: () => void;
-  selectedAgent?: SelectedAgent | null;
+  selectedAgent: SelectedAgent | null;
 }
 
 /**
@@ -53,6 +53,14 @@ export function useSendMessage({
 
   const sendMessage = useCallback(
     async (message: string, attachments?: FileAttachment[]) => {
+      if (!selectedAgent) {
+        toast({
+          title: t('toast.sendFailed'),
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const sanitizedContent = sanitizeChatMessage(message);
 
       // Set pending state
@@ -120,9 +128,7 @@ export function useSendMessage({
 
         // Send message via unified agent chat mutation
         await chatWithAgent({
-          agentId: selectedAgent
-            ? toId<'customAgents'>(selectedAgent._id)
-            : undefined,
+          agentId: toId<'customAgents'>(selectedAgent._id),
           threadId: currentThreadId,
           organizationId,
           message: sanitizedContent,
