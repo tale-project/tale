@@ -65,6 +65,28 @@ export function useSendMessage({
 
       const sanitizedContent = sanitizeChatMessage(message);
 
+      // Convert attachments format (needed before storing pending message)
+      const mutationAttachments = attachments?.map((a) => ({
+        fileId: a.fileId,
+        fileName: a.fileName,
+        fileType: a.fileType,
+        fileSize: a.fileSize,
+      }));
+
+      // Capture baseline BEFORE setting any state — deterministic snapshot at send time
+      const pendingTimestamp = new Date();
+      const userMessageBaseline =
+        messages?.filter((m) => m.role === 'user').length ?? 0;
+
+      // Set optimistic message FIRST so it renders with/before loading indicator
+      setPendingMessage({
+        content: sanitizedContent,
+        threadId: threadId ?? 'pending',
+        attachments: mutationAttachments,
+        timestamp: pendingTimestamp,
+        userMessageBaseline,
+      });
+
       // Set pending state scoped to this thread (null for new-chat page)
       setPendingThreadId(threadId ?? null);
       setIsPending(true);
@@ -74,25 +96,8 @@ export function useSendMessage({
         let currentThreadId = threadId;
         let isFirstMessage = false;
 
-        // Convert attachments format (needed before storing pending message)
-        const mutationAttachments = attachments?.map((a) => ({
-          fileId: a.fileId,
-          fileName: a.fileName,
-          fileType: a.fileType,
-          fileSize: a.fileSize,
-        }));
-
         // Create thread if needed
         if (!currentThreadId) {
-          // Store pending message immediately for optimistic UI (before API call)
-          const pendingTimestamp = new Date();
-          setPendingMessage({
-            content: sanitizedContent,
-            threadId: 'pending',
-            attachments: mutationAttachments,
-            timestamp: pendingTimestamp,
-          });
-
           const title =
             message.length > 50 ? message.slice(0, 50) + '...' : message;
           const newThreadId = await createThread({
@@ -109,6 +114,7 @@ export function useSendMessage({
             threadId: newThreadId,
             attachments: mutationAttachments,
             timestamp: pendingTimestamp,
+            userMessageBaseline,
           });
 
           // Use startTransition to prevent Suspense from triggering.
@@ -151,7 +157,7 @@ export function useSendMessage({
     },
     [
       threadId,
-      messages?.length,
+      messages,
       organizationId,
       setIsPending,
       setPendingThreadId,

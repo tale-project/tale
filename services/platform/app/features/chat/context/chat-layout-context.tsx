@@ -22,6 +22,8 @@ export interface PendingMessage {
   threadId: string;
   attachments?: PendingMessageAttachment[];
   timestamp: Date;
+  /** Count of user messages at send time — used to detect when the real message arrives. */
+  userMessageBaseline: number;
 }
 
 export interface SelectedAgent {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { UIMessage } from '@convex-dev/agent/react';
 
-import { renderHook, act } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { useChatLoadingState } from '../use-chat-loading-state';
@@ -30,8 +30,8 @@ describe('useChatLoadingState', () => {
     setIsPending = vi.fn<(pending: boolean) => void>();
   });
 
-  describe('Phase 1: active assistant (message-driven)', () => {
-    it('returns true when any assistant message is streaming', () => {
+  describe('last message check', () => {
+    it('returns true when last assistant message is streaming', () => {
       const { result } = renderHook(() =>
         useChatLoadingState({
           isPending: false,
@@ -52,7 +52,7 @@ describe('useChatLoadingState', () => {
       expect(result.current.isLoading).toBe(true);
     });
 
-    it('returns true when any assistant message is pending (tool call)', () => {
+    it('returns true when last assistant message is pending (tool call)', () => {
       const { result } = renderHook(() =>
         useChatLoadingState({
           isPending: false,
@@ -73,7 +73,7 @@ describe('useChatLoadingState', () => {
       expect(result.current.isLoading).toBe(true);
     });
 
-    it('returns true when assistant message has undefined status', () => {
+    it('returns true when last assistant message has undefined status', () => {
       const msg = createUIMessage({
         id: 'msg-1',
         order: 0,
@@ -95,7 +95,7 @@ describe('useChatLoadingState', () => {
       expect(result.current.isLoading).toBe(true);
     });
 
-    it('returns false when all assistant messages are terminal', () => {
+    it('returns false when last assistant message is terminal', () => {
       const { result } = renderHook(() =>
         useChatLoadingState({
           isPending: false,
@@ -122,7 +122,7 @@ describe('useChatLoadingState', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    it('returns false when thread has only user messages and not pending', () => {
+    it('returns true when last message is user (waiting for AI response)', () => {
       const { result } = renderHook(() =>
         useChatLoadingState({
           isPending: false,
@@ -140,83 +140,6 @@ describe('useChatLoadingState', () => {
         }),
       );
 
-      expect(result.current.isLoading).toBe(false);
-    });
-  });
-
-  describe('Phase 2: send-gap bridge', () => {
-    it('returns true when isPending and no messages exist', () => {
-      const { result } = renderHook(() =>
-        useChatLoadingState({
-          isPending: true,
-          setIsPending,
-          uiMessages: [],
-          threadId: THREAD_A,
-          pendingThreadId: THREAD_A,
-        }),
-      );
-
-      expect(result.current.isLoading).toBe(true);
-    });
-
-    it('returns true when isPending and uiMessages is undefined', () => {
-      const { result } = renderHook(() =>
-        useChatLoadingState({
-          isPending: true,
-          setIsPending,
-          uiMessages: undefined,
-          threadId: THREAD_A,
-          pendingThreadId: THREAD_A,
-        }),
-      );
-
-      expect(result.current.isLoading).toBe(true);
-    });
-
-    it('returns true when no new assistant message has appeared (send → message gap)', () => {
-      const existingAssistant = createUIMessage({
-        id: 'msg-1',
-        order: 0,
-        role: 'assistant',
-        text: 'Previous answer',
-        status: 'success',
-      });
-      const userMsg = createUIMessage({
-        id: 'msg-2',
-        order: 1,
-        role: 'user',
-        text: 'Follow up',
-      });
-
-      const messages = [existingAssistant, userMsg] as UIMessage[] | undefined;
-
-      const { result, rerender } = renderHook(
-        (props) => useChatLoadingState(props),
-        {
-          initialProps: {
-            isPending: false as boolean,
-            setIsPending,
-            uiMessages: messages,
-            threadId: THREAD_A as string | undefined,
-            pendingThreadId: null as string | null,
-          },
-        },
-      );
-
-      // User sends — record baseline (1 assistant message)
-      act(() => {
-        result.current.setIsPendingWithBaseline(true);
-      });
-
-      rerender({
-        isPending: true,
-        setIsPending,
-        uiMessages: messages,
-        threadId: THREAD_A,
-        pendingThreadId: THREAD_A,
-      });
-
-      // No new assistant message yet — isLoading stays true
       expect(result.current.isLoading).toBe(true);
     });
 
@@ -257,11 +180,40 @@ describe('useChatLoadingState', () => {
         pendingThreadId: THREAD_A,
       });
 
-      // isLoading should be false immediately (same render frame)
       expect(result.current.isLoading).toBe(false);
     });
+  });
 
-    it('returns false when isPending is false', () => {
+  describe('isPending bridge (no messages)', () => {
+    it('returns true when isPending and no messages exist', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: true,
+          setIsPending,
+          uiMessages: [],
+          threadId: THREAD_A,
+          pendingThreadId: THREAD_A,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    it('returns true when isPending and uiMessages is undefined', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: true,
+          setIsPending,
+          uiMessages: undefined,
+          threadId: THREAD_A,
+          pendingThreadId: THREAD_A,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    it('returns false when not isPending and no messages exist', () => {
       const { result } = renderHook(() =>
         useChatLoadingState({
           isPending: false,
@@ -277,7 +229,7 @@ describe('useChatLoadingState', () => {
   });
 
   describe('context sync (setIsPending)', () => {
-    it('clears isPending when new assistant message reaches success', () => {
+    it('clears isPending when last assistant message reaches success', () => {
       const userMsg = createUIMessage({
         id: 'msg-1',
         order: 0,
@@ -313,7 +265,7 @@ describe('useChatLoadingState', () => {
       expect(setIsPending).toHaveBeenCalledWith(false);
     });
 
-    it('clears isPending when new assistant message reaches failed', () => {
+    it('clears isPending when last assistant message reaches failed', () => {
       const userMsg = createUIMessage({
         id: 'msg-1',
         order: 0,
@@ -398,7 +350,7 @@ describe('useChatLoadingState', () => {
       expect(setIsPending).not.toHaveBeenCalled();
     });
 
-    it('does not clear isPending for pre-existing terminal messages when using setIsPendingWithBaseline', () => {
+    it('does not clear isPending when last message is user (waiting for AI)', () => {
       const existingAssistant = createUIMessage({
         id: 'msg-1',
         order: 0,
@@ -413,39 +365,20 @@ describe('useChatLoadingState', () => {
         text: 'Follow up',
       });
 
-      const messages = [existingAssistant, userMsg] as UIMessage[] | undefined;
-
-      const { result, rerender } = renderHook(
-        (props) => useChatLoadingState(props),
-        {
-          initialProps: {
-            isPending: false as boolean,
-            setIsPending,
-            uiMessages: messages,
-            threadId: THREAD_A as string | undefined,
-            pendingThreadId: null as string | null,
-          },
-        },
+      renderHook(() =>
+        useChatLoadingState({
+          isPending: true,
+          setIsPending,
+          uiMessages: [existingAssistant, userMsg],
+          threadId: THREAD_A,
+          pendingThreadId: THREAD_A,
+        }),
       );
 
-      // User sends a follow-up — setIsPendingWithBaseline tracks current assistant count (1)
-      act(() => {
-        result.current.setIsPendingWithBaseline(true);
-      });
-
-      rerender({
-        isPending: true,
-        setIsPending,
-        uiMessages: messages,
-        threadId: THREAD_A,
-        pendingThreadId: THREAD_A,
-      });
-
-      // Should not clear — no new assistant message appeared yet
       expect(setIsPending).not.toHaveBeenCalledWith(false);
     });
 
-    it('handles component remount during navigation', () => {
+    it('clears isPending on component remount with completed conversation', () => {
       const completedMsg = createUIMessage({
         id: 'msg-2',
         order: 1,
@@ -454,9 +387,6 @@ describe('useChatLoadingState', () => {
         status: 'success',
       });
 
-      // Simulates remount: isPending true from context, messages already loaded
-      // assistantCountAtSendRef starts null, gets fallback baseline max(0, 1-1) = 0
-      // Then count (1) > 0 → Phase 1 false (terminal), Phase 2 false (count > baseline) → clears
       renderHook(() =>
         useChatLoadingState({
           isPending: true,
@@ -472,21 +402,7 @@ describe('useChatLoadingState', () => {
   });
 
   describe('thread scoping', () => {
-    it('returns false when pendingThreadId does not match threadId', () => {
-      const { result } = renderHook(() =>
-        useChatLoadingState({
-          isPending: true,
-          setIsPending,
-          uiMessages: [],
-          threadId: 'thread-b',
-          pendingThreadId: THREAD_A,
-        }),
-      );
-
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    it('clears isPending when thread does not match (navigated away)', () => {
+    it('clears isPending when pendingThreadId does not match threadId', () => {
       renderHook(() =>
         useChatLoadingState({
           isPending: true,
@@ -514,8 +430,8 @@ describe('useChatLoadingState', () => {
       expect(result.current.isLoading).toBe(true);
     });
 
-    it('returns false on new-chat page when pendingThreadId is set (different thread pending)', () => {
-      const { result } = renderHook(() =>
+    it('clears isPending on new-chat page when pendingThreadId is set (different thread pending)', () => {
+      renderHook(() =>
         useChatLoadingState({
           isPending: true,
           setIsPending,
@@ -525,7 +441,7 @@ describe('useChatLoadingState', () => {
         }),
       );
 
-      expect(result.current.isLoading).toBe(false);
+      expect(setIsPending).toHaveBeenCalledWith(false);
     });
 
     it('returns true on new-chat page when pendingThreadId is null (sent from new-chat)', () => {
@@ -540,6 +456,20 @@ describe('useChatLoadingState', () => {
       );
 
       expect(result.current.isLoading).toBe(true);
+    });
+
+    it('does not clear isPending during new-chat transition when pendingThreadId is null', () => {
+      renderHook(() =>
+        useChatLoadingState({
+          isPending: true,
+          setIsPending,
+          uiMessages: undefined,
+          threadId: undefined,
+          pendingThreadId: null,
+        }),
+      );
+
+      expect(setIsPending).not.toHaveBeenCalled();
     });
   });
 });

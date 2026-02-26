@@ -49,6 +49,7 @@ describe('usePendingMessages', () => {
       content: 'Hi there',
       threadId: 'thread-1',
       timestamp: ts,
+      userMessageBaseline: 0,
     };
 
     const { result } = renderHook(() =>
@@ -67,6 +68,7 @@ describe('usePendingMessages', () => {
       content: 'Check this image',
       threadId: 'thread-1',
       timestamp: ts,
+      userMessageBaseline: 0,
       attachments: [
         {
           fileId: 'storage-id-1',
@@ -113,6 +115,7 @@ describe('usePendingMessages', () => {
       content: 'Just text',
       threadId: 'thread-1',
       timestamp: ts,
+      userMessageBaseline: 0,
     };
 
     const { result } = renderHook(() =>
@@ -129,6 +132,7 @@ describe('usePendingMessages', () => {
       content: 'New message',
       threadId: 'pending',
       timestamp: ts,
+      userMessageBaseline: 0,
       attachments: [
         {
           fileId: 'storage-id-1',
@@ -146,5 +150,201 @@ describe('usePendingMessages', () => {
     expect(result.current).toHaveLength(1);
     expect(result.current[0].content).toBe('New message');
     expect(result.current[0].attachments).toHaveLength(1);
+  });
+
+  describe('existing thread optimistic messages', () => {
+    it('appends optimistic message to existing thread messages', () => {
+      const existingMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: 'msg-2',
+          key: 'msg-2',
+          content: 'Hi there!',
+          role: 'assistant',
+          timestamp: new Date('2024-01-01T00:00:01Z'),
+        },
+      ];
+
+      mockPendingMessage.current = {
+        content: 'Follow up question',
+        threadId: 'thread-1',
+        timestamp: new Date('2024-01-01T00:01:00Z'),
+        userMessageBaseline: 1,
+      };
+
+      const { result } = renderHook(() =>
+        usePendingMessages({
+          threadId: 'thread-1',
+          realMessages: existingMessages,
+        }),
+      );
+
+      expect(result.current).toHaveLength(3);
+      expect(result.current[0]).toBe(existingMessages[0]);
+      expect(result.current[1]).toBe(existingMessages[1]);
+      expect(result.current[2].content).toBe('Follow up question');
+      expect(result.current[2].role).toBe('user');
+    });
+
+    it('returns only real messages when real user message already arrived (no duplicate)', () => {
+      const existingMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: 'msg-2',
+          key: 'msg-2',
+          content: 'Hi!',
+          role: 'assistant',
+          timestamp: new Date('2024-01-01T00:00:01Z'),
+        },
+        {
+          id: 'msg-3',
+          key: 'msg-3',
+          content: 'Follow up',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:01:00Z'),
+        },
+      ];
+
+      // baseline=1, but realMessages now has 2 user messages → already delivered
+      mockPendingMessage.current = {
+        content: 'Follow up',
+        threadId: 'thread-1',
+        timestamp: new Date('2024-01-01T00:01:00Z'),
+        userMessageBaseline: 1,
+      };
+
+      const { result } = renderHook(() =>
+        usePendingMessages({
+          threadId: 'thread-1',
+          realMessages: existingMessages,
+        }),
+      );
+
+      expect(result.current).toBe(existingMessages);
+      expect(result.current).toHaveLength(3);
+    });
+
+    it('clears pending message when real user message arrives in existing thread', () => {
+      const initialMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+        {
+          id: 'msg-2',
+          key: 'msg-2',
+          content: 'Hi!',
+          role: 'assistant',
+          timestamp: new Date('2024-01-01T00:00:01Z'),
+        },
+      ];
+
+      mockPendingMessage.current = {
+        content: 'Follow up',
+        threadId: 'thread-1',
+        timestamp: new Date('2024-01-01T00:01:00Z'),
+        userMessageBaseline: 1,
+      };
+
+      const { rerender } = renderHook(
+        ({ realMessages }) =>
+          usePendingMessages({ threadId: 'thread-1', realMessages }),
+        { initialProps: { realMessages: initialMessages } },
+      );
+
+      // Real user message arrives from Convex
+      const updatedMessages: ChatMessage[] = [
+        ...initialMessages,
+        {
+          id: 'msg-3',
+          key: 'msg-3',
+          content: 'Follow up',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:01:00Z'),
+        },
+      ];
+
+      rerender({ realMessages: updatedMessages });
+
+      expect(mockSetPendingMessage).toHaveBeenCalledWith(null);
+    });
+
+    it('does not clear pending for mismatched threadId', () => {
+      const existingMessages: ChatMessage[] = [
+        {
+          id: 'msg-1',
+          key: 'msg-1',
+          content: 'Hello',
+          role: 'user',
+          timestamp: new Date('2024-01-01T00:00:00Z'),
+        },
+      ];
+
+      // Pending is for thread-2, but we're rendering thread-1
+      mockPendingMessage.current = {
+        content: 'Different thread',
+        threadId: 'thread-2',
+        timestamp: new Date('2024-01-01T00:01:00Z'),
+        userMessageBaseline: 0,
+      };
+
+      const { result } = renderHook(() =>
+        usePendingMessages({
+          threadId: 'thread-1',
+          realMessages: existingMessages,
+        }),
+      );
+
+      // Should return real messages without appending
+      expect(result.current).toBe(existingMessages);
+      expect(mockSetPendingMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('new thread clearing', () => {
+    it('clears pending message when first real message arrives for new thread', () => {
+      mockPendingMessage.current = {
+        content: 'First message',
+        threadId: 'thread-1',
+        timestamp: new Date('2024-01-01T00:00:00Z'),
+        userMessageBaseline: 0,
+      };
+
+      const { rerender } = renderHook(
+        ({ realMessages }) =>
+          usePendingMessages({ threadId: 'thread-1', realMessages }),
+        { initialProps: { realMessages: [] as ChatMessage[] } },
+      );
+
+      // Real message arrives
+      rerender({
+        realMessages: [
+          {
+            id: 'msg-1',
+            key: 'msg-1',
+            content: 'First message',
+            role: 'user',
+            timestamp: new Date('2024-01-01T00:00:00Z'),
+          },
+        ],
+      });
+
+      expect(mockSetPendingMessage).toHaveBeenCalledWith(null);
+    });
   });
 });
