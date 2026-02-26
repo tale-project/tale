@@ -121,6 +121,10 @@ ENV NODE_ENV=production \
     HOSTNAME="0.0.0.0" \
     CONVEX_PORT=3210 \
     INSTANCE_NAME=tale_platform \
+    # Increase UDF timeout from default 2s to 5s to handle thundering herd on reconnect.
+    # When a browser tab is idle and reconnects, all subscribed queries fire simultaneously,
+    # causing burst load that can exceed the default timeout under contention.
+    DATABASE_UDF_USER_TIMEOUT_SECONDS=5 \
     # CA cert path for self-signed mode - entrypoint script checks if file exists
     # With Let's Encrypt, this file doesn't exist and is safely ignored
     CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt \

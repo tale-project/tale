@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 import { useRef } from 'react';
 
@@ -15,26 +14,21 @@ import { AbilityContext } from '@/app/context/ability-context';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
 
 export const Route = createFileRoute('/dashboard/$id')({
-  loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.members.queries.getCurrentMemberContext, {
-        organizationId: params.id,
-      }),
-    );
-  },
   component: DashboardLayout,
 });
 
 function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
   const { isLoading: isAuthLoading } = useConvexAuth();
-  const { data: memberContext, isLoading: isQueryLoading } =
-    useCurrentMemberContext(organizationId);
+  const {
+    data: memberContext,
+    isLoading: isQueryLoading,
+    isError,
+  } = useCurrentMemberContext(organizationId, isAuthLoading);
   const { t } = useT('accessDenied');
 
   const abilityRef = useRef<{ role: string | null; ability: AppAbility }>(null);
@@ -50,7 +44,7 @@ function DashboardLayout() {
 
   const { role, ability } = abilityRef.current;
   const hasRole = role !== null;
-  const isLoading = isAuthLoading || isQueryLoading;
+  const isLoading = isAuthLoading || isQueryLoading || isError;
 
   return (
     <AbilityContext.Provider value={ability}>
