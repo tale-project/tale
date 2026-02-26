@@ -25,9 +25,10 @@ vi.mock('convex/react', () => ({
 
 const mockUseCurrentMemberContext = vi.fn(
   (_organizationId?: string, _skip?: boolean) =>
-    ({ data: null, isLoading: true }) as {
+    ({ data: null, isLoading: true, isError: false }) as {
       data: Record<string, unknown> | null | undefined;
       isLoading: boolean;
+      isError: boolean;
     },
 );
 vi.mock('@/app/hooks/use-current-member-context', () => ({
@@ -108,6 +109,7 @@ describe('DashboardLayout', () => {
     mockUseCurrentMemberContext.mockReturnValue({
       data: null,
       isLoading: false,
+      isError: false,
     });
 
     render(<DashboardLayout />);
@@ -124,6 +126,7 @@ describe('DashboardLayout', () => {
     mockUseCurrentMemberContext.mockReturnValue({
       data: null,
       isLoading: true,
+      isError: false,
     });
 
     render(<DashboardLayout />);
@@ -140,6 +143,7 @@ describe('DashboardLayout', () => {
     mockUseCurrentMemberContext.mockReturnValue({
       data: null,
       isLoading: true,
+      isError: false,
     });
 
     render(<DashboardLayout />);
@@ -156,6 +160,7 @@ describe('DashboardLayout', () => {
     mockUseCurrentMemberContext.mockReturnValue({
       data: { role: 'admin', memberId: 'm1', organizationId: 'org-1' },
       isLoading: false,
+      isError: false,
     });
 
     render(<DashboardLayout />);
@@ -172,6 +177,7 @@ describe('DashboardLayout', () => {
     mockUseCurrentMemberContext.mockReturnValue({
       data: null,
       isLoading: false,
+      isError: false,
     });
 
     render(<DashboardLayout />);
@@ -190,10 +196,80 @@ describe('DashboardLayout', () => {
     mockUseCurrentMemberContext.mockReturnValue({
       data: null,
       isLoading: true,
+      isError: false,
     });
 
     render(<DashboardLayout />);
 
     expect(mockUseCurrentMemberContext.mock.calls[0]?.[0]).toBe('my-org-456');
+  });
+
+  it('passes skip=true when auth is loading', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: true,
+      isAuthenticated: false,
+    });
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: null,
+      isLoading: true,
+      isError: false,
+    });
+
+    render(<DashboardLayout />);
+
+    expect(mockUseCurrentMemberContext.mock.calls[0]?.[1]).toBe(true);
+  });
+
+  it('passes skip=false when auth is ready', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: null,
+      isLoading: true,
+      isError: false,
+    });
+
+    render(<DashboardLayout />);
+
+    expect(mockUseCurrentMemberContext.mock.calls[0]?.[1]).toBe(false);
+  });
+
+  it('shows spinner when query errors (not access denied)', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: null,
+      isLoading: false,
+      isError: true,
+    });
+
+    render(<DashboardLayout />);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('accessDenied.noMembership'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps outlet visible when query errors but has previous data', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: { role: 'admin', memberId: 'm1', organizationId: 'org-1' },
+      isLoading: false,
+      isError: true,
+    });
+
+    render(<DashboardLayout />);
+
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });

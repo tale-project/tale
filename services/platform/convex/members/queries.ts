@@ -13,6 +13,7 @@ import {
   getOrganizationMember,
   getUserOrganizations,
 } from '../lib/rls';
+import { UnauthenticatedError, UnauthorizedError } from '../lib/rls/errors';
 import { memberRoleValidator } from './validators';
 
 interface BetterAuthTeam {
@@ -50,7 +51,7 @@ export const getCurrentMemberContext = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      return null;
+      throw new UnauthenticatedError();
     }
 
     try {
@@ -59,10 +60,6 @@ export const getCurrentMemberContext = query({
         args.organizationId,
         authUser,
       );
-
-      if (!member) {
-        return null;
-      }
 
       const role = isValidRole(member.role) ? member.role : 'member';
 
@@ -75,8 +72,11 @@ export const getCurrentMemberContext = query({
         displayName: authUser.name,
         isAdmin: role === 'admin',
       };
-    } catch {
-      return null;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        return null;
+      }
+      throw error;
     }
   },
 });

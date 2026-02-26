@@ -97,10 +97,11 @@ function GeneralTab() {
     [agentId, updateMetadata],
   );
 
-  const { status } = useAutoSave({
+  const { status, save } = useAutoSave({
     data: combinedData,
     onSave: handleSave,
     enabled: !!agent && accessInitialized && !isReadOnly,
+    mode: 'manual',
   });
 
   const teamOptions = useMemo(() => {
@@ -146,21 +147,31 @@ function GeneralTab() {
     [agentId, updateVisibility, t],
   );
 
+  const nameField = form.register('name', { required: true });
+  const displayNameField = form.register('displayName', { required: true });
+  const descriptionField = form.register('description');
+
   const handleTeamChange = (val: string) => {
     const resolved = val === NO_TEAM_VALUE ? undefined : val;
     setTeamId(resolved);
-    if (!resolved) setSharedWithTeamIds([]);
+    const newShared = resolved ? sharedWithTeamIds : [];
+    if (!resolved) setSharedWithTeamIds(newShared);
+    void save({
+      ...form.getValues(),
+      teamId: resolved,
+      sharedWithTeamIds: newShared,
+    });
   };
 
   const handleToggleSharedTeam = (id: string) => {
-    setSharedWithTeamIds((prev) => {
-      const set = new Set(prev);
-      if (set.has(id)) {
-        set.delete(id);
-      } else {
-        set.add(id);
-      }
-      return [...set];
+    const newShared = sharedWithTeamIds.includes(id)
+      ? sharedWithTeamIds.filter((sid) => sid !== id)
+      : [...sharedWithTeamIds, id];
+    setSharedWithTeamIds(newShared);
+    void save({
+      ...form.getValues(),
+      teamId,
+      sharedWithTeamIds: newShared,
     });
   };
 
@@ -195,7 +206,11 @@ function GeneralTab() {
           label={t('customAgents.form.name')}
           placeholder={t('customAgents.form.namePlaceholder')}
           description={t('customAgents.form.nameHelp')}
-          {...form.register('name', { required: true })}
+          {...nameField}
+          onBlur={(e) => {
+            void nameField.onBlur(e);
+            void save();
+          }}
           required
           disabled={isReadOnly}
           errorMessage={form.formState.errors.name?.message}
@@ -205,7 +220,11 @@ function GeneralTab() {
           id="displayName"
           label={t('customAgents.form.displayName')}
           placeholder={t('customAgents.form.displayNamePlaceholder')}
-          {...form.register('displayName', { required: true })}
+          {...displayNameField}
+          onBlur={(e) => {
+            void displayNameField.onBlur(e);
+            void save();
+          }}
           required
           disabled={isReadOnly}
           errorMessage={form.formState.errors.displayName?.message}
@@ -215,7 +234,11 @@ function GeneralTab() {
           id="description"
           label={t('customAgents.form.description')}
           placeholder={t('customAgents.form.descriptionPlaceholder')}
-          {...form.register('description')}
+          {...descriptionField}
+          onBlur={(e) => {
+            void descriptionField.onBlur(e);
+            void save();
+          }}
           rows={2}
           disabled={isReadOnly}
         />
