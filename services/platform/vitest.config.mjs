@@ -39,6 +39,18 @@ export default defineConfig({
       },
       {
         extends: true,
+        test: {
+          name: 'client',
+          environment: 'jsdom',
+          include: [
+            'app/components/**/*.test.{ts,tsx}',
+            'app/features/**/*.test.{ts,tsx}',
+            'app/hooks/**/*.test.{ts,tsx}',
+          ],
+        },
+      },
+      {
+        extends: true,
         plugins: [
           storybookTest({ configDir: path.join(dirname, '.storybook') }),
         ],

@@ -147,4 +147,97 @@ describe('usePendingMessages', () => {
     expect(result.current[0].content).toBe('New message');
     expect(result.current[0].attachments).toHaveLength(1);
   });
+
+  it('returns real messages when pending exists but real messages already loaded', () => {
+    const existingMessages: ChatMessage[] = [
+      {
+        id: 'msg-1',
+        key: 'msg-1',
+        content: 'Hello',
+        role: 'user',
+        timestamp: new Date('2024-01-01T00:00:00Z'),
+      },
+      {
+        id: 'msg-2',
+        key: 'msg-2',
+        content: 'Hi there!',
+        role: 'assistant',
+        timestamp: new Date('2024-01-01T00:00:01Z'),
+      },
+    ];
+
+    mockPendingMessage.current = {
+      content: 'Follow up question',
+      threadId: 'thread-1',
+      timestamp: new Date('2024-01-01T00:01:00Z'),
+    };
+
+    const { result } = renderHook(() =>
+      usePendingMessages({
+        threadId: 'thread-1',
+        realMessages: existingMessages,
+      }),
+    );
+
+    expect(result.current).toBe(existingMessages);
+  });
+
+  it('does not show pending for mismatched threadId', () => {
+    const existingMessages: ChatMessage[] = [
+      {
+        id: 'msg-1',
+        key: 'msg-1',
+        content: 'Hello',
+        role: 'user',
+        timestamp: new Date('2024-01-01T00:00:00Z'),
+      },
+    ];
+
+    mockPendingMessage.current = {
+      content: 'Different thread',
+      threadId: 'thread-2',
+      timestamp: new Date('2024-01-01T00:01:00Z'),
+    };
+
+    const { result } = renderHook(() =>
+      usePendingMessages({
+        threadId: 'thread-1',
+        realMessages: existingMessages,
+      }),
+    );
+
+    expect(result.current).toBe(existingMessages);
+    expect(mockSetPendingMessage).not.toHaveBeenCalled();
+  });
+
+  describe('new thread clearing', () => {
+    it('clears pending message when first real message arrives for new thread', () => {
+      mockPendingMessage.current = {
+        content: 'First message',
+        threadId: 'thread-1',
+        timestamp: new Date('2024-01-01T00:00:00Z'),
+      };
+
+      const { rerender } = renderHook(
+        ({ realMessages }) =>
+          usePendingMessages({ threadId: 'thread-1', realMessages }),
+        { initialProps: { realMessages: [] as ChatMessage[] } },
+      );
+
+      // Real message arrives
+      rerender({
+        realMessages: [
+          {
+            id: 'msg-1',
+            key: 'msg-1',
+            content: 'First message',
+            role: 'user',
+            timestamp: new Date('2024-01-01T00:00:00Z'),
+          },
+        ],
+      });
+
+      expect(mockSetPendingMessage).toHaveBeenCalledWith(null);
+    });
+  });
 });
