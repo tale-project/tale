@@ -24,7 +24,7 @@ interface ChatMessagesProps {
   isLoadingMore: boolean;
   loadMore: (numItems: number) => void;
   streamingMessage: UIMessage | undefined;
-  hasIncompleteAssistantMessage: boolean;
+  isLoading: boolean;
   aiResponseAreaRef: RefObject<HTMLDivElement | null>;
   onHumanInputResponseSubmitted?: () => void;
   onSendFollowUp?: (message: string) => void;
@@ -41,7 +41,7 @@ export function ChatMessages({
   isLoadingMore,
   loadMore,
   streamingMessage,
-  hasIncompleteAssistantMessage,
+  isLoading,
   aiResponseAreaRef,
   onHumanInputResponseSubmitted,
   onSendFollowUp,
@@ -168,9 +168,7 @@ export function ChatMessages({
       })}
 
       <div ref={aiResponseAreaRef}>
-        {hasIncompleteAssistantMessage && (
-          <ThinkingAnimation streamingMessage={streamingMessage} />
-        )}
+        {isLoading && <ThinkingAnimation streamingMessage={streamingMessage} />}
       </div>
     </div>
   );

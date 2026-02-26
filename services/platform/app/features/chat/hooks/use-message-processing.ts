@@ -75,7 +75,6 @@ interface UseMessageProcessingResult {
   streamingMessage: UIMessage | undefined;
   pendingToolResponse: UIMessage | undefined;
   hasActiveTools: boolean;
-  hasIncompleteAssistantMessage: boolean;
 }
 
 /**
@@ -261,34 +260,6 @@ export function useMessageProcessing(
     );
   }, [streamingMessage?.parts]);
 
-  // Check if the thread is waiting for an assistant response.
-  // True when the newest message is not a completed assistant response,
-  // OR when any assistant message is still in-flight. The second condition
-  // prevents the thinking animation from briefly disappearing between
-  // multi-step tool call transitions, where an intermediate assistant
-  // message may complete while the next step hasn't started yet.
-  const hasIncompleteAssistantMessage = useMemo(() => {
-    if (!uiMessages?.length) return false;
-
-    const newestMessage = uiMessages.reduce((a, b) =>
-      a._creationTime > b._creationTime ? a : b,
-    );
-
-    const newestIsComplete =
-      newestMessage.role === 'assistant' &&
-      (newestMessage.status === 'success' || newestMessage.status === 'failed');
-
-    if (!newestIsComplete) return true;
-
-    // Even if the newest message looks complete, keep loading if any
-    // assistant message is still in-flight (streaming or pending).
-    return uiMessages.some(
-      (m) =>
-        m.role === 'assistant' &&
-        (m.status === 'streaming' || m.status === 'pending'),
-    );
-  }, [uiMessages]);
-
   return {
     messages,
     uiMessages,
@@ -298,6 +269,5 @@ export function useMessageProcessing(
     streamingMessage,
     pendingToolResponse,
     hasActiveTools,
-    hasIncompleteAssistantMessage,
   };
 }

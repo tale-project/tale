@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
+
 interface PendingMessageAttachment {
   fileId: string;
   fileName: string;
@@ -30,6 +32,8 @@ export interface SelectedAgent {
 interface ChatLayoutContextType {
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
+  pendingThreadId: string | null;
+  setPendingThreadId: (threadId: string | null) => void;
   clearChatState: () => void;
   pendingMessage: PendingMessage | null;
   setPendingMessage: (message: PendingMessage | null) => void;
@@ -50,21 +54,29 @@ export function useChatLayout() {
 }
 
 interface ChatLayoutProviderProps {
+  organizationId: string;
   children: ReactNode;
 }
 
-export function ChatLayoutProvider({ children }: ChatLayoutProviderProps) {
+export function ChatLayoutProvider({
+  organizationId,
+  children,
+}: ChatLayoutProviderProps) {
   const [isPending, setIsPending] = useState(false);
+  const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
     null,
   );
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<SelectedAgent | null>(
-    null,
-  );
+  const [selectedAgent, setSelectedAgent] =
+    usePersistedState<SelectedAgent | null>(
+      `selected-agent-${organizationId}`,
+      null,
+    );
 
   const clearChatState = useCallback(() => {
     setIsPending(false);
+    setPendingThreadId(null);
     setPendingMessage(null);
   }, []);
 
@@ -73,6 +85,8 @@ export function ChatLayoutProvider({ children }: ChatLayoutProviderProps) {
       value={{
         isPending,
         setIsPending,
+        pendingThreadId,
+        setPendingThreadId,
         clearChatState,
         pendingMessage,
         setPendingMessage,

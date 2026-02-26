@@ -1,7 +1,13 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { findSafeAnchor, useStreamBuffer } from '../use-stream-buffer';
+import {
+  clearDisplayPositionCache,
+  findCachedPosition,
+  findSafeAnchor,
+  saveToCache,
+  useStreamBuffer,
+} from '../use-stream-buffer';
 
 // Mock reduced motion — default to no preference
 vi.mock('@/app/hooks/use-prefers-reduced-motion', () => ({
@@ -457,6 +463,129 @@ describe('findSafeAnchor', () => {
       // Both should anchor at the same position (before the code block)
       expect(anchor1).toBe(anchor2);
       expect(anchor1).toBe(14); // after "Hello world.\n\n"
+    });
+  });
+});
+
+// ============================================================================
+// Display Position Cache
+// ============================================================================
+
+describe('display position cache', () => {
+  beforeEach(() => {
+    clearDisplayPositionCache();
+  });
+
+  describe('findCachedPosition', () => {
+    it('returns 0 for empty cache', () => {
+      expect(findCachedPosition('any text that is long enough here')).toBe(0);
+    });
+
+    it('returns cached position when text starts with cached prefix', () => {
+      const text =
+        'Here is an AI response that is long enough to create a valid cache key for testing purposes.';
+      saveToCache(text, 42);
+      expect(findCachedPosition(text)).toBe(42);
+    });
+
+    it('matches when text grows beyond cached prefix', () => {
+      const shortText =
+        'Here is an AI response that is long enough to create a valid cache key.';
+      saveToCache(shortText, 30);
+
+      const longerText =
+        shortText + ' Additional content appended during streaming.';
+      expect(findCachedPosition(longerText)).toBe(30);
+    });
+
+    it('returns 0 when text does not match any cache entry', () => {
+      saveToCache(
+        'First message that is long enough for a cache key to be generated.',
+        50,
+      );
+      expect(
+        findCachedPosition(
+          'Completely different text that does not share the same prefix.',
+        ),
+      ).toBe(0);
+    });
+
+    it('returns 0 when cached position exceeds current text length', () => {
+      const text =
+        'A short prefix that is long enough for caching but the position is beyond.';
+      saveToCache(text, 500);
+      // Shorter text with same prefix but position is out of bounds
+      expect(findCachedPosition(text.slice(0, 60))).toBe(0);
+    });
+  });
+
+  describe('saveToCache', () => {
+    it('ignores text shorter than CACHE_PREFIX_LEN', () => {
+      saveToCache('short', 10);
+      expect(findCachedPosition('short')).toBe(0);
+    });
+
+    it('ignores position <= 0', () => {
+      const text =
+        'Long enough text to generate a valid cache key for this test.';
+      saveToCache(text, 0);
+      expect(findCachedPosition(text)).toBe(0);
+
+      saveToCache(text, -5);
+      expect(findCachedPosition(text)).toBe(0);
+    });
+
+    it('overwrites existing entry for same prefix', () => {
+      const text =
+        'Some AI response text that is long enough to be cached properly.';
+      saveToCache(text, 20);
+      saveToCache(text, 40);
+      expect(findCachedPosition(text)).toBe(40);
+    });
+
+    it('evicts oldest entry when exceeding MAX_CACHE_ENTRIES', () => {
+      // Fill cache with 20 entries (MAX_CACHE_ENTRIES)
+      for (let i = 0; i < 20; i++) {
+        const text = `Entry number ${String(i).padStart(3, '0')} that is long enough for a cache key.`;
+        saveToCache(text, i + 1);
+      }
+
+      // All 20 should be present
+      expect(
+        findCachedPosition(
+          'Entry number 000 that is long enough for a cache key.',
+        ),
+      ).toBe(1);
+
+      // Add one more — oldest (entry 0) should be evicted
+      saveToCache(
+        'Brand new entry number 020 that is long enough for a cache key.',
+        21,
+      );
+      expect(
+        findCachedPosition(
+          'Entry number 000 that is long enough for a cache key.',
+        ),
+      ).toBe(0);
+
+      // Newest should be present
+      expect(
+        findCachedPosition(
+          'Brand new entry number 020 that is long enough for a cache key.',
+        ),
+      ).toBe(21);
+    });
+  });
+
+  describe('clearDisplayPositionCache', () => {
+    it('empties the cache', () => {
+      const text =
+        'Some cached text that is long enough to produce a valid key.';
+      saveToCache(text, 25);
+      expect(findCachedPosition(text)).toBe(25);
+
+      clearDisplayPositionCache();
+      expect(findCachedPosition(text)).toBe(0);
     });
   });
 });

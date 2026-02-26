@@ -71,7 +71,7 @@ function ChatLayout() {
   const { id: organizationId } = Route.useParams();
 
   return (
-    <ChatLayoutProvider>
+    <ChatLayoutProvider organizationId={organizationId}>
       <ChatLayoutContent organizationId={organizationId} />
     </ChatLayoutProvider>
   );

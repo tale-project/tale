@@ -24,10 +24,11 @@ interface UseSendMessageParams {
   threadId: string | undefined;
   messages: ChatMessage[];
   setIsPending: (pending: boolean) => void;
+  setPendingThreadId: (threadId: string | null) => void;
   setPendingMessage: (message: PendingMessage | null) => void;
   clearChatState: () => void;
   onBeforeSend?: () => void;
-  selectedAgent?: SelectedAgent | null;
+  selectedAgent: SelectedAgent | null;
 }
 
 /**
@@ -39,6 +40,7 @@ export function useSendMessage({
   threadId,
   messages,
   setIsPending,
+  setPendingThreadId,
   setPendingMessage,
   clearChatState,
   onBeforeSend,
@@ -53,9 +55,18 @@ export function useSendMessage({
 
   const sendMessage = useCallback(
     async (message: string, attachments?: FileAttachment[]) => {
+      if (!selectedAgent) {
+        toast({
+          title: t('toast.sendFailed'),
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const sanitizedContent = sanitizeChatMessage(message);
 
-      // Set pending state
+      // Set pending state scoped to this thread (null for new-chat page)
+      setPendingThreadId(threadId ?? null);
       setIsPending(true);
       onBeforeSend?.();
 
@@ -100,8 +111,11 @@ export function useSendMessage({
             timestamp: pendingTimestamp,
           });
 
-          // Use startTransition to prevent Suspense from triggering
+          // Use startTransition to prevent Suspense from triggering.
+          // Batch setPendingThreadId with navigate so React renders atomically
+          // on the new route — no intermediate render on new-chat with mismatched threadId.
           startTransition(() => {
+            setPendingThreadId(newThreadId);
             void navigate({
               to: '/dashboard/$id/chat/$threadId',
               params: { id: organizationId, threadId: newThreadId },
@@ -120,9 +134,7 @@ export function useSendMessage({
 
         // Send message via unified agent chat mutation
         await chatWithAgent({
-          agentId: selectedAgent
-            ? toId<'customAgents'>(selectedAgent._id)
-            : undefined,
+          agentId: toId<'customAgents'>(selectedAgent._id),
           threadId: currentThreadId,
           organizationId,
           message: sanitizedContent,
@@ -142,6 +154,7 @@ export function useSendMessage({
       messages?.length,
       organizationId,
       setIsPending,
+      setPendingThreadId,
       setPendingMessage,
       clearChatState,
       onBeforeSend,

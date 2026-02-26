@@ -34,18 +34,6 @@ export async function listCustomAgentsPaginated(
   for (const root of page.page) {
     if (!hasTeamAccess(root, userTeamIds)) continue;
 
-    const draft = await ctx.db
-      .query('customAgents')
-      .withIndex('by_root_status', (q) =>
-        q.eq('rootVersionId', root._id).eq('status', 'draft'),
-      )
-      .first();
-
-    if (draft) {
-      enrichedItems.push(draft);
-      continue;
-    }
-
     const active = await ctx.db
       .query('customAgents')
       .withIndex('by_root_status', (q) =>
@@ -53,7 +41,19 @@ export async function listCustomAgentsPaginated(
       )
       .first();
 
-    enrichedItems.push(active ?? root);
+    if (active) {
+      enrichedItems.push(active);
+      continue;
+    }
+
+    const draft = await ctx.db
+      .query('customAgents')
+      .withIndex('by_root_status', (q) =>
+        q.eq('rootVersionId', root._id).eq('status', 'draft'),
+      )
+      .first();
+
+    enrichedItems.push(draft ?? root);
   }
 
   return { ...page, page: enrichedItems };
