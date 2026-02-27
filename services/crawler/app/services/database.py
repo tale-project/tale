@@ -48,8 +48,25 @@ async def init_pool() -> asyncpg.Pool:
             f"Re-index existing data or update the config to match."
         )
 
-    # Create HNSW index if embeddings exist but index doesn't.
-    # May fail when embedding column has no dimension yet (empty table).
+    # Pin the embedding column to explicit dimensions so HNSW indexes work.
+    # The column starts as untyped `vector` because dimensions are configurable;
+    # once we know the configured value we can lock it in.  If the column was
+    # previously pinned to a different dimension (e.g. config changed while the
+    # table was empty), re-pin it — the mismatch guard above already ensures any
+    # existing data is compatible.
+    expected_type = f"vector({int(configured_dims)})"
+    async with _pool.acquire() as conn:
+        col_type = await conn.fetchval(
+            "SELECT format_type(atttypid, atttypmod) "
+            "FROM pg_attribute "
+            "WHERE attrelid = 'chunks'::regclass AND attname = 'embedding'"
+        )
+        if col_type != expected_type:
+            await conn.execute("DROP INDEX IF EXISTS idx_chunks_embedding_hnsw")
+            await conn.execute(f"ALTER TABLE chunks ALTER COLUMN embedding TYPE vector({int(configured_dims)})")
+            logger.info(f"Pinned embedding column to vector({configured_dims}) (was {col_type})")
+
+    # Create HNSW index if it doesn't exist yet.
     try:
         async with _pool.acquire() as conn:
             await conn.execute("SELECT create_chunks_hnsw_index()")

@@ -96,14 +96,27 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
--- Dynamic HNSW index (vector dimensions are configurable)
+-- Dynamic HNSW index (vector dimensions are configurable).
+-- The embedding column starts as untyped `vector`; the application pins it to
+-- an explicit dimension at startup via ALTER TABLE before calling this function.
 CREATE OR REPLACE FUNCTION create_chunks_hnsw_index()
 RETURNS void AS $$
+DECLARE
+    col_type text;
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_indexes
         WHERE tablename = 'chunks' AND indexname = 'idx_chunks_embedding_hnsw'
     ) THEN
+        -- Verify the column has explicit dimensions (e.g. vector(1536), not bare vector)
+        SELECT format_type(atttypid, atttypmod) INTO col_type
+        FROM pg_attribute
+        WHERE attrelid = 'chunks'::regclass AND attname = 'embedding';
+
+        IF col_type = 'vector' THEN
+            RAISE EXCEPTION 'embedding column has no dimensions – pin it with ALTER TABLE first';
+        END IF;
+
         EXECUTE 'CREATE INDEX idx_chunks_embedding_hnsw ON chunks USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)';
         RAISE NOTICE 'Created HNSW index on chunks.embedding';
     END IF;
