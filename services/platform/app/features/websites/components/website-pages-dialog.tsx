@@ -111,7 +111,7 @@ function PageRow({
   );
 
   return (
-    <BorderedSection padding={4} gap={2}>
+    <BorderedSection>
       <CollapsibleDetails summary={summary} onToggle={handleToggle}>
         <div className="mt-3 space-y-2">
           {isPending && (
@@ -144,7 +144,7 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
   const { t } = useT('websites');
 
   return (
-    <BorderedSection padding={4} gap={2}>
+    <BorderedSection>
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
           <Heading level={3} size="sm" weight="medium">

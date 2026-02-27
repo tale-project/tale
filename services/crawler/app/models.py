@@ -3,7 +3,6 @@ Data models for the Tale Crawler service.
 """
 
 from typing import Any, Literal
-
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator

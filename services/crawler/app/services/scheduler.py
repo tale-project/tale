@@ -75,7 +75,7 @@ async def run_scheduler(
                 logger.info(f"Scheduler: {len(due)} website(s) due for scanning")
                 tasks = [asyncio.create_task(bounded_scan(w["domain"])) for w in due]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
-                for website, result in zip(due, results):
+                for website, result in zip(due, results, strict=True):
                     if isinstance(result, BaseException):
                         logger.error(f"Scheduler: scan failed for {website['domain']}: {result}")
                         try:
