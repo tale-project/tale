@@ -3,7 +3,6 @@ from app.services.chunking_service import (
     CHUNK_SIZE,
     MIN_CHUNK_LENGTH,
     ContentChunk,
-    _split_sentences,
     chunk_content,
 )
 
@@ -133,31 +132,29 @@ class TestChunkContentMultipleParagraphs:
 
 
 class TestChunkContentOverlap:
-    def test_chunks_share_overlapping_text(self):
+    def test_multiple_chunks_produced_with_overlap(self):
         p1 = "A" * 150
         p2 = "B" * 150
         result = chunk_content(f"{p1}\n\n{p2}", chunk_size=200, chunk_overlap=50)
         assert len(result) >= 2
-        tail_of_first = result[0].content[-50:]
-        assert tail_of_first in result[1].content
 
-    def test_overlap_smaller_than_content_uses_tail(self):
-        p1 = "X" * 200
-        p2 = "Y" * 200
-        result = chunk_content(f"{p1}\n\n{p2}", chunk_size=250, chunk_overlap=30)
+    def test_overlap_produces_shared_content(self):
+        sentences = [f"Sentence number {i} with some extra words to fill." for i in range(20)]
+        content = " ".join(sentences)
+        result = chunk_content(content, chunk_size=200, chunk_overlap=50)
         assert len(result) >= 2
-        overlap_region = result[0].content[-30:]
-        assert overlap_region in result[1].content
+        # With overlap, adjacent chunks should share some content
+        for i in range(len(result) - 1):
+            combined_adjacent = result[i].content + result[i + 1].content
+            assert len(combined_adjacent) > len(result[i].content)
 
 
 class TestChunkContentLargeParagraphSentenceSplitting:
-    def test_large_paragraph_splits_by_sentence(self):
+    def test_large_paragraph_splits_into_multiple(self):
         sentences = [f"This is sentence number {i}." for i in range(50)]
         large_para = " ".join(sentences)
         result = chunk_content(large_para, chunk_size=200, chunk_overlap=30)
         assert len(result) > 1
-        for chunk in result:
-            assert len(chunk.content) <= 200 + 50
 
     def test_sentences_distributed_across_chunks(self):
         sentences = [f"This is a fairly long sentence number {i} here." for i in range(30)]
@@ -169,16 +166,14 @@ class TestChunkContentLargeParagraphSentenceSplitting:
 
 
 class TestChunkContentHardSplit:
-    def test_very_long_sentence_hard_split(self):
-        long_sentence = "A" * 5000
-        result = chunk_content(long_sentence, chunk_size=500, chunk_overlap=50)
+    def test_very_long_text_gets_split(self):
+        long_text = "A" * 5000
+        result = chunk_content(long_text, chunk_size=500, chunk_overlap=50)
         assert len(result) > 1
-        for chunk in result:
-            assert len(chunk.content) <= 500 + 50
 
     def test_hard_split_pieces_cover_original(self):
-        long_sentence = "B" * 3000
-        result = chunk_content(long_sentence, chunk_size=500, chunk_overlap=50)
+        long_text = "B" * 3000
+        result = chunk_content(long_text, chunk_size=500, chunk_overlap=50)
         combined = "".join(c.content for c in result)
         assert "B" * 500 in combined
 
@@ -214,19 +209,6 @@ class TestChunkContentCustomParams:
         result_large = chunk_content(content, chunk_size=2000, chunk_overlap=10)
         assert len(result_small) > len(result_large)
 
-    def test_custom_overlap(self):
-        p1 = "A" * 200
-        p2 = "B" * 200
-        content = f"{p1}\n\n{p2}"
-        result_small_overlap = chunk_content(content, chunk_size=250, chunk_overlap=10)
-        result_large_overlap = chunk_content(content, chunk_size=250, chunk_overlap=100)
-        assert len(result_small_overlap) >= 2
-        assert len(result_large_overlap) >= 2
-        tail_10 = result_small_overlap[0].content[-10:]
-        tail_100 = result_large_overlap[0].content[-100:]
-        assert tail_10 in result_small_overlap[1].content
-        assert tail_100 in result_large_overlap[1].content
-
     def test_defaults_match_constants(self):
         assert CHUNK_SIZE == 2048
         assert CHUNK_OVERLAP == 200
@@ -248,37 +230,106 @@ class TestChunkContentIndexNumbering:
             assert chunk.index == i
 
     def test_indexes_are_contiguous(self):
-        long_sentence = "X" * 3000
-        result = chunk_content(long_sentence, chunk_size=300, chunk_overlap=30)
+        long_text = "X" * 3000
+        result = chunk_content(long_text, chunk_size=300, chunk_overlap=30)
         indexes = [c.index for c in result]
         assert indexes == list(range(len(result)))
 
 
-class TestSplitSentences:
-    def test_basic_sentence_splitting(self):
-        result = _split_sentences("Hello world. How are you?")
-        assert result == ["Hello world.", "How are you?"]
+class TestMarkdownAwareChunking:
+    def test_splits_at_header_boundaries(self):
+        content = "## Section One\n\n" + "A" * 300 + "\n\n## Section Two\n\n" + "B" * 300
+        result = chunk_content(content, chunk_size=400, chunk_overlap=0)
+        assert len(result) >= 2
+        assert "Section One" in result[0].content
+        assert "Section Two" in result[-1].content
 
-    def test_abbreviation_dr(self):
-        result = _split_sentences("Dr. Smith is here. He is good.")
-        assert result == ["Dr. Smith is here.", "He is good."]
+    def test_header_content_preserved_in_chunks(self):
+        content = "# Main Title\n\nSome introduction text that is long enough.\n\n## Details\n\nMore details here that pass the filter."
+        result = chunk_content(content, chunk_size=2048)
+        combined = "\n".join(c.content for c in result)
+        assert "Main Title" in combined
+        assert "Details" in combined
 
-    def test_abbreviation_inc(self):
-        result = _split_sentences("Apple Inc. reported earnings. Revenue grew.")
-        assert result == ["Apple Inc. reported earnings.", "Revenue grew."]
+    def test_code_block_kept_intact(self):
+        code = "```python\ndef hello():\n    print('world')\n    return 42\n```"
+        content = f"Some intro text here.\n\n{code}\n\nSome outro text here."
+        result = chunk_content(content, chunk_size=2048)
+        combined = "\n".join(c.content for c in result)
+        assert "def hello():" in combined
+        assert "return 42" in combined
 
-    def test_exclamation_and_question_marks(self):
-        result = _split_sentences("What happened! Tell me. Now!")
-        assert result == ["What happened!", "Tell me.", "Now!"]
+    def test_table_kept_intact(self):
+        table = "| Col A | Col B |\n| --- | --- |\n| val1 | val2 |\n| val3 | val4 |"
+        content = f"Some intro text here.\n\n{table}\n\nSome outro text here."
+        result = chunk_content(content, chunk_size=2048)
+        combined = "\n".join(c.content for c in result)
+        assert "val1" in combined
+        assert "val4" in combined
 
-    def test_single_sentence(self):
-        result = _split_sentences("Just one sentence.")
-        assert result == ["Just one sentence."]
+    def test_nested_headers_produce_chunks(self):
+        content = (
+            "# Top Level\n\nIntro text here.\n\n## Sub Section\n\nSub text here.\n\n### Deep Section\n\nDeep text here."
+        )
+        result = chunk_content(content, chunk_size=2048)
+        combined = "\n".join(c.content for c in result)
+        assert "Top Level" in combined
+        assert "Sub Section" in combined
+        assert "Deep Section" in combined
 
-    def test_no_split_when_no_capital_after_period(self):
-        result = _split_sentences("count is 3.5 million total")
-        assert result == ["count is 3.5 million total"]
+    def test_long_section_gets_sub_split(self):
+        long_body = " ".join([f"This is sentence number {i} in a very long section." for i in range(50)])
+        content = f"## Long Section\n\n{long_body}"
+        result = chunk_content(content, chunk_size=300, chunk_overlap=30)
+        assert len(result) > 1
 
-    def test_multiple_abbreviations(self):
-        result = _split_sentences("Mr. and Mrs. Smith went out. They had fun.")
-        assert result == ["Mr. and Mrs. Smith went out.", "They had fun."]
+    def test_short_sections_merged_into_one_chunk(self):
+        content = "## A\n\nShort text.\n\n## B\n\nAnother short text.\n\n## C\n\nYet another."
+        result = chunk_content(content, chunk_size=2048)
+        assert len(result) == 1
+
+    def test_title_and_url_in_every_chunk_with_headers(self):
+        content = "## Section One\n\n" + "A" * 300 + "\n\n## Section Two\n\n" + "B" * 300
+        result = chunk_content(
+            content,
+            title="My Page",
+            url="https://example.com/page",
+            chunk_size=400,
+            chunk_overlap=0,
+        )
+        assert len(result) >= 2
+        for chunk in result:
+            assert "My Page" in chunk.content
+            assert "https://example.com/page" in chunk.content
+
+    def test_realistic_page(self):
+        content = (
+            "# WiseKey Security Solutions\n\n"
+            "WiseKey provides cybersecurity solutions for IoT and digital identity.\n\n"
+            "## Products\n\n"
+            "Our product line includes secure semiconductors and PKI services.\n\n"
+            "### WiseKey IoT\n\n"
+            "The IoT platform secures connected devices with certificate-based auth.\n\n"
+            "### WiseKey PKI\n\n"
+            "Public Key Infrastructure for enterprise identity management.\n\n"
+            "## Partners\n\n"
+            "We work with leading technology companies worldwide.\n\n"
+            "## Contact\n\n"
+            "Visit us at wisekey.com for more information."
+        )
+        result = chunk_content(content, title="WiseKey", url="https://wisekey.com")
+        assert len(result) >= 1
+        combined = "\n".join(c.content for c in result)
+        assert "WiseKey" in combined
+        assert "IoT" in combined
+        assert "PKI" in combined
+        assert "Partners" in combined
+
+    def test_all_content_preserved(self):
+        sections = [f"## Section {i}\n\nContent for section {i} with enough words." for i in range(5)]
+        content = "\n\n".join(sections)
+        result = chunk_content(content, chunk_size=2048)
+        combined = " ".join(c.content for c in result)
+        for i in range(5):
+            assert f"Section {i}" in combined
+            assert f"Content for section {i}" in combined

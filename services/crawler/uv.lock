@@ -2794,6 +2794,23 @@ wheels = [
 ]
 
 [[package]]
+name = "semantic-text-splitter"
+version = "0.29.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/e9/cc31904f918a0f9f20039a969e191a9b88ecfc7536d5ed822a72640d4022/semantic_text_splitter-0.29.0.tar.gz", hash = "sha256:80a57c689f3521730670a881eccf95b996cb6115ee5c916778a3996971899121", size = 283431, upload-time = "2025-12-30T22:31:58.534Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/11/53/ba753d570945b076b7a7e80bc49dc0bc43d60ac294b7b77e7769c52e77ac/semantic_text_splitter-0.29.0-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:a5197301c6ddf57ae421af0e723d97774516b8b93f6439d1ad16760c5290e0d5", size = 8261920, upload-time = "2025-12-30T22:31:42.696Z" },
+    { url = "https://files.pythonhosted.org/packages/76/b2/64b4396ddefcffb550461ea5b335b6e9e74356d744ad5aa93640ab4f9306/semantic_text_splitter-0.29.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:0cd62a7710c9049b9cd6484531379ba1d8c8594a9d63ffef38b65a084aa3c8ac", size = 8268950, upload-time = "2025-12-30T22:31:44.697Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/17/d3c8736590b9cd1c83f12e7fb67b63efd8fbf32da9689d1bfd8cee2e6f14/semantic_text_splitter-0.29.0-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:885a9c18e6f87e9280ac8894ed4760b26f718eb2d81656263278640e4abc35b1", size = 8485522, upload-time = "2025-12-30T22:31:46.582Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/8b/69772c4f884d99f62f7426bab3a8e75c3e0bcdcc2fd975e926057a813a47/semantic_text_splitter-0.29.0-cp310-abi3-manylinux_2_28_armv7l.whl", hash = "sha256:417db93494f97e83b8dab12c3e565df3357c4c75d6691a3314f4465a6eb57696", size = 8347931, upload-time = "2025-12-30T22:31:48.591Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/d6/acaed5cbe7182850fa7daea0fc9a27ce4c43d5ad0999aa3670013ce033f0/semantic_text_splitter-0.29.0-cp310-abi3-manylinux_2_28_ppc64le.whl", hash = "sha256:654bb33a9466b77177ea0ae2b382c3564977e49cc92c8a0fb4b320876bdedd77", size = 8817946, upload-time = "2025-12-30T22:31:50.028Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/90/a2482e3b1fa846b620e752aedc54629fd63034017542b400f1539277e522/semantic_text_splitter-0.29.0-cp310-abi3-manylinux_2_28_s390x.whl", hash = "sha256:1e011bb178801c0e8780e124edb0bd8e396e7846c60ab60aa5b126c57540556d", size = 8659506, upload-time = "2025-12-30T22:31:52.09Z" },
+    { url = "https://files.pythonhosted.org/packages/51/86/2947d6fa18bf8f89aa7096993ece71c927647846569a784a3441987d927b/semantic_text_splitter-0.29.0-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:8d4efcc5f42b9196b1aad165871ad212d7f102847d522f45e73dba712d61d7cb", size = 8492252, upload-time = "2025-12-30T22:31:53.724Z" },
+    { url = "https://files.pythonhosted.org/packages/64/61/f00fc614fa38d663d146df29342db6a057e3c086d2b7a84b468b5647b023/semantic_text_splitter-0.29.0-cp310-abi3-win32.whl", hash = "sha256:71adb6d2c9ea14ef56065688634a7fa98ea2f0f8768d6099cdb6fbb82d7745fd", size = 7784072, upload-time = "2025-12-30T22:31:55.753Z" },
+    { url = "https://files.pythonhosted.org/packages/75/3c/853c39e0adc769cf51dc87335fc929e1fe66036f3f6ece8c8556d5c1ea87/semantic_text_splitter-0.29.0-cp310-abi3-win_amd64.whl", hash = "sha256:ccbf00e2a54c790f117a4890c45f0045862a9c76bcbc23382e5eaf84fb4c8334", size = 8000626, upload-time = "2025-12-30T22:31:57.173Z" },
+]
+
+[[package]]
 name = "shapely"
 version = "2.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2921,6 +2938,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "python-pptx" },
+    { name = "semantic-text-splitter" },
     { name = "tiktoken" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -2956,6 +2974,7 @@ requires-dist = [
     { name = "python-multipart", specifier = "==0.0.20" },
     { name = "python-pptx", specifier = "==1.0.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.4" },
+    { name = "semantic-text-splitter", specifier = ">=0.18.0" },
     { name = "tiktoken", specifier = ">=0.9.0" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.41.0" },
 ]
