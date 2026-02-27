@@ -89,13 +89,12 @@ export const deleteWebsite = action({
       },
     );
 
-    const domain = await ctx.runMutation(
-      internal.websites.internal_mutations.deleteWebsite,
-      { websiteId: args.websiteId },
-    );
+    // Deregister from crawler first — if this fails, the user can retry
+    await deregisterDomainFromCrawler(website.domain);
 
-    // Deregister from crawler
-    await deregisterDomainFromCrawler(domain);
+    await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
+      websiteId: args.websiteId,
+    });
 
     return null;
   },

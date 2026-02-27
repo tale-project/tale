@@ -32,6 +32,22 @@ async def init_pool() -> asyncpg.Pool:
     _pool = await asyncpg.create_pool(dsn, min_size=5, max_size=25)
     logger.info("PostgreSQL connection pool initialized")
 
+    # Guard against embedding dimension mismatch: if existing data uses a
+    # different dimension than the current config, refuse to start.
+    configured_dims = settings.get_embedding_dimensions()
+    async with _pool.acquire() as conn:
+        stored_dims = await conn.fetchval(
+            "SELECT vector_dims(embedding) FROM chunks WHERE embedding IS NOT NULL LIMIT 1"
+        )
+    if stored_dims is not None and stored_dims != configured_dims:
+        await _pool.close()
+        _pool = None
+        raise RuntimeError(
+            f"Embedding dimension mismatch: database has {stored_dims}d vectors "
+            f"but CRAWLER_EMBEDDING_DIMENSIONS={configured_dims}. "
+            f"Re-index existing data or update the config to match."
+        )
+
     # Create HNSW index if embeddings exist but index doesn't.
     # May fail when embedding column has no dimension yet (empty table).
     try:

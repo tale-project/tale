@@ -28,6 +28,7 @@ import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
@@ -211,6 +212,7 @@ export function WebsitePagesDialog({
       },
       onError: () => {
         setIsFirstLoad(false);
+        toast({ title: t('toast.fetchPagesError'), variant: 'destructive' });
       },
     },
   );
@@ -224,6 +226,7 @@ export function WebsitePagesDialog({
       },
       onError: () => {
         setIsSearching(false);
+        toast({ title: t('toast.searchError'), variant: 'destructive' });
       },
     },
   );

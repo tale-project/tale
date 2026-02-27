@@ -136,7 +136,7 @@ async def _head_check(
     async with httpx.AsyncClient(
         follow_redirects=True,
         timeout=_HEAD_TIMEOUT,
-        verify=False,
+        verify=False,  # Intentional: crawling arbitrary external sites that may have invalid certs
     ) as client:
         await asyncio.gather(*[check_one(client, u) for u in urls_with_headers])
 
@@ -168,7 +168,7 @@ async def _seed_cache_headers(
     async with httpx.AsyncClient(
         follow_redirects=True,
         timeout=_HEAD_TIMEOUT,
-        verify=False,
+        verify=False,  # Intentional: crawling arbitrary external sites that may have invalid certs
     ) as client:
         await asyncio.gather(*[seed_one(client, u) for u in urls])
 

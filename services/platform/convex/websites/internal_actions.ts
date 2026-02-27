@@ -141,7 +141,11 @@ export const syncWebsiteStatuses = internalAction({
             internal.websites.internal_mutations.patchWebsite,
             {
               websiteId: website._id,
-              metadata: { ...website.metadata, lastStatusSyncAt: now },
+              metadata: {
+                ...website.metadata,
+                lastStatusSyncAt: now,
+                lastSyncError: undefined,
+              },
               status: websiteInfo.status,
               pageCount: websiteInfo.page_count,
               crawledPageCount: websiteInfo.crawled_count,
@@ -153,10 +157,20 @@ export const syncWebsiteStatuses = internalAction({
             },
           );
         }
-        // Only update lastStatusSyncAt on success — skip on failure so retry
-        // happens on the next sync cycle instead of waiting the full interval.
-      } catch {
-        console.warn(`Failed to sync status for ${website.domain}, will retry`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Failed to sync status for ${website.domain}: ${message}`);
+        await ctx.runMutation(
+          internal.websites.internal_mutations.patchWebsite,
+          {
+            websiteId: website._id,
+            metadata: {
+              ...website.metadata,
+              lastStatusSyncAt: now,
+              lastSyncError: message,
+            },
+          },
+        );
       }
     }
   },

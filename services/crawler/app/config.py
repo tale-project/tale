@@ -48,7 +48,7 @@ class Settings(BaseSettings):
 
     # Embedding model configuration
     openai_embedding_model: str | None = None
-    embedding_dimensions: int = 1536
+    embedding_dimensions: int | None = None
 
     model_config = SettingsConfigDict(
         env_prefix="CRAWLER_",
@@ -91,6 +91,17 @@ class Settings(BaseSettings):
         if not model:
             raise ValueError("OPENAI_EMBEDDING_MODEL must be set in environment.")
         return model
+
+    def get_embedding_dimensions(self) -> int:
+        """Get embedding dimensions from CRAWLER_EMBEDDING_DIMENSIONS or EMBEDDING_DIMENSIONS."""
+        dims = self.embedding_dimensions
+        if dims is None:
+            raw = os.environ.get("EMBEDDING_DIMENSIONS")
+            if raw is not None:
+                dims = int(raw)
+        if dims is None:
+            raise ValueError("EMBEDDING_DIMENSIONS must be set in environment.")
+        return dims
 
 
 # Global settings instance

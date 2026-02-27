@@ -54,8 +54,10 @@ class TestMergeRrfOverlappingItems:
         results = SearchService._merge_rrf([list_a, list_b], limit=10)
         expected_raw = 2 * (1.0 / (RRF_K + 0 + 1))
         assert len(results) == 1
+        # Single item → normalized score is always 1.0 (raw / max where max == raw)
         assert results[0].score == pytest.approx(1.0)
-        assert expected_raw == pytest.approx(expected_raw)
+        # Verify raw RRF formula: rank-0 item in 2 lists → 2 * 1/(K+1)
+        assert expected_raw == pytest.approx(2.0 / (RRF_K + 1))
 
     def test_overlapping_at_different_ranks(self):
         list_a = [_item(1), _item(2)]

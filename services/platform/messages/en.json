@@ -2713,7 +2713,9 @@
       "addError": "Failed to add website",
       "updateSuccess": "Website updated successfully",
       "updateError": "Failed to update website",
-      "deleteError": "Failed to delete website"
+      "deleteError": "Failed to delete website",
+      "fetchPagesError": "Failed to load pages",
+      "searchError": "Search failed"
     },
     "adding": "Adding...",
     "saving": "Saving...",

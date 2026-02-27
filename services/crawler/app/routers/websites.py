@@ -103,8 +103,12 @@ async def register_website(request: RegisterWebsiteRequest, http_request: Reques
         )
 
         # Fire-and-forget: crawl homepage + discover URLs concurrently in background
+        def _on_init_done(t: asyncio.Task) -> None:
+            if not t.cancelled() and (exc := t.exception()):
+                logger.error(f"Website initialization failed for {request.domain}: {exc}")
+
         task = asyncio.create_task(_initialize_website(request.domain, manager))
-        task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+        task.add_done_callback(_on_init_done)
         trigger_scan()
 
         return WebsiteInfoResponse(

@@ -83,3 +83,27 @@ class TestGetVisionModelParsing:
             s = Settings()
             with pytest.raises(ValueError, match="OPENAI_VISION_MODEL"):
                 s.get_vision_model()
+
+
+class TestGetEmbeddingDimensions:
+    def test_crawler_prefixed_takes_priority(self):
+        env = _base_env()
+        env["CRAWLER_EMBEDDING_DIMENSIONS"] = "768"
+        env["EMBEDDING_DIMENSIONS"] = "1536"
+        with patch.dict(os.environ, env, clear=True):
+            s = Settings()
+            assert s.get_embedding_dimensions() == 768
+
+    def test_falls_back_to_generic_env(self):
+        env = _base_env()
+        env["EMBEDDING_DIMENSIONS"] = "1536"
+        with patch.dict(os.environ, env, clear=True):
+            s = Settings()
+            assert s.get_embedding_dimensions() == 1536
+
+    def test_missing_dimensions_raises(self):
+        env = _base_env()
+        with patch.dict(os.environ, env, clear=True):
+            s = Settings()
+            with pytest.raises(ValueError, match="EMBEDDING_DIMENSIONS"):
+                s.get_embedding_dimensions()

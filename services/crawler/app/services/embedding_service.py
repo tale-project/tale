@@ -75,7 +75,9 @@ def get_embedding_service() -> EmbeddingService:
             api_key=settings.get_openai_api_key(),
             base_url=settings.get_openai_base_url(),
             model=settings.get_embedding_model(),
-            dimensions=settings.embedding_dimensions,
+            dimensions=settings.get_embedding_dimensions(),
         )
-        logger.info(f"Embedding service: model={settings.get_embedding_model()}, dims={settings.embedding_dimensions}")
+        logger.info(
+            f"Embedding service: model={settings.get_embedding_model()}, dims={settings.get_embedding_dimensions()}"
+        )
     return _embedding_service

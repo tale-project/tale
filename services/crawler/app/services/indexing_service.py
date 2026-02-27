@@ -78,8 +78,8 @@ class IndexingService:
                 async with self._pool.acquire() as conn:
                     await conn.execute("SELECT create_chunks_hnsw_index()")
                 self._hnsw_ensured = True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("HNSW index creation deferred: %s", e)
 
         logger.info(f"Indexed {len(chunks)} chunks for {url}")
         return {"url": url, "status": "indexed", "chunks_indexed": len(chunks)}
