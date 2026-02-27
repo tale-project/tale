@@ -66,11 +66,11 @@ export const Default: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>View Details</Button>
+        <Button onClick={() => setOpen(true)}>View details</Button>
         <ViewDialog
           open={open}
           onOpenChange={setOpen}
-          title="User Details"
+          title="User details"
           description="Information about the selected user."
         >
           <FieldGroup>
@@ -80,7 +80,7 @@ export const Default: Story = {
             <Field label="Status">
               <Badge variant="green">Active</Badge>
             </Field>
-            <Field label="Member Since">January 15, 2024</Field>
+            <Field label="Member since">January 15, 2024</Field>
           </FieldGroup>
         </ViewDialog>
       </>
@@ -94,11 +94,11 @@ export const WithHeaderActions: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>View Item</Button>
+        <Button onClick={() => setOpen(true)}>View item</Button>
         <ViewDialog
           open={open}
           onOpenChange={setOpen}
-          title="Document Details"
+          title="Document details"
           headerActions={
             <div className="flex gap-1">
               <IconButton icon={Copy} aria-label="Copy link" />
@@ -108,7 +108,7 @@ export const WithHeaderActions: Story = {
           }
         >
           <FieldGroup>
-            <Field label="File Name">project-proposal.pdf</Field>
+            <Field label="File name">project-proposal.pdf</Field>
             <Field label="Size">2.4 MB</Field>
             <Field label="Created">January 10, 2024</Field>
             <Field label="Modified">January 20, 2024</Field>
@@ -133,7 +133,7 @@ export const WithFooter: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>View Order</Button>
+        <Button onClick={() => setOpen(true)}>View order</Button>
         <ViewDialog
           open={open}
           onOpenChange={setOpen}
@@ -144,19 +144,19 @@ export const WithFooter: Story = {
                 Close
               </Button>
               <div className="flex gap-2">
-                <Button variant="secondary">Download Invoice</Button>
-                <Button>Track Shipment</Button>
+                <Button variant="secondary">Download invoice</Button>
+                <Button>Track shipment</Button>
               </div>
             </div>
           }
         >
           <FieldGroup>
-            <Field label="Order Date">January 15, 2024</Field>
+            <Field label="Order date">January 15, 2024</Field>
             <Field label="Status">
               <Badge variant="blue">Shipped</Badge>
             </Field>
             <Field label="Total">$149.99</Field>
-            <Field label="Shipping Address">
+            <Field label="Shipping address">
               123 Main St, New York, NY 10001
             </Field>
           </FieldGroup>
@@ -179,16 +179,16 @@ export const LargeSize: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>View Full Report</Button>
+        <Button onClick={() => setOpen(true)}>View full report</Button>
         <ViewDialog
           open={open}
           onOpenChange={setOpen}
-          title="Monthly Report"
+          title="Monthly report"
           size="lg"
         >
           <div className="space-y-4">
             <FieldGroup>
-              <Field label="Report Period">January 2024</Field>
+              <Field label="Report period">January 2024</Field>
               <Field label="Generated">January 31, 2024</Field>
             </FieldGroup>
             <div className="rounded-lg border p-4">
@@ -201,12 +201,12 @@ export const LargeSize: Story = {
               </p>
             </div>
             <div className="rounded-lg border p-4">
-              <h4 className="mb-2 font-medium">Key Metrics</h4>
+              <h4 className="mb-2 font-medium">Key metrics</h4>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold">1,234</div>
                   <div className="text-muted-foreground text-sm">
-                    Total Users
+                    Total users
                   </div>
                 </div>
                 <div>
@@ -239,15 +239,15 @@ export const HideCloseButton: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>View Terms</Button>
+        <Button onClick={() => setOpen(true)}>View terms</Button>
         <ViewDialog
           open={open}
           onOpenChange={setOpen}
-          title="Terms of Service"
+          title="Terms of service"
           hideClose
           customFooter={
             <Button onClick={() => setOpen(false)} className="w-full">
-              I Understand
+              I understand
             </Button>
           }
         >

@@ -67,7 +67,7 @@ export const Default: Story = {
     actions: [
       {
         key: 'view',
-        label: 'View Details',
+        label: 'View details',
         icon: Eye,
         onClick: () => alert('View clicked'),
       },
@@ -184,7 +184,7 @@ export const ConditionalVisibility: Story = {
     actions: [
       {
         key: 'view',
-        label: 'View Details',
+        label: 'View details',
         icon: Eye,
         onClick: () => {},
         visible: true,
@@ -198,7 +198,7 @@ export const ConditionalVisibility: Story = {
       },
       {
         key: 'star',
-        label: 'Add to Favorites',
+        label: 'Add to favorites',
         icon: Star,
         onClick: () => {},
         visible: false,
@@ -225,7 +225,7 @@ export const ConditionalVisibility: Story = {
 export const CustomWidth: Story = {
   args: {
     actions: [
-      { key: 'view', label: 'View Full Details', icon: Eye, onClick: () => {} },
+      { key: 'view', label: 'View full details', icon: Eye, onClick: () => {} },
       {
         key: 'download',
         label: 'Download as PDF',

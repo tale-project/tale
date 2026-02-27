@@ -126,7 +126,7 @@ export const SectionDescription: Story = {
   render: () => (
     <div className="w-96 space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Account Settings</h2>
+        <h2 className="text-lg font-semibold">Account settings</h2>
         <Description>
           Manage your account preferences and security settings. Changes may
           take a few minutes to take effect.
@@ -152,11 +152,11 @@ export const WithLink: Story = {
       <>
         By continuing, you agree to our{' '}
         <a href="/terms" className="text-primary hover:underline">
-          Terms of Service
+          Terms of service
         </a>{' '}
         and{' '}
         <a href="/privacy" className="text-primary hover:underline">
-          Privacy Policy
+          Privacy policy
         </a>
         .
       </>

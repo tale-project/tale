@@ -45,21 +45,21 @@ export const Default: Story = {
 
 export const TitleOnly: Story = {
   args: {
-    title: 'Change Password',
+    title: 'Change password',
   },
 };
 
 export const WithAction: Story = {
   args: {
-    title: 'Example Messages',
+    title: 'Example messages',
     description: 'Add example messages to help define your tone of voice.',
-    action: <Button size="sm">Add Example</Button>,
+    action: <Button size="sm">Add example</Button>,
   },
 };
 
 export const SizeSm: Story = {
   args: {
-    title: 'Team Documents',
+    title: 'Team documents',
     size: 'sm',
     as: 'h3',
     weight: 'medium',
@@ -75,7 +75,7 @@ export const SizeSm: Story = {
 
 export const SizeLg: Story = {
   args: {
-    title: 'Tone of Voice',
+    title: 'Tone of voice',
     description: 'Configure how the AI communicates with your customers.',
     size: 'lg',
   },
@@ -83,7 +83,7 @@ export const SizeLg: Story = {
 
 export const AsH3: Story = {
   args: {
-    title: 'Recommended Products',
+    title: 'Recommended products',
     as: 'h3',
     size: 'lg',
   },
@@ -101,7 +101,7 @@ export const WithReactNodeTitle: Story = {
   args: {
     title: (
       <>
-        Generated Tone{' '}
+        Generated tone{' '}
         <span className="text-muted-foreground ml-2 text-xs">Optional</span>
       </>
     ),

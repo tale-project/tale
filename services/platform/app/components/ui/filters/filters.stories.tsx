@@ -150,7 +150,7 @@ export const MultipleFilterSections: StoryObj = {
         </FilterSection>
 
         <FilterSection
-          title="Date Range"
+          title="Date range"
           isExpanded={dateExpanded}
           onToggle={() => setDateExpanded(!dateExpanded)}
         >

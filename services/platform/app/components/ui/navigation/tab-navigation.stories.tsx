@@ -156,7 +156,7 @@ export const WithActions: Story = {
     children: (
       <div className="ml-auto flex items-center">
         <Button size="sm" icon={Plus}>
-          Create Report
+          Create report
         </Button>
       </div>
     ),
@@ -180,7 +180,7 @@ export const ManyTabs: Story = {
       { label: 'Teams', href: '/dashboard/teams' },
       { label: 'Billing', href: '/dashboard/billing' },
       { label: 'Integrations', href: '/dashboard/integrations' },
-      { label: 'API Keys', href: '/dashboard/api-keys' },
+      { label: 'API keys', href: '/dashboard/api-keys' },
       { label: 'Settings', href: '/dashboard/settings' },
     ],
     ariaLabel: 'Navigation with many tabs',

@@ -33,7 +33,7 @@ export default meta;
 
 const colorGroups = [
   {
-    name: 'Background & Foreground',
+    name: 'Background & foreground',
     colors: [
       {
         name: 'background',
@@ -171,7 +171,7 @@ export const ColorPalette: StoryObj = {
 export const SemanticColors: StoryObj = {
   render: () => (
     <div className="space-y-4">
-      <h3 className="mb-3 text-sm font-medium">Semantic Colors</h3>
+      <h3 className="mb-3 text-sm font-medium">Semantic colors</h3>
       {semanticColors.map((color) => (
         <div key={color.name} className="flex items-center gap-4">
           <div className={`size-12 rounded-lg ${color.class}`} />
@@ -203,7 +203,7 @@ export const Typography: StoryObj = {
       </div>
       <div>
         <h3 className="text-muted-foreground mb-2 text-sm font-medium">
-          Body Text
+          Body text
         </h3>
         <div className="space-y-2">
           <p className="text-lg">Large body text (text-lg)</p>
@@ -214,7 +214,7 @@ export const Typography: StoryObj = {
       </div>
       <div>
         <h3 className="text-muted-foreground mb-2 text-sm font-medium">
-          Text Colors
+          Text colors
         </h3>
         <div className="space-y-2">
           <p className="text-foreground">text-foreground (default)</p>
@@ -233,7 +233,7 @@ export const Spacing: StoryObj = {
   render: () => (
     <div className="space-y-6">
       <h3 className="text-muted-foreground mb-2 text-sm font-medium">
-        Spacing Scale
+        Spacing scale
       </h3>
       <div className="space-y-4">
         {[1, 2, 3, 4, 5, 6, 8, 10, 12, 16].map((size) => (
@@ -257,7 +257,7 @@ export const BorderRadius: StoryObj = {
   render: () => (
     <div className="space-y-6">
       <h3 className="text-muted-foreground mb-2 text-sm font-medium">
-        Border Radius
+        Border radius
       </h3>
       <div className="flex flex-wrap gap-4">
         {[

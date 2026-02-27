@@ -74,7 +74,7 @@ export const SmallSize: Story = {
 
 export const LargeSize: Story = {
   args: {
-    title: 'Agent Configuration',
+    title: 'Agent configuration',
     description: 'Manage agent settings and behavior.',
     size: 'lg',
   },

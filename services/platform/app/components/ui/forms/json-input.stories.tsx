@@ -79,7 +79,7 @@ type Story = StoryObj<typeof JsonInput>;
 
 const sampleJson = JSON.stringify(
   {
-    name: 'Example Config',
+    name: 'Example config',
     version: '1.0.0',
     settings: {
       enabled: true,
@@ -124,7 +124,7 @@ export const WithLabel: Story = {
 export const WithDescription: Story = {
   args: {
     value: sampleJson,
-    label: 'API Response',
+    label: 'API response',
     description:
       'Edit the JSON configuration below. Changes are validated in real-time.',
     onChange: fn(),
@@ -141,7 +141,7 @@ export const WithDescription: Story = {
 export const Disabled: Story = {
   args: {
     value: sampleJson,
-    label: 'Read-only Configuration',
+    label: 'Read-only configuration',
     disabled: true,
     onChange: fn(),
   },
@@ -165,7 +165,7 @@ export const Disabled: Story = {
 export const WithSchemaValidation: Story = {
   args: {
     value: JSON.stringify({ name: 'Test', count: 5 }, null, 2),
-    label: 'Validated Input',
+    label: 'Validated input',
     description: 'Must have name (string) and count (number >= 0)',
     schema: z.object({
       name: z.string().min(1),
@@ -220,7 +220,7 @@ export const Interactive: Story = {
 export const EmptyState: Story = {
   args: {
     value: '{}',
-    label: 'Empty Object',
+    label: 'Empty object',
     onChange: fn(),
   },
   decorators: [
@@ -243,7 +243,7 @@ export const ArrayData: Story = {
       null,
       2,
     ),
-    label: 'Array Data',
+    label: 'Array data',
     onChange: fn(),
   },
   decorators: [
@@ -304,7 +304,7 @@ export const Required: Story = {
 export const CustomIndent: Story = {
   args: {
     value: sampleJson,
-    label: 'Custom Indent (4 spaces)',
+    label: 'Custom indent (4 spaces)',
     indentWidth: 4,
     onChange: fn(),
   },

@@ -136,7 +136,7 @@ export const AccountSetup: Story = {
   },
   render: (args) => (
     <div className="w-80 rounded-lg border p-4">
-      <h3 className="mb-3 font-medium">Account Setup Progress</h3>
+      <h3 className="mb-3 font-medium">Account setup progress</h3>
       <ValidationCheckList {...args} />
       <p className="text-muted-foreground mt-3 text-xs">2 of 5 complete</p>
     </div>

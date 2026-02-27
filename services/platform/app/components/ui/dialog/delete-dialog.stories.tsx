@@ -59,12 +59,12 @@ export const Default: Story = {
     return (
       <>
         <Button variant="destructive" onClick={() => setOpen(true)}>
-          Delete Item
+          Delete item
         </Button>
         <DeleteDialog
           open={open}
           onOpenChange={setOpen}
-          title="Delete Item"
+          title="Delete item"
           description="Are you sure you want to delete this item? This action cannot be undone."
           onDelete={() => {
             alert('Item deleted!');
@@ -83,12 +83,12 @@ export const WithPreview: Story = {
     return (
       <>
         <Button variant="destructive" onClick={() => setOpen(true)}>
-          Delete Customer
+          Delete customer
         </Button>
         <DeleteDialog
           open={open}
           onOpenChange={setOpen}
-          title="Delete Customer"
+          title="Delete customer"
           description="Are you sure you want to delete this customer?"
           preview={{
             primary: 'Acme Corporation',
@@ -118,15 +118,15 @@ export const WithWarning: Story = {
     return (
       <>
         <Button variant="destructive" onClick={() => setOpen(true)}>
-          Delete Project
+          Delete project
         </Button>
         <DeleteDialog
           open={open}
           onOpenChange={setOpen}
-          title="Delete Project"
+          title="Delete project"
           description="Are you sure you want to delete this project?"
           preview={{
-            primary: 'Marketing Campaign Q1',
+            primary: 'Marketing campaign Q1',
           }}
           warning="All tasks, files, and comments associated with this project will also be permanently deleted."
           onDelete={() => {
@@ -152,7 +152,7 @@ export const Deleting: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Open Deleting Dialog</Button>
+        <Button onClick={() => setOpen(true)}>Open deleting dialog</Button>
         <DeleteDialog
           open={open}
           onOpenChange={setOpen}
@@ -180,19 +180,19 @@ export const CustomButtonText: Story = {
     return (
       <>
         <Button variant="destructive" onClick={() => setOpen(true)}>
-          Remove User
+          Remove user
         </Button>
         <DeleteDialog
           open={open}
           onOpenChange={setOpen}
-          title="Remove Team Member"
+          title="Remove team member"
           description="This will remove the user from your team."
           preview={{
             primary: 'Jane Smith',
             secondary: 'jane@company.com',
           }}
-          cancelText="Keep Member"
-          deleteText="Remove Member"
+          cancelText="Keep member"
+          deleteText="Remove member"
           deletingText="Removing..."
           onDelete={() => {
             setOpen(false);
@@ -217,12 +217,12 @@ export const WithChildren: Story = {
     return (
       <>
         <Button variant="destructive" onClick={() => setOpen(true)}>
-          Delete Account
+          Delete account
         </Button>
         <DeleteDialog
           open={open}
           onOpenChange={setOpen}
-          title="Delete Account"
+          title="Delete account"
           description="This will permanently delete your account."
           warning="This action cannot be undone."
           onDelete={() => {

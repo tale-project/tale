@@ -114,7 +114,7 @@ export const DisabledTrigger: Story = {
     <Tooltip {...args}>
       <span tabIndex={0}>
         <Button variant="secondary" disabled>
-          Disabled Button
+          Disabled button
         </Button>
       </span>
     </Tooltip>

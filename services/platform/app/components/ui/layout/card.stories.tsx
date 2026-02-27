@@ -40,7 +40,7 @@ type Story = StoryObj<typeof Card>;
 
 export const Default: Story = {
   args: {
-    title: 'Card Title',
+    title: 'Card title',
     description: 'This is a description of the card content.',
     children: <p>Card content goes here. This can be any content you want.</p>,
   },
@@ -48,7 +48,7 @@ export const Default: Story = {
 
 export const WithFooter: Story = {
   args: {
-    title: 'Create Project',
+    title: 'Create project',
     description: 'Deploy your new project in one-click.',
     footer: (
       <div className="flex gap-2">

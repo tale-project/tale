@@ -95,7 +95,7 @@ export const WithLabel: Story = {
 
 export const WithDescription: Story = {
   args: {
-    label: 'API Key',
+    label: 'API key',
     description: 'You can find your API key in the developer settings.',
     placeholder: 'sk-...',
   },

@@ -239,7 +239,7 @@ export const WithActionMenu: Story = {
           Export
         </Button>
         <Button size="sm" icon={Plus}>
-          Add User
+          Add user
         </Button>
       </div>
     ),
@@ -555,7 +555,7 @@ export const FullFeatured: Story = {
                 Export
               </Button>
               <Button size="sm" icon={Plus}>
-                Add User
+                Add user
               </Button>
             </div>
           }

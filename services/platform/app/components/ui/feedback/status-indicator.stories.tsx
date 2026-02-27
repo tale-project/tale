@@ -153,7 +153,7 @@ export const InContext: Story = {
   render: () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between rounded-lg border p-3">
-        <span className="font-medium">API Server</span>
+        <span className="font-medium">API server</span>
         <StatusIndicator variant="success" size="sm">
           Operational
         </StatusIndicator>
@@ -161,7 +161,7 @@ export const InContext: Story = {
       <div className="flex items-center justify-between rounded-lg border p-3">
         <span className="font-medium">Database</span>
         <StatusIndicator variant="warning" size="sm">
-          High Latency
+          High latency
         </StatusIndicator>
       </div>
       <div className="flex items-center justify-between rounded-lg border p-3">

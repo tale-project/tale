@@ -221,7 +221,7 @@ export const GridResponsive: StoryObj = {
 export const CenterComponent: StoryObj = {
   render: () => (
     <Center className="bg-muted/30 h-40 rounded-lg">
-      <Box>Centered Content</Box>
+      <Box>Centered content</Box>
     </Center>
   ),
   parameters: {

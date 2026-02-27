@@ -69,11 +69,11 @@ export const Default: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Open Form Dialog</Button>
+        <Button onClick={() => setOpen(true)}>Open form dialog</Button>
         <FormDialog
           open={open}
           onOpenChange={setOpen}
-          title="Create New Item"
+          title="Create new item"
           description="Fill out the form below to create a new item."
           onSubmit={(e) => {
             e.preventDefault();
@@ -91,9 +91,9 @@ export const Default: Story = {
 
 export const WithTrigger: Story = {
   args: {
-    title: 'Edit Profile',
+    title: 'Edit profile',
     description: 'Update your profile information.',
-    trigger: <Button>Edit Profile</Button>,
+    trigger: <Button>Edit profile</Button>,
   },
   render: (args) => (
     <FormDialog
@@ -103,7 +103,7 @@ export const WithTrigger: Story = {
         alert('Profile updated!');
       }}
     >
-      <Input label="Display Name" defaultValue="John Doe" />
+      <Input label="Display name" defaultValue="John Doe" />
       <Textarea label="Bio" placeholder="Tell us about yourself" rows={3} />
     </FormDialog>
   ),
@@ -122,11 +122,11 @@ export const Submitting: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Open Submitting Dialog</Button>
+        <Button onClick={() => setOpen(true)}>Open submitting dialog</Button>
         <FormDialog
           open={open}
           onOpenChange={setOpen}
-          title="Saving Changes"
+          title="Saving changes"
           isSubmitting={true}
           onSubmit={(e) => e.preventDefault()}
         >
@@ -151,12 +151,12 @@ export const SubmitDisabled: Story = {
     return (
       <>
         <Button onClick={() => setOpen(true)}>
-          Open Disabled Submit Dialog
+          Open disabled submit dialog
         </Button>
         <FormDialog
           open={open}
           onOpenChange={setOpen}
-          title="Create Account"
+          title="Create account"
           submitDisabled={true}
           onSubmit={(e) => e.preventDefault()}
         >
@@ -180,11 +180,11 @@ export const LargeDialog: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Open Large Form</Button>
+        <Button onClick={() => setOpen(true)}>Open large form</Button>
         <FormDialog
           open={open}
           onOpenChange={setOpen}
-          title="Complete Registration"
+          title="Complete registration"
           description="Please fill out all the required information."
           large
           onSubmit={(e) => {
@@ -192,8 +192,8 @@ export const LargeDialog: Story = {
             setOpen(false);
           }}
         >
-          <Input label="First Name" />
-          <Input label="Last Name" />
+          <Input label="First name" />
+          <Input label="Last name" />
           <Input label="Email" type="email" />
           <Input label="Phone" type="tel" />
           <Select
@@ -225,20 +225,20 @@ export const CustomButtonText: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Create Item</Button>
+        <Button onClick={() => setOpen(true)}>Create item</Button>
         <FormDialog
           open={open}
           onOpenChange={setOpen}
-          title="Create Item"
+          title="Create item"
           cancelText="Discard"
-          submitText="Create Item"
+          submitText="Create item"
           submittingText="Creating..."
           onSubmit={(e) => {
             e.preventDefault();
             setOpen(false);
           }}
         >
-          <Input label="Item Name" />
+          <Input label="Item name" />
         </FormDialog>
       </>
     );
@@ -262,14 +262,14 @@ export const CustomFooter: Story = {
         <FormDialog
           open={open}
           onOpenChange={setOpen}
-          title="Custom Footer Example"
+          title="Custom footer example"
           customFooter={
             <>
               <Button variant="ghost" onClick={() => setOpen(false)}>
                 Skip for now
               </Button>
               <Button variant="secondary" onClick={() => setOpen(false)}>
-                Save Draft
+                Save draft
               </Button>
               <Button type="submit">Publish</Button>
             </>

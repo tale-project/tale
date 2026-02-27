@@ -70,11 +70,11 @@ export const Default: Story = {
     const [open, setOpen] = useState(false);
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Open Dialog</Button>
+        <Button onClick={() => setOpen(true)}>Open dialog</Button>
         <Dialog
           open={open}
           onOpenChange={setOpen}
-          title="Edit Profile"
+          title="Edit profile"
           description="Make changes to your profile here."
           footer={
             <>
@@ -137,7 +137,7 @@ export const WithIcon: Story = {
     const [open, setOpen] = useState(false);
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Open Dialog</Button>
+        <Button onClick={() => setOpen(true)}>Open dialog</Button>
         <Dialog
           open={open}
           onOpenChange={setOpen}
@@ -171,9 +171,9 @@ export const WithTrigger: Story = {
       <Dialog
         open={open}
         onOpenChange={setOpen}
-        title="Dialog with Trigger"
+        title="Dialog with trigger"
         description="This dialog has a built-in trigger."
-        trigger={<Button>Open via Trigger</Button>}
+        trigger={<Button>Open via trigger</Button>}
         footer={<Button onClick={() => setOpen(false)}>Close</Button>}
       >
         <p className="text-sm">Content here.</p>
@@ -193,11 +193,11 @@ export const Confirm: StoryObj<typeof ConfirmDialog> = {
     const [open, setOpen] = useState(false);
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Delete Item</Button>
+        <Button onClick={() => setOpen(true)}>Delete item</Button>
         <ConfirmDialog
           open={open}
           onOpenChange={setOpen}
-          title="Delete Item"
+          title="Delete item"
           description="Are you sure you want to delete this item? This action cannot be undone."
           confirmText="Delete"
           onConfirm={() => setOpen(false)}
@@ -231,11 +231,11 @@ export const ConfirmLoading: StoryObj<typeof ConfirmDialog> = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Delete Item</Button>
+        <Button onClick={() => setOpen(true)}>Delete item</Button>
         <ConfirmDialog
           open={open}
           onOpenChange={setOpen}
-          title="Delete Item"
+          title="Delete item"
           description="This will permanently delete the item."
           confirmText="Delete"
           loadingText="Deleting..."

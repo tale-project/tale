@@ -52,12 +52,12 @@ export const Default: Story = {
     return (
       <>
         <Button variant="secondary" onClick={() => setOpen(true)}>
-          Open Sheet
+          Open sheet
         </Button>
         <Sheet
           open={open}
           onOpenChange={setOpen}
-          title="Edit Profile"
+          title="Edit profile"
           description="Make changes to your profile here. Click save when you're done."
         >
           <div className="space-y-4 py-4">
@@ -123,12 +123,12 @@ export const HideClose: Story = {
     return (
       <>
         <Button variant="secondary" onClick={() => setOpen(true)}>
-          Open Sheet
+          Open sheet
         </Button>
         <Sheet
           open={open}
           onOpenChange={setOpen}
-          title="Custom Close Handling"
+          title="Custom close handling"
           description="This sheet has no default close button. Use your own close logic."
           hideClose
         >
@@ -147,11 +147,11 @@ export const WithForm: Story = {
 
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Add New Item</Button>
+        <Button onClick={() => setOpen(true)}>Add new item</Button>
         <Sheet
           open={open}
           onOpenChange={setOpen}
-          title="Add New Item"
+          title="Add new item"
           description="Fill in the details below to create a new item."
         >
           <form

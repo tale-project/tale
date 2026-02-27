@@ -44,7 +44,7 @@ export const Default: Story = {
   render: (args) => (
     <Popover
       {...args}
-      trigger={<Button variant="secondary">Open Popover</Button>}
+      trigger={<Button variant="secondary">Open popover</Button>}
     >
       <div className="grid gap-4">
         <div className="space-y-2">
@@ -69,7 +69,7 @@ export const AlignStart: Story = {
   render: (args) => (
     <Popover
       {...args}
-      trigger={<Button variant="secondary">Align Start</Button>}
+      trigger={<Button variant="secondary">Align start</Button>}
     >
       <p className="text-sm">This popover is aligned to the start.</p>
     </Popover>
@@ -81,7 +81,7 @@ export const AlignEnd: Story = {
     align: 'end',
   },
   render: (args) => (
-    <Popover {...args} trigger={<Button variant="secondary">Align End</Button>}>
+    <Popover {...args} trigger={<Button variant="secondary">Align end</Button>}>
       <p className="text-sm">This popover is aligned to the end.</p>
     </Popover>
   ),
@@ -92,7 +92,7 @@ export const WithForm: Story = {
     contentClassName: 'w-80',
   },
   render: (args) => (
-    <Popover {...args} trigger={<Button>Update Email</Button>}>
+    <Popover {...args} trigger={<Button>Update email</Button>}>
       <form className="grid gap-4">
         <div className="space-y-1">
           <h4 className="text-sm leading-none font-medium">Update email</h4>

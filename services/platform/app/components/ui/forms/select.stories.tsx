@@ -91,14 +91,14 @@ export const Default: Story = {
 
 export const WithLabel: Story = {
   args: {
-    label: 'Favorite Fruit',
+    label: 'Favorite fruit',
     placeholder: 'Select a fruit...',
   },
 };
 
 export const WithDescription: Story = {
   args: {
-    label: 'Favorite Fruit',
+    label: 'Favorite fruit',
     description: 'Choose the fruit you enjoy the most.',
     placeholder: 'Select a fruit...',
   },
@@ -106,7 +106,7 @@ export const WithDescription: Story = {
 
 export const Required: Story = {
   args: {
-    label: 'Favorite Fruit',
+    label: 'Favorite fruit',
     placeholder: 'Select a fruit...',
     required: true,
   },
@@ -114,7 +114,7 @@ export const Required: Story = {
 
 export const WithError: Story = {
   args: {
-    label: 'Favorite Fruit',
+    label: 'Favorite fruit',
     placeholder: 'Select a fruit...',
     error: true,
   },
@@ -134,7 +134,7 @@ export const WithDisabledOption: Story = {
 
 export const Disabled: Story = {
   args: {
-    label: 'Favorite Fruit',
+    label: 'Favorite fruit',
     placeholder: 'Select a fruit...',
     disabled: true,
   },
@@ -142,7 +142,7 @@ export const Disabled: Story = {
 
 export const WithDefaultValue: Story = {
   args: {
-    label: 'Favorite Fruit',
+    label: 'Favorite fruit',
     defaultValue: 'cherry',
   },
 };

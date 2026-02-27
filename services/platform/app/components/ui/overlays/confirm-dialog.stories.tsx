@@ -49,7 +49,7 @@ export const Default: Story = {
     const [open, setOpen] = useState(false);
     return (
       <>
-        <Button onClick={() => setOpen(true)}>Open Dialog</Button>
+        <Button onClick={() => setOpen(true)}>Open dialog</Button>
         <ConfirmDialog
           open={open}
           onOpenChange={setOpen}
@@ -91,7 +91,7 @@ export const WithContent: Story = {
     return (
       <>
         <Button variant="destructive" onClick={() => setOpen(true)}>
-          Delete Project
+          Delete project
         </Button>
         <ConfirmDialog
           open={open}
@@ -99,7 +99,7 @@ export const WithContent: Story = {
           title="Delete project?"
           description="This will permanently delete the project and all its contents."
           variant="destructive"
-          confirmText="Delete Project"
+          confirmText="Delete project"
           onConfirm={() => setOpen(false)}
         >
           <div className="bg-muted rounded-lg p-3">

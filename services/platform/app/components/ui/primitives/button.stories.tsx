@@ -114,7 +114,7 @@ export const AllSizes: Story = {
 export const WithIcon: Story = {
   render: () => (
     <div className="flex gap-4">
-      <Button icon={Mail}>Send Email</Button>
+      <Button icon={Mail}>Send email</Button>
       <Button icon={Trash2} variant="destructive">
         Delete
       </Button>
@@ -144,7 +144,7 @@ export const Disabled: Story = {
     <div className="flex gap-4">
       <Button disabled>Disabled</Button>
       <Button disabled variant="primary">
-        Disabled Primary
+        Disabled primary
       </Button>
     </div>
   ),
@@ -153,7 +153,7 @@ export const Disabled: Story = {
 export const AsLink: Story = {
   render: () => (
     <LinkButton href="/dashboard" icon={ArrowRight}>
-      Go to Dashboard
+      Go to dashboard
     </LinkButton>
   ),
   parameters: {
@@ -166,7 +166,7 @@ export const AsLink: Story = {
 };
 
 export const PressAnimation: Story = {
-  args: { variant: 'primary', size: 'lg', children: 'Press Me' },
+  args: { variant: 'primary', size: 'lg', children: 'Press me' },
   render: (args) => (
     <div className="flex flex-col items-center gap-4">
       <p className="text-muted-foreground text-sm">

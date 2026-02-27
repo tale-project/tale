@@ -38,7 +38,7 @@ type Story = StoryObj<typeof PageSection>;
 
 export const Default: Story = {
   args: {
-    title: 'Model Settings',
+    title: 'Model settings',
     description: 'Choose the AI model preset for this agent.',
     children: (
       <Select
@@ -47,7 +47,7 @@ export const Default: Story = {
           { value: 'standard', label: 'Standard' },
           { value: 'advanced', label: 'Advanced' },
         ]}
-        label="Model Preset"
+        label="Model preset"
         value="standard"
       />
     ),
@@ -61,7 +61,7 @@ export const WithFormFields: Story = {
     children: (
       <Stack gap={3}>
         <Input label="Name" placeholder="Enter agent name" />
-        <Input label="Display Name" placeholder="Enter display name" />
+        <Input label="Display name" placeholder="Enter display name" />
       </Stack>
     ),
   },
@@ -71,7 +71,7 @@ export const WithAction: Story = {
   args: {
     title: 'Members',
     description: 'Manage team members and their access permissions.',
-    action: <Button size="sm">Add Member</Button>,
+    action: <Button size="sm">Add member</Button>,
     children: (
       <div className="bg-muted/30 flex h-32 items-center justify-center rounded-lg border border-dashed">
         Member table placeholder
@@ -82,7 +82,7 @@ export const WithAction: Story = {
 
 export const WithToggle: Story = {
   args: {
-    title: 'File Preprocessing',
+    title: 'File preprocessing',
     description:
       'Automatically preprocess uploaded files before sending to the AI.',
     children: <Switch label="Enable file preprocessing" />,
@@ -124,7 +124,7 @@ export const NestedSections: Story = {
         title="Instructions"
         description="Define the system instructions for this agent."
       >
-        <Input label="System Instructions" placeholder="You are a..." />
+        <Input label="System instructions" placeholder="You are a..." />
       </PageSection>
       <PageSection
         title="Model"
@@ -135,7 +135,7 @@ export const NestedSections: Story = {
             { value: 'fast', label: 'Fast' },
             { value: 'standard', label: 'Standard' },
           ]}
-          label="Model Preset"
+          label="Model preset"
           value="fast"
         />
       </PageSection>

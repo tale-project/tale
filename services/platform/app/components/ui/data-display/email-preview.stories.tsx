@@ -83,7 +83,7 @@ export const RichFormatting: Story = {
 export const WithTable: Story = {
   args: {
     html: `
-      <h2>Your Order Summary</h2>
+      <h2>Your order summary</h2>
       <table border="1" cellpadding="8" cellspacing="0" style="width: 100%; border-collapse: collapse;">
         <thead>
           <tr style="background-color: #f5f5f5;">
@@ -215,21 +215,21 @@ export const Newsletter: Story = {
     html: `
       <div style="max-width: 600px; margin: 0 auto;">
         <div style="background-color: #4F46E5; color: white; padding: 24px; text-align: center;">
-          <h1 style="margin: 0; color: white;">Weekly Digest</h1>
+          <h1 style="margin: 0; color: white;">Weekly digest</h1>
           <p style="margin: 8px 0 0 0; opacity: 0.9; color: white;">January 15, 2024</p>
         </div>
 
         <div style="padding: 24px;">
-          <h2>Top Stories This Week</h2>
+          <h2>Top stories this week</h2>
 
           <div style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #eee;">
-            <h3 style="margin: 0 0 8px 0;">New Product Launch</h3>
+            <h3 style="margin: 0 0 8px 0;">New product launch</h3>
             <p style="color: #666; margin: 0;">We're excited to announce our latest innovation...</p>
             <a href="https://example.com" style="color: #4F46E5;">Read more →</a>
           </div>
 
           <div style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #eee;">
-            <h3 style="margin: 0 0 8px 0;">Community Spotlight</h3>
+            <h3 style="margin: 0 0 8px 0;">Community spotlight</h3>
             <p style="color: #666; margin: 0;">Meet our featured community member of the month...</p>
             <a href="https://example.com" style="color: #4F46E5;">Read more →</a>
           </div>

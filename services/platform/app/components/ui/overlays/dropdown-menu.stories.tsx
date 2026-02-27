@@ -64,9 +64,9 @@ type Story = StoryObj<typeof DropdownMenu>;
 
 export const Default: Story = {
   args: {
-    trigger: <Button variant="secondary">Open Menu</Button>,
+    trigger: <Button variant="secondary">Open menu</Button>,
     items: [
-      [{ type: 'label', content: 'My Account' }],
+      [{ type: 'label', content: 'My account' }],
       [
         { type: 'item', label: 'Profile', icon: User, onClick: () => {} },
         {
@@ -102,13 +102,13 @@ export const Default: Story = {
 
 export const WithSubMenu: Story = {
   args: {
-    trigger: <Button variant="secondary">Open Menu</Button>,
+    trigger: <Button variant="secondary">Open menu</Button>,
     items: [
       [{ type: 'label', content: 'Actions' }],
       [
         {
           type: 'item',
-          label: 'New Item',
+          label: 'New item',
           icon: Plus,
           onClick: () => {},
         },
@@ -152,9 +152,9 @@ export const WithRadioItems: Story = {
 
     return (
       <DropdownMenu
-        trigger={<Button variant="secondary">Panel Position</Button>}
+        trigger={<Button variant="secondary">Panel position</Button>}
         items={[
-          [{ type: 'label', content: 'Panel Position' }],
+          [{ type: 'label', content: 'Panel position' }],
           [
             {
               type: 'radio-group',
@@ -175,17 +175,17 @@ export const WithRadioItems: Story = {
 
 export const DisabledItems: Story = {
   args: {
-    trigger: <Button variant="secondary">Open Menu</Button>,
+    trigger: <Button variant="secondary">Open menu</Button>,
     items: [
       [
-        { type: 'item', label: 'Available Action', onClick: () => {} },
+        { type: 'item', label: 'Available action', onClick: () => {} },
         {
           type: 'item',
-          label: 'Disabled Action',
+          label: 'Disabled action',
           onClick: () => {},
           disabled: true,
         },
-        { type: 'item', label: 'Another Action', onClick: () => {} },
+        { type: 'item', label: 'Another action', onClick: () => {} },
       ],
     ],
   },
@@ -193,7 +193,7 @@ export const DisabledItems: Story = {
 
 export const DestructiveItem: Story = {
   args: {
-    trigger: <Button variant="secondary">Open Menu</Button>,
+    trigger: <Button variant="secondary">Open menu</Button>,
     items: [
       [
         {

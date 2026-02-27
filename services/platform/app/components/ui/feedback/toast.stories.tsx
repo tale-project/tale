@@ -59,7 +59,7 @@ export const Default: Story = {
         })
       }
     >
-      Show Default Toast
+      Show default toast
     </button>
   ),
 };
@@ -77,7 +77,7 @@ export const Success: Story = {
         })
       }
     >
-      Show Success Toast
+      Show success toast
     </button>
   ),
 };
@@ -95,7 +95,7 @@ export const Destructive: Story = {
         })
       }
     >
-      Show Error Toast
+      Show error toast
     </button>
   ),
 };
@@ -111,7 +111,7 @@ export const SimpleMessage: Story = {
         })
       }
     >
-      Show Simple Toast
+      Show simple toast
     </button>
   ),
   parameters: {

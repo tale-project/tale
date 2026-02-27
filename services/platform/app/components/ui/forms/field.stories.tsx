@@ -97,7 +97,7 @@ export const WithLink: Story = {
 export const GroupedFields: Story = {
   render: () => (
     <FieldGroup gap={4} className="w-80">
-      <Field label="Full Name">John Doe</Field>
+      <Field label="Full name">John Doe</Field>
       <Field label="Email">john@example.com</Field>
       <Field label="Phone">+1 (555) 123-4567</Field>
       <Field label="Location">New York, NY</Field>
@@ -150,7 +150,7 @@ export const DifferentGaps: Story = {
 export const ProfileCard: Story = {
   render: () => (
     <div className="w-80 rounded-lg border p-4">
-      <h3 className="mb-4 text-lg font-semibold">User Profile</h3>
+      <h3 className="mb-4 text-lg font-semibold">User profile</h3>
       <FieldGroup gap={4}>
         <Field label="Name">John Doe</Field>
         <Field label="Email">john@example.com</Field>
@@ -160,7 +160,7 @@ export const ProfileCard: Story = {
         <Field label="Status">
           <Badge variant="green">Active</Badge>
         </Field>
-        <Field label="Member Since">January 15, 2024</Field>
+        <Field label="Member since">January 15, 2024</Field>
       </FieldGroup>
     </div>
   ),
