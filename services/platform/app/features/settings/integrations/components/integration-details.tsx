@@ -197,6 +197,64 @@ export function IntegrationDetails({
     [sqlOperations],
   );
 
+  const sqlConfigItems = useMemo<StatGridItem[]>(
+    () => [
+      {
+        label: t('integrations.upload.engine'),
+        value: (
+          <span className="font-mono">
+            {integration.sqlConnectionConfig?.engine}
+          </span>
+        ),
+      },
+      ...(integration.sqlConnectionConfig?.port != null
+        ? [
+            {
+              label: t('integrations.upload.port'),
+              value: (
+                <span className="font-mono">
+                  {integration.sqlConnectionConfig.port}
+                </span>
+              ),
+            },
+          ]
+        : []),
+      ...(integration.sqlConnectionConfig?.readOnly != null
+        ? [
+            {
+              label: t('integrations.upload.readOnly'),
+              value: integration.sqlConnectionConfig.readOnly ? 'Yes' : 'No',
+            },
+          ]
+        : []),
+      ...(integration.sqlConnectionConfig?.security?.maxResultRows != null
+        ? [
+            {
+              label: t('integrations.upload.maxResultRows'),
+              value: (
+                <span className="font-mono">
+                  {integration.sqlConnectionConfig.security.maxResultRows}
+                </span>
+              ),
+            },
+          ]
+        : []),
+      ...(integration.sqlConnectionConfig?.security?.queryTimeoutMs != null
+        ? [
+            {
+              label: t('integrations.upload.queryTimeout'),
+              value: (
+                <span className="font-mono">
+                  {integration.sqlConnectionConfig.security.queryTimeoutMs}
+                </span>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [integration.sqlConnectionConfig, t],
+  );
+
   const hasAnyDetails =
     restOperations.length > 0 ||
     sqlOperations.length > 0 ||
@@ -323,72 +381,7 @@ export function IntegrationDetails({
         >
           <StatGrid
             className="bg-muted mt-2 ml-6 rounded-md p-3 text-xs"
-            items={
-              [
-                {
-                  label: t('integrations.upload.engine'),
-                  value: (
-                    <span className="font-mono">
-                      {integration.sqlConnectionConfig.engine}
-                    </span>
-                  ),
-                },
-                ...(integration.sqlConnectionConfig.port != null
-                  ? [
-                      {
-                        label: t('integrations.upload.port'),
-                        value: (
-                          <span className="font-mono">
-                            {integration.sqlConnectionConfig.port}
-                          </span>
-                        ),
-                      },
-                    ]
-                  : []),
-                ...(integration.sqlConnectionConfig.readOnly != null
-                  ? [
-                      {
-                        label: t('integrations.upload.readOnly'),
-                        value: integration.sqlConnectionConfig.readOnly
-                          ? 'Yes'
-                          : 'No',
-                      },
-                    ]
-                  : []),
-                ...(integration.sqlConnectionConfig.security?.maxResultRows !=
-                null
-                  ? [
-                      {
-                        label: t('integrations.upload.maxResultRows'),
-                        value: (
-                          <span className="font-mono">
-                            {
-                              integration.sqlConnectionConfig.security
-                                .maxResultRows
-                            }
-                          </span>
-                        ),
-                      },
-                    ]
-                  : []),
-                ...(integration.sqlConnectionConfig.security?.queryTimeoutMs !=
-                null
-                  ? [
-                      {
-                        label: t('integrations.upload.queryTimeout'),
-                        value: (
-                          <span className="font-mono">
-                            {
-                              integration.sqlConnectionConfig.security
-                                .queryTimeoutMs
-                            }
-                          </span>
-                        ),
-                      },
-                    ]
-                  : []),
-              ] satisfies StatGridItem[]
-            }
+            items={sqlConfigItems}
           />
         </CollapsibleDetails>
       )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { ExternalLink, Loader2 } from 'lucide-react';
+import { useMemo } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -52,80 +53,83 @@ export function IntegrationActiveView({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
-  const authItems: StatGridItem[] = [
-    ...(isSql && integration.sqlConnectionConfig?.server
-      ? [
-          {
-            label: t('integrations.manageDialog.server'),
-            value: (
-              <Text variant="code">
-                {maskValue(integration.sqlConnectionConfig.server)}
-              </Text>
-            ),
-          },
-        ]
-      : []),
-    ...(integration.authMethod === 'basic_auth' &&
-    integration.basicAuth?.username
-      ? [
-          {
-            label: t('integrations.manageDialog.username'),
-            value: (
-              <Text variant="code">
-                {maskValue(integration.basicAuth.username)}
-              </Text>
-            ),
-          },
-          {
-            label: t('integrations.manageDialog.password'),
-            value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
-          },
-        ]
-      : []),
-    ...(integration.authMethod === 'api_key' && integration.apiKeyAuth
-      ? [
-          {
-            label:
-              secretBindings.find((b) => SENSITIVE_KEYS.has(b)) ?? 'apiKey',
-            value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
-          },
-        ]
-      : []),
-    ...(integration.authMethod === 'oauth2' && integration.oauth2Auth
-      ? [
-          {
-            label: hasOAuth2Config
-              ? t('integrations.manageDialog.connectedViaOAuth2')
-              : 'accessToken',
-            value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
-          },
-        ]
-      : []),
-    ...(integration.connectionConfig?.domain
-      ? [
-          {
-            label: 'domain',
-            value: (
-              <Text variant="code" truncate>
-                {maskValue(integration.connectionConfig.domain)}
-              </Text>
-            ),
-          },
-        ]
-      : []),
-    ...(integration.connectionConfig?.apiEndpoint
-      ? [
-          {
-            label: 'apiEndpoint',
-            value: (
-              <Text variant="code" truncate>
-                {integration.connectionConfig.apiEndpoint}
-              </Text>
-            ),
-          },
-        ]
-      : []),
-  ];
+  const authItems = useMemo<StatGridItem[]>(
+    () => [
+      ...(isSql && integration.sqlConnectionConfig?.server
+        ? [
+            {
+              label: t('integrations.manageDialog.server'),
+              value: (
+                <Text variant="code">
+                  {maskValue(integration.sqlConnectionConfig.server)}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(integration.authMethod === 'basic_auth' &&
+      integration.basicAuth?.username
+        ? [
+            {
+              label: t('integrations.manageDialog.username'),
+              value: (
+                <Text variant="code">
+                  {maskValue(integration.basicAuth.username)}
+                </Text>
+              ),
+            },
+            {
+              label: t('integrations.manageDialog.password'),
+              value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
+            },
+          ]
+        : []),
+      ...(integration.authMethod === 'api_key' && integration.apiKeyAuth
+        ? [
+            {
+              label:
+                secretBindings.find((b) => SENSITIVE_KEYS.has(b)) ?? 'apiKey',
+              value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
+            },
+          ]
+        : []),
+      ...(integration.authMethod === 'oauth2' && integration.oauth2Auth
+        ? [
+            {
+              label: hasOAuth2Config
+                ? t('integrations.manageDialog.connectedViaOAuth2')
+                : 'accessToken',
+              value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
+            },
+          ]
+        : []),
+      ...(integration.connectionConfig?.domain
+        ? [
+            {
+              label: 'domain',
+              value: (
+                <Text variant="code" truncate>
+                  {maskValue(integration.connectionConfig.domain)}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(integration.connectionConfig?.apiEndpoint
+        ? [
+            {
+              label: 'apiEndpoint',
+              value: (
+                <Text variant="code" truncate>
+                  {integration.connectionConfig.apiEndpoint}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [integration, isSql, secretBindings, hasOAuth2Config, t],
+  );
 
   return (
     <Stack gap={3}>

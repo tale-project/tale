@@ -1,5 +1,7 @@
 'use client';
 
+import { useMemo } from 'react';
+
 import {
   type StatGridItem,
   StatGrid,
@@ -45,58 +47,61 @@ export function ProductViewDialog({
   const { t: tCommon } = useT('common');
   const { t: tProducts } = useT('products');
 
-  const statItems: StatGridItem[] = [
-    ...(product.price !== undefined
-      ? [
-          {
-            label: tProducts('view.labels.price'),
-            value: (
-              <Text>
-                {formatCurrency(
-                  product.price,
-                  product.currency || 'USD',
-                  locale,
-                )}
-              </Text>
-            ),
-          },
-        ]
-      : []),
-    ...(product.stock !== undefined
-      ? [
-          {
-            label: tProducts('view.labels.stock'),
-            value: (
-              <Text
-                className={
-                  product.stock === 0 ? 'font-medium text-red-600' : undefined
-                }
-              >
-                {tCommon('units.stock', { count: product.stock })}
-              </Text>
-            ),
-          },
-        ]
-      : []),
-    ...(product.category
-      ? [
-          {
-            label: tProducts('view.labels.category'),
-            value: <Text>{product.category}</Text>,
-          },
-        ]
-      : []),
-    ...(product.lastUpdated !== undefined
-      ? [
-          {
-            label: tProducts('view.labels.lastUpdated'),
-            value: (
-              <Text>{formatDate(new Date(product.lastUpdated), 'long')}</Text>
-            ),
-          },
-        ]
-      : []),
-  ];
+  const statItems = useMemo<StatGridItem[]>(
+    () => [
+      ...(product.price !== undefined
+        ? [
+            {
+              label: tProducts('view.labels.price'),
+              value: (
+                <Text>
+                  {formatCurrency(
+                    product.price,
+                    product.currency || 'USD',
+                    locale,
+                  )}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(product.stock !== undefined
+        ? [
+            {
+              label: tProducts('view.labels.stock'),
+              value: (
+                <Text
+                  className={
+                    product.stock === 0 ? 'font-medium text-red-600' : undefined
+                  }
+                >
+                  {tCommon('units.stock', { count: product.stock })}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(product.category
+        ? [
+            {
+              label: tProducts('view.labels.category'),
+              value: <Text>{product.category}</Text>,
+            },
+          ]
+        : []),
+      ...(product.lastUpdated !== undefined
+        ? [
+            {
+              label: tProducts('view.labels.lastUpdated'),
+              value: (
+                <Text>{formatDate(new Date(product.lastUpdated), 'long')}</Text>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [product, tProducts, tCommon, formatDate, locale],
+  );
 
   return (
     <ViewDialog

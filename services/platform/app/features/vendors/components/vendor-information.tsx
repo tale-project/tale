@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import {
   type StatGridItem,
   StatGrid,
@@ -17,33 +19,38 @@ export function VendorInformation({ vendor }: VendorInformationProps) {
   const { formatDate } = useFormatDate();
   const { t } = useT('common');
 
-  if (!vendor) return null;
+  const items = useMemo<StatGridItem[]>(
+    () => [
+      {
+        label: t('labels.name'),
+        value: <Text>{vendor.name || t('labels.notAvailable')}</Text>,
+      },
+      {
+        label: t('labels.email'),
+        value: <Text>{vendor.email || t('labels.notAvailable')}</Text>,
+      },
+      ...(vendor.phone
+        ? [{ label: t('labels.phone'), value: <Text>{vendor.phone}</Text> }]
+        : []),
+      {
+        label: t('labels.source'),
+        value: <Text>{vendor.source || t('labels.notAvailable')}</Text>,
+      },
+      {
+        label: t('labels.locale'),
+        value: <Text>{vendor.locale || t('labels.notAvailable')}</Text>,
+      },
+      {
+        label: t('labels.created'),
+        value: (
+          <Text>{formatDate(new Date(vendor._creationTime), 'long')}</Text>
+        ),
+      },
+    ],
+    [vendor, t, formatDate],
+  );
 
-  const items: StatGridItem[] = [
-    {
-      label: t('labels.name'),
-      value: <Text>{vendor.name || t('labels.notAvailable')}</Text>,
-    },
-    {
-      label: t('labels.email'),
-      value: <Text>{vendor.email || t('labels.notAvailable')}</Text>,
-    },
-    ...(vendor.phone
-      ? [{ label: t('labels.phone'), value: <Text>{vendor.phone}</Text> }]
-      : []),
-    {
-      label: t('labels.source'),
-      value: <Text>{vendor.source || t('labels.notAvailable')}</Text>,
-    },
-    {
-      label: t('labels.locale'),
-      value: <Text>{vendor.locale || t('labels.notAvailable')}</Text>,
-    },
-    {
-      label: t('labels.created'),
-      value: <Text>{formatDate(new Date(vendor._creationTime), 'long')}</Text>,
-    },
-  ];
+  if (!vendor) return null;
 
   return (
     <Stack gap={4}>

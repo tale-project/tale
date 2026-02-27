@@ -1,5 +1,7 @@
 'use client';
 
+import { useMemo } from 'react';
+
 import {
   type StatGridItem,
   StatGrid,
@@ -35,65 +37,70 @@ export function ViewWebsiteDialog({
     '30d': t('scanIntervals.30days'),
   };
 
-  const items: StatGridItem[] = [
-    {
-      label: t('viewDialog.domain'),
-      value: <Text>{website.domain}</Text>,
-    },
-    {
-      label: t('viewDialog.status'),
-      value: (
-        <HStack gap={2}>
-          <div
-            className={`h-2 w-2 rounded-full ${
-              website.status === 'active'
-                ? 'bg-green-500'
-                : website.status === 'error'
-                  ? 'bg-red-500'
-                  : 'bg-gray-500'
-            }`}
-          />
-          <Text>{website.status || t('viewDialog.unknown')}</Text>
-        </HStack>
-      ),
-    },
-    {
-      label: t('viewDialog.scanInterval'),
-      value: (
-        <Text>
-          {SCAN_INTERVALS[website.scanInterval] || website.scanInterval}
-        </Text>
-      ),
-    },
-    {
-      label: t('viewDialog.lastScanned'),
-      value: (
-        <Text>
-          {website.lastScannedAt
-            ? formatDate(new Date(website.lastScannedAt), 'long')
-            : t('viewDialog.notScannedYet')}
-        </Text>
-      ),
-    },
-    {
-      label: t('viewDialog.titleField'),
-      value: <Text>{website.title || '-'}</Text>,
-      colSpan: 2,
-    },
-    {
-      label: t('viewDialog.description'),
-      value: (
-        <Text className="whitespace-pre-wrap">
-          {website.description || '-'}
-        </Text>
-      ),
-      colSpan: 2,
-    },
-    {
-      label: t('viewDialog.created'),
-      value: <Text>{formatDate(new Date(website._creationTime), 'long')}</Text>,
-    },
-  ];
+  const items = useMemo<StatGridItem[]>(
+    () => [
+      {
+        label: t('viewDialog.domain'),
+        value: <Text>{website.domain}</Text>,
+      },
+      {
+        label: t('viewDialog.status'),
+        value: (
+          <HStack gap={2}>
+            <div
+              className={`h-2 w-2 rounded-full ${
+                website.status === 'active'
+                  ? 'bg-green-500'
+                  : website.status === 'error'
+                    ? 'bg-red-500'
+                    : 'bg-gray-500'
+              }`}
+            />
+            <Text>{website.status || t('viewDialog.unknown')}</Text>
+          </HStack>
+        ),
+      },
+      {
+        label: t('viewDialog.scanInterval'),
+        value: (
+          <Text>
+            {SCAN_INTERVALS[website.scanInterval] || website.scanInterval}
+          </Text>
+        ),
+      },
+      {
+        label: t('viewDialog.lastScanned'),
+        value: (
+          <Text>
+            {website.lastScannedAt
+              ? formatDate(new Date(website.lastScannedAt), 'long')
+              : t('viewDialog.notScannedYet')}
+          </Text>
+        ),
+      },
+      {
+        label: t('viewDialog.titleField'),
+        value: <Text>{website.title || '-'}</Text>,
+        colSpan: 2,
+      },
+      {
+        label: t('viewDialog.description'),
+        value: (
+          <Text className="whitespace-pre-wrap">
+            {website.description || '-'}
+          </Text>
+        ),
+        colSpan: 2,
+      },
+      {
+        label: t('viewDialog.created'),
+        value: (
+          <Text>{formatDate(new Date(website._creationTime), 'long')}</Text>
+        ),
+      },
+    ],
+    [website, t, formatDate, SCAN_INTERVALS],
+  );
 
   return (
     <ViewDialog

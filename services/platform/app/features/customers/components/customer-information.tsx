@@ -1,5 +1,7 @@
 'use client';
 
+import { useMemo } from 'react';
+
 import {
   type StatGridItem,
   StatGrid,
@@ -20,36 +22,40 @@ interface CustomerInformationProps {
 export function CustomerInformation({ customer }: CustomerInformationProps) {
   const { formatDate } = useFormatDate();
   const { t } = useT('common');
-  if (!customer) return null;
 
-  const items: StatGridItem[] = [
-    {
-      label: t('labels.status'),
-      value: customer.status ? (
-        <CustomerStatusBadge status={customer.status} />
-      ) : (
-        <Text>{t('labels.notAvailable')}</Text>
-      ),
-    },
-    {
-      label: t('labels.source'),
-      value: <Text>{customer.source || t('labels.notAvailable')}</Text>,
-    },
-    {
-      label: t('labels.created'),
-      value: (
-        <Text>
-          {customer._creationTime
-            ? formatDate(new Date(customer._creationTime), 'long')
-            : t('labels.notAvailable')}
-        </Text>
-      ),
-    },
-    {
-      label: t('labels.locale'),
-      value: <Text>{customer.locale || 'en'}</Text>,
-    },
-  ];
+  const items = useMemo<StatGridItem[]>(
+    () => [
+      {
+        label: t('labels.status'),
+        value: customer.status ? (
+          <CustomerStatusBadge status={customer.status} />
+        ) : (
+          <Text>{t('labels.notAvailable')}</Text>
+        ),
+      },
+      {
+        label: t('labels.source'),
+        value: <Text>{customer.source || t('labels.notAvailable')}</Text>,
+      },
+      {
+        label: t('labels.created'),
+        value: (
+          <Text>
+            {customer._creationTime
+              ? formatDate(new Date(customer._creationTime), 'long')
+              : t('labels.notAvailable')}
+          </Text>
+        ),
+      },
+      {
+        label: t('labels.locale'),
+        value: <Text>{customer.locale || 'en'}</Text>,
+      },
+    ],
+    [customer, t, formatDate],
+  );
+
+  if (!customer) return null;
 
   return (
     <Stack gap={5}>

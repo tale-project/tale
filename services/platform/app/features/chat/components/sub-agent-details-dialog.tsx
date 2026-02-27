@@ -1,5 +1,7 @@
 'use client';
 
+import { useMemo } from 'react';
+
 import {
   type StatGridItem,
   StatGrid,
@@ -36,6 +38,60 @@ export function SubAgentDetailsDialog({
 }: SubAgentDetailsDialogProps) {
   const { locale } = useLocale();
   const { t } = useT('chat');
+
+  const tokenItems = useMemo<StatGridItem[]>(
+    () => [
+      ...(usage?.inputTokens !== undefined
+        ? [
+            {
+              label: t('messageInfo.input'),
+              value: (
+                <Text variant="label">
+                  {formatNumber(usage.inputTokens, locale)}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(usage?.outputTokens !== undefined
+        ? [
+            {
+              label: t('messageInfo.output'),
+              value: (
+                <Text variant="label">
+                  {formatNumber(usage.outputTokens, locale)}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(usage?.totalTokens !== undefined
+        ? [
+            {
+              label: t('messageInfo.total'),
+              value: (
+                <Text variant="label">
+                  {formatNumber(usage.totalTokens, locale)}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(usage?.durationMs !== undefined
+        ? [
+            {
+              label: t('messageInfo.duration'),
+              value: (
+                <Text variant="label">
+                  {(usage.durationMs / 1000).toFixed(2)}s
+                </Text>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [usage, t, locale],
+  );
 
   if (!usage) return null;
 

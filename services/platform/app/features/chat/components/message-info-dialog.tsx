@@ -1,7 +1,7 @@
 'use client';
 
 import { Copy, Check } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
@@ -127,6 +127,61 @@ export function MessageInfoDialog({
   const [selectedSubAgent, setSelectedSubAgent] =
     useState<SubAgentUsage | null>(null);
 
+  const tokenItems = useMemo<StatGridItem[]>(
+    () => [
+      ...(metadata?.contextWindow
+        ? [
+            {
+              label: t('messageInfo.contextWindow'),
+              value: (
+                <ContextWindowToken
+                  contextWindow={metadata.contextWindow}
+                  contextStats={metadata.contextStats}
+                  t={t}
+                  tCommon={tCommon}
+                  locale={locale}
+                />
+              ),
+            },
+          ]
+        : []),
+      ...(
+        [
+          [metadata?.inputTokens, 'input'],
+          [metadata?.outputTokens, 'output'],
+          [metadata?.totalTokens, 'total'],
+          [metadata?.reasoningTokens, 'reasoning'],
+          [metadata?.cachedInputTokens, 'cached'],
+        ] as [number | undefined, string][]
+      )
+        .filter(
+          (entry): entry is [number, string] =>
+            entry[0] != null && entry[0] > 0,
+        )
+        .map(([value, key]) => ({
+          label: t(`messageInfo.${key}`),
+          value: <Text>{formatNumber(value, locale)}</Text>,
+        })),
+    ],
+    [metadata, t, tCommon, locale],
+  );
+
+  const perfItems = useMemo<StatGridItem[]>(
+    () =>
+      (
+        [
+          [metadata?.durationMs, 'duration'],
+          [metadata?.timeToFirstTokenMs, 'timeToFirstToken'],
+        ] as [number | undefined, string][]
+      )
+        .filter((entry): entry is [number, string] => entry[0] != null)
+        .map(([value, key]) => ({
+          label: t(`messageInfo.${key}`),
+          value: <Text>{(value / 1000).toFixed(2)}s</Text>,
+        })),
+    [metadata?.durationMs, metadata?.timeToFirstTokenMs, t],
+  );
+
   return (
     <ViewDialog
       open={isOpen}
@@ -154,67 +209,17 @@ export function MessageInfoDialog({
               </Text>
             </Field>
 
-            {(() => {
-              const tokenItems: StatGridItem[] = [
-                ...(metadata.contextWindow
-                  ? [
-                      {
-                        label: t('messageInfo.contextWindow'),
-                        value: (
-                          <ContextWindowToken
-                            contextWindow={metadata.contextWindow}
-                            contextStats={metadata.contextStats}
-                            t={t}
-                            tCommon={tCommon}
-                            locale={locale}
-                          />
-                        ),
-                      },
-                    ]
-                  : []),
-                ...(
-                  [
-                    [metadata.inputTokens, 'input'],
-                    [metadata.outputTokens, 'output'],
-                    [metadata.totalTokens, 'total'],
-                    [metadata.reasoningTokens, 'reasoning'],
-                    [metadata.cachedInputTokens, 'cached'],
-                  ] as [number | undefined, string][]
-                )
-                  .filter(
-                    (entry): entry is [number, string] =>
-                      entry[0] != null && entry[0] > 0,
-                  )
-                  .map(([value, key]) => ({
-                    label: t(`messageInfo.${key}`),
-                    value: <Text>{formatNumber(value, locale)}</Text>,
-                  })),
-              ];
-              return tokenItems.length > 0 ? (
-                <Field label={t('messageInfo.tokenUsage')}>
-                  <StatGrid className="text-sm" items={tokenItems} />
-                </Field>
-              ) : null;
-            })()}
+            {tokenItems.length > 0 && (
+              <Field label={t('messageInfo.tokenUsage')}>
+                <StatGrid className="text-sm" items={tokenItems} />
+              </Field>
+            )}
 
-            {(() => {
-              const perfItems: StatGridItem[] = (
-                [
-                  [metadata.durationMs, 'duration'],
-                  [metadata.timeToFirstTokenMs, 'timeToFirstToken'],
-                ] as [number | undefined, string][]
-              )
-                .filter((entry): entry is [number, string] => entry[0] != null)
-                .map(([value, key]) => ({
-                  label: t(`messageInfo.${key}`),
-                  value: <Text>{(value / 1000).toFixed(2)}s</Text>,
-                }));
-              return perfItems.length > 0 ? (
-                <Field label={t('messageInfo.performance')}>
-                  <StatGrid className="text-sm" items={perfItems} />
-                </Field>
-              ) : null;
-            })()}
+            {perfItems.length > 0 && (
+              <Field label={t('messageInfo.performance')}>
+                <StatGrid className="text-sm" items={perfItems} />
+              </Field>
+            )}
 
             {metadata.subAgentUsage && metadata.subAgentUsage.length > 0 && (
               <Field label={t('messageInfo.subAgentCalls')}>
