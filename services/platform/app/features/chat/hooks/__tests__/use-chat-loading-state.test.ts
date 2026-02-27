@@ -222,6 +222,61 @@ describe('useChatLoadingState', () => {
       expect(result.current.isLoading).toBe(true);
     });
 
+    it('returns false when last assistant message is aborted', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: false,
+          setIsPending,
+          uiMessages: [
+            createUIMessage({
+              id: 'msg-1',
+              order: 0,
+              role: 'assistant',
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime value exists but SDK types lack it
+              status: 'aborted' as UIMessage['status'],
+            }),
+          ],
+          threadId: THREAD_A,
+          pendingThreadId: null,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    it('returns false when aborted mid-tool-call (aborted overrides unfinished tool turn)', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: false,
+          setIsPending,
+          uiMessages: [
+            createUIMessage({
+              id: 'msg-1',
+              order: 0,
+              role: 'assistant',
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime value exists but SDK types lack it
+              status: 'aborted' as UIMessage['status'],
+              text: 'Let me look that up.',
+              parts: [
+                { type: 'text', text: 'Let me look that up.' },
+                { type: 'step-start' },
+                {
+                  type: 'tool-rag_search',
+                  toolCallId: 'call-1',
+                  input: { query: 'test' },
+                  state: 'input-available',
+                },
+              ],
+            }),
+          ],
+          threadId: THREAD_A,
+          pendingThreadId: null,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(false);
+    });
+
     it('returns true when last message is user (waiting for AI response)', () => {
       const { result } = renderHook(() =>
         useChatLoadingState({

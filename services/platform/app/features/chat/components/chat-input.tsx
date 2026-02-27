@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Paperclip } from 'lucide-react';
+import { X, Paperclip, ArrowUp } from 'lucide-react';
 import { LoaderCircleIcon } from 'lucide-react';
 import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
 
@@ -11,6 +11,8 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -280,20 +282,33 @@ export function ChatInput({
               )}
             </div>
 
-            <HStack justify="between" className="pb-3">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading || disabled}
-                className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                title={tDialogs('attach')}
-              >
-                <Paperclip className="size-4" />
-                <Text as="span" variant="body-sm">
-                  {tDialogs('attach')}
-                </Text>
-              </button>
-              <AgentSelector organizationId={organizationId} />
+            <HStack justify="between" align="center" className="pb-3">
+              <Tooltip content={tDialogs('attach')} side="top">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading || disabled}
+                  aria-label={tDialogs('attach')}
+                >
+                  <Paperclip className="size-4" />
+                </Button>
+              </Tooltip>
+              <HStack gap={2} align="center">
+                <AgentSelector organizationId={organizationId} />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={
+                    (!value.trim() && attachments.length === 0) ||
+                    isLoading ||
+                    disabled
+                  }
+                  size="icon"
+                  aria-label={tChat('send')}
+                >
+                  <ArrowUp className="size-4" />
+                </Button>
+              </HStack>
             </HStack>
           </div>
         </div>
