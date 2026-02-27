@@ -1,4 +1,3 @@
-import type { Id } from '@/convex/_generated/dataModel';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
@@ -35,22 +34,6 @@ export function useListWebsitesPaginated(args: ListWebsitesPaginatedArgs) {
   const { initialNumItems, ...queryArgs } = args;
   return useCachedPaginatedQuery(
     api.websites.queries.listWebsitesPaginated,
-    queryArgs,
-    { initialNumItems },
-  );
-}
-
-interface ListWebsitePagesPaginatedArgs {
-  websiteId: Id<'websites'>;
-  initialNumItems: number;
-}
-
-export function useListWebsitePagesPaginated(
-  args: ListWebsitePagesPaginatedArgs,
-) {
-  const { initialNumItems, ...queryArgs } = args;
-  return useCachedPaginatedQuery(
-    api.websites.queries.listWebsitePagesPaginated,
     queryArgs,
     { initialNumItems },
   );

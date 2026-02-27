@@ -17,7 +17,6 @@ import productRecommendationEmail from './product_recommendation_email';
 import productRelationshipAnalysis from './product_relationship_analysis';
 import shopifySyncCustomers from './shopify_sync_customers';
 import shopifySyncProducts from './shopify_sync_products';
-import websiteScan from './website_scan';
 import workflowRagSync from './workflow_rag_sync';
 
 // Dynamic Orchestration Examples
@@ -39,7 +38,6 @@ export const workflows = {
   productRagSync,
   customerRagSync,
   onedriveSync,
-  websiteScan,
   workflowRagSync,
   conversationAutoArchive,
   conversationSync,

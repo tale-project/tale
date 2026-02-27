@@ -15,7 +15,6 @@ import { useT } from '@/lib/i18n/client';
 import { useUpdateWebsite } from '../hooks/mutations';
 
 type FormData = {
-  domain: string;
   scanInterval: string;
 };
 
@@ -36,10 +35,6 @@ export function EditWebsiteDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        domain: z
-          .string()
-          .min(1, tWebsites('validation.domainRequired'))
-          .url(tWebsites('validation.validUrl')),
         scanInterval: z
           .string()
           .min(1, tWebsites('validation.scanIntervalRequired')),
@@ -58,7 +53,6 @@ export function EditWebsiteDialog({
   ];
 
   const {
-    register,
     handleSubmit,
     formState: { errors },
     reset,
@@ -67,7 +61,6 @@ export function EditWebsiteDialog({
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      domain: website.domain,
       scanInterval: website.scanInterval,
     },
   });
@@ -77,7 +70,6 @@ export function EditWebsiteDialog({
   useEffect(() => {
     if (website) {
       reset({
-        domain: website.domain,
         scanInterval: website.scanInterval,
       });
     }
@@ -87,7 +79,6 @@ export function EditWebsiteDialog({
     updateWebsite(
       {
         websiteId: website._id,
-        domain: data.domain,
         scanInterval: data.scanInterval,
       },
       {
@@ -119,12 +110,9 @@ export function EditWebsiteDialog({
     >
       <Input
         id="domain"
-        type="url"
         label={tWebsites('domain')}
-        placeholder={tWebsites('urlPlaceholder')}
-        {...register('domain')}
-        disabled={isLoading}
-        errorMessage={errors.domain?.message}
+        value={website.domain}
+        disabled
       />
 
       <Select

@@ -21,7 +21,6 @@ import {
   CheckCircle,
   Cloud,
   Globe,
-  Layout,
   GitBranch,
   Settings,
 } from 'lucide-react';
@@ -42,7 +41,6 @@ const ACTION_ICON_MAP: Record<string, LucideIcon> = {
   onedrive: Cloud,
   crawler: Globe,
   website: Globe,
-  websitePages: Layout,
   workflow: GitBranch,
 };
 

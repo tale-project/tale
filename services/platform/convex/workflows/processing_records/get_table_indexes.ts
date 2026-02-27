@@ -114,23 +114,6 @@ export const TABLE_INDEXES: Record<TableName, IndexConfig[]> = {
     { name: 'by_organizationId', fields: ['organizationId'] },
   ],
 
-  websitePages: [
-    {
-      name: 'by_websiteId_and_syncStatus',
-      fields: ['websiteId', 'syncStatus'],
-    },
-    {
-      name: 'by_websiteId_and_lastCrawledAt',
-      fields: ['websiteId', 'lastCrawledAt'],
-    },
-    {
-      name: 'by_organizationId_and_url',
-      fields: ['organizationId', 'url'],
-    },
-    { name: 'by_websiteId', fields: ['websiteId'] },
-    { name: 'by_organizationId', fields: ['organizationId'] },
-  ],
-
   conversationMessages: [
     // by_organizationId_and_direction is optimal for filtering inbound messages
     {

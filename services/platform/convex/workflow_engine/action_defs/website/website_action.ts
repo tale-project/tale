@@ -8,7 +8,12 @@ import { internal } from '../../../_generated/api';
 
 // Common field validators
 const statusValidator = v.optional(
-  v.union(v.literal('active'), v.literal('inactive'), v.literal('error')),
+  v.union(
+    v.literal('idle'),
+    v.literal('scanning'),
+    v.literal('active'),
+    v.literal('error'),
+  ),
 );
 
 export const websiteAction: ActionDefinition<WebsiteActionParams> = {

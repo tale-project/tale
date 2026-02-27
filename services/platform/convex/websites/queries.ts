@@ -3,7 +3,6 @@ import { v } from 'convex/values';
 
 import { countItemsInOrg } from '../lib/helpers/count_items_in_org';
 import { queryWithRLS } from '../lib/rls';
-import { listWebsitePagesPaginated as listWebsitePagesPaginatedHelper } from './list_website_pages_paginated';
 import { listWebsitesPaginated as listWebsitesPaginatedHelper } from './list_websites_paginated';
 import { websiteValidator } from './validators';
 
@@ -43,15 +42,5 @@ export const listWebsitesPaginated = queryWithRLS({
   },
   handler: async (ctx, args) => {
     return await listWebsitesPaginatedHelper(ctx, args);
-  },
-});
-
-export const listWebsitePagesPaginated = queryWithRLS({
-  args: {
-    paginationOpts: paginationOptsValidator,
-    websiteId: v.id('websites'),
-  },
-  handler: async (ctx, args) => {
-    return await listWebsitePagesPaginatedHelper(ctx, args);
   },
 });

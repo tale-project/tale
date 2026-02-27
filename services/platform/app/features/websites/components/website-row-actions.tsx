@@ -1,17 +1,15 @@
 'use client';
 
-import { Eye, ScanText, RefreshCcw, Pencil, Trash2 } from 'lucide-react';
-import { useMemo, useCallback } from 'react';
+import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { useMemo } from 'react';
 
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
-import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useRescanWebsite } from '../hooks/mutations';
 import { DeleteWebsiteDialog } from './website-delete-dialog';
 import { EditWebsiteDialog } from './website-edit-dialog';
 import { ViewWebsiteDialog } from './website-view-dialog';
@@ -21,32 +19,8 @@ interface WebsiteRowActionsProps {
 }
 
 export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
-  const { t } = useT('websites');
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
-
-  const { mutate: rescanWebsite, isPending: isRescanning } = useRescanWebsite();
-
-  const handleRescan = useCallback(() => {
-    rescanWebsite(
-      { websiteId: website._id },
-      {
-        onSuccess: () => {
-          toast({
-            title: t('actions.rescanTriggered'),
-            variant: 'success',
-          });
-        },
-        onError: (error) => {
-          console.error('Failed to rescan website:', error);
-          toast({
-            title: t('actions.rescanFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  }, [rescanWebsite, website._id, t]);
 
   const actions = useMemo(
     () => [
@@ -55,13 +29,6 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         label: tCommon('actions.view'),
         icon: Eye,
         onClick: dialogs.open.view,
-      },
-      {
-        key: 'rescan',
-        label: t('actions.rescan'),
-        icon: isRescanning ? RefreshCcw : ScanText,
-        onClick: handleRescan,
-        disabled: isRescanning,
       },
       {
         key: 'edit',
@@ -77,7 +44,7 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         destructive: true,
       },
     ],
-    [tCommon, t, dialogs.open, handleRescan, isRescanning],
+    [tCommon, dialogs.open],
   );
 
   return (

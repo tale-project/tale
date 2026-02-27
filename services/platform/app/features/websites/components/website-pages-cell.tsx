@@ -31,8 +31,9 @@ export function WebsitePagesCell({ website }: WebsitePagesCellProps) {
         <FileText className="size-3.5" />
         <span className="underline-offset-2 hover:underline">
           {website.pageCount != null
-            ? t(website.pageCount === 1 ? 'pageCountOne' : 'pageCount', {
-                count: website.pageCount,
+            ? t('pageCountProgress', {
+                crawled: website.crawledPageCount ?? 0,
+                total: website.pageCount,
               })
             : t('viewPages')}
         </span>

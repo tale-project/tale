@@ -1,23 +1,14 @@
--- ============================================================================
--- Create Convex Self-Hosted Database
--- ============================================================================
--- This script creates the database required by Convex self-hosted backend.
--- The database name is HARDCODED to tale_platform for safety and consistency.
--- ============================================================================
+-- Tale DB: Convex self-hosted database
+-- Idempotent: safe to run on every startup
 
--- Create the Convex database (hardcoded name)
-CREATE DATABASE tale_platform;
+SELECT 'CREATE DATABASE tale_platform'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'tale_platform')
+\gexec
 
--- Grant privileges to the tale user
 GRANT ALL PRIVILEGES ON DATABASE tale_platform TO tale;
 
--- Connect to the new database
 \c tale_platform
 
--- Enable required extensions
+DROP EXTENSION IF EXISTS timescaledb CASCADE;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
-
--- Log completion
-\echo 'Convex database created successfully: tale_platform'
-

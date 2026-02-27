@@ -2,7 +2,7 @@ import { z } from 'zod/v4';
 
 import { jsonRecordSchema } from './utils/json-value';
 
-const websiteStatusLiterals = ['active', 'inactive', 'error'] as const;
+const websiteStatusLiterals = ['idle', 'scanning', 'active', 'error'] as const;
 export const websiteStatusSchema = z.enum(websiteStatusLiterals);
 type WebsiteStatus = z.infer<typeof websiteStatusSchema>;
 
@@ -17,24 +17,8 @@ export const websiteSchema = z.object({
   lastScannedAt: z.number().optional(),
   status: websiteStatusSchema.optional(),
   pageCount: z.number().optional(),
+  crawledPageCount: z.number().optional(),
   metadata: jsonRecordSchema.optional(),
 });
 
 type Website = z.infer<typeof websiteSchema>;
-
-export const websitePageSchema = z.object({
-  _id: z.string(),
-  _creationTime: z.number(),
-  organizationId: z.string(),
-  websiteId: z.string(),
-  url: z.string(),
-  title: z.string().optional(),
-  content: z.string().optional(),
-  wordCount: z.number().optional(),
-  lastCrawledAt: z.number(),
-  metadata: jsonRecordSchema.optional(),
-  structuredData: jsonRecordSchema.optional(),
-  syncStatus: z.enum(['pending', 'synced']).optional(),
-});
-
-type WebsitePage = z.infer<typeof websitePageSchema>;

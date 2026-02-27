@@ -2,7 +2,7 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { Globe } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -10,6 +10,7 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
+import { useSyncWebsiteStatuses } from '../hooks/mutations';
 import {
   useApproxWebsiteCount,
   useListWebsitesPaginated,
@@ -31,6 +32,16 @@ export function WebsitesTable({ organizationId, status }: WebsitesTableProps) {
   const { t: tWebsites } = useT('websites');
 
   const { data: count } = useApproxWebsiteCount(organizationId);
+  const { mutate: syncStatuses } = useSyncWebsiteStatuses();
+
+  useEffect(() => {
+    const key = `websites-sync-${organizationId}`;
+    const lastSync = sessionStorage.getItem(key);
+    const fiveMinutes = 5 * 60 * 1000;
+    if (lastSync && Date.now() - Number(lastSync) < fiveMinutes) return;
+    sessionStorage.setItem(key, String(Date.now()));
+    syncStatuses({ organizationId });
+  }, [organizationId, syncStatuses]);
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useWebsitesTableConfig();
   const paginatedResult = useListWebsitesPaginated({
@@ -67,8 +78,9 @@ export function WebsitesTable({ organizationId, status }: WebsitesTableProps) {
         key: 'status',
         title: tTables('headers.status'),
         options: [
-          { value: 'active', label: tWebsites('filter.status.active') },
+          { value: 'idle', label: tWebsites('filter.status.idle') },
           { value: 'scanning', label: tWebsites('filter.status.scanning') },
+          { value: 'active', label: tWebsites('filter.status.active') },
           { value: 'error', label: tWebsites('filter.status.error') },
         ],
         selectedValues: status ? [status] : [],

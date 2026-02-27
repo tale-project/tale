@@ -10,7 +10,7 @@ export type WebsiteActionParams =
       description?: string;
       scanInterval?: string;
       lastScannedAt?: number;
-      status?: 'active' | 'inactive' | 'error';
+      status?: 'idle' | 'scanning' | 'active' | 'error';
       metadata?: ConvexJsonRecord;
     }
   | {
@@ -21,7 +21,7 @@ export type WebsiteActionParams =
       description?: string;
       scanInterval?: string;
       lastScannedAt?: number;
-      status?: 'active' | 'inactive' | 'error';
+      status?: 'idle' | 'scanning' | 'active' | 'error';
       metadata?: ConvexJsonRecord;
     }
   | {

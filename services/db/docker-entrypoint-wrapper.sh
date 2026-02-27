@@ -3,7 +3,7 @@ set -e
 
 # Tale DB Entrypoint Wrapper
 # This script maps DB_ prefixed environment variables to PostgreSQL configuration
-# and then calls the original TimescaleDB entrypoint
+# and then calls the original PostgreSQL entrypoint
 
 # ============================================================================
 # Map DB_ environment variables to PostgreSQL standard variables
@@ -42,12 +42,6 @@ if [ -n "$DB_WORK_MEM" ]; then
     POSTGRES_ARGS+=("-c" "work_mem=${DB_WORK_MEM}")
 fi
 
-# TimescaleDB settings
-if [ -n "$DB_TIMESCALEDB_TELEMETRY" ]; then
-    POSTGRES_ARGS+=("-c" "timescaledb.telemetry_level=${DB_TIMESCALEDB_TELEMETRY}")
-    export TIMESCALEDB_TELEMETRY="${DB_TIMESCALEDB_TELEMETRY}"
-fi
-
 # Logging settings
 if [ -n "$DB_LOG_STATEMENT" ]; then
     POSTGRES_ARGS+=("-c" "log_statement=${DB_LOG_STATEMENT}")
@@ -73,11 +67,37 @@ echo "User: ${POSTGRES_USER}"
 echo "Max Connections: ${DB_MAX_CONNECTIONS:-100}"
 echo "Shared Buffers: ${DB_SHARED_BUFFERS:-256MB}"
 echo "Effective Cache Size: ${DB_EFFECTIVE_CACHE_SIZE:-1GB}"
-echo "TimescaleDB Telemetry: ${DB_TIMESCALEDB_TELEMETRY:-off}"
 echo "=================================================="
 
 # ============================================================================
-# Call the original TimescaleDB/PostgreSQL entrypoint
+# Post-start init scripts (idempotent, run on every startup)
+# ============================================================================
+# All init scripts use IF NOT EXISTS / CREATE OR REPLACE / DROP IF EXISTS
+# so they are safe to re-run. This ensures schema, extensions, and indexes
+# converge to the desired state on every container start — not just first init.
+
+INIT_SCRIPTS_DIR="/etc/postgresql/init-scripts"
+
+run_init_scripts() {
+    echo "Running init scripts..."
+    for script in "$INIT_SCRIPTS_DIR"/*.sql; do
+        [ -f "$script" ] || continue
+        echo "  $(basename "$script")"
+        psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$script" 2>&1 | grep -E "^(ERROR|NOTICE)" || true
+    done
+    echo "Init scripts complete."
+}
+
+# Run init scripts in the background after PostgreSQL starts
+(
+    until pg_isready -U "$POSTGRES_USER" -q 2>/dev/null; do
+        sleep 1
+    done
+    run_init_scripts
+) &
+
+# ============================================================================
+# Call the original PostgreSQL entrypoint
 # ============================================================================
 exec docker-entrypoint.sh "$@" "${POSTGRES_ARGS[@]}"
 
