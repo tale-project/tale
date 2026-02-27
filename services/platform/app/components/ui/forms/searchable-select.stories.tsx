@@ -1,40 +1,40 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from '@storybook/react';
 
-import { Plus } from "lucide-react";
-import { useState } from "react";
-import { fn } from "storybook/test";
+import { Plus } from 'lucide-react';
+import { useState } from 'react';
+import { fn } from 'storybook/test';
 
-import { Button } from "../primitives/button";
-import { SearchableSelect } from "./searchable-select";
+import { Button } from '../primitives/button';
+import { SearchableSelect } from './searchable-select';
 
 const sampleOptions = [
-  { value: "apple", label: "Apple" },
-  { value: "banana", label: "Banana" },
-  { value: "cherry", label: "Cherry" },
-  { value: "date", label: "Date" },
-  { value: "elderberry", label: "Elderberry" },
+  { value: 'apple', label: 'Apple' },
+  { value: 'banana', label: 'Banana' },
+  { value: 'cherry', label: 'Cherry' },
+  { value: 'date', label: 'Date' },
+  { value: 'elderberry', label: 'Elderberry' },
 ];
 
 const optionsWithDescriptions = [
   {
-    value: "chat",
-    label: "Chat assistant",
-    description: "General-purpose conversational agent",
+    value: 'chat',
+    label: 'Chat assistant',
+    description: 'General-purpose conversational agent',
   },
   {
-    value: "writer",
-    label: "Content writer",
-    description: "Generates blog posts, emails, and copy",
+    value: 'writer',
+    label: 'Content writer',
+    description: 'Generates blog posts, emails, and copy',
   },
   {
-    value: "coder",
-    label: "Code assistant",
-    description: "Helps with programming tasks",
+    value: 'coder',
+    label: 'Code assistant',
+    description: 'Helps with programming tasks',
   },
   {
-    value: "analyst",
-    label: "Data analyst",
-    description: "Analyzes data and creates reports",
+    value: 'analyst',
+    label: 'Data analyst',
+    description: 'Analyzes data and creates reports',
   },
 ];
 
@@ -45,11 +45,11 @@ const manyOptions = Array.from({ length: 20 }, (_, i) => ({
 }));
 
 const meta: Meta<typeof SearchableSelect> = {
-  title: "Forms/SearchableSelect",
+  title: 'Forms/SearchableSelect',
   component: SearchableSelect,
-  tags: ["autodocs"],
+  tags: ['autodocs'],
   parameters: {
-    layout: "centered",
+    layout: 'centered',
     docs: {
       description: {
         component: `
@@ -88,28 +88,28 @@ import { SearchableSelect } from './searchable-select';
   },
   argTypes: {
     searchPlaceholder: {
-      control: "text",
-      description: "Placeholder text for search input",
+      control: 'text',
+      description: 'Placeholder text for search input',
     },
     emptyText: {
-      control: "text",
-      description: "Text shown when no options match",
+      control: 'text',
+      description: 'Text shown when no options match',
     },
     align: {
-      control: "select",
-      options: ["start", "center", "end"],
-      description: "Popover alignment",
+      control: 'select',
+      options: ['start', 'center', 'end'],
+      description: 'Popover alignment',
     },
     side: {
-      control: "select",
-      options: ["top", "right", "bottom", "left"],
-      description: "Popover side",
+      control: 'select',
+      options: ['top', 'right', 'bottom', 'left'],
+      description: 'Popover side',
     },
   },
   args: {
     onValueChange: fn(),
-    searchPlaceholder: "Search...",
-    emptyText: "No results found",
+    searchPlaceholder: 'Search...',
+    emptyText: 'No results found',
   },
   decorators: [
     (Story) => (
@@ -138,7 +138,7 @@ export const Default: Story = {
           <Button variant="secondary" size="sm">
             {value
               ? sampleOptions.find((o) => o.value === value)?.label
-              : "Select a fruit..."}
+              : 'Select a fruit...'}
           </Button>
         }
       />
@@ -149,11 +149,11 @@ export const Default: Story = {
 export const WithDescriptions: Story = {
   args: {
     options: optionsWithDescriptions,
-    searchPlaceholder: "Search agents...",
-    emptyText: "No agents found",
+    searchPlaceholder: 'Search agents...',
+    emptyText: 'No agents found',
   },
   render: function Render(args) {
-    const [value, setValue] = useState<string | null>("chat");
+    const [value, setValue] = useState<string | null>('chat');
     return (
       <SearchableSelect
         {...args}
@@ -163,7 +163,7 @@ export const WithDescriptions: Story = {
         trigger={
           <Button variant="secondary" size="sm">
             {optionsWithDescriptions.find((o) => o.value === value)?.label ??
-              "Select an agent..."}
+              'Select an agent...'}
           </Button>
         }
       />
@@ -176,7 +176,7 @@ export const WithSelectedValue: Story = {
     options: sampleOptions,
   },
   render: function Render(args) {
-    const [value, setValue] = useState<string | null>("cherry");
+    const [value, setValue] = useState<string | null>('cherry');
     return (
       <SearchableSelect
         {...args}
@@ -185,7 +185,7 @@ export const WithSelectedValue: Story = {
         trigger={
           <Button variant="secondary" size="sm">
             {sampleOptions.find((o) => o.value === value)?.label ??
-              "Select a fruit..."}
+              'Select a fruit...'}
           </Button>
         }
       />
@@ -196,8 +196,8 @@ export const WithSelectedValue: Story = {
 export const WithFooter: Story = {
   args: {
     options: optionsWithDescriptions,
-    searchPlaceholder: "Search agents...",
-    emptyText: "No agents found",
+    searchPlaceholder: 'Search agents...',
+    emptyText: 'No agents found',
   },
   render: function Render(args) {
     const [value, setValue] = useState<string | null>(null);
@@ -215,7 +215,7 @@ export const WithFooter: Story = {
         trigger={
           <Button variant="secondary" size="sm">
             {optionsWithDescriptions.find((o) => o.value === value)?.label ??
-              "Select an agent..."}
+              'Select an agent...'}
           </Button>
         }
       />
@@ -238,7 +238,7 @@ export const ManyOptions: Story = {
         trigger={
           <Button variant="secondary" size="sm">
             {manyOptions.find((o) => o.value === value)?.label ??
-              "Select an option..."}
+              'Select an option...'}
           </Button>
         }
       />
@@ -248,7 +248,7 @@ export const ManyOptions: Story = {
     docs: {
       description: {
         story:
-          "SearchableSelect with many options demonstrating scrolling and keyboard navigation.",
+          'SearchableSelect with many options demonstrating scrolling and keyboard navigation.',
       },
     },
   },
@@ -257,18 +257,18 @@ export const ManyOptions: Story = {
 export const WithDisabledOptions: Story = {
   args: {
     options: [
-      { value: "available", label: "Available" },
+      { value: 'available', label: 'Available' },
       {
-        value: "pending",
-        label: "Pending",
-        description: "Currently unavailable",
+        value: 'pending',
+        label: 'Pending',
+        description: 'Currently unavailable',
         disabled: true,
       },
-      { value: "active", label: "Active" },
+      { value: 'active', label: 'Active' },
       {
-        value: "archived",
-        label: "Archived",
-        description: "No longer in use",
+        value: 'archived',
+        label: 'Archived',
+        description: 'No longer in use',
         disabled: true,
       },
     ],
@@ -283,7 +283,7 @@ export const WithDisabledOptions: Story = {
         trigger={
           <Button variant="secondary" size="sm">
             {args.options.find((o) => o.value === value)?.label ??
-              "Select status..."}
+              'Select status...'}
           </Button>
         }
       />
