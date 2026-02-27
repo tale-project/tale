@@ -149,11 +149,13 @@ export const StatusExamples: Story = {
 };
 
 export const Truncated: Story = {
-  render: () => (
+  args: {
+    variant: 'blue',
+    children: 'This is a very long badge text that will be truncated',
+  },
+  render: (args) => (
     <div className="w-32">
-      <Badge variant="blue">
-        This is a very long badge text that will be truncated
-      </Badge>
+      <Badge {...args} />
     </div>
   ),
   parameters: {

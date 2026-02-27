@@ -1,8 +1,12 @@
 'use client';
 
+import {
+  type StatGridItem,
+  StatGrid,
+} from '@/app/components/ui/data-display/stat-grid';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Field, FieldGroup } from '@/app/components/ui/forms/field';
-import { HStack, Grid } from '@/app/components/ui/layout/layout';
+import { HStack } from '@/app/components/ui/layout/layout';
+import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -31,6 +35,66 @@ export function ViewWebsiteDialog({
     '30d': t('scanIntervals.30days'),
   };
 
+  const items: StatGridItem[] = [
+    {
+      label: t('viewDialog.domain'),
+      value: <Text>{website.domain}</Text>,
+    },
+    {
+      label: t('viewDialog.status'),
+      value: (
+        <HStack gap={2}>
+          <div
+            className={`h-2 w-2 rounded-full ${
+              website.status === 'active'
+                ? 'bg-green-500'
+                : website.status === 'error'
+                  ? 'bg-red-500'
+                  : 'bg-gray-500'
+            }`}
+          />
+          <Text>{website.status || t('viewDialog.unknown')}</Text>
+        </HStack>
+      ),
+    },
+    {
+      label: t('viewDialog.scanInterval'),
+      value: (
+        <Text>
+          {SCAN_INTERVALS[website.scanInterval] || website.scanInterval}
+        </Text>
+      ),
+    },
+    {
+      label: t('viewDialog.lastScanned'),
+      value: (
+        <Text>
+          {website.lastScannedAt
+            ? formatDate(new Date(website.lastScannedAt), 'long')
+            : t('viewDialog.notScannedYet')}
+        </Text>
+      ),
+    },
+    {
+      label: t('viewDialog.titleField'),
+      value: <Text>{website.title || '-'}</Text>,
+      colSpan: 2,
+    },
+    {
+      label: t('viewDialog.description'),
+      value: (
+        <Text className="whitespace-pre-wrap">
+          {website.description || '-'}
+        </Text>
+      ),
+      colSpan: 2,
+    },
+    {
+      label: t('viewDialog.created'),
+      value: <Text>{formatDate(new Date(website._creationTime), 'long')}</Text>,
+    },
+  ];
+
   return (
     <ViewDialog
       open={isOpen}
@@ -38,50 +102,7 @@ export function ViewWebsiteDialog({
       title={t('viewDialog.title')}
       className="max-w-2xl"
     >
-      <FieldGroup gap={4}>
-        <Grid cols={2} gap={4}>
-          <Field label={t('viewDialog.domain')}>{website.domain}</Field>
-
-          <Field label={t('viewDialog.status')}>
-            <HStack gap={2}>
-              <div
-                className={`h-2 w-2 rounded-full ${
-                  website.status === 'active'
-                    ? 'bg-green-500'
-                    : website.status === 'error'
-                      ? 'bg-red-500'
-                      : 'bg-gray-500'
-                }`}
-              />
-              {website.status || t('viewDialog.unknown')}
-            </HStack>
-          </Field>
-
-          <Field label={t('viewDialog.scanInterval')}>
-            {SCAN_INTERVALS[website.scanInterval] || website.scanInterval}
-          </Field>
-
-          <Field label={t('viewDialog.lastScanned')}>
-            {website.lastScannedAt
-              ? formatDate(new Date(website.lastScannedAt), 'long')
-              : t('viewDialog.notScannedYet')}
-          </Field>
-
-          <Field label={t('viewDialog.titleField')} className="col-span-2">
-            {website.title || '-'}
-          </Field>
-
-          <Field label={t('viewDialog.description')} className="col-span-2">
-            <span className="whitespace-pre-wrap">
-              {website.description || '-'}
-            </span>
-          </Field>
-
-          <Field label={t('viewDialog.created')}>
-            {formatDate(new Date(website._creationTime), 'long')}
-          </Field>
-        </Grid>
-      </FieldGroup>
+      <StatGrid items={items} />
     </ViewDialog>
   );
 }

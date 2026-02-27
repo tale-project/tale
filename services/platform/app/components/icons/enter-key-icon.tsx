@@ -1,11 +1,11 @@
+import { cn } from '@/lib/utils/cn';
+
 export const EnterKeyIcon = ({ className }: { className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    width="12"
-    height="12"
     viewBox="0 0 12 12"
     fill="none"
-    className={className}
+    className={cn('size-full', className)}
     aria-label="Enter key icon"
   >
     <path

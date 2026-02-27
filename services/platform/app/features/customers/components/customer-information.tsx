@@ -1,6 +1,9 @@
 'use client';
 
-import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import {
+  type StatGridItem,
+  StatGrid,
+} from '@/app/components/ui/data-display/stat-grid';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
@@ -19,48 +22,47 @@ export function CustomerInformation({ customer }: CustomerInformationProps) {
   const { t } = useT('common');
   if (!customer) return null;
 
+  const items: StatGridItem[] = [
+    {
+      label: t('labels.status'),
+      value: customer.status ? (
+        <CustomerStatusBadge status={customer.status} />
+      ) : (
+        <Text>{t('labels.notAvailable')}</Text>
+      ),
+    },
+    {
+      label: t('labels.source'),
+      value: <Text>{customer.source || t('labels.notAvailable')}</Text>,
+    },
+    {
+      label: t('labels.created'),
+      value: (
+        <Text>
+          {customer._creationTime
+            ? formatDate(new Date(customer._creationTime), 'long')
+            : t('labels.notAvailable')}
+        </Text>
+      ),
+    },
+    {
+      label: t('labels.locale'),
+      value: <Text>{customer.locale || 'en'}</Text>,
+    },
+  ];
+
   return (
-    <>
-      <Stack gap={5}>
-        <Stack gap={1}>
-          <Heading level={3} size="lg" className="leading-none">
-            {customer.name || t('labels.notAvailable')}
-          </Heading>
-          <Text as="div" variant="muted" className="tracking-tight">
-            {customer.email || t('labels.notAvailable')}
-          </Text>
-        </Stack>
-
-        <FieldGroup gap={3}>
-          <Field label={t('labels.status')}>
-            {customer.status ? (
-              <CustomerStatusBadge status={customer.status} />
-            ) : (
-              t('labels.notAvailable')
-            )}
-          </Field>
-
-          <Field label={t('labels.source')}>
-            <Text as="div" variant="label" className="tracking-tight">
-              {customer.source || t('labels.notAvailable')}
-            </Text>
-          </Field>
-
-          <Field label={t('labels.created')}>
-            <Text as="div" variant="label" className="tracking-tight">
-              {customer._creationTime
-                ? formatDate(new Date(customer._creationTime), 'long')
-                : t('labels.notAvailable')}
-            </Text>
-          </Field>
-
-          <Field label={t('labels.locale')}>
-            <Text as="div" variant="label" className="text-base tracking-tight">
-              {customer.locale || 'en'}
-            </Text>
-          </Field>
-        </FieldGroup>
+    <Stack gap={5}>
+      <Stack gap={1}>
+        <Heading level={3} size="lg" className="leading-none">
+          {customer.name || t('labels.notAvailable')}
+        </Heading>
+        <Text as="div" variant="muted" className="tracking-tight">
+          {customer.email || t('labels.notAvailable')}
+        </Text>
       </Stack>
-    </>
+
+      <StatGrid items={items} />
+    </Stack>
   );
 }

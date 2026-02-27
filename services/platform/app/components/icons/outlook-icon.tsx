@@ -1,8 +1,8 @@
+import { cn } from '@/lib/utils/cn';
+
 export const OutlookIcon = ({ className }: { className?: string }) => (
   <svg
-    width="24"
-    height="24"
-    className={className}
+    className={cn('size-full', className)}
     viewBox="0 0 32 32"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"

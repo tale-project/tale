@@ -1,8 +1,8 @@
+import { cn } from '@/lib/utils/cn';
+
 export const GmailIcon = ({ className }: { className?: string }) => (
   <svg
-    width="24"
-    height="24"
-    className={className}
+    className={cn('size-full', className)}
     viewBox="0 -31.5 256 256"
     version="1.1"
     xmlns="http://www.w3.org/2000/svg"

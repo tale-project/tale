@@ -92,12 +92,17 @@ export const CustomLabel: Story = {
 };
 
 export const InButton: Story = {
-  render: () => (
+  args: {
+    size: 'sm',
+    label: 'Submitting',
+    className: 'text-current',
+  },
+  render: (args) => (
     <button
       disabled
       className="bg-primary text-primary-foreground inline-flex items-center gap-2 rounded-lg px-4 py-2 opacity-70"
     >
-      <Spinner size="sm" label="Submitting" className="text-current" />
+      <Spinner {...args} />
       Submitting...
     </button>
   ),

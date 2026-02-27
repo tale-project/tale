@@ -41,21 +41,26 @@ export default meta;
 type Story = StoryObj<typeof ActionRow>;
 
 export const Default: Story = {
-  render: () => (
-    <ActionRow>
-      <Button variant="secondary">Cancel</Button>
-      <Button>Save</Button>
-    </ActionRow>
-  ),
+  args: {
+    children: (
+      <>
+        <Button variant="secondary">Cancel</Button>
+        <Button>Save</Button>
+      </>
+    ),
+  },
 };
 
 export const JustifyEnd: Story = {
-  render: () => (
-    <ActionRow justify="end">
-      <Button variant="secondary">Cancel</Button>
-      <Button>Save</Button>
-    </ActionRow>
-  ),
+  args: {
+    justify: 'end',
+    children: (
+      <>
+        <Button variant="secondary">Cancel</Button>
+        <Button>Save</Button>
+      </>
+    ),
+  },
   parameters: {
     docs: {
       description: {
@@ -66,15 +71,18 @@ export const JustifyEnd: Story = {
 };
 
 export const JustifyBetween: Story = {
-  render: () => (
-    <ActionRow justify="between">
-      <Button variant="destructive">Delete</Button>
-      <div className="flex gap-2">
-        <Button variant="secondary">Cancel</Button>
-        <Button>Save</Button>
-      </div>
-    </ActionRow>
-  ),
+  args: {
+    justify: 'between',
+    children: (
+      <>
+        <Button variant="destructive">Delete</Button>
+        <div className="flex gap-2">
+          <Button variant="secondary">Cancel</Button>
+          <Button>Save</Button>
+        </div>
+      </>
+    ),
+  },
   parameters: {
     docs: {
       description: {
@@ -86,14 +94,17 @@ export const JustifyBetween: Story = {
 };
 
 export const SmallGap: Story = {
-  render: () => (
-    <ActionRow gap={1}>
-      <Button size="sm" variant="secondary">
-        Back
-      </Button>
-      <Button size="sm">Next</Button>
-    </ActionRow>
-  ),
+  args: {
+    gap: 1,
+    children: (
+      <>
+        <Button size="sm" variant="secondary">
+          Back
+        </Button>
+        <Button size="sm">Next</Button>
+      </>
+    ),
+  },
   parameters: {
     docs: {
       description: {

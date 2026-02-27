@@ -5,6 +5,10 @@ import { useMemo } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
+import {
+  type StatGridItem,
+  StatGrid,
+} from '@/app/components/ui/data-display/stat-grid';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { HStack } from '@/app/components/ui/layout/layout';
@@ -317,56 +321,75 @@ export function IntegrationDetails({
             </>
           }
         >
-          <dl className="bg-muted mt-2 ml-6 grid grid-cols-2 gap-x-4 gap-y-1 rounded-md p-3 text-xs">
-            <dt className="text-muted-foreground">
-              {t('integrations.upload.engine')}
-            </dt>
-            <dd className="font-mono">
-              {integration.sqlConnectionConfig.engine}
-            </dd>
-            {integration.sqlConnectionConfig.port != null && (
-              <>
-                <dt className="text-muted-foreground">
-                  {t('integrations.upload.port')}
-                </dt>
-                <dd className="font-mono">
-                  {integration.sqlConnectionConfig.port}
-                </dd>
-              </>
-            )}
-            {integration.sqlConnectionConfig.readOnly != null && (
-              <>
-                <dt className="text-muted-foreground">
-                  {t('integrations.upload.readOnly')}
-                </dt>
-                <dd>
-                  {integration.sqlConnectionConfig.readOnly ? 'Yes' : 'No'}
-                </dd>
-              </>
-            )}
-            {integration.sqlConnectionConfig.security?.maxResultRows !=
-              null && (
-              <>
-                <dt className="text-muted-foreground">
-                  {t('integrations.upload.maxResultRows')}
-                </dt>
-                <dd className="font-mono">
-                  {integration.sqlConnectionConfig.security.maxResultRows}
-                </dd>
-              </>
-            )}
-            {integration.sqlConnectionConfig.security?.queryTimeoutMs !=
-              null && (
-              <>
-                <dt className="text-muted-foreground">
-                  {t('integrations.upload.queryTimeout')}
-                </dt>
-                <dd className="font-mono">
-                  {integration.sqlConnectionConfig.security.queryTimeoutMs}
-                </dd>
-              </>
-            )}
-          </dl>
+          <StatGrid
+            className="bg-muted mt-2 ml-6 rounded-md p-3 text-xs"
+            items={
+              [
+                {
+                  label: t('integrations.upload.engine'),
+                  value: (
+                    <span className="font-mono">
+                      {integration.sqlConnectionConfig.engine}
+                    </span>
+                  ),
+                },
+                ...(integration.sqlConnectionConfig.port != null
+                  ? [
+                      {
+                        label: t('integrations.upload.port'),
+                        value: (
+                          <span className="font-mono">
+                            {integration.sqlConnectionConfig.port}
+                          </span>
+                        ),
+                      },
+                    ]
+                  : []),
+                ...(integration.sqlConnectionConfig.readOnly != null
+                  ? [
+                      {
+                        label: t('integrations.upload.readOnly'),
+                        value: integration.sqlConnectionConfig.readOnly
+                          ? 'Yes'
+                          : 'No',
+                      },
+                    ]
+                  : []),
+                ...(integration.sqlConnectionConfig.security?.maxResultRows !=
+                null
+                  ? [
+                      {
+                        label: t('integrations.upload.maxResultRows'),
+                        value: (
+                          <span className="font-mono">
+                            {
+                              integration.sqlConnectionConfig.security
+                                .maxResultRows
+                            }
+                          </span>
+                        ),
+                      },
+                    ]
+                  : []),
+                ...(integration.sqlConnectionConfig.security?.queryTimeoutMs !=
+                null
+                  ? [
+                      {
+                        label: t('integrations.upload.queryTimeout'),
+                        value: (
+                          <span className="font-mono">
+                            {
+                              integration.sqlConnectionConfig.security
+                                .queryTimeoutMs
+                            }
+                          </span>
+                        ),
+                      },
+                    ]
+                  : []),
+              ] satisfies StatGridItem[]
+            }
+          />
         </CollapsibleDetails>
       )}
 

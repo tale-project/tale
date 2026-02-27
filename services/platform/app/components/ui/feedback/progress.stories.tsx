@@ -148,13 +148,17 @@ export const CustomColors: Story = {
 };
 
 export const UploadExample: Story = {
-  render: () => (
+  args: {
+    value: 67,
+    label: 'Uploading document.pdf',
+  },
+  render: (args) => (
     <div className="flex flex-col gap-2">
       <div className="flex justify-between text-sm">
         <span>Uploading document.pdf</span>
         <span>67%</span>
       </div>
-      <Progress value={67} label="Uploading document.pdf" />
+      <Progress {...args} />
     </div>
   ),
 };

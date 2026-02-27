@@ -1,9 +1,13 @@
 'use client';
 
+import {
+  type StatGridItem,
+  StatGrid,
+} from '@/app/components/ui/data-display/stat-grid';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
-import { HStack, Grid } from '@/app/components/ui/layout/layout';
+import { HStack } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
@@ -41,6 +45,59 @@ export function ProductViewDialog({
   const { t: tCommon } = useT('common');
   const { t: tProducts } = useT('products');
 
+  const statItems: StatGridItem[] = [
+    ...(product.price !== undefined
+      ? [
+          {
+            label: tProducts('view.labels.price'),
+            value: (
+              <Text>
+                {formatCurrency(
+                  product.price,
+                  product.currency || 'USD',
+                  locale,
+                )}
+              </Text>
+            ),
+          },
+        ]
+      : []),
+    ...(product.stock !== undefined
+      ? [
+          {
+            label: tProducts('view.labels.stock'),
+            value: (
+              <Text
+                className={
+                  product.stock === 0 ? 'font-medium text-red-600' : undefined
+                }
+              >
+                {tCommon('units.stock', { count: product.stock })}
+              </Text>
+            ),
+          },
+        ]
+      : []),
+    ...(product.category
+      ? [
+          {
+            label: tProducts('view.labels.category'),
+            value: <Text>{product.category}</Text>,
+          },
+        ]
+      : []),
+    ...(product.lastUpdated !== undefined
+      ? [
+          {
+            label: tProducts('view.labels.lastUpdated'),
+            value: (
+              <Text>{formatDate(new Date(product.lastUpdated), 'long')}</Text>
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <ViewDialog
       open={isOpen}
@@ -50,7 +107,6 @@ export function ProductViewDialog({
       className="sm:max-w-[600px]"
     >
       <FieldGroup gap={4}>
-        {/* Product Image and Basic Info */}
         <HStack gap={4} className="items-start">
           <ProductImage
             images={product.imageUrl ? [product.imageUrl] : []}
@@ -79,38 +135,7 @@ export function ProductViewDialog({
 
         <Separator />
 
-        {/* Product Details Grid */}
-        <Grid cols={2} gap={4}>
-          {product.price !== undefined && (
-            <Field label={tProducts('view.labels.price')}>
-              {formatCurrency(product.price, product.currency || 'USD', locale)}
-            </Field>
-          )}
-
-          {product.stock !== undefined && (
-            <Field label={tProducts('view.labels.stock')}>
-              <span
-                className={
-                  product.stock === 0 ? 'font-medium text-red-600' : undefined
-                }
-              >
-                {tCommon('units.stock', { count: product.stock })}
-              </span>
-            </Field>
-          )}
-
-          {product.category && (
-            <Field label={tProducts('view.labels.category')}>
-              {product.category}
-            </Field>
-          )}
-
-          {product.lastUpdated !== undefined && (
-            <Field label={tProducts('view.labels.lastUpdated')}>
-              {formatDate(new Date(product.lastUpdated), 'long')}
-            </Field>
-          )}
-        </Grid>
+        {statItems.length > 0 && <StatGrid items={statItems} />}
 
         {/* Tags */}
         {product.tags && product.tags.length > 0 && (

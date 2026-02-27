@@ -63,91 +63,87 @@ export default meta;
 type Story = StoryObj<typeof DropdownMenu>;
 
 export const Default: Story = {
-  render: () => (
-    <DropdownMenu
-      trigger={<Button variant="secondary">Open Menu</Button>}
-      items={[
-        [{ type: 'label', content: 'My Account' }],
-        [
-          { type: 'item', label: 'Profile', icon: User, onClick: () => {} },
-          {
-            type: 'item',
-            label: 'Billing',
-            icon: CreditCard,
-            onClick: () => {},
-          },
-          {
-            type: 'item',
-            label: 'Settings',
-            icon: Settings,
-            onClick: () => {},
-          },
-          {
-            type: 'item',
-            label: 'Keyboard shortcuts',
-            icon: Keyboard,
-            onClick: () => {},
-          },
-        ],
-        [
-          {
-            type: 'item',
-            label: 'Log out',
-            icon: LogOut,
-            onClick: () => {},
-          },
-        ],
-      ]}
-    />
-  ),
+  args: {
+    trigger: <Button variant="secondary">Open Menu</Button>,
+    items: [
+      [{ type: 'label', content: 'My Account' }],
+      [
+        { type: 'item', label: 'Profile', icon: User, onClick: () => {} },
+        {
+          type: 'item',
+          label: 'Billing',
+          icon: CreditCard,
+          onClick: () => {},
+        },
+        {
+          type: 'item',
+          label: 'Settings',
+          icon: Settings,
+          onClick: () => {},
+        },
+        {
+          type: 'item',
+          label: 'Keyboard shortcuts',
+          icon: Keyboard,
+          onClick: () => {},
+        },
+      ],
+      [
+        {
+          type: 'item',
+          label: 'Log out',
+          icon: LogOut,
+          onClick: () => {},
+        },
+      ],
+    ],
+  },
 };
 
 export const WithSubMenu: Story = {
-  render: () => (
-    <DropdownMenu
-      trigger={<Button variant="secondary">Open Menu</Button>}
-      items={[
-        [{ type: 'label', content: 'Actions' }],
-        [
-          {
-            type: 'item',
-            label: 'New Item',
-            icon: Plus,
-            onClick: () => {},
-          },
-          {
-            type: 'sub',
-            label: 'Invite users',
-            icon: UserPlus,
-            items: [
-              [
-                {
-                  type: 'item',
-                  label: 'Email',
-                  icon: Mail,
-                  onClick: () => {},
-                },
-                {
-                  type: 'item',
-                  label: 'Message',
-                  icon: MessageSquare,
-                  onClick: () => {},
-                },
-              ],
-              [
-                {
-                  type: 'item',
-                  label: 'More...',
-                  icon: PlusCircle,
-                  onClick: () => {},
-                },
-              ],
+  args: {
+    trigger: <Button variant="secondary">Open Menu</Button>,
+    items: [
+      [{ type: 'label', content: 'Actions' }],
+      [
+        {
+          type: 'item',
+          label: 'New Item',
+          icon: Plus,
+          onClick: () => {},
+        },
+        {
+          type: 'sub',
+          label: 'Invite users',
+          icon: UserPlus,
+          items: [
+            [
+              {
+                type: 'item',
+                label: 'Email',
+                icon: Mail,
+                onClick: () => {},
+              },
+              {
+                type: 'item',
+                label: 'Message',
+                icon: MessageSquare,
+                onClick: () => {},
+              },
             ],
-          },
-        ],
-      ]}
-    />
-  ),
+            [
+              {
+                type: 'item',
+                label: 'More...',
+                icon: PlusCircle,
+                onClick: () => {},
+              },
+            ],
+          ],
+        },
+      ],
+    ],
+  },
 };
 
 export const WithRadioItems: Story = {
@@ -178,50 +174,46 @@ export const WithRadioItems: Story = {
 };
 
 export const DisabledItems: Story = {
-  render: () => (
-    <DropdownMenu
-      trigger={<Button variant="secondary">Open Menu</Button>}
-      items={[
-        [
-          { type: 'item', label: 'Available Action', onClick: () => {} },
-          {
-            type: 'item',
-            label: 'Disabled Action',
-            onClick: () => {},
-            disabled: true,
-          },
-          { type: 'item', label: 'Another Action', onClick: () => {} },
-        ],
-      ]}
-    />
-  ),
+  args: {
+    trigger: <Button variant="secondary">Open Menu</Button>,
+    items: [
+      [
+        { type: 'item', label: 'Available Action', onClick: () => {} },
+        {
+          type: 'item',
+          label: 'Disabled Action',
+          onClick: () => {},
+          disabled: true,
+        },
+        { type: 'item', label: 'Another Action', onClick: () => {} },
+      ],
+    ],
+  },
 };
 
 export const DestructiveItem: Story = {
-  render: () => (
-    <DropdownMenu
-      trigger={<Button variant="secondary">Open Menu</Button>}
-      items={[
-        [
-          {
-            type: 'item',
-            label: 'Edit',
-            icon: Settings,
-            onClick: () => {},
-          },
-        ],
-        [
-          {
-            type: 'item',
-            label: 'Delete',
-            icon: LogOut,
-            onClick: () => {},
-            destructive: true,
-          },
-        ],
-      ]}
-    />
-  ),
+  args: {
+    trigger: <Button variant="secondary">Open Menu</Button>,
+    items: [
+      [
+        {
+          type: 'item',
+          label: 'Edit',
+          icon: Settings,
+          onClick: () => {},
+        },
+      ],
+      [
+        {
+          type: 'item',
+          label: 'Delete',
+          icon: LogOut,
+          onClick: () => {},
+          destructive: true,
+        },
+      ],
+    ],
+  },
   parameters: {
     docs: {
       description: {

@@ -60,46 +60,38 @@ export default meta;
 type Story = StoryObj<typeof Alert>;
 
 export const Default: Story = {
-  render: () => (
-    <Alert
-      icon={Info}
-      title="Information"
-      description="This is a default alert with helpful information."
-    />
-  ),
+  args: {
+    icon: Info,
+    title: 'Information',
+    description: 'This is a default alert with helpful information.',
+  },
 };
 
 export const Destructive: Story = {
-  render: () => (
-    <Alert
-      variant="destructive"
-      icon={AlertCircle}
-      title="Error"
-      description="Your session has expired. Please log in again."
-    />
-  ),
+  args: {
+    variant: 'destructive',
+    icon: AlertCircle,
+    title: 'Error',
+    description: 'Your session has expired. Please log in again.',
+  },
 };
 
 export const Warning: Story = {
-  render: () => (
-    <Alert
-      variant="warning"
-      icon={AlertTriangle}
-      title="Warning"
-      description="Your account will be deleted in 7 days."
-    />
-  ),
+  args: {
+    variant: 'warning',
+    icon: AlertTriangle,
+    title: 'Warning',
+    description: 'Your account will be deleted in 7 days.',
+  },
 };
 
 export const Success: Story = {
-  render: () => (
-    <Alert
-      icon={CheckCircle2}
-      title="Success"
-      description="Your changes have been saved successfully."
-      className="border-green-500/50 text-green-600 [&>svg]:text-green-600"
-    />
-  ),
+  args: {
+    icon: CheckCircle2,
+    title: 'Success',
+    description: 'Your changes have been saved successfully.',
+    className: 'border-green-500/50 text-green-600 [&>svg]:text-green-600',
+  },
   parameters: {
     docs: {
       description: {
@@ -110,28 +102,27 @@ export const Success: Story = {
 };
 
 export const TitleOnly: Story = {
-  render: () => <Alert icon={Info} title="Heads up!" />,
+  args: {
+    icon: Info,
+    title: 'Heads up!',
+  },
 };
 
 export const DescriptionOnly: Story = {
-  render: () => (
-    <Alert
-      icon={Info}
-      description="You can add components to your app using the CLI."
-    />
-  ),
+  args: {
+    icon: Info,
+    description: 'You can add components to your app using the CLI.',
+  },
 };
 
 export const Assertive: Story = {
-  render: () => (
-    <Alert
-      variant="destructive"
-      live="assertive"
-      icon={AlertCircle}
-      title="Critical Error"
-      description="This alert will be announced immediately by screen readers."
-    />
-  ),
+  args: {
+    variant: 'destructive',
+    live: 'assertive',
+    icon: AlertCircle,
+    title: 'Critical Error',
+    description: 'This alert will be announced immediately by screen readers.',
+  },
   parameters: {
     docs: {
       description: {

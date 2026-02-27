@@ -118,9 +118,13 @@ export const Relative: Story = {
 };
 
 export const AlignRight: Story = {
-  render: () => (
+  args: {
+    date: sampleDate,
+    alignRight: true,
+  },
+  render: (args) => (
     <div className="w-48 rounded border p-2">
-      <TableDateCell date={sampleDate} alignRight />
+      <TableDateCell {...args} />
     </div>
   ),
   parameters: {

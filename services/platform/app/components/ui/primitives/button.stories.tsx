@@ -166,14 +166,13 @@ export const AsLink: Story = {
 };
 
 export const PressAnimation: Story = {
-  render: () => (
+  args: { variant: 'primary', size: 'lg', children: 'Press Me' },
+  render: (args) => (
     <div className="flex flex-col items-center gap-4">
       <p className="text-muted-foreground text-sm">
         Click and hold to see the press animation
       </p>
-      <Button variant="primary" size="lg">
-        Press Me
-      </Button>
+      <Button {...args} />
     </div>
   ),
   parameters: {

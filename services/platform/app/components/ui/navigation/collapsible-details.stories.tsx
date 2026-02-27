@@ -40,27 +40,30 @@ export default meta;
 type Story = StoryObj<typeof CollapsibleDetails>;
 
 export const Default: Story = {
-  render: () => (
-    <CollapsibleDetails summary="Advanced settings">
+  args: {
+    summary: 'Advanced settings',
+    children: (
       <div className="mt-2 flex flex-col gap-2 pl-5">
         <Text variant="muted">Timeout: 30s</Text>
         <Text variant="muted">Retry attempts: 3</Text>
         <Text variant="muted">Log level: info</Text>
       </div>
-    </CollapsibleDetails>
-  ),
+    ),
+  },
 };
 
 export const Compact: Story = {
-  render: () => (
-    <CollapsibleDetails summary="Details" variant="compact">
+  args: {
+    summary: 'Details',
+    variant: 'compact',
+    children: (
       <div className="mt-1 pl-5">
         <Text variant="caption" as="span">
           Additional metadata displayed in compact style.
         </Text>
       </div>
-    </CollapsibleDetails>
-  ),
+    ),
+  },
   parameters: {
     docs: {
       description: {
@@ -71,14 +74,16 @@ export const Compact: Story = {
 };
 
 export const DefaultOpen: Story = {
-  render: () => (
-    <CollapsibleDetails summary="Expanded by default" open>
+  args: {
+    summary: 'Expanded by default',
+    open: true,
+    children: (
       <div className="mt-2 flex flex-col gap-2 pl-5">
         <Text variant="muted">This section is open on first render.</Text>
         <Text variant="muted">Click the summary to collapse it.</Text>
       </div>
-    </CollapsibleDetails>
-  ),
+    ),
+  },
   parameters: {
     docs: {
       description: {

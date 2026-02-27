@@ -169,18 +169,16 @@ export const WithDisabledOption: Story = {
 };
 
 export const Disabled: Story = {
-  render: () => (
-    <CheckboxGroup
-      label="Permissions"
-      disabled
-      value={['read']}
-      options={[
-        { value: 'read', label: 'Read' },
-        { value: 'write', label: 'Write' },
-        { value: 'admin', label: 'Admin' },
-      ]}
-    />
-  ),
+  args: {
+    label: 'Permissions',
+    disabled: true,
+    value: ['read'],
+    options: [
+      { value: 'read', label: 'Read' },
+      { value: 'write', label: 'Write' },
+      { value: 'admin', label: 'Admin' },
+    ],
+  },
 };
 
 function SingleColumnRender() {

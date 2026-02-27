@@ -171,22 +171,23 @@ export const WithActions: Story = {
 };
 
 export const ManyTabs: Story = {
-  render: () => (
+  args: {
+    items: [
+      { label: 'Overview', href: '/dashboard/overview' },
+      { label: 'Analytics', href: '/dashboard/analytics' },
+      { label: 'Reports', href: '/dashboard/reports' },
+      { label: 'Users', href: '/dashboard/users' },
+      { label: 'Teams', href: '/dashboard/teams' },
+      { label: 'Billing', href: '/dashboard/billing' },
+      { label: 'Integrations', href: '/dashboard/integrations' },
+      { label: 'API Keys', href: '/dashboard/api-keys' },
+      { label: 'Settings', href: '/dashboard/settings' },
+    ],
+    ariaLabel: 'Navigation with many tabs',
+  },
+  render: (args) => (
     <div className="w-[500px]">
-      <TabNavigation
-        items={[
-          { label: 'Overview', href: '/dashboard/overview' },
-          { label: 'Analytics', href: '/dashboard/analytics' },
-          { label: 'Reports', href: '/dashboard/reports' },
-          { label: 'Users', href: '/dashboard/users' },
-          { label: 'Teams', href: '/dashboard/teams' },
-          { label: 'Billing', href: '/dashboard/billing' },
-          { label: 'Integrations', href: '/dashboard/integrations' },
-          { label: 'API Keys', href: '/dashboard/api-keys' },
-          { label: 'Settings', href: '/dashboard/settings' },
-        ]}
-        ariaLabel="Navigation with many tabs"
-      />
+      <TabNavigation {...args} />
     </div>
   ),
   parameters: {

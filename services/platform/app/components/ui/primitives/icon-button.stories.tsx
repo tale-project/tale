@@ -142,13 +142,10 @@ export const CommonActions: Story = {
 };
 
 export const CloseButton: Story = {
-  render: () => (
+  args: { icon: X, 'aria-label': 'Close', className: 'absolute top-2 right-2' },
+  render: (args) => (
     <div className="relative rounded-lg border p-8">
-      <IconButton
-        icon={X}
-        aria-label="Close"
-        className="absolute top-2 right-2"
-      />
+      <IconButton {...args} />
       <p className="text-muted-foreground text-sm">Modal or panel content</p>
     </div>
   ),
@@ -174,12 +171,13 @@ export const Disabled: Story = {
 };
 
 export const PressAnimation: Story = {
-  render: () => (
+  args: { icon: Plus, 'aria-label': 'Add', variant: 'primary', iconSize: 5 },
+  render: (args) => (
     <div className="flex flex-col items-center gap-4">
       <p className="text-muted-foreground text-sm">
         Click and hold to see the press animation
       </p>
-      <IconButton icon={Plus} aria-label="Add" variant="primary" iconSize={5} />
+      <IconButton {...args} />
     </div>
   ),
   parameters: {

@@ -1,4 +1,8 @@
-import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import {
+  type StatGridItem,
+  StatGrid,
+} from '@/app/components/ui/data-display/stat-grid';
+import { Field } from '@/app/components/ui/forms/field';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -15,25 +19,35 @@ export function VendorInformation({ vendor }: VendorInformationProps) {
 
   if (!vendor) return null;
 
+  const items: StatGridItem[] = [
+    {
+      label: t('labels.name'),
+      value: <Text>{vendor.name || t('labels.notAvailable')}</Text>,
+    },
+    {
+      label: t('labels.email'),
+      value: <Text>{vendor.email || t('labels.notAvailable')}</Text>,
+    },
+    ...(vendor.phone
+      ? [{ label: t('labels.phone'), value: <Text>{vendor.phone}</Text> }]
+      : []),
+    {
+      label: t('labels.source'),
+      value: <Text>{vendor.source || t('labels.notAvailable')}</Text>,
+    },
+    {
+      label: t('labels.locale'),
+      value: <Text>{vendor.locale || t('labels.notAvailable')}</Text>,
+    },
+    {
+      label: t('labels.created'),
+      value: <Text>{formatDate(new Date(vendor._creationTime), 'long')}</Text>,
+    },
+  ];
+
   return (
-    <FieldGroup gap={4}>
-      <Field label={t('labels.name')}>
-        {vendor.name || t('labels.notAvailable')}
-      </Field>
-
-      <Field label={t('labels.email')}>
-        {vendor.email || t('labels.notAvailable')}
-      </Field>
-
-      {vendor.phone && <Field label={t('labels.phone')}>{vendor.phone}</Field>}
-
-      <Field label={t('labels.source')}>
-        {vendor.source || t('labels.notAvailable')}
-      </Field>
-
-      <Field label={t('labels.locale')}>
-        {vendor.locale || t('labels.notAvailable')}
-      </Field>
+    <Stack gap={4}>
+      <StatGrid items={items} />
 
       {vendor.address && (
         <Field label={t('labels.address')}>
@@ -69,10 +83,6 @@ export function VendorInformation({ vendor }: VendorInformationProps) {
           <Text>{vendor.notes}</Text>
         </Field>
       )}
-
-      <Field label={t('labels.created')}>
-        {formatDate(new Date(vendor._creationTime), 'long')}
-      </Field>
-    </FieldGroup>
+    </Stack>
   );
 }

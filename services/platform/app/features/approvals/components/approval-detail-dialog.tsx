@@ -3,9 +3,12 @@
 import { Sparkles } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
+import {
+  type StatGridItem,
+  StatGrid,
+} from '@/app/components/ui/data-display/stat-grid';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
@@ -133,45 +136,63 @@ export function ApprovalDetailDialog({
               description={approvalDetail.customer.email}
             />
 
-            <FieldGroup gap={3}>
-              <Field label={t('detail.status')}>
-                <Badge
-                  dot
-                  variant={
-                    (approvalDetail.status === 'pending' && 'orange') ||
-                    (approvalDetail.status === 'approved' && 'green') ||
-                    (approvalDetail.status === 'rejected' && 'destructive') ||
-                    'outline'
-                  }
-                >
-                  {(approvalDetail.status === 'pending' &&
-                    t('detail.statusPending')) ||
-                    (approvalDetail.status === 'approved' &&
-                      t('detail.statusApproved')) ||
-                    (approvalDetail.status === 'rejected' &&
-                      t('detail.statusRejected')) ||
-                    t('detail.statusPending')}
-                </Badge>
-              </Field>
-
-              <Field label={t('detail.type')}>
-                <Badge variant="outline" icon={RecommendationIcon}>
-                  {t('detail.typeProductRecommendation')}
-                </Badge>
-              </Field>
-
-              <Field label={t('detail.createdAt')}>
-                <Text as="div" variant="muted" className="font-medium">
-                  {formatDate(new Date(approvalDetail.createdAt), 'long')}
-                </Text>
-              </Field>
-
-              {approvalDetail.confidence !== undefined && (
-                <Field label={t('detail.confidence')}>
-                  <Badge variant="outline">{approvalDetail.confidence}%</Badge>
-                </Field>
-              )}
-            </FieldGroup>
+            <StatGrid
+              items={
+                [
+                  {
+                    label: t('detail.status'),
+                    value: (
+                      <Badge
+                        dot
+                        variant={
+                          (approvalDetail.status === 'pending' && 'orange') ||
+                          (approvalDetail.status === 'approved' && 'green') ||
+                          (approvalDetail.status === 'rejected' &&
+                            'destructive') ||
+                          'outline'
+                        }
+                      >
+                        {(approvalDetail.status === 'pending' &&
+                          t('detail.statusPending')) ||
+                          (approvalDetail.status === 'approved' &&
+                            t('detail.statusApproved')) ||
+                          (approvalDetail.status === 'rejected' &&
+                            t('detail.statusRejected')) ||
+                          t('detail.statusPending')}
+                      </Badge>
+                    ),
+                  },
+                  {
+                    label: t('detail.type'),
+                    value: (
+                      <Badge variant="outline" icon={RecommendationIcon}>
+                        {t('detail.typeProductRecommendation')}
+                      </Badge>
+                    ),
+                  },
+                  {
+                    label: t('detail.createdAt'),
+                    value: (
+                      <Text>
+                        {formatDate(new Date(approvalDetail.createdAt), 'long')}
+                      </Text>
+                    ),
+                  },
+                  ...(approvalDetail.confidence !== undefined
+                    ? [
+                        {
+                          label: t('detail.confidence'),
+                          value: (
+                            <Badge variant="outline">
+                              {approvalDetail.confidence}%
+                            </Badge>
+                          ),
+                        },
+                      ]
+                    : []),
+                ] satisfies StatGridItem[]
+              }
+            />
           </Stack>
 
           {/* Recommended Products */}
