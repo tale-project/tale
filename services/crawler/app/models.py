@@ -4,7 +4,9 @@ Data models for the Tale Crawler service.
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, HttpUrl
+from urllib.parse import urlparse
+
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 # Valid Playwright wait_until values
 WaitUntilType = Literal["load", "domcontentloaded", "networkidle", "commit"]
@@ -27,6 +29,14 @@ class RegisterWebsiteRequest(BaseModel):
     domain: str = Field(..., description="The domain to register (e.g., 'docs.example.com')")
     scan_interval: int = Field(21600, description="Scan interval in seconds (default: 6h)", ge=60)
 
+    @field_validator("domain")
+    @classmethod
+    def normalize_domain(cls, v: str) -> str:
+        """Strip protocol/path — store bare hostname only."""
+        if "://" in v:
+            return urlparse(v).hostname or v
+        return v
+
 
 class WebsiteInfoResponse(BaseModel):
     """Full website information."""
@@ -35,6 +45,7 @@ class WebsiteInfoResponse(BaseModel):
     title: str | None = None
     description: str | None = None
     page_count: int = 0
+    crawled_count: int = 0
     status: str = "idle"
     scan_interval: int = 21600
     last_scanned_at: str | None = None
@@ -354,6 +365,22 @@ class PageListResponse(BaseModel):
     total: int = 0
     offset: int = 0
     has_more: bool = False
+
+
+class PageChunkItem(BaseModel):
+    """A single chunk from a page."""
+
+    chunk_index: int
+    chunk_content: str
+
+
+class PageChunksResponse(BaseModel):
+    """Response containing all chunks for a specific page."""
+
+    url: str
+    domain: str
+    chunks: list[PageChunkItem] = Field(default_factory=list)
+    total: int = 0
 
 
 # ==================== Indexing Models ====================

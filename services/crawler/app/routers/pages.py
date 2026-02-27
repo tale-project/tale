@@ -5,7 +5,7 @@ Pages Router — List indexed pages for a website.
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 
-from app.models import PageListItem, PageListResponse
+from app.models import PageChunkItem, PageChunksResponse, PageListItem, PageListResponse
 from app.services.database import get_pool
 
 router = APIRouter(prefix="/api/v1/pages", tags=["Pages"])
@@ -23,9 +23,12 @@ async def list_pages(
     try:
         pool = get_pool()
 
-        valid_sorts = {"last_crawled_at", "discovered_at", "word_count"}
-        sort_field = sort if sort in valid_sorts else "last_crawled_at"
-        order = "DESC"
+        sort_columns = {
+            "last_crawled_at": "wu.last_crawled_at",
+            "discovered_at": "wu.discovered_at",
+            "word_count": "wu.word_count",
+        }
+        sort_col = sort_columns.get(sort, "wu.last_crawled_at")
 
         async with pool.acquire() as conn:
             # Build query with optional status filter
@@ -53,7 +56,7 @@ async def list_pages(
                         GROUP BY url
                     ) c ON c.url = wu.url
                     WHERE {where_clause}
-                    ORDER BY wu.{sort_field} {order} NULLS LAST
+                    ORDER BY {sort_col} DESC NULLS LAST
                     LIMIT ${param_idx} OFFSET ${param_idx + 1}""",
                 *params,
             )
@@ -91,3 +94,43 @@ async def list_pages(
     except Exception:
         logger.exception(f"Error listing pages for {domain}")
         raise HTTPException(status_code=500, detail="Failed to list pages") from None
+
+
+@router.get("/{domain}/chunks", response_model=PageChunksResponse)
+async def get_page_chunks(
+    domain: str,
+    url: str = Query(..., description="The page URL to get chunks for"),
+):
+    """Get all indexed chunks for a specific page URL."""
+    try:
+        pool = get_pool()
+
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT chunk_index, chunk_content
+                   FROM chunks
+                   WHERE domain = $1 AND url = $2
+                   ORDER BY chunk_index ASC""",
+                domain,
+                url,
+            )
+
+        chunks = [
+            PageChunkItem(
+                chunk_index=r["chunk_index"],
+                chunk_content=r["chunk_content"],
+            )
+            for r in rows
+        ]
+
+        return PageChunksResponse(
+            url=url,
+            domain=domain,
+            chunks=chunks,
+            total=len(chunks),
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(f"Error getting chunks for {url} in {domain}")
+        raise HTTPException(status_code=500, detail="Failed to get page chunks") from None

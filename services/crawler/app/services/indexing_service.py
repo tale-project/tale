@@ -24,6 +24,7 @@ class IndexingService:
     def __init__(self, pool: asyncpg.Pool, embedding_service: EmbeddingService):
         self._pool = pool
         self._embedding = embedding_service
+        self._hnsw_ensured = False
 
     async def index_page(self, domain: str, url: str, title: str | None, content: str) -> dict:
         content_hash = _sha256(content)
@@ -35,7 +36,7 @@ class IndexingService:
                 return {"url": url, "status": "skipped", "chunks_indexed": 0}
 
         # Chunk content
-        chunks = chunk_content(content, title=title)
+        chunks = chunk_content(content, title=title, url=url)
         if not chunks:
             return {"url": url, "status": "empty", "chunks_indexed": 0}
 
@@ -70,6 +71,15 @@ class IndexingService:
                     for i, chunk in enumerate(chunks)
                 ],
             )
+
+        # Ensure HNSW index exists once embeddings are stored
+        if not self._hnsw_ensured:
+            try:
+                async with self._pool.acquire() as conn:
+                    await conn.execute("SELECT create_chunks_hnsw_index()")
+                self._hnsw_ensured = True
+            except Exception:
+                pass
 
         logger.info(f"Indexed {len(chunks)} chunks for {url}")
         return {"url": url, "status": "indexed", "chunks_indexed": len(chunks)}

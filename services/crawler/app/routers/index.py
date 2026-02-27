@@ -51,7 +51,11 @@ async def index_page(request: IndexPageRequest):
 
 @router.post("/website/{domain}", response_model=IndexWebsiteResponse)
 async def index_website(domain: str):
-    """Re-index all pages for a website."""
+    """Re-index all pages for a website.
+
+    Website status updates are handled by the scheduler during automated scans.
+    This endpoint is for manual/on-demand re-indexing only.
+    """
     try:
         service = _get_indexing_service()
         result = await service.index_website(domain)

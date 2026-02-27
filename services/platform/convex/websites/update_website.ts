@@ -15,6 +15,8 @@ export interface UpdateWebsiteArgs {
   scanInterval?: string;
   lastScannedAt?: number;
   status?: 'idle' | 'scanning' | 'active' | 'error';
+  pageCount?: number;
+  crawledPageCount?: number;
   metadata?: unknown;
 }
 

@@ -124,10 +124,13 @@ class TestDeletePageChunks:
 class TestIndexWebsite:
     async def test_aggregates_results_correctly(self, indexing_service, mock_conn):
         mock_conn.fetch = AsyncMock(
-            return_value=[
-                {"url": "https://example.com/a", "title": "Page A", "content": "aaa"},
-                {"url": "https://example.com/b", "title": "Page B", "content": "bbb"},
-                {"url": "https://example.com/c", "title": "Page C", "content": "ccc"},
+            side_effect=[
+                [
+                    {"url": "https://example.com/a", "title": "Page A", "content": "aaa"},
+                    {"url": "https://example.com/b", "title": "Page B", "content": "bbb"},
+                    {"url": "https://example.com/c", "title": "Page C", "content": "ccc"},
+                ],
+                [],
             ]
         )
 

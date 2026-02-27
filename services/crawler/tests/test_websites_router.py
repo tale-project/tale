@@ -19,6 +19,24 @@ def mock_manager():
     del app.state.pg_store_manager
 
 
+def _website_row(domain="example.com", scan_interval=21600, **overrides):
+    return {
+        "domain": domain,
+        "title": None,
+        "description": None,
+        "page_count": 0,
+        "total_urls": 0,
+        "crawled_count": 0,
+        "status": "idle",
+        "scan_interval": scan_interval,
+        "last_scanned_at": None,
+        "error": None,
+        "created_at": None,
+        "updated_at": None,
+        **overrides,
+    }
+
+
 class TestRegisterWebsite:
     async def test_success(self, mock_manager):
         mock_manager.register_website.return_value = {
@@ -27,7 +45,10 @@ class TestRegisterWebsite:
             "scan_interval": 21600,
         }
 
-        with patch("app.routers.websites.trigger_scan") as mock_trigger:
+        with (
+            patch("app.routers.websites.trigger_scan") as mock_trigger,
+            patch("app.routers.websites._initialize_website"),
+        ):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/websites",
@@ -37,7 +58,7 @@ class TestRegisterWebsite:
         assert response.status_code == 200
         data = response.json()
         assert data["domain"] == "example.com"
-        assert data["status"] == "idle"
+        assert data["status"] == "scanning"
         assert data["scan_interval"] == 21600
         mock_manager.register_website.assert_awaited_once_with(
             domain="example.com",
@@ -45,14 +66,42 @@ class TestRegisterWebsite:
         )
         mock_trigger.assert_called_once()
 
+    async def test_normalizes_full_url_to_domain(self, mock_manager):
+        mock_manager.register_website.return_value = {
+            "domain": "www.wisekey.com",
+            "status": "idle",
+            "scan_interval": 21600,
+        }
+        mock_manager.get_website.return_value = _website_row(domain="www.wisekey.com")
+
+        with (
+            patch("app.routers.websites.trigger_scan"),
+            patch("app.routers.websites._initialize_website"),
+        ):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/v1/websites",
+                    json={"domain": "https://www.wisekey.com", "scan_interval": 21600},
+                )
+
+        assert response.status_code == 200
+        mock_manager.register_website.assert_awaited_once_with(
+            domain="www.wisekey.com",
+            scan_interval=21600,
+        )
+
     async def test_uses_default_scan_interval(self, mock_manager):
         mock_manager.register_website.return_value = {
             "domain": "example.com",
             "status": "idle",
             "scan_interval": 21600,
         }
+        mock_manager.get_website.return_value = _website_row()
 
-        with patch("app.routers.websites.trigger_scan"):
+        with (
+            patch("app.routers.websites.trigger_scan"),
+            patch("app.routers.websites._initialize_website"),
+        ):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/websites",
@@ -65,10 +114,37 @@ class TestRegisterWebsite:
             scan_interval=21600,
         )
 
+    async def test_returns_scanning_status_immediately(self, mock_manager):
+        mock_manager.register_website.return_value = {
+            "domain": "example.com",
+            "status": "idle",
+            "scan_interval": 21600,
+        }
+
+        with (
+            patch("app.routers.websites.trigger_scan"),
+            patch("app.routers.websites._initialize_website"),
+        ):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    "/api/v1/websites",
+                    json={"domain": "example.com"},
+                )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] is None
+        assert data["page_count"] == 0
+        assert data["crawled_count"] == 0
+        assert data["status"] == "scanning"
+
     async def test_500_on_error(self, mock_manager):
         mock_manager.register_website.side_effect = RuntimeError("db error")
 
-        with patch("app.routers.websites.trigger_scan"):
+        with (
+            patch("app.routers.websites.trigger_scan"),
+            patch("app.routers.websites._initialize_website"),
+        ):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/websites",
@@ -86,6 +162,8 @@ class TestGetWebsiteInfo:
             "title": "Example",
             "description": "An example site",
             "page_count": 42,
+            "total_urls": 50,
+            "crawled_count": 42,
             "status": "active",
             "scan_interval": 3600,
             "last_scanned_at": 1700000000.0,
@@ -102,7 +180,8 @@ class TestGetWebsiteInfo:
         assert data["domain"] == "example.com"
         assert data["title"] == "Example"
         assert data["description"] == "An example site"
-        assert data["page_count"] == 42
+        assert data["page_count"] == 50
+        assert data["crawled_count"] == 42
         assert data["status"] == "active"
         assert data["scan_interval"] == 3600
         assert data["last_scanned_at"] is not None

@@ -19,6 +19,7 @@ export const websitesTable = defineTable({
     ),
   ),
   pageCount: v.optional(v.number()),
+  crawledPageCount: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
 })
   .index('by_organizationId', ['organizationId'])

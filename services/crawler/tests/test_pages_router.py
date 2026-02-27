@@ -202,3 +202,63 @@ class TestListPages:
 
         assert response.status_code == 500
         assert response.json()["detail"] == "Failed to list pages"
+
+
+def _make_chunk_row(**overrides):
+    defaults = {
+        "chunk_index": 0,
+        "chunk_content": "This is chunk content.",
+    }
+    defaults.update(overrides)
+    return FakeRecord(defaults)
+
+
+class TestGetPageChunks:
+    async def test_success(self, mock_pool):
+        rows = [
+            _make_chunk_row(chunk_index=0, chunk_content="First chunk"),
+            _make_chunk_row(chunk_index=1, chunk_content="Second chunk"),
+        ]
+        mock_pool.fetch.return_value = rows
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                "/api/v1/pages/example.com/chunks",
+                params={"url": "https://example.com/page1"},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["url"] == "https://example.com/page1"
+        assert data["domain"] == "example.com"
+        assert data["total"] == 2
+        assert len(data["chunks"]) == 2
+        assert data["chunks"][0]["chunk_index"] == 0
+        assert data["chunks"][0]["chunk_content"] == "First chunk"
+        assert data["chunks"][1]["chunk_index"] == 1
+
+    async def test_empty_chunks(self, mock_pool):
+        mock_pool.fetch.return_value = []
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                "/api/v1/pages/example.com/chunks",
+                params={"url": "https://example.com/no-chunks"},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["chunks"] == []
+        assert data["total"] == 0
+
+    async def test_500_on_database_error(self, mock_pool):
+        mock_pool.fetch.side_effect = RuntimeError("connection lost")
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                "/api/v1/pages/example.com/chunks",
+                params={"url": "https://example.com/page1"},
+            )
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Failed to get page chunks"

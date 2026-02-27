@@ -2686,11 +2686,6 @@
     "addWebsite": "Add website",
     "editWebsite": "Edit website",
     "deleteWebsite": "Delete website",
-    "actions": {
-      "rescan": "Rescan",
-      "rescanTriggered": "Website rescan triggered",
-      "rescanFailed": "Failed to rescan website"
-    },
     "delete": {
       "title": "Delete website",
       "confirmation": "Are you sure you want to delete this website? This action cannot be undone."
@@ -2738,13 +2733,20 @@
     "pages": "Pages",
     "pageCount": "{count} pages",
     "pageCountOne": "{count} page",
+    "pageCountProgress": "{crawled}/{total} pages",
     "pagesDialog": {
       "title": "Website pages",
       "noPages": "No pages crawled yet",
       "loadMore": "Load more",
       "wordCount": "{count} words",
       "chunks": "{count} chunks",
-      "lastCrawled": "Crawled {date}"
+      "lastCrawled": "Crawled {date}",
+      "searchPlaceholder": "Search website content...",
+      "noSearchResults": "No results found",
+      "noChunks": "No chunks indexed for this page",
+      "chunkIndex": "Chunk {index}",
+      "searchResultScore": "Score: {score}",
+      "searchResultSource": "Source: {url}"
     },
     "filter": {
       "status": {

@@ -11,5 +11,4 @@ export * from './search_websites';
 export * from './create_website';
 export * from './update_website';
 export * from './delete_website';
-export * from './rescan_website';
 export * from './bulk_create_websites';

@@ -85,6 +85,7 @@ export interface CrawlerWebsiteInfo {
   title: string | null;
   description: string | null;
   page_count: number;
+  crawled_count: number;
   status: WebsiteStatus;
   last_scanned_at: string | null;
 }
@@ -102,4 +103,42 @@ export interface FetchPagesResult {
   total: number;
   offset: number;
   hasMore: boolean;
+}
+
+export interface CrawlerChunk {
+  chunk_index: number;
+  chunk_content: string;
+}
+
+export interface CrawlerChunksResponse {
+  url: string;
+  domain: string;
+  chunks: CrawlerChunk[];
+  total: number;
+}
+
+export interface FetchChunksResult {
+  url: string;
+  chunks: CrawlerChunk[];
+  total: number;
+}
+
+export interface CrawlerSearchResult {
+  url: string;
+  title: string | null;
+  chunk_content: string;
+  chunk_index: number;
+  score: number;
+}
+
+export interface CrawlerSearchResponse {
+  query: string;
+  results: CrawlerSearchResult[];
+  total: number;
+}
+
+export interface SearchContentResult {
+  query: string;
+  results: CrawlerSearchResult[];
+  total: number;
 }

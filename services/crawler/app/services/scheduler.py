@@ -16,6 +16,7 @@ import httpx
 from app.services.crawler_service import CrawlerService
 from app.services.indexing_service import IndexingService
 from app.services.pg_website_store import PgWebsiteStore, PgWebsiteStoreManager
+from app.utils.metadata import extract_meta_description
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ _HEAD_CONCURRENCY = 5
 _HEAD_BATCH_SIZE = 50
 
 _scan_trigger: asyncio.Event | None = None
+_cancelled_domains: set[str] = set()
 
 
 def _sha256(content: str) -> str:
@@ -37,6 +39,19 @@ def trigger_scan():
     """Wake the scheduler immediately (e.g. after a new website registration)."""
     if _scan_trigger is not None:
         _scan_trigger.set()
+
+
+def cancel_scan(domain: str):
+    """Mark a domain for scan cancellation."""
+    _cancelled_domains.add(domain)
+
+
+def _is_cancelled(domain: str) -> bool:
+    return domain in _cancelled_domains
+
+
+def _clear_cancelled(domain: str):
+    _cancelled_domains.discard(domain)
 
 
 async def run_scheduler(
@@ -170,19 +185,6 @@ def _is_homepage(url: str, domain: str) -> bool:
     return parsed.netloc == domain and parsed.path in ("", "/")
 
 
-def _extract_meta_description(structured_data: dict | None) -> str | None:
-    """Extract meta description from structured data."""
-    if not structured_data:
-        return None
-    meta = structured_data.get("meta", {})
-    if desc := meta.get("description"):
-        return desc
-    og = structured_data.get("opengraph", {})
-    if desc := og.get("og:description"):
-        return desc
-    return None
-
-
 async def _bulk_head_check(
     all_urls: list[str],
     site_store: PgWebsiteStore,
@@ -209,6 +211,7 @@ async def _scan_website(
     crawler_service: CrawlerService,
     indexing_service: IndexingService | None = None,
 ):
+    _clear_cancelled(domain)
     site_store = store_manager.get_site_store(domain)
     await store_manager.update_scan_status(domain, "scanning")
 
@@ -217,12 +220,20 @@ async def _scan_website(
             await crawler_service.initialize()
 
         # Phase 1: Discover new URLs
+        if _is_cancelled(domain):
+            logger.info(f"Scan [{domain}]: cancelled before discovery")
+            await store_manager.update_scan_status(domain, "idle")
+            return
         logger.info(f"Scan [{domain}]: Phase 1 — discovering URLs")
         discovered = await crawler_service.discover_urls(domain=domain, max_urls=-1)
         await site_store.save_discovered_urls(discovered)
         logger.info(f"Scan [{domain}]: discovered {len(discovered)} URLs")
 
         # Phase 2: Bulk HEAD check — filter unchanged URLs up front
+        if _is_cancelled(domain):
+            logger.info(f"Scan [{domain}]: cancelled before HEAD check")
+            await store_manager.update_scan_status(domain, "idle")
+            return
         scan_start = time.time()
         all_urls = await site_store.get_urls_needing_recrawl(limit=10000, crawled_before=scan_start)
         if not all_urls:
@@ -246,6 +257,10 @@ async def _scan_website(
         homepage_description: str | None = None
 
         for i in range(0, len(needs_crawl), CRAWL_BATCH_SIZE):
+            if _is_cancelled(domain):
+                logger.info(f"Scan [{domain}]: cancelled during crawl (crawled {crawled_total} so far)")
+                await store_manager.update_scan_status(domain, "idle")
+                return
             batch = needs_crawl[i : i + CRAWL_BATCH_SIZE]
             logger.info(
                 f"Scan [{domain}]: Phase 3 — crawling batch {i // CRAWL_BATCH_SIZE + 1} "
@@ -263,8 +278,8 @@ async def _scan_website(
                     "title": p.get("title"),
                     "content": p["content"],
                     "word_count": p.get("word_count", 0),
-                    "metadata": json.dumps(p.get("metadata")) if p.get("metadata") else None,
-                    "structured_data": json.dumps(p.get("structured_data")) if p.get("structured_data") else None,
+                    "metadata": p.get("metadata"),
+                    "structured_data": p.get("structured_data"),
                 }
                 for p in results
             ]
@@ -278,7 +293,7 @@ async def _scan_website(
                         sd = p.get("structured_data")
                         if isinstance(sd, str):
                             sd = json.loads(sd)
-                        homepage_description = _extract_meta_description(sd)
+                        homepage_description = extract_meta_description(sd)
                         break
 
             if indexing_service:

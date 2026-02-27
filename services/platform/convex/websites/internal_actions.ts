@@ -1,7 +1,12 @@
 import { v } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
-import type { CrawlerPagesResponse, CrawlerWebsiteInfo } from './types';
+import type {
+  CrawlerChunksResponse,
+  CrawlerPagesResponse,
+  CrawlerSearchResponse,
+  CrawlerWebsiteInfo,
+} from './types';
 
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
@@ -49,21 +54,26 @@ export function scanIntervalToSeconds(interval: string): number {
 export async function registerDomainWithCrawler(
   domain: string,
   scanInterval: string,
-): Promise<void> {
+): Promise<CrawlerWebsiteInfo> {
   const crawlerUrl = getCrawlerUrl();
-  const res = await fetchWithTimeout(`${crawlerUrl}/api/v1/websites`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      domain,
-      scan_interval: scanIntervalToSeconds(scanInterval),
-    }),
-  });
+  const res = await fetchWithTimeout(
+    `${crawlerUrl}/api/v1/websites`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        domain,
+        scan_interval: scanIntervalToSeconds(scanInterval),
+      }),
+    },
+    60_000,
+  );
   if (!res.ok) {
     throw new Error(
       `Failed to register website with crawler: ${res.status} ${res.statusText}`,
     );
   }
+  return await res.json();
 }
 
 export async function deregisterDomainFromCrawler(
@@ -71,7 +81,7 @@ export async function deregisterDomainFromCrawler(
 ): Promise<void> {
   const crawlerUrl = getCrawlerUrl();
   const res = await fetchWithTimeout(
-    `${crawlerUrl}/api/v1/websites/${domain}`,
+    `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
     { method: 'DELETE' },
   );
   if (!res.ok && res.status !== 404) {
@@ -87,7 +97,7 @@ export async function fetchWebsiteInfo(
   const crawlerUrl = getCrawlerUrl();
   try {
     const res = await fetchWithTimeout(
-      `${crawlerUrl}/api/v1/websites/${domain}`,
+      `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
     );
     if (res.ok) {
       return await res.json();
@@ -134,6 +144,7 @@ export const syncWebsiteStatuses = internalAction({
               metadata: { ...website.metadata, lastStatusSyncAt: now },
               status: websiteInfo.status,
               pageCount: websiteInfo.page_count,
+              crawledPageCount: websiteInfo.crawled_count,
               title: websiteInfo.title ?? undefined,
               description: websiteInfo.description ?? undefined,
               lastScannedAt: websiteInfo.last_scanned_at
@@ -151,6 +162,55 @@ export const syncWebsiteStatuses = internalAction({
   },
 });
 
+export const registerAndSync = internalAction({
+  args: {
+    websiteId: v.id('websites'),
+    domain: v.string(),
+    scanInterval: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    try {
+      await registerDomainWithCrawler(args.domain, args.scanInterval);
+    } catch {
+      await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
+        websiteId: args.websiteId,
+        status: 'error',
+      });
+      return;
+    }
+
+    // Schedule a delayed sync to pick up scan results
+    await ctx.scheduler.runAfter(
+      60_000,
+      internal.websites.internal_actions.syncSingleWebsite,
+      { websiteId: args.websiteId, domain: args.domain },
+    );
+  },
+});
+
+export const syncSingleWebsite = internalAction({
+  args: {
+    websiteId: v.id('websites'),
+    domain: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const info = await fetchWebsiteInfo(args.domain);
+    if (!info) return;
+
+    await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
+      websiteId: args.websiteId,
+      status: info.status,
+      pageCount: info.page_count,
+      crawledPageCount: info.crawled_count,
+      title: info.title ?? undefined,
+      description: info.description ?? undefined,
+      lastScannedAt: info.last_scanned_at
+        ? new Date(info.last_scanned_at).getTime()
+        : undefined,
+    });
+  },
+});
+
 export const fetchWebsitePages = internalAction({
   args: {
     domain: v.string(),
@@ -163,7 +223,7 @@ export const fetchWebsitePages = internalAction({
     const limit = args.limit ?? 100;
 
     const res = await fetchWithTimeout(
-      `${crawlerUrl}/api/v1/pages/${args.domain}?offset=${offset}&limit=${limit}`,
+      `${crawlerUrl}/api/v1/pages/${encodeURIComponent(args.domain)}?offset=${offset}&limit=${limit}`,
     );
 
     if (!res.ok) {
@@ -176,6 +236,63 @@ export const fetchWebsitePages = internalAction({
       total: data.total,
       offset: data.offset,
       hasMore: data.has_more,
+    };
+  },
+});
+
+export const fetchPageChunks = internalAction({
+  args: {
+    domain: v.string(),
+    url: v.string(),
+  },
+  handler: async (_ctx, args) => {
+    const crawlerUrl = getCrawlerUrl();
+
+    const res = await fetchWithTimeout(
+      `${crawlerUrl}/api/v1/pages/${encodeURIComponent(args.domain)}/chunks?url=${encodeURIComponent(args.url)}`,
+    );
+
+    if (!res.ok) {
+      throw new Error(`Crawler chunks API returned ${res.status}`);
+    }
+
+    const data: CrawlerChunksResponse = await res.json();
+    return {
+      url: data.url,
+      chunks: data.chunks,
+      total: data.total,
+    };
+  },
+});
+
+export const searchWebsiteContent = internalAction({
+  args: {
+    domain: v.string(),
+    query: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (_ctx, args) => {
+    const crawlerUrl = getCrawlerUrl();
+    const limit = args.limit ?? 10;
+
+    const res = await fetchWithTimeout(
+      `${crawlerUrl}/api/v1/search/${encodeURIComponent(args.domain)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: args.query, limit }),
+      },
+    );
+
+    if (!res.ok) {
+      throw new Error(`Crawler search API returned ${res.status}`);
+    }
+
+    const data: CrawlerSearchResponse = await res.json();
+    return {
+      query: data.query,
+      results: data.results,
+      total: data.total,
     };
   },
 });

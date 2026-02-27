@@ -22,6 +22,7 @@ class ContentChunk:
 def chunk_content(
     content: str,
     title: str | None = None,
+    url: str | None = None,
     chunk_size: int = CHUNK_SIZE,
     chunk_overlap: int = CHUNK_OVERLAP,
     min_chunk_length: int = MIN_CHUNK_LENGTH,
@@ -30,7 +31,12 @@ def chunk_content(
         return []
 
     text = content.strip()
-    prefix = f"{title.strip()}\n\n" if title and title.strip() else ""
+    parts: list[str] = []
+    if title and title.strip():
+        parts.append(title.strip())
+    if url and url.strip():
+        parts.append(url.strip())
+    prefix = "\n\n".join(parts) + "\n\n" if parts else ""
 
     # Split into paragraphs first
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]

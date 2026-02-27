@@ -23,19 +23,22 @@ class PgWebsiteStore:
         self._domain = domain
 
     async def save_discovered_urls(self, urls: list[dict]) -> int:
+        """Save discovered URLs. Returns number of newly inserted URLs (excludes duplicates)."""
         if not urls:
             return 0
 
         async with self._pool.acquire() as conn:
+            count_before = await conn.fetchval("SELECT COUNT(*) FROM website_urls WHERE domain = $1", self._domain)
             await conn.executemany(
                 """INSERT INTO website_urls (domain, url, discovered_at)
                    VALUES ($1, $2, NOW())
                    ON CONFLICT (domain, url) DO NOTHING""",
                 [(self._domain, u["url"]) for u in urls],
             )
-            count = await conn.fetchval("SELECT COUNT(*) FROM website_urls WHERE domain = $1", self._domain)
-            logger.info(f"Saved discovered URLs for {self._domain}, total: {count}")
-            return len(urls)
+            count_after = await conn.fetchval("SELECT COUNT(*) FROM website_urls WHERE domain = $1", self._domain)
+            inserted = count_after - count_before
+            logger.info(f"Saved discovered URLs for {self._domain}: {inserted} new, {count_after} total")
+            return inserted
 
     async def get_urls_page(self, offset: int = 0, limit: int = 100, status: str | None = None) -> list[dict]:
         async with self._pool.acquire() as conn:
@@ -128,8 +131,8 @@ class PgWebsiteStore:
                         u.get("title"),
                         u.get("content"),
                         u.get("word_count"),
-                        u.get("metadata"),
-                        u.get("structured_data"),
+                        json.dumps(u["metadata"]) if u.get("metadata") else None,
+                        json.dumps(u["structured_data"]) if u.get("structured_data") else None,
                     )
                     for u in updates
                 ],
@@ -206,8 +209,8 @@ class PgWebsiteStore:
                     "title": r["title"],
                     "content": r["content"],
                     "word_count": r["word_count"] or 0,
-                    "metadata": json.loads(r["metadata"]) if r["metadata"] else None,
-                    "structured_data": json.loads(r["structured_data"]) if r["structured_data"] else None,
+                    "metadata": r["metadata"],
+                    "structured_data": r["structured_data"],
                 }
                 for r in rows
             ]
@@ -258,11 +261,9 @@ class PgWebsiteStoreManager:
     async def remove_website(self, domain: str) -> bool:
         self._stores.pop(domain, None)
         async with self._pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute("DELETE FROM chunks WHERE domain = $1", domain)
-                await conn.execute("DELETE FROM website_urls WHERE domain = $1", domain)
-                result = await conn.execute("DELETE FROM websites WHERE domain = $1", domain)
-                deleted = result == "DELETE 1"
+            # ON DELETE CASCADE on website_urls and chunks handles child row cleanup
+            result = await conn.execute("DELETE FROM websites WHERE domain = $1", domain)
+            deleted = result == "DELETE 1"
         if deleted:
             logger.info(f"Removed website: {domain}")
         return deleted
@@ -297,9 +298,18 @@ class PgWebsiteStoreManager:
     async def get_website(self, domain: str) -> dict | None:
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                """SELECT domain, title, description, page_count, status, scan_interval,
-                          last_scanned_at, error, created_at, updated_at
-                   FROM websites WHERE domain = $1""",
+                """SELECT w.domain, w.title, w.description, w.page_count, w.status,
+                          w.scan_interval, w.last_scanned_at, w.error,
+                          w.created_at, w.updated_at,
+                          COALESCE(u.total, 0) AS total_urls,
+                          COALESCE(u.crawled, 0) AS crawled_count
+                   FROM websites w
+                   LEFT JOIN LATERAL (
+                       SELECT COUNT(*) AS total,
+                              COUNT(*) FILTER (WHERE content_hash IS NOT NULL) AS crawled
+                       FROM website_urls WHERE domain = w.domain
+                   ) u ON true
+                   WHERE w.domain = $1""",
                 domain,
             )
             return dict(row) if row else None

@@ -136,21 +136,22 @@ class TestRetryBehavior:
 
         assert result == expected
         assert service._client.embeddings.create.call_count == 2
-        mock_sleep.assert_awaited_once()
+        mock_sleep.assert_awaited_once_with(1.0)
 
     @patch("app.services.embedding_service.asyncio.sleep", new_callable=AsyncMock)
-    async def test_raises_on_second_failure(self, mock_sleep):
+    async def test_raises_after_all_retries_exhausted(self, mock_sleep):
         service = create_service(dimensions=2)
         service._client.embeddings.create.side_effect = [
-            RuntimeError("API error"),
-            RuntimeError("API error again"),
+            RuntimeError("API error 1"),
+            RuntimeError("API error 2"),
+            RuntimeError("API error 3"),
         ]
 
-        with pytest.raises(RuntimeError, match="API error again"):
+        with pytest.raises(RuntimeError, match="API error 3"):
             await service.embed_texts(["hello"])
 
-        assert service._client.embeddings.create.call_count == 2
-        mock_sleep.assert_awaited_once()
+        assert service._client.embeddings.create.call_count == 3
+        assert mock_sleep.await_count == 2
 
     async def test_no_retry_on_success(self):
         service = create_service(dimensions=2)

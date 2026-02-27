@@ -73,6 +73,39 @@ class TestChunkContentWithTitle:
             assert chunk.content.startswith("Title")
 
 
+class TestChunkContentWithUrl:
+    BODY = "Some body text here that is long enough to pass the minimum chunk length filter."
+
+    def test_url_prepended_to_single_chunk(self):
+        result = chunk_content(self.BODY, url="https://example.com/page")
+        assert result[0].content.startswith("https://example.com/page\n\n")
+        assert self.BODY in result[0].content
+
+    def test_none_url_ignored(self):
+        result = chunk_content(self.BODY, url=None)
+        assert result[0].content == self.BODY
+
+    def test_empty_url_ignored(self):
+        result = chunk_content(self.BODY, url="")
+        assert result[0].content == self.BODY
+
+    def test_whitespace_url_ignored(self):
+        result = chunk_content(self.BODY, url="   ")
+        assert result[0].content == self.BODY
+
+    def test_title_and_url_both_in_prefix(self):
+        result = chunk_content(self.BODY, title="My Title", url="https://example.com/page")
+        assert result[0].content.startswith("My Title\n\nhttps://example.com/page\n\n")
+        assert self.BODY in result[0].content
+
+    def test_url_prepended_to_every_chunk(self):
+        para = "A" * 100
+        content = f"{para}\n\n{para}\n\n{para}"
+        result = chunk_content(content, url="https://example.com", chunk_size=200, chunk_overlap=20)
+        for chunk in result:
+            assert "https://example.com" in chunk.content
+
+
 class TestChunkContentMultipleParagraphs:
     def test_two_paragraphs_within_limit_stay_in_one_chunk(self):
         p1 = "First paragraph with enough content to be meaningful here."

@@ -36,19 +36,6 @@ export const deleteWebsite = internalMutation({
   },
 });
 
-export const rescanWebsite = internalMutation({
-  args: {
-    websiteId: v.id('websites'),
-  },
-  returns: v.object({
-    domain: v.string(),
-    scanInterval: v.string(),
-  }),
-  handler: async (ctx, args) => {
-    return await WebsitesHelpers.rescanWebsite(ctx, args.websiteId);
-  },
-});
-
 export const patchWebsite = internalMutation({
   args: {
     websiteId: v.id('websites'),
@@ -59,6 +46,7 @@ export const patchWebsite = internalMutation({
     lastScannedAt: v.optional(v.number()),
     status: v.optional(websiteStatusValidator),
     pageCount: v.optional(v.number()),
+    crawledPageCount: v.optional(v.number()),
     metadata: v.optional(jsonRecordValidator),
   },
   handler: async (ctx, args) => {

@@ -1,15 +1,19 @@
 import { v } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
-import type { FetchPagesResult } from './types';
+import type {
+  FetchChunksResult,
+  FetchPagesResult,
+  SearchContentResult,
+} from './types';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
+import { toWebsiteDomain } from './create_website';
 import {
-  registerDomainWithCrawler,
   deregisterDomainFromCrawler,
-  fetchWebsiteInfo,
+  registerDomainWithCrawler,
 } from './internal_actions';
 
 export const createWebsite = action({
@@ -35,6 +39,8 @@ export const createWebsite = action({
       },
     );
 
+    const domain = toWebsiteDomain(args.domain);
+
     const websiteId = await ctx.runMutation(
       internal.websites.internal_mutations.provisionWebsite,
       {
@@ -43,28 +49,16 @@ export const createWebsite = action({
         title: args.title,
         description: args.description,
         scanInterval: args.scanInterval,
+        status: 'scanning',
       },
     );
 
-    // Register with crawler — wait for confirmation
-    try {
-      await registerDomainWithCrawler(args.domain, args.scanInterval);
-    } catch (e) {
-      await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
-        websiteId,
-        status: 'error',
-      });
-      throw e;
-    }
-
-    // Sync page count
-    const info = await fetchWebsiteInfo(args.domain);
-    if (info?.page_count !== undefined) {
-      await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
-        websiteId,
-        pageCount: info.page_count,
-      });
-    }
+    // Register with crawler asynchronously — don't block the UI
+    await ctx.scheduler.runAfter(
+      0,
+      internal.websites.internal_actions.registerAndSync,
+      { websiteId, domain, scanInterval: args.scanInterval },
+    );
 
     return websiteId;
   },
@@ -107,9 +101,13 @@ export const deleteWebsite = action({
   },
 });
 
-export const rescanWebsite = action({
+export const updateWebsite = action({
   args: {
     websiteId: v.id('websites'),
+    domain: v.optional(v.string()),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    scanInterval: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -132,30 +130,18 @@ export const rescanWebsite = action({
       },
     );
 
-    const { domain, scanInterval } = await ctx.runMutation(
-      internal.websites.internal_mutations.rescanWebsite,
-      { websiteId: args.websiteId },
-    );
-
-    // Trigger crawler rescan — re-registering triggers scan
-    try {
-      await registerDomainWithCrawler(domain, scanInterval);
-    } catch (e) {
-      await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
-        websiteId: args.websiteId,
-        status: 'error',
-      });
-      throw e;
+    // Sync scan interval to crawler first
+    if (args.scanInterval && args.scanInterval !== website.scanInterval) {
+      await registerDomainWithCrawler(website.domain, args.scanInterval);
     }
 
-    // Sync page count
-    const info = await fetchWebsiteInfo(domain);
-    if (info?.page_count !== undefined) {
-      await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
-        websiteId: args.websiteId,
-        pageCount: info.page_count,
-      });
-    }
+    await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
+      websiteId: args.websiteId,
+      domain: args.domain,
+      title: args.title,
+      description: args.description,
+      scanInterval: args.scanInterval,
+    });
 
     return null;
   },
@@ -195,6 +181,24 @@ export const fetchPages = action({
     offset: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
+  returns: v.object({
+    pages: v.array(
+      v.object({
+        url: v.string(),
+        title: v.union(v.string(), v.null()),
+        word_count: v.number(),
+        status: v.string(),
+        content_hash: v.union(v.string(), v.null()),
+        last_crawled_at: v.union(v.string(), v.null()),
+        discovered_at: v.union(v.string(), v.null()),
+        chunks_count: v.number(),
+        indexed: v.boolean(),
+      }),
+    ),
+    total: v.number(),
+    offset: v.number(),
+    hasMore: v.boolean(),
+  }),
   handler: async (ctx, args): Promise<FetchPagesResult> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
@@ -205,6 +209,13 @@ export const fetchPages = action({
     );
     if (!website) throw new Error('Website not found');
 
+    // Trigger async metadata sync from crawler
+    await ctx.scheduler.runAfter(
+      0,
+      internal.websites.internal_actions.syncSingleWebsite,
+      { websiteId: args.websiteId, domain: website.domain },
+    );
+
     return await ctx.runAction(
       internal.websites.internal_actions.fetchWebsitePages,
       {
@@ -212,6 +223,51 @@ export const fetchPages = action({
         offset: args.offset,
         limit: args.limit,
       },
+    );
+  },
+});
+
+export const fetchChunks = action({
+  args: {
+    websiteId: v.id('websites'),
+    url: v.string(),
+  },
+  handler: async (ctx, args): Promise<FetchChunksResult> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const website = await ctx.runQuery(
+      internal.websites.internal_queries.getWebsite,
+      { websiteId: args.websiteId },
+    );
+    if (!website) throw new Error('Website not found');
+
+    return await ctx.runAction(
+      internal.websites.internal_actions.fetchPageChunks,
+      { domain: website.domain, url: args.url },
+    );
+  },
+});
+
+export const searchContent = action({
+  args: {
+    websiteId: v.id('websites'),
+    query: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<SearchContentResult> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const website = await ctx.runQuery(
+      internal.websites.internal_queries.getWebsite,
+      { websiteId: args.websiteId },
+    );
+    if (!website) throw new Error('Website not found');
+
+    return await ctx.runAction(
+      internal.websites.internal_actions.searchWebsiteContent,
+      { domain: website.domain, query: args.query, limit: args.limit },
     );
   },
 });

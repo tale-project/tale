@@ -17,6 +17,7 @@ export const websiteSchema = z.object({
   lastScannedAt: z.number().optional(),
   status: websiteStatusSchema.optional(),
   pageCount: z.number().optional(),
+  crawledPageCount: z.number().optional(),
   metadata: jsonRecordSchema.optional(),
 });
 

@@ -13,7 +13,8 @@ from app.config import settings
 
 MAX_BATCH_SIZE = 2048
 MAX_CONCURRENT_REQUESTS = 3
-RETRY_DELAY_SECONDS = 1.0
+MAX_RETRIES = 3
+RETRY_BASE_DELAY = 1.0
 
 
 class EmbeddingService:
@@ -29,22 +30,23 @@ class EmbeddingService:
 
     async def _embed_batch(self, batch: list[str]) -> list[list[float]]:
         async with self._semaphore:
-            try:
-                response = await self._client.embeddings.create(
-                    model=self._model,
-                    input=batch,
-                    dimensions=self._dimensions,
-                )
-                return [item.embedding for item in response.data]
-            except Exception:
-                logger.warning(f"Embedding request failed, retrying in {RETRY_DELAY_SECONDS}s")
-                await asyncio.sleep(RETRY_DELAY_SECONDS)
-                response = await self._client.embeddings.create(
-                    model=self._model,
-                    input=batch,
-                    dimensions=self._dimensions,
-                )
-                return [item.embedding for item in response.data]
+            for attempt in range(MAX_RETRIES):
+                try:
+                    response = await self._client.embeddings.create(
+                        model=self._model,
+                        input=batch,
+                        dimensions=self._dimensions,
+                    )
+                    return [item.embedding for item in response.data]
+                except Exception:
+                    if attempt == MAX_RETRIES - 1:
+                        raise
+                    delay = RETRY_BASE_DELAY * (2**attempt)
+                    logger.warning(
+                        f"Embedding request failed (attempt {attempt + 1}/{MAX_RETRIES}), retrying in {delay}s"
+                    )
+                    await asyncio.sleep(delay)
+            raise RuntimeError("unreachable")
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         if not texts:
