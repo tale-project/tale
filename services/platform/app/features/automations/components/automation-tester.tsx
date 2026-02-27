@@ -176,8 +176,8 @@ export function AutomationTester({
 
         {dryRunResult && (
           <BorderedSection
-            padding={3}
             className={cn(
+              'p-3',
               dryRunResult.success
                 ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
                 : 'bg-destructive/10 border-destructive/50',
@@ -247,10 +247,7 @@ export function AutomationTester({
           </BorderedSection>
         )}
 
-        <BorderedSection
-          padding={3}
-          className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20"
-        >
+        <BorderedSection className="border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/20">
           <Text className="text-xs text-blue-900 dark:text-blue-100">
             {t('tester.tip')}
           </Text>

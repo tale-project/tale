@@ -265,7 +265,7 @@ export function IntegrationDetails({
   if (!hasAnyDetails) return null;
 
   return (
-    <BorderedSection gap={3}>
+    <BorderedSection>
       {restOperations.length > 0 && (
         <CollapsibleDetails
           summary={
