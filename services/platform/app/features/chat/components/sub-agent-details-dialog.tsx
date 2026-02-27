@@ -1,8 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
+
+import {
+  type StatGridItem,
+  StatGrid,
+} from '@/app/components/ui/data-display/stat-grid';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
-import { Stack, Grid } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
@@ -34,6 +39,60 @@ export function SubAgentDetailsDialog({
   const { locale } = useLocale();
   const { t } = useT('chat');
 
+  const tokenItems = useMemo<StatGridItem[]>(
+    () => [
+      ...(usage?.inputTokens !== undefined
+        ? [
+            {
+              label: t('messageInfo.input'),
+              value: (
+                <Text variant="label">
+                  {formatNumber(usage.inputTokens, locale)}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(usage?.outputTokens !== undefined
+        ? [
+            {
+              label: t('messageInfo.output'),
+              value: (
+                <Text variant="label">
+                  {formatNumber(usage.outputTokens, locale)}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(usage?.totalTokens !== undefined
+        ? [
+            {
+              label: t('messageInfo.total'),
+              value: (
+                <Text variant="label">
+                  {formatNumber(usage.totalTokens, locale)}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(usage?.durationMs !== undefined
+        ? [
+            {
+              label: t('messageInfo.duration'),
+              value: (
+                <Text variant="label">
+                  {(usage.durationMs / 1000).toFixed(2)}s
+                </Text>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [usage, t, locale],
+  );
+
   if (!usage) return null;
 
   const agentName = formatAgentName(usage.toolName);
@@ -55,48 +114,9 @@ export function SubAgentDetailsDialog({
           </Field>
         )}
 
-        {usage.totalTokens !== undefined && (
+        {tokenItems.length > 0 && (
           <Field label={t('messageInfo.tokenUsage')}>
-            <Grid cols={2} gap={2}>
-              {usage.inputTokens !== undefined && (
-                <Stack gap={0}>
-                  <Text as="div" variant="caption">
-                    {t('messageInfo.input')}
-                  </Text>
-                  <Text as="div" variant="label">
-                    {formatNumber(usage.inputTokens, locale)}
-                  </Text>
-                </Stack>
-              )}
-              {usage.outputTokens !== undefined && (
-                <Stack gap={0}>
-                  <Text as="div" variant="caption">
-                    {t('messageInfo.output')}
-                  </Text>
-                  <Text as="div" variant="label">
-                    {formatNumber(usage.outputTokens, locale)}
-                  </Text>
-                </Stack>
-              )}
-              <Stack gap={0}>
-                <Text as="div" variant="caption">
-                  {t('messageInfo.total')}
-                </Text>
-                <Text as="div" variant="label">
-                  {formatNumber(usage.totalTokens, locale)}
-                </Text>
-              </Stack>
-              {usage.durationMs !== undefined && (
-                <Stack gap={0}>
-                  <Text as="div" variant="caption">
-                    {t('messageInfo.duration')}
-                  </Text>
-                  <Text as="div" variant="label">
-                    {(usage.durationMs / 1000).toFixed(2)}s
-                  </Text>
-                </Stack>
-              )}
-            </Grid>
+            <StatGrid items={tokenItems} />
           </Field>
         )}
 

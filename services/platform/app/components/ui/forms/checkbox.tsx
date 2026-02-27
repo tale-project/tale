@@ -80,9 +80,9 @@ export const Checkbox = React.forwardRef<
 
     if (description) {
       return (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            {checkbox}
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5">{checkbox}</div>
+          <div className="flex flex-col gap-0.5">
             {label && (
               <Label
                 htmlFor={id}
@@ -92,10 +92,10 @@ export const Checkbox = React.forwardRef<
                 {label}
               </Label>
             )}
+            <Description id={descriptionId} className="text-xs">
+              {description}
+            </Description>
           </div>
-          <Description id={descriptionId} className="text-xs">
-            {description}
-          </Description>
         </div>
       );
     }

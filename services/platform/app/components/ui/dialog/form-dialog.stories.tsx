@@ -90,11 +90,14 @@ export const Default: Story = {
 };
 
 export const WithTrigger: Story = {
-  render: () => (
+  args: {
+    title: 'Edit Profile',
+    description: 'Update your profile information.',
+    trigger: <Button>Edit Profile</Button>,
+  },
+  render: (args) => (
     <FormDialog
-      title="Edit Profile"
-      description="Update your profile information."
-      trigger={<Button>Edit Profile</Button>}
+      {...args}
       onSubmit={(e) => {
         e.preventDefault();
         alert('Profile updated!');

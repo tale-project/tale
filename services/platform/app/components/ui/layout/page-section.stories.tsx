@@ -37,11 +37,10 @@ export default meta;
 type Story = StoryObj<typeof PageSection>;
 
 export const Default: Story = {
-  render: () => (
-    <PageSection
-      title="Model Settings"
-      description="Choose the AI model preset for this agent."
-    >
+  args: {
+    title: 'Model Settings',
+    description: 'Choose the AI model preset for this agent.',
+    children: (
       <Select
         options={[
           { value: 'fast', label: 'Fast' },
@@ -51,47 +50,43 @@ export const Default: Story = {
         label="Model Preset"
         value="standard"
       />
-    </PageSection>
-  ),
+    ),
+  },
 };
 
 export const WithFormFields: Story = {
-  render: () => (
-    <PageSection
-      title="General"
-      description="Configure the basic settings for this agent."
-    >
+  args: {
+    title: 'General',
+    description: 'Configure the basic settings for this agent.',
+    children: (
       <Stack gap={3}>
         <Input label="Name" placeholder="Enter agent name" />
         <Input label="Display Name" placeholder="Enter display name" />
       </Stack>
-    </PageSection>
-  ),
+    ),
+  },
 };
 
 export const WithAction: Story = {
-  render: () => (
-    <PageSection
-      title="Members"
-      description="Manage team members and their access permissions."
-      action={<Button size="sm">Add Member</Button>}
-    >
+  args: {
+    title: 'Members',
+    description: 'Manage team members and their access permissions.',
+    action: <Button size="sm">Add Member</Button>,
+    children: (
       <div className="bg-muted/30 flex h-32 items-center justify-center rounded-lg border border-dashed">
         Member table placeholder
       </div>
-    </PageSection>
-  ),
+    ),
+  },
 };
 
 export const WithToggle: Story = {
-  render: () => (
-    <PageSection
-      title="File Preprocessing"
-      description="Automatically preprocess uploaded files before sending to the AI."
-    >
-      <Switch label="Enable file preprocessing" />
-    </PageSection>
-  ),
+  args: {
+    title: 'File Preprocessing',
+    description:
+      'Automatically preprocess uploaded files before sending to the AI.',
+    children: <Switch label="Enable file preprocessing" />,
+  },
 };
 
 export const CustomGap: Story = {

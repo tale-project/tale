@@ -38,10 +38,13 @@ export default meta;
 type Story = StoryObj<typeof Popover>;
 
 export const Default: Story = {
-  render: () => (
+  args: {
+    contentClassName: 'w-80',
+  },
+  render: (args) => (
     <Popover
+      {...args}
       trigger={<Button variant="secondary">Open Popover</Button>}
-      contentClassName="w-80"
     >
       <div className="grid gap-4">
         <div className="space-y-2">
@@ -60,10 +63,13 @@ export const Default: Story = {
 };
 
 export const AlignStart: Story = {
-  render: () => (
+  args: {
+    align: 'start',
+  },
+  render: (args) => (
     <Popover
+      {...args}
       trigger={<Button variant="secondary">Align Start</Button>}
-      align="start"
     >
       <p className="text-sm">This popover is aligned to the start.</p>
     </Popover>
@@ -71,19 +77,22 @@ export const AlignStart: Story = {
 };
 
 export const AlignEnd: Story = {
-  render: () => (
-    <Popover
-      trigger={<Button variant="secondary">Align End</Button>}
-      align="end"
-    >
+  args: {
+    align: 'end',
+  },
+  render: (args) => (
+    <Popover {...args} trigger={<Button variant="secondary">Align End</Button>}>
       <p className="text-sm">This popover is aligned to the end.</p>
     </Popover>
   ),
 };
 
 export const WithForm: Story = {
-  render: () => (
-    <Popover trigger={<Button>Update Email</Button>} contentClassName="w-80">
+  args: {
+    contentClassName: 'w-80',
+  },
+  render: (args) => (
+    <Popover {...args} trigger={<Button>Update Email</Button>}>
       <form className="grid gap-4">
         <div className="space-y-1">
           <h4 className="text-sm leading-none font-medium">Update email</h4>
@@ -113,14 +122,17 @@ export const WithForm: Story = {
 };
 
 export const SimpleContent: Story = {
-  render: () => (
+  args: {
+    contentClassName: 'w-64',
+  },
+  render: (args) => (
     <Popover
+      {...args}
       trigger={
         <Button variant="ghost" size="sm">
           Info
         </Button>
       }
-      contentClassName="w-64"
     >
       <p className="text-muted-foreground text-sm">
         This is a simple informational popover with some helpful text.

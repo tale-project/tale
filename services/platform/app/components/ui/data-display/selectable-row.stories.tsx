@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { FileText } from 'lucide-react';
+import { useState } from 'react';
 
 import { Badge } from '../feedback/badge';
 import { Text } from '../typography/text';
@@ -36,6 +37,11 @@ import { SelectableRow } from '@/app/components/ui/data-display/selectable-row';
       </div>
     ),
   ],
+  argTypes: {
+    selected: { control: 'boolean' },
+    disabled: { control: 'boolean' },
+    onClick: { action: 'clicked' },
+  },
 };
 
 export default meta;
@@ -43,19 +49,17 @@ export default meta;
 type Story = StoryObj<typeof SelectableRow>;
 
 export const Default: Story = {
-  render: () => (
-    <SelectableRow>
-      <Text>Unselected row</Text>
-    </SelectableRow>
-  ),
+  args: {
+    selected: false,
+    children: <Text>Unselected row</Text>,
+  },
 };
 
 export const Selected: Story = {
-  render: () => (
-    <SelectableRow selected>
-      <Text>Selected row</Text>
-    </SelectableRow>
-  ),
+  args: {
+    selected: true,
+    children: <Text>Selected row</Text>,
+  },
   parameters: {
     docs: {
       description: {
@@ -65,52 +69,55 @@ export const Selected: Story = {
   },
 };
 
-export const WithContent: Story = {
-  render: () => (
-    <div className="flex flex-col gap-2">
-      <SelectableRow>
-        <FileText
-          className="text-muted-foreground size-4 shrink-0"
-          aria-hidden
-        />
-        <div className="min-w-0 flex-1">
-          <Text variant="label" as="span">
-            Report Q1 2024
-          </Text>
-        </div>
-        <Badge variant="green">Active</Badge>
-      </SelectableRow>
-      <SelectableRow selected>
-        <FileText
-          className="text-muted-foreground size-4 shrink-0"
-          aria-hidden
-        />
-        <div className="min-w-0 flex-1">
-          <Text variant="label" as="span">
-            Report Q2 2024
-          </Text>
-        </div>
-        <Badge variant="blue">Draft</Badge>
-      </SelectableRow>
-      <SelectableRow>
-        <FileText
-          className="text-muted-foreground size-4 shrink-0"
-          aria-hidden
-        />
-        <div className="min-w-0 flex-1">
-          <Text variant="label" as="span">
-            Report Q3 2024
-          </Text>
-        </div>
-        <Badge variant="outline">Archived</Badge>
-      </SelectableRow>
-    </div>
-  ),
+const items = [
+  {
+    id: 'q1',
+    label: 'Report Q1 2024',
+    badge: { variant: 'green' as const, text: 'Active' },
+  },
+  {
+    id: 'q2',
+    label: 'Report Q2 2024',
+    badge: { variant: 'blue' as const, text: 'Draft' },
+  },
+  {
+    id: 'q3',
+    label: 'Report Q3 2024',
+    badge: { variant: 'outline' as const, text: 'Archived' },
+  },
+];
+
+export const Interactive: Story = {
+  render: function InteractiveStory() {
+    const [selectedId, setSelectedId] = useState('q2');
+    return (
+      <div className="flex flex-col gap-2">
+        {items.map((item) => (
+          <SelectableRow
+            key={item.id}
+            selected={selectedId === item.id}
+            onClick={() => setSelectedId(item.id)}
+          >
+            <FileText
+              className="text-muted-foreground size-4 shrink-0"
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1">
+              <Text variant="label" as="span">
+                {item.label}
+              </Text>
+            </div>
+            <Badge variant={item.badge.variant}>{item.badge.text}</Badge>
+          </SelectableRow>
+        ))}
+      </div>
+    );
+  },
   parameters: {
     docs: {
       description: {
         story:
-          'Rows with an icon, label, and badge — showing one selected item.',
+          'Click rows to toggle selection. Demonstrates interactive selection behavior with icons and badges.',
       },
     },
   },

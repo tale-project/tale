@@ -1,12 +1,17 @@
 'use client';
 
 import { ExternalLink, Loader2 } from 'lucide-react';
+import { useMemo } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
+import {
+  type StatGridItem,
+  StatGrid,
+} from '@/app/components/ui/data-display/stat-grid';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
@@ -48,6 +53,84 @@ export function IntegrationActiveView({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
+  const authItems = useMemo<StatGridItem[]>(
+    () => [
+      ...(isSql && integration.sqlConnectionConfig?.server
+        ? [
+            {
+              label: t('integrations.manageDialog.server'),
+              value: (
+                <Text variant="code">
+                  {maskValue(integration.sqlConnectionConfig.server)}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(integration.authMethod === 'basic_auth' &&
+      integration.basicAuth?.username
+        ? [
+            {
+              label: t('integrations.manageDialog.username'),
+              value: (
+                <Text variant="code">
+                  {maskValue(integration.basicAuth.username)}
+                </Text>
+              ),
+            },
+            {
+              label: t('integrations.manageDialog.password'),
+              value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
+            },
+          ]
+        : []),
+      ...(integration.authMethod === 'api_key' && integration.apiKeyAuth
+        ? [
+            {
+              label:
+                secretBindings.find((b) => SENSITIVE_KEYS.has(b)) ?? 'apiKey',
+              value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
+            },
+          ]
+        : []),
+      ...(integration.authMethod === 'oauth2' && integration.oauth2Auth
+        ? [
+            {
+              label: hasOAuth2Config
+                ? t('integrations.manageDialog.connectedViaOAuth2')
+                : 'accessToken',
+              value: <Text variant="code">{'\u00d7'.repeat(8)}</Text>,
+            },
+          ]
+        : []),
+      ...(integration.connectionConfig?.domain
+        ? [
+            {
+              label: 'domain',
+              value: (
+                <Text variant="code" truncate>
+                  {maskValue(integration.connectionConfig.domain)}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(integration.connectionConfig?.apiEndpoint
+        ? [
+            {
+              label: 'apiEndpoint',
+              value: (
+                <Text variant="code" truncate>
+                  {integration.connectionConfig.apiEndpoint}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [integration, isSql, secretBindings, hasOAuth2Config, t],
+  );
+
   return (
     <Stack gap={3}>
       <BorderedSection gap={2}>
@@ -55,103 +138,8 @@ export function IntegrationActiveView({
           {t('integrations.manageDialog.authentication')}
         </Text>
 
-        {isSql && integration.sqlConnectionConfig?.server && (
-          <HStack
-            gap={2}
-            className="text-muted-foreground items-center text-sm"
-          >
-            <Text as="span" variant="body-sm" className="w-20 shrink-0">
-              {t('integrations.manageDialog.server')}
-            </Text>
-            <Text as="span" variant="code">
-              {maskValue(integration.sqlConnectionConfig.server)}
-            </Text>
-          </HStack>
-        )}
-
-        {integration.authMethod === 'basic_auth' &&
-          integration.basicAuth?.username && (
-            <>
-              <HStack
-                gap={2}
-                className="text-muted-foreground items-center text-sm"
-              >
-                <Text as="span" variant="body-sm" className="w-20 shrink-0">
-                  {t('integrations.manageDialog.username')}
-                </Text>
-                <Text as="span" variant="code">
-                  {maskValue(integration.basicAuth.username)}
-                </Text>
-              </HStack>
-              <HStack
-                gap={2}
-                className="text-muted-foreground items-center text-sm"
-              >
-                <Text as="span" variant="body-sm" className="w-20 shrink-0">
-                  {t('integrations.manageDialog.password')}
-                </Text>
-                <Text as="span" variant="code">
-                  {'\u00d7'.repeat(8)}
-                </Text>
-              </HStack>
-            </>
-          )}
-
-        {integration.authMethod === 'api_key' && integration.apiKeyAuth && (
-          <HStack
-            gap={2}
-            className="text-muted-foreground items-center text-sm"
-          >
-            <Text as="span" variant="body-sm" className="w-20 shrink-0">
-              {secretBindings.find((b) => SENSITIVE_KEYS.has(b)) ?? 'apiKey'}
-            </Text>
-            <Text as="span" variant="code">
-              {'\u00d7'.repeat(8)}
-            </Text>
-          </HStack>
-        )}
-
-        {integration.authMethod === 'oauth2' && integration.oauth2Auth && (
-          <HStack
-            gap={2}
-            className="text-muted-foreground items-center text-sm"
-          >
-            <Text as="span" variant="body-sm" className="w-20 shrink-0">
-              {hasOAuth2Config
-                ? t('integrations.manageDialog.connectedViaOAuth2')
-                : 'accessToken'}
-            </Text>
-            <Text as="span" variant="code">
-              {'\u00d7'.repeat(8)}
-            </Text>
-          </HStack>
-        )}
-
-        {integration.connectionConfig?.domain && (
-          <HStack
-            gap={2}
-            className="text-muted-foreground items-center text-sm"
-          >
-            <Text as="span" variant="body-sm" className="w-20 shrink-0">
-              domain
-            </Text>
-            <Text as="span" variant="code" truncate>
-              {maskValue(integration.connectionConfig.domain)}
-            </Text>
-          </HStack>
-        )}
-        {integration.connectionConfig?.apiEndpoint && (
-          <HStack
-            gap={2}
-            className="text-muted-foreground items-center text-sm"
-          >
-            <Text as="span" variant="body-sm" className="w-20 shrink-0">
-              apiEndpoint
-            </Text>
-            <Text as="span" variant="code" truncate>
-              {integration.connectionConfig.apiEndpoint}
-            </Text>
-          </HStack>
+        {authItems.length > 0 && (
+          <StatGrid items={authItems} className="text-sm" />
         )}
       </BorderedSection>
 

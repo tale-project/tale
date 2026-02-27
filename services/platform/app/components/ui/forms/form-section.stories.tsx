@@ -84,11 +84,12 @@ export const DescriptionOnly: Story = {
 };
 
 export const WithCheckboxGroup: Story = {
-  render: () => (
-    <FormSection
-      label="Permissions"
-      description="Select the permissions for this role."
-    >
+  args: {
+    label: 'Permissions',
+    description: 'Select the permissions for this role.',
+  },
+  render: (args) => (
+    <FormSection {...args}>
       <div className="flex flex-col gap-2">
         <Checkbox label="Read access" />
         <Checkbox label="Write access" />

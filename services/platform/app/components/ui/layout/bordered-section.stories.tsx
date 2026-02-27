@@ -41,23 +41,32 @@ export default meta;
 type Story = StoryObj<typeof BorderedSection>;
 
 export const Default: Story = {
-  render: () => (
-    <BorderedSection>
-      <p className="text-sm">
-        Default bordered section with padding 4 and gap 3.
-      </p>
-      <p className="text-muted-foreground text-sm">A second line of content.</p>
-    </BorderedSection>
-  ),
+  args: {
+    children: (
+      <>
+        <p className="text-sm">
+          Default bordered section with padding 4 and gap 3.
+        </p>
+        <p className="text-muted-foreground text-sm">
+          A second line of content.
+        </p>
+      </>
+    ),
+  },
 };
 
 export const SmallPadding: Story = {
-  render: () => (
-    <BorderedSection padding={3}>
-      <p className="text-sm">Compact section with reduced padding.</p>
-      <p className="text-muted-foreground text-sm">A second line of content.</p>
-    </BorderedSection>
-  ),
+  args: {
+    padding: 3,
+    children: (
+      <>
+        <p className="text-sm">Compact section with reduced padding.</p>
+        <p className="text-muted-foreground text-sm">
+          A second line of content.
+        </p>
+      </>
+    ),
+  },
   parameters: {
     docs: {
       description: {
@@ -68,12 +77,17 @@ export const SmallPadding: Story = {
 };
 
 export const SmallGap: Story = {
-  render: () => (
-    <BorderedSection gap={2}>
-      <p className="text-sm">Tighter gap between children.</p>
-      <p className="text-muted-foreground text-sm">A second line of content.</p>
-    </BorderedSection>
-  ),
+  args: {
+    gap: 2,
+    children: (
+      <>
+        <p className="text-sm">Tighter gap between children.</p>
+        <p className="text-muted-foreground text-sm">
+          A second line of content.
+        </p>
+      </>
+    ),
+  },
   parameters: {
     docs: {
       description: {
@@ -84,13 +98,15 @@ export const SmallGap: Story = {
 };
 
 export const WithForm: Story = {
-  render: () => (
-    <BorderedSection>
-      <Input label="Name" placeholder="Enter name" />
-      <Input label="Email" type="email" placeholder="name@example.com" />
-      <Switch label="Enable notifications" />
-    </BorderedSection>
-  ),
+  args: {
+    children: (
+      <>
+        <Input label="Name" placeholder="Enter name" />
+        <Input label="Email" type="email" placeholder="name@example.com" />
+        <Switch label="Enable notifications" />
+      </>
+    ),
+  },
   parameters: {
     docs: {
       description: {
