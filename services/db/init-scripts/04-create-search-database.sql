@@ -1,13 +1,13 @@
 -- Tale DB: Crawler search database (pgvector + pg_search BM25)
 -- Idempotent: safe to run on every startup
 
-SELECT 'CREATE DATABASE tale_crawler_search'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'tale_crawler_search')
+SELECT 'CREATE DATABASE tale_search'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'tale_search')
 \gexec
 
-GRANT ALL PRIVILEGES ON DATABASE tale_crawler_search TO tale;
+GRANT ALL PRIVILEGES ON DATABASE tale_search TO tale;
 
-\c tale_crawler_search
+\c tale_search
 
 DROP EXTENSION IF EXISTS timescaledb CASCADE;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

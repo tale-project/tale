@@ -1,7 +1,7 @@
 """
 Async PostgreSQL connection pool using asyncpg.
 
-Provides a singleton pool tied to FastAPI's lifespan for the tale_crawler_search database.
+Provides a singleton pool tied to FastAPI's lifespan for the tale_search database.
 """
 
 import os
@@ -20,7 +20,7 @@ def _get_database_url() -> str:
     if url := os.environ.get("DATABASE_URL"):
         return url
     password = os.environ.get("DB_PASSWORD", "tale_password_change_me")
-    return f"postgresql://tale:{password}@db:5432/tale_crawler_search"
+    return f"postgresql://tale:{password}@db:5432/tale_search"
 
 
 async def init_pool() -> asyncpg.Pool:
