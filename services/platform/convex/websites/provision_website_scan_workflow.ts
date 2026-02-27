@@ -75,8 +75,8 @@ export async function provisionWebsiteScanWorkflow(
     s.startsWith('http://') || s.startsWith('https://') ? s : `https://${s}`;
 
   const u = new URL(ensureUrl(args.domain));
-  const websiteUrl = `${u.protocol}//${u.host}${u.pathname || ''}`;
-  const websiteDomain = u.hostname;
+  const websiteUrl = `${u.protocol}//${u.host}${u.pathname || '/'}`;
+  const websiteDomain = websiteUrl;
 
   // Register website with crawler service for autonomous background scanning
   const crawlerUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
@@ -85,7 +85,7 @@ export async function provisionWebsiteScanWorkflow(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        domain: websiteDomain,
+        url: websiteUrl,
         scan_interval: scanIntervalToSeconds(args.scanInterval),
       }),
     });

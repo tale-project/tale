@@ -3,7 +3,7 @@ Multi-DB SQLite store for website URL registry with content hashing.
 
 Architecture:
 - Main DB (data/crawler.db): websites table — registry of all tracked websites
-- Per-site DB (data/sites/{domain}.db): website_urls table — URLs + content_hash per site
+- Per-site DB (data/sites/{url_slug}.db): website_urls table — URLs + content_hash per site
 
 Benefits:
 - Zero lock contention: each website has its own SQLite file, independent WAL
@@ -23,8 +23,24 @@ logger = logging.getLogger(__name__)
 _DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 
-def _sanitize_domain(domain: str) -> str:
-    return domain.replace(".", "_").replace("-", "_")
+def _normalize_url(raw: str) -> str:
+    """Normalize input to full URL: add scheme, ensure path."""
+    if not raw.startswith(("http://", "https://")):
+        raw = f"https://{raw}"
+    parsed = urlparse(raw)
+    path = parsed.path or "/"
+    return f"{parsed.scheme}://{parsed.netloc}{path}"
+
+
+def _url_to_filename(url: str) -> str:
+    """Convert normalized URL to safe SQLite filename."""
+    parsed = urlparse(url)
+    domain_part = parsed.netloc.replace(".", "_").replace("-", "_")
+    path = parsed.path.strip("/")
+    if not path:
+        return domain_part
+    path_part = path.replace("/", "_").replace(".", "_").replace("-", "_")
+    return f"{domain_part}__{path_part}"
 
 
 class WebsiteStore:
@@ -304,9 +320,21 @@ class WebsiteStoreManager:
 
     def _init_main_db(self):
         conn = self._get_main_conn()
+
+        # Check if we need to migrate from old domain-based schema
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if "websites" in tables:
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(websites)").fetchall()}
+            if "domain" in columns and "url" not in columns:
+                self._migrate_domain_to_url(conn)
+                logger.info("Migrated websites table from domain to url schema")
+                return
+
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS websites (
-                domain TEXT PRIMARY KEY,
+                url TEXT PRIMARY KEY,
+                domain TEXT NOT NULL,
+                path_prefix TEXT NOT NULL DEFAULT '/',
                 status TEXT NOT NULL DEFAULT 'idle',
                 scan_interval INTEGER NOT NULL DEFAULT 21600,
                 last_scanned_at REAL,
@@ -318,27 +346,79 @@ class WebsiteStoreManager:
         conn.commit()
         logger.info(f"Website store manager initialized at {self._data_dir}")
 
-    def register_website(self, domain: str, scan_interval: int = 21600) -> dict:
+    @staticmethod
+    def _migrate_domain_to_url(conn: sqlite3.Connection):
+        """Migrate from old domain-based schema to url-based schema."""
+        conn.executescript("""
+            CREATE TABLE websites_new (
+                url TEXT PRIMARY KEY,
+                domain TEXT NOT NULL,
+                path_prefix TEXT NOT NULL DEFAULT '/',
+                status TEXT NOT NULL DEFAULT 'idle',
+                scan_interval INTEGER NOT NULL DEFAULT 21600,
+                last_scanned_at REAL,
+                error TEXT,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            );
+        """)
+        rows = conn.execute("SELECT * FROM websites").fetchall()
+        for row in rows:
+            old_domain = row["domain"]
+            new_url = f"https://{old_domain}/"
+            conn.execute(
+                "INSERT INTO websites_new (url, domain, path_prefix, status, scan_interval, "
+                "last_scanned_at, error, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    new_url,
+                    old_domain,
+                    "/",
+                    row["status"],
+                    row["scan_interval"],
+                    row["last_scanned_at"],
+                    row["error"],
+                    row["created_at"],
+                    row["updated_at"],
+                ),
+            )
+        conn.execute("DROP TABLE websites")
+        conn.execute("ALTER TABLE websites_new RENAME TO websites")
+        conn.commit()
+
+    def register_website(self, url: str, scan_interval: int = 21600) -> dict:
+        normalized = _normalize_url(url)
+        parsed = urlparse(normalized)
+        domain = parsed.netloc
+        path_prefix = parsed.path or "/"
+
         now = time.time()
         conn = self._get_main_conn()
         conn.execute(
-            """INSERT INTO websites (domain, scan_interval, created_at, updated_at)
-               VALUES (?, ?, ?, ?)
-               ON CONFLICT(domain) DO UPDATE SET
+            """INSERT INTO websites (url, domain, path_prefix, scan_interval, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(url) DO UPDATE SET
                  scan_interval = excluded.scan_interval,
                  updated_at = excluded.updated_at""",
-            (domain, scan_interval, now, now),
+            (normalized, domain, path_prefix, scan_interval, now, now),
         )
         conn.commit()
-        logger.info(f"Registered website: {domain} (interval={scan_interval}s)")
-        return {"domain": domain, "scan_interval": scan_interval, "status": "idle"}
+        logger.info(f"Registered website: {normalized} (interval={scan_interval}s)")
+        return {
+            "url": normalized,
+            "domain": domain,
+            "path_prefix": path_prefix,
+            "scan_interval": scan_interval,
+            "status": "idle",
+        }
 
-    def remove_website(self, domain: str) -> bool:
-        if domain in self._stores:
-            self._stores[domain].close()
-            del self._stores[domain]
+    def remove_website(self, url: str) -> bool:
+        normalized = _normalize_url(url)
+        if normalized in self._stores:
+            self._stores[normalized].close()
+            del self._stores[normalized]
 
-        db_file = self._sites_dir / f"{_sanitize_domain(domain)}.db"
+        db_file = self._sites_dir / f"{_url_to_filename(normalized)}.db"
         if db_file.exists():
             db_file.unlink()
             wal = db_file.with_suffix(".db-wal")
@@ -349,18 +429,18 @@ class WebsiteStoreManager:
                 shm.unlink()
 
         conn = self._get_main_conn()
-        cursor = conn.execute("DELETE FROM websites WHERE domain = ?", (domain,))
+        cursor = conn.execute("DELETE FROM websites WHERE url = ?", (normalized,))
         conn.commit()
         deleted = cursor.rowcount > 0
         if deleted:
-            logger.info(f"Removed website: {domain}")
+            logger.info(f"Removed website: {normalized}")
         return deleted
 
     def get_due_websites(self) -> list[dict]:
         now = time.time()
         conn = self._get_main_conn()
         rows = conn.execute(
-            """SELECT domain, status, scan_interval, last_scanned_at, error
+            """SELECT url, domain, path_prefix, status, scan_interval, last_scanned_at, error
                FROM websites
                WHERE status != 'scanning'
                  AND (last_scanned_at IS NULL
@@ -369,38 +449,50 @@ class WebsiteStoreManager:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def update_scan_status(self, domain: str, status: str, error: str | None = None):
+    def update_scan_status(self, url: str, status: str, error: str | None = None):
         now = time.time()
         conn = self._get_main_conn()
         conn.execute(
-            "UPDATE websites SET status = ?, error = ?, updated_at = ? WHERE domain = ?",
-            (status, error, now, domain),
+            "UPDATE websites SET status = ?, error = ?, updated_at = ? WHERE url = ?",
+            (status, error, now, url),
         )
         conn.commit()
 
-    def update_last_scanned(self, domain: str):
+    def update_last_scanned(self, url: str):
         now = time.time()
         conn = self._get_main_conn()
         conn.execute(
-            "UPDATE websites SET last_scanned_at = ?, updated_at = ? WHERE domain = ?",
-            (now, now, domain),
+            "UPDATE websites SET last_scanned_at = ?, updated_at = ? WHERE url = ?",
+            (now, now, url),
         )
         conn.commit()
 
-    def get_website(self, domain: str) -> dict | None:
+    def get_website(self, url: str) -> dict | None:
+        normalized = _normalize_url(url)
         conn = self._get_main_conn()
         row = conn.execute(
-            "SELECT domain, status, scan_interval, last_scanned_at, error, created_at, updated_at "
-            "FROM websites WHERE domain = ?",
-            (domain,),
+            "SELECT url, domain, path_prefix, status, scan_interval, "
+            "last_scanned_at, error, created_at, updated_at "
+            "FROM websites WHERE url = ?",
+            (normalized,),
         ).fetchone()
         return dict(row) if row else None
 
-    def get_site_store(self, domain: str) -> WebsiteStore:
-        if domain not in self._stores:
-            db_path = self._sites_dir / f"{_sanitize_domain(domain)}.db"
-            self._stores[domain] = WebsiteStore(db_path)
-        return self._stores[domain]
+    def get_site_store(self, url: str) -> WebsiteStore:
+        normalized = _normalize_url(url)
+        if normalized not in self._stores:
+            db_path = self._sites_dir / f"{_url_to_filename(normalized)}.db"
+            self._stores[normalized] = WebsiteStore(db_path)
+        return self._stores[normalized]
+
+    def _get_websites_by_domain(self, domain: str) -> list[dict]:
+        """Get all registered websites for a given domain, sorted by longest path_prefix first."""
+        conn = self._get_main_conn()
+        rows = conn.execute(
+            "SELECT url, domain, path_prefix FROM websites WHERE domain = ? ORDER BY LENGTH(path_prefix) DESC",
+            (domain,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_cached_pages(self, urls: list[str]) -> tuple[list[dict], list[str]]:
         """Return cached page content for URLs with registered websites.
@@ -419,15 +511,29 @@ class WebsiteStoreManager:
         to_crawl: list[str] = []
 
         for domain, domain_urls in by_domain.items():
-            if not self.get_website(domain):
+            registrations = self._get_websites_by_domain(domain)
+            if not registrations:
                 to_crawl.extend(domain_urls)
                 continue
 
-            site_store = self.get_site_store(domain)
-            hits = site_store.get_cached_pages(domain_urls)
-            hit_urls = {p["url"] for p in hits}
-            cached.extend(hits)
-            to_crawl.extend(u for u in domain_urls if u not in hit_urls)
+            for url in domain_urls:
+                url_path = urlparse(url).path or "/"
+                matched = None
+                for reg in registrations:
+                    if url_path.startswith(reg["path_prefix"]):
+                        matched = reg
+                        break
+
+                if not matched:
+                    to_crawl.append(url)
+                    continue
+
+                site_store = self.get_site_store(matched["url"])
+                hits = site_store.get_cached_pages([url])
+                if hits:
+                    cached.extend(hits)
+                else:
+                    to_crawl.append(url)
 
         return cached, to_crawl
 

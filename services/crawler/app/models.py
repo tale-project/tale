@@ -24,7 +24,7 @@ class PageContent(BaseModel):
 class RegisterWebsiteRequest(BaseModel):
     """Request to register a website for tracking."""
 
-    domain: str = Field(..., description="The domain to register (e.g., 'docs.example.com')")
+    url: str = Field(..., description="Base URL to scope scanning (e.g., 'https://docs.python.org/3.12/')")
     scan_interval: int = Field(21600, description="Scan interval in seconds (default: 6h)", ge=60)
 
 
@@ -40,7 +40,7 @@ class WebsiteUrl(BaseModel):
 class WebsiteUrlsResponse(BaseModel):
     """Paginated response of website URLs."""
 
-    domain: str = Field(..., description="The website domain")
+    url: str = Field(..., description="The registered base URL")
     urls: list[WebsiteUrl] = Field(default_factory=list, description="URL entries")
     total: int = Field(0, description="Total URL count")
     offset: int = Field(0, description="Current offset")

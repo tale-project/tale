@@ -41,7 +41,7 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
       wordCountThreshold: v.optional(v.number()),
       timeout: v.optional(v.number()),
     }),
-    // query_urls: Query crawler's URL registry for a domain
+    // query_urls: Query crawler's URL registry for a registered base URL
     v.object({
       operation: v.literal('query_urls'),
       domain: v.string(),
@@ -223,8 +223,10 @@ async function queryUrls(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+  searchParams.set('url', params.domain);
+
   const response = await fetch(
-    `${serviceUrl}/api/v1/websites/${encodeURIComponent(params.domain)}/urls?${searchParams}`,
+    `${serviceUrl}/api/v1/websites/urls?${searchParams}`,
     { signal: controller.signal },
   );
 
@@ -242,7 +244,7 @@ async function queryUrls(
   );
 
   return {
-    domain: result.domain,
+    url: result.url,
     urls: result.urls.map((u) => ({
       url: u.url,
       contentHash: u.content_hash,

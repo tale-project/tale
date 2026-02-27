@@ -17,7 +17,7 @@ async def register_website(request: RegisterWebsiteRequest):
     try:
         manager = get_website_store_manager()
         result = manager.register_website(
-            domain=request.domain,
+            url=request.url,
             scan_interval=request.scan_interval,
         )
         trigger_scan()
@@ -27,14 +27,14 @@ async def register_website(request: RegisterWebsiteRequest):
         raise HTTPException(status_code=500, detail="Failed to register website") from None
 
 
-@router.delete("/{domain}")
-async def deregister_website(domain: str):
+@router.delete("")
+async def deregister_website(url: str = Query(..., description="The registered base URL to remove")):
     try:
         manager = get_website_store_manager()
-        deleted = manager.remove_website(domain)
+        deleted = manager.remove_website(url)
         if not deleted:
-            raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
-        return {"domain": domain, "deleted": True}
+            raise HTTPException(status_code=404, detail=f"Website not found: {url}")
+        return {"url": url, "deleted": True}
     except HTTPException:
         raise
     except Exception:
@@ -42,20 +42,20 @@ async def deregister_website(domain: str):
         raise HTTPException(status_code=500, detail="Failed to deregister website") from None
 
 
-@router.get("/{domain}/urls", response_model=WebsiteUrlsResponse)
+@router.get("/urls", response_model=WebsiteUrlsResponse)
 async def get_website_urls(
-    domain: str,
+    url: str = Query(..., description="The registered base URL"),
     offset: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     status: str | None = Query(None),
 ):
     try:
         manager = get_website_store_manager()
-        website = manager.get_website(domain)
+        website = manager.get_website(url)
         if not website:
-            raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
+            raise HTTPException(status_code=404, detail=f"Website not found: {url}")
 
-        site_store = manager.get_site_store(domain)
+        site_store = manager.get_site_store(url)
         urls_data = site_store.get_urls_page(offset=offset, limit=limit, status=status)
         total = site_store.get_total_count(status=status)
 
@@ -70,7 +70,7 @@ async def get_website_urls(
         ]
 
         return WebsiteUrlsResponse(
-            domain=domain,
+            url=website["url"],
             urls=urls,
             total=total,
             offset=offset,

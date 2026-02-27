@@ -26,12 +26,13 @@ function toUrlAndDomain(input: string): {
     s.startsWith('http://') || s.startsWith('https://') ? s : `https://${s}`;
   try {
     const u = new URL(ensureUrl(input));
-    const url = `${u.protocol}//${u.host}${u.pathname || ''}`;
-    return { websiteUrl: url, websiteDomain: u.hostname };
+    const url = `${u.protocol}//${u.host}${u.pathname || '/'}`;
+    return { websiteUrl: url, websiteDomain: url };
   } catch {
     // Fallback: treat as bare domain
     const u = new URL(ensureUrl(input));
-    return { websiteUrl: u.toString(), websiteDomain: u.hostname };
+    const url = `${u.protocol}//${u.host}${u.pathname || '/'}`;
+    return { websiteUrl: url, websiteDomain: url };
   }
 }
 

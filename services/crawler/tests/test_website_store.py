@@ -20,7 +20,8 @@ _spec.loader.exec_module(_mod)
 
 WebsiteStore = _mod.WebsiteStore
 WebsiteStoreManager = _mod.WebsiteStoreManager
-_sanitize_domain = _mod._sanitize_domain
+_normalize_url = _mod._normalize_url
+_url_to_filename = _mod._url_to_filename
 
 
 @pytest.fixture
@@ -43,12 +44,40 @@ def manager(tmp_data_dir):
     mgr.close_all()
 
 
-class TestSanitizeDomain:
-    def test_replaces_dots_and_hyphens(self):
-        assert _sanitize_domain("my-site.example.com") == "my_site_example_com"
+class TestNormalizeUrl:
+    def test_bare_domain(self):
+        assert _normalize_url("example.com") == "https://example.com/"
 
-    def test_no_special_chars(self):
-        assert _sanitize_domain("localhost") == "localhost"
+    def test_domain_with_path(self):
+        assert _normalize_url("docs.python.org/3.12/") == "https://docs.python.org/3.12/"
+
+    def test_full_url(self):
+        assert _normalize_url("https://github.com/user/repo") == "https://github.com/user/repo"
+
+    def test_http_scheme(self):
+        assert _normalize_url("http://example.com/path") == "http://example.com/path"
+
+    def test_no_path_adds_slash(self):
+        assert _normalize_url("https://example.com") == "https://example.com/"
+
+
+class TestUrlToFilename:
+    def test_bare_domain(self):
+        assert _url_to_filename("https://example.com/") == "example_com"
+
+    def test_domain_with_path(self):
+        assert _url_to_filename("https://docs.python.org/3.12/") == "docs_python_org__3_12"
+
+    def test_deep_path(self):
+        assert _url_to_filename("https://github.com/user/repo") == "github_com__user_repo"
+
+    def test_hyphens_in_domain(self):
+        assert _url_to_filename("https://my-site.example.com/") == "my_site_example_com"
+
+    def test_backward_compat_no_path(self):
+        # Bare domains produce the same filename as the old _sanitize_domain
+        assert _url_to_filename("https://example.com/") == "example_com"
+        assert _url_to_filename("https://my-site.example.com/") == "my_site_example_com"
 
 
 class TestWebsiteStore:
@@ -511,93 +540,142 @@ class TestWebsiteStore:
 
 class TestWebsiteStoreManager:
     def test_register_website(self, manager):
-        result = manager.register_website("example.com", scan_interval=3600)
+        result = manager.register_website("https://example.com/", scan_interval=3600)
+        assert result["url"] == "https://example.com/"
         assert result["domain"] == "example.com"
+        assert result["path_prefix"] == "/"
         assert result["scan_interval"] == 3600
 
-        website = manager.get_website("example.com")
+        website = manager.get_website("https://example.com/")
         assert website is not None
-        assert website["domain"] == "example.com"
+        assert website["url"] == "https://example.com/"
         assert website["scan_interval"] == 3600
         assert website["status"] == "idle"
 
-    def test_register_website_upsert(self, manager):
-        manager.register_website("example.com", scan_interval=3600)
-        manager.register_website("example.com", scan_interval=7200)
+    def test_register_website_normalizes_bare_domain(self, manager):
+        result = manager.register_website("example.com", scan_interval=3600)
+        assert result["url"] == "https://example.com/"
+        assert result["domain"] == "example.com"
+        assert result["path_prefix"] == "/"
 
         website = manager.get_website("example.com")
+        assert website is not None
+        assert website["url"] == "https://example.com/"
+
+    def test_register_website_with_path(self, manager):
+        result = manager.register_website("https://docs.python.org/3.12/")
+        assert result["url"] == "https://docs.python.org/3.12/"
+        assert result["domain"] == "docs.python.org"
+        assert result["path_prefix"] == "/3.12/"
+
+    def test_register_website_upsert(self, manager):
+        manager.register_website("https://example.com/", scan_interval=3600)
+        manager.register_website("https://example.com/", scan_interval=7200)
+
+        website = manager.get_website("https://example.com/")
         assert website["scan_interval"] == 7200
 
+    def test_register_multiple_paths_same_domain(self, manager):
+        manager.register_website("https://docs.python.org/3.12/")
+        manager.register_website("https://docs.python.org/3.13/")
+
+        w1 = manager.get_website("https://docs.python.org/3.12/")
+        w2 = manager.get_website("https://docs.python.org/3.13/")
+        assert w1 is not None
+        assert w2 is not None
+        assert w1["url"] != w2["url"]
+
     def test_remove_website(self, manager, tmp_data_dir):
-        manager.register_website("example.com")
-        site_store = manager.get_site_store("example.com")
+        manager.register_website("https://example.com/")
+        site_store = manager.get_site_store("https://example.com/")
         site_store.save_discovered_urls([{"url": "https://example.com/a"}])
 
         db_file = tmp_data_dir / "sites" / "example_com.db"
         assert db_file.exists()
 
-        removed = manager.remove_website("example.com")
+        removed = manager.remove_website("https://example.com/")
         assert removed is True
         assert not db_file.exists()
-        assert manager.get_website("example.com") is None
+        assert manager.get_website("https://example.com/") is None
+
+    def test_remove_website_with_path(self, manager, tmp_data_dir):
+        manager.register_website("https://docs.python.org/3.12/")
+        site_store = manager.get_site_store("https://docs.python.org/3.12/")
+        site_store.save_discovered_urls([{"url": "https://docs.python.org/3.12/tutorial"}])
+
+        db_file = tmp_data_dir / "sites" / "docs_python_org__3_12.db"
+        assert db_file.exists()
+
+        removed = manager.remove_website("https://docs.python.org/3.12/")
+        assert removed is True
+        assert not db_file.exists()
 
     def test_remove_website_not_found(self, manager):
-        removed = manager.remove_website("nonexistent.com")
+        removed = manager.remove_website("https://nonexistent.com/")
         assert removed is False
 
     def test_get_due_websites_none_scanned(self, manager):
-        manager.register_website("a.com")
-        manager.register_website("b.com")
+        manager.register_website("https://a.com/")
+        manager.register_website("https://b.com/")
 
         due = manager.get_due_websites()
-        domains = [w["domain"] for w in due]
-        assert "a.com" in domains
-        assert "b.com" in domains
+        urls = [w["url"] for w in due]
+        assert "https://a.com/" in urls
+        assert "https://b.com/" in urls
 
     def test_get_due_websites_excludes_scanning(self, manager):
-        manager.register_website("a.com")
-        manager.update_scan_status("a.com", "scanning")
+        manager.register_website("https://a.com/")
+        manager.update_scan_status("https://a.com/", "scanning")
 
         due = manager.get_due_websites()
         assert len(due) == 0
 
     def test_get_due_websites_excludes_recently_scanned(self, manager):
-        manager.register_website("a.com", scan_interval=3600)
-        manager.update_last_scanned("a.com")
+        manager.register_website("https://a.com/", scan_interval=3600)
+        manager.update_last_scanned("https://a.com/")
 
         due = manager.get_due_websites()
         assert len(due) == 0
 
-    def test_update_scan_status(self, manager):
-        manager.register_website("a.com")
-        manager.update_scan_status("a.com", "error", error="timeout")
+    def test_get_due_websites_returns_domain_and_path(self, manager):
+        manager.register_website("https://docs.python.org/3.12/")
+        due = manager.get_due_websites()
+        assert len(due) == 1
+        assert due[0]["url"] == "https://docs.python.org/3.12/"
+        assert due[0]["domain"] == "docs.python.org"
+        assert due[0]["path_prefix"] == "/3.12/"
 
-        website = manager.get_website("a.com")
+    def test_update_scan_status(self, manager):
+        manager.register_website("https://a.com/")
+        manager.update_scan_status("https://a.com/", "error", error="timeout")
+
+        website = manager.get_website("https://a.com/")
         assert website["status"] == "error"
         assert website["error"] == "timeout"
 
     def test_update_scan_status_clears_error(self, manager):
-        manager.register_website("a.com")
-        manager.update_scan_status("a.com", "error", error="timeout")
-        manager.update_scan_status("a.com", "idle")
+        manager.register_website("https://a.com/")
+        manager.update_scan_status("https://a.com/", "error", error="timeout")
+        manager.update_scan_status("https://a.com/", "idle")
 
-        website = manager.get_website("a.com")
+        website = manager.get_website("https://a.com/")
         assert website["status"] == "idle"
         assert website["error"] is None
 
     def test_get_site_store_creates_and_caches(self, manager):
-        store1 = manager.get_site_store("example.com")
-        store2 = manager.get_site_store("example.com")
+        manager.register_website("https://example.com/")
+        store1 = manager.get_site_store("https://example.com/")
+        store2 = manager.get_site_store("https://example.com/")
         assert store1 is store2
 
-    def test_get_site_store_different_domains(self, manager):
-        store_a = manager.get_site_store("a.com")
-        store_b = manager.get_site_store("b.com")
+    def test_get_site_store_different_urls(self, manager):
+        store_a = manager.get_site_store("https://a.com/")
+        store_b = manager.get_site_store("https://b.com/")
         assert store_a is not store_b
 
     def test_site_store_isolation(self, manager):
-        store_a = manager.get_site_store("a.com")
-        store_b = manager.get_site_store("b.com")
+        store_a = manager.get_site_store("https://a.com/")
+        store_b = manager.get_site_store("https://b.com/")
 
         store_a.save_discovered_urls([{"url": "https://a.com/page"}])
         store_a.update_content_hashes([{"url": "https://a.com/page", "content_hash": "ha"}])
@@ -614,11 +692,11 @@ class TestWebsiteStoreManager:
         assert store_b.get_total_count() == 2
 
     def test_get_website_not_found(self, manager):
-        assert manager.get_website("nonexistent.com") is None
+        assert manager.get_website("https://nonexistent.com/") is None
 
     def test_close_all(self, manager):
-        manager.register_website("a.com")
-        manager.get_site_store("a.com")
+        manager.register_website("https://a.com/")
+        manager.get_site_store("https://a.com/")
 
         manager.close_all()
         # After close_all, internal state should be cleared
@@ -626,21 +704,21 @@ class TestWebsiteStoreManager:
         assert manager._main_conn is None
 
     def test_removes_wal_and_shm_files(self, manager, tmp_data_dir):
-        manager.register_website("example.com")
-        site_store = manager.get_site_store("example.com")
+        manager.register_website("https://example.com/")
+        site_store = manager.get_site_store("https://example.com/")
         site_store.save_discovered_urls([{"url": "https://example.com/a"}])
 
         db_file = tmp_data_dir / "sites" / "example_com.db"
         # WAL files may or may not exist depending on SQLite behavior,
         # but remove_website should handle them gracefully
-        manager.remove_website("example.com")
+        manager.remove_website("https://example.com/")
         assert not db_file.exists()
         assert not db_file.with_suffix(".db-wal").exists()
         assert not db_file.with_suffix(".db-shm").exists()
 
-    def test_get_cached_pages_registered_domain(self, manager):
-        manager.register_website("example.com")
-        store = manager.get_site_store("example.com")
+    def test_get_cached_pages_registered_website(self, manager):
+        manager.register_website("https://example.com/")
+        store = manager.get_site_store("https://example.com/")
         store.save_discovered_urls([{"url": "https://example.com/page"}])
         store.update_content_hashes(
             [
@@ -665,8 +743,8 @@ class TestWebsiteStoreManager:
         assert to_crawl == ["https://unknown.com/page"]
 
     def test_get_cached_pages_mixed_domains(self, manager):
-        manager.register_website("a.com")
-        store = manager.get_site_store("a.com")
+        manager.register_website("https://a.com/")
+        store = manager.get_site_store("https://a.com/")
         store.save_discovered_urls([{"url": "https://a.com/page"}])
         store.update_content_hashes(
             [
@@ -684,9 +762,9 @@ class TestWebsiteStoreManager:
         assert cached[0]["url"] == "https://a.com/page"
         assert to_crawl == ["https://b.com/other"]
 
-    def test_get_cached_pages_cache_miss_on_registered_domain(self, manager):
-        manager.register_website("example.com")
-        store = manager.get_site_store("example.com")
+    def test_get_cached_pages_cache_miss_on_registered_website(self, manager):
+        manager.register_website("https://example.com/")
+        store = manager.get_site_store("https://example.com/")
         store.save_discovered_urls([{"url": "https://example.com/a"}])
         # Hash only, no content
         store.update_content_hashes([{"url": "https://example.com/a", "content_hash": "h1"}])
@@ -695,7 +773,97 @@ class TestWebsiteStoreManager:
         assert len(cached) == 0
         assert to_crawl == ["https://example.com/a"]
 
+    def test_get_cached_pages_path_prefix_matching(self, manager):
+        """URLs should match the registered base URL by path prefix."""
+        manager.register_website("https://docs.python.org/3.12/")
+        store = manager.get_site_store("https://docs.python.org/3.12/")
+        store.save_discovered_urls([{"url": "https://docs.python.org/3.12/tutorial"}])
+        store.update_content_hashes(
+            [
+                {
+                    "url": "https://docs.python.org/3.12/tutorial",
+                    "content_hash": "h1",
+                    "content": "Tutorial content",
+                    "word_count": 2,
+                },
+            ]
+        )
+
+        cached, to_crawl = manager.get_cached_pages(["https://docs.python.org/3.12/tutorial"])
+        assert len(cached) == 1
+        assert cached[0]["content"] == "Tutorial content"
+
+    def test_get_cached_pages_path_prefix_no_match(self, manager):
+        """URLs outside the registered path prefix should not match."""
+        manager.register_website("https://docs.python.org/3.12/")
+
+        cached, to_crawl = manager.get_cached_pages(["https://docs.python.org/3.13/tutorial"])
+        assert len(cached) == 0
+        assert to_crawl == ["https://docs.python.org/3.13/tutorial"]
+
+    def test_get_cached_pages_longest_prefix_wins(self, manager):
+        """When multiple registrations match, the longest path prefix should win."""
+        manager.register_website("https://example.com/")
+        manager.register_website("https://example.com/docs/")
+
+        store_docs = manager.get_site_store("https://example.com/docs/")
+        store_docs.save_discovered_urls([{"url": "https://example.com/docs/page"}])
+        store_docs.update_content_hashes(
+            [
+                {
+                    "url": "https://example.com/docs/page",
+                    "content_hash": "h1",
+                    "content": "Docs page",
+                    "word_count": 2,
+                },
+            ]
+        )
+
+        cached, to_crawl = manager.get_cached_pages(["https://example.com/docs/page"])
+        assert len(cached) == 1
+        assert cached[0]["content"] == "Docs page"
+
     def test_get_cached_pages_empty_input(self, manager):
         cached, to_crawl = manager.get_cached_pages([])
         assert cached == []
         assert to_crawl == []
+
+    def test_schema_migration_domain_to_url(self, tmp_data_dir):
+        """Test migration from old domain-based schema to url-based schema."""
+        import sqlite3
+
+        main_db = tmp_data_dir / "crawler.db"
+        tmp_data_dir.mkdir(parents=True, exist_ok=True)
+        (tmp_data_dir / "sites").mkdir(parents=True, exist_ok=True)
+
+        conn = sqlite3.connect(str(main_db))
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.row_factory = sqlite3.Row
+        conn.executescript("""
+            CREATE TABLE websites (
+                domain TEXT PRIMARY KEY,
+                status TEXT NOT NULL DEFAULT 'idle',
+                scan_interval INTEGER NOT NULL DEFAULT 21600,
+                last_scanned_at REAL,
+                error TEXT,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            );
+        """)
+        conn.execute(
+            "INSERT INTO websites (domain, status, scan_interval, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            ("example.com", "idle", 3600, 1000.0, 1000.0),
+        )
+        conn.commit()
+        conn.close()
+
+        mgr = WebsiteStoreManager(data_dir=tmp_data_dir)
+
+        website = mgr.get_website("https://example.com/")
+        assert website is not None
+        assert website["url"] == "https://example.com/"
+        assert website["domain"] == "example.com"
+        assert website["path_prefix"] == "/"
+        assert website["scan_interval"] == 3600
+
+        mgr.close_all()

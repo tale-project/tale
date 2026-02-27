@@ -23,9 +23,10 @@ export const deregisterWebsiteFromCrawler = internalAction({
   handler: async (_ctx, args) => {
     const crawlerUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
     try {
-      await fetch(`${crawlerUrl}/api/v1/websites/${args.domain}`, {
-        method: 'DELETE',
-      });
+      await fetch(
+        `${crawlerUrl}/api/v1/websites?url=${encodeURIComponent(args.domain)}`,
+        { method: 'DELETE' },
+      );
     } catch (e) {
       console.warn('Failed to deregister website from crawler:', e);
     }

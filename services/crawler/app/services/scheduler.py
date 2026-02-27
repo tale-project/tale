@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import time
+from urllib.parse import urlparse
 
 import httpx
 
@@ -47,16 +48,16 @@ async def run_scheduler(
 
     sem = asyncio.Semaphore(MAX_CONCURRENT_SCANS)
 
-    async def bounded_scan(domain: str):
+    async def bounded_scan(website_url: str):
         async with sem:
-            await _scan_website(domain, store_manager, crawler_service)
+            await _scan_website(website_url, store_manager, crawler_service)
 
     while True:
         try:
             due = store_manager.get_due_websites()
             if due:
                 logger.info(f"Scheduler: {len(due)} website(s) due for scanning")
-                tasks = [asyncio.create_task(bounded_scan(w["domain"])) for w in due]
+                tasks = [asyncio.create_task(bounded_scan(w["url"])) for w in due]
                 await asyncio.gather(*tasks, return_exceptions=True)
         except Exception:
             logger.exception("Scheduler loop error")
@@ -154,22 +155,35 @@ async def _seed_cache_headers(
 
 
 async def _scan_website(
-    domain: str,
+    website_url: str,
     store_manager: WebsiteStoreManager,
     crawler_service: CrawlerService,
 ):
-    site_store = store_manager.get_site_store(domain)
-    store_manager.update_scan_status(domain, "scanning")
+    parsed = urlparse(website_url)
+    domain = parsed.netloc
+    path_prefix = parsed.path or "/"
+
+    site_store = store_manager.get_site_store(website_url)
+    store_manager.update_scan_status(website_url, "scanning")
 
     try:
         if not crawler_service.initialized:
             await crawler_service.initialize()
 
-        # Phase 1: Discover new URLs
-        logger.info(f"Scan [{domain}]: Phase 1 — discovering URLs")
+        # Phase 1: Discover new URLs (crawl4ai needs bare domain)
+        logger.info(f"Scan [{website_url}]: Phase 1 — discovering URLs")
         discovered = await crawler_service.discover_urls(domain=domain, max_urls=-1)
+
+        # Filter to path prefix
+        if path_prefix != "/":
+            before_count = len(discovered)
+            discovered = [u for u in discovered if urlparse(u["url"]).path.startswith(path_prefix)]
+            logger.info(
+                f"Scan [{website_url}]: filtered {before_count} → {len(discovered)} URLs (path_prefix={path_prefix})"
+            )
+
         site_store.save_discovered_urls(discovered)
-        logger.info(f"Scan [{domain}]: discovered {len(discovered)} URLs")
+        logger.info(f"Scan [{website_url}]: discovered {len(discovered)} URLs")
 
         # Phase 2: Crawl URLs in batches and cache content + hashes
         scan_start = time.time()
@@ -191,7 +205,7 @@ async def _scan_website(
                 continue
 
             logger.info(
-                f"Scan [{domain}]: Phase 2 — crawling {len(to_crawl)} URLs "
+                f"Scan [{website_url}]: Phase 2 — crawling {len(to_crawl)} URLs "
                 f"(skipped {len(unchanged)}, total so far: {crawled_total})"
             )
             results = await crawler_service.crawl_urls(urls=to_crawl)
@@ -215,7 +229,7 @@ async def _scan_website(
             crawled_total += len(updates)
 
             if failed_urls:
-                logger.warning(f"Scan [{domain}]: {len(failed_urls)} URLs failed in batch")
+                logger.warning(f"Scan [{website_url}]: {len(failed_urls)} URLs failed in batch")
                 site_store.increment_fail_count(failed_urls)
 
             # Seed cache headers for URLs that had none before
@@ -223,12 +237,12 @@ async def _scan_website(
             if first_time:
                 await _seed_cache_headers(first_time, site_store)
 
-        logger.info(f"Scan [{domain}]: crawled {crawled_total}, skipped {skipped_total} unchanged URLs")
+        logger.info(f"Scan [{website_url}]: crawled {crawled_total}, skipped {skipped_total} unchanged URLs")
 
-        store_manager.update_last_scanned(domain)
-        store_manager.update_scan_status(domain, "idle")
-        logger.info(f"Scan [{domain}]: complete")
+        store_manager.update_last_scanned(website_url)
+        store_manager.update_scan_status(website_url, "idle")
+        logger.info(f"Scan [{website_url}]: complete")
 
     except Exception as e:
-        logger.exception(f"Scan failed for {domain}")
-        store_manager.update_scan_status(domain, "error", str(e))
+        logger.exception(f"Scan failed for {website_url}")
+        store_manager.update_scan_status(website_url, "error", str(e))

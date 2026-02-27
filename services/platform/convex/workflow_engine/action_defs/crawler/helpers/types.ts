@@ -67,9 +67,9 @@ export interface FetchUrlsData {
   failed: Array<{ url: string; status_code: number | null; error: string }>;
 }
 
-// Response from GET /api/v1/websites/{domain}/urls
+// Response from GET /api/v1/websites/urls?url=...
 export interface QueryUrlsRawData {
-  domain: string;
+  url: string;
   urls: Array<{
     url: string;
     content_hash: string | null;
@@ -82,7 +82,7 @@ export interface QueryUrlsRawData {
 }
 
 export interface QueryUrlsResult {
-  domain: string;
+  url: string;
   urls: Array<{
     url: string;
     contentHash: string | null;
