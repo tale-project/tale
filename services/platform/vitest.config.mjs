@@ -42,6 +42,7 @@ export default defineConfig({
         test: {
           name: 'client',
           environment: 'jsdom',
+          setupFiles: ['./test/setup-ui.ts'],
           include: [
             'app/components/**/*.test.{ts,tsx}',
             'app/features/**/*.test.{ts,tsx}',
