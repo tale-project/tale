@@ -122,7 +122,7 @@ describe('useChatLoadingState', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    it('returns true when last assistant message is a tool message with terminal status', () => {
+    it('returns true when last part is a tool part (unfinished tool turn)', () => {
       const { result } = renderHook(() =>
         useChatLoadingState({
           isPending: false,
@@ -136,6 +136,74 @@ describe('useChatLoadingState', () => {
               text: 'Let me create that for you.',
               parts: [
                 { type: 'text', text: 'Let me create that for you.' },
+                { type: 'step-start' },
+                {
+                  type: 'tool-excel',
+                  toolCallId: 'call-1',
+                  input: { operation: 'generate' },
+                  state: 'input-available',
+                },
+              ],
+            }),
+          ],
+          threadId: THREAD_A,
+          pendingThreadId: null,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    it('returns false when tool parts exist but text part follows (completed tool turn)', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: false,
+          setIsPending,
+          uiMessages: [
+            createUIMessage({
+              id: 'msg-1',
+              order: 0,
+              role: 'assistant',
+              status: 'success',
+              text: 'Here are the results...',
+              parts: [
+                { type: 'step-start' },
+                {
+                  type: 'tool-rag_search',
+                  toolCallId: 'call-1',
+                  input: { query: 'test' },
+                  output: { results: [] },
+                  state: 'output-available',
+                },
+                { type: 'text', text: 'Here are the results...' },
+              ],
+            }),
+          ],
+          threadId: THREAD_A,
+          pendingThreadId: null,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    it('returns true when tool message has text preamble before tool call', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: false,
+          setIsPending,
+          uiMessages: [
+            createUIMessage({
+              id: 'msg-1',
+              order: 0,
+              role: 'assistant',
+              status: 'success',
+              text: 'I will create an Excel file for you.',
+              parts: [
+                {
+                  type: 'text',
+                  text: 'I will create an Excel file for you.',
+                },
                 { type: 'step-start' },
                 {
                   type: 'tool-excel',

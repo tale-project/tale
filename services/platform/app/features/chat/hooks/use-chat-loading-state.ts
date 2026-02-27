@@ -10,10 +10,25 @@ interface UseChatLoadingStateParams {
   pendingThreadId: string | null;
 }
 
-function isToolMessage(message: UIMessage) {
-  return message.parts?.some((part: { type: string }) =>
-    part.type.startsWith('tool-'),
-  );
+/**
+ * Checks whether the assistant message represents an in-progress tool turn
+ * (the final text response has not yet arrived).
+ *
+ * The SDK appends parts in message order: tool-call parts first, then
+ * tool-result merges into existing parts, then final text parts last.
+ * If the last meaningful part is a tool-* part, the final response
+ * hasn't arrived yet.
+ */
+function isUnfinishedToolTurn(message: UIMessage) {
+  const parts = message.parts;
+  if (!parts?.length) return false;
+
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const type = parts[i].type;
+    if (type === 'step-start' || type.startsWith('source-')) continue;
+    return type.startsWith('tool-');
+  }
+  return false;
 }
 
 /**
@@ -22,7 +37,7 @@ function isToolMessage(message: UIMessage) {
  * The AI turn is considered complete (not loading) only when ALL three
  * conditions are met:
  *   1. The last message is from the assistant
- *   2. The last message is not a tool message (no tool-call parts)
+ *   2. The last meaningful part is not a tool part (final text has arrived)
  *   3. The last message has a terminal status (success/failed)
  *
  * When no messages exist, falls back to `isPending` to bridge the gap
@@ -45,7 +60,7 @@ export function useChatLoadingState({
 
     return !(
       lastMessage.role === 'assistant' &&
-      !isToolMessage(lastMessage) &&
+      !isUnfinishedToolTurn(lastMessage) &&
       (lastMessage.status === 'success' || lastMessage.status === 'failed')
     );
   }, [isPending, uiMessages]);

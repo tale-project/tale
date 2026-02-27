@@ -408,6 +408,44 @@ export TMPDIR=/app/convex-data/tmp
 mkdir -p "$TMPDIR"
 cd /app
 
+# Clean up derived data that is safe to rebuild.
+# Search indexes and compiled modules are rebuilt automatically from the database.
+# User uploads (files/) are NEVER touched — they contain permanent user data.
+clean_convex_derived_data() {
+  local data_dir="/app/convex-data"
+
+  # Search indexes: rebuilt from database on startup
+  if [ -d "$data_dir/search" ]; then
+    rm -rf "$data_dir/search"
+    echo "   ✓ Cleaned search indexes (will rebuild from database)"
+  fi
+
+  # Compiled modules: rebuilt on next deploy
+  if [ -d "$data_dir/modules" ]; then
+    rm -rf "$data_dir/modules"
+    echo "   ✓ Cleaned compiled modules (will rebuild on deploy)"
+  fi
+
+  # Stale temp files from interrupted operations
+  rm -rf "$data_dir/tmp/"*
+
+  # Fix permissions on all files we own (non-fatal if some files are owned by root)
+  chmod -R 755 "$data_dir" 2>/dev/null || true
+}
+
+# If a previous crash was recorded, clean derived data before starting.
+# This prevents crash loops where the backend repeatedly hits corrupted search
+# index segments left behind by an unclean shutdown (e.g. VectorCompactor killed
+# mid-compaction, leaving segment metadata pointing to files that don't exist).
+if [ -f "/app/convex-data/crash.log" ]; then
+  echo "⚠️  Previous crash detected, cleaning derived data to prevent crash loop..."
+  clean_convex_derived_data
+  rm -f /app/convex-data/crash.log
+fi
+
+# Clean stale process state from previous container runs
+rm -f /app/convex-data/convex.pid /app/convex-data/convex.lock
+
 # Configure database
 DB_ARGS=$(configure_database)
 
@@ -666,6 +704,11 @@ monitor_convex() {
         kill "$current_pid" 2>/dev/null || true
         wait "$current_pid" 2>/dev/null || true
       fi
+
+      # Clean derived data (search indexes, modules) before restarting to prevent
+      # crash loops from corrupted vector index segments left by the previous crash
+      echo "[$(date -Iseconds)] Cleaning derived data before restart..." | tee -a "$CRASH_LOG"
+      clean_convex_derived_data
 
       # Restart Convex backend
       echo "[$(date -Iseconds)] Restarting Convex backend..." | tee -a "$CRASH_LOG"
