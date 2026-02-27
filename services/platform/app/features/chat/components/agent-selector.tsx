@@ -1,88 +1,57 @@
-'use client';
+"use client";
 
-import { Bot, ChevronDown, Check, Plus, Search } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { Bot, ChevronDown, Plus } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 
-import { Popover } from '@/app/components/ui/overlays/popover';
-import { Button } from '@/app/components/ui/primitives/button';
-import { Text } from '@/app/components/ui/typography/text';
-import { CreateCustomAgentDialog } from '@/app/features/custom-agents/components/custom-agent-create-dialog';
-import { useAbility } from '@/app/hooks/use-ability';
-import { useDialogSearchParam } from '@/app/hooks/use-dialog-search-param';
-import { useT } from '@/lib/i18n/client';
+import { SearchableSelect } from "@/app/components/ui/forms/searchable-select";
+import { Button } from "@/app/components/ui/primitives/button";
+import { CreateCustomAgentDialog } from "@/app/features/custom-agents/components/custom-agent-create-dialog";
+import { useAbility } from "@/app/hooks/use-ability";
+import { useDialogSearchParam } from "@/app/hooks/use-dialog-search-param";
+import { useT } from "@/lib/i18n/client";
 
-import { useChatLayout } from '../context/chat-layout-context';
-import { useChatAgents } from '../hooks/queries';
-import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import { useChatLayout } from "../context/chat-layout-context";
+import { useChatAgents } from "../hooks/queries";
+import { useEffectiveAgent } from "../hooks/use-effective-agent";
 
 interface AgentSelectorProps {
   organizationId: string;
 }
 
-interface AgentOption {
-  value: string;
-  label: string;
-  description: string;
-  isDefaultChat: boolean;
-}
-
-function filterOptions(options: AgentOption[], query: string) {
-  if (!query) return options;
-  const lower = query.toLowerCase();
-  return options.filter(
-    (o) =>
-      o.label.toLowerCase().includes(lower) ||
-      o.description.toLowerCase().includes(lower),
-  );
-}
-
 export function AgentSelector({ organizationId }: AgentSelectorProps) {
-  const { t } = useT('chat');
+  const { t } = useT("chat");
   const ability = useAbility();
   const { setSelectedAgent } = useChatLayout();
   const effectiveAgent = useEffectiveAgent(organizationId);
   const { agents: allAgents } = useChatAgents(organizationId);
-  const canManageAgents = ability.can('write', 'customAgents');
+  const canManageAgents = ability.can("write", "customAgents");
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const searchRef = useRef<HTMLInputElement>(null);
   const createAgentDialog = useDialogSearchParam({
-    paramValue: 'create-agent',
+    paramValue: "create-agent",
   });
 
   const options = useMemo(() => {
     if (!allAgents) return [];
 
-    const result: AgentOption[] = [];
-
-    for (const agent of allAgents) {
-      result.push({
+    return [...allAgents]
+      .map((agent) => ({
         value: agent.rootVersionId ?? agent._id,
         label: agent.displayName,
-        description: agent.description || '',
+        description: agent.description || "",
         isDefaultChat:
-          Boolean(agent.isSystemDefault) && agent.systemAgentSlug === 'chat',
+          Boolean(agent.isSystemDefault) && agent.systemAgentSlug === "chat",
+      }))
+      .sort((a, b) => {
+        if (a.isDefaultChat) return -1;
+        if (b.isDefaultChat) return 1;
+        return a.label.localeCompare(b.label);
       });
-    }
-
-    result.sort((a, b) => {
-      if (a.isDefaultChat) return -1;
-      if (b.isDefaultChat) return 1;
-      return a.label.localeCompare(b.label);
-    });
-
-    return result;
   }, [allAgents]);
-
-  const filteredOptions = useMemo(
-    () => filterOptions(options, search),
-    [options, search],
-  );
 
   const currentValue = effectiveAgent?._id ?? null;
 
   const currentLabel =
-    effectiveAgent?.displayName ?? t('agentSelector.defaultAgent');
+    effectiveAgent?.displayName ?? t("agentSelector.defaultAgent");
 
   const handleSelect = useCallback(
     (value: string) => {
@@ -95,85 +64,43 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
           displayName: agent.displayName,
         });
       }
-      setOpen(false);
     },
     [allAgents, setSelectedAgent],
   );
-
-  const handleOpenChange = useCallback((nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (!nextOpen) {
-      setSearch('');
-    }
-  }, []);
 
   const handleAddAgentClick = useCallback(() => {
     setOpen(false);
     createAgentDialog.open();
   }, [createAgentDialog]);
 
-  const hasNoResults = filteredOptions.length === 0;
-
   return (
     <>
-      <Popover
+      <SearchableSelect
+        value={currentValue}
+        onValueChange={handleSelect}
+        options={options}
         open={open}
-        onOpenChange={handleOpenChange}
+        onOpenChange={setOpen}
         align="start"
         side="top"
         sideOffset={8}
-        contentClassName="w-[20rem] p-0"
-        onOpenAutoFocus={(e) => {
-          e.preventDefault();
-          searchRef.current?.focus();
-        }}
+        contentClassName="w-[20rem]"
+        searchPlaceholder={t("agentSelector.searchPlaceholder")}
+        emptyText={t("agentSelector.noResults")}
+        aria-label={t("agentSelector.label")}
         trigger={
           <button
             type="button"
             className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs transition-colors"
-            aria-label={t('agentSelector.label')}
+            aria-label={t("agentSelector.label")}
           >
             <Bot className="size-3.5" aria-hidden="true" />
             <span>{currentLabel}</span>
             <ChevronDown className="size-3" aria-hidden="true" />
           </button>
         }
-      >
-        <div className="border-border flex items-center gap-2 border-b px-3 py-2">
-          <Search
-            className="text-muted-foreground size-3.5 shrink-0"
-            aria-hidden="true"
-          />
-          <input
-            ref={searchRef}
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('agentSelector.searchPlaceholder')}
-            className="placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
-            aria-label={t('agentSelector.searchPlaceholder')}
-          />
-        </div>
-
-        <div className="max-h-[20rem] overflow-y-auto p-1" role="listbox">
-          {filteredOptions.map((option) => (
-            <OptionButton
-              key={option.value}
-              option={option}
-              isSelected={currentValue === option.value}
-              onSelect={handleSelect}
-            />
-          ))}
-
-          {hasNoResults && (
-            <Text as="div" variant="muted" align="center" className="px-3 py-4">
-              {t('agentSelector.noResults')}
-            </Text>
-          )}
-        </div>
-
-        {canManageAgents && (
-          <div className="border-border border-t p-1">
+        footer={
+          canManageAgents ? (
             <Button
               variant="ghost"
               size="sm"
@@ -181,11 +108,11 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
               icon={Plus}
               onClick={handleAddAgentClick}
             >
-              {t('agentSelector.addAgent')}
+              {t("agentSelector.addAgent")}
             </Button>
-          </div>
-        )}
-      </Popover>
+          ) : undefined
+        }
+      />
 
       {canManageAgents && (
         <CreateCustomAgentDialog
@@ -195,39 +122,5 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
         />
       )}
     </>
-  );
-}
-
-function OptionButton({
-  option,
-  isSelected,
-  onSelect,
-}: {
-  option: AgentOption;
-  isSelected: boolean;
-  onSelect: (value: string) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="option"
-      aria-selected={isSelected}
-      onClick={() => onSelect(option.value)}
-      className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors"
-    >
-      <div className="min-w-0 flex-1">
-        <Text as="div" variant="label">
-          {option.label}
-        </Text>
-        {option.description && (
-          <Text as="div" variant="caption">
-            {option.description}
-          </Text>
-        )}
-      </div>
-      {isSelected && (
-        <Check className="text-primary size-4 shrink-0" aria-hidden="true" />
-      )}
-    </button>
   );
 }
