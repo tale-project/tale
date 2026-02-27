@@ -1,32 +1,28 @@
 /**
- * Trigger a manual rescan of a website
+ * Mark a website as rescanning and normalize its domain.
+ * Does NOT call crawler — that's handled by the calling action.
  */
 
-import type { Id, Doc } from '../_generated/dataModel';
+import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
-import { internal } from '../_generated/api';
+import { toWebsiteDomain } from './create_website';
 
-/**
- * Trigger a manual rescan of a website
- *
- * - Finds the attached workflow (by metadata.workflowId, else by naming convention)
- * - Starts the workflow immediately as a manual run
- * - Updates website status and lastScannedAt optimistically
- */
+export interface RescanWebsiteResult {
+  domain: string;
+  scanInterval: string;
+}
+
 export async function rescanWebsite(
   ctx: MutationCtx,
   websiteId: Id<'websites'>,
-): Promise<Doc<'websites'> | null> {
+): Promise<RescanWebsiteResult> {
   const website = await ctx.db.get(websiteId);
   if (!website) {
     throw new Error('Website not found');
   }
 
-  // Normalize domain for consistency
-  const ensureUrl = (s: string) =>
-    s.startsWith('http://') || s.startsWith('https://') ? s : `https://${s}`;
-  const normalizedDomain = new URL(ensureUrl(website.domain)).hostname;
+  const normalizedDomain = toWebsiteDomain(website.domain);
 
   // If stored domain includes protocol/path, normalize it when safe (no conflict)
   if (normalizedDomain !== website.domain) {
@@ -43,35 +39,14 @@ export async function rescanWebsite(
     }
   }
 
-  // Resolve the attached workflow id from metadata only.
-  const metadata = website.metadata ?? {};
-  const workflowId: Id<'wfDefinitions'> | undefined = metadata['workflowId'];
-
-  if (!workflowId) {
-    throw new Error('Attached workflowId missing from website metadata');
-  }
-
-  // Start the workflow immediately using the engine executor directly
-  await ctx.runMutation(
-    internal.workflow_engine.internal_mutations.startWorkflow,
-    {
-      organizationId: website.organizationId,
-      wfDefinitionId: workflowId,
-      input: { websiteId: website._id, domain: normalizedDomain },
-      triggeredBy: 'manual',
-      triggerData: {
-        triggerType: 'manual',
-        reason: 'rescan',
-        timestamp: Date.now(),
-      },
-    },
-  );
-
   // Optimistically update the last scanned timestamp/status
   await ctx.db.patch(websiteId, {
     lastScannedAt: Date.now(),
     status: 'active',
   });
 
-  return await ctx.db.get(websiteId);
+  return {
+    domain: normalizedDomain,
+    scanInterval: website.scanInterval,
+  };
 }

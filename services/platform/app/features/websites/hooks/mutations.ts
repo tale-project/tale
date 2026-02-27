@@ -1,18 +1,23 @@
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
-export function useRescanWebsite() {
-  return useConvexMutation(api.websites.mutations.rescanWebsite);
-}
-
 export function useCreateWebsite() {
-  return useConvexMutation(api.websites.mutations.createWebsite);
+  return useConvexAction(api.websites.actions.createWebsite);
 }
 
 export function useDeleteWebsite() {
-  return useConvexMutation(api.websites.mutations.deleteWebsite);
+  return useConvexAction(api.websites.actions.deleteWebsite);
+}
+
+export function useRescanWebsite() {
+  return useConvexAction(api.websites.actions.rescanWebsite);
 }
 
 export function useUpdateWebsite() {
   return useConvexMutation(api.websites.mutations.updateWebsite);
+}
+
+export function useSyncWebsiteStatuses() {
+  return useConvexAction(api.websites.actions.syncStatuses);
 }

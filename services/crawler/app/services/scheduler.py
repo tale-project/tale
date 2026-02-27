@@ -2,8 +2,7 @@
 Background scheduler for autonomous website scanning.
 
 Periodically checks for websites due for scanning and runs discovery + content
-hashing in parallel (bounded by Semaphore). Each website writes to its own
-SQLite file so there is zero lock contention between concurrent scans.
+hashing in parallel (bounded by Semaphore).
 """
 
 import asyncio
@@ -15,7 +14,8 @@ import time
 import httpx
 
 from app.services.crawler_service import CrawlerService
-from app.services.website_store import WebsiteStore, WebsiteStoreManager
+from app.services.indexing_service import IndexingService
+from app.services.pg_website_store import PgWebsiteStore, PgWebsiteStoreManager
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ CRAWL_BATCH_SIZE = 10
 POLL_INTERVAL = 60  # seconds
 _HEAD_TIMEOUT = 10
 _HEAD_CONCURRENCY = 5
+_HEAD_BATCH_SIZE = 50
 
 _scan_trigger: asyncio.Event | None = None
 
@@ -39,8 +40,9 @@ def trigger_scan():
 
 
 async def run_scheduler(
-    store_manager: WebsiteStoreManager,
+    store_manager: PgWebsiteStoreManager,
     crawler_service: CrawlerService,
+    indexing_service: IndexingService | None = None,
 ):
     global _scan_trigger
     _scan_trigger = asyncio.Event()
@@ -49,15 +51,22 @@ async def run_scheduler(
 
     async def bounded_scan(domain: str):
         async with sem:
-            await _scan_website(domain, store_manager, crawler_service)
+            await _scan_website(domain, store_manager, crawler_service, indexing_service)
 
     while True:
         try:
-            due = store_manager.get_due_websites()
+            due = await store_manager.get_due_websites()
             if due:
                 logger.info(f"Scheduler: {len(due)} website(s) due for scanning")
                 tasks = [asyncio.create_task(bounded_scan(w["domain"])) for w in due]
-                await asyncio.gather(*tasks, return_exceptions=True)
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for website, result in zip(due, results):
+                    if isinstance(result, BaseException):
+                        logger.error(f"Scheduler: scan failed for {website['domain']}: {result}")
+                        try:
+                            await store_manager.update_scan_status(website["domain"], "error", str(result))
+                        except Exception:
+                            logger.exception(f"Scheduler: failed to update error status for {website['domain']}")
         except Exception:
             logger.exception("Scheduler loop error")
 
@@ -71,10 +80,10 @@ async def run_scheduler(
 
 async def _head_check(
     urls: list[str],
-    site_store: WebsiteStore,
+    site_store: PgWebsiteStore,
 ) -> tuple[list[str], list[str]]:
     """Split URLs into (unchanged, needs_crawl) using conditional HEAD requests."""
-    stored = site_store.get_cache_headers(urls)
+    stored = await site_store.get_cache_headers(urls)
 
     urls_with_headers = [u for u in urls if u in stored]
     urls_without_headers = [u for u in urls if u not in stored]
@@ -117,14 +126,14 @@ async def _head_check(
         await asyncio.gather(*[check_one(client, u) for u in urls_with_headers])
 
     if header_updates:
-        site_store.update_cache_headers(header_updates)
+        await site_store.update_cache_headers(header_updates)
 
     return unchanged, needs_crawl
 
 
 async def _seed_cache_headers(
     urls: list[str],
-    site_store: WebsiteStore,
+    site_store: PgWebsiteStore,
 ) -> None:
     """Seed etag/last_modified via HEAD for URLs that just completed their first crawl."""
     sem = asyncio.Semaphore(_HEAD_CONCURRENCY)
@@ -149,17 +158,59 @@ async def _seed_cache_headers(
         await asyncio.gather(*[seed_one(client, u) for u in urls])
 
     if header_updates:
-        site_store.update_cache_headers(header_updates)
+        await site_store.update_cache_headers(header_updates)
         logger.info(f"Seeded cache headers for {len(header_updates)}/{len(urls)} URLs")
+
+
+def _is_homepage(url: str, domain: str) -> bool:
+    """Check if a URL is the homepage (root path) of the domain."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    return parsed.netloc == domain and parsed.path in ("", "/")
+
+
+def _extract_meta_description(structured_data: dict | None) -> str | None:
+    """Extract meta description from structured data."""
+    if not structured_data:
+        return None
+    meta = structured_data.get("meta", {})
+    if desc := meta.get("description"):
+        return desc
+    og = structured_data.get("opengraph", {})
+    if desc := og.get("og:description"):
+        return desc
+    return None
+
+
+async def _bulk_head_check(
+    all_urls: list[str],
+    site_store: PgWebsiteStore,
+) -> tuple[list[str], list[str], set[str]]:
+    """HEAD check all URLs in batches, return (unchanged, needs_crawl, urls_with_prior_headers)."""
+    all_unchanged: list[str] = []
+    all_needs_crawl: list[str] = []
+    all_had_headers: set[str] = set()
+
+    for i in range(0, len(all_urls), _HEAD_BATCH_SIZE):
+        batch = all_urls[i : i + _HEAD_BATCH_SIZE]
+        had_headers = await site_store.get_cache_headers(batch)
+        all_had_headers.update(had_headers)
+        unchanged, needs_crawl = await _head_check(batch, site_store)
+        all_unchanged.extend(unchanged)
+        all_needs_crawl.extend(needs_crawl)
+
+    return all_unchanged, all_needs_crawl, all_had_headers
 
 
 async def _scan_website(
     domain: str,
-    store_manager: WebsiteStoreManager,
+    store_manager: PgWebsiteStoreManager,
     crawler_service: CrawlerService,
+    indexing_service: IndexingService | None = None,
 ):
     site_store = store_manager.get_site_store(domain)
-    store_manager.update_scan_status(domain, "scanning")
+    await store_manager.update_scan_status(domain, "scanning")
 
     try:
         if not crawler_service.initialized:
@@ -168,35 +219,41 @@ async def _scan_website(
         # Phase 1: Discover new URLs
         logger.info(f"Scan [{domain}]: Phase 1 — discovering URLs")
         discovered = await crawler_service.discover_urls(domain=domain, max_urls=-1)
-        site_store.save_discovered_urls(discovered)
+        await site_store.save_discovered_urls(discovered)
         logger.info(f"Scan [{domain}]: discovered {len(discovered)} URLs")
 
-        # Phase 2: Crawl URLs in batches and cache content + hashes
+        # Phase 2: Bulk HEAD check — filter unchanged URLs up front
         scan_start = time.time()
+        all_urls = await site_store.get_urls_needing_recrawl(limit=10000, crawled_before=scan_start)
+        if not all_urls:
+            logger.info(f"Scan [{domain}]: no URLs need recrawling")
+            await store_manager.update_last_scanned(domain)
+            await store_manager.update_scan_status(domain, "active")
+            return
+
+        logger.info(f"Scan [{domain}]: Phase 2 — HEAD checking {len(all_urls)} URLs in batches of {_HEAD_BATCH_SIZE}")
+        unchanged, needs_crawl, had_headers = await _bulk_head_check(all_urls, site_store)
+
+        if unchanged:
+            await site_store.touch_crawled_at(unchanged)
+        logger.info(
+            f"Scan [{domain}]: HEAD check complete — {len(unchanged)} unchanged, {len(needs_crawl)} need crawling"
+        )
+
+        # Phase 3: Crawl changed URLs in batches
         crawled_total = 0
-        skipped_total = 0
-        while True:
-            batch = site_store.get_urls_needing_recrawl(limit=CRAWL_BATCH_SIZE, crawled_before=scan_start)
-            if not batch:
-                break
+        homepage_title: str | None = None
+        homepage_description: str | None = None
 
-            # Pre-flight: skip URLs unchanged since last crawl (304)
-            had_headers = site_store.get_cache_headers(batch)
-            unchanged, to_crawl = await _head_check(batch, site_store)
-            if unchanged:
-                site_store.touch_crawled_at(unchanged)
-                skipped_total += len(unchanged)
-
-            if not to_crawl:
-                continue
-
+        for i in range(0, len(needs_crawl), CRAWL_BATCH_SIZE):
+            batch = needs_crawl[i : i + CRAWL_BATCH_SIZE]
             logger.info(
-                f"Scan [{domain}]: Phase 2 — crawling {len(to_crawl)} URLs "
-                f"(skipped {len(unchanged)}, total so far: {crawled_total})"
+                f"Scan [{domain}]: Phase 3 — crawling batch {i // CRAWL_BATCH_SIZE + 1} "
+                f"({len(batch)} URLs, total so far: {crawled_total})"
             )
-            results = await crawler_service.crawl_urls(urls=to_crawl)
+            results = await crawler_service.crawl_urls(urls=batch)
             succeeded_urls = {p["url"] for p in results}
-            failed_urls = [u for u in to_crawl if u not in succeeded_urls]
+            failed_urls = [u for u in batch if u not in succeeded_urls]
 
             updates = [
                 {
@@ -211,24 +268,55 @@ async def _scan_website(
                 }
                 for p in results
             ]
-            site_store.update_content_hashes(updates)
+            await site_store.update_content_hashes(updates)
             crawled_total += len(updates)
+
+            if homepage_title is None:
+                for p in results:
+                    if _is_homepage(p["url"], domain):
+                        homepage_title = p.get("title")
+                        sd = p.get("structured_data")
+                        if isinstance(sd, str):
+                            sd = json.loads(sd)
+                        homepage_description = _extract_meta_description(sd)
+                        break
+
+            if indexing_service:
+                for p in results:
+                    if p.get("content"):
+                        try:
+                            await indexing_service.index_page(
+                                domain=domain,
+                                url=p["url"],
+                                title=p.get("title"),
+                                content=p["content"],
+                            )
+                        except Exception:
+                            logger.exception(f"Indexing failed for {p['url']}")
 
             if failed_urls:
                 logger.warning(f"Scan [{domain}]: {len(failed_urls)} URLs failed in batch")
-                site_store.increment_fail_count(failed_urls)
+                await site_store.increment_fail_count(failed_urls)
 
-            # Seed cache headers for URLs that had none before
             first_time = [u for u in succeeded_urls if u not in had_headers]
             if first_time:
                 await _seed_cache_headers(first_time, site_store)
 
-        logger.info(f"Scan [{domain}]: crawled {crawled_total}, skipped {skipped_total} unchanged URLs")
+        logger.info(f"Scan [{domain}]: crawled {crawled_total}, skipped {len(unchanged)} unchanged URLs")
 
-        store_manager.update_last_scanned(domain)
-        store_manager.update_scan_status(domain, "idle")
-        logger.info(f"Scan [{domain}]: complete")
+        # Phase 4: Update website metadata
+        page_count = await site_store.get_total_count()
+        await store_manager.update_website_metadata(
+            domain=domain,
+            title=homepage_title,
+            description=homepage_description,
+            page_count=page_count,
+        )
+
+        await store_manager.update_last_scanned(domain)
+        await store_manager.update_scan_status(domain, "active")
+        logger.info(f"Scan [{domain}]: complete (pages={page_count})")
 
     except Exception as e:
         logger.exception(f"Scan failed for {domain}")
-        store_manager.update_scan_status(domain, "error", str(e))
+        await store_manager.update_scan_status(domain, "error", str(e))

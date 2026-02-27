@@ -13,7 +13,6 @@ const tableNameValidator = v.union(
   v.literal('conversationMessages'),
   v.literal('approvals'),
   v.literal('onedriveSyncConfigs'),
-  v.literal('websitePages'),
 );
 
 export const findUnprocessed = internalMutation({

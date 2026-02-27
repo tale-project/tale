@@ -28,6 +28,21 @@ class RegisterWebsiteRequest(BaseModel):
     scan_interval: int = Field(21600, description="Scan interval in seconds (default: 6h)", ge=60)
 
 
+class WebsiteInfoResponse(BaseModel):
+    """Full website information."""
+
+    domain: str
+    title: str | None = None
+    description: str | None = None
+    page_count: int = 0
+    status: str = "idle"
+    scan_interval: int = 21600
+    last_scanned_at: str | None = None
+    error: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
 class WebsiteUrl(BaseModel):
     """A tracked URL with content hash."""
 
@@ -284,3 +299,91 @@ class WebFetchExtractResponse(BaseModel):
     page_count: int = Field(..., description="Number of pages in PDF")
     vision_used: bool = Field(False, description="Whether Vision API was used for extraction")
     error: str | None = Field(None, description="Error message if operation failed")
+
+
+# ==================== Search Models ====================
+
+
+class SearchRequest(BaseModel):
+    """Request for hybrid search."""
+
+    query: str = Field(..., description="Search query")
+    limit: int = Field(10, ge=1, le=100, description="Maximum results")
+
+
+class SearchResultItem(BaseModel):
+    """A single search result."""
+
+    url: str
+    title: str | None = None
+    chunk_content: str
+    chunk_index: int
+    score: float
+
+
+class SearchResponse(BaseModel):
+    """Response from search endpoint."""
+
+    query: str
+    results: list[SearchResultItem] = Field(default_factory=list)
+    total: int
+
+
+# ==================== Pages List Models ====================
+
+
+class PageListItem(BaseModel):
+    """A page in the pages list."""
+
+    url: str
+    title: str | None = None
+    word_count: int = 0
+    status: str = "discovered"
+    content_hash: str | None = None
+    last_crawled_at: str | None = None
+    discovered_at: str | None = None
+    chunks_count: int = 0
+    indexed: bool = False
+
+
+class PageListResponse(BaseModel):
+    """Paginated response of pages for a website."""
+
+    domain: str
+    pages: list[PageListItem] = Field(default_factory=list)
+    total: int = 0
+    offset: int = 0
+    has_more: bool = False
+
+
+# ==================== Indexing Models ====================
+
+
+class IndexPageRequest(BaseModel):
+    """Request to index a single page."""
+
+    domain: str = Field(..., description="Website domain")
+    url: str = Field(..., description="Page URL")
+    title: str | None = Field(None, description="Page title")
+    content: str = Field(..., description="Page content to index")
+
+
+class IndexPageResponse(BaseModel):
+    """Response from indexing a single page."""
+
+    success: bool
+    url: str
+    chunks_indexed: int
+    status: str
+    error: str | None = None
+
+
+class IndexWebsiteResponse(BaseModel):
+    """Response from indexing all pages for a website."""
+
+    success: bool
+    domain: str
+    pages_indexed: int
+    pages_skipped: int
+    pages_failed: int
+    total_chunks: int

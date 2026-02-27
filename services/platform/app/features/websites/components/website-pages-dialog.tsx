@@ -1,12 +1,10 @@
 'use client';
 
-import type { Components } from 'react-markdown';
-
 import { FileText } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { useCallback, useEffect, useState } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
+import type { CrawlerPage } from '@/convex/websites/types';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
@@ -15,19 +13,12 @@ import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
-import {
-  markdownComponents,
-  markdownWrapperStyles,
-} from '@/app/features/chat/components/message-bubble/markdown-renderer';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useFormatDate } from '@/app/hooks/use-format-date';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
-import { useListWebsitePagesPaginated } from '../hooks/queries';
-
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- markdownComponents are structurally compatible with react-markdown Components; index signature mismatch is a React type version conflict
-const mdComponents = markdownComponents as unknown as Components;
-
-const COLLAPSED_MAX_HEIGHT = 256;
+const PAGE_SIZE = 20;
 
 interface WebsitePagesDialogProps {
   isOpen: boolean;
@@ -42,50 +33,6 @@ function PageSkeleton() {
       <Skeleton className="h-4 w-1/3" />
       <Skeleton className="h-3 w-full" />
       <Skeleton className="h-3 w-4/5" />
-      <Skeleton className="h-3 w-2/3" />
-    </div>
-  );
-}
-
-function CollapsibleMarkdown({ content }: { content: string }) {
-  const { t } = useT('websites');
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isOverflowing, setIsOverflowing] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  const measureRef = useCallback((node: HTMLDivElement | null) => {
-    if (node) {
-      contentRef.current = node;
-      setIsOverflowing(node.scrollHeight > COLLAPSED_MAX_HEIGHT);
-    }
-  }, []);
-
-  return (
-    <div>
-      <div
-        ref={measureRef}
-        className={cn(
-          'text-foreground prose-sm max-w-none text-sm',
-          markdownWrapperStyles,
-          !isExpanded && 'overflow-hidden',
-        )}
-        style={
-          !isExpanded && isOverflowing
-            ? { maxHeight: COLLAPSED_MAX_HEIGHT }
-            : undefined
-        }
-      >
-        <ReactMarkdown components={mdComponents}>{content}</ReactMarkdown>
-      </div>
-      {isOverflowing && (
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground mt-2 cursor-pointer text-xs font-medium transition-colors"
-          onClick={() => setIsExpanded((prev) => !prev)}
-        >
-          {isExpanded ? t('pagesDialog.showLess') : t('pagesDialog.showMore')}
-        </button>
-      )}
     </div>
   );
 }
@@ -97,17 +44,45 @@ export function WebsitePagesDialog({
   websiteDomain,
 }: WebsitePagesDialogProps) {
   const { t } = useT('websites');
+  const { formatDate } = useFormatDate();
+  const [pages, setPages] = useState<CrawlerPage[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
-  const { results, status, loadMore, isLoading } = useListWebsitePagesPaginated(
+  const { mutate: fetchPages, isPending } = useConvexAction(
+    api.websites.actions.fetchPages,
     {
-      websiteId,
-      initialNumItems: 10,
+      onSuccess: (data) => {
+        if (data.offset === 0) {
+          setPages(data.pages);
+        } else {
+          setPages((prev) => [...prev, ...data.pages]);
+        }
+        setHasMore(data.hasMore);
+        setIsFirstLoad(false);
+      },
+      onError: () => {
+        setIsFirstLoad(false);
+      },
     },
   );
 
-  const isDone = status === 'Exhausted';
-  const isLoadingMore = status === 'LoadingMore';
-  const isLoadingFirst = status === 'LoadingFirstPage';
+  useEffect(() => {
+    if (isOpen) {
+      setPages([]);
+      setOffset(0);
+      setHasMore(false);
+      setIsFirstLoad(true);
+      fetchPages({ websiteId, offset: 0, limit: PAGE_SIZE });
+    }
+  }, [isOpen, websiteId, fetchPages]);
+
+  const loadMore = useCallback(() => {
+    const nextOffset = offset + PAGE_SIZE;
+    setOffset(nextOffset);
+    fetchPages({ websiteId, offset: nextOffset, limit: PAGE_SIZE });
+  }, [offset, websiteId, fetchPages]);
 
   return (
     <ViewDialog
@@ -117,7 +92,7 @@ export function WebsitePagesDialog({
       size="wide"
     >
       <div className="space-y-4">
-        {isLoadingFirst && (
+        {isFirstLoad && isPending && (
           <>
             <PageSkeleton />
             <PageSkeleton />
@@ -125,35 +100,54 @@ export function WebsitePagesDialog({
           </>
         )}
 
-        {!isLoadingFirst && results.length === 0 && (
+        {!isFirstLoad && pages.length === 0 && (
           <EmptyState icon={FileText} title={t('pagesDialog.noPages')} />
         )}
 
-        {results.map((page) => (
-          <BorderedSection key={page._id}>
+        {pages.map((page) => (
+          <BorderedSection key={page.url} padding={4} gap={2}>
             <Heading level={3} size="sm" weight="medium">
               {page.title || page.url}
             </Heading>
-            {page.title && <Text variant="caption">{page.url}</Text>}
-            {page.content ? (
-              <CollapsibleMarkdown content={page.content} />
-            ) : (
-              <Text variant="caption" className="italic">
-                {t('pagesDialog.noContent')}
+            {page.title && (
+              <Text variant="caption">
+                <a
+                  href={page.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline"
+                >
+                  {page.url}
+                </a>
               </Text>
             )}
+            <div className="text-muted-foreground flex gap-4 text-xs">
+              <span>
+                {t('pagesDialog.wordCount', { count: page.word_count })}
+              </span>
+              <span>
+                {t('pagesDialog.chunks', { count: page.chunks_count })}
+              </span>
+              {page.last_crawled_at && (
+                <span>
+                  {t('pagesDialog.lastCrawled', {
+                    date: formatDate(page.last_crawled_at),
+                  })}
+                </span>
+              )}
+            </div>
           </BorderedSection>
         ))}
 
-        {!isDone && !isLoadingFirst && (
+        {hasMore && (
           <div className="flex justify-center pt-2">
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => loadMore(10)}
-              disabled={isLoading || isLoadingMore}
+              onClick={loadMore}
+              disabled={isPending}
             >
-              {isLoadingMore ? '...' : t('pagesDialog.loadMore')}
+              {isPending ? '...' : t('pagesDialog.loadMore')}
             </Button>
           </div>
         )}

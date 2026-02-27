@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     # Concurrency for Vision processing
     vision_max_concurrent_pages: int = 3
 
+    # Database configuration
+    database_url: str | None = None
+
+    # Embedding model configuration
+    openai_embedding_model: str | None = None
+    embedding_dimensions: int = 1536
+
     model_config = SettingsConfigDict(
         env_prefix="CRAWLER_",
         env_file=".env",
@@ -74,6 +81,15 @@ class Settings(BaseSettings):
         model = get_first_model(self.openai_fast_model) or get_first_model(os.environ.get("OPENAI_FAST_MODEL"))
         if not model:
             raise ValueError("OPENAI_FAST_MODEL must be set in environment.")
+        return model
+
+    def get_embedding_model(self) -> str:
+        """Get embedding model from CRAWLER_OPENAI_EMBEDDING_MODEL or OPENAI_EMBEDDING_MODEL."""
+        model = get_first_model(self.openai_embedding_model) or get_first_model(
+            os.environ.get("OPENAI_EMBEDDING_MODEL")
+        )
+        if not model:
+            raise ValueError("OPENAI_EMBEDDING_MODEL must be set in environment.")
         return model
 
 

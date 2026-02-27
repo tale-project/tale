@@ -176,19 +176,6 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
     examples: ['sourceProvider == "onedrive"', 'daysAgo(_creationTime) < 7'],
   },
 
-  websitePages: {
-    tableName: 'websitePages',
-    description: 'Crawled website pages for RAG indexing',
-    filterableFields: [
-      {
-        field: '_creationTime',
-        type: 'datetime',
-        note: 'When the page was crawled. Use with daysAgo() transform.',
-      },
-    ],
-    examples: ['daysAgo(_creationTime) > 30'],
-  },
-
   onedriveSyncConfigs: {
     tableName: 'onedriveSyncConfigs',
     description: 'OneDrive sync configuration records',

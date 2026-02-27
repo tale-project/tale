@@ -11,7 +11,12 @@ export const websitesTable = defineTable({
   scanInterval: v.string(),
   lastScannedAt: v.optional(v.number()),
   status: v.optional(
-    v.union(v.literal('active'), v.literal('inactive'), v.literal('error')),
+    v.union(
+      v.literal('idle'),
+      v.literal('scanning'),
+      v.literal('active'),
+      v.literal('error'),
+    ),
   ),
   pageCount: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
@@ -19,22 +24,3 @@ export const websitesTable = defineTable({
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId_and_domain', ['organizationId', 'domain']);
-
-export const websitePagesTable = defineTable({
-  organizationId: v.string(),
-  websiteId: v.id('websites'),
-  url: v.string(),
-  title: v.optional(v.string()),
-  content: v.optional(v.string()),
-  wordCount: v.optional(v.number()),
-  lastCrawledAt: v.number(),
-  metadata: v.optional(jsonRecordValidator),
-  structuredData: v.optional(jsonRecordValidator),
-  contentHash: v.optional(v.string()),
-  syncStatus: v.optional(v.union(v.literal('pending'), v.literal('synced'))),
-})
-  .index('by_organizationId', ['organizationId'])
-  .index('by_websiteId', ['websiteId'])
-  .index('by_websiteId_and_lastCrawledAt', ['websiteId', 'lastCrawledAt'])
-  .index('by_organizationId_and_url', ['organizationId', 'url'])
-  .index('by_websiteId_and_syncStatus', ['websiteId', 'syncStatus']);

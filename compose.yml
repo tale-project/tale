@@ -26,7 +26,7 @@
 
 services:
   # ============================================================================
-  # Tale DB (TimescaleDB)
+  # Tale DB (ParadeDB — pg_search + pgvector)
   # ============================================================================
   db:
     # Image from GHCR (used when PULL_POLICY=always)
@@ -147,6 +147,10 @@ services:
     #     reservations:
     #       cpus: '1'
     #       memory: 2G
+
+    # Dependencies
+    depends_on:
+      - db
 
     # Volume mounts
     # Persist crawler data (website registry + per-site URL databases)

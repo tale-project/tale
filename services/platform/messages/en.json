@@ -2742,14 +2742,15 @@
       "title": "Website pages",
       "noPages": "No pages crawled yet",
       "loadMore": "Load more",
-      "noContent": "No content",
-      "showMore": "Show more",
-      "showLess": "Show less"
+      "wordCount": "{count} words",
+      "chunks": "{count} chunks",
+      "lastCrawled": "Crawled {date}"
     },
     "filter": {
       "status": {
-        "active": "Active",
+        "idle": "Idle",
         "scanning": "Scanning",
+        "active": "Active",
         "error": "Error"
       }
     }

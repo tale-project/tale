@@ -3,7 +3,7 @@ Tale Crawler Service
 
 Independent web crawling service using Crawl4AI.
 Provides REST API for website crawling, URL discovery, document conversion,
-template generation, and file parsing.
+template generation, file parsing, content indexing, and hybrid search.
 
 This module follows Clean Architecture principles:
 - main.py: Application setup, configuration, and router registration
@@ -27,16 +27,17 @@ from app.routers import (
     crawler_router,
     docx_router,
     image_router,
+    index_router,
+    pages_router,
     pdf_router,
     pptx_router,
+    search_router,
     web_router,
     websites_router,
 )
 from app.services.crawler_service import get_crawler_service
 from app.services.image_service import get_image_service
 from app.services.pdf_service import get_pdf_service
-from app.services.scheduler import run_scheduler
-from app.services.website_store import get_website_store_manager
 
 
 @asynccontextmanager
@@ -54,11 +55,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         logger.info("Crawler service initialized successfully")
     except Exception:
         logger.exception("Failed to initialize crawler service")
-        # Don't fail startup - allow lazy initialization
+
+    # Initialize PostgreSQL connection pool + search services
+    from app.services.database import close_pool, init_pool
+    from app.services.embedding_service import get_embedding_service
+    from app.services.indexing_service import IndexingService
+    from app.services.pg_website_store import PgWebsiteStoreManager
+    from app.services.scheduler import run_scheduler
+    from app.services.search_service import SearchService
+
+    pool = await init_pool()
+    pg_store_manager = PgWebsiteStoreManager(pool)
+    embedding_service = get_embedding_service()
+    indexing_service = IndexingService(pool, embedding_service)
+    search_service = SearchService(pool, embedding_service)
+
+    # Wire services into routers
+    from app.routers.index import set_indexing_service
+    from app.routers.search import set_search_service
+
+    set_search_service(search_service)
+    set_indexing_service(indexing_service)
+
+    # Store references for scheduler and other routers
+    app.state.pg_store_manager = pg_store_manager
+    app.state.indexing_service = indexing_service
+
+    logger.info("PostgreSQL pool + search services initialized")
 
     # Start background scheduler
-    store_manager = get_website_store_manager()
-    scheduler_task = asyncio.create_task(run_scheduler(store_manager, get_crawler_service()))
+    scheduler_task = asyncio.create_task(run_scheduler(pg_store_manager, get_crawler_service(), indexing_service))
     logger.info("Background scheduler started")
 
     yield
@@ -66,16 +92,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     # Shutdown
     logger.info("Shutting down Tale Crawler service...")
 
-    # Stop scheduler
     scheduler_task.cancel()
     with suppress(asyncio.CancelledError):
         await scheduler_task
     logger.info("Scheduler stopped")
 
-    # Close all website stores
-    store_manager.close_all()
+    await pg_store_manager.close()
+    await close_pool()
 
-    # Cleanup crawler service
     try:
         crawler = get_crawler_service()
         if crawler.initialized:
@@ -109,6 +133,9 @@ app.add_middleware(
 # Register routers
 app.include_router(crawler_router)
 app.include_router(websites_router)
+app.include_router(search_router)
+app.include_router(pages_router)
+app.include_router(index_router)
 app.include_router(pdf_router)
 app.include_router(image_router)
 app.include_router(docx_router)

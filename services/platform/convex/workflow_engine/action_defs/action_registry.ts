@@ -11,7 +11,6 @@ import { productAction } from './product/product_action';
 import { ragAction } from './rag/rag_action';
 import { setVariablesAction } from './set_variables_action';
 import { websiteAction } from './website/website_action';
-import { websitePagesAction } from './website_pages/website_pages_action';
 import { workflowAction } from './workflow/workflow_action';
 import { workflowProcessingRecordsAction } from './workflow_processing_records/workflow_processing_records_action';
 
@@ -48,7 +47,6 @@ export const ACTIONS: AnyActionDefinition[] = [
   onedriveAction,
   crawlerAction,
   websiteAction,
-  websitePagesAction,
   workflowAction,
 ];
 

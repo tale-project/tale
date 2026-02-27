@@ -5,6 +5,8 @@
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
+import { ensureUrl } from './create_website';
+
 export interface GetWebsiteByDomainArgs {
   organizationId: string;
   domain: string;
@@ -17,8 +19,6 @@ export async function getWebsiteByDomain(
   ctx: QueryCtx,
   args: GetWebsiteByDomainArgs,
 ): Promise<Doc<'websites'> | null> {
-  const ensureUrl = (s: string) =>
-    s.startsWith('http://') || s.startsWith('https://') ? s : `https://${s}`;
   const host = new URL(ensureUrl(args.domain)).hostname;
 
   // Try normalized hostname first

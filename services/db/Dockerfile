@@ -1,12 +1,13 @@
-# Dockerfile for Tale DB (TimescaleDB)
+# Dockerfile for Tale DB (ParadeDB)
 # Supports AMD64 and ARM64 architectures
+#
+# Base: ParadeDB (pg_search BM25 + pgvector)
 
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
 
-# Use official TimescaleDB image as base
-# TimescaleDB is PostgreSQL with time-series extensions
-FROM timescale/timescaledb:2.25.1-pg16
+# ParadeDB includes pg_search (BM25), pgvector, and PostgreSQL 16
+FROM paradedb/paradedb:v0.21.9-pg16
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
@@ -14,17 +15,22 @@ ARG VERSION=dev
 # Switch to root for all setup operations
 USER root
 
-# Install additional tools, create directories, and set up configuration in one layer
-# Note: TimescaleDB image is based on Alpine Linux, so we use apk instead of apt-get
-RUN apk add --no-cache \
-    curl \
-    ca-certificates \
+# Install additional tools and create required directories
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /docker-entrypoint-initdb.d \
                 /etc/postgresql/conf.d \
                 /var/lib/postgresql/backup
 
 # Copy initialization scripts
+# - /docker-entrypoint-initdb.d/ : PostgreSQL runs these on first init only
+# - /etc/postgresql/init-scripts/ : Entrypoint wrapper runs these on every startup
 COPY services/db/init-scripts/ /docker-entrypoint-initdb.d/
+COPY services/db/init-scripts/ /etc/postgresql/init-scripts/
 
 # Copy custom PostgreSQL configuration to the expected location
 COPY services/db/postgresql.conf /etc/postgresql/postgresql.conf
@@ -36,8 +42,9 @@ RUN chmod +x /usr/local/bin/docker-entrypoint-wrapper.sh \
                                    /etc/postgresql \
                                    /var/lib/postgresql/backup
 
-# Switch to postgres user for runtime security
-USER postgres
+# Run as root — the standard docker-entrypoint.sh detects root,
+# fixes data directory ownership, then re-execs as postgres via gosu.
+# This handles UID mismatches when switching base images (e.g., Alpine→Debian).
 
 # Set environment variables with DB_ prefix defaults
 # These can be overridden at runtime
@@ -53,11 +60,8 @@ ENV TALE_VERSION=${VERSION} \
     DB_MAX_CONNECTIONS=100 \
     DB_SHARED_BUFFERS=256MB \
     DB_EFFECTIVE_CACHE_SIZE=1GB \
-    DB_MAINTENANCE_WORK_MEM=64MB \
-    DB_WORK_MEM=4MB \
-    # TimescaleDB specific
-    DB_TIMESCALEDB_TELEMETRY=off \
-    TIMESCALEDB_TELEMETRY=off \
+    DB_MAINTENANCE_WORK_MEM=128MB \
+    DB_WORK_MEM=32MB \
     # Logging
     DB_LOG_STATEMENT=none \
     DB_LOG_MIN_DURATION_STATEMENT=-1

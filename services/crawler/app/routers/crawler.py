@@ -4,7 +4,7 @@ Crawler Router - Content fetching and URL check endpoints.
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from loguru import logger
 from pydantic import HttpUrl
 
@@ -14,13 +14,12 @@ from app.models import (
     PageContent,
 )
 from app.services.crawler_service import get_crawler_service
-from app.services.website_store import get_website_store_manager
 
 router = APIRouter(prefix="/api/v1/urls", tags=["Crawler"])
 
 
 @router.post("/fetch", response_model=FetchUrlsResponse)
-async def fetch_urls(request: FetchUrlsRequest):
+async def fetch_urls(request: FetchUrlsRequest, http_request: Request):
     """
     Fetch content from a list of specific URLs.
 
@@ -28,8 +27,8 @@ async def fetch_urls(request: FetchUrlsRequest):
     falling back to live crawling for cache misses.
     """
     try:
-        store_manager = get_website_store_manager()
-        cached, urls_to_crawl = store_manager.get_cached_pages(request.urls)
+        store_manager = http_request.app.state.pg_store_manager
+        cached, urls_to_crawl = await store_manager.get_cached_pages(request.urls)
 
         # Filter cached pages by word_count_threshold
         threshold = request.word_count_threshold

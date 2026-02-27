@@ -273,7 +273,7 @@ const processingRecordFields = createDocFields('workflowProcessingRecords', {
 const workflowProcessingRecordsSchemas: Record<string, OutputSchema> = {
   find_unprocessed: {
     // Dynamic output - returns full document from the specified table
-    // Can be customers, products, documents, websitePages, etc.
+    // Can be customers, products, documents, etc.
     // We can't statically validate fields since it depends on tableName parameter
     description: 'Full unprocessed record from the specified table, or null',
     nullable: true,
@@ -590,58 +590,6 @@ const websiteSchemas: Record<string, OutputSchema> = {
 };
 
 // =============================================================================
-// WEBSITE PAGES ACTION SCHEMAS
-// =============================================================================
-
-const websitePagesSchemas: Record<string, OutputSchema> = {
-  bulk_upsert: {
-    description: 'Bulk upsert result',
-    fields: {
-      created: { type: 'number', description: 'Number of pages created' },
-      updated: { type: 'number', description: 'Number of pages updated' },
-      total: { type: 'number', description: 'Total pages processed' },
-    },
-  },
-  register_urls: {
-    description: 'Register URLs result',
-    fields: {
-      registered: {
-        type: 'number',
-        description: 'Number of new URLs registered',
-      },
-      updated: {
-        type: 'number',
-        description: 'Number of URLs with changed content hash',
-      },
-      deleted: { type: 'number', description: 'Number of URLs deleted' },
-      skipped: {
-        type: 'number',
-        description: 'Number of unchanged URLs skipped',
-      },
-      total: { type: 'number', description: 'Total URLs processed' },
-      urlsToSync: {
-        type: 'array',
-        description: 'URLs that need content fetching',
-      },
-    },
-  },
-  crawl_and_upsert: {
-    description: 'Crawl and upsert result',
-    fields: {
-      processed: {
-        type: 'number',
-        description: 'Number of pages successfully crawled',
-      },
-      failed: {
-        type: 'number',
-        description: 'Number of pages that failed to crawl',
-      },
-      total: { type: 'number', description: 'Total URLs requested' },
-    },
-  },
-};
-
-// =============================================================================
 // WORKFLOW ACTION SCHEMAS
 // =============================================================================
 
@@ -689,7 +637,6 @@ const workflowSchemas: Record<string, OutputSchema> = {
  * - onedrive: OneDrive file operations
  * - crawler: Website crawling
  * - website: Website management
- * - websitePages: Website page management
  * - workflow: Workflow utility operations
  */
 export const actionOutputSchemaRegistry: ActionOutputSchemaRegistry = {
@@ -705,7 +652,6 @@ export const actionOutputSchemaRegistry: ActionOutputSchemaRegistry = {
   onedrive: onedriveSchemas,
   crawler: crawlerSchemas,
   website: websiteSchemas,
-  websitePages: websitePagesSchemas,
   workflow: workflowSchemas,
 };
 
