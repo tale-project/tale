@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { Check, Search } from "lucide-react";
+import * as PopoverPrimitive from '@radix-ui/react-popover';
+import { Check, Search } from 'lucide-react';
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -11,10 +11,10 @@ import {
   useMemo,
   useRef,
   useState,
-} from "react";
+} from 'react';
 
-import { Text } from "@/app/components/ui/typography/text";
-import { cn } from "@/lib/utils/cn";
+import { Text } from '@/app/components/ui/typography/text';
+import { cn } from '@/lib/utils/cn';
 
 export interface SearchableSelectOption {
   value: string;
@@ -43,21 +43,21 @@ export interface SearchableSelectProps {
   /** Called when open state changes */
   onOpenChange?: (open: boolean) => void;
   /** Popover alignment relative to trigger */
-  align?: "start" | "center" | "end";
+  align?: 'start' | 'center' | 'end';
   /** Popover side */
-  side?: "top" | "right" | "bottom" | "left";
+  side?: 'top' | 'right' | 'bottom' | 'left';
   /** Popover side offset in pixels */
   sideOffset?: number;
   /** Additional className for the popover content */
   contentClassName?: string;
   /** Accessible label for the listbox */
-  "aria-label"?: string;
+  'aria-label'?: string;
   /** Custom filter function; defaults to case-insensitive match on label + description */
   filterFn?: (option: SearchableSelectOption, query: string) => boolean;
 }
 
 const CONTENT_CLASSES =
-  "z-50 min-w-[14.5rem] rounded-lg ring-1 ring-border bg-popover text-popover-foreground shadow-md outline-none p-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2";
+  'z-50 min-w-[14.5rem] rounded-lg ring-1 ring-border bg-popover text-popover-foreground shadow-md outline-none p-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2';
 
 function defaultFilterFn(option: SearchableSelectOption, query: string) {
   const lower = query.toLowerCase();
@@ -93,11 +93,11 @@ export function SearchableSelect({
   footer,
   open: controlledOpen,
   onOpenChange,
-  align = "center",
+  align = 'center',
   side,
   sideOffset = 4,
   contentClassName,
-  "aria-label": ariaLabel,
+  'aria-label': ariaLabel,
   filterFn,
 }: SearchableSelectProps) {
   const instanceId = useId();
@@ -108,7 +108,7 @@ export function SearchableSelect({
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = isControlled ? controlledOpen : internalOpen;
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -147,14 +147,14 @@ export function SearchableSelect({
     const el = listRef.current?.querySelector(
       `[data-index="${highlightedIndex}"]`,
     );
-    el?.scrollIntoView({ block: "nearest" });
+    el?.scrollIntoView({ block: 'nearest' });
   }, [highlightedIndex, isOpen]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       setIsOpen(nextOpen);
       if (!nextOpen) {
-        setSearch("");
+        setSearch('');
       }
     },
     [setIsOpen],
@@ -174,7 +174,7 @@ export function SearchableSelect({
       if (len === 0) return;
 
       switch (e.key) {
-        case "ArrowDown": {
+        case 'ArrowDown': {
           e.preventDefault();
           const next = findNextEnabledIndex(
             filteredOptions,
@@ -184,7 +184,7 @@ export function SearchableSelect({
           if (next >= 0) setHighlightedIndex(next);
           break;
         }
-        case "ArrowUp": {
+        case 'ArrowUp': {
           e.preventDefault();
           const prev = findNextEnabledIndex(
             filteredOptions,
@@ -194,7 +194,7 @@ export function SearchableSelect({
           if (prev >= 0) setHighlightedIndex(prev);
           break;
         }
-        case "Enter": {
+        case 'Enter': {
           e.preventDefault();
           const option = filteredOptions[highlightedIndex];
           if (option && !option.disabled) {
@@ -202,13 +202,13 @@ export function SearchableSelect({
           }
           break;
         }
-        case "Home": {
+        case 'Home': {
           e.preventDefault();
           const first = findNextEnabledIndex(filteredOptions, -1, 1);
           if (first >= 0) setHighlightedIndex(first);
           break;
         }
-        case "End": {
+        case 'End': {
           e.preventDefault();
           const last = findNextEnabledIndex(filteredOptions, len, -1);
           if (last >= 0) setHighlightedIndex(last);
@@ -328,9 +328,9 @@ function SearchableSelectOptionItem({
       onClick={() => !option.disabled && onSelect(option.value)}
       onMouseEnter={() => onMouseEnter(index)}
       className={cn(
-        "flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-        isHighlighted && "bg-accent",
-        option.disabled && "pointer-events-none opacity-50",
+        'flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+        isHighlighted && 'bg-accent',
+        option.disabled && 'pointer-events-none opacity-50',
       )}
     >
       <div className="min-w-0 flex-1">
