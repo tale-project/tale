@@ -99,7 +99,7 @@ export function IntegrationCredentialsForm({
         />
       )}
 
-      <BorderedSection gap={3}>
+      <BorderedSection>
         <div>
           <Text variant="label">
             {t('integrations.manageDialog.authentication')}
@@ -252,7 +252,7 @@ function SqlConnectionSection({
   const { t } = useT('settings');
 
   return (
-    <BorderedSection gap={3}>
+    <BorderedSection>
       <HStack gap={2} className="items-center">
         <Text variant="label">
           {t('integrations.manageDialog.databaseConnection')}

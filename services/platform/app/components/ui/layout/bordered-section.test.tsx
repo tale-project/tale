@@ -25,29 +25,8 @@ describe('BorderedSection', () => {
     });
   });
 
-  describe('gap variant', () => {
-    it('applies gap-2 when gap is 2', () => {
-      const { container } = render(
-        <BorderedSection gap={2}>Content</BorderedSection>,
-      );
-      expect(container.firstChild).toHaveClass('gap-2');
-    });
-
-    it('applies gap-3 when gap is 3', () => {
-      const { container } = render(
-        <BorderedSection gap={3}>Content</BorderedSection>,
-      );
-      expect(container.firstChild).toHaveClass('gap-3');
-    });
-
-    it('applies gap-4 when gap is 4', () => {
-      const { container } = render(
-        <BorderedSection gap={4}>Content</BorderedSection>,
-      );
-      expect(container.firstChild).toHaveClass('gap-4');
-    });
-
-    it('defaults to gap-3', () => {
+  describe('gap', () => {
+    it('always applies gap-3', () => {
       const { container } = render(<BorderedSection>Content</BorderedSection>);
       expect(container.firstChild).toHaveClass('gap-3');
     });
