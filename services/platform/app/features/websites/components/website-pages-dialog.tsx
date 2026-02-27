@@ -130,7 +130,7 @@ export function WebsitePagesDialog({
         )}
 
         {results.map((page) => (
-          <BorderedSection key={page._id} padding={4} gap={2}>
+          <BorderedSection key={page._id}>
             <Heading level={3} size="sm" weight="medium">
               {page.title || page.url}
             </Heading>

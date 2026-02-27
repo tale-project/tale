@@ -24,7 +24,7 @@ export function IntegrationDeleteSection({
   const { t } = useT('settings');
 
   return (
-    <BorderedSection gap={3}>
+    <BorderedSection>
       <Text variant="caption">
         {t('integrations.manageDialog.deleteDescription')}
       </Text>

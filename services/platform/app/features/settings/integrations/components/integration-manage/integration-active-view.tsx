@@ -133,7 +133,7 @@ export function IntegrationActiveView({
 
   return (
     <Stack gap={3}>
-      <BorderedSection gap={2}>
+      <BorderedSection>
         <Text variant="label">
           {t('integrations.manageDialog.authentication')}
         </Text>

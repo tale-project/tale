@@ -13,7 +13,7 @@ const meta: Meta<typeof BorderedSection> = {
     docs: {
       description: {
         component: `
-A bordered container with configurable padding and gap for grouping related content.
+A bordered container for grouping related content.
 
 ## Usage
 \`\`\`tsx
@@ -44,56 +44,12 @@ export const Default: Story = {
   args: {
     children: (
       <>
-        <p className="text-sm">
-          Default bordered section with padding 4 and gap 3.
-        </p>
+        <p className="text-sm">Default bordered section.</p>
         <p className="text-muted-foreground text-sm">
           A second line of content.
         </p>
       </>
     ),
-  },
-};
-
-export const SmallPadding: Story = {
-  args: {
-    padding: 3,
-    children: (
-      <>
-        <p className="text-sm">Compact section with reduced padding.</p>
-        <p className="text-muted-foreground text-sm">
-          A second line of content.
-        </p>
-      </>
-    ),
-  },
-  parameters: {
-    docs: {
-      description: {
-        story: 'Smaller internal padding for tighter layouts.',
-      },
-    },
-  },
-};
-
-export const SmallGap: Story = {
-  args: {
-    gap: 2,
-    children: (
-      <>
-        <p className="text-sm">Tighter gap between children.</p>
-        <p className="text-muted-foreground text-sm">
-          A second line of content.
-        </p>
-      </>
-    ),
-  },
-  parameters: {
-    docs: {
-      description: {
-        story: 'Reduced gap between child elements.',
-      },
-    },
   },
 };
 
