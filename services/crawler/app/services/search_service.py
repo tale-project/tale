@@ -53,7 +53,7 @@ class SearchService:
                     """SELECT id, url, title, chunk_content, chunk_index,
                               paradedb.score(id) AS score
                        FROM chunks
-                       WHERE chunk_content @@@ $1 AND domain = $2
+                       WHERE id @@@ paradedb.match('chunk_content', $1) AND domain = $2
                        ORDER BY score DESC
                        LIMIT $3""",
                     query,
@@ -65,7 +65,7 @@ class SearchService:
                     """SELECT id, url, title, chunk_content, chunk_index,
                               paradedb.score(id) AS score
                        FROM chunks
-                       WHERE chunk_content @@@ $1
+                       WHERE id @@@ paradedb.match('chunk_content', $1)
                        ORDER BY score DESC
                        LIMIT $2""",
                     query,
