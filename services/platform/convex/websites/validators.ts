@@ -14,7 +14,6 @@ import { websiteStatusSchema } from '../../lib/shared/schemas/websites';
 export {
   websiteStatusSchema,
   websiteSchema,
-  websitePageSchema,
 } from '../../lib/shared/schemas/websites';
 
 // Simple schemas without z.lazy()
@@ -32,20 +31,6 @@ export const websiteValidator = v.object({
   lastScannedAt: v.optional(v.number()),
   status: v.optional(websiteStatusValidator),
   pageCount: v.optional(v.number()),
+  crawledPageCount: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
-});
-
-export const websitePageValidator = v.object({
-  _id: v.string(),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  websiteId: v.string(),
-  url: v.string(),
-  title: v.optional(v.string()),
-  content: v.optional(v.string()),
-  wordCount: v.optional(v.number()),
-  lastCrawledAt: v.number(),
-  metadata: v.optional(jsonRecordValidator),
-  structuredData: v.optional(jsonRecordValidator),
-  syncStatus: v.optional(v.union(v.literal('pending'), v.literal('synced'))),
 });

@@ -5,6 +5,8 @@
 import type { MutationCtx } from '../_generated/server';
 import type { BulkCreateWebsitesResult, BulkWebsiteData } from './types';
 
+import { ensureUrl } from './create_website';
+
 export interface BulkCreateWebsitesArgs {
   organizationId: string;
   websites: BulkWebsiteData[];
@@ -27,10 +29,6 @@ export async function bulkCreateWebsites(
     const websiteData = args.websites[i];
 
     try {
-      const ensureUrl = (s: string) =>
-        s.startsWith('http://') || s.startsWith('https://')
-          ? s
-          : `https://${s}`;
       const normalized = new URL(ensureUrl(websiteData.domain)).hostname;
 
       // Check for duplicates (normalized)

@@ -5,6 +5,8 @@
 import type { Id, Doc } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
+import { ensureUrl } from './create_website';
+
 export interface UpdateWebsiteArgs {
   websiteId: Id<'websites'>;
   domain?: string;
@@ -12,7 +14,9 @@ export interface UpdateWebsiteArgs {
   description?: string;
   scanInterval?: string;
   lastScannedAt?: number;
-  status?: 'active' | 'inactive' | 'error';
+  status?: 'idle' | 'scanning' | 'active' | 'error';
+  pageCount?: number;
+  crawledPageCount?: number;
   metadata?: unknown;
 }
 
@@ -33,8 +37,6 @@ export async function updateWebsite(
 
   // If domain provided, normalize to bare hostname and check for conflicts
   if (updateData.domain) {
-    const ensureUrl = (s: string) =>
-      s.startsWith('http://') || s.startsWith('https://') ? s : `https://${s}`;
     const normalized = new URL(ensureUrl(updateData.domain)).hostname;
     updateData.domain = normalized;
 

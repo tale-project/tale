@@ -4,14 +4,9 @@
 
 import type { Infer } from 'convex/values';
 
-import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 
-import {
-  websitePageValidator,
-  websiteStatusValidator,
-  websiteValidator,
-} from './validators';
+import { websiteStatusValidator, websiteValidator } from './validators';
 
 // =============================================================================
 // INFERRED TYPES (from validators)
@@ -19,7 +14,6 @@ import {
 
 export type WebsiteStatus = Infer<typeof websiteStatusValidator>;
 export type Website = Infer<typeof websiteValidator>;
-export type WebsitePage = Infer<typeof websitePageValidator>;
 
 // =============================================================================
 // MANUAL TYPES (no corresponding validator)
@@ -70,28 +64,81 @@ export interface BulkWebsiteData {
   metadata?: Record<string, string | number | boolean | null>;
 }
 
-/**
- * Args for bulk upserting website pages
- */
-export interface BulkUpsertPagesArgs {
-  organizationId: string;
-  websiteId: string;
-  pages: Array<{
-    url: string;
-    title?: string;
-    content?: string;
-    wordCount?: number;
-    contentHash?: string;
-    metadata?: ConvexJsonRecord;
-    structuredData?: ConvexJsonRecord;
-  }>;
+// =============================================================================
+// CRAWLER SERVICE TYPES
+// =============================================================================
+
+export interface CrawlerPage {
+  url: string;
+  title: string | null;
+  word_count: number;
+  status: string;
+  content_hash: string | null;
+  last_crawled_at: string | null;
+  discovered_at: string | null;
+  chunks_count: number;
+  indexed: boolean;
 }
 
-/**
- * Result from bulk upserting website pages
- */
-export interface BulkUpsertPagesResult {
-  created: number;
-  updated: number;
+export interface CrawlerWebsiteInfo {
+  domain: string;
+  title: string | null;
+  description: string | null;
+  page_count: number;
+  crawled_count: number;
+  status: WebsiteStatus;
+  last_scanned_at: string | null;
+}
+
+export interface CrawlerPagesResponse {
+  domain: string;
+  pages: CrawlerPage[];
+  total: number;
+  offset: number;
+  has_more: boolean;
+}
+
+export interface FetchPagesResult {
+  pages: CrawlerPage[];
+  total: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+export interface CrawlerChunk {
+  chunk_index: number;
+  chunk_content: string;
+}
+
+export interface CrawlerChunksResponse {
+  url: string;
+  domain: string;
+  chunks: CrawlerChunk[];
+  total: number;
+}
+
+export interface FetchChunksResult {
+  url: string;
+  chunks: CrawlerChunk[];
+  total: number;
+}
+
+export interface CrawlerSearchResult {
+  url: string;
+  title: string | null;
+  chunk_content: string;
+  chunk_index: number;
+  score: number;
+}
+
+export interface CrawlerSearchResponse {
+  query: string;
+  results: CrawlerSearchResult[];
+  total: number;
+}
+
+export interface SearchContentResult {
+  query: string;
+  results: CrawlerSearchResult[];
   total: number;
 }

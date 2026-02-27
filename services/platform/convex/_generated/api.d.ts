@@ -306,7 +306,6 @@ import type * as lib_crypto_get_secret_key from "../lib/crypto/get_secret_key.js
 import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_crypto_internal_actions from "../lib/crypto/internal_actions.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
-import type * as lib_embedding_config from "../lib/embedding_config.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
 import type * as lib_get_user_teams from "../lib/get_user_teams.js";
@@ -450,7 +449,6 @@ import type * as predefined_workflows_product_recommendation_email from "../pred
 import type * as predefined_workflows_product_relationship_analysis from "../predefined_workflows/product_relationship_analysis.js";
 import type * as predefined_workflows_shopify_sync_customers from "../predefined_workflows/shopify_sync_customers.js";
 import type * as predefined_workflows_shopify_sync_products from "../predefined_workflows/shopify_sync_products.js";
-import type * as predefined_workflows_website_scan from "../predefined_workflows/website_scan.js";
 import type * as predefined_workflows_workflow_rag_sync from "../predefined_workflows/workflow_rag_sync.js";
 import type * as products_create_product from "../products/create_product.js";
 import type * as products_create_product_with_translations from "../products/create_product_with_translations.js";
@@ -547,20 +545,10 @@ import type * as vendors_list_vendors_paginated from "../vendors/list_vendors_pa
 import type * as vendors_mutations from "../vendors/mutations.js";
 import type * as vendors_queries from "../vendors/queries.js";
 import type * as vendors_validators from "../vendors/validators.js";
-import type * as website_page_embeddings_chunk_content from "../website_page_embeddings/chunk_content.js";
-import type * as website_page_embeddings_content_hash from "../website_page_embeddings/content_hash.js";
-import type * as website_page_embeddings_embedding_pool from "../website_page_embeddings/embedding_pool.js";
-import type * as website_page_embeddings_internal_actions from "../website_page_embeddings/internal_actions.js";
-import type * as website_page_embeddings_internal_mutations from "../website_page_embeddings/internal_mutations.js";
-import type * as website_page_embeddings_internal_queries from "../website_page_embeddings/internal_queries.js";
-import type * as website_page_embeddings_rrf from "../website_page_embeddings/rrf.js";
+import type * as websites_actions from "../websites/actions.js";
 import type * as websites_bulk_create_websites from "../websites/bulk_create_websites.js";
-import type * as websites_bulk_upsert_pages from "../websites/bulk_upsert_pages.js";
-import type * as websites_cleanup_website from "../websites/cleanup_website.js";
 import type * as websites_create_website from "../websites/create_website.js";
 import type * as websites_delete_website from "../websites/delete_website.js";
-import type * as websites_get_page_by_url from "../websites/get_page_by_url.js";
-import type * as websites_get_pages_by_website from "../websites/get_pages_by_website.js";
 import type * as websites_get_website from "../websites/get_website.js";
 import type * as websites_get_website_by_domain from "../websites/get_website_by_domain.js";
 import type * as websites_get_websites from "../websites/get_websites.js";
@@ -568,13 +556,9 @@ import type * as websites_helpers from "../websites/helpers.js";
 import type * as websites_internal_actions from "../websites/internal_actions.js";
 import type * as websites_internal_mutations from "../websites/internal_mutations.js";
 import type * as websites_internal_queries from "../websites/internal_queries.js";
-import type * as websites_list_website_pages_paginated from "../websites/list_website_pages_paginated.js";
 import type * as websites_list_websites_paginated from "../websites/list_websites_paginated.js";
 import type * as websites_mutations from "../websites/mutations.js";
-import type * as websites_provision_website_scan_workflow from "../websites/provision_website_scan_workflow.js";
 import type * as websites_queries from "../websites/queries.js";
-import type * as websites_register_urls from "../websites/register_urls.js";
-import type * as websites_rescan_website from "../websites/rescan_website.js";
 import type * as websites_search_websites from "../websites/search_websites.js";
 import type * as websites_types from "../websites/types.js";
 import type * as websites_update_website from "../websites/update_website.js";
@@ -640,8 +624,6 @@ import type * as workflow_engine_action_defs_rag_rag_action from "../workflow_en
 import type * as workflow_engine_action_defs_set_variables_action from "../workflow_engine/action_defs/set_variables_action.js";
 import type * as workflow_engine_action_defs_website_helpers_types from "../workflow_engine/action_defs/website/helpers/types.js";
 import type * as workflow_engine_action_defs_website_website_action from "../workflow_engine/action_defs/website/website_action.js";
-import type * as workflow_engine_action_defs_website_pages_helpers_types from "../workflow_engine/action_defs/website_pages/helpers/types.js";
-import type * as workflow_engine_action_defs_website_pages_website_pages_action from "../workflow_engine/action_defs/website_pages/website_pages_action.js";
 import type * as workflow_engine_action_defs_workflow_helpers_types from "../workflow_engine/action_defs/workflow/helpers/types.js";
 import type * as workflow_engine_action_defs_workflow_helpers_upload_workflows from "../workflow_engine/action_defs/workflow/helpers/upload_workflows.js";
 import type * as workflow_engine_action_defs_workflow_workflow_action from "../workflow_engine/action_defs/workflow/workflow_action.js";
@@ -1158,7 +1140,6 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/hex_to_bytes": typeof lib_crypto_hex_to_bytes;
   "lib/crypto/internal_actions": typeof lib_crypto_internal_actions;
   "lib/debug_log": typeof lib_debug_log;
-  "lib/embedding_config": typeof lib_embedding_config;
   "lib/error_classification": typeof lib_error_classification;
   "lib/get_or_throw": typeof lib_get_or_throw;
   "lib/get_user_teams": typeof lib_get_user_teams;
@@ -1302,7 +1283,6 @@ declare const fullApi: ApiFromModules<{
   "predefined_workflows/product_relationship_analysis": typeof predefined_workflows_product_relationship_analysis;
   "predefined_workflows/shopify_sync_customers": typeof predefined_workflows_shopify_sync_customers;
   "predefined_workflows/shopify_sync_products": typeof predefined_workflows_shopify_sync_products;
-  "predefined_workflows/website_scan": typeof predefined_workflows_website_scan;
   "predefined_workflows/workflow_rag_sync": typeof predefined_workflows_workflow_rag_sync;
   "products/create_product": typeof products_create_product;
   "products/create_product_with_translations": typeof products_create_product_with_translations;
@@ -1399,20 +1379,10 @@ declare const fullApi: ApiFromModules<{
   "vendors/mutations": typeof vendors_mutations;
   "vendors/queries": typeof vendors_queries;
   "vendors/validators": typeof vendors_validators;
-  "website_page_embeddings/chunk_content": typeof website_page_embeddings_chunk_content;
-  "website_page_embeddings/content_hash": typeof website_page_embeddings_content_hash;
-  "website_page_embeddings/embedding_pool": typeof website_page_embeddings_embedding_pool;
-  "website_page_embeddings/internal_actions": typeof website_page_embeddings_internal_actions;
-  "website_page_embeddings/internal_mutations": typeof website_page_embeddings_internal_mutations;
-  "website_page_embeddings/internal_queries": typeof website_page_embeddings_internal_queries;
-  "website_page_embeddings/rrf": typeof website_page_embeddings_rrf;
+  "websites/actions": typeof websites_actions;
   "websites/bulk_create_websites": typeof websites_bulk_create_websites;
-  "websites/bulk_upsert_pages": typeof websites_bulk_upsert_pages;
-  "websites/cleanup_website": typeof websites_cleanup_website;
   "websites/create_website": typeof websites_create_website;
   "websites/delete_website": typeof websites_delete_website;
-  "websites/get_page_by_url": typeof websites_get_page_by_url;
-  "websites/get_pages_by_website": typeof websites_get_pages_by_website;
   "websites/get_website": typeof websites_get_website;
   "websites/get_website_by_domain": typeof websites_get_website_by_domain;
   "websites/get_websites": typeof websites_get_websites;
@@ -1420,13 +1390,9 @@ declare const fullApi: ApiFromModules<{
   "websites/internal_actions": typeof websites_internal_actions;
   "websites/internal_mutations": typeof websites_internal_mutations;
   "websites/internal_queries": typeof websites_internal_queries;
-  "websites/list_website_pages_paginated": typeof websites_list_website_pages_paginated;
   "websites/list_websites_paginated": typeof websites_list_websites_paginated;
   "websites/mutations": typeof websites_mutations;
-  "websites/provision_website_scan_workflow": typeof websites_provision_website_scan_workflow;
   "websites/queries": typeof websites_queries;
-  "websites/register_urls": typeof websites_register_urls;
-  "websites/rescan_website": typeof websites_rescan_website;
   "websites/search_websites": typeof websites_search_websites;
   "websites/types": typeof websites_types;
   "websites/update_website": typeof websites_update_website;
@@ -1492,8 +1458,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/set_variables_action": typeof workflow_engine_action_defs_set_variables_action;
   "workflow_engine/action_defs/website/helpers/types": typeof workflow_engine_action_defs_website_helpers_types;
   "workflow_engine/action_defs/website/website_action": typeof workflow_engine_action_defs_website_website_action;
-  "workflow_engine/action_defs/website_pages/helpers/types": typeof workflow_engine_action_defs_website_pages_helpers_types;
-  "workflow_engine/action_defs/website_pages/website_pages_action": typeof workflow_engine_action_defs_website_pages_website_pages_action;
   "workflow_engine/action_defs/workflow/helpers/types": typeof workflow_engine_action_defs_workflow_helpers_types;
   "workflow_engine/action_defs/workflow/helpers/upload_workflows": typeof workflow_engine_action_defs_workflow_helpers_upload_workflows;
   "workflow_engine/action_defs/workflow/workflow_action": typeof workflow_engine_action_defs_workflow_workflow_action;
@@ -8372,93 +8336,6 @@ export declare const components: {
           streamId: string;
         },
         any
-      >;
-    };
-  };
-  embeddingPool: {
-    lib: {
-      cancel: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          id: string;
-          logLevel: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
-        },
-        any
-      >;
-      cancelAll: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          before?: number;
-          limit?: number;
-          logLevel: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
-        },
-        any
-      >;
-      enqueue: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          config: {
-            logLevel: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
-            maxParallelism: number;
-          };
-          fnArgs: any;
-          fnHandle: string;
-          fnName: string;
-          fnType: "action" | "mutation" | "query";
-          onComplete?: { context?: any; fnHandle: string };
-          retryBehavior?: {
-            base: number;
-            initialBackoffMs: number;
-            maxAttempts: number;
-          };
-          runAt: number;
-        },
-        string
-      >;
-      enqueueBatch: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          config: {
-            logLevel: "DEBUG" | "TRACE" | "INFO" | "REPORT" | "WARN" | "ERROR";
-            maxParallelism: number;
-          };
-          items: Array<{
-            fnArgs: any;
-            fnHandle: string;
-            fnName: string;
-            fnType: "action" | "mutation" | "query";
-            onComplete?: { context?: any; fnHandle: string };
-            retryBehavior?: {
-              base: number;
-              initialBackoffMs: number;
-              maxAttempts: number;
-            };
-            runAt: number;
-          }>;
-        },
-        Array<string>
-      >;
-      status: FunctionReference<
-        "query",
-        "internal",
-        { id: string },
-        | { previousAttempts: number; state: "pending" }
-        | { previousAttempts: number; state: "running" }
-        | { state: "finished" }
-      >;
-      statusBatch: FunctionReference<
-        "query",
-        "internal",
-        { ids: Array<string> },
-        Array<
-          | { previousAttempts: number; state: "pending" }
-          | { previousAttempts: number; state: "running" }
-          | { state: "finished" }
-        >
       >;
     };
   };

@@ -10,8 +10,8 @@
 
 import type { ActionCtx } from '../../../_generated/server';
 
-import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { getCrawlerServiceUrl } from './get_crawler_service_url';
 
 const debugLog = createDebugLog('DEBUG_WEB_CONTEXT', '[WebContext]');
 
@@ -21,9 +21,15 @@ const WEB_CONTEXT_TIMEOUT_MS = 10_000;
 interface SearchResult {
   url: string;
   title?: string;
-  chunkContent: string;
-  chunkIndex: number;
+  chunk_content: string;
+  chunk_index: number;
   score: number;
+}
+
+interface SearchApiResponse {
+  query: string;
+  results: SearchResult[];
+  total: number;
 }
 
 /**
@@ -32,15 +38,14 @@ interface SearchResult {
  * @returns Formatted context string or undefined if no results / on failure
  */
 export async function queryWebContext(
-  ctx: ActionCtx,
-  organizationId: string,
+  _ctx: ActionCtx,
+  _organizationId: string,
   query: string,
   limit = DEFAULT_LIMIT,
 ): Promise<string | undefined> {
   try {
     debugLog('Querying web context', {
       query: query.slice(0, 100),
-      organizationId,
       limit,
     });
 
@@ -51,12 +56,25 @@ export async function queryWebContext(
     );
 
     try {
-      const results: SearchResult[] = await ctx.runAction(
-        internal.website_page_embeddings.internal_actions.search,
-        { organizationId, query, limit },
-      );
+      const crawlerUrl = getCrawlerServiceUrl();
+      const response = await fetch(`${crawlerUrl}/api/v1/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, limit }),
+        signal: controller.signal,
+      });
 
       clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.error('[web_context] Search API error', {
+          status: response.status,
+        });
+        return undefined;
+      }
+
+      const data: SearchApiResponse = await response.json();
+      const results = data.results;
 
       if (!results || results.length === 0) {
         debugLog('No web context results', { query: query.slice(0, 100) });
@@ -76,8 +94,8 @@ export async function queryWebContext(
           const bestScore = Math.max(...chunks.map((c) => c.score));
           const title = chunks[0].title ?? url;
           const contentParts = chunks
-            .sort((a, b) => a.chunkIndex - b.chunkIndex)
-            .map((c) => c.chunkContent)
+            .sort((a, b) => a.chunk_index - b.chunk_index)
+            .map((c) => c.chunk_content)
             .join('\n\n');
 
           return {

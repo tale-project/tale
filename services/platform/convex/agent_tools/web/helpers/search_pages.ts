@@ -1,14 +1,14 @@
 /**
- * Search crawled website pages using semantic similarity.
+ * Search crawled website pages using hybrid search (full-text + vector).
  *
- * Calls the internal embedding search action and formats results
+ * Calls the crawler service search API and formats results
  * for the LLM — deduplicating by URL and ordering by relevance.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
 
-import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { getCrawlerServiceUrl } from './get_crawler_service_url';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -17,30 +17,36 @@ const DEFAULT_LIMIT = 10;
 interface SearchResult {
   url: string;
   title?: string;
-  chunkContent: string;
-  chunkIndex: number;
+  chunk_content: string;
+  chunk_index: number;
   score: number;
+}
+
+interface SearchApiResponse {
+  query: string;
+  results: SearchResult[];
+  total: number;
 }
 
 export async function searchPages(
   ctx: ToolCtx,
   args: { query: string },
 ): Promise<string> {
-  const organizationId = ctx.organizationId;
-  if (!organizationId) {
-    throw new Error('search_pages requires organizationId in ToolCtx.');
-  }
-
   debugLog('web:search_pages start', { query: args.query });
 
-  const results: SearchResult[] = await ctx.runAction(
-    internal.website_page_embeddings.internal_actions.search,
-    {
-      organizationId,
-      query: args.query,
-      limit: DEFAULT_LIMIT,
-    },
-  );
+  const crawlerUrl = getCrawlerServiceUrl();
+  const response = await fetch(`${crawlerUrl}/api/v1/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: args.query, limit: DEFAULT_LIMIT }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Search API returned ${response.status}`);
+  }
+
+  const data: SearchApiResponse = await response.json();
+  const results = data.results;
 
   if (!results || results.length === 0) {
     debugLog('web:search_pages no results', { query: args.query });
@@ -65,8 +71,8 @@ export async function searchPages(
       const bestScore = Math.max(...chunks.map((c) => c.score));
       const title = chunks[0].title ?? url;
       const contentParts = chunks
-        .sort((a, b) => a.chunkIndex - b.chunkIndex)
-        .map((c) => c.chunkContent)
+        .sort((a, b) => a.chunk_index - b.chunk_index)
+        .map((c) => c.chunk_content)
         .join('\n\n');
 
       return {
