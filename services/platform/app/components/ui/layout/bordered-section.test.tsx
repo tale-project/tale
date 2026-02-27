@@ -32,22 +32,8 @@ describe('BorderedSection', () => {
     });
   });
 
-  describe('padding variant', () => {
-    it('applies p-3 when padding is 3', () => {
-      const { container } = render(
-        <BorderedSection padding={3}>Content</BorderedSection>,
-      );
-      expect(container.firstChild).toHaveClass('p-3');
-    });
-
-    it('applies p-4 when padding is 4', () => {
-      const { container } = render(
-        <BorderedSection padding={4}>Content</BorderedSection>,
-      );
-      expect(container.firstChild).toHaveClass('p-4');
-    });
-
-    it('defaults to p-4', () => {
+  describe('padding', () => {
+    it('always applies p-4', () => {
       const { container } = render(<BorderedSection>Content</BorderedSection>);
       expect(container.firstChild).toHaveClass('p-4');
     });

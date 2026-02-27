@@ -178,8 +178,7 @@ export function TeamMembersDialog({
               return (
                 <BorderedSection
                   key={member._id}
-                  padding={3}
-                  className="flex-row items-center justify-between"
+                  className="flex-row items-center justify-between p-3"
                 >
                   <Stack gap={1}>
                     <Text as="span" variant="label">
