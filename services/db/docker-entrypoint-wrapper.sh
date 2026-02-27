@@ -90,6 +90,7 @@ run_init_scripts() {
 
 # Run init scripts in the background after PostgreSQL starts
 (
+    trap 'exit 0' SIGTERM SIGINT
     until pg_isready -U "$POSTGRES_USER" -q 2>/dev/null; do
         sleep 1
     done

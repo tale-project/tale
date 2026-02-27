@@ -43,6 +43,13 @@ services:
     # Container name
     container_name: tale-db
 
+    # Graceful shutdown: give PostgreSQL enough time to complete
+    # checkpoint + WAL flush before Docker sends SIGKILL
+    stop_grace_period: 60s
+
+    # Shared memory: ParadeDB extensions may exceed Docker's default 64MB /dev/shm
+    shm_size: 256mb
+
     # Port mapping: host:container
     # Access PostgreSQL at localhost:5432
     ports:

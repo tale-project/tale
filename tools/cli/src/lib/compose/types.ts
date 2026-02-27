@@ -14,6 +14,8 @@ export const DEFAULT_LOGGING: LoggingConfig = {
 export interface ComposeService {
   image: string;
   container_name?: string;
+  stop_grace_period?: string;
+  shm_size?: string;
   ports?: string[];
   volumes?: string[];
   env_file?: string[];

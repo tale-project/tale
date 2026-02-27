@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 
 import asyncpg
 
+from app.services.database import acquire_with_retry
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +29,7 @@ class PgWebsiteStore:
         if not urls:
             return 0
 
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             count_before = await conn.fetchval("SELECT COUNT(*) FROM website_urls WHERE domain = $1", self._domain)
             await conn.executemany(
                 """INSERT INTO website_urls (domain, url, discovered_at)
@@ -41,7 +43,7 @@ class PgWebsiteStore:
             return inserted
 
     async def get_urls_page(self, offset: int = 0, limit: int = 100, status: str | None = None) -> list[dict]:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             if status:
                 rows = await conn.fetch(
                     """SELECT url, content_hash, status, last_crawled_at
@@ -74,7 +76,7 @@ class PgWebsiteStore:
             ]
 
     async def get_urls_needing_recrawl(self, limit: int = 20, crawled_before: float | None = None) -> list[str]:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             if crawled_before is not None:
                 ts = datetime.fromtimestamp(crawled_before, tz=UTC)
                 rows = await conn.fetch(
@@ -103,7 +105,7 @@ class PgWebsiteStore:
     async def increment_fail_count(self, urls: list[str]) -> None:
         if not urls:
             return
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             await conn.executemany(
                 """UPDATE website_urls
                    SET fail_count = fail_count + 1, last_crawled_at = NOW()
@@ -114,7 +116,7 @@ class PgWebsiteStore:
     async def update_content_hashes(self, updates: list[dict]) -> None:
         if not updates:
             return
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             await conn.executemany(
                 """UPDATE website_urls
                    SET content_hash = $3, status = $4, last_crawled_at = NOW(),
@@ -141,7 +143,7 @@ class PgWebsiteStore:
     async def mark_urls_deleted(self, urls: list[str]) -> None:
         if not urls:
             return
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             await conn.executemany(
                 "UPDATE website_urls SET status = 'deleted' WHERE domain = $1 AND url = $2",
                 [(self._domain, url) for url in urls],
@@ -150,7 +152,7 @@ class PgWebsiteStore:
     async def get_cache_headers(self, urls: list[str]) -> dict[str, dict]:
         if not urls:
             return {}
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
                 """SELECT url, etag, last_modified FROM website_urls
                    WHERE domain = $1 AND url = ANY($2)
@@ -163,7 +165,7 @@ class PgWebsiteStore:
     async def update_cache_headers(self, updates: list[dict]) -> None:
         if not updates:
             return
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             await conn.executemany(
                 "UPDATE website_urls SET etag = $3, last_modified = $4 WHERE domain = $1 AND url = $2",
                 [(self._domain, u["url"], u.get("etag"), u.get("last_modified")) for u in updates],
@@ -172,14 +174,14 @@ class PgWebsiteStore:
     async def touch_crawled_at(self, urls: list[str]) -> None:
         if not urls:
             return
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             await conn.executemany(
                 "UPDATE website_urls SET last_crawled_at = NOW() WHERE domain = $1 AND url = $2",
                 [(self._domain, url) for url in urls],
             )
 
     async def get_total_count(self, status: str | None = None) -> int:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             if status:
                 return await conn.fetchval(
                     """SELECT COUNT(*) FROM website_urls
@@ -195,7 +197,7 @@ class PgWebsiteStore:
     async def get_cached_pages(self, urls: list[str]) -> list[dict]:
         if not urls:
             return []
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
                 """SELECT url, title, content, word_count, metadata, structured_data
                    FROM website_urls
@@ -224,7 +226,7 @@ class PgWebsiteStoreManager:
         self._stores: dict[str, PgWebsiteStore] = {}
 
     async def register_website(self, domain: str, scan_interval: int = 21600) -> dict:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             await conn.execute(
                 """INSERT INTO websites (domain, scan_interval, created_at, updated_at)
                    VALUES ($1, $2, NOW(), NOW())
@@ -244,7 +246,7 @@ class PgWebsiteStoreManager:
         description: str | None = None,
         page_count: int | None = None,
     ) -> None:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             await conn.execute(
                 """UPDATE websites SET
                      title = COALESCE($2, title),
@@ -260,7 +262,7 @@ class PgWebsiteStoreManager:
 
     async def remove_website(self, domain: str) -> bool:
         self._stores.pop(domain, None)
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             # ON DELETE CASCADE on website_urls and chunks handles child row cleanup
             result = await conn.execute("DELETE FROM websites WHERE domain = $1", domain)
             deleted = result == "DELETE 1"
@@ -269,7 +271,7 @@ class PgWebsiteStoreManager:
         return deleted
 
     async def get_due_websites(self) -> list[dict]:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
                 """SELECT domain, status, scan_interval, last_scanned_at, error
                    FROM websites
@@ -280,7 +282,7 @@ class PgWebsiteStoreManager:
             return [dict(r) for r in rows]
 
     async def update_scan_status(self, domain: str, status: str, error: str | None = None) -> None:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             await conn.execute(
                 "UPDATE websites SET status = $2, error = $3, updated_at = NOW() WHERE domain = $1",
                 domain,
@@ -289,14 +291,14 @@ class PgWebsiteStoreManager:
             )
 
     async def update_last_scanned(self, domain: str) -> None:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             await conn.execute(
                 "UPDATE websites SET last_scanned_at = NOW(), updated_at = NOW() WHERE domain = $1",
                 domain,
             )
 
     async def get_website(self, domain: str) -> dict | None:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             row = await conn.fetchrow(
                 """SELECT w.domain, w.title, w.description, w.page_count, w.status,
                           w.scan_interval, w.last_scanned_at, w.error,

@@ -9,6 +9,7 @@ import logging
 import asyncpg
 
 from app.services.chunking_service import chunk_content
+from app.services.database import acquire_with_retry
 from app.services.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class IndexingService:
         content_hash = _sha256(content)
 
         # Check if already indexed with same hash
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             existing_hash = await conn.fetchval("SELECT content_hash FROM chunks WHERE url = $1 LIMIT 1", url)
             if existing_hash == content_hash:
                 return {"url": url, "status": "skipped", "chunks_indexed": 0}
@@ -49,7 +50,7 @@ class IndexingService:
             return {"url": url, "status": "error", "chunks_indexed": 0, "error": "embedding_failed"}
 
         # Store in DB (ensure website_urls entry exists, delete old chunks → insert new)
-        async with self._pool.acquire() as conn, conn.transaction():
+        async with acquire_with_retry(self._pool) as conn, conn.transaction():
             await conn.execute(
                 """INSERT INTO website_urls (domain, url, title, content_hash, status, discovered_at, last_crawled_at)
                    VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())
@@ -75,7 +76,7 @@ class IndexingService:
         # Ensure HNSW index exists once embeddings are stored
         if not self._hnsw_ensured:
             try:
-                async with self._pool.acquire() as conn:
+                async with acquire_with_retry(self._pool) as conn:
                     await conn.execute("SELECT create_chunks_hnsw_index()")
                 self._hnsw_ensured = True
             except Exception as e:
@@ -94,7 +95,7 @@ class IndexingService:
         offset = 0
 
         while True:
-            async with self._pool.acquire() as conn:
+            async with acquire_with_retry(self._pool) as conn:
                 rows = await conn.fetch(
                     """SELECT url, title, content FROM website_urls
                        WHERE domain = $1 AND content IS NOT NULL
@@ -137,7 +138,7 @@ class IndexingService:
         }
 
     async def delete_page_chunks(self, url: str) -> int:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             result = await conn.execute("DELETE FROM chunks WHERE url = $1", url)
             count = int(result.split()[-1]) if result else 0
             return count

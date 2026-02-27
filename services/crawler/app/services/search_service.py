@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 import asyncpg
 
+from app.services.database import acquire_with_retry
 from app.services.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class SearchService:
         return self._merge_rrf([fts_results, vector_results], limit)
 
     async def _fts_search(self, query: str, domain: str | None, limit: int) -> list[dict]:
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             if domain:
                 rows = await conn.fetch(
                     """SELECT id, url, title, chunk_content, chunk_index,
@@ -75,7 +76,7 @@ class SearchService:
 
     async def _vector_search(self, embedding: list[float], domain: str | None, limit: int) -> list[dict]:
         vec_str = json.dumps(embedding)
-        async with self._pool.acquire() as conn:
+        async with acquire_with_retry(self._pool) as conn:
             if domain:
                 rows = await conn.fetch(
                     """SELECT id, url, title, chunk_content, chunk_index,

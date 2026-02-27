@@ -5,8 +5,11 @@ Provides a singleton pool tied to FastAPI's lifespan for the tale_search databas
 """
 
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import asyncpg
+import stamina
 from loguru import logger
 
 from app.config import settings
@@ -74,6 +77,25 @@ async def init_pool() -> asyncpg.Pool:
         logger.warning(f"HNSW index creation deferred: {e}")
 
     return _pool
+
+
+_TRANSIENT_ERRORS = (asyncpg.CannotConnectNowError, OSError)
+
+
+@asynccontextmanager
+async def acquire_with_retry(pool: asyncpg.Pool) -> AsyncIterator[asyncpg.Connection]:
+    """Acquire a pooled connection, retrying on transient DB errors."""
+    async for attempt in stamina.retry_context(
+        on=_TRANSIENT_ERRORS,
+        attempts=5,
+        timeout=30,
+    ):
+        with attempt:
+            conn = await pool.acquire()
+    try:
+        yield conn
+    finally:
+        await pool.release(conn)
 
 
 def get_pool() -> asyncpg.Pool:
