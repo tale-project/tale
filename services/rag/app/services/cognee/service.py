@@ -781,15 +781,28 @@ class CogneeService:
             total_chunks_created = 0
             result = None
             added_datasets: list[str] = []
+            dataset_errors: list[BaseException] = []
             for ds_result_or_err in dataset_results:
                 if isinstance(ds_result_or_err, BaseException):
                     logger.error(f"Dataset processing failed: {ds_result_or_err}")
+                    dataset_errors.append(ds_result_or_err)
                     continue
                 ds_name, ds_result, ds_chunks = ds_result_or_err
                 added_datasets.append(ds_name)
                 total_chunks_created += ds_chunks
                 if result is None:
                     result = ds_result
+
+            # Any dataset failure = job failure.
+            # Don't save content hash so re-upload can retry all datasets.
+            # Don't return success so the job is marked as failed.
+            if dataset_errors:
+                error_summary = "; ".join(str(e) for e in dataset_errors[:3])
+                raise RuntimeError(
+                    f"{len(dataset_errors)}/{len(dataset_results)} dataset(s) failed for document "
+                    f"'{document_id or 'unknown'}': {error_summary}"
+                )
+
             processing_time = (time.time() - start_time) * 1000
             logger.info(
                 f"Document added to {len(added_datasets)} dataset(s) in {processing_time:.2f}ms: {added_datasets}"
@@ -797,7 +810,7 @@ class CogneeService:
 
             doc_id, _ = normalize_add_result(result, document_id)
 
-            # Save original content hash for future deduplication
+            # All datasets succeeded — save content hash for deduplication
             if document_id and new_content_hash:
                 try:
                     await self._save_original_content_hash(document_id, new_content_hash)
