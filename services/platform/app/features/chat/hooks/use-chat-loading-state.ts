@@ -58,10 +58,12 @@ export function useChatLoadingState({
 
     const lastMessage = uiMessages[uiMessages.length - 1];
 
+    const status: string | undefined = lastMessage.status;
+
     return !(
       lastMessage.role === 'assistant' &&
       !isUnfinishedToolTurn(lastMessage) &&
-      (lastMessage.status === 'success' || lastMessage.status === 'failed')
+      (status === 'success' || status === 'failed' || status === 'aborted')
     );
   }, [isPending, uiMessages]);
 

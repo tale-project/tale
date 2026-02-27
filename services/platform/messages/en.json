@@ -2146,6 +2146,7 @@
     "searchPlaceholder": "Search chats...",
     "messagePlaceholder": "Type a message...",
     "typeMessageHere": "Type your message here…",
+    "send": "Send message",
     "noAgentsAvailable": "No agents available. Please publish an agent first.",
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",

@@ -132,18 +132,13 @@ export function ChatHistorySidebar({
   };
 
   const handleSaveRename = async (chatId: string) => {
-    if (!editValue.trim()) {
-      toast({
-        title: t('history.toast.titleEmpty'),
-        variant: 'destructive',
-      });
-      return;
-    }
+    const trimmed = editValue.trim();
+    const title = trimmed || t('history.untitled');
 
     try {
       await updateThread({
         threadId: chatId,
-        title: editValue.trim(),
+        title,
       });
 
       setEditingChatId(null);
@@ -226,12 +221,13 @@ export function ChatHistorySidebar({
                       }}
                       onBlur={() => handleInputBlur(chat._id)}
                       aria-label={t('history.renameChat')}
-                      className="ring-primary focus-visible:ring-primary min-h-[20px] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
+                      className="ring-primary focus-visible:ring-primary min-h-[1.5rem] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
                     />
                   ) : (
                     <>
                       <button
                         type="button"
+                        aria-label={chat.title}
                         onClick={() => {
                           if (clickTimeoutRef.current) {
                             clearTimeout(clickTimeoutRef.current);
@@ -244,11 +240,12 @@ export function ChatHistorySidebar({
                             }, 250);
                           }
                         }}
-                        className="min-h-[20px] flex-1 truncate text-left text-sm leading-snug"
-                      >
+                        className="absolute inset-0 rounded-md cursor-pointer"
+                      />
+                      <span className="pointer-events-none relative z-10 min-h-[20px] flex-1 truncate text-left text-sm leading-snug">
                         {chat.title}
-                      </button>
-                      <div className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                      </span>
+                      <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                         <ChatActions
                           chat={{ id: chat._id, title: chat.title }}
                           currentChatId={currentThreadId}

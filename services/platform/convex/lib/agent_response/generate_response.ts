@@ -104,6 +104,7 @@ export async function generateAgentResponse(
     debugTag,
   );
   const startTime = Date.now();
+  const abortController = new AbortController();
 
   try {
     debugLog(`generate${capitalize(agentType)}Response called`, {
@@ -313,8 +314,6 @@ export async function generateAgentResponse(
     const systemPrompt = agentInstructions
       ? `${agentInstructions}\n\n${structuredThreadContext.threadContext}`
       : structuredThreadContext.threadContext;
-
-    const abortController = new AbortController();
 
     debugLog('PRE_LLM_CALL', {
       threadId,
