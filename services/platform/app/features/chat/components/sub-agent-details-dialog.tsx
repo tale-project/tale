@@ -114,58 +114,9 @@ export function SubAgentDetailsDialog({
           </Field>
         )}
 
-        {usage.totalTokens !== undefined && (
+        {tokenItems.length > 0 && (
           <Field label={t('messageInfo.tokenUsage')}>
-            <StatGrid
-              items={
-                [
-                  ...(usage.inputTokens !== undefined
-                    ? [
-                        {
-                          label: t('messageInfo.input'),
-                          value: (
-                            <Text variant="label">
-                              {formatNumber(usage.inputTokens, locale)}
-                            </Text>
-                          ),
-                        },
-                      ]
-                    : []),
-                  ...(usage.outputTokens !== undefined
-                    ? [
-                        {
-                          label: t('messageInfo.output'),
-                          value: (
-                            <Text variant="label">
-                              {formatNumber(usage.outputTokens, locale)}
-                            </Text>
-                          ),
-                        },
-                      ]
-                    : []),
-                  {
-                    label: t('messageInfo.total'),
-                    value: (
-                      <Text variant="label">
-                        {formatNumber(usage.totalTokens, locale)}
-                      </Text>
-                    ),
-                  },
-                  ...(usage.durationMs !== undefined
-                    ? [
-                        {
-                          label: t('messageInfo.duration'),
-                          value: (
-                            <Text variant="label">
-                              {(usage.durationMs / 1000).toFixed(2)}s
-                            </Text>
-                          ),
-                        },
-                      ]
-                    : []),
-                ] satisfies StatGridItem[]
-              }
-            />
+            <StatGrid items={tokenItems} />
           </Field>
         )}
 

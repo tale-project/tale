@@ -27,18 +27,18 @@ export function ViewWebsiteDialog({
   const { formatDate } = useFormatDate();
   const { t } = useT('websites');
 
-  const SCAN_INTERVALS: Record<string, string> = {
-    '60m': t('scanIntervals.1hour'),
-    '6h': t('scanIntervals.6hours'),
-    '12h': t('scanIntervals.12hours'),
-    '1d': t('scanIntervals.1day'),
-    '5d': t('scanIntervals.5days'),
-    '7d': t('scanIntervals.7days'),
-    '30d': t('scanIntervals.30days'),
-  };
+  const items = useMemo<StatGridItem[]>(() => {
+    const scanIntervals: Record<string, string> = {
+      '60m': t('scanIntervals.1hour'),
+      '6h': t('scanIntervals.6hours'),
+      '12h': t('scanIntervals.12hours'),
+      '1d': t('scanIntervals.1day'),
+      '5d': t('scanIntervals.5days'),
+      '7d': t('scanIntervals.7days'),
+      '30d': t('scanIntervals.30days'),
+    };
 
-  const items = useMemo<StatGridItem[]>(
-    () => [
+    return [
       {
         label: t('viewDialog.domain'),
         value: <Text>{website.domain}</Text>,
@@ -64,7 +64,7 @@ export function ViewWebsiteDialog({
         label: t('viewDialog.scanInterval'),
         value: (
           <Text>
-            {SCAN_INTERVALS[website.scanInterval] || website.scanInterval}
+            {scanIntervals[website.scanInterval] || website.scanInterval}
           </Text>
         ),
       },
@@ -98,9 +98,8 @@ export function ViewWebsiteDialog({
           <Text>{formatDate(new Date(website._creationTime), 'long')}</Text>
         ),
       },
-    ],
-    [website, t, formatDate, SCAN_INTERVALS],
-  );
+    ];
+  }, [website, t, formatDate]);
 
   return (
     <ViewDialog

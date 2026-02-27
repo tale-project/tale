@@ -64,6 +64,62 @@ export function ApprovalDetailDialog({
   );
 
   // Sort products by confidence (high to low) and get first product
+  const approvalStatItems = useMemo<StatGridItem[]>(
+    () => [
+      {
+        label: t('detail.status'),
+        value: (
+          <Badge
+            dot
+            variant={
+              (approvalDetail?.status === 'pending' && 'orange') ||
+              (approvalDetail?.status === 'approved' && 'green') ||
+              (approvalDetail?.status === 'rejected' && 'destructive') ||
+              'outline'
+            }
+          >
+            {(approvalDetail?.status === 'pending' &&
+              t('detail.statusPending')) ||
+              (approvalDetail?.status === 'approved' &&
+                t('detail.statusApproved')) ||
+              (approvalDetail?.status === 'rejected' &&
+                t('detail.statusRejected')) ||
+              t('detail.statusPending')}
+          </Badge>
+        ),
+      },
+      {
+        label: t('detail.type'),
+        value: (
+          <Badge variant="outline" icon={RecommendationIcon}>
+            {t('detail.typeProductRecommendation')}
+          </Badge>
+        ),
+      },
+      {
+        label: t('detail.createdAt'),
+        value: (
+          <Text>
+            {approvalDetail?.createdAt
+              ? formatDate(new Date(approvalDetail.createdAt), 'long')
+              : ''}
+          </Text>
+        ),
+      },
+      ...(approvalDetail?.confidence !== undefined
+        ? [
+            {
+              label: t('detail.confidence'),
+              value: (
+                <Badge variant="outline">{approvalDetail.confidence}%</Badge>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [approvalDetail, t, formatDate],
+  );
+
   const sortedProducts = useMemo(() => {
     if (!approvalDetail) return [];
     return [...approvalDetail.recommendedProducts].sort((a, b) => {
@@ -136,63 +192,7 @@ export function ApprovalDetailDialog({
               description={approvalDetail.customer.email}
             />
 
-            <StatGrid
-              items={
-                [
-                  {
-                    label: t('detail.status'),
-                    value: (
-                      <Badge
-                        dot
-                        variant={
-                          (approvalDetail.status === 'pending' && 'orange') ||
-                          (approvalDetail.status === 'approved' && 'green') ||
-                          (approvalDetail.status === 'rejected' &&
-                            'destructive') ||
-                          'outline'
-                        }
-                      >
-                        {(approvalDetail.status === 'pending' &&
-                          t('detail.statusPending')) ||
-                          (approvalDetail.status === 'approved' &&
-                            t('detail.statusApproved')) ||
-                          (approvalDetail.status === 'rejected' &&
-                            t('detail.statusRejected')) ||
-                          t('detail.statusPending')}
-                      </Badge>
-                    ),
-                  },
-                  {
-                    label: t('detail.type'),
-                    value: (
-                      <Badge variant="outline" icon={RecommendationIcon}>
-                        {t('detail.typeProductRecommendation')}
-                      </Badge>
-                    ),
-                  },
-                  {
-                    label: t('detail.createdAt'),
-                    value: (
-                      <Text>
-                        {formatDate(new Date(approvalDetail.createdAt), 'long')}
-                      </Text>
-                    ),
-                  },
-                  ...(approvalDetail.confidence !== undefined
-                    ? [
-                        {
-                          label: t('detail.confidence'),
-                          value: (
-                            <Badge variant="outline">
-                              {approvalDetail.confidence}%
-                            </Badge>
-                          ),
-                        },
-                      ]
-                    : []),
-                ] satisfies StatGridItem[]
-              }
-            />
+            <StatGrid items={approvalStatItems} />
           </Stack>
 
           {/* Recommended Products */}
