@@ -240,7 +240,7 @@ export function ChatHistorySidebar({
                             }, 250);
                           }
                         }}
-                        className="absolute inset-0 rounded-md cursor-pointer"
+                        className="absolute inset-0 cursor-pointer rounded-md"
                       />
                       <span className="pointer-events-none relative z-10 min-h-[20px] flex-1 truncate text-left text-sm leading-snug">
                         {chat.title}
