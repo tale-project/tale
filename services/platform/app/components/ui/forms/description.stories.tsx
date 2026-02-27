@@ -147,9 +147,9 @@ export const SectionDescription: Story = {
 };
 
 export const WithLink: Story = {
-  render: () => (
-    <div className="w-80">
-      <Description>
+  args: {
+    children: (
+      <>
         By continuing, you agree to our{' '}
         <a href="/terms" className="text-primary hover:underline">
           Terms of Service
@@ -159,9 +159,16 @@ export const WithLink: Story = {
           Privacy Policy
         </a>
         .
-      </Description>
-    </div>
-  ),
+      </>
+    ),
+  },
+  decorators: [
+    (Story) => (
+      <div className="w-80">
+        <Story />
+      </div>
+    ),
+  ],
   parameters: {
     docs: {
       description: {

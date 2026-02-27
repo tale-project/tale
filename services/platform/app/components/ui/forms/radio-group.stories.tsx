@@ -53,111 +53,99 @@ export default meta;
 type Story = StoryObj<typeof RadioGroup>;
 
 export const Default: Story = {
-  render: () => (
-    <RadioGroup
-      defaultValue="comfortable"
-      options={[
-        { value: 'default', label: 'Default' },
-        { value: 'comfortable', label: 'Comfortable' },
-        { value: 'compact', label: 'Compact' },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'comfortable',
+    options: [
+      { value: 'default', label: 'Default' },
+      { value: 'comfortable', label: 'Comfortable' },
+      { value: 'compact', label: 'Compact' },
+    ],
+  },
 };
 
 export const WithLabel: Story = {
-  render: () => (
-    <RadioGroup
-      defaultValue="email"
-      label="Notification preferences"
-      required
-      options={[
-        { value: 'email', label: 'Email notifications' },
-        { value: 'sms', label: 'SMS notifications' },
-        { value: 'push', label: 'Push notifications' },
-        { value: 'none', label: 'No notifications' },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'email',
+    label: 'Notification preferences',
+    required: true,
+    options: [
+      { value: 'email', label: 'Email notifications' },
+      { value: 'sms', label: 'SMS notifications' },
+      { value: 'push', label: 'Push notifications' },
+      { value: 'none', label: 'No notifications' },
+    ],
+  },
 };
 
 export const WithDescription: Story = {
-  render: () => (
-    <RadioGroup
-      defaultValue="email"
-      label="Notification preferences"
-      description="Choose how you want to receive notifications."
-      options={[
-        { value: 'email', label: 'Email notifications' },
-        { value: 'sms', label: 'SMS notifications' },
-        { value: 'push', label: 'Push notifications' },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'email',
+    label: 'Notification preferences',
+    description: 'Choose how you want to receive notifications.',
+    options: [
+      { value: 'email', label: 'Email notifications' },
+      { value: 'sms', label: 'SMS notifications' },
+      { value: 'push', label: 'Push notifications' },
+    ],
+  },
 };
 
 export const WithOptionDescriptions: Story = {
-  render: () => (
-    <RadioGroup
-      defaultValue="tool"
-      label="Retrieval mode"
-      options={[
-        {
-          value: 'off',
-          label: 'Off',
-          description: 'Knowledge base disabled',
-        },
-        {
-          value: 'tool',
-          label: 'Tool',
-          description: 'Agent searches on demand',
-        },
-        {
-          value: 'context',
-          label: 'Context',
-          description:
-            'Automatically inject relevant knowledge into every response',
-        },
-        {
-          value: 'both',
-          label: 'Both',
-          description: 'Auto-inject context and allow on-demand search',
-        },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'tool',
+    label: 'Retrieval mode',
+    options: [
+      {
+        value: 'off',
+        label: 'Off',
+        description: 'Knowledge base disabled',
+      },
+      {
+        value: 'tool',
+        label: 'Tool',
+        description: 'Agent searches on demand',
+      },
+      {
+        value: 'context',
+        label: 'Context',
+        description:
+          'Automatically inject relevant knowledge into every response',
+      },
+      {
+        value: 'both',
+        label: 'Both',
+        description: 'Auto-inject context and allow on-demand search',
+      },
+    ],
+  },
 };
 
 export const WithDisabledOption: Story = {
-  render: () => (
-    <RadioGroup
-      defaultValue="free"
-      label="Select a plan"
-      options={[
-        { value: 'free', label: 'Free' },
-        { value: 'pro', label: 'Pro' },
-        { value: 'enterprise', label: 'Enterprise', disabled: true },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'free',
+    label: 'Select a plan',
+    options: [
+      { value: 'free', label: 'Free' },
+      { value: 'pro', label: 'Pro' },
+      { value: 'enterprise', label: 'Enterprise', disabled: true },
+    ],
+  },
 };
 
 export const TwoColumns: Story = {
-  render: () => (
-    <RadioGroup
-      defaultValue="en"
-      label="Language"
-      columns={2}
-      options={[
-        { value: 'en', label: 'English' },
-        { value: 'es', label: 'Spanish' },
-        { value: 'fr', label: 'French' },
-        { value: 'de', label: 'German' },
-        { value: 'it', label: 'Italian' },
-        { value: 'pt', label: 'Portuguese' },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'en',
+    label: 'Language',
+    columns: 2,
+    options: [
+      { value: 'en', label: 'English' },
+      { value: 'es', label: 'Spanish' },
+      { value: 'fr', label: 'French' },
+      { value: 'de', label: 'German' },
+      { value: 'it', label: 'Italian' },
+      { value: 'pt', label: 'Portuguese' },
+    ],
+  },
   parameters: {
     docs: {
       description: {
@@ -168,17 +156,15 @@ export const TwoColumns: Story = {
 };
 
 export const Horizontal: Story = {
-  render: () => (
-    <RadioGroup
-      defaultValue="medium"
-      className="flex gap-4"
-      options={[
-        { value: 'small', label: 'Small' },
-        { value: 'medium', label: 'Medium' },
-        { value: 'large', label: 'Large' },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'medium',
+    className: 'flex gap-4',
+    options: [
+      { value: 'small', label: 'Small' },
+      { value: 'medium', label: 'Medium' },
+      { value: 'large', label: 'Large' },
+    ],
+  },
   parameters: {
     docs: {
       description: {

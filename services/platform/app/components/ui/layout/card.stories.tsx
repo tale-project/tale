@@ -39,63 +39,55 @@ export default meta;
 type Story = StoryObj<typeof Card>;
 
 export const Default: Story = {
-  render: () => (
-    <Card
-      title="Card Title"
-      description="This is a description of the card content."
-    >
-      <p>Card content goes here. This can be any content you want.</p>
-    </Card>
-  ),
+  args: {
+    title: 'Card Title',
+    description: 'This is a description of the card content.',
+    children: <p>Card content goes here. This can be any content you want.</p>,
+  },
 };
 
 export const WithFooter: Story = {
-  render: () => (
-    <Card
-      title="Create Project"
-      description="Deploy your new project in one-click."
-      footer={
-        <div className="flex gap-2">
-          <Button variant="secondary">Cancel</Button>
-          <Button>Deploy</Button>
-        </div>
-      }
-    >
+  args: {
+    title: 'Create Project',
+    description: 'Deploy your new project in one-click.',
+    footer: (
+      <div className="flex gap-2">
+        <Button variant="secondary">Cancel</Button>
+        <Button>Deploy</Button>
+      </div>
+    ),
+    children: (
       <p className="text-muted-foreground text-sm">
         Your project will be deployed to our cloud infrastructure.
       </p>
-    </Card>
-  ),
+    ),
+  },
 };
 
 export const SimpleCard: Story = {
-  render: () => (
-    <Card>
-      <p>A simple card with only content.</p>
-    </Card>
-  ),
+  args: {
+    children: <p>A simple card with only content.</p>,
+  },
 };
 
 export const TitleOnly: Story = {
-  render: () => (
-    <Card title="Notifications">
+  args: {
+    title: 'Notifications',
+    children: (
       <p className="text-muted-foreground text-sm">
         You have 3 unread messages.
       </p>
-    </Card>
-  ),
+    ),
+  },
 };
 
 export const Interactive: Story = {
-  render: () => (
-    <Card
-      title="Clickable Card"
-      description="Hover to see the effect"
-      className="cursor-pointer transition-shadow hover:shadow-md"
-    >
-      <p className="text-sm">Click this card to navigate somewhere.</p>
-    </Card>
-  ),
+  args: {
+    title: 'Clickable Card',
+    description: 'Hover to see the effect',
+    className: 'cursor-pointer transition-shadow hover:shadow-md',
+    children: <p className="text-sm">Click this card to navigate somewhere.</p>,
+  },
   parameters: {
     docs: {
       description: {

@@ -1,6 +1,8 @@
+import { cn } from '@/lib/utils/cn';
+
 export const LocaleIcon = ({ className }: { className?: string }) => (
   <svg
-    className={className}
+    className={cn('size-full', className)}
     fill="none"
     viewBox="0 0 17 17"
     aria-label="Locale icon"

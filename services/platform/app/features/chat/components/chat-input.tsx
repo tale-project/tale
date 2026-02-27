@@ -264,7 +264,7 @@ export function ChatInput({
                 >
                   {defaultPlaceholder}
                   <div className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
-                    <EnterKeyIcon />
+                    <EnterKeyIcon className="size-3" />
                   </div>
                   {tDialogs('toSend')}
                 </Text>

@@ -41,16 +41,22 @@ export default meta;
 type Story = StoryObj<typeof Tooltip>;
 
 export const Default: Story = {
-  render: () => (
-    <Tooltip content="This is a tooltip">
+  args: {
+    content: 'This is a tooltip',
+  },
+  render: (args) => (
+    <Tooltip {...args}>
       <Button variant="secondary">Hover me</Button>
     </Tooltip>
   ),
 };
 
 export const OnIconButton: Story = {
-  render: () => (
-    <Tooltip content="More information about this feature">
+  args: {
+    content: 'More information about this feature',
+  },
+  render: (args) => (
+    <Tooltip {...args}>
       <IconButton icon={Info} aria-label="More information" />
     </Tooltip>
   ),
@@ -87,19 +93,25 @@ export const WithIcon: Story = {
 };
 
 export const LongContent: Story = {
-  render: () => (
-    <Tooltip
-      content="This is a longer tooltip with more detailed information. It wraps to multiple lines when the content is too long."
-      contentClassName="max-w-xs"
-    >
+  args: {
+    content:
+      'This is a longer tooltip with more detailed information. It wraps to multiple lines when the content is too long.',
+    contentClassName: 'max-w-xs',
+  },
+  render: (args) => (
+    <Tooltip {...args}>
       <Button variant="secondary">Hover for details</Button>
     </Tooltip>
   ),
 };
 
 export const DisabledTrigger: Story = {
-  render: () => (
-    <Tooltip content="This button is disabled because you need to fill out the form first.">
+  args: {
+    content:
+      'This button is disabled because you need to fill out the form first.',
+  },
+  render: (args) => (
+    <Tooltip {...args}>
       <span tabIndex={0}>
         <Button variant="secondary" disabled>
           Disabled Button

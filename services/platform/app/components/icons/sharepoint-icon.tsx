@@ -1,6 +1,12 @@
+import { cn } from '@/lib/utils/cn';
+
 export const SharePointIcon = ({ className }: { className?: string }) => {
   return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
+    <svg
+      viewBox="0 0 32 32"
+      className={cn('size-full', className)}
+      aria-hidden="true"
+    >
       <title>SharePoint</title>
       <circle cx="18" cy="10" r="10" fill="#036C70" />
       <circle cx="12" cy="18" r="8" fill="#1A9BA1" />

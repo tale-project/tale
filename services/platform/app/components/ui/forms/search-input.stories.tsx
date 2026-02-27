@@ -146,14 +146,12 @@ export const CustomPlaceholder: Story = {
 };
 
 export const Disabled: Story = {
-  render: () => (
-    <SearchInput
-      value="Cannot edit"
-      onChange={fn()}
-      placeholder="Search..."
-      disabled
-    />
-  ),
+  args: {
+    value: 'Cannot edit',
+    onChange: fn(),
+    placeholder: 'Search...',
+    disabled: true,
+  },
   parameters: {
     docs: {
       description: {
@@ -269,15 +267,13 @@ export const WithDescription: Story = {
 };
 
 export const WithError: Story = {
-  render: () => (
-    <SearchInput
-      value=""
-      onChange={fn()}
-      placeholder="Search..."
-      label="Search"
-      errorMessage="Please enter a search term"
-    />
-  ),
+  args: {
+    value: '',
+    onChange: fn(),
+    placeholder: 'Search...',
+    label: 'Search',
+    errorMessage: 'Please enter a search term',
+  },
   parameters: {
     docs: {
       description: {

@@ -68,12 +68,11 @@ export const AllVariants: Story = {
 };
 
 export const MutedDescription: Story = {
-  render: () => (
-    <Text variant="muted">
-      This is a muted description commonly used for helper text and secondary
-      information.
-    </Text>
-  ),
+  args: {
+    variant: 'muted',
+    children:
+      'This is a muted description commonly used for helper text and secondary information.',
+  },
 };
 
 export const InlineSpan: Story = {
@@ -88,27 +87,22 @@ export const InlineSpan: Story = {
 };
 
 export const CodeText: Story = {
-  render: () => (
-    <Text as="span" variant="code">
-      sk_live_abc123def456
-    </Text>
-  ),
+  args: { as: 'span', variant: 'code', children: 'sk_live_abc123def456' },
 };
 
 export const Truncated: Story = {
-  render: () => (
+  args: {
+    truncate: true,
+    children:
+      'This is a very long text that will be truncated with an ellipsis',
+  },
+  render: (args) => (
     <div className="w-48">
-      <Text truncate>
-        This is a very long text that will be truncated with an ellipsis
-      </Text>
+      <Text {...args} />
     </div>
   ),
 };
 
 export const CenterAligned: Story = {
-  render: () => (
-    <Text variant="muted" align="center">
-      No items found
-    </Text>
-  ),
+  args: { variant: 'muted', align: 'center', children: 'No items found' },
 };

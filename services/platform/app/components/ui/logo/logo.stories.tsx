@@ -36,7 +36,7 @@ export default meta;
 type Story = StoryObj<typeof TaleLogo>;
 
 export const IconLogo: Story = {
-  render: () => <TaleLogo />,
+  args: {},
   name: 'Icon Logo',
 };
 

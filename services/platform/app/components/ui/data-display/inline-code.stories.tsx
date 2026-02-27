@@ -30,7 +30,9 @@ export default meta;
 type Story = StoryObj<typeof InlineCode>;
 
 export const Default: Story = {
-  render: () => <InlineCode>console.log</InlineCode>,
+  args: {
+    children: 'console.log',
+  },
 };
 
 export const InParagraph: Story = {

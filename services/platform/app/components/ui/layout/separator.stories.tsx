@@ -46,10 +46,13 @@ export default meta;
 type Story = StoryObj<typeof Separator>;
 
 export const Horizontal: Story = {
-  render: () => (
+  args: {
+    orientation: 'horizontal',
+  },
+  render: (args) => (
     <div className="w-64">
       <p className="mb-4 text-sm">Content above</p>
-      <Separator />
+      <Separator {...args} />
       <p className="mt-4 text-sm">Content below</p>
     </div>
   ),

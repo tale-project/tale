@@ -33,7 +33,7 @@ function SettingsLayout() {
         </>
       }
     >
-      <ContentArea variant="page" gap={6}>
+      <ContentArea className="min-h-0 flex-1" variant="page" gap={6}>
         <Outlet />
       </ContentArea>
     </PageLayout>

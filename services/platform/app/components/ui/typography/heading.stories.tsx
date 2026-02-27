@@ -61,19 +61,16 @@ export const Levels: Story = {
 };
 
 export const PageTitle: Story = {
-  render: () => (
-    <Heading level={1} size="base" truncate>
-      Custom agents / My first agent
-    </Heading>
-  ),
+  args: {
+    level: 1,
+    size: 'base',
+    truncate: true,
+    children: 'Custom agents / My first agent',
+  },
 };
 
 export const PanelTitle: Story = {
-  render: () => (
-    <Heading level={2} size="sm">
-      Test chat
-    </Heading>
-  ),
+  args: { level: 2, size: 'sm', children: 'Test chat' },
 };
 
 export const Weights: Story = {
@@ -87,11 +84,13 @@ export const Weights: Story = {
 };
 
 export const Truncated: Story = {
-  render: () => (
+  args: {
+    truncate: true,
+    children: 'This is a very long heading that will be truncated',
+  },
+  render: (args) => (
     <div className="w-48">
-      <Heading truncate>
-        This is a very long heading that will be truncated
-      </Heading>
+      <Heading {...args} />
     </div>
   ),
 };

@@ -136,7 +136,7 @@ export function SSOConfigDialog({
 
       <FormSection>
         <HStack gap={2} align="center" className="bg-muted rounded-md p-3">
-          <MicrosoftIcon />
+          <MicrosoftIcon className="size-4" />
           <Text as="span" variant="label">
             Microsoft Entra ID
           </Text>

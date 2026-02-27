@@ -1,6 +1,8 @@
+import { cn } from '@/lib/utils/cn';
+
 export const OneDriveIcon = ({ className }: { className?: string }) => {
   return (
-    <svg viewBox="0 0 31 20" className={className} aria-hidden>
+    <svg viewBox="0 0 31 20" className={cn('size-full', className)} aria-hidden>
       <path
         fill="#0364B8"
         d="M18.7 13.4 25.1 7.3C23.8 2.1 18.5-1 13.3.3c-2.3.6-4.3 2.1-5.7 4.1 0 0 11.1 9 11.1 9z"

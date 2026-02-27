@@ -42,7 +42,7 @@ function KnowledgeLayout() {
       }
       organizationId={organizationId}
     >
-      <ContentArea className="py-4">
+      <ContentArea className="min-h-0 flex-1 py-4">
         <Outlet />
       </ContentArea>
     </PageLayout>

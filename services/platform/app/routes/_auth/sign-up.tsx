@@ -193,7 +193,7 @@ function SignUpPage() {
               fullWidth
               disabled={isSubmitting}
             >
-              <span className="mr-3 inline-flex">
+              <span className="mr-3 inline-flex size-4">
                 <MicrosoftIcon />
               </span>
               {t('login.continueWithSso')}

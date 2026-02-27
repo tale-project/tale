@@ -35,7 +35,7 @@ export function FilePreviewCard({
       )}
     >
       <DocumentIcon fileName={fileName} className="size-8 shrink-0" />
-      <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Text variant="label" as="span" truncate>
           {fileName}
         </Text>

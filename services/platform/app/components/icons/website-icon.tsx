@@ -1,6 +1,8 @@
+import { cn } from '@/lib/utils/cn';
+
 export const WebsiteIcon = ({ className }: { className?: string }) => (
   <svg
-    className={className}
+    className={cn('size-full', className)}
     fill="none"
     viewBox="0 0 16 16"
     aria-label="Website icon"

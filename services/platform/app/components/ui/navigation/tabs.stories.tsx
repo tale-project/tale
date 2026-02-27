@@ -40,118 +40,110 @@ export default meta;
 type Story = StoryObj<typeof Tabs>;
 
 export const Default: Story = {
-  render: () => (
-    <Tabs
-      defaultValue="account"
-      className="w-[400px]"
-      items={[
-        {
-          value: 'account',
-          label: 'Account',
-          content: (
-            <p className="text-muted-foreground text-sm">
-              Make changes to your account here. Click save when you&apos;re
-              done.
-            </p>
-          ),
-        },
-        {
-          value: 'password',
-          label: 'Password',
-          content: (
-            <p className="text-muted-foreground text-sm">
-              Change your password here. After saving, you&apos;ll be logged
-              out.
-            </p>
-          ),
-        },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'account',
+    className: 'w-[400px]',
+    items: [
+      {
+        value: 'account',
+        label: 'Account',
+        content: (
+          <p className="text-muted-foreground text-sm">
+            Make changes to your account here. Click save when you&apos;re done.
+          </p>
+        ),
+      },
+      {
+        value: 'password',
+        label: 'Password',
+        content: (
+          <p className="text-muted-foreground text-sm">
+            Change your password here. After saving, you&apos;ll be logged out.
+          </p>
+        ),
+      },
+    ],
+  },
 };
 
 export const ThreeTabs: Story = {
-  render: () => (
-    <Tabs
-      defaultValue="overview"
-      className="w-[500px]"
-      items={[
-        {
-          value: 'overview',
-          label: 'Overview',
-          content: (
-            <div className="p-4">
-              <h3 className="mb-2 font-semibold">Overview</h3>
-              <p className="text-muted-foreground text-sm">
-                View a summary of your account activity and key metrics.
-              </p>
-            </div>
-          ),
-        },
-        {
-          value: 'analytics',
-          label: 'Analytics',
-          content: (
-            <div className="p-4">
-              <h3 className="mb-2 font-semibold">Analytics</h3>
-              <p className="text-muted-foreground text-sm">
-                Detailed analytics and performance data.
-              </p>
-            </div>
-          ),
-        },
-        {
-          value: 'reports',
-          label: 'Reports',
-          content: (
-            <div className="p-4">
-              <h3 className="mb-2 font-semibold">Reports</h3>
-              <p className="text-muted-foreground text-sm">
-                Download and view generated reports.
-              </p>
-            </div>
-          ),
-        },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'overview',
+    className: 'w-[500px]',
+    items: [
+      {
+        value: 'overview',
+        label: 'Overview',
+        content: (
+          <div className="p-4">
+            <h3 className="mb-2 font-semibold">Overview</h3>
+            <p className="text-muted-foreground text-sm">
+              View a summary of your account activity and key metrics.
+            </p>
+          </div>
+        ),
+      },
+      {
+        value: 'analytics',
+        label: 'Analytics',
+        content: (
+          <div className="p-4">
+            <h3 className="mb-2 font-semibold">Analytics</h3>
+            <p className="text-muted-foreground text-sm">
+              Detailed analytics and performance data.
+            </p>
+          </div>
+        ),
+      },
+      {
+        value: 'reports',
+        label: 'Reports',
+        content: (
+          <div className="p-4">
+            <h3 className="mb-2 font-semibold">Reports</h3>
+            <p className="text-muted-foreground text-sm">
+              Download and view generated reports.
+            </p>
+          </div>
+        ),
+      },
+    ],
+  },
 };
 
 export const WithDisabledTab: Story = {
-  render: () => (
-    <Tabs
-      defaultValue="active"
-      className="w-[400px]"
-      items={[
-        {
-          value: 'active',
-          label: 'Active',
-          content: (
-            <p className="text-muted-foreground text-sm">This tab is active.</p>
-          ),
-        },
-        {
-          value: 'disabled',
-          label: 'Disabled',
-          disabled: true,
-          content: (
-            <p className="text-muted-foreground text-sm">
-              You cannot see this content.
-            </p>
-          ),
-        },
-        {
-          value: 'settings',
-          label: 'Settings',
-          content: (
-            <p className="text-muted-foreground text-sm">
-              Settings content here.
-            </p>
-          ),
-        },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'active',
+    className: 'w-[400px]',
+    items: [
+      {
+        value: 'active',
+        label: 'Active',
+        content: (
+          <p className="text-muted-foreground text-sm">This tab is active.</p>
+        ),
+      },
+      {
+        value: 'disabled',
+        label: 'Disabled',
+        disabled: true,
+        content: (
+          <p className="text-muted-foreground text-sm">
+            You cannot see this content.
+          </p>
+        ),
+      },
+      {
+        value: 'settings',
+        label: 'Settings',
+        content: (
+          <p className="text-muted-foreground text-sm">
+            Settings content here.
+          </p>
+        ),
+      },
+    ],
+  },
   parameters: {
     docs: {
       description: {
@@ -162,57 +154,55 @@ export const WithDisabledTab: Story = {
 };
 
 export const FullWidth: Story = {
-  render: () => (
-    <Tabs
-      defaultValue="inbox"
-      className="w-full max-w-2xl"
-      listClassName="w-full"
-      items={[
-        {
-          value: 'inbox',
-          label: 'Inbox',
-          content: (
-            <div className="mt-2 rounded-lg border p-4">
-              <p className="text-muted-foreground text-sm">
-                Your inbox messages.
-              </p>
-            </div>
-          ),
-        },
-        {
-          value: 'sent',
-          label: 'Sent',
-          content: (
-            <div className="mt-2 rounded-lg border p-4">
-              <p className="text-muted-foreground text-sm">
-                Messages you&apos;ve sent.
-              </p>
-            </div>
-          ),
-        },
-        {
-          value: 'drafts',
-          label: 'Drafts',
-          content: (
-            <div className="mt-2 rounded-lg border p-4">
-              <p className="text-muted-foreground text-sm">
-                Your draft messages.
-              </p>
-            </div>
-          ),
-        },
-        {
-          value: 'spam',
-          label: 'Spam',
-          content: (
-            <div className="mt-2 rounded-lg border p-4">
-              <p className="text-muted-foreground text-sm">Spam messages.</p>
-            </div>
-          ),
-        },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'inbox',
+    className: 'w-full max-w-2xl',
+    listClassName: 'w-full',
+    items: [
+      {
+        value: 'inbox',
+        label: 'Inbox',
+        content: (
+          <div className="mt-2 rounded-lg border p-4">
+            <p className="text-muted-foreground text-sm">
+              Your inbox messages.
+            </p>
+          </div>
+        ),
+      },
+      {
+        value: 'sent',
+        label: 'Sent',
+        content: (
+          <div className="mt-2 rounded-lg border p-4">
+            <p className="text-muted-foreground text-sm">
+              Messages you&apos;ve sent.
+            </p>
+          </div>
+        ),
+      },
+      {
+        value: 'drafts',
+        label: 'Drafts',
+        content: (
+          <div className="mt-2 rounded-lg border p-4">
+            <p className="text-muted-foreground text-sm">
+              Your draft messages.
+            </p>
+          </div>
+        ),
+      },
+      {
+        value: 'spam',
+        label: 'Spam',
+        content: (
+          <div className="mt-2 rounded-lg border p-4">
+            <p className="text-muted-foreground text-sm">Spam messages.</p>
+          </div>
+        ),
+      },
+    ],
+  },
   parameters: {
     docs: {
       description: {
@@ -223,65 +213,61 @@ export const FullWidth: Story = {
 };
 
 export const ManyTabs: Story = {
-  render: () => (
-    <Tabs
-      defaultValue="overview"
-      className="w-[400px]"
-      items={[
-        {
-          value: 'overview',
-          label: 'Overview',
-          content: (
-            <p className="text-muted-foreground text-sm">Overview content.</p>
-          ),
-        },
-        {
-          value: 'analytics',
-          label: 'Analytics',
-          content: (
-            <p className="text-muted-foreground text-sm">Analytics content.</p>
-          ),
-        },
-        {
-          value: 'reports',
-          label: 'Reports',
-          content: (
-            <p className="text-muted-foreground text-sm">Reports content.</p>
-          ),
-        },
-        {
-          value: 'users',
-          label: 'Users',
-          content: (
-            <p className="text-muted-foreground text-sm">Users content.</p>
-          ),
-        },
-        {
-          value: 'billing',
-          label: 'Billing',
-          content: (
-            <p className="text-muted-foreground text-sm">Billing content.</p>
-          ),
-        },
-        {
-          value: 'integrations',
-          label: 'Integrations',
-          content: (
-            <p className="text-muted-foreground text-sm">
-              Integrations content.
-            </p>
-          ),
-        },
-        {
-          value: 'settings',
-          label: 'Settings',
-          content: (
-            <p className="text-muted-foreground text-sm">Settings content.</p>
-          ),
-        },
-      ]}
-    />
-  ),
+  args: {
+    defaultValue: 'overview',
+    className: 'w-[400px]',
+    items: [
+      {
+        value: 'overview',
+        label: 'Overview',
+        content: (
+          <p className="text-muted-foreground text-sm">Overview content.</p>
+        ),
+      },
+      {
+        value: 'analytics',
+        label: 'Analytics',
+        content: (
+          <p className="text-muted-foreground text-sm">Analytics content.</p>
+        ),
+      },
+      {
+        value: 'reports',
+        label: 'Reports',
+        content: (
+          <p className="text-muted-foreground text-sm">Reports content.</p>
+        ),
+      },
+      {
+        value: 'users',
+        label: 'Users',
+        content: (
+          <p className="text-muted-foreground text-sm">Users content.</p>
+        ),
+      },
+      {
+        value: 'billing',
+        label: 'Billing',
+        content: (
+          <p className="text-muted-foreground text-sm">Billing content.</p>
+        ),
+      },
+      {
+        value: 'integrations',
+        label: 'Integrations',
+        content: (
+          <p className="text-muted-foreground text-sm">Integrations content.</p>
+        ),
+      },
+      {
+        value: 'settings',
+        label: 'Settings',
+        content: (
+          <p className="text-muted-foreground text-sm">Settings content.</p>
+        ),
+      },
+    ],
+  },
   parameters: {
     docs: {
       description: {
