@@ -414,17 +414,16 @@ cd /app
 clean_convex_derived_data() {
   local data_dir="/app/convex-data"
 
-  # Search indexes: rebuilt from database on startup
+  # Search indexes: rebuilt automatically from document data on startup
   if [ -d "$data_dir/search" ]; then
     rm -rf "$data_dir/search"
     echo "   ✓ Cleaned search indexes (will rebuild from database)"
   fi
 
-  # Compiled modules: rebuilt on next deploy
-  if [ -d "$data_dir/modules" ]; then
-    rm -rf "$data_dir/modules"
-    echo "   ✓ Cleaned compiled modules (will rebuild on deploy)"
-  fi
+  # NEVER delete modules/ — the database stores references to module storage
+  # keys (ObjectKeys) and deploy needs to load existing modules to compare.
+  # Deleting files while DB references remain creates an unrecoverable state
+  # where deploy returns 500 (Src Pkg storage key not found).
 
   # Stale temp files from interrupted operations
   rm -rf "$data_dir/tmp/"*
