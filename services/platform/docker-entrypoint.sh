@@ -705,10 +705,16 @@ monitor_convex() {
         wait "$current_pid" 2>/dev/null || true
       fi
 
-      # Clean derived data (search indexes, modules) before restarting to prevent
-      # crash loops from corrupted vector index segments left by the previous crash
-      echo "[$(date -Iseconds)] Cleaning derived data before restart..." | tee -a "$CRASH_LOG"
-      clean_convex_derived_data
+      # Clean search indexes before restarting to prevent crash loops from
+      # corrupted vector index segments left by the previous crash (e.g.
+      # VectorCompactor killed mid-compaction). Compiled modules are left
+      # intact — they are written atomically during deploy and don't corrupt.
+      echo "[$(date -Iseconds)] Cleaning search indexes before restart..." | tee -a "$CRASH_LOG"
+      if [ -d "/app/convex-data/search" ]; then
+        rm -rf "/app/convex-data/search"
+        echo "   ✓ Cleaned search indexes (will rebuild from database)"
+      fi
+      rm -rf /app/convex-data/tmp/*
 
       # Restart Convex backend
       echo "[$(date -Iseconds)] Restarting Convex backend..." | tee -a "$CRASH_LOG"
