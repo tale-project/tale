@@ -6,7 +6,6 @@ import os
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 from tale_shared.utils.model_list import get_first_model
 
 

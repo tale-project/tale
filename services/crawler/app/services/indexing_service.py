@@ -11,10 +11,10 @@ import hashlib
 import logging
 
 import asyncpg
+from tale_knowledge.embedding import EmbeddingService
 
 from app.services.chunking_service import chunk_content
 from app.services.database import acquire_with_retry
-from tale_knowledge.embedding import EmbeddingService
 from app.utils.paragraph_dedup import (
     BOILERPLATE_PAGE_THRESHOLD,
     MIN_DOMAIN_PAGES_FOR_DEDUP,

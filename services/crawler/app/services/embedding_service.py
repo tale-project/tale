@@ -5,9 +5,9 @@ Crawler-specific factory for creating EmbeddingService instances.
 """
 
 from loguru import logger
+from tale_knowledge.embedding import EmbeddingService
 
 from app.config import settings
-from tale_knowledge.embedding import EmbeddingService
 
 _embedding_service: EmbeddingService | None = None
 
