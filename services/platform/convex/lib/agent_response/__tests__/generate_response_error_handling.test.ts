@@ -59,10 +59,6 @@ vi.mock('../../debug_log', () => ({
   createDebugLog: () => vi.fn(),
 }));
 
-vi.mock('../../rag_prefetch', () => ({
-  startRagPrefetch: vi.fn(),
-}));
-
 vi.mock('../structured_response_instructions', () => ({
   STRUCTURED_RESPONSE_INSTRUCTIONS: '',
 }));

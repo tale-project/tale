@@ -7,6 +7,8 @@ from httpx import ASGITransport, AsyncClient
 from app.routers.search import router, set_search_service
 from app.services.search_service import SearchResult
 
+pytestmark = pytest.mark.asyncio
+
 app = FastAPI()
 app.include_router(router)
 

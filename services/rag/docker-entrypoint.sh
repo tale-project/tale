@@ -13,15 +13,11 @@ if [ -z "${RAG_DATABASE_URL:-}" ]; then
   DB_PASSWORD="${DB_PASSWORD:-tale_password_change_me}"
   DB_HOST="${DB_HOST:-db}"
   DB_PORT="${DB_PORT:-5432}"
-  DB_NAME="${DB_NAME:-tale}"
+  DB_NAME="${DB_NAME:-tale_knowledge}"
   export RAG_DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 fi
 
 # Start the application with environment variables
-# NOTE: RAG_WORKERS must be 1 for embedded databases (Kuzu + LanceDB).
-# Multiple workers would fork separate processes, each trying to write to the
-# same database files, causing data corruption. FastAPI async handles
-# concurrency well within a single process.
 exec python -m uvicorn app.main:app \
   --host "${RAG_HOST:-0.0.0.0}" \
   --port "${RAG_PORT:-8001}" \

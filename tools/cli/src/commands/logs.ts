@@ -10,7 +10,7 @@ export function createLogsCommand(): Command {
     .description('View logs from a service')
     .argument(
       '<service>',
-      'Service name (platform, rag, crawler, search, db, graph-db, proxy)',
+      'Service name (platform, rag, crawler, search, db, proxy)',
     )
     .option('-c, --color <color>', 'Deployment color (blue or green)')
     .option('-f, --follow', 'Follow log output', false)

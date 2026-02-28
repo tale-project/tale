@@ -11,10 +11,10 @@ import hashlib
 import logging
 
 import asyncpg
+from tale_knowledge.embedding import EmbeddingService
 
 from app.services.chunking_service import chunk_content
 from app.services.database import acquire_with_retry
-from app.services.embedding_service import EmbeddingService
 from app.utils.paragraph_dedup import (
     BOILERPLATE_PAGE_THRESHOLD,
     MIN_DOMAIN_PAGES_FOR_DEDUP,
@@ -55,6 +55,14 @@ class IndexingService:
         existing: asyncpg.Record | None = None
 
         async with acquire_with_retry(self._pool) as conn:
+            # Ensure website_url row exists (FK required by page_paragraph_hashes)
+            await conn.execute(
+                """INSERT INTO website_urls (domain, url, status, discovered_at)
+                   VALUES ($1, $2, 'active', NOW())
+                   ON CONFLICT (domain, url) DO NOTHING""",
+                domain,
+                url,
+            )
             await conn.execute(
                 "DELETE FROM page_paragraph_hashes WHERE domain = $1 AND url = $2",
                 domain,

@@ -16,7 +16,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
   title: 'RAG Document Manager',
   description:
-    'Upload or delete documents in RAG service (cognee) for semantic search and retrieval',
+    'Upload or delete documents in RAG service for semantic search and retrieval',
 
   parametersValidator: v.union(
     v.object({
@@ -32,7 +32,6 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     v.object({
       operation: v.literal('delete_document'),
       recordId: v.string(),
-      mode: v.optional(v.union(v.literal('soft'), v.literal('hard'))),
     }),
   ),
 
@@ -44,12 +43,24 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     const ragConfig = getRagConfig();
 
     // Handle delete operation - use the recordId directly as the document ID
-    // The recordId (Convex document ID) is stored in Cognee's node_set when uploading
+    // The recordId (Convex document ID) is stored in the RAG knowledge base
     if (processedParams.operation === 'delete_document') {
+      // Look up document to get team tags for scoped deletion
+      const document = await ctx.runQuery(
+        internal.documents.internal_queries.getDocumentByIdRaw,
+        { documentId: toId<'documents'>(processedParams.recordId) },
+      );
+
+      const teamIds = document?.teamTags?.length
+        ? document.teamTags
+        : document?.organizationId
+          ? [`org_${String(document.organizationId)}`]
+          : undefined;
+
       const deleteResult = await deleteDocumentById({
         ragServiceUrl: ragConfig.serviceUrl,
         documentId: processedParams.recordId,
-        mode: processedParams.mode || 'hard',
+        teamIds,
       });
 
       return {

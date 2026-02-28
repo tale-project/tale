@@ -1,60 +1,36 @@
 """PostgreSQL-based job status storage for ingestion jobs.
 
-This module tracks ingestion jobs using a PostgreSQL table instead of JSON files.
-Benefits over file-based storage:
-- Persistent across container restarts
-- Supports multi-instance deployment
-- Better query performance with indexing
-- Atomic operations with transactions
+Uses the RAG service's shared connection pool (private_knowledge schema).
+The rag_jobs table is created by the database init script; init_job_store()
+ensures it exists as a safety net.
 """
 
 from __future__ import annotations
 
-import time
-from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
 from loguru import logger
+from tale_shared.db import acquire_with_retry
 
 from ..config import settings
 from ..models import JobState, JobStatus
+from .database import SCHEMA, get_pool
 
-# Connection pool (initialized lazily)
-_pool: asyncpg.Pool | None = None
-
-
-async def _get_pool() -> asyncpg.Pool:
-    """Get or create the connection pool."""
-    global _pool
-    if _pool is None:
-        db_url = settings.get_database_url()
-        _pool = await asyncpg.create_pool(
-            db_url,
-            min_size=2,
-            max_size=10,
-            command_timeout=30,
-        )
-        logger.info("Created PostgreSQL connection pool for job store")
-    return _pool
+TABLE = f"{SCHEMA}.rag_jobs"
 
 
-@asynccontextmanager
-async def _get_connection():
-    """Get a connection from the pool."""
-    pool = await _get_pool()
-    async with pool.acquire() as conn:
-        yield conn
+def _now() -> datetime:
+    return datetime.now(UTC)
 
 
 async def init_job_store() -> None:
-    """Initialize the job store table if it doesn't exist.
-
-    This should be called during service startup.
-    """
-    async with _get_connection() as conn:
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS rag_jobs (
+    """Ensure the rag_jobs table exists (safety net — normally created by init script)."""
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
+        await conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {TABLE} (
                 job_id TEXT PRIMARY KEY,
                 document_id TEXT,
                 state TEXT NOT NULL DEFAULT 'queued',
@@ -63,37 +39,26 @@ async def init_job_store() -> None:
                 error TEXT,
                 skipped BOOLEAN NOT NULL DEFAULT FALSE,
                 skip_reason TEXT,
-                created_at DOUBLE PRECISION NOT NULL,
-                updated_at DOUBLE PRECISION NOT NULL
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
-        # Create indexes for common queries
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_rag_jobs_state ON rag_jobs(state)
+        await conn.execute(f"""
+            CREATE INDEX IF NOT EXISTS idx_pk_jobs_state ON {TABLE}(state)
         """)
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_rag_jobs_updated_at ON rag_jobs(updated_at)
+        await conn.execute(f"""
+            CREATE INDEX IF NOT EXISTS idx_pk_jobs_updated ON {TABLE}(updated_at)
         """)
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_rag_jobs_document_id ON rag_jobs(document_id)
+        await conn.execute(f"""
+            CREATE INDEX IF NOT EXISTS idx_pk_jobs_docid ON {TABLE}(document_id)
         """)
-        logger.info("Initialized rag_jobs table")
-
-
-async def close_pool() -> None:
-    """Close the connection pool.
-
-    This should be called during service shutdown.
-    """
-    global _pool
-    if _pool is not None:
-        await _pool.close()
-        _pool = None
-        logger.info("Closed PostgreSQL connection pool for job store")
+        logger.info("Job store table verified")
 
 
 def _row_to_job_status(row: asyncpg.Record) -> JobStatus:
     """Convert a database row to JobStatus model."""
+    created = row["created_at"]
+    updated = row["updated_at"]
     return JobStatus(
         job_id=row["job_id"],
         document_id=row["document_id"],
@@ -103,8 +68,8 @@ def _row_to_job_status(row: asyncpg.Record) -> JobStatus:
         error=row["error"],
         skipped=row["skipped"],
         skip_reason=row["skip_reason"],
-        created_at=row["created_at"],
-        updated_at=row["updated_at"],
+        created_at=created.timestamp() if isinstance(created, datetime) else created,
+        updated_at=updated.timestamp() if isinstance(updated, datetime) else updated,
     )
 
 
@@ -113,9 +78,10 @@ async def get_job(job_id: str) -> JobStatus | None:
 
     Returns None if no job with this id exists.
     """
-    async with _get_connection() as conn:
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM rag_jobs WHERE job_id = $1",
+            f"SELECT * FROM {TABLE} WHERE job_id = $1",
             job_id,
         )
         if row is None:
@@ -128,7 +94,7 @@ async def create_queued(job_id: str, document_id: str | None) -> JobStatus:
 
     If a job with this ID already exists, it will be replaced.
     """
-    now = time.time()
+    now = _now()
     status = JobStatus(
         job_id=job_id,
         document_id=document_id,
@@ -138,14 +104,15 @@ async def create_queued(job_id: str, document_id: str | None) -> JobStatus:
         error=None,
         skipped=False,
         skip_reason=None,
-        created_at=now,
-        updated_at=now,
+        created_at=now.timestamp(),
+        updated_at=now.timestamp(),
     )
 
-    async with _get_connection() as conn:
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
         await conn.execute(
-            """
-            INSERT INTO rag_jobs (
+            f"""
+            INSERT INTO {TABLE} (
                 job_id, document_id, state, chunks_created, message,
                 error, skipped, skip_reason, created_at, updated_at
             )
@@ -169,8 +136,8 @@ async def create_queued(job_id: str, document_id: str | None) -> JobStatus:
             status.error,
             status.skipped,
             status.skip_reason,
-            status.created_at,
-            status.updated_at,
+            now,
+            now,
         )
 
     return status
@@ -181,14 +148,15 @@ async def mark_running(job_id: str) -> None:
 
     If the job does not exist yet, creates a minimal record.
     """
-    now = time.time()
+    now = _now()
 
-    async with _get_connection() as conn:
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
         result = await conn.execute(
-            """
-            UPDATE rag_jobs
+            f"""
+            UPDATE {TABLE}
             SET state = $1, message = $2, error = NULL, updated_at = $3
-            WHERE job_id = $4
+            WHERE job_id = $4 AND state = 'queued'
             """,
             JobState.RUNNING.value,
             "Ingestion started",
@@ -197,14 +165,16 @@ async def mark_running(job_id: str) -> None:
         )
 
         if result == "UPDATE 0":
-            # Job doesn't exist, create it
+            logger.warning("Job {} not found in queued state, creating fallback record", job_id)
             await conn.execute(
-                """
-                INSERT INTO rag_jobs (
+                f"""
+                INSERT INTO {TABLE} (
                     job_id, document_id, state, chunks_created, message,
                     error, skipped, skip_reason, created_at, updated_at
                 )
                 VALUES ($1, NULL, $2, 0, $3, NULL, FALSE, NULL, $4, $5)
+                ON CONFLICT (job_id) DO UPDATE SET
+                    state = EXCLUDED.state, message = EXCLUDED.message, updated_at = EXCLUDED.updated_at
                 """,
                 job_id,
                 JobState.RUNNING.value,
@@ -222,25 +192,18 @@ async def mark_completed(
     skipped: bool = False,
     skip_reason: str | None = None,
 ) -> None:
-    """Mark a job as completed successfully.
-
-    Args:
-        job_id: The job identifier
-        document_id: The document identifier
-        chunks_created: Number of chunks created (0 if skipped)
-        skipped: Whether ingestion was skipped (e.g., content unchanged)
-        skip_reason: Reason for skipping (e.g., 'content_unchanged')
-    """
-    now = time.time()
+    """Mark a job as completed successfully."""
+    now = _now()
     message = "Ingestion skipped (content unchanged)" if skipped else "Ingestion completed"
 
-    async with _get_connection() as conn:
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
         result = await conn.execute(
-            """
-            UPDATE rag_jobs
+            f"""
+            UPDATE {TABLE}
             SET state = $1, document_id = COALESCE($2, document_id), chunks_created = $3,
                 message = $4, error = NULL, skipped = $5, skip_reason = $6, updated_at = $7
-            WHERE job_id = $8
+            WHERE job_id = $8 AND state = 'running'
             """,
             JobState.COMPLETED.value,
             document_id,
@@ -253,14 +216,18 @@ async def mark_completed(
         )
 
         if result == "UPDATE 0":
-            # Job doesn't exist, create it
+            logger.warning("Job {} not found in running state, creating fallback record", job_id)
             await conn.execute(
-                """
-                INSERT INTO rag_jobs (
+                f"""
+                INSERT INTO {TABLE} (
                     job_id, document_id, state, chunks_created, message,
                     error, skipped, skip_reason, created_at, updated_at
                 )
                 VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9)
+                ON CONFLICT (job_id) DO UPDATE SET
+                    state = EXCLUDED.state, document_id = COALESCE(EXCLUDED.document_id, {TABLE}.document_id),
+                    chunks_created = EXCLUDED.chunks_created, message = EXCLUDED.message,
+                    skipped = EXCLUDED.skipped, skip_reason = EXCLUDED.skip_reason, updated_at = EXCLUDED.updated_at
                 """,
                 job_id,
                 document_id,
@@ -276,14 +243,15 @@ async def mark_completed(
 
 async def mark_failed(job_id: str, *, error: str) -> None:
     """Mark a job as failed with the given error message."""
-    now = time.time()
+    now = _now()
 
-    async with _get_connection() as conn:
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
         result = await conn.execute(
-            """
-            UPDATE rag_jobs
+            f"""
+            UPDATE {TABLE}
             SET state = $1, message = $2, error = $3, updated_at = $4
-            WHERE job_id = $5
+            WHERE job_id = $5 AND state IN ('queued', 'running')
             """,
             JobState.FAILED.value,
             "Ingestion failed",
@@ -293,14 +261,17 @@ async def mark_failed(job_id: str, *, error: str) -> None:
         )
 
         if result == "UPDATE 0":
-            # Job doesn't exist, create it
+            logger.warning("Job {} not found in expected state, creating fallback record", job_id)
             await conn.execute(
-                """
-                INSERT INTO rag_jobs (
+                f"""
+                INSERT INTO {TABLE} (
                     job_id, document_id, state, chunks_created, message,
                     error, skipped, skip_reason, created_at, updated_at
                 )
                 VALUES ($1, NULL, $2, 0, $3, $4, FALSE, NULL, $5, $6)
+                ON CONFLICT (job_id) DO UPDATE SET
+                    state = EXCLUDED.state, message = EXCLUDED.message,
+                    error = EXCLUDED.error, updated_at = EXCLUDED.updated_at
                 """,
                 job_id,
                 JobState.FAILED.value,
@@ -312,16 +283,14 @@ async def mark_failed(job_id: str, *, error: str) -> None:
 
 
 async def get_jobs_batch(job_ids: list[str]) -> dict[str, JobStatus | None]:
-    """Load multiple job statuses from database.
-
-    Returns a dictionary mapping job_id to JobStatus (or None if not found).
-    """
+    """Load multiple job statuses from database."""
     if not job_ids:
         return {}
 
-    async with _get_connection() as conn:
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
         rows = await conn.fetch(
-            "SELECT * FROM rag_jobs WHERE job_id = ANY($1)",
+            f"SELECT * FROM {TABLE} WHERE job_id = ANY($1)",
             job_ids,
         )
 
@@ -338,21 +307,13 @@ async def list_all_jobs(
     offset: int = 0,
     state: JobState | None = None,
 ) -> list[JobStatus]:
-    """List job statuses from database.
-
-    Args:
-        limit: Maximum number of jobs to return
-        offset: Number of jobs to skip
-        state: Optional filter by job state
-
-    Returns:
-        List of JobStatus objects
-    """
-    async with _get_connection() as conn:
+    """List job statuses from database."""
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
         if state is not None:
             rows = await conn.fetch(
-                """
-                SELECT * FROM rag_jobs
+                f"""
+                SELECT * FROM {TABLE}
                 WHERE state = $1
                 ORDER BY updated_at DESC
                 LIMIT $2 OFFSET $3
@@ -363,8 +324,8 @@ async def list_all_jobs(
             )
         else:
             rows = await conn.fetch(
-                """
-                SELECT * FROM rag_jobs
+                f"""
+                SELECT * FROM {TABLE}
                 ORDER BY updated_at DESC
                 LIMIT $1 OFFSET $2
                 """,
@@ -376,26 +337,21 @@ async def list_all_jobs(
 
 
 async def delete_job(job_id: str) -> bool:
-    """Delete a single job from database.
-
-    Returns True if the job was deleted, False if it did not exist.
-    """
-    async with _get_connection() as conn:
+    """Delete a single job from database."""
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
         result = await conn.execute(
-            "DELETE FROM rag_jobs WHERE job_id = $1",
+            f"DELETE FROM {TABLE} WHERE job_id = $1",
             job_id,
         )
         return result == "DELETE 1"
 
 
 async def clear_all_jobs() -> int:
-    """Delete all job records from database.
-
-    Returns the number of jobs deleted.
-    """
-    async with _get_connection() as conn:
-        result = await conn.execute("DELETE FROM rag_jobs")
-        # Result is like "DELETE 42"
+    """Delete all job records from database."""
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
+        result = await conn.execute(f"DELETE FROM {TABLE}")
         try:
             return int(result.split()[-1])
         except (IndexError, ValueError):
@@ -403,44 +359,32 @@ async def clear_all_jobs() -> int:
 
 
 async def get_job_stats() -> dict[str, Any]:
-    """Get statistics about jobs.
-
-    Returns a dictionary with:
-    - total: Total number of jobs
-    - by_state: Count of jobs by state
-    - stale: Count of stale jobs
-    - oldest_by_state: Age in hours of oldest job by state
-    """
-    now = time.time()
-
-    async with _get_connection() as conn:
-        # Get counts by state
+    """Get statistics about jobs."""
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
         state_counts = await conn.fetch(
-            """
+            f"""
             SELECT state, COUNT(*) as count
-            FROM rag_jobs
+            FROM {TABLE}
             GROUP BY state
             """
         )
 
-        # Get oldest job per state
         oldest_jobs = await conn.fetch(
-            """
+            f"""
             SELECT state, MIN(updated_at) as oldest_updated_at
-            FROM rag_jobs
+            FROM {TABLE}
             GROUP BY state
             """
         )
 
-        # Count stale jobs
         stale_count = await conn.fetchval(
-            """
-            SELECT COUNT(*) FROM rag_jobs
-            WHERE (state = 'completed' AND $1 - updated_at > $2 * 3600)
-               OR (state = 'failed' AND $1 - updated_at > $3 * 3600)
-               OR (state IN ('queued', 'running') AND $1 - updated_at > $4 * 3600)
+            f"""
+            SELECT COUNT(*) FROM {TABLE}
+            WHERE (state = 'completed' AND NOW() - updated_at > make_interval(hours => $1))
+               OR (state = 'failed' AND NOW() - updated_at > make_interval(hours => $2))
+               OR (state IN ('queued', 'running') AND NOW() - updated_at > make_interval(hours => $3))
             """,
-            now,
             settings.job_completed_ttl_hours,
             settings.job_failed_ttl_hours,
             settings.job_orphaned_ttl_hours,
@@ -455,6 +399,7 @@ async def get_job_stats() -> dict[str, Any]:
     for row in state_counts:
         by_state[row["state"]] = row["count"]
 
+    now = _now()
     oldest_by_state: dict[str, float | None] = {
         JobState.QUEUED.value: None,
         JobState.RUNNING.value: None,
@@ -462,8 +407,9 @@ async def get_job_stats() -> dict[str, Any]:
         JobState.FAILED.value: None,
     }
     for row in oldest_jobs:
-        if row["oldest_updated_at"] is not None:
-            age_hours = (now - row["oldest_updated_at"]) / 3600
+        oldest = row["oldest_updated_at"]
+        if oldest is not None:
+            age_hours = (now - oldest).total_seconds() / 3600
             oldest_by_state[row["state"]] = round(age_hours, 2)
 
     return {
@@ -481,43 +427,27 @@ async def cleanup_stale_jobs(
     orphaned_ttl_hours: float | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Clean up stale jobs based on TTL settings.
-
-    Args:
-        completed_ttl_hours: TTL for completed jobs (uses config default if None)
-        failed_ttl_hours: TTL for failed jobs (uses config default if None)
-        orphaned_ttl_hours: TTL for orphaned running/queued jobs (uses config default if None)
-        dry_run: If True, only report what would be deleted without deleting
-
-    Returns a dictionary with:
-    - scanned: Total number of jobs scanned
-    - deleted: Number of jobs deleted (or would be deleted if dry_run)
-    - by_reason: Count of deletions by reason
-    - deleted_jobs: List of deleted job IDs with reasons
-    """
+    """Clean up stale jobs based on TTL settings."""
     ttl_completed = completed_ttl_hours if completed_ttl_hours is not None else settings.job_completed_ttl_hours
     ttl_failed = failed_ttl_hours if failed_ttl_hours is not None else settings.job_failed_ttl_hours
     ttl_orphaned = orphaned_ttl_hours if orphaned_ttl_hours is not None else settings.job_orphaned_ttl_hours
 
-    now = time.time()
-
-    async with _get_connection() as conn:
-        # Find stale jobs
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
         stale_jobs = await conn.fetch(
-            """
-            SELECT job_id, state, $1 - updated_at as age_seconds
-            FROM rag_jobs
-            WHERE (state = 'completed' AND $1 - updated_at > $2 * 3600)
-               OR (state = 'failed' AND $1 - updated_at > $3 * 3600)
-               OR (state IN ('queued', 'running') AND $1 - updated_at > $4 * 3600)
+            f"""
+            SELECT job_id, state, EXTRACT(EPOCH FROM NOW() - updated_at) as age_seconds
+            FROM {TABLE}
+            WHERE (state = 'completed' AND NOW() - updated_at > make_interval(hours => $1))
+               OR (state = 'failed' AND NOW() - updated_at > make_interval(hours => $2))
+               OR (state IN ('queued', 'running') AND NOW() - updated_at > make_interval(hours => $3))
             """,
-            now,
             ttl_completed,
             ttl_failed,
             ttl_orphaned,
         )
 
-        total_count = await conn.fetchval("SELECT COUNT(*) FROM rag_jobs")
+        total_count = await conn.fetchval(f"SELECT COUNT(*) FROM {TABLE}")
 
         deleted_jobs: list[dict[str, Any]] = []
         by_reason: dict[str, int] = {
@@ -550,7 +480,7 @@ async def cleanup_stale_jobs(
 
         if not dry_run and job_ids_to_delete:
             await conn.execute(
-                "DELETE FROM rag_jobs WHERE job_id = ANY($1)",
+                f"DELETE FROM {TABLE} WHERE job_id = ANY($1)",
                 job_ids_to_delete,
             )
 

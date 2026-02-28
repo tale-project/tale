@@ -54,6 +54,7 @@ import type * as agent_tools_products_helpers_read_product_by_id from "../agent_
 import type * as agent_tools_products_helpers_read_product_list from "../agent_tools/products/helpers/read_product_list.js";
 import type * as agent_tools_products_helpers_types from "../agent_tools/products/helpers/types.js";
 import type * as agent_tools_products_product_read_tool from "../agent_tools/products/product_read_tool.js";
+import type * as agent_tools_rag_format_search_results from "../agent_tools/rag/format_search_results.js";
 import type * as agent_tools_rag_query_rag_context from "../agent_tools/rag/query_rag_context.js";
 import type * as agent_tools_rag_rag_search_tool from "../agent_tools/rag/rag_search_tool.js";
 import type * as agent_tools_sub_agents_helpers_build_additional_context from "../agent_tools/sub_agents/helpers/build_additional_context.js";
@@ -320,7 +321,6 @@ import type * as lib_openai_provider from "../lib/openai_provider.js";
 import type * as lib_pagination_helpers from "../lib/pagination/helpers.js";
 import type * as lib_pagination_index from "../lib/pagination/index.js";
 import type * as lib_pagination_types from "../lib/pagination/types.js";
-import type * as lib_rag_prefetch_index from "../lib/rag_prefetch/index.js";
 import type * as lib_rate_limiter_helpers from "../lib/rate_limiter/helpers.js";
 import type * as lib_rate_limiter_index from "../lib/rate_limiter/index.js";
 import type * as lib_rls_auth_get_auth_user_identity from "../lib/rls/auth/get_auth_user_identity.js";
@@ -888,6 +888,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/products/helpers/read_product_list": typeof agent_tools_products_helpers_read_product_list;
   "agent_tools/products/helpers/types": typeof agent_tools_products_helpers_types;
   "agent_tools/products/product_read_tool": typeof agent_tools_products_product_read_tool;
+  "agent_tools/rag/format_search_results": typeof agent_tools_rag_format_search_results;
   "agent_tools/rag/query_rag_context": typeof agent_tools_rag_query_rag_context;
   "agent_tools/rag/rag_search_tool": typeof agent_tools_rag_rag_search_tool;
   "agent_tools/sub_agents/helpers/build_additional_context": typeof agent_tools_sub_agents_helpers_build_additional_context;
@@ -1154,7 +1155,6 @@ declare const fullApi: ApiFromModules<{
   "lib/pagination/helpers": typeof lib_pagination_helpers;
   "lib/pagination/index": typeof lib_pagination_index;
   "lib/pagination/types": typeof lib_pagination_types;
-  "lib/rag_prefetch/index": typeof lib_rag_prefetch_index;
   "lib/rate_limiter/helpers": typeof lib_rate_limiter_helpers;
   "lib/rate_limiter/index": typeof lib_rate_limiter_index;
   "lib/rls/auth/get_auth_user_identity": typeof lib_rls_auth_get_auth_user_identity;

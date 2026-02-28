@@ -43,12 +43,10 @@ def scan_file_for_secrets(file_bytes: bytes) -> tuple[bool, str | None]:
     for label, pattern in _SECRET_PATTERNS:
         match = pattern.search(text)
         if match:
-            snippet = match.group()[:60]
-            reason = f"Potential secret detected ({label}): '{snippet}...'"
             logger.warning(
                 "File rejected by secret scanner",
-                extra={"pattern": label, "snippet": snippet},
+                extra={"pattern": label},
             )
-            return True, reason
+            return True, f"Potential secret detected: {label}"
 
     return False, None

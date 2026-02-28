@@ -12,6 +12,10 @@
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
 import { getRagConfig } from '../../lib/helpers/rag_config';
+import {
+  formatSearchResults,
+  type SearchResponse,
+} from './format_search_results';
 
 const debugLog = createDebugLog('DEBUG_RAG_QUERY', '[RAGQuery]');
 const DEFAULT_TOP_K = 10;
@@ -21,21 +25,6 @@ const RAG_REQUEST_TIMEOUT_MS = 10000; // 10 seconds
 // Query expansion constants
 const MAX_CONTEXT_MESSAGES = 3; // Number of recent messages to include for context
 const MAX_CONTEXT_CHARS = 500; // Max chars per context message
-
-interface SearchResult {
-  content: string;
-  score: number;
-  document_id?: string;
-  metadata?: Record<string, unknown>;
-}
-
-interface QueryResponse {
-  success: boolean;
-  query: string;
-  results: SearchResult[];
-  total_results: number;
-  processing_time_ms: number;
-}
 
 /**
  * Recent conversation message for context expansion.
@@ -214,7 +203,7 @@ export async function queryRagContext(
         return undefined; // Gracefully degrade if RAG is unavailable
       }
 
-      const result = await fetchJson<QueryResponse>(response);
+      const result = await fetchJson<SearchResponse>(response);
 
       if (!result.success || result.total_results === 0) {
         debugLog('No relevant RAG context found', {
@@ -224,17 +213,11 @@ export async function queryRagContext(
         return undefined;
       }
 
-      // Format the RAG results into a context string
-      const contextParts = result.results.map((r, idx) => {
-        const score = (r.score * 100).toFixed(1);
-        return `[${idx + 1}] (Relevance: ${score}%)\n${r.content}`;
-      });
-
-      const ragContext = contextParts.join('\n\n---\n\n');
+      const ragContext = formatSearchResults(result.results);
 
       debugLog('RAG context retrieved', {
         resultCount: result.total_results,
-        contextLength: ragContext.length,
+        contextLength: ragContext?.length ?? 0,
         processingTimeMs: result.processing_time_ms,
       });
 

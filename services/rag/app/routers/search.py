@@ -12,31 +12,21 @@ from ..models import (
     QueryResponse,
     SearchResult,
 )
-from ..services.cognee import cognee_service
+from ..services.rag_service import rag_service
 
 router = APIRouter(prefix="/api/v1", tags=["Search"])
 
 
 @router.post("/search", response_model=QueryResponse)
 async def search(request: QueryRequest):
-    """Search the knowledge base.
-
-    Supports different search types:
-    - CHUNKS: Returns raw text chunks (best for detailed content retrieval)
-    - GRAPH_COMPLETION: Uses knowledge graph for reasoning
-    - RAG_COMPLETION: Shorter answers based on chunks
-    - SUMMARIES: Returns document summaries
-    - INSIGHTS: Highlights relationships
-    """
+    """Search the knowledge base using hybrid BM25 + vector search."""
     try:
         start_time = time.time()
 
-        results = await cognee_service.search(
+        results = await rag_service.search(
             query=request.query,
-            search_type=request.search_type,
             top_k=request.top_k,
             similarity_threshold=request.similarity_threshold,
-            _filters=request.filters,
             user_id=request.user_id,
             team_ids=request.team_ids,
         )
@@ -73,13 +63,11 @@ async def search(request: QueryRequest):
 async def generate(request: GenerateRequest):
     """Generate a response using RAG.
 
-    This endpoint uses optimized defaults for RAG generation:
-    - Retrieves top 30 most relevant chunks (~15k chars context)
-    - Uses temperature 0.3 for factual, consistent responses
-    - Generates up to 2000 tokens for detailed answers
+    Retrieves top 30 most relevant chunks, uses temperature 0.3
+    for factual, consistent responses, and generates up to 2000 tokens.
     """
     try:
-        result = await cognee_service.generate(
+        result = await rag_service.generate(
             query=request.query,
             user_id=request.user_id,
             team_ids=request.team_ids,

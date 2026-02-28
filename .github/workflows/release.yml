@@ -84,8 +84,6 @@ jobs:
             context: '.'
           - name: db
             context: '.'
-          - name: graph-db
-            context: 'services/graph-db'
           - name: proxy
             context: '.'
           - name: operator
@@ -140,7 +138,7 @@ jobs:
 
     strategy:
       matrix:
-        service: [platform, rag, crawler, db, graph-db, proxy, operator]
+        service: [platform, rag, crawler, db, proxy, operator]
 
     steps:
       - name: Log in to GHCR
@@ -193,7 +191,7 @@ jobs:
         run: |
           echo "## Release ${{ needs.prepare.outputs.version }} Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All 7 service images have been built and pushed to GHCR (native amd64 + arm64)." >> $GITHUB_STEP_SUMMARY
+          echo "All 6 service images have been built and pushed to GHCR (native amd64 + arm64)." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Images" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -203,7 +201,6 @@ jobs:
           echo "| RAG | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-rag:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Crawler | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-crawler:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| DB | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-db:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Graph DB | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-graph-db:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Proxy | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-proxy:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Operator | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-operator:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

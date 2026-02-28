@@ -7,7 +7,6 @@
     "services/platform",
     "services/crawler",
     "services/rag",
-    "services/graph-db",
     "services/operator",
     "services/db",
     "services/proxy",

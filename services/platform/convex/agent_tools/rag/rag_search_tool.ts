@@ -1,7 +1,7 @@
 /**
- * Convex Tool: RAG Generate
+ * Convex Tool: RAG Search
  *
- * Generate responses using the RAG knowledge base.
+ * Search the knowledge base and return relevant document chunks.
  * Uses team IDs passed from the parent context (resolved in mutation where auth identity is available).
  */
 
@@ -15,24 +15,24 @@ import type { ToolDefinition } from '../types';
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
 import { getRagConfig } from '../../lib/helpers/rag_config';
+import {
+  formatSearchResults,
+  type SearchResponse,
+} from './format_search_results';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
-interface RagServiceResponse {
-  success: boolean;
-  query: string;
-  response: string;
-  processing_time_ms: number;
-}
+const DEFAULT_TOP_K = 10;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
 
 export const ragSearchTool = {
   name: 'rag_search' as const,
   tool: createTool({
-    description: `Query the knowledge base and get a generated response.
+    description: `Search the knowledge base for relevant document excerpts.
 
-This tool uses RAG (Retrieval-Augmented Generation) to:
-1. Search for relevant context from the knowledge base
-2. Generate a comprehensive answer based on that context
+This tool uses hybrid search (BM25 + vector similarity) to find the most
+relevant chunks from the knowledge base. You receive the raw excerpts with
+relevance scores and should synthesize the answer yourself.
 
 WHEN TO USE THIS TOOL:
 • Knowledge base lookups: policies, procedures, documentation
@@ -45,43 +45,15 @@ WHEN NOT TO USE:
 • "Show customers with status=churned" → Use customer_read with filtering
 • For counting/listing/filtering, use database tools instead
 
-Returns a generated response based on the most relevant documents.`,
+Returns numbered document excerpts with relevance scores.`,
     args: z.object({
-      query: z
-        .string()
-        .describe('Query text to search and generate response for'),
+      query: z.string().describe('Query text to search the knowledge base for'),
     }),
     handler: async (ctx: ToolCtx, args): Promise<string> => {
-      const { userId, userTeamIds, ragPrefetchCache } = ctx;
+      const { userId, userTeamIds } = ctx;
 
-      debugLog('tool:rag_search start', {
-        query: args.query,
-        hasPrefetchCache: !!ragPrefetchCache,
-        prefetchConsumed: ragPrefetchCache?.consumed,
-      });
+      debugLog('tool:rag_search start', { query: args.query });
 
-      // First call: use prefetched result if available
-      if (ragPrefetchCache && !ragPrefetchCache.consumed) {
-        ragPrefetchCache.consumed = true;
-
-        try {
-          const response = await ragPrefetchCache.promise;
-
-          if (response) {
-            debugLog('tool:rag_search using prefetched result', {
-              prefetchAge: Date.now() - ragPrefetchCache.timestamp,
-              responseLength: response.length,
-            });
-            return response;
-          }
-        } catch (error) {
-          debugLog('tool:rag_search prefetch failed, making fresh request', {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-
-      // Subsequent calls or no prefetch: make a fresh request
       if (!userId) {
         throw new Error(
           'rag_search requires userId in ToolCtx. ' +
@@ -98,15 +70,18 @@ Returns a generated response based on the most relevant documents.`,
       }
 
       const ragServiceUrl = getRagConfig().serviceUrl;
-      const url = `${ragServiceUrl}/api/v1/generate`;
+      const url = `${ragServiceUrl}/api/v1/search`;
 
       const payload = {
         query: args.query,
         user_id: userId,
         team_ids: teamIds,
+        top_k: DEFAULT_TOP_K,
+        similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
+        include_metadata: true,
       };
 
-      debugLog('tool:rag_search requesting generate', {
+      debugLog('tool:rag_search requesting search', {
         userId,
         teamIds,
       });
@@ -125,15 +100,19 @@ Returns a generated response based on the most relevant documents.`,
           throw new Error(`RAG service error: ${response.status} ${errorText}`);
         }
 
-        const result = await fetchJson<RagServiceResponse>(response);
+        const result = await fetchJson<SearchResponse>(response);
+
+        const formatted =
+          formatSearchResults(result.results) ??
+          'No relevant results found in the knowledge base.';
 
         debugLog('tool:rag_search success', {
           query: args.query,
-          responseLength: result.response.length,
+          resultCount: result.total_results,
           processing_time_ms: result.processing_time_ms,
         });
 
-        return result.response;
+        return formatted;
       } catch (error) {
         console.error('[tool:rag_search] error', {
           query: args.query,

@@ -17,8 +17,6 @@ export type RagActionParams =
       operation: 'delete_document';
       /** Document record ID from the platform */
       recordId: string;
-      /** Deletion mode: 'soft' or 'hard' (default). Hard mode also deletes degree-one entity nodes. */
-      mode?: 'soft' | 'hard';
     };
 
 /**
@@ -68,7 +66,7 @@ export interface RagDeleteResult {
   success: boolean;
   /** Number of documents deleted. */
   deletedCount: number;
-  /** List of Cognee Data IDs that were deleted. */
+  /** List of data IDs that were deleted from the RAG knowledge base. */
   deletedDataIds: Array<string>;
   /** Status message from the RAG service. */
   message: string;

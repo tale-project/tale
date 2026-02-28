@@ -2,12 +2,14 @@
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
+from loguru import logger
 
 from .. import __version__
 from ..config import settings
 from ..models import ConfigResponse, HealthResponse
-from ..services.cognee import cognee_service
+from ..services.database import get_pool
+from ..services.rag_service import rag_service
 
 router = APIRouter(tags=["Health"])
 
@@ -18,7 +20,7 @@ async def root():
     return {
         "name": "Tale RAG API",
         "version": __version__,
-        "description": "Retrieval-Augmented Generation service using cognee",
+        "description": "Retrieval-Augmented Generation service for Tale",
         "docs": "/docs",
         "redoc": "/redoc",
         "openapi": "/openapi.json",
@@ -30,21 +32,46 @@ async def root():
 async def health():
     """Health check endpoint.
 
-    Returns status="healthy" when cognee is initialized,
-    status="degraded" when cognee is not yet initialized.
+    Returns status="healthy" when the RAG service is initialized and
+    the database is reachable, status="degraded" otherwise.
     """
-    is_initialized = cognee_service.initialized
+    is_initialized = rag_service.initialized
+    db_ok = False
+
+    if is_initialized:
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+            db_ok = True
+        except Exception:
+            logger.warning("Health check database ping failed")
+
+    if is_initialized and db_ok:
+        health_status = "healthy"
+    elif is_initialized:
+        health_status = "degraded"
+    else:
+        health_status = "degraded"
+
     return HealthResponse(
-        status="healthy" if is_initialized else "degraded",
+        status=health_status,
         version=__version__,
-        cognee_initialized=is_initialized,
+        initialized=is_initialized,
     )
 
 
 @router.get("/config", response_model=ConfigResponse)
 async def get_config():
     """Get current configuration (non-sensitive values only)."""
-    llm_config = settings.get_llm_config()
+    try:
+        llm_config = settings.get_llm_config()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM configuration not available",
+        ) from exc
+
     return ConfigResponse(
         host=settings.host,
         port=settings.port,
@@ -55,6 +82,4 @@ async def get_config():
         chunk_overlap=settings.chunk_overlap,
         top_k=settings.top_k,
         similarity_threshold=settings.similarity_threshold,
-        enable_graph_storage=settings.enable_graph_storage,
-        enable_vector_search=settings.enable_vector_search,
     )

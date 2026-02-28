@@ -2,7 +2,7 @@
 # LOCAL DEVELOPMENT ONLY
 # =============================================================================
 # This compose file is for LOCAL DEVELOPMENT only. It exposes ports that should
-# NEVER be exposed in production (5432, 6379-6380, 8001-8003).
+# NEVER be exposed in production (5432, 8001-8003).
 #
 # For PRODUCTION deployments, use the Tale CLI:
 #   tale deploy <version>
@@ -237,69 +237,7 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Graph DB (FalkorDB)
-  # ============================================================================
-  # Redis-based graph database optimized for GraphRAG
-  # - Native multi-tenant support (10K+ graphs per instance)
-  # - Low latency (~140ms p99)
-  # - Client-server architecture (no file-level locking issues)
-  # - Combined graph and vector storage via hybrid adapter
-  # Replaces embedded Kuzu (archived) and LanceDB
-  graph-db:
-    # Image from GHCR (used when PULL_POLICY=always)
-    image: ghcr.io/tale-project/tale/tale-graph-db:${VERSION:-latest}
-    # Pull policy: 'build' for local dev, 'always' for production
-    pull_policy: ${PULL_POLICY:-build}
-    # Build configuration (used when PULL_POLICY=build)
-    build:
-      context: .
-      dockerfile: services/graph-db/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-
-    # Container name
-    container_name: tale-graph-db
-
-    # Port mapping: host:container
-    # Access FalkorDB at localhost:6379 (Redis protocol)
-    # Access FalkorDB Browser UI at localhost:6380 (mapped from internal 3000)
-    ports:
-      - '6379:6379'
-      - '6380:3000'
-
-    # Volume mounts
-    # Persist graph and vector data
-    # FalkorDB stores data in /var/lib/falkordb/data (not /data)
-    volumes:
-      - graph-db-data:/var/lib/falkordb/data
-
-    # Environment file
-    env_file:
-      - .env
-
-    # Restart policy
-    restart: unless-stopped
-
-    # Health check
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-    # Logging configuration
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-
-    # Networks
-    networks:
-      - internal
-
-  # ============================================================================
-  # Tale RAG (Cognee)
+  # Tale RAG
   # ============================================================================
   # Stateless service - no container_name for blue-green deployment
   rag:
@@ -320,9 +258,7 @@ services:
       - '8001:8001'
 
     # Volume mounts
-    # Persist cognee data
     volumes:
-      # Cognee data directory
       - rag-data:/app/data
 
     # Environment file
@@ -344,10 +280,8 @@ services:
       start_period: 40s
 
     # Dependencies
-    # Wait for database and graph-db (FalkorDB) to be ready
     depends_on:
       - db
-      - graph-db
 
     # Resource limits (optional, adjust based on your needs)
     # deploy:
@@ -563,10 +497,6 @@ volumes:
 
   # Persistent storage for RAG service data (temp files, document processing)
   rag-data:
-    driver: local
-
-  # Persistent storage for graph-db (FalkorDB graph + vector data)
-  graph-db-data:
     driver: local
 
   # Persistent storage for Platform Convex local backend

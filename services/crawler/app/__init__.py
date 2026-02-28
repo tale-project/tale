@@ -2,7 +2,7 @@
 Tale Crawler Service
 
 Independent web crawling service using Crawl4AI.
-Resolves dependency conflicts with cognee in the RAG service.
+Independent service for web crawling.
 """
 
 __version__ = "1.0.0"

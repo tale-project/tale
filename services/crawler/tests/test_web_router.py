@@ -8,6 +8,8 @@ from app.models import WebFetchExtractResponse
 from app.routers.web import _extract_from_webpage
 from app.utils.content_type import detect_type_from_content_type, detect_type_from_url
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestDetectTypeFromUrl:
     """Tests for URL extension-based type detection."""

@@ -212,12 +212,9 @@ export OPENAI_API_KEY="${OPENAI_API_KEY}"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL}"
 
 # RAG database configuration
-# RAG uses a dedicated database (tale_rag) isolated from other services
-# This allows safe full-database resets without affecting Convex or other data
+# RAG and Crawler share the tale_knowledge database with separate schemas
 if [ -z "${RAG_DATABASE_URL:-}" ]; then
-  # Extract connection info from POSTGRES_URL and append /tale_rag
-  # POSTGRES_URL format: postgresql://user:pass@host:port
-  export RAG_DATABASE_URL="${POSTGRES_URL}/tale_rag"
+  export RAG_DATABASE_URL="${POSTGRES_URL}/tale_knowledge"
 fi
 
 # ============================================================================
@@ -525,7 +522,6 @@ deploy_convex_functions() {
     "SEARCH_SERVICE_URL"
     "POSTGRES_URL"
     "RAG_DATABASE_URL"
-    "GRAPH_DB_URL"
     "TRUSTED_HEADERS_ENABLED"
     "TRUSTED_EMAIL_HEADER"
     "TRUSTED_NAME_HEADER"

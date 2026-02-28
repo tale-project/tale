@@ -21,16 +21,10 @@
     "@tale/db#build": {
       "outputs": []
     },
-    "@tale/graph-db#build": {
-      "outputs": []
-    },
     "@tale/proxy#build": {
       "outputs": []
     },
     "@tale/rag#build": {
-      "outputs": []
-    },
-    "@tale/search#build": {
       "outputs": []
     },
     "dev": {

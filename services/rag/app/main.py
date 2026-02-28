@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, status
@@ -14,67 +13,44 @@ from . import __version__
 from .config import settings
 from .models import ErrorResponse
 from .routers import documents_router, health_router, jobs_router, search_router
-from .services.cognee import cognee_service
-from .services.cognee.tenant_manager import ensure_cognee_user_tables
+from .services.rag_service import rag_service
 from .utils import cleanup_memory
-
-# Configure logging
-logging.basicConfig(
-    level=settings.log_level.upper(),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 
 
 async def periodic_gc_cleanup() -> None:
-    """Background task: perform GC cleanup every 60 seconds.
-
-    This replaces the per-request GC middleware which caused significant latency.
-    Periodic cleanup is much more efficient as gc.collect() is a stop-the-world
-    operation that should not block individual requests.
-    """
+    """Background task: perform GC cleanup every 60 seconds."""
     while True:
         try:
             await asyncio.sleep(60)
             cleanup_memory(context="periodic cleanup")
         except asyncio.CancelledError:
-            # Task is being cancelled during shutdown, re-raise to exit cleanly
             raise
         except Exception:
-            # Log but don't crash - GC cleanup is non-critical
             logger.exception("Error in periodic GC cleanup")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for the application."""
-    # Startup
     logger.info("Starting Tale RAG service...")
-    logger.info(f"Version: {__version__}")
-    logger.info(f"Host: {settings.host}:{settings.port}")
-    logger.info(f"Log level: {settings.log_level}")
+    logger.info("Version: {}", __version__)
+    logger.info("Host: {}:{}", settings.host, settings.port)
+    logger.info("Log level: {}", settings.log_level)
 
     try:
-        # Initialize cognee
-        await cognee_service.initialize()
-        logger.info("Cognee initialized successfully")
+        await rag_service.initialize()
+        logger.info("RAG service initialized")
     except Exception:
-        logger.exception("Failed to initialize cognee")
-        # Continue anyway - some endpoints may still work
+        logger.exception("Failed to initialize RAG service")
 
-    # Ensure Cognee user/tenant tables exist (required for multi-tenant mode)
-    try:
-        await ensure_cognee_user_tables()
-    except Exception:
-        logger.exception("Failed to initialize Cognee user tables")
-
-    # Initialize job store database table
+    # Initialize job store (uses the shared pool from rag_service)
     try:
         from .services import job_store_db
 
         await job_store_db.init_job_store()
-        logger.info("Job store database initialized")
+        logger.info("Job store initialized")
     except Exception:
-        logger.exception("Failed to initialize job store database")
+        logger.exception("Failed to initialize job store")
 
     # Job cleanup on startup
     if settings.job_cleanup_on_startup:
@@ -83,37 +59,18 @@ async def lifespan(app: FastAPI):
 
             result = await job_store_db.cleanup_stale_jobs()
             if result["deleted"] > 0:
-                logger.info(f"Cleaned up {result['deleted']} stale jobs on startup: {result['by_reason']}")
+                logger.info("Cleaned up {} stale jobs on startup: {}", result["deleted"], result["by_reason"])
         except Exception:
             logger.exception("Failed to cleanup stale jobs on startup")
 
-    # Ensure HNSW indexes exist on vector tables for fast similarity search
-    try:
-        from .services.cognee.cleanup import ensure_vector_hnsw_indexes
-
-        index_result = await ensure_vector_hnsw_indexes()
-        if index_result["created"]:
-            logger.info(f"Created {len(index_result['created'])} HNSW index(es) on startup")
-    except Exception:
-        logger.exception("Failed to ensure HNSW indexes on startup")
-
-    # Ensure original_content_hash column exists for deduplication
-    try:
-        from .services.cognee.cleanup import ensure_original_content_hash_column
-
-        await ensure_original_content_hash_column()
-    except Exception:
-        logger.exception("Failed to ensure original_content_hash column on startup")
-
-    # Start periodic GC cleanup task (replaces per-request middleware)
+    # Start periodic GC cleanup task
     gc_task = asyncio.create_task(periodic_gc_cleanup())
 
     def _on_gc_task_done(task: asyncio.Task) -> None:
-        """Log if the GC task exits unexpectedly."""
         try:
-            task.result()  # Will raise if task failed
+            task.result()
         except asyncio.CancelledError:
-            pass  # Expected during shutdown
+            pass
         except Exception:
             logger.exception("Periodic GC cleanup task died unexpectedly")
 
@@ -127,21 +84,14 @@ async def lifespan(app: FastAPI):
     with contextlib.suppress(asyncio.CancelledError):
         await gc_task
 
-    # Close job store database connection pool
-    try:
-        from .services import job_store_db
-
-        await job_store_db.close_pool()
-    except Exception:
-        logger.exception("Failed to close job store database pool")
-
+    await rag_service.shutdown()
     logger.info("Shutting down Tale RAG service...")
 
 
 # Create FastAPI application
 app = FastAPI(
     title="Tale RAG API",
-    description="Retrieval-Augmented Generation service using cognee",
+    description="Retrieval-Augmented Generation service for Tale",
     version=__version__,
     lifespan=lifespan,
     docs_url="/docs",
@@ -160,11 +110,6 @@ app.add_middleware(
 )
 
 
-# Note: Per-request GC middleware was removed for performance.
-# GC cleanup is now performed periodically (every 60s) in the lifespan startup.
-
-
-# Exception handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(_request, exc):
     """Handle HTTP exceptions."""
@@ -184,7 +129,7 @@ async def general_exception_handler(_request, exc):
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=ErrorResponse(
-            error=exc.__class__.__name__,
+            error=exc.__class__.__name__ if settings.log_level.lower() == "debug" else "InternalServerError",
             message="Internal server error",
             details={"error": str(exc)} if settings.log_level.lower() == "debug" else None,
         ).model_dump(),

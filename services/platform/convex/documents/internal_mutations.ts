@@ -36,6 +36,20 @@ export const updateDocumentRagInfo = internalMutation({
   },
 });
 
+export const deleteDocumentById = internalMutation({
+  args: {
+    documentId: v.id('documents'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const document = await ctx.db.get(args.documentId);
+    if (document) {
+      await ctx.db.delete(args.documentId);
+    }
+    return null;
+  },
+});
+
 export const createDocument = internalMutation({
   args: {
     organizationId: v.string(),

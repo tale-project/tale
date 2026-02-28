@@ -213,7 +213,7 @@ For local development (non-Docker):
 
 - **Node.js**: v20.19.0 or higher (current: v20.16.0 - upgrade recommended)
 - **npm**: 10.x or higher
-- **Python**: 3.12.x (required for Python services: rag, graph-db, crawler)
+- **Python**: 3.12.x (required for Python services: rag, crawler)
 - **uv**: Python package manager ([installation instructions](https://github.com/astral-sh/uv))
 
 ### Install uv (Python package manager)
@@ -236,7 +236,6 @@ npm install
 
 # Install Python dev dependencies (optional, required for linting/testing Python services)
 cd services/rag && uv sync --extra dev
-cd ../graph-db && uv sync --extra dev
 cd ../crawler && uv sync --extra dev
 cd ../..
 

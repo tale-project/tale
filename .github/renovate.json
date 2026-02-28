@@ -8,7 +8,7 @@
   "rangeStrategy": "pin",
   "packageRules": [
     {
-      "description": "Pin Python Docker image to 3.11 for RAG service (cognee dependencies don't support 3.14+)",
+      "description": "Pin Python Docker image to 3.11 for RAG service",
       "matchDatasources": [
         "docker"
       ],

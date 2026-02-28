@@ -39,7 +39,6 @@ import {
 } from '../context_management';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
-import { startRagPrefetch, type RagPrefetchCache } from '../rag_prefetch';
 import { resolveTemplateVariables } from './resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
 import { AgentTimeoutError, withTimeout } from './with_timeout';
@@ -132,24 +131,6 @@ export async function generateAgentResponse(
       knowledgeMode === 'context' || knowledgeMode === 'both';
     const needsWebContext =
       webSearchMode === 'context' || webSearchMode === 'both';
-
-    // Start RAG prefetch for tool mode (existing behavior):
-    // The prefetch cache is consumed by the rag_search tool's first call.
-    // For context/both modes, we use queryRagContext instead (injected into structured context).
-    let ragPrefetchCache: RagPrefetchCache | undefined;
-    if (knowledgeMode === 'tool' && userId && promptMessage) {
-      ragPrefetchCache = startRagPrefetch({
-        ctx,
-        threadId,
-        userMessage: promptMessage,
-        userId,
-        userTeamIds: userTeamIds ?? [],
-      });
-      debugLog('RAG prefetch started (tool mode)', {
-        threadId,
-        elapsedMs: Date.now() - startTime,
-      });
-    }
 
     // Start context injection queries (non-blocking) for context/both modes
     let knowledgeContextPromise: Promise<string | undefined> | undefined;
@@ -265,7 +246,7 @@ export async function generateAgentResponse(
     // Create agent instance
     const agent = createAgent(agentOptions);
 
-    // Build context with organization and optional RAG prefetch cache.
+    // Build context with organization info.
     // actionDeadlineMs is exposed via variables so tool handlers can check remaining budget.
     const contextWithOrg = {
       ...ctx,
@@ -273,7 +254,6 @@ export async function generateAgentResponse(
       threadId,
       userTeamIds: userTeamIds ?? [],
       variables: { actionDeadlineMs: String(actionDeadline) },
-      ...(ragPrefetchCache ? { ragPrefetchCache } : {}),
     };
 
     // Track time to first token for streaming
@@ -496,7 +476,6 @@ export async function generateAgentResponse(
           userTeamIds: userTeamIds ?? [],
           variables: { actionDeadlineMs: String(actionDeadline) },
           ...(parentThreadId ? { parentThreadId } : {}),
-          ...(ragPrefetchCache ? { ragPrefetchCache } : {}),
         };
 
         const generateResult = await withTimeout(
