@@ -68,7 +68,7 @@ export interface RagDeleteResult {
   success: boolean;
   /** Number of documents deleted. */
   deletedCount: number;
-  /** List of Cognee Data IDs that were deleted. */
+  /** List of data IDs that were deleted from the RAG knowledge base. */
   deletedDataIds: Array<string>;
   /** Status message from the RAG service. */
   message: string;

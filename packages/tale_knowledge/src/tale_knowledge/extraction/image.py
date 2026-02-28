@@ -53,16 +53,20 @@ async def extract_text_from_image_bytes(
 
     logger.info(f"Processing image: {filename}")
 
-    ocr_text = await vision_client.ocr_image(image_bytes)
+    try:
+        ocr_text = await vision_client.ocr_image(image_bytes)
 
-    if ocr_text and len(ocr_text.strip()) > MIN_OCR_TEXT_LENGTH:
-        logger.info(f"Image OCR successful: {len(ocr_text)} chars extracted")
-        return ocr_text, True
+        if ocr_text and len(ocr_text.strip()) > MIN_OCR_TEXT_LENGTH:
+            logger.info(f"Image OCR successful: {len(ocr_text)} chars extracted")
+            return ocr_text, True
 
-    description = await vision_client.describe_image(image_bytes)
-    if description:
-        result = f"[Image: {description}]"
-        logger.info(f"Generated image description: {len(description)} chars")
-        return result, True
+        description = await vision_client.describe_image(image_bytes)
+        if description:
+            result = f"[Image: {description}]"
+            logger.info(f"Generated image description: {len(description)} chars")
+            return result, True
 
-    return "", True
+        return "", True
+    except Exception as e:
+        logger.warning(f"Failed to extract text from image {filename}: {e}")
+        return "", False

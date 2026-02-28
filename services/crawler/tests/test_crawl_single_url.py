@@ -8,6 +8,8 @@ import pytest
 
 from app.services.crawler_service import CrawlerService
 
+pytestmark = pytest.mark.asyncio
+
 
 def _make_crawl_result(
     url: str = "https://example.com",

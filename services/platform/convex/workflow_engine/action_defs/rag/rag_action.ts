@@ -16,7 +16,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
   title: 'RAG Document Manager',
   description:
-    'Upload or delete documents in RAG service (cognee) for semantic search and retrieval',
+    'Upload or delete documents in RAG service for semantic search and retrieval',
 
   parametersValidator: v.union(
     v.object({
@@ -44,7 +44,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     const ragConfig = getRagConfig();
 
     // Handle delete operation - use the recordId directly as the document ID
-    // The recordId (Convex document ID) is stored in Cognee's node_set when uploading
+    // The recordId (Convex document ID) is stored in the RAG knowledge base
     if (processedParams.operation === 'delete_document') {
       const deleteResult = await deleteDocumentById({
         ragServiceUrl: ragConfig.serviceUrl,

@@ -27,6 +27,11 @@ def merge_rrf(
     Returns:
         Merged list of result dicts with added "rrf_score" key, sorted by score.
     """
+    if k < 1:
+        raise ValueError(f"RRF constant k must be >= 1, got {k}")
+    if limit < 0:
+        raise ValueError(f"limit must be >= 0, got {limit}")
+
     scores: dict[Any, float] = {}
     items: dict[Any, dict[str, Any]] = {}
 

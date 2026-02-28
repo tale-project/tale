@@ -7,6 +7,7 @@ positions of text and images in the document.
 from __future__ import annotations
 
 import asyncio
+import zipfile
 from io import BytesIO
 from typing import TYPE_CHECKING
 
@@ -14,34 +15,12 @@ from docx import Document
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from loguru import logger
 
+from ._helpers import describe_image_bytes, extract_table_text
+
 if TYPE_CHECKING:
     from tale_knowledge.vision.client import VisionClient
 
-MIN_IMAGE_SIZE = 10000  # ~100x100 pixels
-
-
-async def _describe_image_bytes(
-    image_bytes: bytes,
-    semaphore: asyncio.Semaphore,
-    vision_client: VisionClient,
-) -> str:
-    async with semaphore:
-        try:
-            if len(image_bytes) < MIN_IMAGE_SIZE:
-                logger.debug(f"Skipping small image ({len(image_bytes)} bytes)")
-                return ""
-            return await vision_client.describe_image(image_bytes)
-        except Exception as e:
-            logger.warning(f"Failed to describe image: {e}")
-            return ""
-
-
-def _extract_table_text(table) -> str:
-    rows_text = []
-    for row in table.rows:
-        cells_text = [cell.text.strip() for cell in row.cells]
-        rows_text.append(" | ".join(cells_text))
-    return "\n".join(rows_text)
+MAX_UNCOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
 
 
 async def extract_text_from_docx_bytes(
@@ -66,6 +45,15 @@ async def extract_text_from_docx_bytes(
     """
     logger.info(f"Processing DOCX: {filename}")
 
+    try:
+        zf = zipfile.ZipFile(BytesIO(docx_bytes))
+        total = sum(info.file_size for info in zf.infolist())
+        if total > MAX_UNCOMPRESSED_SIZE:
+            raise ValueError(f"File exceeds maximum decompressed size ({total} bytes)")
+        zf.close()
+    except zipfile.BadZipFile:
+        raise ValueError("Invalid or corrupt file")
+
     doc = Document(BytesIO(docx_bytes))
     elements: list[tuple[int, str]] = []
     vision_used = False
@@ -83,15 +71,14 @@ async def extract_text_from_docx_bytes(
 
     processed_image_rids: set[str] = set()
 
+    para_map = {p._element: p for p in doc.paragraphs}
+    table_map = {t._element: t for t in doc.tables}
+
     for element in doc.element.body:
         tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
 
         if tag == "p":
-            para = None
-            for p in doc.paragraphs:
-                if p._element == element:
-                    para = p
-                    break
+            para = para_map.get(element)
 
             if para:
                 text = para.text.strip()
@@ -112,7 +99,7 @@ async def extract_text_from_docx_bytes(
                         ):
                             processed_image_rids.add(embed_id)
                             image_bytes = image_rels[embed_id]
-                            description = await _describe_image_bytes(
+                            description = await describe_image_bytes(
                                 image_bytes, semaphore, vision_client
                             )
                             if description:
@@ -121,18 +108,17 @@ async def extract_text_from_docx_bytes(
                                 position += 1
 
         elif tag == "tbl":
-            for table in doc.tables:
-                if table._element == element:
-                    table_text = _extract_table_text(table)
-                    if table_text:
-                        elements.append((position, f"[Table]\n{table_text}"))
-                        position += 1
-                    break
+            table = table_map.get(element)
+            if table:
+                table_text = extract_table_text(table)
+                if table_text:
+                    elements.append((position, f"[Table]\n{table_text}"))
+                    position += 1
 
     if process_images and vision_client:
         for rid, image_bytes in image_rels.items():
             if rid not in processed_image_rids:
-                description = await _describe_image_bytes(
+                description = await describe_image_bytes(
                     image_bytes, semaphore, vision_client
                 )
                 if description:

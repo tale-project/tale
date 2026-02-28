@@ -1,13 +1,12 @@
-"""Main RAG service replacing CogneeService.
+"""Main RAG service.
 
-Provides: add_document, search, generate, delete_document, reset.
+Provides: add_document, search, generate, delete_document.
 All operations use the private_knowledge schema in tale_knowledge database.
 """
 
 from __future__ import annotations
 
 import asyncio
-import os
 import time
 from typing import Any
 
@@ -16,12 +15,11 @@ from loguru import logger
 from openai import AsyncOpenAI
 
 from tale_knowledge.embedding import EmbeddingService
-from tale_knowledge.vision import VisionCache, VisionClient
+from tale_knowledge.vision import VisionClient
 from tale_shared.db import acquire_with_retry
-from tale_shared.utils.model_list import get_first_model
 
 from ..config import settings
-from .database import SCHEMA, close_pool, ensure_embedding_dimensions, get_pool, init_pool
+from .database import SCHEMA, close_pool, ensure_embedding_dimensions, init_pool
 from .indexing_service import index_document
 from .search_service import RagSearchService
 
@@ -44,6 +42,7 @@ SYSTEM_PROMPT = (
 class RagService:
     def __init__(self) -> None:
         self.initialized = False
+        self._init_lock = asyncio.Lock()
         self._pool: asyncpg.Pool | None = None
         self._embedding_service: EmbeddingService | None = None
         self._vision_client: VisionClient | None = None
@@ -54,6 +53,14 @@ class RagService:
         """Initialize database pool, embedding service, vision client, and LLM client."""
         if self.initialized:
             return
+
+        async with self._init_lock:
+            if self.initialized:
+                return
+
+            await self._do_initialize()
+
+    async def _do_initialize(self) -> None:
 
         # Database pool
         self._pool = await init_pool()
@@ -86,7 +93,7 @@ class RagService:
                 pdf_dpi=settings.vision_pdf_dpi,
                 ocr_prompt=settings.vision_extraction_prompt,
             )
-            logger.info(f"Vision client initialized with model: {vision_model}")
+            logger.info("Vision client initialized with model: {}", vision_model)
         except ValueError:
             logger.info("No vision model configured, Vision features disabled")
             self._vision_client = None
@@ -119,8 +126,10 @@ class RagService:
         if not self.initialized:
             await self.initialize()
 
-        assert self._pool is not None
-        assert self._embedding_service is not None
+        if self._pool is None:
+            raise RuntimeError("RagService not initialized: database pool is None")
+        if self._embedding_service is None:
+            raise RuntimeError("RagService not initialized: embedding service is None")
 
         targets: list[tuple[str | None, str | None]] = []
         if user_id:
@@ -200,13 +209,13 @@ class RagService:
         similarity_threshold: float | None = None,
         user_id: str | None = None,
         team_ids: list[str] | None = None,
-        **kwargs: Any,
     ) -> list[dict[str, Any]]:
         """Search the knowledge base using hybrid BM25 + vector search."""
         if not self.initialized:
             await self.initialize()
 
-        assert self._search_service is not None
+        if self._search_service is None:
+            raise RuntimeError("RagService not initialized: search service is None")
 
         effective_top_k = top_k or settings.top_k
         threshold = similarity_threshold or settings.similarity_threshold
@@ -233,7 +242,8 @@ class RagService:
         if not self.initialized:
             await self.initialize()
 
-        assert self._openai_client is not None
+        if self._openai_client is None:
+            raise RuntimeError("RagService not initialized: OpenAI client is None")
 
         try:
             start_time = time.time()
@@ -260,8 +270,10 @@ class RagService:
                     part = f"[{i}] {content}"
                     if total_chars + len(part) > RAG_MAX_CONTEXT_CHARS:
                         logger.warning(
-                            f"Context truncated at {total_chars} chars, "
-                            f"used {len(context_parts)}/{len(search_results)} chunks"
+                            "Context truncated at {} chars, used {}/{} chunks",
+                            total_chars,
+                            len(context_parts),
+                            len(search_results),
                         )
                         break
                     context_parts.append(part)
@@ -287,7 +299,7 @@ class RagService:
             response = completion.choices[0].message.content or ""
 
             processing_time = (time.time() - start_time) * 1000
-            logger.info(f"Generation completed in {processing_time:.2f}ms")
+            logger.info("Generation completed in {:.2f}ms", processing_time)
 
             return {
                 "success": True,
@@ -297,7 +309,7 @@ class RagService:
             }
 
         except Exception as e:
-            logger.error(f"Generation failed: {e}")
+            logger.error("Generation failed: {}", e)
             raise
 
     async def delete_document(
@@ -309,7 +321,8 @@ class RagService:
         if not self.initialized:
             await self.initialize()
 
-        assert self._pool is not None
+        if self._pool is None:
+            raise RuntimeError("RagService not initialized: database pool is None")
 
         start_time = time.time()
 
@@ -332,7 +345,7 @@ class RagService:
         ids_to_delete: list[Any] = []
         for row in rows:
             if team_ids and row["team_id"] and row["team_id"] not in team_ids:
-                logger.warning(f"Skipping doc {row['id']}: team '{row['team_id']}' not in authorized teams")
+                logger.warning("Skipping doc {}: team '{}' not in authorized teams", row["id"], row["team_id"])
                 continue
             ids_to_delete.append(row["id"])
 
@@ -352,130 +365,6 @@ class RagService:
             "deleted_data_ids": [str(did) for did in ids_to_delete],
             "processing_time_ms": processing_time,
         }
-
-    async def reset(self) -> dict[str, Any]:
-        """Reset the private_knowledge schema (DROP + recreate).
-
-        Only affects RAG data — crawler data in public_web is untouched.
-        """
-        if not self.initialized:
-            await self.initialize()
-
-        assert self._pool is not None
-
-        async with acquire_with_retry(self._pool) as conn:
-            await conn.execute(f"DROP SCHEMA IF EXISTS {SCHEMA} CASCADE")
-            await conn.execute(f"CREATE SCHEMA {SCHEMA}")
-
-            # Recreate tables
-            await conn.execute(f"""
-                CREATE TABLE {SCHEMA}.documents (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    document_id TEXT NOT NULL,
-                    filename TEXT,
-                    content_hash TEXT,
-                    team_id TEXT,
-                    user_id TEXT,
-                    status TEXT NOT NULL DEFAULT 'processing',
-                    chunks_count INTEGER NOT NULL DEFAULT 0,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                )
-            """)
-            await conn.execute(f"""
-                CREATE UNIQUE INDEX idx_pk_docs_unique_scope
-                ON {SCHEMA}.documents(document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
-            """)
-
-            await conn.execute(f"""
-                CREATE TABLE {SCHEMA}.chunks (
-                    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                    document_id UUID NOT NULL REFERENCES {SCHEMA}.documents(id) ON DELETE CASCADE,
-                    team_id TEXT,
-                    user_id TEXT,
-                    chunk_index INTEGER NOT NULL,
-                    chunk_content TEXT NOT NULL,
-                    content_hash TEXT NOT NULL,
-                    embedding vector,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    UNIQUE(document_id, chunk_index)
-                )
-            """)
-
-            await conn.execute(f"""
-                CREATE TABLE {SCHEMA}.rag_jobs (
-                    job_id TEXT PRIMARY KEY,
-                    document_id TEXT,
-                    state TEXT NOT NULL DEFAULT 'queued',
-                    chunks_created INTEGER NOT NULL DEFAULT 0,
-                    message TEXT,
-                    error TEXT,
-                    skipped BOOLEAN NOT NULL DEFAULT FALSE,
-                    skip_reason TEXT,
-                    created_at DOUBLE PRECISION NOT NULL,
-                    updated_at DOUBLE PRECISION NOT NULL
-                )
-            """)
-
-            # Recreate indexes
-            await conn.execute(f"""
-                CREATE INDEX idx_pk_docs_docid ON {SCHEMA}.documents(document_id)
-            """)
-            await conn.execute(f"""
-                CREATE INDEX idx_pk_chunks_team ON {SCHEMA}.chunks(team_id)
-                WHERE team_id IS NOT NULL
-            """)
-            await conn.execute(f"""
-                CREATE INDEX idx_pk_chunks_user ON {SCHEMA}.chunks(user_id)
-                WHERE user_id IS NOT NULL
-            """)
-            await conn.execute(f"""
-                CREATE INDEX idx_pk_jobs_state ON {SCHEMA}.rag_jobs(state)
-            """)
-            await conn.execute(f"""
-                CREATE INDEX idx_pk_jobs_updated ON {SCHEMA}.rag_jobs(updated_at)
-            """)
-
-            # BM25 index (may fail if table is empty, that's ok)
-            try:
-                await conn.execute(f"""
-                    CREATE INDEX idx_pk_chunks_bm25 ON {SCHEMA}.chunks
-                    USING bm25 (id, chunk_content) WITH (key_field='id')
-                """)
-            except Exception as e:
-                logger.info(f"BM25 index deferred: {e}")
-
-            # Recreate HNSW index function
-            await conn.execute(f"""
-                CREATE OR REPLACE FUNCTION {SCHEMA}.create_chunks_hnsw_index()
-                RETURNS void AS $fn$
-                DECLARE col_type text;
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM pg_indexes
-                        WHERE schemaname = '{SCHEMA}'
-                        AND indexname = 'idx_pk_chunks_embedding_hnsw'
-                    ) THEN
-                        SELECT format_type(atttypid, atttypmod) INTO col_type
-                        FROM pg_attribute
-                        WHERE attrelid = '{SCHEMA}.chunks'::regclass AND attname = 'embedding';
-                        IF col_type = 'vector' THEN
-                            RAISE EXCEPTION '{SCHEMA}.chunks.embedding has no dimensions';
-                        END IF;
-                        EXECUTE 'CREATE INDEX idx_pk_chunks_embedding_hnsw
-                            ON {SCHEMA}.chunks USING hnsw (embedding vector_cosine_ops)
-                            WITH (m = 16, ef_construction = 64)';
-                    END IF;
-                END;
-                $fn$ LANGUAGE plpgsql
-            """)
-
-        # Re-pin embedding dimensions and recreate HNSW
-        dimensions = settings.get_embedding_dimensions()
-        await ensure_embedding_dimensions(self._pool, dimensions)
-
-        logger.info("Private knowledge schema reset complete")
-        return {"success": True, "message": "Knowledge base reset successfully"}
 
     async def shutdown(self) -> None:
         """Clean shutdown — close pool."""

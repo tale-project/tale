@@ -11,10 +11,12 @@ GRANT ALL PRIVILEGES ON DATABASE tale_knowledge TO tale;
 \c tale_knowledge
 
 -- Extensions (database-level, shared by both schemas)
-DROP EXTENSION IF EXISTS timescaledb CASCADE;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "vector";
-CREATE EXTENSION IF NOT EXISTS "pg_search";
+DO $$ BEGIN
+    CREATE EXTENSION IF NOT EXISTS "pg_search";
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'pg_search extension not available, BM25 search will be disabled: %', SQLERRM;
+END; $$;
 
 
 -- ============================================================================
@@ -29,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public_web.websites (
     title           TEXT,
     description     TEXT,
     page_count      INTEGER NOT NULL DEFAULT 0,
-    status          TEXT NOT NULL DEFAULT 'idle',
+    status          TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'scanning', 'deleting', 'error', 'completed')),
     scan_interval   INTEGER NOT NULL DEFAULT 21600,
     last_scanned_at TIMESTAMPTZ,
     error           TEXT,
@@ -46,7 +48,7 @@ CREATE TABLE IF NOT EXISTS public_web.website_urls (
     domain          TEXT NOT NULL REFERENCES public_web.websites(domain) ON DELETE CASCADE,
     url             TEXT NOT NULL,
     content_hash    TEXT,
-    status          TEXT NOT NULL DEFAULT 'discovered',
+    status          TEXT NOT NULL DEFAULT 'discovered' CHECK (status IN ('discovered', 'active', 'deleted')),
     last_crawled_at TIMESTAMPTZ,
     discovered_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     title           TEXT,
@@ -147,7 +149,7 @@ CREATE TABLE IF NOT EXISTS private_knowledge.documents (
     content_hash  TEXT,
     team_id       TEXT,
     user_id       TEXT,
-    status        TEXT NOT NULL DEFAULT 'processing',
+    status        TEXT NOT NULL DEFAULT 'processing' CHECK (status IN ('processing', 'completed', 'failed')),
     chunks_count  INTEGER NOT NULL DEFAULT 0,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -217,14 +219,14 @@ $$ LANGUAGE plpgsql;
 CREATE TABLE IF NOT EXISTS private_knowledge.rag_jobs (
     job_id          TEXT PRIMARY KEY,
     document_id     TEXT,
-    state           TEXT NOT NULL DEFAULT 'queued',
+    state           TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'running', 'completed', 'failed')),
     chunks_created  INTEGER NOT NULL DEFAULT 0,
     message         TEXT,
     error           TEXT,
     skipped         BOOLEAN NOT NULL DEFAULT FALSE,
     skip_reason     TEXT,
-    created_at      DOUBLE PRECISION NOT NULL,
-    updated_at      DOUBLE PRECISION NOT NULL
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_pk_jobs_state ON private_knowledge.rag_jobs(state);

@@ -91,7 +91,7 @@ Deploy a new version with blue-green strategy. If no version is specified, an in
 
 | Option                  | Description                                             |
 | ----------------------- | ------------------------------------------------------- |
-| `-a, --all`             | Also update infrastructure (db, graph-db, proxy)        |
+| `-a, --all`             | Also update infrastructure (db, proxy)                  |
 | `-s, --services <list>` | Specific services to update (comma-separated)           |
 | `--dry-run`             | Preview deployment without making changes               |
 | `-d, --dir <path>`      | Deployment directory (default: current directory)       |
@@ -132,7 +132,7 @@ Remove ALL blue-green containers.
 | Option      | Description                                      |
 | ----------- | ------------------------------------------------ |
 | `--force`   | Required to confirm reset                        |
-| `-a, --all` | Also remove infrastructure (db, graph-db, proxy) |
+| `-a, --all` | Also remove infrastructure (db, proxy)           |
 | `--dry-run` | Preview reset without making changes             |
 
 ## Environment Variables
@@ -152,13 +152,12 @@ Remove ALL blue-green containers.
 **Stateful (single instance):**
 
 - `db` - TimescaleDB (PostgreSQL)
-- `graph-db` - FalkorDB (Redis-based graph database)
 - `proxy` - Caddy reverse proxy
 
 **Rotatable (blue-green):**
 
 - `platform` - TanStack Start + Convex
-- `rag` - RAG service (Cognee)
+- `rag` - RAG service
 - `crawler` - Crawl4AI web crawler
 - `operator` - Browser automation (Chromium + Playwright)
 

@@ -26,16 +26,20 @@ _MAGIC_BYTES = {
     b"\x89PNG": "image/png",
     b"\xff\xd8\xff": "image/jpeg",
     b"GIF8": "image/gif",
-    b"RIFF": "image/webp",  # WebP starts with RIFF
+    b"RIFF": "image/webp",
     b"BM": "image/bmp",
-    b"II": "image/tiff",
-    b"MM": "image/tiff",
+    b"II\x2a\x00": "image/tiff",
+    b"MM\x00\x2a": "image/tiff",
 }
 
 
 def _detect_mime_type(image_bytes: bytes) -> str:
     for magic, mime in _MAGIC_BYTES.items():
-        if image_bytes[:len(magic)] == magic:
+        if image_bytes.startswith(magic):
+            if magic == b"RIFF":
+                if image_bytes[8:12] == b"WEBP":
+                    return mime
+                continue
             return mime
     return "image/png"
 

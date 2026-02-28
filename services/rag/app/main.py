@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, status
@@ -14,15 +13,8 @@ from . import __version__
 from .config import settings
 from .models import ErrorResponse
 from .routers import documents_router, health_router, jobs_router, search_router
-from .services.database import close_pool
 from .services.rag_service import rag_service
 from .utils import cleanup_memory
-
-# Configure logging
-logging.basicConfig(
-    level=settings.log_level.upper(),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 
 
 async def periodic_gc_cleanup() -> None:
@@ -41,9 +33,9 @@ async def periodic_gc_cleanup() -> None:
 async def lifespan(app: FastAPI):
     """Lifecycle manager for the application."""
     logger.info("Starting Tale RAG service...")
-    logger.info(f"Version: {__version__}")
-    logger.info(f"Host: {settings.host}:{settings.port}")
-    logger.info(f"Log level: {settings.log_level}")
+    logger.info("Version: {}", __version__)
+    logger.info("Host: {}:{}", settings.host, settings.port)
+    logger.info("Log level: {}", settings.log_level)
 
     try:
         await rag_service.initialize()
@@ -67,7 +59,7 @@ async def lifespan(app: FastAPI):
 
             result = await job_store_db.cleanup_stale_jobs()
             if result["deleted"] > 0:
-                logger.info(f"Cleaned up {result['deleted']} stale jobs on startup: {result['by_reason']}")
+                logger.info("Cleaned up {} stale jobs on startup: {}", result["deleted"], result["by_reason"])
         except Exception:
             logger.exception("Failed to cleanup stale jobs on startup")
 
@@ -93,7 +85,6 @@ async def lifespan(app: FastAPI):
         await gc_task
 
     await rag_service.shutdown()
-    await close_pool()
     logger.info("Shutting down Tale RAG service...")
 
 
@@ -138,7 +129,7 @@ async def general_exception_handler(_request, exc):
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=ErrorResponse(
-            error=exc.__class__.__name__,
+            error=exc.__class__.__name__ if settings.log_level.lower() == "debug" else "InternalServerError",
             message="Internal server error",
             details={"error": str(exc)} if settings.log_level.lower() == "debug" else None,
         ).model_dump(),

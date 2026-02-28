@@ -31,7 +31,7 @@ def _build_prefix(title: str | None, url: str | None) -> str:
 
 
 def chunk_content(
-    content: str,
+    content: str | None,
     title: str | None = None,
     url: str | None = None,
     chunk_size: int = CHUNK_SIZE,
@@ -43,8 +43,9 @@ def chunk_content(
 
     prefix = _build_prefix(title, url)
     effective_size = max(chunk_size - len(prefix), min_chunk_length)
+    effective_overlap = min(chunk_overlap, effective_size // 2)
 
-    splitter = MarkdownSplitter(effective_size, overlap=chunk_overlap)
+    splitter = MarkdownSplitter(effective_size, overlap=effective_overlap)
     raw_chunks = splitter.chunks(content.strip())
 
     chunks: list[ContentChunk] = []

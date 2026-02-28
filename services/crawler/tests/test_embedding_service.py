@@ -2,8 +2,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from openai import APIConnectionError
 
-from app.services.embedding_service import EmbeddingService
+from tale_knowledge.embedding import EmbeddingService
+
+pytestmark = pytest.mark.asyncio
 
 
 def make_embedding_response(embeddings: list[list[float]]):
@@ -123,12 +126,13 @@ class TestEmbedQuery:
 
 
 class TestRetryBehavior:
+    @patch("tale_knowledge.embedding.service.random.uniform", return_value=0)
     @patch("tale_knowledge.embedding.service.asyncio.sleep", new_callable=AsyncMock)
-    async def test_retries_on_first_failure(self, mock_sleep):
+    async def test_retries_on_first_failure(self, mock_sleep, _mock_uniform):
         service = create_service(dimensions=2)
         expected = [[0.1, 0.2]]
         service._client.embeddings.create.side_effect = [
-            RuntimeError("API error"),
+            APIConnectionError(request=MagicMock()),
             make_embedding_response(expected),
         ]
 
@@ -138,16 +142,17 @@ class TestRetryBehavior:
         assert service._client.embeddings.create.call_count == 2
         mock_sleep.assert_awaited_once_with(1.0)
 
+    @patch("tale_knowledge.embedding.service.random.uniform", return_value=0)
     @patch("tale_knowledge.embedding.service.asyncio.sleep", new_callable=AsyncMock)
-    async def test_raises_after_all_retries_exhausted(self, mock_sleep):
+    async def test_raises_after_all_retries_exhausted(self, mock_sleep, _mock_uniform):
         service = create_service(dimensions=2)
         service._client.embeddings.create.side_effect = [
-            RuntimeError("API error 1"),
-            RuntimeError("API error 2"),
-            RuntimeError("API error 3"),
+            APIConnectionError(request=MagicMock()),
+            APIConnectionError(request=MagicMock()),
+            APIConnectionError(request=MagicMock()),
         ]
 
-        with pytest.raises(RuntimeError, match="API error 3"):
+        with pytest.raises(APIConnectionError):
             await service.embed_texts(["hello"])
 
         assert service._client.embeddings.create.call_count == 3

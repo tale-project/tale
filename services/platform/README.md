@@ -22,7 +22,7 @@ See compose.yml for the canonical list. Notable ones:
 - INSTANCE_NAME (default tale-platform; DB becomes tale_platform)
 - INSTANCE_SECRET (used by Convex)
 - CONVEX_URL, CONVEX_DASHBOARD_URL (internal HTTP URLs)
-- DB_URL, GRAPH_DB_URL, RAG_URL, CRAWLER_URL (internal DNS to services)
+- DB_URL, RAG_URL, CRAWLER_URL (internal DNS to services)
 - OPENAI_API_KEY (optional; surfaced to app logic where used)
 
 ## Running
@@ -45,7 +45,7 @@ During development you may temporarily expose 3000 in compose.yml for direct Vit
 ## Interaction with Other Services
 
 - Uses Postgres (db) for Convex persistence (database tale_platform)
-- Talks to graph-db, rag, crawler via internal URLs
+- Talks to rag, crawler via internal URLs
 - Designed to sit behind the proxy (Caddy) for TLS termination
 
 ## Notes

@@ -92,10 +92,11 @@ async def extract_text_from_text_bytes(
 
     Returns:
         Tuple of (extracted_text, vision_was_used). Vision is never used.
-
-    Raises:
-        UnicodeDecodeError: If the content cannot be decoded as UTF-8.
     """
     logger.info(f"Processing text file: {filename}")
-    text = text_bytes.decode("utf-8")
+    try:
+        text = text_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        text = text_bytes.decode("latin-1")
+        logger.warning("File {} is not UTF-8, fell back to Latin-1", filename)
     return text, False

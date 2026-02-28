@@ -16,6 +16,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import asyncpg
 import pytest
 
+pytestmark = pytest.mark.asyncio
+
 
 def _make_row(
     row_id: int, chunk_content: str, document_id: str, score: float = 1.0, chunk_index: int = 0

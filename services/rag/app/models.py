@@ -88,7 +88,7 @@ class ContentType(StrEnum):
 class DocumentAddRequest(BaseModel):
     """Request to add a text document to the knowledge base."""
 
-    content: str = Field(..., description="Document content (plain text)")
+    content: str = Field(..., max_length=10_000_000, description="Document content (plain text)")
     content_type: ContentType = Field(
         default=ContentType.TEXT,
         description="Type of content. Only 'text' is supported; URL ingestion via this endpoint has been removed.",
@@ -113,6 +113,7 @@ class DocumentAddRequest(BaseModel):
     )
     team_ids: list[str] | None = Field(
         default=None,
+        max_length=50,
         description="Team IDs for shared document storage. Document will be added to each "
         "team's dataset (tale_team_{team_id}). Ignored if user_id is provided.",
     )
@@ -243,27 +244,17 @@ class JobStatus(BaseModel):
 # ============================================================================
 
 
-class SearchType(StrEnum):
-    """Search type for knowledge base queries."""
-
-    CHUNKS = "CHUNKS"
-
-
 class QueryRequest(BaseModel):
     """Request to query the knowledge base."""
 
-    query: str = Field(..., description="Query text")
-    search_type: SearchType | None = Field(
-        default=SearchType.CHUNKS,
-        description="Type of search to perform. CHUNKS returns raw text passages (default), "
-        "GRAPH_COMPLETION uses knowledge graph reasoning, "
-        "RAG_COMPLETION provides shorter answers, "
-        "SUMMARIES returns document summaries.",
+    query: str = Field(..., min_length=1, max_length=10_000, description="Query text")
+    top_k: int | None = Field(
+        default=None, ge=1, le=1000, description="Number of results to return (overrides default)"
     )
-    top_k: int | None = Field(default=None, description="Number of results to return (overrides default)")
-    similarity_threshold: float | None = Field(default=None, description="Minimum similarity score (overrides default)")
+    similarity_threshold: float | None = Field(
+        default=None, ge=0.0, le=1.0, description="Minimum similarity score (overrides default)"
+    )
     include_metadata: bool = Field(default=True, description="Whether to include metadata in results")
-    filters: dict[str, Any] | None = Field(default=None, description="Optional filters for metadata")
     # Multi-tenancy support
     # Search can include both user's private dataset and team datasets
     user_id: str | None = Field(
@@ -273,6 +264,7 @@ class QueryRequest(BaseModel):
     )
     team_ids: list[str] | None = Field(
         default=None,
+        max_length=50,
         description="Team IDs for searching shared team documents. Each team's dataset "
         "(tale_team_{team_id}) is included in search. At least one of user_id "
         "or team_ids must be provided.",
@@ -322,13 +314,14 @@ class GenerateRequest(BaseModel):
     These parameters are hardcoded for consistency and simplicity.
     """
 
-    query: str = Field(..., description="User query")
+    query: str = Field(..., max_length=10_000, description="User query")
     user_id: str | None = Field(
         default=None,
         description="User ID for retrieving user's private documents as context.",
     )
     team_ids: list[str] | None = Field(
         default=None,
+        max_length=50,
         description="Team IDs to retrieve context from. At least one of user_id or team_ids must be provided.",
     )
 

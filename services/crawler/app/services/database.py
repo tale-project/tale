@@ -9,10 +9,9 @@ import os
 
 import asyncpg
 from loguru import logger
+from tale_shared.db import acquire_with_retry
 
 from app.config import settings
-
-from tale_shared.db import acquire_with_retry  # noqa: F401 — re-exported for consumers
 
 SCHEMA = "public_web"
 
@@ -24,7 +23,9 @@ def _get_database_url() -> str:
         return settings.database_url
     if url := os.environ.get("DATABASE_URL"):
         return url
-    password = os.environ.get("DB_PASSWORD", "tale_password_change_me")
+    password = os.environ.get("DB_PASSWORD")
+    if not password:
+        raise ValueError("DB_PASSWORD environment variable is required")
     return f"postgresql://tale:{password}@db:5432/tale_knowledge"
 
 
@@ -45,7 +46,7 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
     # Guard against embedding dimension mismatch: if existing data uses a
     # different dimension than the current config, refuse to start.
     configured_dims = settings.get_embedding_dimensions()
-    async with _pool.acquire() as conn:
+    async with acquire_with_retry(_pool) as conn:
         stored_dims = await conn.fetchval(
             f"SELECT vector_dims(embedding) FROM {SCHEMA}.chunks WHERE embedding IS NOT NULL LIMIT 1"
         )
@@ -60,11 +61,12 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
 
     # Pin the embedding column to explicit dimensions so HNSW indexes work.
     expected_type = f"vector({int(configured_dims)})"
-    async with _pool.acquire() as conn:
+    async with acquire_with_retry(_pool) as conn:
         col_type = await conn.fetchval(
             "SELECT format_type(atttypid, atttypmod) "
             "FROM pg_attribute "
-            f"WHERE attrelid = '{SCHEMA}.chunks'::regclass AND attname = 'embedding'"
+            "WHERE attrelid = $1::regclass AND attname = 'embedding'",
+            f"{SCHEMA}.chunks",
         )
         if col_type != expected_type:
             await conn.execute(f"DROP INDEX IF EXISTS {SCHEMA}.idx_pw_chunks_embedding_hnsw")
@@ -75,7 +77,7 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
 
     # Create HNSW index if it doesn't exist yet.
     try:
-        async with _pool.acquire() as conn:
+        async with acquire_with_retry(_pool) as conn:
             await conn.execute(f"SELECT {SCHEMA}.create_chunks_hnsw_index()")
     except Exception as e:
         logger.warning(f"HNSW index creation deferred: {e}")

@@ -1,10 +1,7 @@
 """Tests for SHA-256 hashing utilities."""
 
 import hashlib
-import tempfile
 from pathlib import Path
-
-import pytest
 
 from tale_shared.utils.hashing import compute_content_hash, compute_file_hash
 

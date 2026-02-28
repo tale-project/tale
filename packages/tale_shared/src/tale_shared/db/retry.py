@@ -5,8 +5,14 @@ from contextlib import asynccontextmanager
 
 import asyncpg
 import stamina
+from loguru import logger
 
-_TRANSIENT_ERRORS = (asyncpg.CannotConnectNowError, OSError)
+_TRANSIENT_ERRORS = (
+    asyncpg.CannotConnectNowError,
+    asyncpg.TooManyConnectionsError,
+    TimeoutError,
+    OSError,
+)
 
 
 @asynccontextmanager
@@ -26,6 +32,7 @@ async def acquire_with_retry(
     Yields:
         An asyncpg connection from the pool.
     """
+    conn = None
     async for attempt in stamina.retry_context(
         on=_TRANSIENT_ERRORS,
         attempts=attempts,
@@ -33,7 +40,12 @@ async def acquire_with_retry(
     ):
         with attempt:
             conn = await pool.acquire()
+    if conn is None:
+        raise RuntimeError("Failed to acquire database connection after retries")
     try:
         yield conn
     finally:
-        await pool.release(conn)
+        try:
+            await pool.release(conn)
+        except Exception:
+            logger.warning("Failed to release connection back to pool")

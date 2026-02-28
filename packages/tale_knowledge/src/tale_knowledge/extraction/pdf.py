@@ -14,11 +14,13 @@ from typing import TYPE_CHECKING
 import fitz  # PyMuPDF
 from loguru import logger
 
+from ._helpers import MIN_IMAGE_SIZE
+
 if TYPE_CHECKING:
     from tale_knowledge.vision.client import VisionClient
 
 MIN_TEXT_THRESHOLD = 50
-MIN_IMAGE_SIZE = 10000  # ~100x100 pixels
+MAX_PAGES = 2000
 
 
 async def _ocr_page(
@@ -32,6 +34,7 @@ async def _ocr_page(
             mat = fitz.Matrix(dpi / 72, dpi / 72)
             pixmap = page.get_pixmap(matrix=mat)
             image_bytes = pixmap.tobytes("png")
+            pixmap = None
             return await vision_client.ocr_image(image_bytes)
         except Exception as e:
             logger.warning(f"Failed to OCR page, returning empty text: {e}")
@@ -132,6 +135,7 @@ async def extract_text_from_pdf_bytes(
     vision_client: VisionClient | None = None,
     process_images: bool = True,
     ocr_scanned_pages: bool = True,
+    max_pages: int = MAX_PAGES,
 ) -> tuple[str, bool]:
     """Extract text from PDF bytes.
 
@@ -141,6 +145,7 @@ async def extract_text_from_pdf_bytes(
         vision_client: Optional VisionClient for OCR/image description.
         process_images: Whether to extract and describe embedded images.
         ocr_scanned_pages: Whether to OCR pages with low text content.
+        max_pages: Maximum number of pages to process.
 
     Returns:
         Tuple of (extracted_text, vision_was_used).
@@ -151,37 +156,46 @@ async def extract_text_from_pdf_bytes(
     semaphore = asyncio.Semaphore(max_concurrent)
 
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    total_pages = len(doc)
+    try:
+        total_pages = len(doc)
+        pages_to_process = total_pages
 
-    async def process_page(page_num: int) -> tuple[int, str, bool]:
-        page = doc[page_num]
-        content, vis_used = await _extract_page_with_layout(
-            page, doc, semaphore, vision_client, process_images, ocr_scanned_pages
-        )
-        return page_num, f"--- Page {page_num + 1} ---\n{content}", vis_used
+        if total_pages > max_pages:
+            logger.warning(
+                f"PDF has {total_pages} pages, exceeding limit of {max_pages}. "
+                f"Only the first {max_pages} pages will be processed."
+            )
+            pages_to_process = max_pages
 
-    tasks = [process_page(i) for i in range(total_pages)]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+        async def process_page(page_num: int) -> tuple[int, str, bool]:
+            page = doc[page_num]
+            content, vis_used = await _extract_page_with_layout(
+                page, doc, semaphore, vision_client, process_images, ocr_scanned_pages
+            )
+            return page_num, f"--- Page {page_num + 1} ---\n{content}", vis_used
 
-    pages_content: list[tuple[int, str]] = []
-    vision_used = False
+        tasks = [process_page(i) for i in range(pages_to_process)]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    for result in results:
-        if isinstance(result, Exception):
-            logger.warning(f"Page processing failed: {result}")
-            continue
-        page_num, content, page_vision_used = result
-        pages_content.append((page_num, content))
-        if page_vision_used:
-            vision_used = True
+        pages_content: list[tuple[int, str]] = []
+        vision_used = False
 
-    doc.close()
+        for result in results:
+            if isinstance(result, Exception):
+                logger.warning(f"Page processing failed: {result}")
+                continue
+            page_num, content, page_vision_used = result
+            pages_content.append((page_num, content))
+            if page_vision_used:
+                vision_used = True
+    finally:
+        doc.close()
 
     pages_content.sort(key=lambda x: x[0])
     combined_text = "\n\n".join(p[1] for p in pages_content)
 
     logger.info(
-        f"PDF processing complete: {total_pages} pages, {len(combined_text)} chars, "
+        f"PDF processing complete: {pages_to_process} pages, {len(combined_text)} chars, "
         f"Vision API used: {vision_used}"
     )
 

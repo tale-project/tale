@@ -8,6 +8,8 @@ from app.services.chunking_service import ContentChunk
 from app.services.indexing_service import IndexingService
 from app.utils.paragraph_dedup import paragraph_hash
 
+pytestmark = pytest.mark.asyncio
+
 
 @pytest.fixture(autouse=True)
 def _fast_stamina_retries():

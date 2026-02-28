@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from openai import APIConnectionError, RateLimitError
 
 from tale_knowledge.embedding.service import (
     MAX_BATCH_SIZE,
@@ -103,7 +104,10 @@ class TestEmbeddingService:
         svc._client = MagicMock()
         svc._client.embeddings = MagicMock()
         svc._client.embeddings.create = AsyncMock(
-            side_effect=[Exception("API error"), mock_response]
+            side_effect=[
+                APIConnectionError(request=MagicMock()),
+                mock_response,
+            ]
         )
 
         with patch(
@@ -111,3 +115,22 @@ class TestEmbeddingService:
         ):
             result = await svc.embed_texts(["test"])
             assert result == [[1.0]]
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_error_propagates(self):
+        svc = _make_service()
+
+        svc._client = MagicMock()
+        svc._client.embeddings = MagicMock()
+        svc._client.embeddings.create = AsyncMock(side_effect=ValueError("bad input"))
+
+        with pytest.raises(ValueError, match="bad input"):
+            await svc.embed_texts(["test"])
+
+    @pytest.mark.asyncio
+    async def test_close(self):
+        svc = _make_service()
+        svc._client = MagicMock()
+        svc._client.close = AsyncMock()
+        await svc.close()
+        svc._client.close.assert_awaited_once()

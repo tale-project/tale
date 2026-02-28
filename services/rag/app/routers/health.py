@@ -2,11 +2,13 @@
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
+from loguru import logger
 
 from .. import __version__
 from ..config import settings
 from ..models import ConfigResponse, HealthResponse
+from ..services.database import get_pool
 from ..services.rag_service import rag_service
 
 router = APIRouter(tags=["Health"])
@@ -30,12 +32,30 @@ async def root():
 async def health():
     """Health check endpoint.
 
-    Returns status="healthy" when the RAG service is initialized,
-    status="degraded" when not yet initialized.
+    Returns status="healthy" when the RAG service is initialized and
+    the database is reachable, status="degraded" otherwise.
     """
     is_initialized = rag_service.initialized
+    db_ok = False
+
+    if is_initialized:
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+            db_ok = True
+        except Exception:
+            logger.warning("Health check database ping failed")
+
+    if is_initialized and db_ok:
+        health_status = "healthy"
+    elif is_initialized:
+        health_status = "degraded"
+    else:
+        health_status = "degraded"
+
     return HealthResponse(
-        status="healthy" if is_initialized else "degraded",
+        status=health_status,
         version=__version__,
         initialized=is_initialized,
     )
@@ -44,7 +64,14 @@ async def health():
 @router.get("/config", response_model=ConfigResponse)
 async def get_config():
     """Get current configuration (non-sensitive values only)."""
-    llm_config = settings.get_llm_config()
+    try:
+        llm_config = settings.get_llm_config()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM configuration not available",
+        ) from exc
+
     return ConfigResponse(
         host=settings.host,
         port=settings.port,

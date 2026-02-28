@@ -14,7 +14,7 @@ import asyncpg
 
 from app.services.chunking_service import chunk_content
 from app.services.database import acquire_with_retry
-from app.services.embedding_service import EmbeddingService
+from tale_knowledge.embedding import EmbeddingService
 from app.utils.paragraph_dedup import (
     BOILERPLATE_PAGE_THRESHOLD,
     MIN_DOMAIN_PAGES_FOR_DEDUP,

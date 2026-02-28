@@ -64,6 +64,17 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
     Heavy ingestion work is delegated to a background task so callers
     (including Convex workflows) don't block on processing.
     """
+    rejected, reason = scan_file_for_secrets(request.content.encode("utf-8"))
+    if rejected:
+        logger.warning(
+            "Text document rejected by secret scanner",
+            extra={"reason": reason},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Document rejected: {reason}",
+        )
+
     doc_id = request.document_id or f"doc-{uuid4().hex}"
 
     await job_store.create_queued(job_id=doc_id, document_id=doc_id)
@@ -381,7 +392,7 @@ async def upload_document(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to upload file: {e}")
+        logger.error("Failed to upload file: {}", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload file. Please try again.",
@@ -408,29 +419,8 @@ async def delete_document(
         )
 
     except Exception as e:
-        logger.error(f"Failed to delete document {document_id}: {e}")
+        logger.error("Failed to delete document {}: {}", document_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete document. Please try again.",
-        ) from e
-
-
-@router.post("/reset")
-async def reset_knowledge_base():
-    """Reset the entire knowledge base (delete all data).
-
-    WARNING: This will permanently delete all documents, embeddings,
-    and job history in the private_knowledge schema. Crawler data is untouched.
-    """
-    try:
-        result = await rag_service.reset()
-        return {
-            "success": True,
-            "message": "Knowledge base reset successfully. All data has been deleted.",
-        }
-    except Exception as e:
-        logger.error(f"Failed to reset knowledge base: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to reset knowledge base. Please try again.",
         ) from e

@@ -14,6 +14,9 @@ dependencies = [
     "loguru>=0.7.0",
 ]
 
+[tool.uv.sources]
+tale-shared = { path = "../tale_shared" }
+
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"

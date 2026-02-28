@@ -20,13 +20,15 @@ def compute_file_hash(file_path: str | Path) -> str:
     return sha256.hexdigest()
 
 
-def compute_content_hash(content: bytes) -> str:
-    """Compute SHA-256 hash of in-memory bytes.
+def compute_content_hash(content: str | bytes) -> str:
+    """Compute SHA-256 hash of in-memory content.
 
     Args:
-        content: Raw bytes to hash.
+        content: String or bytes to hash. Strings are encoded as UTF-8.
 
     Returns:
         Hex-encoded SHA-256 hash string.
     """
+    if isinstance(content, str):
+        content = content.encode("utf-8")
     return hashlib.sha256(content).hexdigest()

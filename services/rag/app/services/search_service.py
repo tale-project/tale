@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass
 from typing import Any
 
 import asyncpg
@@ -19,13 +18,6 @@ from tale_knowledge.retrieval import merge_rrf
 from tale_shared.db import acquire_with_retry
 
 SCHEMA = "private_knowledge"
-
-
-@dataclass
-class SearchResult:
-    content: str
-    score: float
-    document_id: str | None = None
 
 
 class RagSearchService:
@@ -52,12 +44,12 @@ class RagSearchService:
         Returns:
             List of result dicts with content, score, document_id.
         """
+        query_embedding: list[float] | None = None
         try:
             embedding_task = asyncio.create_task(self._embedding.embed_query(query))
             fts_task = asyncio.create_task(self._fts_search(query, team_ids, user_id, top_k * 3))
 
-            query_embedding = await embedding_task
-            fts_results = await fts_task
+            query_embedding, fts_results = await asyncio.gather(embedding_task, fts_task)
             vector_results = await self._vector_search(query_embedding, team_ids, user_id, top_k * 3)
 
             if not fts_results and not vector_results:
@@ -82,8 +74,9 @@ class RagSearchService:
             return []
         except Exception as e:
             if "bm25" in str(e).lower() and "index" in str(e).lower():
-                logger.warning(f"BM25 index not ready: {e}, falling back to vector-only")
-                query_embedding = await self._embedding.embed_query(query)
+                logger.warning("BM25 index not ready: {}, falling back to vector-only", e)
+                if query_embedding is None:
+                    query_embedding = await self._embedding.embed_query(query)
                 vector_results = await self._vector_search(query_embedding, team_ids, user_id, top_k)
                 return [
                     {
@@ -143,7 +136,7 @@ class RagSearchService:
                 return [dict(r) for r in rows]
         except Exception as e:
             if "bm25" in str(e).lower():
-                logger.warning(f"BM25 search failed: {e}")
+                logger.warning("BM25 search failed: {}", e)
                 return []
             raise
 

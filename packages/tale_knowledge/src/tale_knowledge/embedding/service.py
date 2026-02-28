@@ -5,11 +5,18 @@ Each service creates its own EmbeddingService instance with its own config.
 """
 
 import asyncio
+import random
 
 from loguru import logger
-from openai import AsyncOpenAI
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    AsyncOpenAI,
+    InternalServerError,
+    RateLimitError,
+)
 
-MAX_BATCH_SIZE = 2048
+MAX_BATCH_SIZE = 256
 MAX_CONCURRENT_REQUESTS = 3
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 1.0
@@ -36,13 +43,20 @@ class EmbeddingService:
                         dimensions=self._dimensions,
                     )
                     return [item.embedding for item in response.data]
-                except Exception:
+                except (
+                    RateLimitError,
+                    APITimeoutError,
+                    APIConnectionError,
+                    InternalServerError,
+                ):
                     if attempt == MAX_RETRIES - 1:
                         raise
-                    delay = RETRY_BASE_DELAY * (2**attempt)
+                    delay = RETRY_BASE_DELAY * (2**attempt) + random.uniform(0, 0.5)
                     logger.warning(
-                        f"Embedding request failed (attempt {attempt + 1}/{MAX_RETRIES}), "
-                        f"retrying in {delay}s"
+                        "Embedding request failed (attempt {}/{}), retrying in {:.2f}s",
+                        attempt + 1,
+                        MAX_RETRIES,
+                        delay,
                     )
                     await asyncio.sleep(delay)
             raise RuntimeError("unreachable")
@@ -50,15 +64,15 @@ class EmbeddingService:
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-
-        all_embeddings: list[list[float]] = []
-        for i in range(0, len(texts), MAX_BATCH_SIZE):
-            batch = texts[i : i + MAX_BATCH_SIZE]
-            batch_embeddings = await self._embed_batch(batch)
-            all_embeddings.extend(batch_embeddings)
-
-        return all_embeddings
+        batches = [
+            texts[i : i + MAX_BATCH_SIZE] for i in range(0, len(texts), MAX_BATCH_SIZE)
+        ]
+        results = await asyncio.gather(*[self._embed_batch(batch) for batch in batches])
+        return [emb for batch_result in results for emb in batch_result]
 
     async def embed_query(self, query: str) -> list[float]:
         result = await self.embed_texts([query])
         return result[0]
+
+    async def close(self):
+        await self._client.close()

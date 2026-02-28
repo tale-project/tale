@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import asyncpg
 
 from app.services.database import acquire_with_retry
-from app.services.embedding_service import EmbeddingService
+from tale_knowledge.embedding import EmbeddingService
 
 logger = logging.getLogger(__name__)
 

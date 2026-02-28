@@ -1,15 +1,13 @@
 """
 OpenAI-compatible embedding generation service.
 
-Re-exports EmbeddingService from the shared tale_knowledge package
-and provides a crawler-specific factory for creating instances.
+Crawler-specific factory for creating EmbeddingService instances.
 """
 
 from loguru import logger
 
 from app.config import settings
-
-from tale_knowledge.embedding import EmbeddingService  # noqa: F401 — re-exported
+from tale_knowledge.embedding import EmbeddingService
 
 _embedding_service: EmbeddingService | None = None
 

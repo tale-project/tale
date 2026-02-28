@@ -69,7 +69,7 @@ async def index_document(
         )
 
     if existing and existing["content_hash"] == content_hash:
-        logger.info(f"Document {document_id} content unchanged, skipping")
+        logger.info("Document {} content unchanged, skipping", document_id)
         return {
             "success": True,
             "document_id": document_id,
@@ -80,7 +80,7 @@ async def index_document(
 
     # If content changed, delete old version (CASCADE deletes chunks)
     if existing:
-        logger.info(f"Document {document_id} content changed, replacing")
+        logger.info("Document {} content changed, replacing", document_id)
         async with acquire_with_retry(pool) as conn:
             await conn.execute(f"DELETE FROM {SCHEMA}.documents WHERE id = $1", existing["id"])
 
@@ -98,7 +98,7 @@ async def index_document(
         ) from None
 
     if not extracted_text or not extracted_text.strip():
-        logger.warning(f"No text extracted from {filename}")
+        logger.warning("No text extracted from {}", filename)
         return {
             "success": True,
             "document_id": document_id,
@@ -115,7 +115,7 @@ async def index_document(
     )
 
     if not chunks:
-        logger.warning(f"No chunks produced from {filename}")
+        logger.warning("No chunks produced from {}", filename)
         return {
             "success": True,
             "document_id": document_id,
@@ -146,25 +146,29 @@ async def index_document(
             )
             doc_uuid = doc_row["id"]
 
-            for chunk, embedding in zip(chunks, embeddings, strict=True):
-                chunk_hash = compute_content_hash(chunk.content.encode("utf-8"))
-                await conn.execute(
-                    f"""
-                    INSERT INTO {SCHEMA}.chunks
-                        (document_id, team_id, user_id, chunk_index, chunk_content,
-                         content_hash, embedding)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    """,
+            chunk_rows = [
+                (
                     doc_uuid,
                     team_id,
                     user_id,
                     chunk.index,
                     chunk.content,
-                    chunk_hash,
+                    compute_content_hash(chunk.content.encode("utf-8")),
                     str(embedding),
                 )
+                for chunk, embedding in zip(chunks, embeddings, strict=True)
+            ]
+            await conn.executemany(
+                f"""
+                INSERT INTO {SCHEMA}.chunks
+                    (document_id, team_id, user_id, chunk_index, chunk_content,
+                     content_hash, embedding)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """,
+                chunk_rows,
+            )
 
-    logger.info(f"Indexed document {document_id}: {len(chunks)} chunks, vision_used={vision_used}")
+    logger.info("Indexed document {}: {} chunks, vision_used={}", document_id, len(chunks), vision_used)
 
     return {
         "success": True,

@@ -14,7 +14,7 @@ def sanitize_team_id(team_id: str) -> str:
         ValueError: If team_id sanitizes to empty string.
     """
     if not team_id:
-        return team_id
+        raise ValueError("team_id must not be empty")
 
     result = team_id.replace(" ", "_").replace(".", "_")
     result = re.sub(r"[^a-zA-Z0-9_-]", "", result)

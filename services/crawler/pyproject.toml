@@ -23,16 +23,21 @@ dependencies = [
     "semantic-text-splitter>=0.18.0",
     "stamina>=25.0.0",
     "tale-knowledge",
+    "tale-shared",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff==0.15.4",
     "pytest==9.0.2",
-    "pytest-asyncio==1.3.0",
+    "pytest-asyncio>=0.23.0",
     "pytest-cov==7.0.0",
     "pytest-watch==4.2.0",
 ]
+
+[tool.uv.sources]
+tale-knowledge = { path = "../../packages/tale_knowledge" }
+tale-shared = { path = "../../packages/tale_shared" }
 
 [tool.ruff]
 line-length = 120
@@ -47,5 +52,5 @@ indent-style = "space"
 line-ending = "auto"
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
+asyncio_mode = "strict"
 testpaths = ["tests"]

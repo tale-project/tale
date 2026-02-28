@@ -9,7 +9,6 @@ export default {
         'cli',
         'crawler',
         'rag',
-        'graph-db',
         'operator',
         'db',
         'proxy',

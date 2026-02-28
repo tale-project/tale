@@ -7,6 +7,7 @@ the relative positions of shapes within each slide.
 from __future__ import annotations
 
 import asyncio
+import zipfile
 from io import BytesIO
 from typing import TYPE_CHECKING
 
@@ -14,34 +15,12 @@ from loguru import logger
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
+from ._helpers import describe_image_bytes, extract_table_text
+
 if TYPE_CHECKING:
     from tale_knowledge.vision.client import VisionClient
 
-MIN_IMAGE_SIZE = 10000  # ~100x100 pixels
-
-
-async def _describe_image_bytes(
-    image_bytes: bytes,
-    semaphore: asyncio.Semaphore,
-    vision_client: VisionClient,
-) -> str:
-    async with semaphore:
-        try:
-            if len(image_bytes) < MIN_IMAGE_SIZE:
-                logger.debug(f"Skipping small image ({len(image_bytes)} bytes)")
-                return ""
-            return await vision_client.describe_image(image_bytes)
-        except Exception as e:
-            logger.warning(f"Failed to describe image: {e}")
-            return ""
-
-
-def _extract_table_text(table) -> str:
-    rows_text = []
-    for row in table.rows:
-        cells_text = [cell.text.strip() for cell in row.cells]
-        rows_text.append(" | ".join(cells_text))
-    return "\n".join(rows_text)
+MAX_UNCOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
 
 
 async def _process_slide(
@@ -67,7 +46,7 @@ async def _process_slide(
                 elements.append((top, "\n".join(paragraphs_text)))
 
         if shape.has_table:
-            table_text = _extract_table_text(shape.table)
+            table_text = extract_table_text(shape.table)
             if table_text:
                 elements.append((top, f"[Table]\n{table_text}"))
 
@@ -85,7 +64,7 @@ async def _process_slide(
     if image_tasks and vision_client:
         results = await asyncio.gather(
             *[
-                _describe_image_bytes(img_bytes, semaphore, vision_client)
+                describe_image_bytes(img_bytes, semaphore, vision_client)
                 for _, img_bytes in image_tasks
             ],
             return_exceptions=True,
@@ -98,6 +77,11 @@ async def _process_slide(
             elif result:
                 elements.append((top, f"[Image: {result}]"))
                 vision_used = True
+
+    if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
+        notes_text = slide.notes_slide.notes_text_frame.text.strip()
+        if notes_text:
+            elements.append((float("inf"), f"[Notes]\n{notes_text}"))
 
     elements.sort(key=lambda x: x[0])
     content = "\n\n".join(elem[1] for elem in elements)
@@ -127,6 +111,15 @@ async def extract_text_from_pptx_bytes(
         Tuple of (extracted_text, vision_was_used).
     """
     logger.info(f"Processing PPTX: {filename}")
+
+    try:
+        zf = zipfile.ZipFile(BytesIO(pptx_bytes))
+        total = sum(info.file_size for info in zf.infolist())
+        if total > MAX_UNCOMPRESSED_SIZE:
+            raise ValueError(f"File exceeds maximum decompressed size ({total} bytes)")
+        zf.close()
+    except zipfile.BadZipFile:
+        raise ValueError("Invalid or corrupt file")
 
     prs = Presentation(BytesIO(pptx_bytes))
     semaphore = asyncio.Semaphore(max_concurrent)

@@ -16,6 +16,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.asyncio
+
 
 @dataclass
 class ContentChunk:
@@ -164,10 +166,10 @@ class TestSuccessfulIndexing:
                 embedding_service=mock_embed,
             )
 
-        # 1 fetchrow (dedup check) + 1 fetchrow (INSERT doc RETURNING id) + 2 chunk inserts
-        # The execute calls are for the chunk INSERTs
-        execute_calls = mock_conn.execute.call_args_list
-        assert len(execute_calls) == 2
+        # Chunks inserted via executemany in a single batch call
+        mock_conn.executemany.assert_awaited_once()
+        chunk_rows = mock_conn.executemany.call_args[0][1]
+        assert len(chunk_rows) == 2
 
     async def test_passes_vision_client_to_extract(self):
         from app.services.indexing_service import index_document

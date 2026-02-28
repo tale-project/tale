@@ -6,6 +6,8 @@ from httpx import ASGITransport, AsyncClient
 
 from app.routers.index import router, set_indexing_service
 
+pytestmark = pytest.mark.asyncio
+
 app = FastAPI()
 app.include_router(router)
 

@@ -12,6 +12,8 @@ from app.services.web_image_extractor import (
     extract_and_describe_images,
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestFilterImageCandidates:
     """Tests for _filter_image_candidates()."""
