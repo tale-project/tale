@@ -667,7 +667,7 @@ describe('useMessageProcessing', () => {
             id: 'msg-1',
             order: 0,
             role: 'assistant',
-            text: null,
+            text: undefined,
             status: 'failed',
           }),
         ],

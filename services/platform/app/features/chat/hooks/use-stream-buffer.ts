@@ -194,6 +194,9 @@ export function isStreamFrozen() {
 export function resetGlobalFreeze() {
   globalFrozen = false;
   frozenDisplayText = null;
+  if (activeFrozenRef) {
+    activeFrozenRef.current = false;
+  }
 }
 
 /**
@@ -612,7 +615,7 @@ export function useStreamBuffer({
     progress,
     isTyping,
     bufferSize,
-    isDraining: wasStreamingRef.current && !isStreamingRef.current,
+    isDraining: wasStreamingRef.current && !isStreaming,
     freeze,
   };
 }

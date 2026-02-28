@@ -42,7 +42,7 @@ export function ChatMessages({
   isLoadingMore,
   loadMore,
   activeMessage,
-  streamingMessage,
+  streamingMessage: _streamingMessage,
   isLoading,
   aiResponseAreaRef,
   onHumanInputResponseSubmitted,

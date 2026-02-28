@@ -99,7 +99,7 @@ function startAbortWatcher(
         statuses: ['aborted'] as const,
       });
       const hasNewAbort = streams.some(
-        (s: { _id: string }) => !baselineAbortedIds.has(s._id),
+        (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
       );
       if (hasNewAbort) {
         cancelledByWatcher = true;
@@ -241,7 +241,7 @@ export async function generateAgentResponse(
           statuses: ['aborted'] as const,
         });
         baselineAbortedIds = new Set(
-          existing.map((s: { _id: string }) => s._id),
+          existing.map((s: { streamId: string }) => s.streamId),
         );
       } catch {
         // Non-fatal — watcher will still work, just without baseline filter

@@ -520,10 +520,10 @@ describe('generateAgentResponse — abort watcher', () => {
     // The watcher should NOT have polled for aborted streams
     // (only the error handler's fallback query may have been called)
     const abortPolls = ctx.runQuery.mock.calls.filter(
-      ([query, args]: [string, Record<string, unknown>]) =>
-        query === 'mock-streams-list' &&
-        Array.isArray(args.statuses) &&
-        args.statuses.includes('aborted'),
+      (call) =>
+        call[0] === 'mock-streams-list' &&
+        Array.isArray(call[1]?.statuses) &&
+        call[1].statuses.includes('aborted'),
     );
     // The error handler does its own one-time query, but the watcher's
     // periodic polling should not have added extra calls.
@@ -609,7 +609,7 @@ describe('generateAgentResponse — abort watcher', () => {
   // execution pipeline. Verify the controller is actually aborted.
   it('aborts the AbortController when watcher detects cancellation during long operation', async () => {
     const ctx = createMockCtx();
-    let capturedSignalAborted = false;
+    let _capturedSignalAborted = false;
 
     // Baseline → empty, watcher → newly aborted
     ctx.runQuery
@@ -621,7 +621,7 @@ describe('generateAgentResponse — abort watcher', () => {
     mockBuildStructuredContext.mockImplementation(async () => {
       // Simulate a long-running tool operation; check signal after delay
       await new Promise((resolve) => setTimeout(resolve, 500));
-      capturedSignalAborted = true; // if we get here, we'll check the flag in assertions
+      _capturedSignalAborted = true; // if we get here, we'll check the flag in assertions
       throw new Error('Operation aborted');
     });
 
