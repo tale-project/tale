@@ -10,11 +10,10 @@ from app.services.database import acquire_with_retry
 
 
 @pytest.fixture(autouse=True)
-def _disable_stamina_retries():
-    """Disable real backoff delays in tests for speed."""
-    stamina.set_active(False)
-    yield
-    stamina.set_active(True)
+def _fast_stamina_retries():
+    """Keep retries but disable backoff delays for speed."""
+    with stamina.set_testing(True, attempts=5):
+        yield
 
 
 def _make_pool(acquire_side_effect=None):

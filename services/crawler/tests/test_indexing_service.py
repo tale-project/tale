@@ -2,9 +2,17 @@ import hashlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import stamina
 
 from app.services.chunking_service import ContentChunk
 from app.services.indexing_service import IndexingService
+
+
+@pytest.fixture(autouse=True)
+def _fast_stamina_retries():
+    """Keep retries but disable backoff delays for speed."""
+    with stamina.set_testing(True, attempts=1):
+        yield
 
 
 def _sha256(content: str) -> str:
@@ -25,10 +33,8 @@ def mock_conn():
 @pytest.fixture
 def mock_pool(mock_conn):
     pool = AsyncMock()
-    ctx = AsyncMock()
-    ctx.__aenter__ = AsyncMock(return_value=mock_conn)
-    ctx.__aexit__ = AsyncMock(return_value=None)
-    pool.acquire = MagicMock(return_value=ctx)
+    pool.acquire = AsyncMock(return_value=mock_conn)
+    pool.release = AsyncMock()
     return pool
 
 
