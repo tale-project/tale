@@ -2,8 +2,8 @@
 Content indexing pipeline: chunk → embed → store in PostgreSQL.
 
 Includes incremental cross-page paragraph deduplication: paragraph
-fingerprints are tracked per page, and paragraphs appearing on >50%
-of a domain's pages are filtered as boilerplate before chunking.
+fingerprints are tracked per page, and lines appearing on more than
+a threshold number of pages are filtered as boilerplate before chunking.
 """
 
 import asyncio
@@ -16,7 +16,7 @@ from app.services.chunking_service import chunk_content
 from app.services.database import acquire_with_retry
 from app.services.embedding_service import EmbeddingService
 from app.utils.paragraph_dedup import (
-    BOILERPLATE_FREQUENCY_THRESHOLD,
+    BOILERPLATE_PAGE_THRESHOLD,
     MIN_DOMAIN_PAGES_FOR_DEDUP,
     extract_paragraph_hashes,
     filter_boilerplate_paragraphs,
@@ -50,8 +50,8 @@ class IndexingService:
         content_hash = _sha256(content)
         hashes = extract_paragraph_hashes(content)
 
-        # --- Single connection: hash update + frequency query + skip check ---
-        frequencies: dict[str, float] = {}
+        # --- Single connection: hash update + page count query + skip check ---
+        page_counts: dict[str, int] = {}
         existing: asyncpg.Record | None = None
 
         async with acquire_with_retry(self._pool) as conn:
@@ -79,7 +79,7 @@ class IndexingService:
                     domain,
                     hashes,
                 )
-                frequencies = {row["paragraph_hash"]: row["url_count"] / total_pages for row in rows}
+                page_counts = {row["paragraph_hash"]: row["url_count"] for row in rows}
 
             existing = await conn.fetchrow(
                 """SELECT content_hash, metadata->>'filtering_hash' as filtering_hash
@@ -89,7 +89,7 @@ class IndexingService:
             )
 
         # --- Pure computation (no DB) ---
-        filtered = filter_boilerplate_paragraphs(content, frequencies) if frequencies else content
+        filtered = filter_boilerplate_paragraphs(content, page_counts) if page_counts else content
         filtered_hash = _sha256(filtered)
 
         if existing and existing["content_hash"] == content_hash and existing["filtering_hash"] == filtered_hash:
@@ -132,11 +132,9 @@ class IndexingService:
             except Exception as e:
                 logger.warning("HNSW index creation deferred: %s", e)
 
-        if frequencies:
-            boilerplate_count = sum(1 for f in frequencies.values() if f > BOILERPLATE_FREQUENCY_THRESHOLD)
-            logger.info(
-                "Indexed %d chunks for %s (filtered %d boilerplate paragraphs)", len(chunks), url, boilerplate_count
-            )
+        if page_counts:
+            boilerplate_count = sum(1 for c in page_counts.values() if c > BOILERPLATE_PAGE_THRESHOLD)
+            logger.info("Indexed %d chunks for %s (filtered %d boilerplate lines)", len(chunks), url, boilerplate_count)
         else:
             logger.info("Indexed %d chunks for %s", len(chunks), url)
 

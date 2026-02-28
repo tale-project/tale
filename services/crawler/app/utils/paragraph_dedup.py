@@ -1,14 +1,14 @@
 """Cross-page paragraph deduplication for boilerplate filtering.
 
 Tracks paragraph fingerprints per page to identify content that appears
-across many pages in a domain. Paragraphs exceeding a frequency threshold
-are considered boilerplate and filtered before chunking.
+across many pages in a domain. Lines appearing on more than a threshold
+number of pages are considered boilerplate and filtered before chunking.
 """
 
 import hashlib
 import unicodedata
 
-BOILERPLATE_FREQUENCY_THRESHOLD = 0.5
+BOILERPLATE_PAGE_THRESHOLD = 5
 MIN_DOMAIN_PAGES_FOR_DEDUP = 5
 MIN_LINE_LENGTH = 10
 
@@ -49,27 +49,27 @@ def extract_paragraph_hashes(content: str) -> list[str]:
 
 def filter_boilerplate_paragraphs(
     content: str,
-    frequencies: dict[str, float],
-    threshold: float = BOILERPLATE_FREQUENCY_THRESHOLD,
+    page_counts: dict[str, int],
+    threshold: int = BOILERPLATE_PAGE_THRESHOLD,
 ) -> str:
-    """Remove lines exceeding the frequency threshold.
+    """Remove lines that appear on too many pages.
 
     Args:
         content: Raw markdown page content.
-        frequencies: Mapping of paragraph_hash to fraction of pages (0.0-1.0).
-        threshold: Lines appearing on more than this fraction are removed.
+        page_counts: Mapping of paragraph_hash to number of pages it appears on.
+        threshold: Lines appearing on more than this many pages are removed.
 
     Returns content with boilerplate lines removed. Lines shorter than
     MIN_LINE_LENGTH are always kept (not enough signal to fingerprint).
-    If frequencies is empty (domain too small), returns content unchanged.
+    If page_counts is empty (domain too small), returns content unchanged.
     """
-    if not frequencies:
+    if not page_counts:
         return content
 
     lines = content.split("\n")
     kept = [
         line
         for line in lines
-        if not _is_hashable_line(line) or frequencies.get(paragraph_hash(line.strip()), 0.0) <= threshold
+        if not _is_hashable_line(line) or page_counts.get(paragraph_hash(line.strip()), 0) <= threshold
     ]
     return "\n".join(kept)

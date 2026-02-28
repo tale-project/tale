@@ -196,7 +196,7 @@ class TestParagraphHashTracking:
         assert len(hash_insert) == 1
 
 
-class TestFrequencyFiltering:
+class TestBoilerplateFiltering:
     async def test_no_filtering_below_min_pages(self, mock_conn, indexing_service, mock_embedding):
         content = "Boilerplate text\n\nUnique content"
         mock_conn.fetchval = AsyncMock(return_value=3)
@@ -216,10 +216,10 @@ class TestFrequencyFiltering:
         boilerplate_h = paragraph_hash("Boilerplate text")
         unique_h = paragraph_hash("Unique content")
 
-        mock_conn.fetchval = AsyncMock(return_value=10)
+        mock_conn.fetchval = AsyncMock(return_value=30)
         mock_conn.fetch = AsyncMock(
             return_value=[
-                {"paragraph_hash": boilerplate_h, "url_count": 9},
+                {"paragraph_hash": boilerplate_h, "url_count": 25},
                 {"paragraph_hash": unique_h, "url_count": 1},
             ]
         )
@@ -239,8 +239,8 @@ class TestFrequencyFiltering:
         content = "Only boilerplate"
         boilerplate_h = paragraph_hash("Only boilerplate")
 
-        mock_conn.fetchval = AsyncMock(return_value=10)
-        mock_conn.fetch = AsyncMock(return_value=[{"paragraph_hash": boilerplate_h, "url_count": 10}])
+        mock_conn.fetchval = AsyncMock(return_value=30)
+        mock_conn.fetch = AsyncMock(return_value=[{"paragraph_hash": boilerplate_h, "url_count": 25}])
         mock_conn.fetchrow = AsyncMock(return_value=None)
 
         result = await indexing_service.index_page("example.com", "https://example.com/page", "Title", content)

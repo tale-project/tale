@@ -1,7 +1,7 @@
 import unicodedata
 
 from app.utils.paragraph_dedup import (
-    BOILERPLATE_FREQUENCY_THRESHOLD,
+    BOILERPLATE_PAGE_THRESHOLD,
     MIN_DOMAIN_PAGES_FOR_DEDUP,
     MIN_LINE_LENGTH,
     extract_paragraph_hashes,
@@ -112,106 +112,105 @@ class TestExtractParagraphHashes:
 
 
 class TestFilterBoilerplateParagraphs:
-    def test_removes_high_frequency_lines(self):
+    def test_removes_high_count_lines(self):
         content = "Boilerplate text here\nUnique content here today"
-        frequencies = {
-            paragraph_hash("Boilerplate text here"): 0.8,
-            paragraph_hash("Unique content here today"): 0.1,
+        page_counts = {
+            paragraph_hash("Boilerplate text here"): 50,
+            paragraph_hash("Unique content here today"): 2,
         }
-        result = filter_boilerplate_paragraphs(content, frequencies)
+        result = filter_boilerplate_paragraphs(content, page_counts)
         assert "Boilerplate text here" not in result
         assert "Unique content here today" in result
 
-    def test_keeps_low_frequency_lines(self):
+    def test_keeps_low_count_lines(self):
         content = "Unique A long enough\nUnique B long enough"
-        frequencies = {
-            paragraph_hash("Unique A long enough"): 0.1,
-            paragraph_hash("Unique B long enough"): 0.2,
+        page_counts = {
+            paragraph_hash("Unique A long enough"): 3,
+            paragraph_hash("Unique B long enough"): 5,
         }
-        result = filter_boilerplate_paragraphs(content, frequencies)
+        result = filter_boilerplate_paragraphs(content, page_counts)
         assert "Unique A long enough" in result
         assert "Unique B long enough" in result
 
-    def test_empty_frequencies_returns_unchanged(self):
+    def test_empty_page_counts_returns_unchanged(self):
         content = "Some content here\nMore content here"
         result = filter_boilerplate_paragraphs(content, {})
         assert result == content
 
     def test_all_filtered_returns_empty_lines(self):
         content = "Boilerplate A text\nBoilerplate B text"
-        frequencies = {
-            paragraph_hash("Boilerplate A text"): 0.9,
-            paragraph_hash("Boilerplate B text"): 0.8,
+        page_counts = {
+            paragraph_hash("Boilerplate A text"): 100,
+            paragraph_hash("Boilerplate B text"): 80,
         }
-        result = filter_boilerplate_paragraphs(content, frequencies)
+        result = filter_boilerplate_paragraphs(content, page_counts)
         assert result.strip() == ""
 
     def test_threshold_boundary_keeps_at_threshold(self):
         content = "Boundary text content\nOther text content"
-        frequencies = {
-            paragraph_hash("Boundary text content"): 0.5,
-            paragraph_hash("Other text content"): 0.1,
+        page_counts = {
+            paragraph_hash("Boundary text content"): 20,
+            paragraph_hash("Other text content"): 3,
         }
-        result = filter_boilerplate_paragraphs(content, frequencies, threshold=0.5)
+        result = filter_boilerplate_paragraphs(content, page_counts, threshold=20)
         assert "Boundary text content" in result
         assert "Other text content" in result
 
     def test_threshold_boundary_removes_above(self):
         content = "Boundary text content\nOther text content"
-        frequencies = {
-            paragraph_hash("Boundary text content"): 0.51,
-            paragraph_hash("Other text content"): 0.1,
+        page_counts = {
+            paragraph_hash("Boundary text content"): 21,
+            paragraph_hash("Other text content"): 3,
         }
-        result = filter_boilerplate_paragraphs(content, frequencies, threshold=0.5)
+        result = filter_boilerplate_paragraphs(content, page_counts, threshold=20)
         assert "Boundary text content" not in result
         assert "Other text content" in result
 
     def test_unknown_lines_kept(self):
         content = "Known text content\nUnknown text content"
-        frequencies = {paragraph_hash("Known text content"): 0.1}
-        result = filter_boilerplate_paragraphs(content, frequencies)
+        page_counts = {paragraph_hash("Known text content"): 5}
+        result = filter_boilerplate_paragraphs(content, page_counts)
         assert "Known text content" in result
         assert "Unknown text content" in result
 
     def test_custom_threshold(self):
         content = "Text A long enough\nText B long enough"
-        frequencies = {
-            paragraph_hash("Text A long enough"): 0.3,
-            paragraph_hash("Text B long enough"): 0.1,
+        page_counts = {
+            paragraph_hash("Text A long enough"): 15,
+            paragraph_hash("Text B long enough"): 3,
         }
-        result = filter_boilerplate_paragraphs(content, frequencies, threshold=0.2)
+        result = filter_boilerplate_paragraphs(content, page_counts, threshold=10)
         assert "Text A long enough" not in result
         assert "Text B long enough" in result
 
     def test_preserves_line_order(self):
         content = "First line content\nBoilerplate content\nSecond line content\nThird line content"
-        frequencies = {paragraph_hash("Boilerplate content"): 0.9}
-        result = filter_boilerplate_paragraphs(content, frequencies)
+        page_counts = {paragraph_hash("Boilerplate content"): 100}
+        result = filter_boilerplate_paragraphs(content, page_counts)
         lines = [l for l in result.split("\n") if l.strip()]
         assert lines == ["First line content", "Second line content", "Third line content"]
 
     def test_short_lines_always_kept(self):
         content = "Short\nBoilerplate text here\nUnique text here"
-        frequencies = {
-            paragraph_hash("Short"): 0.9,
-            paragraph_hash("Boilerplate text here"): 0.9,
-            paragraph_hash("Unique text here"): 0.1,
+        page_counts = {
+            paragraph_hash("Short"): 100,
+            paragraph_hash("Boilerplate text here"): 100,
+            paragraph_hash("Unique text here"): 2,
         }
-        result = filter_boilerplate_paragraphs(content, frequencies)
+        result = filter_boilerplate_paragraphs(content, page_counts)
         assert "Short" in result
         assert "Boilerplate text here" not in result
         assert "Unique text here" in result
 
     def test_preserves_blank_lines(self):
         content = "First line content\n\nSecond line content"
-        frequencies = {}
-        result = filter_boilerplate_paragraphs(content, frequencies)
+        result = filter_boilerplate_paragraphs(content, {})
         assert result == content
 
 
 class TestConstants:
     def test_default_threshold(self):
-        assert BOILERPLATE_FREQUENCY_THRESHOLD == 0.5
+        assert BOILERPLATE_PAGE_THRESHOLD == 5
 
     def test_min_pages(self):
         assert MIN_DOMAIN_PAGES_FOR_DEDUP == 5
@@ -225,7 +224,7 @@ class TestIntegrationScenarios:
         """Cookie banner identical on all pages should be filtered."""
         boilerplate = 'By clicking "Allow All", you agree to the storing of cookies'
         pages = [
-            (f"https://example.com/page{i}", f"Unique content for page {i} article\n{boilerplate}") for i in range(10)
+            (f"https://example.com/page{i}", f"Unique content for page {i} article\n{boilerplate}") for i in range(30)
         ]
 
         all_hashes: dict[str, set[str]] = {}
@@ -235,12 +234,12 @@ class TestIntegrationScenarios:
                     all_hashes[h] = set()
                 all_hashes[h].add(url)
 
-        frequencies = {h: len(urls) / len(pages) for h, urls in all_hashes.items()}
+        page_counts = {h: len(urls) for h, urls in all_hashes.items()}
 
         boilerplate_hash = paragraph_hash(boilerplate)
-        assert frequencies[boilerplate_hash] == 1.0
+        assert page_counts[boilerplate_hash] == 30
 
-        filtered = filter_boilerplate_paragraphs(pages[0][1], frequencies)
+        filtered = filter_boilerplate_paragraphs(pages[0][1], page_counts)
         assert "Allow All" not in filtered
         assert "Unique content for page 0" in filtered
 
@@ -251,7 +250,7 @@ class TestIntegrationScenarios:
                 f"https://example.com/page{i}",
                 f"def func_{i}(): return {i}\nExplanation for function number {i}",
             )
-            for i in range(10)
+            for i in range(30)
         ]
 
         all_hashes: dict[str, set[str]] = {}
@@ -261,10 +260,10 @@ class TestIntegrationScenarios:
                     all_hashes[h] = set()
                 all_hashes[h].add(url)
 
-        frequencies = {h: len(urls) / len(pages) for h, urls in all_hashes.items()}
+        page_counts = {h: len(urls) for h, urls in all_hashes.items()}
 
         for _url, content in pages:
-            filtered = filter_boilerplate_paragraphs(content, frequencies)
+            filtered = filter_boilerplate_paragraphs(content, page_counts)
             assert filtered.strip() == content.strip()
 
     def test_mixed_content_selective_filtering(self):
@@ -273,7 +272,7 @@ class TestIntegrationScenarios:
         shared_nav = "Home | About | Products | Contact Us"
 
         pages = []
-        for i in range(10):
+        for i in range(30):
             content = (
                 f"# Article {i} with unique insights"
                 f"\nThis is the body of article {i} with unique insights."
@@ -288,9 +287,9 @@ class TestIntegrationScenarios:
                     all_hashes[h] = set()
                 all_hashes[h].add(url)
 
-        frequencies = {h: len(urls) / len(pages) for h, urls in all_hashes.items()}
+        page_counts = {h: len(urls) for h, urls in all_hashes.items()}
 
-        filtered = filter_boilerplate_paragraphs(pages[3][1], frequencies)
+        filtered = filter_boilerplate_paragraphs(pages[3][1], page_counts)
         assert "Article 3" in filtered
         assert "body of article 3" in filtered
         assert "Contact us" not in filtered
@@ -309,9 +308,9 @@ class TestIntegrationScenarios:
 
         total = len(pages)
         assert total < MIN_DOMAIN_PAGES_FOR_DEDUP
-        frequencies: dict[str, float] = {}
+        page_counts: dict[str, int] = {}
 
-        filtered = filter_boilerplate_paragraphs(pages[0][1], frequencies)
+        filtered = filter_boilerplate_paragraphs(pages[0][1], page_counts)
         assert "Shared text for all pages" in filtered
 
     def test_realistic_crawler_output(self):
@@ -321,7 +320,7 @@ class TestIntegrationScenarios:
         shared_footer = "Copyright 2024 Example Corp. All rights reserved."
 
         pages = []
-        for i in range(10):
+        for i in range(30):
             content = "\n".join(
                 [
                     shared_cookie,
@@ -341,12 +340,12 @@ class TestIntegrationScenarios:
                     all_hashes[h] = set()
                 all_hashes[h].add(url)
 
-        frequencies = {h: len(urls) / len(pages) for h, urls in all_hashes.items()}
+        page_counts = {h: len(urls) for h, urls in all_hashes.items()}
 
-        assert frequencies[paragraph_hash(shared_cookie)] == 1.0
-        assert frequencies[paragraph_hash(shared_footer)] == 1.0
+        assert page_counts[paragraph_hash(shared_cookie)] == 30
+        assert page_counts[paragraph_hash(shared_footer)] == 30
 
-        filtered = filter_boilerplate_paragraphs(pages[5][1], frequencies)
+        filtered = filter_boilerplate_paragraphs(pages[5][1], page_counts)
         assert "Allow All" not in filtered
         assert "Copyright 2024" not in filtered
         assert "Article Title for Page 5" in filtered
