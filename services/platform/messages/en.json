@@ -2732,7 +2732,8 @@
       "unknown": "Unknown"
     },
     "viewPages": "View pages",
-    "pages": "Pages",
+    "indexed": "Indexed",
+    "indexedTooltip": "{percentage}\u202F% - {crawled} of {total} pages",
     "pageCount": "{count} pages",
     "pageCountOne": "{count} page",
     "pageCountProgress": "{crawled}/{total} pages",

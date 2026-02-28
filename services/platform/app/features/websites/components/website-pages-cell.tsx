@@ -1,10 +1,10 @@
 'use client';
 
-import { FileText } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
+import { ProgressBar } from '@/app/components/ui/feedback/progress-bar';
 import { useT } from '@/lib/i18n/client';
 
 import { WebsitePagesDialog } from './website-pages-dialog';
@@ -20,23 +20,38 @@ export function WebsitePagesCell({ website }: WebsitePagesCellProps) {
   const handleOpen = useCallback(() => setIsOpen(true), []);
   const handleClose = useCallback(() => setIsOpen(false), []);
 
+  const crawled = website.crawledPageCount ?? 0;
+  const total = website.pageCount ?? 0;
+  const percentage = total > 0 ? Math.round((crawled / total) * 100) : 0;
+
   return (
     <>
       <button
         type="button"
         onClick={handleOpen}
-        className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center gap-1.5 text-xs transition-colors"
+        className="w-full cursor-pointer"
         aria-label={t('viewPages')}
       >
-        <FileText className="size-3.5" />
-        <span className="underline-offset-2 hover:underline">
-          {website.pageCount != null
-            ? t('pageCountProgress', {
-                crawled: website.crawledPageCount ?? 0,
-                total: website.pageCount,
-              })
-            : t('viewPages')}
-        </span>
+        {total > 0 ? (
+          <ProgressBar
+            value={crawled}
+            max={total}
+            label={t('indexedTooltip', {
+              percentage: String(percentage),
+              crawled: String(crawled),
+              total: String(total),
+            })}
+            tooltipContent={t('indexedTooltip', {
+              percentage: String(percentage),
+              crawled: String(crawled),
+              total: String(total),
+            })}
+          />
+        ) : (
+          <span className="text-muted-foreground text-xs">
+            {t('viewPages')}
+          </span>
+        )}
       </button>
 
       {isOpen && (

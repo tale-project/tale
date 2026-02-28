@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { Badge } from '../feedback/badge';
+import { ProgressBar } from '../feedback/progress-bar';
 import {
   Table,
   TableBody,
@@ -187,6 +188,56 @@ export const WithBadges: Story = {
     docs: {
       description: {
         story: 'Tables can include badges and other components in cells.',
+      },
+    },
+  },
+};
+
+const websites = [
+  { domain: 'example.com', title: 'Example', crawled: 87, total: 100 },
+  { domain: 'docs.example.com', title: 'Docs', crawled: 42, total: 150 },
+  { domain: 'blog.example.com', title: 'Blog', crawled: 200, total: 200 },
+  { domain: 'shop.example.com', title: 'Shop', crawled: 5, total: 80 },
+  { domain: 'api.example.com', title: 'API Reference', crawled: 0, total: 60 },
+];
+
+export const WithProgressBar: Story = {
+  render: () => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Website</TableHead>
+          <TableHead>Title</TableHead>
+          <TableHead className="w-[108px]">Indexed</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {websites.map((site) => {
+          const pct =
+            site.total > 0 ? Math.round((site.crawled / site.total) * 100) : 0;
+          return (
+            <TableRow key={site.domain}>
+              <TableCell className="font-medium">{site.domain}</TableCell>
+              <TableCell>{site.title}</TableCell>
+              <TableCell>
+                <ProgressBar
+                  value={site.crawled}
+                  max={site.total}
+                  label={`${pct}\u202F% - ${site.crawled} of ${site.total} pages`}
+                  tooltipContent={`${pct}\u202F% - ${site.crawled} of ${site.total} pages`}
+                />
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Tables can include progress bars in cells to show completion status.',
       },
     },
   },
