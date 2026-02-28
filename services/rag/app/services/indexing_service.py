@@ -120,7 +120,8 @@ async def store_prepared_document(
 
     if existing:
         logger.info("Document {} content changed, replacing for team={} user={}", document_id, team_id, user_id)
-        async with acquire_with_retry(pool) as conn:
+        async with acquire_with_retry(pool) as conn, conn.transaction():
+            await conn.execute(f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1", existing["id"])
             await conn.execute(f"DELETE FROM {SCHEMA}.documents WHERE id = $1", existing["id"])
 
     async with acquire_with_retry(pool) as conn, conn.transaction():

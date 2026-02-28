@@ -71,9 +71,16 @@ class RagSearchService:
         except asyncpg.UndefinedColumnError:
             logger.info("Schema not ready, returning empty results")
             return []
-        except asyncpg.InternalServerError as e:
-            if "bm25" in str(e).lower():
-                logger.warning("BM25 index not ready: {}, falling back to vector-only", e)
+        except (asyncpg.InternalServerError, asyncpg.DataCorruptedError) as e:
+            is_bm25 = "bm25" in str(e).lower()
+            is_corruption = isinstance(e, asyncpg.DataCorruptedError)
+
+            if is_bm25 or is_corruption:
+                logger.warning("BM25 index issue (corruption={}): {}, falling back to vector-only", is_corruption, e)
+
+                if is_corruption:
+                    asyncio.create_task(self._rebuild_bm25_index())
+
                 if query_embedding is None:
                     query_embedding = await self._embedding.embed_query(query)
                 vector_results = await self._vector_search(query_embedding, team_ids, user_id, top_k)
@@ -109,6 +116,16 @@ class RagSearchService:
 
         return " AND (" + " OR ".join(conditions) + ")", params
 
+    async def _rebuild_bm25_index(self) -> None:
+        """Rebuild the BM25 index after corruption. Runs as a background task."""
+        try:
+            logger.warning("Rebuilding BM25 index due to corruption")
+            async with acquire_with_retry(self._pool) as conn:
+                await conn.execute(f"REINDEX INDEX {SCHEMA}.idx_pk_chunks_bm25")
+            logger.info("BM25 index rebuilt successfully")
+        except Exception as e:
+            logger.error("BM25 index rebuild failed: {}", e)
+
     async def _fts_search(
         self,
         query: str,
@@ -133,6 +150,9 @@ class RagSearchService:
             async with acquire_with_retry(self._pool) as conn:
                 rows = await conn.fetch(sql, *params)
                 return [dict(r) for r in rows]
+        except asyncpg.DataCorruptedError as e:
+            logger.warning("BM25 index corrupted: {}", e)
+            return []
         except asyncpg.InternalServerError as e:
             if "bm25" in str(e).lower():
                 logger.warning("BM25 search failed: {}", e)

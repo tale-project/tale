@@ -39,7 +39,6 @@ async def extract_text(
     *,
     vision_client: VisionClient | None = None,
     process_images: bool = True,
-    ocr_scanned_pages: bool = True,
 ) -> tuple[str, bool]:
     """Extract text from file bytes, routing to the correct extractor.
 
@@ -48,7 +47,6 @@ async def extract_text(
         filename: Original filename (used to determine file type).
         vision_client: Optional VisionClient for OCR/image description.
         process_images: Whether to extract and describe embedded images.
-        ocr_scanned_pages: Whether to OCR scanned PDF pages.
 
     Returns:
         Tuple of (extracted_text, vision_was_used).
@@ -67,7 +65,6 @@ async def extract_text(
             filename,
             vision_client=vision_client,
             process_images=process_images,
-            ocr_scanned_pages=ocr_scanned_pages,
         )
 
     if suffix in DOCX_EXTENSIONS:

@@ -1,7 +1,6 @@
 """Document management endpoints for Tale RAG service."""
 
 import json
-from enum import StrEnum
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -111,11 +110,6 @@ SUPPORTED_EXTENSIONS = {
     ".cmake",
     ".lock",
 }
-
-
-class DeleteMode(StrEnum):
-    soft = "soft"
-    hard = "hard"
 
 
 def _parse_team_ids(team_ids: str | None, *, required: bool = False) -> list[str] | None:
@@ -365,7 +359,6 @@ async def upload_document(
 async def delete_document(
     document_id: str,
     team_ids: str | None = None,
-    mode: DeleteMode = DeleteMode.hard,
 ):
     """Delete a document from the knowledge base by ID."""
     team_id_list = _parse_team_ids(team_ids, required=True)

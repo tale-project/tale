@@ -32,7 +32,6 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     v.object({
       operation: v.literal('delete_document'),
       recordId: v.string(),
-      mode: v.optional(v.union(v.literal('soft'), v.literal('hard'))),
     }),
   ),
 
@@ -61,7 +60,6 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       const deleteResult = await deleteDocumentById({
         ragServiceUrl: ragConfig.serviceUrl,
         documentId: processedParams.recordId,
-        mode: processedParams.mode || 'hard',
         teamIds,
       });
 

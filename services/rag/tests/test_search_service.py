@@ -316,6 +316,96 @@ class TestGracefulFallback:
                         await service.search("query")
 
 
+class TestDataCorruptionRecovery:
+    """DataCorruptedError triggers vector-only fallback and BM25 rebuild."""
+
+    async def test_data_corrupted_error_falls_back_to_vector_only(self):
+        vector_rows = [_make_row(1, "vec result", "doc-1", 0.9)]
+        service, *_ = _build_service()
+
+        with patch.object(service, "_fts_search", side_effect=asyncpg.DataCorruptedError("could not read block 0")):
+            with patch.object(service, "_vector_search", return_value=vector_rows):
+                with patch.object(service._embedding, "embed_query", return_value=[0.1]):
+                    with patch.object(service, "_rebuild_bm25_index", new_callable=AsyncMock):
+                        results = await service.search("query")
+
+        assert len(results) == 1
+        assert results[0]["content"] == "vec result"
+        assert results[0]["score"] == pytest.approx(1.0)
+
+    async def test_data_corrupted_error_triggers_rebuild(self):
+        import asyncio as _asyncio
+
+        service, *_ = _build_service()
+
+        with patch.object(service, "_fts_search", side_effect=asyncpg.DataCorruptedError("could not read block 0")):
+            with patch.object(service, "_vector_search", return_value=[]):
+                with patch.object(service._embedding, "embed_query", return_value=[0.1]):
+                    with patch.object(service, "_rebuild_bm25_index", new_callable=AsyncMock) as mock_rebuild:
+                        await service.search("query")
+                        await _asyncio.sleep(0)
+
+        mock_rebuild.assert_awaited_once()
+
+    async def test_fts_data_corrupted_error_returns_empty(self):
+        """DataCorruptedError in _fts_search returns empty list."""
+        from app.services.search_service import RagSearchService
+
+        pool = MagicMock()
+        embed = MagicMock()
+        service = RagSearchService(pool, embed)
+
+        mock_conn = AsyncMock()
+        mock_conn.fetch = AsyncMock(side_effect=asyncpg.DataCorruptedError("could not read block 0 in file"))
+
+        with patch("app.services.search_service.acquire_with_retry") as mock_acq:
+            mock_acq.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            results = await service._fts_search("query", None, None, 10)
+
+        assert results == []
+
+    async def test_rebuild_bm25_index_calls_reindex(self):
+        """_rebuild_bm25_index executes REINDEX on the BM25 index."""
+        from app.services.search_service import RagSearchService
+
+        pool = MagicMock()
+        embed = MagicMock()
+        service = RagSearchService(pool, embed)
+
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock()
+
+        with patch("app.services.search_service.acquire_with_retry") as mock_acq:
+            mock_acq.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            await service._rebuild_bm25_index()
+
+        mock_conn.execute.assert_awaited_once()
+        sql = mock_conn.execute.call_args[0][0]
+        assert "REINDEX" in sql
+        assert "idx_pk_chunks_bm25" in sql
+
+    async def test_rebuild_bm25_index_handles_errors(self):
+        """_rebuild_bm25_index logs but does not raise on failure."""
+        from app.services.search_service import RagSearchService
+
+        pool = MagicMock()
+        embed = MagicMock()
+        service = RagSearchService(pool, embed)
+
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock(side_effect=RuntimeError("lock timeout"))
+
+        with patch("app.services.search_service.acquire_with_retry") as mock_acq:
+            mock_acq.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            await service._rebuild_bm25_index()
+
+
 class TestFtsSearch:
     """Unit tests for the _fts_search private method."""
 

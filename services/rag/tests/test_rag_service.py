@@ -40,6 +40,12 @@ def _mock_conn(*, fetch_return=None, execute_return=None):
     conn = AsyncMock()
     conn.fetch = AsyncMock(return_value=fetch_return or [])
     conn.execute = AsyncMock(return_value=execute_return)
+
+    mock_tx = AsyncMock()
+    mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
+    mock_tx.__aexit__ = AsyncMock(return_value=False)
+    conn.transaction = MagicMock(return_value=mock_tx)
+
     return conn
 
 
@@ -633,6 +639,46 @@ class TestDeleteDocument:
         # team_id is None so the `row["team_id"] not in team_ids` check is skipped
         # because `row["team_id"]` is falsy — the code checks `row["team_id"] and row["team_id"] not in team_ids`
         assert result["deleted_count"] == 1
+
+    async def test_deletes_chunks_before_documents(self):
+        """Chunks must be deleted explicitly before documents to avoid BM25 index corruption."""
+        service = _make_service()
+        mock_conn = _mock_conn(
+            fetch_return=[
+                {"id": "uuid-1", "team_id": "team-a"},
+            ]
+        )
+
+        call_order: list[str] = []
+        original_execute = mock_conn.execute
+
+        async def track_execute(sql, *args, **kwargs):
+            if "DELETE" in sql and "chunks" in sql:
+                call_order.append("delete_chunks")
+            elif "DELETE" in sql and "documents" in sql:
+                call_order.append("delete_documents")
+            return await original_execute(sql, *args, **kwargs)
+
+        mock_conn.execute = AsyncMock(side_effect=track_execute)
+
+        with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
+            await service.delete_document("doc-1", team_ids=["team-a"])
+
+        assert call_order == ["delete_chunks", "delete_documents"]
+
+    async def test_delete_uses_transaction(self):
+        """Chunk and document deletion must happen within a transaction."""
+        service = _make_service()
+        mock_conn = _mock_conn(
+            fetch_return=[
+                {"id": "uuid-1", "team_id": "team-a"},
+            ]
+        )
+
+        with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
+            await service.delete_document("doc-1", team_ids=["team-a"])
+
+        mock_conn.transaction.assert_called_once()
 
     async def test_processing_time_is_reported(self):
         service = _make_service()

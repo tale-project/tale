@@ -45,7 +45,6 @@ describe('deleteDocumentById', () => {
 
     const url = getCalledUrl();
     expect(url.searchParams.get('team_ids')).toBe('team-a,team-b');
-    expect(url.searchParams.get('mode')).toBe('hard');
     expect(url.pathname).toBe('/api/v1/documents/doc-123');
   });
 
@@ -64,27 +63,6 @@ describe('deleteDocumentById', () => {
 
     const url = getCalledUrl();
     expect(url.searchParams.has('team_ids')).toBe(false);
-    expect(url.searchParams.get('mode')).toBe('hard');
-  });
-
-  it('passes mode=soft when specified', async () => {
-    mockFetch({
-      success: true,
-      deleted_count: 1,
-      deleted_data_ids: ['xyz'],
-      message: 'Soft deleted',
-    });
-
-    await deleteDocumentById({
-      ragServiceUrl: 'http://rag:8000',
-      documentId: 'doc-789',
-      mode: 'soft',
-      teamIds: ['team-c'],
-    });
-
-    const url = getCalledUrl();
-    expect(url.searchParams.get('mode')).toBe('soft');
-    expect(url.searchParams.get('team_ids')).toBe('team-c');
   });
 
   it('returns parsed result on success', async () => {

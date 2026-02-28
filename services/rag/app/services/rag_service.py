@@ -363,7 +363,11 @@ class RagService:
             ids_to_delete.append(row["id"])
 
         if ids_to_delete:
-            async with acquire_with_retry(self._pool) as conn:
+            async with acquire_with_retry(self._pool) as conn, conn.transaction():
+                await conn.execute(
+                    f"DELETE FROM {SCHEMA}.chunks WHERE document_id = ANY($1)",
+                    ids_to_delete,
+                )
                 await conn.execute(
                     f"DELETE FROM {SCHEMA}.documents WHERE id = ANY($1)",
                     ids_to_delete,

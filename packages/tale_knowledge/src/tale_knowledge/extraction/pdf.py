@@ -2,8 +2,7 @@
 
 Hybrid approach:
 1. Digital PDFs: Extract text directly using PyMuPDF (no API calls)
-2. Scanned PDFs: Detect low-text pages and send to Vision API for OCR
-3. Embedded images: Extract and describe using Vision API
+2. Embedded images: Large images (>50% page area) are OCR'd, smaller ones described
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ from ._helpers import MIN_IMAGE_SIZE
 if TYPE_CHECKING:
     from tale_knowledge.vision.client import VisionClient
 
-MIN_TEXT_THRESHOLD = 50
+LARGE_IMAGE_RATIO = 0.5
 MAX_PAGES = 2000
 DEFAULT_PAGE_CONCURRENCY = 8
 
@@ -29,19 +28,22 @@ def _extract_page_text_sync(page_bytes: bytes) -> dict:
     """Extract text and image blocks from a single page (runs in thread pool).
 
     Accepts serialised page bytes to avoid sharing fitz objects across threads.
-    Returns a dict with text elements, image blocks, and total_text_len.
+    Returns a dict with text elements, image blocks (with area ratio), and total_text_len.
     """
     doc = fitz.open(stream=page_bytes, filetype="pdf")
     try:
         page = doc[0]
+        page_rect = page.rect
+        page_area = page_rect.get_area()
         text_dict = page.get_text("dict")
         elements: list[tuple[float, str]] = []
-        images: list[tuple[float, bytes]] = []
+        images: list[tuple[float, bytes, float]] = []
         total_text_len = 0
 
         for block in text_dict.get("blocks", []):
             block_type = block.get("type")
-            y0 = block.get("bbox", [0, 0, 0, 0])[1]
+            bbox = block.get("bbox", [0, 0, 0, 0])
+            y0 = bbox[1]
 
             if block_type == 0:
                 lines_text = []
@@ -59,27 +61,17 @@ def _extract_page_text_sync(page_bytes: bytes) -> dict:
                 height = block.get("height", 0)
                 image_bytes = block.get("image", b"")
                 if width * height >= MIN_IMAGE_SIZE and image_bytes:
-                    images.append((y0, bytes(image_bytes)))
+                    visible_rect = fitz.Rect(bbox) & page_rect
+                    area_ratio = (
+                        visible_rect.get_area() / page_area if page_area > 0 else 0
+                    )
+                    images.append((y0, bytes(image_bytes), area_ratio))
 
         return {
             "elements": elements,
             "images": images,
             "total_text_len": total_text_len,
         }
-    finally:
-        doc.close()
-
-
-def _render_page_to_png_sync(page_bytes: bytes, dpi: int) -> bytes:
-    """Render a page to PNG bytes (runs in thread pool)."""
-    doc = fitz.open(stream=page_bytes, filetype="pdf")
-    try:
-        page = doc[0]
-        mat = fitz.Matrix(dpi / 72, dpi / 72)
-        pixmap = page.get_pixmap(matrix=mat)
-        png_bytes = pixmap.tobytes("png")
-        pixmap = None
-        return png_bytes
     finally:
         doc.close()
 
@@ -100,46 +92,40 @@ async def _extract_page_with_layout(
     vision_semaphore: asyncio.Semaphore,
     vision_client: VisionClient | None,
     process_images: bool,
-    ocr_scanned_pages: bool,
 ) -> tuple[str, bool]:
-    """Extract page content preserving text and image positions."""
+    """Extract page content preserving text and image positions.
+
+    Images covering >50% of the page area are OCR'd (likely scanned pages),
+    smaller images are described.
+    """
     loop = asyncio.get_running_loop()
 
     text_data = await loop.run_in_executor(
         None, partial(_extract_page_text_sync, page_bytes)
     )
     elements: list[tuple[float, str]] = text_data["elements"]
-    images: list[tuple[float, bytes]] = text_data["images"]
-    total_text_len: int = text_data["total_text_len"]
+    images: list[tuple[float, bytes, float]] = text_data["images"]
     vision_used = False
 
-    if total_text_len < MIN_TEXT_THRESHOLD and ocr_scanned_pages and vision_client:
-        logger.debug(
-            f"Page {page_num + 1}: Low text ({total_text_len} chars), sending to Vision API for OCR"
-        )
-        async with vision_semaphore:
-            try:
-                dpi = vision_client.pdf_dpi
-                ocr_png = await loop.run_in_executor(
-                    None, partial(_render_page_to_png_sync, page_bytes, dpi)
-                )
-                ocr_text = await vision_client.ocr_image(ocr_png)
-                if ocr_text:
-                    elements = [(0, ocr_text)]
-                    vision_used = True
-            except Exception as e:
-                logger.warning(f"Failed to OCR page {page_num + 1}: {e}")
-
     if process_images and vision_client and images:
-        for y0, img_bytes in images:
+        for y0, img_bytes, area_ratio in images:
             try:
                 async with vision_semaphore:
-                    description = await vision_client.describe_image(img_bytes)
-                if description:
-                    elements.append((y0, f"[Image: {description}]"))
-                    vision_used = True
+                    if area_ratio > LARGE_IMAGE_RATIO:
+                        logger.debug(
+                            f"Page {page_num + 1}: Large image ({area_ratio:.0%} of page), using OCR"
+                        )
+                        text = await vision_client.ocr_image(img_bytes)
+                        if text:
+                            elements.append((y0, text))
+                            vision_used = True
+                    else:
+                        description = await vision_client.describe_image(img_bytes)
+                        if description:
+                            elements.append((y0, f"[Image: {description}]"))
+                            vision_used = True
             except Exception as e:
-                logger.warning(f"Failed to describe image on page {page_num + 1}: {e}")
+                logger.warning(f"Failed to process image on page {page_num + 1}: {e}")
 
     elements.sort(key=lambda x: x[0])
     content = "\n\n".join(elem[1] for elem in elements)
@@ -152,7 +138,6 @@ async def extract_text_from_pdf_bytes(
     *,
     vision_client: VisionClient | None = None,
     process_images: bool = True,
-    ocr_scanned_pages: bool = True,
     max_pages: int = MAX_PAGES,
 ) -> tuple[str, bool]:
     """Extract text from PDF bytes.
@@ -162,7 +147,6 @@ async def extract_text_from_pdf_bytes(
         filename: Filename for logging.
         vision_client: Optional VisionClient for OCR/image description.
         process_images: Whether to extract and describe embedded images.
-        ocr_scanned_pages: Whether to OCR pages with low text content.
         max_pages: Maximum number of pages to process.
 
     Returns:
@@ -206,7 +190,6 @@ async def extract_text_from_pdf_bytes(
                 vision_semaphore,
                 vision_client,
                 process_images,
-                ocr_scanned_pages,
             )
             return page_num, f"--- Page {page_num + 1} ---\n{content}", vis_used
 

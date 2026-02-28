@@ -11,7 +11,6 @@ import {
 export interface DeleteDocumentByIdArgs {
   ragServiceUrl: string;
   documentId: string;
-  mode?: 'soft' | 'hard';
   teamIds?: string[];
   timeoutMs?: number;
 }
@@ -26,7 +25,6 @@ export interface DeleteDocumentByIdArgs {
 export async function deleteDocumentById({
   ragServiceUrl,
   documentId,
-  mode = 'hard',
   teamIds,
   timeoutMs = 60000,
 }: DeleteDocumentByIdArgs): Promise<RagDeleteResult> {
@@ -36,7 +34,7 @@ export async function deleteDocumentById({
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const params = new URLSearchParams({ mode });
+    const params = new URLSearchParams();
     if (teamIds && teamIds.length > 0) {
       params.set('team_ids', teamIds.join(','));
     }

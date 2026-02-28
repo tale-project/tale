@@ -332,7 +332,7 @@ export const deleteDocumentFromRag = internalAction({
         : [];
 
     // Step 1: Delete from RAG service first
-    const params = new URLSearchParams({ mode: 'hard' });
+    const params = new URLSearchParams();
     if (teamIds.length > 0) {
       params.set('team_ids', teamIds.join(','));
     }
@@ -385,7 +385,7 @@ export const reindexDocumentRag = internalAction({
     // Step 1: Delete document from RAG
     try {
       const deleteResponse = await fetch(
-        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}?mode=hard`,
+        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}`,
         {
           method: 'DELETE',
           signal: AbortSignal.timeout(60000),

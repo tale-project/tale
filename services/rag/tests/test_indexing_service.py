@@ -317,6 +317,95 @@ class TestContentHashDedup:
         assert len(delete_calls) >= 1
 
 
+class TestExplicitChunkDeletion:
+    """Chunks must be deleted explicitly before documents to prevent BM25 index corruption."""
+
+    async def test_replacement_deletes_chunks_before_document(self):
+        from app.services.indexing_service import index_document
+
+        existing = {"id": "existing-uuid", "content_hash": DIFFERENT_HASH}
+        pool, mock_conn = _mock_pool(existing_row=existing)
+        mock_embed = AsyncMock()
+        mock_embed.embed_texts = AsyncMock(return_value=SAMPLE_EMBEDDINGS)
+
+        mock_conn.fetchrow = AsyncMock(
+            side_effect=[
+                existing,
+                {"id": "new-uuid"},
+            ]
+        )
+
+        call_order: list[str] = []
+        original_execute = mock_conn.execute
+
+        async def track_execute(sql, *args, **kwargs):
+            if "DELETE" in sql and "chunks" in sql:
+                call_order.append("delete_chunks")
+            elif "DELETE" in sql and "documents" in sql:
+                call_order.append("delete_documents")
+            return await original_execute(sql, *args, **kwargs)
+
+        mock_conn.execute = AsyncMock(side_effect=track_execute)
+
+        with (
+            _patch_acquire(mock_conn),
+            patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
+            patch(
+                "app.services.indexing_service.extract_text",
+                new_callable=AsyncMock,
+                return_value=("Updated text", False),
+            ),
+            patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS),
+        ):
+            await index_document(
+                pool,
+                SAMPLE_DOC_ID,
+                SAMPLE_CONTENT,
+                SAMPLE_FILENAME,
+                team_id=SAMPLE_TEAM_ID,
+                embedding_service=mock_embed,
+            )
+
+        assert call_order == ["delete_chunks", "delete_documents"]
+
+    async def test_replacement_uses_transaction(self):
+        from app.services.indexing_service import index_document
+
+        existing = {"id": "existing-uuid", "content_hash": DIFFERENT_HASH}
+        pool, mock_conn = _mock_pool(existing_row=existing)
+        mock_embed = AsyncMock()
+        mock_embed.embed_texts = AsyncMock(return_value=SAMPLE_EMBEDDINGS)
+
+        mock_conn.fetchrow = AsyncMock(
+            side_effect=[
+                existing,
+                {"id": "new-uuid"},
+            ]
+        )
+
+        with (
+            _patch_acquire(mock_conn),
+            patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
+            patch(
+                "app.services.indexing_service.extract_text",
+                new_callable=AsyncMock,
+                return_value=("Updated text", False),
+            ),
+            patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS),
+        ):
+            await index_document(
+                pool,
+                SAMPLE_DOC_ID,
+                SAMPLE_CONTENT,
+                SAMPLE_FILENAME,
+                team_id=SAMPLE_TEAM_ID,
+                embedding_service=mock_embed,
+            )
+
+        # The deletion of old doc should use a transaction
+        mock_conn.transaction.assert_called()
+
+
 class TestEmptyContentHandling:
     """Edge cases: no text extracted or no chunks produced."""
 
