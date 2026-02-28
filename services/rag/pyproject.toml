@@ -7,19 +7,18 @@ name = "tale-rag"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "cognee[baml]==0.5.1",
-    "cognee-community-hybrid-adapter-falkor==0.2.0",
-    "unstructured[xlsx,docx,pptx]==0.21.5",
-    "PyMuPDF==1.27.1",
-    "asyncpg==0.31.0",
-    "psycopg2-binary==2.9.11",
-    "python-multipart==0.0.20",
-    "python-dotenv==1.2.1",
-    "loguru==0.7.3",
-    "httpx==0.28.1",
-    "aiofiles==25.1.0",
-    "tenacity==9.1.4",
-    "unidecode==1.4.0",
+    "tale-knowledge",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.20.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "openai>=1.0.0",
+    "asyncpg>=0.30.0",
+    "python-multipart>=0.0.20",
+    "python-dotenv>=1.2.0",
+    "loguru>=0.7.0",
+    "httpx>=0.28.0",
+    "stamina>=25.0.0",
 ]
 
 [project.optional-dependencies]

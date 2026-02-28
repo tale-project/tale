@@ -58,7 +58,7 @@ export const ROTATABLE_SERVICES = [
   'crawler',
   'operator',
 ] as const;
-export const STATEFUL_SERVICES = ['db', 'graph-db', 'proxy'] as const;
+export const STATEFUL_SERVICES = ['db', 'proxy'] as const;
 export const ALL_SERVICES = [
   ...ROTATABLE_SERVICES,
   ...STATEFUL_SERVICES,

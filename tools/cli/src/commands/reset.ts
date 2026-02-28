@@ -12,7 +12,7 @@ export function createResetCommand(): Command {
     .option('-f, --force', 'Skip confirmation prompt', false)
     .option(
       '-a, --all',
-      'Also remove infrastructure (db, graph-db, proxy)',
+      'Also remove infrastructure (db, proxy)',
       false,
     )
     .option('--dry-run', 'Preview reset without making changes', false)

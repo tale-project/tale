@@ -6,7 +6,7 @@ Verifies the result-processing logic after asyncio.gather in add_document:
 - The job is marked as failed so the caller can retry
 
 These tests replicate the exact logic from CogneeService.add_document()
-(service.py lines ~781-830) without importing heavy dependencies (cognee,
+(service.py) without importing heavy dependencies (database,
 sqlalchemy, etc.) that are only available in the Docker container.
 """
 

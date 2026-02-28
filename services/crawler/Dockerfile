@@ -1,6 +1,5 @@
 # Crawler Service Dockerfile
 # Independent service for web crawling using Crawl4AI
-# Resolves dependency conflicts with cognee in the RAG service
 
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
@@ -51,7 +50,14 @@ RUN apt-get update && apt-get install -y \
 # Install uv for faster package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy pyproject.toml and install dependencies
+# Copy and install shared packages first (better layer caching)
+COPY packages/tale_shared/pyproject.toml /packages/tale_shared/pyproject.toml
+COPY packages/tale_shared/src/ /packages/tale_shared/src/
+COPY packages/tale_knowledge/pyproject.toml /packages/tale_knowledge/pyproject.toml
+COPY packages/tale_knowledge/src/ /packages/tale_knowledge/src/
+RUN uv pip install --system /packages/tale_shared /packages/tale_knowledge
+
+# Copy pyproject.toml and install service dependencies
 COPY services/crawler/pyproject.toml .
 RUN uv pip install --system .
 
@@ -94,4 +100,3 @@ ENTRYPOINT ["tini", "--"]
 
 # Run the application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]
-

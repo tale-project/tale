@@ -55,8 +55,6 @@ jobs:
               - 'services/db/**'
             proxy:
               - 'services/proxy/**'
-            graph-db:
-              - 'services/graph-db/**'
             operator:
               - 'services/operator/**'
 
@@ -82,8 +80,6 @@ jobs:
             context: '.'
           - service: proxy
             context: '.'
-          - service: graph-db
-            context: 'services/graph-db'
           - service: operator
             context: '.'
 

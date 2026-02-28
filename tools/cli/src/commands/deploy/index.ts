@@ -18,7 +18,7 @@ export function createDeployCommand(): Command {
     .argument('[version]', 'Version to deploy (e.g., v1.0.0 or 1.0.0)')
     .option(
       '-a, --all',
-      'Also update infrastructure (db, graph-db, proxy)',
+      'Also update infrastructure (db, proxy)',
       false,
     )
     .option(

@@ -26,15 +26,14 @@ env_normalize_common() {
 	    # Convex backend for postgres-v5 expects URL without database name in path
 	    # The database name is managed internally by Convex
 	    export POSTGRES_URL="postgresql://${db_user}:${db_password}@${db_host}:${db_port}"
-	    # RAG database URL - uses dedicated tale_rag database for isolation
-	    # This allows safe full-database resets without affecting other services
-	    export RAG_DATABASE_URL="postgresql://${db_user}:${db_password}@${db_host}:${db_port}/tale_rag"
+	    # RAG database URL - uses tale_knowledge database (shared with crawler, separate schemas)
+	    export RAG_DATABASE_URL="postgresql://${db_user}:${db_password}@${db_host}:${db_port}/tale_knowledge"
 	  else
 	    export POSTGRES_URL="${POSTGRES_URL}"
 	    # If POSTGRES_URL is set explicitly, RAG_DATABASE_URL should also be set explicitly
-	    # or we construct it by appending /tale_rag to the base URL
+	    # or we construct it by appending /tale_knowledge to the base URL
 	    if [ -z "${RAG_DATABASE_URL:-}" ]; then
-	      export RAG_DATABASE_URL="${POSTGRES_URL}/tale_rag"
+	      export RAG_DATABASE_URL="${POSTGRES_URL}/tale_knowledge"
 	    fi
 	  fi
 
