@@ -55,9 +55,9 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       ),
     },
     {
-      id: 'pages',
-      header: tEntity('pages'),
-      size: 120,
+      id: 'indexed',
+      header: tEntity('indexed'),
+      size: 108,
       cell: ({ row }) => <WebsitePagesCell website={row.original} />,
     },
     {
