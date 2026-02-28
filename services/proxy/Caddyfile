@@ -117,6 +117,42 @@
 	}
 
 	# ============================================================================
+	# Metrics Proxy (enabled when METRICS_BEARER_TOKEN is set)
+	# Proxies /metrics/{service} → internal {service}:{port}/metrics
+	# ============================================================================
+
+	@metricsAuth {
+		path /metrics/crawler /metrics/rag /metrics/operator /metrics/platform
+		header Authorization "Bearer {$METRICS_BEARER_TOKEN:__disabled__}"
+	}
+	handle @metricsAuth {
+		handle /metrics/crawler {
+			rewrite * /metrics
+			reverse_proxy crawler:8002
+		}
+		handle /metrics/rag {
+			rewrite * /metrics
+			reverse_proxy rag:8001
+		}
+		handle /metrics/operator {
+			rewrite * /metrics
+			reverse_proxy operator:8004
+		}
+		handle /metrics/platform {
+			rewrite * /metrics
+			reverse_proxy platform:3000
+		}
+	}
+
+	# Block all other /metrics requests (no token, wrong token, or unknown service)
+	@metricsBlock {
+		path_regexp (?i)^/metrics(/.*)?$
+	}
+	handle @metricsBlock {
+		respond "Not Found" 404
+	}
+
+	# ============================================================================
 	# Express Server (static files + HTML env injection only)
 	# ============================================================================
 

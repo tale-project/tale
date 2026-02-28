@@ -38,12 +38,14 @@ from app.routers import (
 from app.services.crawler_service import get_crawler_service
 from app.services.image_service import get_image_service
 from app.services.pdf_service import get_pdf_service
+from app.telemetry import init_telemetry, shutdown_telemetry
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Lifespan context manager for startup and shutdown events."""
     # Startup
+    init_telemetry(app)
     logger.info(f"Starting Tale Crawler service v{__version__}...")
     logger.info(f"Server: {settings.host}:{settings.port}")
     logger.info(f"Log level: {settings.log_level}")
@@ -143,6 +145,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
             logger.info("Crawler service cleaned up")
     except Exception:
         logger.exception("Failed to cleanup crawler service")
+
+    shutdown_telemetry()
 
 
 # Create FastAPI application

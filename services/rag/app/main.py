@@ -14,6 +14,7 @@ from .config import settings
 from .models import ErrorResponse
 from .routers import documents_router, health_router, jobs_router, search_router
 from .services.rag_service import rag_service
+from .telemetry import init_telemetry, shutdown_telemetry
 from .utils import cleanup_memory
 
 
@@ -32,6 +33,8 @@ async def periodic_gc_cleanup() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for the application."""
+    # Startup
+    init_telemetry(app)
     logger.info("Starting Tale RAG service...")
     logger.info("Version: {}", __version__)
     logger.info("Host: {}:{}", settings.host, settings.port)
@@ -85,6 +88,7 @@ async def lifespan(app: FastAPI):
         await gc_task
 
     await rag_service.shutdown()
+    shutdown_telemetry()
     logger.info("Shutting down Tale RAG service...")
 
 
