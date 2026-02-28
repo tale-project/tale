@@ -16,6 +16,7 @@ export const websitesTable = defineTable({
       v.literal('scanning'),
       v.literal('active'),
       v.literal('error'),
+      v.literal('deleting'),
     ),
   ),
   pageCount: v.optional(v.number()),

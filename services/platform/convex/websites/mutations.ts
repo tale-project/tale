@@ -10,6 +10,7 @@ const websiteStatusValidator = v.union(
   v.literal('scanning'),
   v.literal('active'),
   v.literal('error'),
+  v.literal('deleting'),
 );
 
 export const updateWebsite = mutation({

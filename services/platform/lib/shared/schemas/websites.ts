@@ -2,7 +2,13 @@ import { z } from 'zod/v4';
 
 import { jsonRecordSchema } from './utils/json-value';
 
-const websiteStatusLiterals = ['idle', 'scanning', 'active', 'error'] as const;
+const websiteStatusLiterals = [
+  'idle',
+  'scanning',
+  'active',
+  'error',
+  'deleting',
+] as const;
 export const websiteStatusSchema = z.enum(websiteStatusLiterals);
 type WebsiteStatus = z.infer<typeof websiteStatusSchema>;
 

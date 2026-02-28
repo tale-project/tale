@@ -39,6 +39,7 @@ def _website_row(domain="example.com", scan_interval=21600, **overrides):
 
 class TestRegisterWebsite:
     async def test_success(self, mock_manager):
+        mock_manager.get_website.return_value = None
         mock_manager.register_website.return_value = {
             "domain": "example.com",
             "status": "idle",
@@ -115,6 +116,7 @@ class TestRegisterWebsite:
         )
 
     async def test_returns_scanning_status_immediately(self, mock_manager):
+        mock_manager.get_website.return_value = None
         mock_manager.register_website.return_value = {
             "domain": "example.com",
             "status": "idle",
@@ -138,7 +140,21 @@ class TestRegisterWebsite:
         assert data["crawled_count"] == 0
         assert data["status"] == "scanning"
 
+    async def test_409_when_domain_is_deleting(self, mock_manager):
+        mock_manager.get_website.return_value = _website_row(status="deleting")
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/api/v1/websites",
+                json={"domain": "example.com"},
+            )
+
+        assert response.status_code == 409
+        assert "currently being deleted" in response.json()["detail"]
+        mock_manager.register_website.assert_not_awaited()
+
     async def test_500_on_error(self, mock_manager):
+        mock_manager.get_website.return_value = None
         mock_manager.register_website.side_effect = RuntimeError("db error")
 
         with (
@@ -210,20 +226,23 @@ class TestGetWebsiteInfo:
 
 
 class TestDeregisterWebsite:
-    async def test_success(self, mock_manager):
-        mock_manager.remove_website.return_value = True
+    async def test_returns_202_accepted(self, mock_manager):
+        mock_manager.begin_delete.return_value = True
 
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.delete("/api/v1/websites/example.com")
+        with patch("app.routers.websites._spawn_delete_task") as mock_spawn:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.delete("/api/v1/websites/example.com")
 
-        assert response.status_code == 200
+        assert response.status_code == 202
         data = response.json()
         assert data["domain"] == "example.com"
-        assert data["deleted"] is True
-        mock_manager.remove_website.assert_awaited_once_with("example.com")
+        assert data["status"] == "deleting"
+        mock_manager.begin_delete.assert_awaited_once_with("example.com")
+        mock_spawn.assert_called_once_with(mock_manager, "example.com")
 
     async def test_404_when_not_found(self, mock_manager):
-        mock_manager.remove_website.return_value = False
+        mock_manager.begin_delete.return_value = False
+        mock_manager.get_website.return_value = None
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.delete("/api/v1/websites/unknown.com")
@@ -231,8 +250,20 @@ class TestDeregisterWebsite:
         assert response.status_code == 404
         assert response.json()["detail"] == "Website not found: unknown.com"
 
+    async def test_already_deleting_returns_202(self, mock_manager):
+        mock_manager.begin_delete.return_value = False
+        mock_manager.get_website.return_value = _website_row(status="deleting")
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.delete("/api/v1/websites/example.com")
+
+        assert response.status_code == 202
+        data = response.json()
+        assert data["domain"] == "example.com"
+        assert data["status"] == "deleting"
+
     async def test_500_on_error(self, mock_manager):
-        mock_manager.remove_website.side_effect = RuntimeError("db error")
+        mock_manager.begin_delete.side_effect = RuntimeError("db error")
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.delete("/api/v1/websites/example.com")

@@ -126,6 +126,33 @@ class TestCrawlerRunConfigSetup:
         assert config.exclude_social_media_links is True
 
 
+class TestBrowserConfig:
+    """Verify that BrowserConfig is created with container-optimized Chrome flags."""
+
+    async def test_browser_config_has_container_flags(self):
+        """Chrome should launch with flags that prevent zombie processes in Docker."""
+        captured_config = {}
+
+        with (
+            patch("crawl4ai.BrowserConfig") as mock_bc,
+            patch("crawl4ai.AsyncUrlSeeder") as mock_seeder,
+            patch("crawl4ai.AsyncWebCrawler") as mock_crawler,
+        ):
+            mock_bc.side_effect = lambda **kwargs: captured_config.update(kwargs) or MagicMock()
+            mock_seeder.return_value.__aenter__ = AsyncMock()
+            mock_crawler.return_value.__aenter__ = AsyncMock()
+
+            service = CrawlerService()
+            await service.initialize()
+
+        extra_args = captured_config["extra_args"]
+        assert "--disable-dev-shm-usage" in extra_args
+        assert "--disable-gpu" in extra_args
+        assert "--no-zygote" in extra_args
+        assert "--disable-breakpad" in extra_args
+        assert "--disable-crash-reporter" in extra_args
+
+
 class TestExtractStructuredData:
     """Verify structured data extraction from HTML."""
 

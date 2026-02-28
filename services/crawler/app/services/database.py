@@ -5,8 +5,11 @@ Provides a singleton pool tied to FastAPI's lifespan for the tale_search databas
 """
 
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import asyncpg
+import stamina
 from loguru import logger
 
 from app.config import settings
@@ -23,14 +26,14 @@ def _get_database_url() -> str:
     return f"postgresql://tale:{password}@db:5432/tale_search"
 
 
-async def init_pool() -> asyncpg.Pool:
+async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
     global _pool
     if _pool is not None:
         return _pool
 
     dsn = _get_database_url()
-    _pool = await asyncpg.create_pool(dsn, min_size=5, max_size=25)
-    logger.info("PostgreSQL connection pool initialized")
+    _pool = await asyncpg.create_pool(dsn, min_size=min(2, max_size), max_size=max_size)
+    logger.info(f"PostgreSQL connection pool initialized (min={min(2, max_size)}, max={max_size})")
 
     # Guard against embedding dimension mismatch: if existing data uses a
     # different dimension than the current config, refuse to start.
@@ -74,6 +77,25 @@ async def init_pool() -> asyncpg.Pool:
         logger.warning(f"HNSW index creation deferred: {e}")
 
     return _pool
+
+
+_TRANSIENT_ERRORS = (asyncpg.CannotConnectNowError, OSError)
+
+
+@asynccontextmanager
+async def acquire_with_retry(pool: asyncpg.Pool) -> AsyncIterator[asyncpg.Connection]:
+    """Acquire a pooled connection, retrying on transient DB errors."""
+    async for attempt in stamina.retry_context(
+        on=_TRANSIENT_ERRORS,
+        attempts=5,
+        timeout=30,
+    ):
+        with attempt:
+            conn = await pool.acquire()
+    try:
+        yield conn
+    finally:
+        await pool.release(conn)
 
 
 def get_pool() -> asyncpg.Pool:
