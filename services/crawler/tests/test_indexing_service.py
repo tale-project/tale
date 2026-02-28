@@ -186,7 +186,9 @@ class TestParagraphHashTracking:
 
         with patch("app.services.indexing_service.chunk_content") as mock_chunk:
             mock_chunk.return_value = [ContentChunk(content="chunk", index=0)]
-            result = await indexing_service.index_page("example.com", "https://example.com/page", "Title", "content")
+            result = await indexing_service.index_page(
+                "example.com", "https://example.com/page", "Title", "content long enough to hash"
+            )
 
         assert result["status"] == "error"
         executemany_calls = mock_conn.executemany.call_args_list

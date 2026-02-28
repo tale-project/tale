@@ -10,6 +10,7 @@ import unicodedata
 
 BOILERPLATE_FREQUENCY_THRESHOLD = 0.5
 MIN_DOMAIN_PAGES_FOR_DEDUP = 5
+MIN_LINE_LENGTH = 10
 
 
 def paragraph_hash(text: str) -> str:
@@ -18,18 +19,28 @@ def paragraph_hash(text: str) -> str:
     return hashlib.md5(normalized.encode()).hexdigest()
 
 
-def extract_paragraph_hashes(content: str) -> list[str]:
-    """Extract unique paragraph hashes from markdown content.
+def _is_hashable_line(line: str) -> bool:
+    """Whether a line is long enough to be a meaningful fingerprint."""
+    return len(line.strip()) >= MIN_LINE_LENGTH
 
-    Splits on double-newline boundaries. Deduplicates within a page
-    so repeated paragraphs don't inflate cross-page frequency.
+
+def extract_paragraph_hashes(content: str) -> list[str]:
+    """Extract unique line-level hashes from markdown content.
+
+    Splits on single newlines for line-level granularity so that
+    boilerplate lines (cookie banners, nav, footers) are individually
+    fingerprinted even when the crawler emits single-newline-separated
+    markdown. Lines shorter than MIN_LINE_LENGTH are skipped.
+    Deduplicates within a page so repeated lines don't inflate
+    cross-page frequency.
     """
     seen: set[str] = set()
     result: list[str] = []
-    for para in content.strip().split("\n\n"):
-        if not para.strip():
+    for line in content.strip().split("\n"):
+        stripped = line.strip()
+        if not stripped or not _is_hashable_line(stripped):
             continue
-        h = paragraph_hash(para)
+        h = paragraph_hash(stripped)
         if h not in seen:
             seen.add(h)
             result.append(h)
@@ -41,19 +52,24 @@ def filter_boilerplate_paragraphs(
     frequencies: dict[str, float],
     threshold: float = BOILERPLATE_FREQUENCY_THRESHOLD,
 ) -> str:
-    """Remove paragraphs exceeding the frequency threshold.
+    """Remove lines exceeding the frequency threshold.
 
     Args:
         content: Raw markdown page content.
         frequencies: Mapping of paragraph_hash to fraction of pages (0.0-1.0).
-        threshold: Paragraphs appearing on more than this fraction are removed.
+        threshold: Lines appearing on more than this fraction are removed.
 
-    Returns content with boilerplate paragraphs removed. If frequencies is
-    empty (domain too small), returns content unchanged.
+    Returns content with boilerplate lines removed. Lines shorter than
+    MIN_LINE_LENGTH are always kept (not enough signal to fingerprint).
+    If frequencies is empty (domain too small), returns content unchanged.
     """
     if not frequencies:
         return content
 
-    paragraphs = content.strip().split("\n\n")
-    kept = [p for p in paragraphs if frequencies.get(paragraph_hash(p), 0.0) <= threshold]
-    return "\n\n".join(kept)
+    lines = content.split("\n")
+    kept = [
+        line
+        for line in lines
+        if not _is_hashable_line(line) or frequencies.get(paragraph_hash(line.strip()), 0.0) <= threshold
+    ]
+    return "\n".join(kept)

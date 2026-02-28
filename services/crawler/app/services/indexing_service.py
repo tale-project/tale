@@ -28,7 +28,7 @@ INDEXING_CONCURRENCY = 5
 
 _UPSERT_WEBSITE_URL = """\
 INSERT INTO website_urls (domain, url, title, content_hash, status, discovered_at, last_crawled_at, metadata)
-VALUES ($1, $2, $3, $4, 'active', NOW(), NOW(), jsonb_build_object('filtering_hash', $5))
+VALUES ($1, $2, $3, $4, 'active', NOW(), NOW(), jsonb_build_object('filtering_hash', $5::text))
 ON CONFLICT (domain, url) DO UPDATE SET
   title = COALESCE(EXCLUDED.title, website_urls.title),
   content_hash = EXCLUDED.content_hash,
