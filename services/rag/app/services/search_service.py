@@ -69,7 +69,7 @@ class RagSearchService:
                 {
                     "content": item["chunk_content"],
                     "score": item["rrf_score"],
-                    "document_id": item.get("document_id"),
+                    "document_id": str(item["document_id"]) if item.get("document_id") else None,
                 }
                 for item in merged
             ]
@@ -89,7 +89,7 @@ class RagSearchService:
                     {
                         "content": item["chunk_content"],
                         "score": 1.0 / (i + 1),
-                        "document_id": item.get("document_id"),
+                        "document_id": str(item["document_id"]) if item.get("document_id") else None,
                     }
                     for i, item in enumerate(vector_results)
                 ]

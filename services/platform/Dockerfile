@@ -15,7 +15,6 @@ COPY package.json package-lock.json ./
 COPY services/platform/package.json ./services/platform/
 COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
-COPY services/graph-db/package.json ./services/graph-db/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
 

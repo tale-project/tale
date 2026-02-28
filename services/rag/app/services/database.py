@@ -55,14 +55,18 @@ async def close_pool() -> None:
 async def ensure_embedding_dimensions(pool: asyncpg.Pool, dimensions: int) -> None:
     """Pin the embedding column to explicit dimensions and create HNSW index."""
     async with acquire_with_retry(pool) as conn:
-        col_type = await conn.fetchval(
-            """
-            SELECT format_type(atttypid, atttypmod)
-            FROM pg_attribute
-            WHERE attrelid = $1::regclass AND attname = 'embedding'
-            """,
-            f"{SCHEMA}.chunks",
-        )
+        try:
+            col_type = await conn.fetchval(
+                """
+                SELECT format_type(atttypid, atttypmod)
+                FROM pg_attribute
+                WHERE attrelid = $1::regclass AND attname = 'embedding'
+                """,
+                f"{SCHEMA}.chunks",
+            )
+        except asyncpg.exceptions.UndefinedTableError:
+            logger.warning(f"{SCHEMA}.chunks table does not exist yet, skipping dimension check")
+            return
 
         expected_type = f"vector({dimensions})"
 
@@ -78,5 +82,11 @@ async def ensure_embedding_dimensions(pool: asyncpg.Pool, dimensions: int) -> No
         else:
             logger.info(f"Embedding column already pinned to {expected_type}")
 
-        await conn.execute(f"SELECT {SCHEMA}.create_chunks_hnsw_index()")
-        logger.info("HNSW index ensured")
+        try:
+            await conn.execute(f"SELECT {SCHEMA}.create_chunks_hnsw_index()")
+            logger.info("HNSW index ensured")
+        except asyncpg.exceptions.ProgramLimitExceededError:
+            logger.warning(
+                f"Cannot create HNSW index: {dimensions} dimensions exceeds pgvector limit (2000). "
+                "Vector search will use sequential scan. Consider reducing dimensions."
+            )

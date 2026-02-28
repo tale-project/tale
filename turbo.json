@@ -21,9 +21,6 @@
     "@tale/db#build": {
       "outputs": []
     },
-    "@tale/graph-db#build": {
-      "outputs": []
-    },
     "@tale/proxy#build": {
       "outputs": []
     },

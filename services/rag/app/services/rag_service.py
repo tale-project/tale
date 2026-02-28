@@ -379,9 +379,12 @@ class RagService:
                     status TEXT NOT NULL DEFAULT 'processing',
                     chunks_count INTEGER NOT NULL DEFAULT 0,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    UNIQUE(document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
+            """)
+            await conn.execute(f"""
+                CREATE UNIQUE INDEX idx_pk_docs_unique_scope
+                ON {SCHEMA}.documents(document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
             """)
 
             await conn.execute(f"""
@@ -425,6 +428,46 @@ class RagService:
             await conn.execute(f"""
                 CREATE INDEX idx_pk_chunks_user ON {SCHEMA}.chunks(user_id)
                 WHERE user_id IS NOT NULL
+            """)
+            await conn.execute(f"""
+                CREATE INDEX idx_pk_jobs_state ON {SCHEMA}.rag_jobs(state)
+            """)
+            await conn.execute(f"""
+                CREATE INDEX idx_pk_jobs_updated ON {SCHEMA}.rag_jobs(updated_at)
+            """)
+
+            # BM25 index (may fail if table is empty, that's ok)
+            try:
+                await conn.execute(f"""
+                    CREATE INDEX idx_pk_chunks_bm25 ON {SCHEMA}.chunks
+                    USING bm25 (id, chunk_content) WITH (key_field='id')
+                """)
+            except Exception as e:
+                logger.info(f"BM25 index deferred: {e}")
+
+            # Recreate HNSW index function
+            await conn.execute(f"""
+                CREATE OR REPLACE FUNCTION {SCHEMA}.create_chunks_hnsw_index()
+                RETURNS void AS $fn$
+                DECLARE col_type text;
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_indexes
+                        WHERE schemaname = '{SCHEMA}'
+                        AND indexname = 'idx_pk_chunks_embedding_hnsw'
+                    ) THEN
+                        SELECT format_type(atttypid, atttypmod) INTO col_type
+                        FROM pg_attribute
+                        WHERE attrelid = '{SCHEMA}.chunks'::regclass AND attname = 'embedding';
+                        IF col_type = 'vector' THEN
+                            RAISE EXCEPTION '{SCHEMA}.chunks.embedding has no dimensions';
+                        END IF;
+                        EXECUTE 'CREATE INDEX idx_pk_chunks_embedding_hnsw
+                            ON {SCHEMA}.chunks USING hnsw (embedding vector_cosine_ops)
+                            WITH (m = 16, ef_construction = 64)';
+                    END IF;
+                END;
+                $fn$ LANGUAGE plpgsql
             """)
 
         # Re-pin embedding dimensions and recreate HNSW

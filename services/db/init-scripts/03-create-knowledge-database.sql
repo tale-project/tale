@@ -150,10 +150,11 @@ CREATE TABLE IF NOT EXISTS private_knowledge.documents (
     status        TEXT NOT NULL DEFAULT 'processing',
     chunks_count  INTEGER NOT NULL DEFAULT 0,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pk_docs_unique_scope
+    ON private_knowledge.documents(document_id, COALESCE(team_id, ''), COALESCE(user_id, ''));
 CREATE INDEX IF NOT EXISTS idx_pk_docs_docid ON private_knowledge.documents(document_id);
 CREATE INDEX IF NOT EXISTS idx_pk_docs_team ON private_knowledge.documents(team_id) WHERE team_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pk_docs_user ON private_knowledge.documents(user_id) WHERE user_id IS NOT NULL;

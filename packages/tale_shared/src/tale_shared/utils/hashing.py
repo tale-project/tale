@@ -3,10 +3,8 @@
 import hashlib
 from pathlib import Path
 
-import aiofiles
 
-
-async def compute_file_hash(file_path: str | Path) -> str:
+def compute_file_hash(file_path: str | Path) -> str:
     """Compute SHA-256 hash of a file's content.
 
     Args:
@@ -16,8 +14,8 @@ async def compute_file_hash(file_path: str | Path) -> str:
         Hex-encoded SHA-256 hash string.
     """
     sha256 = hashlib.sha256()
-    async with aiofiles.open(file_path, "rb") as f:
-        while chunk := await f.read(8192):
+    with open(file_path, "rb") as f:
+        while chunk := f.read(8192):
             sha256.update(chunk)
     return sha256.hexdigest()
 
