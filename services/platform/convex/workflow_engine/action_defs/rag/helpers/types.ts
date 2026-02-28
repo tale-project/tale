@@ -17,6 +17,8 @@ export type RagActionParams =
       operation: 'delete_document';
       /** Document record ID from the platform */
       recordId: string;
+      /** Deletion mode: 'soft' keeps the record but marks deleted, 'hard' removes entirely. */
+      mode?: 'soft' | 'hard';
     };
 
 /**
