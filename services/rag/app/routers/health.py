@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from .. import __version__
 from ..config import settings
 from ..models import ConfigResponse, HealthResponse
-from ..services.cognee import cognee_service
+from ..services.rag_service import rag_service
 
 router = APIRouter(tags=["Health"])
 
@@ -18,7 +18,7 @@ async def root():
     return {
         "name": "Tale RAG API",
         "version": __version__,
-        "description": "Retrieval-Augmented Generation service using cognee",
+        "description": "Retrieval-Augmented Generation service for Tale",
         "docs": "/docs",
         "redoc": "/redoc",
         "openapi": "/openapi.json",
@@ -30,14 +30,14 @@ async def root():
 async def health():
     """Health check endpoint.
 
-    Returns status="healthy" when cognee is initialized,
-    status="degraded" when cognee is not yet initialized.
+    Returns status="healthy" when the RAG service is initialized,
+    status="degraded" when not yet initialized.
     """
-    is_initialized = cognee_service.initialized
+    is_initialized = rag_service.initialized
     return HealthResponse(
         status="healthy" if is_initialized else "degraded",
         version=__version__,
-        cognee_initialized=is_initialized,
+        initialized=is_initialized,
     )
 
 
@@ -55,6 +55,4 @@ async def get_config():
         chunk_overlap=settings.chunk_overlap,
         top_k=settings.top_k,
         similarity_threshold=settings.similarity_threshold,
-        enable_graph_storage=settings.enable_graph_storage,
-        enable_vector_search=settings.enable_vector_search,
     )

@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.services.cognee.utils import sanitize_team_id
+from app.utils.sanitize import sanitize_team_id
 
 
 def _validate_and_sanitize_tenant_ids(
@@ -57,7 +57,7 @@ class HealthResponse(BaseModel):
 
     status: str = Field(..., description="Service health status")
     version: str = Field(..., description="Service version")
-    cognee_initialized: bool = Field(..., description="Whether cognee is initialized")
+    initialized: bool = Field(..., description="Whether the RAG service is initialized")
 
 
 class ConfigResponse(BaseModel):
@@ -72,8 +72,6 @@ class ConfigResponse(BaseModel):
     chunk_overlap: int
     top_k: int
     similarity_threshold: float
-    enable_graph_storage: bool
-    enable_vector_search: bool
 
 
 # ============================================================================
@@ -149,11 +147,6 @@ class DocumentAddResponse(BaseModel):
         default=None,
         description="Background job identifier when ingestion is queued",
     )
-    cleaned_datasets: list[str] | None = Field(
-        default=None,
-        description="List of old datasets that were cleaned up during upload "
-        "(when document was moved to a different team/dataset)",
-    )
     skipped: bool = Field(
         default=False,
         description="Whether ingestion was skipped due to content being unchanged",
@@ -181,7 +174,7 @@ class DocumentDeleteResponse(BaseModel):
     )
     deleted_data_ids: list[str] = Field(
         default_factory=list,
-        description="List of Cognee Data IDs that were deleted",
+        description="List of document IDs that were deleted",
     )
     processing_time_ms: float | None = Field(
         default=None,
@@ -251,23 +244,9 @@ class JobStatus(BaseModel):
 
 
 class SearchType(StrEnum):
-    """Search type for knowledge base queries.
-
-    Available types (from Cognee 0.4.0):
-    - CHUNKS: Return raw text chunks (best for detailed content retrieval)
-    - GRAPH_COMPLETION: Use knowledge graph for reasoning
-    - RAG_COMPLETION: Shorter answers based on chunks
-    - SUMMARIES: Return document summaries only
-    - GRAPH_SUMMARY_COMPLETION: Graph summary with completion
-    - TEMPORAL: Time-aware search
-    """
+    """Search type for knowledge base queries."""
 
     CHUNKS = "CHUNKS"
-    GRAPH_COMPLETION = "GRAPH_COMPLETION"
-    RAG_COMPLETION = "RAG_COMPLETION"
-    SUMMARIES = "SUMMARIES"
-    GRAPH_SUMMARY_COMPLETION = "GRAPH_SUMMARY_COMPLETION"
-    TEMPORAL = "TEMPORAL"
 
 
 class QueryRequest(BaseModel):
@@ -300,7 +279,7 @@ class QueryRequest(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_and_sanitize(self):
+    def validate_and_sanitize_query(self):
         """Validate and sanitize tenant IDs."""
         sanitized = _validate_and_sanitize_tenant_ids(self.user_id, self.team_ids)
         if sanitized is not None:
@@ -370,26 +349,6 @@ class GenerateResponse(BaseModel):
     response: str = Field(..., description="Generated response")
     sources: list[SearchResult] = Field(..., description="Source documents used")
     processing_time_ms: float = Field(..., description="Total processing time in milliseconds")
-
-
-# ============================================================================
-# Knowledge Graph Models
-# ============================================================================
-
-
-class GraphQueryRequest(BaseModel):
-    """Request to query the knowledge graph."""
-
-    query: str = Field(..., description="Graph query (Cypher or natural language)")
-    query_type: str = Field(default="natural", description="Query type: 'natural' or 'cypher'")
-
-
-class GraphQueryResponse(BaseModel):
-    """Response from knowledge graph query."""
-
-    success: bool = Field(..., description="Whether the query succeeded")
-    results: list[dict[str, Any]] = Field(..., description="Query results")
-    total_results: int = Field(..., description="Total number of results")
 
 
 # ============================================================================

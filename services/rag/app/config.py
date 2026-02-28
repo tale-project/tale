@@ -10,7 +10,7 @@ import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.utils.model_list import get_first_model
+from tale_shared.utils.model_list import get_first_model
 
 
 class Settings(BaseSettings):
@@ -34,63 +34,41 @@ class Settings(BaseSettings):
     # ========================================================================
     # Database Configuration
     # ========================================================================
-    # PostgreSQL connection for cognee storage and PGVector
     database_url: str | None = None
+    database_pool_min: int = 2
+    database_pool_max: int = 10
 
     # ========================================================================
     # LLM Provider Configuration (OpenAI-compatible)
     # ========================================================================
-    # Supports OpenAI-compatible APIs. Set openai_base_url for alternatives:
-    #   - OpenRouter: https://openrouter.ai/api/v1
-    #   - DeepSeek: https://api.deepseek.com
-    #   - Together AI: https://api.together.xyz/v1
-    #   - Ollama (local): http://localhost:11434/v1
     openai_api_key: str | None = None
     openai_base_url: str | None = None
     openai_max_tokens: int | None = None
     openai_temperature: float | None = None
 
     # ========================================================================
-    # Cognee Configuration
+    # Chunking & Search Configuration
     # ========================================================================
-    cognee_data_dir: str = "/app/data"
-    chunk_size: int = 512
-    chunk_overlap: int = 50
+    chunk_size: int = 2048
+    chunk_overlap: int = 200
     top_k: int = 5
     similarity_threshold: float = 0.7
     max_document_size_mb: int = 100
-    # Maximum time (in seconds) for document ingestion before timeout
-    # Default: 3 hours (10800 seconds)
     ingestion_timeout_seconds: int = 10800
 
     # ========================================================================
     # Vision API Configuration
     # ========================================================================
-    # Vision model for OCR and image description (OpenAI-compatible)
     openai_vision_model: str | None = None
-    # Maximum concurrent Vision API calls per PDF (1 = sequential with rate limiting)
     vision_max_concurrent_pages: int = 1
-    # DPI for rendering PDF pages as images for OCR
     vision_pdf_dpi: int = 150
-    # Custom prompt for text extraction (optional)
     vision_extraction_prompt: str | None = None
-    # Timeout for individual Vision API requests (OCR/describe) in seconds
     vision_request_timeout: int = 180
-    # Timeout for entire Vision pre-processing step in seconds (0 = use 30% of ingestion_timeout)
     vision_preprocessing_timeout: int = 0
-
-    # ========================================================================
-    # Knowledge Graph Extraction Configuration
-    # ========================================================================
-    # Custom prompt for knowledge graph extraction (controls entity/relationship naming)
-    # If not set, uses default prompt that enforces English identifiers for FalkorDB
-    graph_extraction_prompt: str | None = None
 
     # ========================================================================
     # Feature Flags
     # ========================================================================
-    enable_graph_storage: bool = True
-    enable_vector_search: bool = True
     enable_metrics: bool = True
     enable_query_logging: bool = False
 
@@ -120,11 +98,10 @@ class Settings(BaseSettings):
         raise ValueError("RAG_DATABASE_URL must be set in environment")
 
     def get_llm_config(self) -> dict:
-        """Get LLM configuration for cognee.
+        """Get LLM configuration.
 
         LLM and embedding configuration is driven by generic OPENAI_* environment
         variables so that the same settings can be shared across services.
-        All required environment variables must be explicitly set - no defaults.
 
         Required environment variables:
         - OPENAI_API_KEY: API key for OpenAI-compatible provider
@@ -135,7 +112,6 @@ class Settings(BaseSettings):
         Raises:
             ValueError: If any required environment variable is not set.
         """
-        # API key: prefer RAG_OPENAI_API_KEY (openai_api_key), then OPENAI_API_KEY
         api_key = self.openai_api_key or os.environ.get("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY must be set in environment. No default API key is provided.")
@@ -166,9 +142,7 @@ class Settings(BaseSettings):
             if max_tokens_env is not None:
                 max_tokens = int(max_tokens_env)
 
-        # Temperature: prefer RAG_OPENAI_TEMPERATURE (openai_temperature), then OPENAI_TEMPERATURE.
-        # If neither is set, do NOT force a default so the underlying client/BAML
-        # can use its own model-appropriate default.
+        # Temperature: prefer RAG_OPENAI_TEMPERATURE, then OPENAI_TEMPERATURE.
         temperature: float | None = None
         if self.openai_temperature is not None:
             temperature = self.openai_temperature
