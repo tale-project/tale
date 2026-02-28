@@ -2,7 +2,7 @@
 import type { UIMessage } from '@convex-dev/agent/react';
 
 import { renderHook } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useChatLoadingState } from '../use-chat-loading-state';
 
@@ -548,6 +548,132 @@ describe('useChatLoadingState', () => {
       );
 
       expect(setIsPending).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('multi-step tool calls (some() scan)', () => {
+    it('stays true when earlier assistant message is still pending but last is success', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: false,
+          setIsPending,
+          uiMessages: [
+            createUIMessage({
+              id: 'msg-1',
+              order: 0,
+              role: 'assistant',
+              status: 'pending',
+            }),
+            createUIMessage({
+              id: 'msg-2',
+              order: 1,
+              role: 'assistant',
+              status: 'success',
+            }),
+          ],
+          threadId: THREAD_A,
+          pendingThreadId: null,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    it('stays true when earlier assistant message is streaming but last is success', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: false,
+          setIsPending,
+          uiMessages: [
+            createUIMessage({
+              id: 'msg-1',
+              order: 0,
+              role: 'assistant',
+              status: 'streaming',
+            }),
+            createUIMessage({
+              id: 'msg-2',
+              order: 1,
+              role: 'assistant',
+              status: 'success',
+            }),
+          ],
+          threadId: THREAD_A,
+          pendingThreadId: null,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    it('stays true when first message is success but second is streaming (tool-result retry)', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: false,
+          setIsPending,
+          uiMessages: [
+            createUIMessage({
+              id: 'msg-1',
+              order: 0,
+              role: 'user',
+              text: 'Tell me about RAG',
+            }),
+            createUIMessage({
+              id: 'msg-2',
+              order: 1,
+              role: 'assistant',
+              status: 'success',
+              text: 'Let me search...',
+            }),
+            createUIMessage({
+              id: 'msg-3',
+              order: 2,
+              role: 'assistant',
+              status: 'streaming',
+              text: 'Based on the tool results...',
+            }),
+          ],
+          threadId: THREAD_A,
+          pendingThreadId: null,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    it('returns false only when all assistant messages are terminal', () => {
+      const { result } = renderHook(() =>
+        useChatLoadingState({
+          isPending: false,
+          setIsPending,
+          uiMessages: [
+            createUIMessage({
+              id: 'msg-1',
+              order: 0,
+              role: 'user',
+              text: 'Search my docs',
+            }),
+            createUIMessage({
+              id: 'msg-2',
+              order: 1,
+              role: 'assistant',
+              status: 'success',
+              text: 'Let me search...',
+            }),
+            createUIMessage({
+              id: 'msg-3',
+              order: 2,
+              role: 'assistant',
+              status: 'success',
+              text: 'Here are the results.',
+            }),
+          ],
+          threadId: THREAD_A,
+          pendingThreadId: null,
+        }),
+      );
+
+      expect(result.current.isLoading).toBe(false);
     });
   });
 });

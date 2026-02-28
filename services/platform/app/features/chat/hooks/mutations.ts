@@ -26,3 +26,7 @@ export function useDeleteThread() {
 export function useUpdateThread() {
   return useConvexMutation(api.threads.mutations.updateChatThread);
 }
+
+export function useCancelGeneration() {
+  return useConvexMutation(api.threads.mutations.cancelGeneration);
+}

@@ -29,6 +29,7 @@ import { useMessageProcessing } from '../hooks/use-message-processing';
 import { usePendingMessages } from '../hooks/use-pending-messages';
 import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
 import { useSendMessage } from '../hooks/use-send-message';
+import { useStopGenerating } from '../hooks/use-stop-generating';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
@@ -83,6 +84,7 @@ export function ChatInterface({
     loadMore,
     canLoadMore,
     isLoadingMore,
+    activeMessage,
     streamingMessage,
   } = useMessageProcessing(threadId);
 
@@ -126,6 +128,9 @@ export function ChatInterface({
     threadId,
     pendingThreadId,
   });
+
+  // Stop generating
+  const { stopGenerating, resetCancelled } = useStopGenerating({ threadId });
 
   // Auto-scroll
   const { containerRef, contentRef, scrollToBottom, scrollTo, isAtBottom } =
@@ -204,6 +209,7 @@ export function ChatInterface({
     setPendingMessage,
     clearChatState,
     onBeforeSend: () => {
+      resetCancelled();
       shouldScrollToAIRef.current = true;
     },
     selectedAgent: effectiveAgent,
@@ -256,6 +262,7 @@ export function ChatInterface({
             canLoadMore={canLoadMore}
             isLoadingMore={isLoadingMore}
             loadMore={loadMore}
+            activeMessage={activeMessage}
             streamingMessage={streamingMessage}
             isLoading={isLoading}
             aiResponseAreaRef={aiResponseAreaRef}
@@ -295,6 +302,7 @@ export function ChatInterface({
             value={inputValue}
             onChange={setInputValue}
             onSendMessage={handleSendMessage}
+            onStopGenerating={stopGenerating}
             isLoading={isLoading}
             disabled={hasNoAgents}
             organizationId={organizationId}

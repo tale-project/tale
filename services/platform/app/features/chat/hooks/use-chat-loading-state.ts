@@ -13,10 +13,9 @@ interface UseChatLoadingStateParams {
 /**
  * Derives a single `isLoading` boolean that answers: "Is the AI turn active?"
  *
- * The AI turn is considered complete (not loading) only when BOTH conditions
- * are met:
- *   1. The last message is from the assistant
- *   2. The last message has a terminal status (success/failed)
+ * Pure synchronous derivation — no async state, no debounce. Scans ALL
+ * messages (not just the last) so that a non-terminal assistant message
+ * anywhere in the list keeps loading true.
  *
  * `failed` is unconditionally terminal — even mid-tool-call — because the
  * SDK maps stream abort to `failed` (not `aborted`), and a failed generation
@@ -39,12 +38,22 @@ export function useChatLoadingState({
   const isLoading = useMemo(() => {
     if (!uiMessages?.length) return isPending;
 
-    const lastMessage = uiMessages[uiMessages.length - 1];
+    // If ANY assistant message is still active, the turn isn't done
+    if (
+      uiMessages.some(
+        (m) =>
+          m.role === 'assistant' &&
+          m.status !== 'success' &&
+          m.status !== 'failed',
+      )
+    )
+      return true;
 
-    const status: string | undefined = lastMessage.status;
+    const lastMessage = uiMessages[uiMessages.length - 1];
 
     if (lastMessage.role !== 'assistant') return true;
 
+    const status: string | undefined = lastMessage.status;
     return !(status === 'success' || status === 'failed');
   }, [isPending, uiMessages]);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Paperclip, ArrowUp } from 'lucide-react';
+import { X, Paperclip, ArrowUp, CircleStop } from 'lucide-react';
 import { LoaderCircleIcon } from 'lucide-react';
 import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
 
@@ -31,6 +31,7 @@ interface ChatInputProps extends Omit<
   'onChange'
 > {
   onSendMessage: (message: string, attachments?: FileAttachment[]) => void;
+  onStopGenerating?: () => void;
   isLoading?: boolean;
   disabled?: boolean;
   placeholder?: string;
@@ -48,6 +49,7 @@ export function ChatInput({
   value = '',
   onChange,
   onSendMessage,
+  onStopGenerating,
   isLoading = false,
   disabled = false,
   placeholder,
@@ -72,8 +74,7 @@ export function ChatInput({
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
   const handleSendMessage = () => {
-    if ((!value.trim() && attachments.length === 0) || isLoading || disabled)
-      return;
+    if ((!value.trim() && attachments.length === 0) || disabled) return;
 
     const attachmentsToSend =
       attachments.length > 0 ? clearAttachments() : undefined;
@@ -255,7 +256,7 @@ export function ChatInput({
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                disabled={isLoading || disabled}
+                disabled={disabled}
                 placeholder=""
               />
               {value.length === 0 && !disabled && (
@@ -288,7 +289,7 @@ export function ChatInput({
                   variant="ghost"
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading || disabled}
+                  disabled={disabled}
                   aria-label={tDialogs('attach')}
                 >
                   <Paperclip className="size-4" />
@@ -296,18 +297,26 @@ export function ChatInput({
               </Tooltip>
               <HStack gap={2} align="center">
                 <AgentSelector organizationId={organizationId} />
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={
-                    (!value.trim() && attachments.length === 0) ||
-                    isLoading ||
-                    disabled
-                  }
-                  size="icon"
-                  aria-label={tChat('send')}
-                >
-                  <ArrowUp className="size-4" />
-                </Button>
+                {isLoading ? (
+                  <Button
+                    onClick={onStopGenerating}
+                    size="icon"
+                    aria-label={tChat('stopGenerating')}
+                  >
+                    <CircleStop className="text-destructive size-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={
+                      (!value.trim() && attachments.length === 0) || disabled
+                    }
+                    size="icon"
+                    aria-label={tChat('send')}
+                  >
+                    <ArrowUp className="size-4" />
+                  </Button>
+                )}
               </HStack>
             </HStack>
           </div>
