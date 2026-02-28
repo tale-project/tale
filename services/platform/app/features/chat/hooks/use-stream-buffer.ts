@@ -151,6 +151,7 @@ let activeTextRef: { current: string } | null = null;
 let activeDisplayedLengthRef: { current: number } | null = null;
 let activeFrozenRef: { current: boolean } | null = null;
 let activeAnimationFrameRef: { current: number | null } | null = null;
+let activeWasStreamingRef: { current: boolean } | null = null;
 
 /**
  * Freeze all active stream buffers. Called by the stop generating flow.
@@ -196,6 +197,9 @@ export function resetGlobalFreeze() {
   frozenDisplayText = null;
   if (activeFrozenRef) {
     activeFrozenRef.current = false;
+  }
+  if (activeWasStreamingRef) {
+    activeWasStreamingRef.current = false;
   }
 }
 
@@ -492,6 +496,7 @@ export function useStreamBuffer({
       activeDisplayedLengthRef = displayedLengthRef;
       activeFrozenRef = frozenRef;
       activeAnimationFrameRef = animationFrameRef;
+      activeWasStreamingRef = wasStreamingRef;
       wasStreamingRef.current = true;
 
       // Eagerly save position for cross-mount recovery.
@@ -554,6 +559,7 @@ export function useStreamBuffer({
         activeDisplayedLengthRef = null;
         activeFrozenRef = null;
         activeAnimationFrameRef = null;
+        activeWasStreamingRef = null;
       }
     };
   }, []);
