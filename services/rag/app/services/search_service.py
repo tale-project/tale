@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
+from typing import Any, ClassVar
 
 import asyncpg
 from loguru import logger
@@ -20,6 +20,8 @@ SCHEMA = "private_knowledge"
 
 
 class RagSearchService:
+    _background_tasks: ClassVar[set[asyncio.Task[None]]] = set()
+
     def __init__(self, pool: asyncpg.Pool, embedding_service: EmbeddingService):
         self._pool = pool
         self._embedding = embedding_service
@@ -79,7 +81,9 @@ class RagSearchService:
                 logger.warning("BM25 index issue (corruption={}): {}, falling back to vector-only", is_corruption, e)
 
                 if is_corruption:
-                    asyncio.create_task(self._rebuild_bm25_index())
+                    task = asyncio.create_task(self._rebuild_bm25_index())
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
 
                 if query_embedding is None:
                     query_embedding = await self._embedding.embed_query(query)
