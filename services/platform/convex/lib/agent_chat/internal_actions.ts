@@ -273,11 +273,6 @@ export const runAgentGeneration = internalAction({
         },
       );
 
-      // User cancelled — no validation or error handling needed
-      if (result.finishReason === 'cancelled') {
-        return result;
-      }
-
       // Validate response — save a failed message so the client exits loading
       if (!result.text?.trim()) {
         try {

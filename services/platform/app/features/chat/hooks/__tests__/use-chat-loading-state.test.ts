@@ -122,7 +122,7 @@ describe('useChatLoadingState', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    it('returns true when last part is a tool part (unfinished tool turn)', () => {
+    it('returns false when failed mid-tool-call (failed is unconditionally terminal)', () => {
       const { result } = renderHook(() =>
         useChatLoadingState({
           isPending: false,
@@ -132,130 +132,7 @@ describe('useChatLoadingState', () => {
               id: 'msg-1',
               order: 0,
               role: 'assistant',
-              status: 'success',
-              text: 'Let me create that for you.',
-              parts: [
-                { type: 'text', text: 'Let me create that for you.' },
-                { type: 'step-start' },
-                {
-                  type: 'tool-excel',
-                  toolCallId: 'call-1',
-                  input: { operation: 'generate' },
-                  state: 'input-available',
-                },
-              ],
-            }),
-          ],
-          threadId: THREAD_A,
-          pendingThreadId: null,
-        }),
-      );
-
-      expect(result.current.isLoading).toBe(true);
-    });
-
-    it('returns false when tool parts exist but text part follows (completed tool turn)', () => {
-      const { result } = renderHook(() =>
-        useChatLoadingState({
-          isPending: false,
-          setIsPending,
-          uiMessages: [
-            createUIMessage({
-              id: 'msg-1',
-              order: 0,
-              role: 'assistant',
-              status: 'success',
-              text: 'Here are the results...',
-              parts: [
-                { type: 'step-start' },
-                {
-                  type: 'tool-rag_search',
-                  toolCallId: 'call-1',
-                  input: { query: 'test' },
-                  output: { results: [] },
-                  state: 'output-available',
-                },
-                { type: 'text', text: 'Here are the results...' },
-              ],
-            }),
-          ],
-          threadId: THREAD_A,
-          pendingThreadId: null,
-        }),
-      );
-
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    it('returns true when tool message has text preamble before tool call', () => {
-      const { result } = renderHook(() =>
-        useChatLoadingState({
-          isPending: false,
-          setIsPending,
-          uiMessages: [
-            createUIMessage({
-              id: 'msg-1',
-              order: 0,
-              role: 'assistant',
-              status: 'success',
-              text: 'I will create an Excel file for you.',
-              parts: [
-                {
-                  type: 'text',
-                  text: 'I will create an Excel file for you.',
-                },
-                { type: 'step-start' },
-                {
-                  type: 'tool-excel',
-                  toolCallId: 'call-1',
-                  input: { operation: 'generate' },
-                  state: 'input-available',
-                },
-              ],
-            }),
-          ],
-          threadId: THREAD_A,
-          pendingThreadId: null,
-        }),
-      );
-
-      expect(result.current.isLoading).toBe(true);
-    });
-
-    it('returns false when last assistant message is aborted', () => {
-      const { result } = renderHook(() =>
-        useChatLoadingState({
-          isPending: false,
-          setIsPending,
-          uiMessages: [
-            createUIMessage({
-              id: 'msg-1',
-              order: 0,
-              role: 'assistant',
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime value exists but SDK types lack it
-              status: 'aborted' as UIMessage['status'],
-            }),
-          ],
-          threadId: THREAD_A,
-          pendingThreadId: null,
-        }),
-      );
-
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    it('returns false when aborted mid-tool-call (aborted overrides unfinished tool turn)', () => {
-      const { result } = renderHook(() =>
-        useChatLoadingState({
-          isPending: false,
-          setIsPending,
-          uiMessages: [
-            createUIMessage({
-              id: 'msg-1',
-              order: 0,
-              role: 'assistant',
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime value exists but SDK types lack it
-              status: 'aborted' as UIMessage['status'],
+              status: 'failed',
               text: 'Let me look that up.',
               parts: [
                 { type: 'text', text: 'Let me look that up.' },
@@ -449,6 +326,52 @@ describe('useChatLoadingState', () => {
         isPending: true,
         setIsPending,
         uiMessages: [userMsg, failedMsg],
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+      });
+
+      expect(setIsPending).toHaveBeenCalledWith(false);
+    });
+
+    it('clears isPending when failed mid-tool-call', () => {
+      const userMsg = createUIMessage({
+        id: 'msg-1',
+        order: 0,
+        role: 'user',
+        text: 'Hello',
+      });
+      const failedToolMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        text: 'Let me create that for you.',
+        status: 'failed',
+        parts: [
+          { type: 'text', text: 'Let me create that for you.' },
+          { type: 'step-start' },
+          {
+            type: 'tool-excel',
+            toolCallId: 'call-1',
+            input: { operation: 'generate' },
+            state: 'input-available',
+          },
+        ],
+      });
+
+      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          uiMessages: [userMsg] as UIMessage[] | undefined,
+          threadId: THREAD_A as string | undefined,
+          pendingThreadId: THREAD_A as string | null,
+        },
+      });
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg, failedToolMsg],
         threadId: THREAD_A,
         pendingThreadId: THREAD_A,
       });

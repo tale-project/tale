@@ -201,11 +201,7 @@ export function useMessageProcessing(
         if (m.status === 'streaming') {
           streamingKeysRef.current.add(m.key);
           isStreaming = true;
-        } else if (
-          m.status === 'success' ||
-          m.status === 'failed' ||
-          m.status === 'aborted'
-        ) {
+        } else if (m.status === 'success' || m.status === 'failed') {
           streamingKeysRef.current.delete(m.key);
         } else {
           isStreaming = streamingKeysRef.current.has(m.key);
