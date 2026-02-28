@@ -46,11 +46,12 @@ async def extract_text_from_docx_bytes(
     logger.info(f"Processing DOCX: {filename}")
 
     try:
-        zf = zipfile.ZipFile(BytesIO(docx_bytes))
-        total = sum(info.file_size for info in zf.infolist())
-        if total > MAX_UNCOMPRESSED_SIZE:
-            raise ValueError(f"File exceeds maximum decompressed size ({total} bytes)")
-        zf.close()
+        with zipfile.ZipFile(BytesIO(docx_bytes)) as zf:
+            total = sum(info.file_size for info in zf.infolist())
+            if total > MAX_UNCOMPRESSED_SIZE:
+                raise ValueError(
+                    f"File exceeds maximum decompressed size ({total} bytes)"
+                )
     except zipfile.BadZipFile:
         raise ValueError("Invalid or corrupt file")
 
@@ -125,6 +126,47 @@ async def extract_text_from_docx_bytes(
                     elements.append((position, f"[Image: {description}]"))
                     vision_used = True
                     position += 1
+
+    header_texts: list[str] = []
+    footer_texts: list[str] = []
+    seen_headers: set[str] = set()
+    seen_footers: set[str] = set()
+
+    for section in doc.sections:
+        for hdr in (
+            section.header,
+            section.first_page_header,
+            section.even_page_header,
+        ):
+            if hdr and not hdr.is_linked_to_previous:
+                text = "\n".join(
+                    p.text.strip() for p in hdr.paragraphs if p.text.strip()
+                )
+                if text and text not in seen_headers:
+                    seen_headers.add(text)
+                    header_texts.append(text)
+
+        for ftr in (
+            section.footer,
+            section.first_page_footer,
+            section.even_page_footer,
+        ):
+            if ftr and not ftr.is_linked_to_previous:
+                text = "\n".join(
+                    p.text.strip() for p in ftr.paragraphs if p.text.strip()
+                )
+                if text and text not in seen_footers:
+                    seen_footers.add(text)
+                    footer_texts.append(text)
+
+    header_position = -len(header_texts)
+    for hdr_text in header_texts:
+        elements.append((header_position, f"[Header]\n{hdr_text}"))
+        header_position += 1
+
+    for ftr_text in footer_texts:
+        elements.append((position, f"[Footer]\n{ftr_text}"))
+        position += 1
 
     elements.sort(key=lambda x: x[0])
     content = "\n\n".join(elem[1] for elem in elements)

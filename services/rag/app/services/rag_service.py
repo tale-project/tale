@@ -19,7 +19,7 @@ from tale_shared.db import acquire_with_retry
 
 from ..config import settings
 from .database import SCHEMA, close_pool, ensure_embedding_dimensions, init_pool
-from .indexing_service import index_document
+from .indexing_service import index_document, prepare_document, store_prepared_document
 from .search_service import RagSearchService
 
 RAG_TOP_K = 30
@@ -155,19 +155,33 @@ class RagService:
                 chunk_overlap=settings.chunk_overlap,
             )
 
-        # Multiple targets — process concurrently
+        # Multiple targets — extract/embed once, store per tenant
+        prepared = await prepare_document(
+            content,
+            filename,
+            embedding_service=self._embedding_service,
+            vision_client=self._vision_client,
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap,
+        )
+
+        if prepared is None:
+            return {
+                "success": True,
+                "document_id": document_id,
+                "chunks_created": 0,
+                "skipped": True,
+                "skip_reason": "no_text_extracted",
+            }
+
         tasks = [
-            index_document(
+            store_prepared_document(
                 self._pool,
                 document_id,
-                content,
                 filename,
+                prepared,
                 team_id=team_id,
                 user_id=uid,
-                embedding_service=self._embedding_service,
-                vision_client=self._vision_client,
-                chunk_size=settings.chunk_size,
-                chunk_overlap=settings.chunk_overlap,
             )
             for team_id, uid in targets
         ]
@@ -216,8 +230,8 @@ class RagService:
         if self._search_service is None:
             raise RuntimeError("RagService not initialized: search service is None")
 
-        effective_top_k = top_k or settings.top_k
-        threshold = similarity_threshold or settings.similarity_threshold
+        effective_top_k = top_k if top_k is not None else settings.top_k
+        threshold = similarity_threshold if similarity_threshold is not None else settings.similarity_threshold
 
         results = await self._search_service.search(
             query,

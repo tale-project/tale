@@ -1,6 +1,7 @@
 """Document management endpoints for Tale RAG service."""
 
 import json
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -23,6 +24,92 @@ from ..utils.sanitize import sanitize_team_id
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
 
 _FILE_UPLOAD = File(..., description="File to upload")
+
+SUPPORTED_EXTENSIONS = {
+    # Documents
+    ".pdf",
+    ".docx",
+    ".pptx",
+    ".xlsx",
+    # Images
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".bmp",
+    ".tiff",
+    ".webp",
+    # Text / markup
+    ".txt",
+    ".md",
+    ".mdx",
+    ".rst",
+    ".tex",
+    ".csv",
+    ".tsv",
+    ".html",
+    ".htm",
+    ".css",
+    ".scss",
+    ".sass",
+    ".less",
+    # Data / config
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".xml",
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".properties",
+    # Code
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".mjs",
+    ".cjs",
+    ".py",
+    ".pyi",
+    ".c",
+    ".h",
+    ".cpp",
+    ".hpp",
+    ".cc",
+    ".cxx",
+    ".rs",
+    ".go",
+    ".swift",
+    ".kt",
+    ".java",
+    ".rb",
+    ".php",
+    ".pl",
+    ".lua",
+    ".r",
+    ".scala",
+    ".groovy",
+    ".dart",
+    ".ex",
+    ".exs",
+    # Shell / scripts
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".ps1",
+    ".bat",
+    ".cmd",
+    # Query / schema
+    ".sql",
+    ".graphql",
+    ".gql",
+    ".proto",
+    # Build / project
+    ".gradle",
+    ".cmake",
+    ".lock",
+}
 
 
 def _parse_team_ids(team_ids: str | None, *, required: bool = False) -> list[str] | None:
@@ -57,6 +144,106 @@ def _parse_team_ids(team_ids: str | None, *, required: bool = False) -> list[str
     return result
 
 
+async def _background_ingest(
+    content: bytes,
+    document_id: str,
+    filename: str,
+    user_id: str | None = None,
+    team_ids: list[str] | None = None,
+) -> None:
+    """Run document ingestion in the background, updating job status."""
+    try:
+        await job_store.mark_running(job_id=document_id)
+        result = await rag_service.add_document(
+            content=content,
+            document_id=document_id,
+            filename=filename,
+            user_id=user_id,
+            team_ids=team_ids,
+        )
+        await job_store.mark_completed(
+            job_id=document_id,
+            document_id=result.get("document_id", document_id),
+            chunks_created=result.get("chunks_created", 0),
+            skipped=result.get("skipped", False),
+            skip_reason=result.get("skip_reason"),
+        )
+        logger.info(
+            "Background ingestion completed",
+            extra={
+                "document_id": document_id,
+                "filename": filename,
+                "chunks_created": result.get("chunks_created", 0),
+                "skipped": result.get("skipped", False),
+            },
+        )
+    except Exception as exc:
+        await job_store.mark_failed(job_id=document_id, error=str(exc))
+        logger.error(
+            "Background ingestion failed",
+            extra={"document_id": document_id, "error": str(exc)},
+        )
+    finally:
+        cleanup_memory(context=f"after background ingestion for {document_id}")
+
+
+def _validate_file_extension(filename: str) -> str:
+    """Validate file extension. Returns the extension or raises HTTPException."""
+    file_ext = Path(filename).suffix.lower()
+    if not file_ext:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File must have an extension. Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}",
+        )
+
+    if file_ext not in SUPPORTED_EXTENSIONS:
+        supported = ", ".join(sorted(SUPPORTED_EXTENSIONS))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file type: {file_ext}. Supported formats: {supported}",
+        )
+
+    return file_ext
+
+
+async def _read_upload_with_size_check(file: UploadFile, max_size_mb: int) -> bytes:
+    """Read uploaded file with streaming size check."""
+    max_size_bytes = max_size_mb * 1024 * 1024
+    chunks: list[bytes] = []
+    total_size = 0
+    while chunk := await file.read(64 * 1024):
+        total_size += len(chunk)
+        if total_size > max_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File size exceeds maximum allowed size of {max_size_mb}MB",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _parse_metadata(metadata_str: str | None) -> dict[str, Any]:
+    """Parse optional JSON metadata string."""
+    if not metadata_str:
+        return {}
+
+    try:
+        parsed_value = json.loads(metadata_str)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid metadata format. Must be valid JSON string.",
+        ) from None
+
+    if not isinstance(parsed_value, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid metadata format. Must be a JSON object.",
+        )
+
+    return parsed_value
+
+
 @router.post("/documents", response_model=DocumentAddResponse)
 async def add_document(request: DocumentAddRequest, background_tasks: BackgroundTasks):
     """Add a text document to the knowledge base.
@@ -76,53 +263,13 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
         )
 
     doc_id = request.document_id or f"doc-{uuid4().hex}"
-
     await job_store.create_queued(job_id=doc_id, document_id=doc_id)
 
-    async def _background_ingest_text(
-        content: str,
-        document_id: str,
-        user_id: str | None = None,
-        team_ids: list[str] | None = None,
-    ) -> None:
-        try:
-            await job_store.mark_running(job_id=document_id)
-            content_bytes = content.encode("utf-8")
-            result = await rag_service.add_document(
-                content=content_bytes,
-                document_id=document_id,
-                filename=f"{document_id}.txt",
-                user_id=user_id,
-                team_ids=team_ids,
-            )
-            await job_store.mark_completed(
-                job_id=document_id,
-                document_id=result.get("document_id", document_id),
-                chunks_created=result.get("chunks_created", 0),
-                skipped=result.get("skipped", False),
-                skip_reason=result.get("skip_reason"),
-            )
-            logger.info(
-                "Background text ingestion completed",
-                extra={
-                    "document_id": document_id,
-                    "chunks_created": result.get("chunks_created", 0),
-                    "skipped": result.get("skipped", False),
-                },
-            )
-        except Exception as exc:
-            await job_store.mark_failed(job_id=document_id, error=str(exc))
-            logger.error(
-                "Background text ingestion failed",
-                extra={"document_id": document_id, "error": str(exc)},
-            )
-        finally:
-            cleanup_memory(context=f"after background text ingestion for {document_id}")
-
     background_tasks.add_task(
-        _background_ingest_text,
-        request.content,
+        _background_ingest,
+        request.content.encode("utf-8"),
         doc_id,
+        f"{doc_id}.txt",
         request.user_id,
         request.team_ids,
     )
@@ -153,134 +300,14 @@ async def upload_document(
     """
     team_id_list = _parse_team_ids(team_ids, required=True)
 
-    SUPPORTED_EXTENSIONS = {
-        # Documents
-        ".pdf",
-        ".docx",
-        ".doc",
-        ".pptx",
-        ".ppt",
-        ".xlsx",
-        ".xls",
-        # Images
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".gif",
-        ".bmp",
-        ".tiff",
-        ".webp",
-        # Text / markup
-        ".txt",
-        ".md",
-        ".mdx",
-        ".rst",
-        ".tex",
-        ".csv",
-        ".tsv",
-        ".html",
-        ".htm",
-        ".css",
-        ".scss",
-        ".sass",
-        ".less",
-        # Data / config
-        ".json",
-        ".yaml",
-        ".yml",
-        ".toml",
-        ".xml",
-        ".ini",
-        ".cfg",
-        ".conf",
-        ".properties",
-        # Code
-        ".js",
-        ".jsx",
-        ".ts",
-        ".tsx",
-        ".mjs",
-        ".cjs",
-        ".py",
-        ".pyi",
-        ".c",
-        ".h",
-        ".cpp",
-        ".hpp",
-        ".cc",
-        ".cxx",
-        ".rs",
-        ".go",
-        ".swift",
-        ".kt",
-        ".java",
-        ".rb",
-        ".php",
-        ".pl",
-        ".lua",
-        ".r",
-        ".scala",
-        ".groovy",
-        ".dart",
-        ".ex",
-        ".exs",
-        # Shell / scripts
-        ".sh",
-        ".bash",
-        ".zsh",
-        ".ps1",
-        ".bat",
-        ".cmd",
-        # Query / schema
-        ".sql",
-        ".graphql",
-        ".gql",
-        ".proto",
-        # Build / project
-        ".gradle",
-        ".cmake",
-        ".lock",
-    }
-
     try:
-        from pathlib import Path
-
         if not file.filename:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
 
-        file_ext = Path(file.filename).suffix.lower()
-        if not file_ext:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File must have an extension. Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}",
-            )
+        _validate_file_extension(file.filename)
 
-        if file_ext not in SUPPORTED_EXTENSIONS:
-            supported = ", ".join(sorted(SUPPORTED_EXTENSIONS))
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported file type: {file_ext}. Supported formats: {supported}",
-            )
+        file_bytes = await _read_upload_with_size_check(file, settings.max_document_size_mb)
 
-        # Validate file size
-        max_size_mb = settings.max_document_size_mb
-        max_size_bytes = max_size_mb * 1024 * 1024
-
-        # Read file into memory with streaming size check
-        chunks: list[bytes] = []
-        total_size = 0
-        while chunk := await file.read(64 * 1024):
-            total_size += len(chunk)
-            if total_size > max_size_bytes:
-                raise HTTPException(
-                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail=f"File size exceeds maximum allowed size of {max_size_mb}MB",
-                )
-            chunks.append(chunk)
-
-        file_bytes = b"".join(chunks)
-
-        # Scan for embedded secrets before ingestion
         rejected, reason = scan_file_for_secrets(file_bytes)
         if rejected:
             logger.warning(
@@ -292,93 +319,22 @@ async def upload_document(
                 detail=f"File rejected: {reason}",
             )
 
-        # Parse metadata
-        parsed_metadata: dict[str, Any] = {}
-        if metadata:
-            try:
-                parsed_value = json.loads(metadata)
-                if not isinstance(parsed_value, dict):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Invalid metadata format. Must be a JSON object.",
-                    )
-                parsed_metadata = parsed_value
-            except json.JSONDecodeError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid metadata format. Must be valid JSON string.",
-                ) from None
-
-        parsed_metadata["filename"] = file.filename
-        parsed_metadata["content_type"] = file.content_type
-        parsed_metadata["file_size"] = total_size
+        _parse_metadata(metadata)
 
         doc_id = document_id or f"file-{uuid4().hex}"
-
         await job_store.create_queued(job_id=doc_id, document_id=doc_id)
-
-        async def _background_ingest_file(
-            content: bytes,
-            filename: str,
-            doc_id_inner: str,
-            user_id_inner: str | None = None,
-            team_ids_inner: list[str] | None = None,
-        ) -> None:
-            try:
-                await job_store.mark_running(job_id=doc_id_inner)
-                result = await rag_service.add_document(
-                    content=content,
-                    document_id=doc_id_inner,
-                    filename=filename,
-                    user_id=user_id_inner,
-                    team_ids=team_ids_inner,
-                )
-                await job_store.mark_completed(
-                    job_id=doc_id_inner,
-                    document_id=result.get("document_id", doc_id_inner),
-                    chunks_created=result.get("chunks_created", 0),
-                    skipped=result.get("skipped", False),
-                    skip_reason=result.get("skip_reason"),
-                )
-                if result.get("skipped"):
-                    logger.info(
-                        "Background file ingestion skipped (content unchanged)",
-                        extra={
-                            "document_id": result.get("document_id", doc_id_inner),
-                            "skip_reason": result.get("skip_reason"),
-                        },
-                    )
-                else:
-                    logger.info(
-                        "Background file ingestion completed",
-                        extra={
-                            "document_id": result.get("document_id", doc_id_inner),
-                            "chunks_created": result.get("chunks_created", 0),
-                        },
-                    )
-            except Exception as exc:
-                await job_store.mark_failed(job_id=doc_id_inner, error=str(exc))
-                logger.error(
-                    "Background file ingestion failed",
-                    extra={
-                        "document_id": doc_id_inner,
-                        "error": str(exc),
-                    },
-                )
-            finally:
-                cleanup_memory(context=f"after background file ingestion for {doc_id_inner}")
 
         if background_tasks is not None:
             background_tasks.add_task(
-                _background_ingest_file,
+                _background_ingest,
                 file_bytes,
-                file.filename,
                 doc_id,
+                file.filename,
                 user_id,
                 team_id_list,
             )
         else:
-            await _background_ingest_file(file_bytes, file.filename, doc_id, user_id, team_id_list)
+            await _background_ingest(file_bytes, doc_id, file.filename, user_id, team_id_list)
 
         return DocumentAddResponse(
             success=True,
@@ -405,7 +361,7 @@ async def delete_document(
     team_ids: str | None = None,
 ):
     """Delete a document from the knowledge base by ID."""
-    team_id_list = _parse_team_ids(team_ids, required=False)
+    team_id_list = _parse_team_ids(team_ids, required=True)
 
     try:
         result = await rag_service.delete_document(document_id, team_ids=team_id_list)

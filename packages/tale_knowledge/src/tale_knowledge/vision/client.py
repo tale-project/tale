@@ -85,13 +85,8 @@ class VisionClient:
     def pdf_dpi(self) -> int:
         return self._pdf_dpi
 
-    async def ocr_image(self, image_bytes: bytes, prompt: str | None = None) -> str:
-        """Extract text from a scanned document image using Vision API."""
-        cached_result, image_hash = self._cache.get_ocr(image_bytes)
-        if cached_result is not None:
-            return cached_result
-
-        extraction_prompt = prompt or self._ocr_prompt
+    async def _do_ocr(self, image_bytes: bytes, prompt: str) -> str:
+        """Perform the actual OCR API call (no caching)."""
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
         mime_type = _detect_mime_type(image_bytes)
 
@@ -105,7 +100,7 @@ class VisionClient:
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": extraction_prompt},
+                                {"type": "text", "text": prompt},
                                 {
                                     "type": "image_url",
                                     "image_url": {
@@ -122,17 +117,14 @@ class VisionClient:
 
             if not response.choices:
                 logger.warning("Vision API returned empty choices for OCR")
-                self._cache.set_ocr(image_hash, "")
                 return ""
 
             result = response.choices[0].message.content or ""
 
             if result.strip().lower() in ["[no text found]", "no text found", ""]:
-                self._cache.set_ocr(image_hash, "")
                 return ""
 
             logger.debug(f"OCR extracted {len(result)} characters")
-            self._cache.set_ocr(image_hash, result)
             await asyncio.sleep(1)
             return result
 
@@ -144,15 +136,8 @@ class VisionClient:
             logger.error(f"Vision API OCR request failed: {e}")
             raise
 
-    async def describe_image(
-        self, image_bytes: bytes, prompt: str | None = None
-    ) -> str:
-        """Generate a description of an image for indexing."""
-        cached_result, image_hash = self._cache.get_description(image_bytes)
-        if cached_result is not None:
-            return cached_result
-
-        description_prompt = prompt or self._describe_prompt
+    async def _do_describe(self, image_bytes: bytes, prompt: str) -> str:
+        """Perform the actual image description API call (no caching)."""
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
         mime_type = _detect_mime_type(image_bytes)
 
@@ -166,7 +151,7 @@ class VisionClient:
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": description_prompt},
+                                {"type": "text", "text": prompt},
                                 {
                                     "type": "image_url",
                                     "image_url": {
@@ -183,12 +168,10 @@ class VisionClient:
 
             if not response.choices:
                 logger.warning("Vision API returned empty choices for description")
-                self._cache.set_description(image_hash, "")
                 return ""
 
             result = (response.choices[0].message.content or "").strip()
             logger.debug(f"Generated image description: {len(result)} characters")
-            self._cache.set_description(image_hash, result)
             await asyncio.sleep(1)
             return result
 
@@ -199,3 +182,27 @@ class VisionClient:
         except Exception as e:
             logger.error(f"Vision API description request failed: {e}")
             raise
+
+    async def ocr_image(self, image_bytes: bytes, prompt: str | None = None) -> str:
+        """Extract text from a scanned document image using Vision API.
+
+        Uses per-key locking to prevent duplicate API calls for the same image.
+        """
+        extraction_prompt = prompt or self._ocr_prompt
+        return await self._cache.get_or_set_ocr(
+            image_bytes,
+            lambda: self._do_ocr(image_bytes, extraction_prompt),
+        )
+
+    async def describe_image(
+        self, image_bytes: bytes, prompt: str | None = None
+    ) -> str:
+        """Generate a description of an image for indexing.
+
+        Uses per-key locking to prevent duplicate API calls for the same image.
+        """
+        description_prompt = prompt or self._describe_prompt
+        return await self._cache.get_or_set_description(
+            image_bytes,
+            lambda: self._do_describe(image_bytes, description_prompt),
+        )

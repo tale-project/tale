@@ -293,7 +293,7 @@ class TestGracefulFallback:
         service, *_ = _build_service()
 
         async def raise_bm25(*args, **kwargs):
-            raise RuntimeError("bm25 index not found")
+            raise asyncpg.InternalServerError("bm25 index not found")
 
         with patch.object(service, "_fts_search", side_effect=raise_bm25):
             with patch.object(service, "_vector_search", return_value=vector_rows):
@@ -328,7 +328,7 @@ class TestFtsSearch:
         service = RagSearchService(pool, embed)
 
         mock_conn = AsyncMock()
-        mock_conn.fetch = AsyncMock(side_effect=RuntimeError("bm25 index corrupted"))
+        mock_conn.fetch = AsyncMock(side_effect=asyncpg.InternalServerError("bm25 index corrupted"))
 
         with patch("app.services.search_service.acquire_with_retry") as mock_acq:
             mock_acq.return_value.__aenter__ = AsyncMock(return_value=mock_conn)

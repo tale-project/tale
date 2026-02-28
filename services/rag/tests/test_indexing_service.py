@@ -102,7 +102,11 @@ class TestSuccessfulIndexing:
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch("app.services.indexing_service.extract_text", return_value=("Extracted document text here.", False)),
+            patch(
+                "app.services.indexing_service.extract_text",
+                new_callable=AsyncMock,
+                return_value=("Extracted document text here.", False),
+            ),
             patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS),
         ):
             result = await index_document(
@@ -131,7 +135,9 @@ class TestSuccessfulIndexing:
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch("app.services.indexing_service.extract_text", return_value=("Some text", False)),
+            patch(
+                "app.services.indexing_service.extract_text", new_callable=AsyncMock, return_value=("Some text", False)
+            ),
             patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS),
         ):
             await index_document(
@@ -154,7 +160,9 @@ class TestSuccessfulIndexing:
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch("app.services.indexing_service.extract_text", return_value=("Some text", False)),
+            patch(
+                "app.services.indexing_service.extract_text", new_callable=AsyncMock, return_value=("Some text", False)
+            ),
             patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS),
         ):
             await index_document(
@@ -182,7 +190,9 @@ class TestSuccessfulIndexing:
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch("app.services.indexing_service.extract_text", return_value=("vision text", True)) as mock_extract,
+            patch(
+                "app.services.indexing_service.extract_text", new_callable=AsyncMock, return_value=("vision text", True)
+            ) as mock_extract,
             patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS),
         ):
             await index_document(
@@ -210,7 +220,7 @@ class TestSuccessfulIndexing:
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch("app.services.indexing_service.extract_text", return_value=("text", False)),
+            patch("app.services.indexing_service.extract_text", new_callable=AsyncMock, return_value=("text", False)),
             patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS) as mock_chunk,
         ):
             await index_document(
@@ -235,10 +245,17 @@ class TestContentHashDedup:
         existing = {"id": "existing-uuid", "content_hash": SAMPLE_HASH}
         pool, mock_conn = _mock_pool(existing_row=existing)
         mock_embed = AsyncMock()
+        mock_embed.embed_texts = AsyncMock(return_value=SAMPLE_EMBEDDINGS)
 
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
+            patch(
+                "app.services.indexing_service.extract_text",
+                new_callable=AsyncMock,
+                return_value=("Some text", False),
+            ),
+            patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS),
         ):
             result = await index_document(
                 pool,
@@ -252,7 +269,6 @@ class TestContentHashDedup:
         assert result["skipped"] is True
         assert result["skip_reason"] == "content_unchanged"
         assert result["chunks_created"] == 0
-        mock_embed.embed_texts.assert_not_awaited()
 
     async def test_reindexes_when_content_changed(self):
         from app.services.indexing_service import index_document
@@ -277,7 +293,11 @@ class TestContentHashDedup:
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch("app.services.indexing_service.extract_text", return_value=("Updated text", False)),
+            patch(
+                "app.services.indexing_service.extract_text",
+                new_callable=AsyncMock,
+                return_value=("Updated text", False),
+            ),
             patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS),
         ):
             result = await index_document(
@@ -309,7 +329,7 @@ class TestEmptyContentHandling:
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch("app.services.indexing_service.extract_text", return_value=("", False)),
+            patch("app.services.indexing_service.extract_text", new_callable=AsyncMock, return_value=("", False)),
         ):
             result = await index_document(
                 pool,
@@ -332,7 +352,9 @@ class TestEmptyContentHandling:
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch("app.services.indexing_service.extract_text", return_value=("   \n\t  ", False)),
+            patch(
+                "app.services.indexing_service.extract_text", new_callable=AsyncMock, return_value=("   \n\t  ", False)
+            ),
         ):
             result = await index_document(
                 pool,
@@ -354,7 +376,9 @@ class TestEmptyContentHandling:
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch("app.services.indexing_service.extract_text", return_value=("Some text", False)),
+            patch(
+                "app.services.indexing_service.extract_text", new_callable=AsyncMock, return_value=("Some text", False)
+            ),
             patch("app.services.indexing_service.chunk_content", return_value=[]),
         ):
             result = await index_document(
@@ -366,7 +390,7 @@ class TestEmptyContentHandling:
             )
 
         assert result["skipped"] is True
-        assert result["skip_reason"] == "no_chunks_produced"
+        assert result["skip_reason"] == "no_text_extracted"
 
     async def test_none_text_extracted_returns_skipped(self):
         from app.services.indexing_service import index_document
@@ -377,7 +401,7 @@ class TestEmptyContentHandling:
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch("app.services.indexing_service.extract_text", return_value=(None, False)),
+            patch("app.services.indexing_service.extract_text", new_callable=AsyncMock, return_value=(None, False)),
         ):
             result = await index_document(
                 pool,
@@ -404,7 +428,9 @@ class TestExtractionErrors:
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
             patch(
-                "app.services.indexing_service.extract_text", side_effect=UnicodeDecodeError("utf-8", b"", 0, 1, "bad")
+                "app.services.indexing_service.extract_text",
+                new_callable=AsyncMock,
+                side_effect=UnicodeDecodeError("utf-8", b"", 0, 1, "bad"),
             ),
         ):
             with pytest.raises(ValueError, match="Could not decode file"):
@@ -426,7 +452,9 @@ class TestExtractionErrors:
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
             patch(
-                "app.services.indexing_service.extract_text", side_effect=UnicodeDecodeError("utf-8", b"", 0, 1, "bad")
+                "app.services.indexing_service.extract_text",
+                new_callable=AsyncMock,
+                side_effect=UnicodeDecodeError("utf-8", b"", 0, 1, "bad"),
             ),
         ):
             with pytest.raises(ValueError, match="my-file.bin"):

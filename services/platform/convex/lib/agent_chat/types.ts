@@ -113,7 +113,6 @@ export interface RunAgentGenerationArgs {
  */
 export interface BeforeContextHookResult {
   contextSummary?: string;
-  ragPrefetchCache?: unknown;
   [key: string]: unknown;
 }
 

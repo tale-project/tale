@@ -78,7 +78,6 @@ export interface GenerateResponseHooks {
 export interface BeforeContextResult {
   contextSummary?: string;
   ragContext?: string;
-  ragPrefetchCache?: unknown;
   [key: string]: unknown;
 }
 

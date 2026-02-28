@@ -108,7 +108,7 @@ class TestAddDocument:
 
     async def test_multiple_teams_processes_concurrently(self):
         service = _make_service()
-        index_result = {
+        store_result = {
             "success": True,
             "document_id": "doc-m",
             "chunks_created": 2,
@@ -116,9 +116,15 @@ class TestAddDocument:
             "skip_reason": None,
         }
 
-        with patch(
-            "app.services.rag_service.index_document", new_callable=AsyncMock, return_value=index_result
-        ) as mock_idx:
+        mock_prepared = MagicMock()
+        with (
+            patch(
+                "app.services.rag_service.prepare_document", new_callable=AsyncMock, return_value=mock_prepared
+            ) as mock_prep,
+            patch(
+                "app.services.rag_service.store_prepared_document", new_callable=AsyncMock, return_value=store_result
+            ) as mock_store,
+        ):
             result = await service.add_document(
                 b"content",
                 "doc-m",
@@ -128,11 +134,12 @@ class TestAddDocument:
 
         assert result["success"] is True
         assert result["chunks_created"] == 4
-        assert mock_idx.await_count == 2
+        mock_prep.assert_awaited_once()
+        assert mock_store.await_count == 2
 
     async def test_user_and_teams_creates_targets_for_each(self):
         service = _make_service()
-        index_result = {
+        store_result = {
             "success": True,
             "document_id": "doc-both",
             "chunks_created": 1,
@@ -140,9 +147,13 @@ class TestAddDocument:
             "skip_reason": None,
         }
 
-        with patch(
-            "app.services.rag_service.index_document", new_callable=AsyncMock, return_value=index_result
-        ) as mock_idx:
+        mock_prepared = MagicMock()
+        with (
+            patch("app.services.rag_service.prepare_document", new_callable=AsyncMock, return_value=mock_prepared),
+            patch(
+                "app.services.rag_service.store_prepared_document", new_callable=AsyncMock, return_value=store_result
+            ) as mock_store,
+        ):
             result = await service.add_document(
                 b"content",
                 "doc-both",
@@ -153,7 +164,7 @@ class TestAddDocument:
 
         assert result["success"] is True
         # user target + 2 team targets = 3 calls
-        assert mock_idx.await_count == 3
+        assert mock_store.await_count == 3
         assert result["chunks_created"] == 3
 
     async def test_no_user_or_team_raises_value_error(self):
@@ -188,7 +199,7 @@ class TestAddDocument:
 
         call_count = 0
 
-        async def side_effect(*args, **kwargs):
+        async def store_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -201,7 +212,15 @@ class TestAddDocument:
                 }
             raise RuntimeError("indexing failed for team-2")
 
-        with patch("app.services.rag_service.index_document", new_callable=AsyncMock, side_effect=side_effect):
+        mock_prepared = MagicMock()
+        with (
+            patch("app.services.rag_service.prepare_document", new_callable=AsyncMock, return_value=mock_prepared),
+            patch(
+                "app.services.rag_service.store_prepared_document",
+                new_callable=AsyncMock,
+                side_effect=store_side_effect,
+            ),
+        ):
             result = await service.add_document(
                 b"content",
                 "doc-pe",
@@ -216,10 +235,14 @@ class TestAddDocument:
     async def test_all_targets_error_raises(self):
         service = _make_service()
 
-        with patch(
-            "app.services.rag_service.index_document",
-            new_callable=AsyncMock,
-            side_effect=RuntimeError("total failure"),
+        mock_prepared = MagicMock()
+        with (
+            patch("app.services.rag_service.prepare_document", new_callable=AsyncMock, return_value=mock_prepared),
+            patch(
+                "app.services.rag_service.store_prepared_document",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("total failure"),
+            ),
         ):
             with pytest.raises(RuntimeError, match="total failure"):
                 await service.add_document(

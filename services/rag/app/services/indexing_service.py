@@ -6,11 +6,12 @@ Content hash dedup: skip if document content hasn't changed.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import asyncpg
 from loguru import logger
-from tale_knowledge.chunking import chunk_content
+from tale_knowledge.chunking import ContentChunk, chunk_content
 from tale_knowledge.embedding import EmbeddingService
 from tale_knowledge.extraction import extract_text
 from tale_knowledge.vision import VisionClient
@@ -20,69 +21,31 @@ from tale_shared.utils.hashing import compute_content_hash
 SCHEMA = "private_knowledge"
 
 
-async def index_document(
-    pool: asyncpg.Pool,
-    document_id: str,
+@dataclass(frozen=True, slots=True)
+class PreparedDocument:
+    """Pre-processed document ready for storage (extract + chunk + embed done once)."""
+
+    content_hash: str
+    chunks: list[ContentChunk]
+    embeddings: list[list[float]]
+    vision_used: bool
+
+
+async def prepare_document(
     content_bytes: bytes,
     filename: str,
     *,
-    team_id: str | None = None,
-    user_id: str | None = None,
     embedding_service: EmbeddingService,
     vision_client: VisionClient | None = None,
-    chunk_size: int = 512,
-    chunk_overlap: int = 50,
-) -> dict[str, Any]:
-    """Index a document: extract, chunk, embed, and store.
+    chunk_size: int = 2048,
+    chunk_overlap: int = 200,
+) -> PreparedDocument | None:
+    """Extract, chunk, and embed a document (expensive work done once).
 
-    Args:
-        pool: asyncpg connection pool.
-        document_id: Caller-assigned document identifier.
-        content_bytes: Raw file bytes.
-        filename: Original filename (used for routing extraction).
-        team_id: Optional team for tenant isolation.
-        user_id: Optional user for tenant isolation.
-        embedding_service: EmbeddingService instance.
-        vision_client: Optional VisionClient for OCR/images.
-        chunk_size: Target chunk size in characters.
-        chunk_overlap: Overlap between chunks in characters.
-
-    Returns:
-        Dict with success, document_id, chunks_created, skipped, skip_reason.
+    Returns None if no usable text/chunks could be produced.
     """
     content_hash = compute_content_hash(content_bytes)
 
-    # Dedup check: same document_id + team_id/user_id + same content hash
-    async with acquire_with_retry(pool) as conn:
-        existing = await conn.fetchrow(
-            f"""
-            SELECT id, content_hash FROM {SCHEMA}.documents
-            WHERE document_id = $1
-              AND COALESCE(team_id, '') = COALESCE($2, '')
-              AND COALESCE(user_id, '') = COALESCE($3, '')
-            """,
-            document_id,
-            team_id,
-            user_id,
-        )
-
-    if existing and existing["content_hash"] == content_hash:
-        logger.info("Document {} content unchanged, skipping", document_id)
-        return {
-            "success": True,
-            "document_id": document_id,
-            "chunks_created": 0,
-            "skipped": True,
-            "skip_reason": "content_unchanged",
-        }
-
-    # If content changed, delete old version (CASCADE deletes chunks)
-    if existing:
-        logger.info("Document {} content changed, replacing", document_id)
-        async with acquire_with_retry(pool) as conn:
-            await conn.execute(f"DELETE FROM {SCHEMA}.documents WHERE id = $1", existing["id"])
-
-    # Extract text
     try:
         extracted_text, vision_used = await extract_text(
             content_bytes,
@@ -97,15 +60,8 @@ async def index_document(
 
     if not extracted_text or not extracted_text.strip():
         logger.warning("No text extracted from {}", filename)
-        return {
-            "success": True,
-            "document_id": document_id,
-            "chunks_created": 0,
-            "skipped": True,
-            "skip_reason": "no_text_extracted",
-        }
+        return None
 
-    # Chunk
     chunks = chunk_content(
         extracted_text,
         chunk_size=chunk_size,
@@ -114,18 +70,59 @@ async def index_document(
 
     if not chunks:
         logger.warning("No chunks produced from {}", filename)
+        return None
+
+    embeddings = await embedding_service.embed_texts([c.content for c in chunks])
+
+    return PreparedDocument(
+        content_hash=content_hash,
+        chunks=chunks,
+        embeddings=embeddings,
+        vision_used=vision_used,
+    )
+
+
+async def store_prepared_document(
+    pool: asyncpg.Pool,
+    document_id: str,
+    filename: str,
+    prepared: PreparedDocument,
+    *,
+    team_id: str | None = None,
+    user_id: str | None = None,
+) -> dict[str, Any]:
+    """Store a pre-processed document for a single tenant scope.
+
+    Handles dedup check and old-version replacement.
+    """
+    async with acquire_with_retry(pool) as conn:
+        existing = await conn.fetchrow(
+            f"""
+            SELECT id, content_hash FROM {SCHEMA}.documents
+            WHERE document_id = $1
+              AND COALESCE(team_id, '') = COALESCE($2, '')
+              AND COALESCE(user_id, '') = COALESCE($3, '')
+            """,
+            document_id,
+            team_id,
+            user_id,
+        )
+
+    if existing and existing["content_hash"] == prepared.content_hash:
+        logger.info("Document {} content unchanged for team={} user={}, skipping", document_id, team_id, user_id)
         return {
             "success": True,
             "document_id": document_id,
             "chunks_created": 0,
             "skipped": True,
-            "skip_reason": "no_chunks_produced",
+            "skip_reason": "content_unchanged",
         }
 
-    # Embed
-    embeddings = await embedding_service.embed_texts([c.content for c in chunks])
+    if existing:
+        logger.info("Document {} content changed, replacing for team={} user={}", document_id, team_id, user_id)
+        async with acquire_with_retry(pool) as conn:
+            await conn.execute(f"DELETE FROM {SCHEMA}.documents WHERE id = $1", existing["id"])
 
-    # Store in single transaction
     async with acquire_with_retry(pool) as conn, conn.transaction():
         doc_row = await conn.fetchrow(
             f"""
@@ -136,10 +133,10 @@ async def index_document(
                 """,
             document_id,
             filename,
-            content_hash,
+            prepared.content_hash,
             team_id,
             user_id,
-            len(chunks),
+            len(prepared.chunks),
         )
         doc_uuid = doc_row["id"]
 
@@ -153,24 +150,72 @@ async def index_document(
                 compute_content_hash(chunk.content.encode("utf-8")),
                 str(embedding),
             )
-            for chunk, embedding in zip(chunks, embeddings, strict=True)
+            for chunk, embedding in zip(prepared.chunks, prepared.embeddings, strict=True)
         ]
         await conn.executemany(
             f"""
                 INSERT INTO {SCHEMA}.chunks
                     (document_id, team_id, user_id, chunk_index, chunk_content,
                      content_hash, embedding)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                VALUES ($1, $2, $3, $4, $5, $6, $7::vector)
                 """,
             chunk_rows,
         )
 
-    logger.info("Indexed document {}: {} chunks, vision_used={}", document_id, len(chunks), vision_used)
+    logger.info(
+        "Indexed document {}: {} chunks for team={} user={}",
+        document_id,
+        len(prepared.chunks),
+        team_id,
+        user_id,
+    )
 
     return {
         "success": True,
         "document_id": document_id,
-        "chunks_created": len(chunks),
+        "chunks_created": len(prepared.chunks),
         "skipped": False,
         "skip_reason": None,
     }
+
+
+async def index_document(
+    pool: asyncpg.Pool,
+    document_id: str,
+    content_bytes: bytes,
+    filename: str,
+    *,
+    team_id: str | None = None,
+    user_id: str | None = None,
+    embedding_service: EmbeddingService,
+    vision_client: VisionClient | None = None,
+    chunk_size: int = 2048,
+    chunk_overlap: int = 200,
+) -> dict[str, Any]:
+    """Index a document: extract, chunk, embed, and store (single-tenant shortcut)."""
+    prepared = await prepare_document(
+        content_bytes,
+        filename,
+        embedding_service=embedding_service,
+        vision_client=vision_client,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+    )
+
+    if prepared is None:
+        return {
+            "success": True,
+            "document_id": document_id,
+            "chunks_created": 0,
+            "skipped": True,
+            "skip_reason": "no_text_extracted",
+        }
+
+    return await store_prepared_document(
+        pool,
+        document_id,
+        filename,
+        prepared,
+        team_id=team_id,
+        user_id=user_id,
+    )

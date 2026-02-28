@@ -27,9 +27,6 @@
     "@tale/rag#build": {
       "outputs": []
     },
-    "@tale/search#build": {
-      "outputs": []
-    },
     "dev": {
       "dependsOn": ["setup"],
       "cache": false,

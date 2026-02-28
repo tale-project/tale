@@ -23,6 +23,15 @@ if TYPE_CHECKING:
 MAX_UNCOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
 
 
+def _iter_shapes(shapes):
+    """Recursively yield all shapes, descending into groups."""
+    for shape in shapes:
+        if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+            yield from _iter_shapes(shape.shapes)
+        else:
+            yield shape
+
+
 async def _process_slide(
     slide_num: int,
     slide,
@@ -33,7 +42,7 @@ async def _process_slide(
     elements: list[tuple[float, str]] = []
     image_tasks: list[tuple[float, bytes]] = []
 
-    for shape in slide.shapes:
+    for shape in _iter_shapes(slide.shapes):
         top = shape.top or 0
 
         if shape.has_text_frame:
@@ -113,11 +122,12 @@ async def extract_text_from_pptx_bytes(
     logger.info(f"Processing PPTX: {filename}")
 
     try:
-        zf = zipfile.ZipFile(BytesIO(pptx_bytes))
-        total = sum(info.file_size for info in zf.infolist())
-        if total > MAX_UNCOMPRESSED_SIZE:
-            raise ValueError(f"File exceeds maximum decompressed size ({total} bytes)")
-        zf.close()
+        with zipfile.ZipFile(BytesIO(pptx_bytes)) as zf:
+            total = sum(info.file_size for info in zf.infolist())
+            if total > MAX_UNCOMPRESSED_SIZE:
+                raise ValueError(
+                    f"File exceeds maximum decompressed size ({total} bytes)"
+                )
     except zipfile.BadZipFile:
         raise ValueError("Invalid or corrupt file")
 

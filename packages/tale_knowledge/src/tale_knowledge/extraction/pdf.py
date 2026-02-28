@@ -9,6 +9,7 @@ Hybrid approach:
 from __future__ import annotations
 
 import asyncio
+from functools import partial
 from typing import TYPE_CHECKING
 
 import fitz  # PyMuPDF
@@ -21,107 +22,161 @@ if TYPE_CHECKING:
 
 MIN_TEXT_THRESHOLD = 50
 MAX_PAGES = 2000
+DEFAULT_PAGE_CONCURRENCY = 8
 
 
-async def _ocr_page(
-    page: fitz.Page,
-    semaphore: asyncio.Semaphore,
-    vision_client: VisionClient,
-) -> str:
-    async with semaphore:
-        try:
-            dpi = vision_client.pdf_dpi
-            mat = fitz.Matrix(dpi / 72, dpi / 72)
-            pixmap = page.get_pixmap(matrix=mat)
-            image_bytes = pixmap.tobytes("png")
-            pixmap = None
-            return await vision_client.ocr_image(image_bytes)
-        except Exception as e:
-            logger.warning(f"Failed to OCR page, returning empty text: {e}")
-            return ""
+def _extract_page_text_sync(page_bytes: bytes) -> dict:
+    """Extract text blocks from a single page (runs in thread pool).
+
+    Accepts serialised page bytes to avoid sharing fitz objects across threads.
+    Returns a dict with text elements and total_text_len.
+    """
+    doc = fitz.open(stream=page_bytes, filetype="pdf")
+    try:
+        page = doc[0]
+        text_dict = page.get_text("dict")
+        elements: list[tuple[float, str]] = []
+        total_text_len = 0
+
+        for block in text_dict.get("blocks", []):
+            if block.get("type") == 0:
+                y0 = block.get("bbox", [0, 0, 0, 0])[1]
+                lines_text = []
+                for line in block.get("lines", []):
+                    spans_text = "".join(
+                        span.get("text", "") for span in line.get("spans", [])
+                    )
+                    lines_text.append(spans_text)
+                text = "\n".join(lines_text).strip()
+                if text:
+                    elements.append((y0, text))
+                    total_text_len += len(text)
+
+        return {"elements": elements, "total_text_len": total_text_len}
+    finally:
+        doc.close()
 
 
-async def _describe_image(
-    doc: fitz.Document,
-    xref: int,
-    semaphore: asyncio.Semaphore,
-    vision_client: VisionClient,
-) -> str:
-    async with semaphore:
-        try:
-            base_image = doc.extract_image(xref)
-            if not base_image:
-                return ""
+def _render_page_to_png_sync(page_bytes: bytes, dpi: int) -> bytes:
+    """Render a page to PNG bytes (runs in thread pool)."""
+    doc = fitz.open(stream=page_bytes, filetype="pdf")
+    try:
+        page = doc[0]
+        mat = fitz.Matrix(dpi / 72, dpi / 72)
+        pixmap = page.get_pixmap(matrix=mat)
+        png_bytes = pixmap.tobytes("png")
+        pixmap = None
+        return png_bytes
+    finally:
+        doc.close()
 
-            image_bytes = base_image.get("image")
-            if not image_bytes:
-                return ""
 
-            width = base_image.get("width", 0)
-            height = base_image.get("height", 0)
-            if width * height < MIN_IMAGE_SIZE:
-                logger.debug(f"Skipping small image ({width}x{height})")
-                return ""
+def _get_page_images_sync(page_bytes: bytes) -> list[tuple[float, int]]:
+    """Get image positions and xrefs from a page (runs in thread pool).
 
-            return await vision_client.describe_image(image_bytes)
-        except Exception as e:
-            logger.warning(f"Failed to describe image xref={xref}: {e}")
-            return ""
+    Returns list of (y0, xref) tuples.
+    """
+    doc = fitz.open(stream=page_bytes, filetype="pdf")
+    try:
+        page = doc[0]
+        result: list[tuple[float, int]] = []
+        for img_info in page.get_images(full=True):
+            xref = img_info[0]
+            try:
+                bbox_list = page.get_image_rects(xref)
+                y0 = bbox_list[0].y0 if bbox_list else float("inf")
+                result.append((y0, xref))
+            except Exception:
+                result.append((float("inf"), xref))
+        return result
+    finally:
+        doc.close()
+
+
+def _extract_image_sync(pdf_bytes: bytes, xref: int) -> dict | None:
+    """Extract image bytes from PDF by xref (runs in thread pool)."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        base_image = doc.extract_image(xref)
+        if not base_image:
+            return None
+        image_bytes = base_image.get("image")
+        if not image_bytes:
+            return None
+        width = base_image.get("width", 0)
+        height = base_image.get("height", 0)
+        if width * height < MIN_IMAGE_SIZE:
+            return None
+        return {"image_bytes": image_bytes, "width": width, "height": height}
+    finally:
+        doc.close()
+
+
+def _serialize_page(doc: fitz.Document, page_num: int) -> bytes:
+    """Serialize a single page to its own PDF bytes for thread-safe processing."""
+    single = fitz.open()
+    try:
+        single.insert_pdf(doc, from_page=page_num, to_page=page_num)
+        return single.tobytes()
+    finally:
+        single.close()
 
 
 async def _extract_page_with_layout(
-    page: fitz.Page,
-    doc: fitz.Document,
-    semaphore: asyncio.Semaphore,
+    page_bytes: bytes,
+    page_num: int,
+    pdf_bytes: bytes,
+    vision_semaphore: asyncio.Semaphore,
     vision_client: VisionClient | None,
     process_images: bool,
     ocr_scanned_pages: bool,
 ) -> tuple[str, bool]:
     """Extract page content preserving text and image positions."""
-    elements: list[tuple[float, str]] = []
+    loop = asyncio.get_running_loop()
+
+    text_data = await loop.run_in_executor(
+        None, partial(_extract_page_text_sync, page_bytes)
+    )
+    elements: list[tuple[float, str]] = text_data["elements"]
+    total_text_len: int = text_data["total_text_len"]
     vision_used = False
-
-    text_dict = page.get_text("dict")
-    total_text_len = 0
-
-    for block in text_dict.get("blocks", []):
-        if block.get("type") == 0:
-            y0 = block.get("bbox", [0, 0, 0, 0])[1]
-            lines_text = []
-            for line in block.get("lines", []):
-                spans_text = "".join(
-                    span.get("text", "") for span in line.get("spans", [])
-                )
-                lines_text.append(spans_text)
-            text = "\n".join(lines_text).strip()
-            if text:
-                elements.append((y0, text))
-                total_text_len += len(text)
 
     if total_text_len < MIN_TEXT_THRESHOLD and ocr_scanned_pages and vision_client:
         logger.debug(
-            f"Page {page.number + 1}: Low text ({total_text_len} chars), sending to Vision API for OCR"
+            f"Page {page_num + 1}: Low text ({total_text_len} chars), sending to Vision API for OCR"
         )
-        ocr_text = await _ocr_page(page, semaphore, vision_client)
-        if ocr_text:
-            elements = [(0, ocr_text)]
-            vision_used = True
-
-    if process_images and vision_client:
-        image_list = page.get_images(full=True)
-        for img_info in image_list:
-            xref = img_info[0]
+        async with vision_semaphore:
             try:
-                bbox_list = page.get_image_rects(xref)
-                y0 = bbox_list[0].y0 if bbox_list else float("inf")
-                description = await _describe_image(doc, xref, semaphore, vision_client)
-                if description:
-                    elements.append((y0, f"[Image: {description}]"))
+                dpi = vision_client.pdf_dpi
+                image_bytes = await loop.run_in_executor(
+                    None, partial(_render_page_to_png_sync, page_bytes, dpi)
+                )
+                ocr_text = await vision_client.ocr_image(image_bytes)
+                if ocr_text:
+                    elements = [(0, ocr_text)]
                     vision_used = True
             except Exception as e:
-                logger.warning(
-                    f"Failed to process image on page {page.number + 1}: {e}"
+                logger.warning(f"Failed to OCR page {page_num + 1}: {e}")
+
+    if process_images and vision_client:
+        image_infos = await loop.run_in_executor(
+            None, partial(_get_page_images_sync, page_bytes)
+        )
+        for y0, xref in image_infos:
+            try:
+                img_data = await loop.run_in_executor(
+                    None, partial(_extract_image_sync, pdf_bytes, xref)
                 )
+                if img_data:
+                    async with vision_semaphore:
+                        description = await vision_client.describe_image(
+                            img_data["image_bytes"]
+                        )
+                    if description:
+                        elements.append((y0, f"[Image: {description}]"))
+                        vision_used = True
+            except Exception as e:
+                logger.warning(f"Failed to process image on page {page_num + 1}: {e}")
 
     elements.sort(key=lambda x: x[0])
     content = "\n\n".join(elem[1] for elem in elements)
@@ -152,44 +207,61 @@ async def extract_text_from_pdf_bytes(
     """
     logger.info(f"Processing PDF: {filename}")
 
-    max_concurrent = vision_client.max_concurrent_pages if vision_client else 3
-    semaphore = asyncio.Semaphore(max_concurrent)
+    max_concurrent_vision = vision_client.max_concurrent_pages if vision_client else 3
+    vision_semaphore = asyncio.Semaphore(max_concurrent_vision)
+    page_semaphore = asyncio.Semaphore(DEFAULT_PAGE_CONCURRENCY)
 
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    loop = asyncio.get_running_loop()
+
+    doc = await loop.run_in_executor(
+        None, partial(fitz.open, stream=pdf_bytes, filetype="pdf")
+    )
     try:
         total_pages = len(doc)
-        pages_to_process = total_pages
+        pages_to_process = min(total_pages, max_pages)
 
         if total_pages > max_pages:
             logger.warning(
                 f"PDF has {total_pages} pages, exceeding limit of {max_pages}. "
                 f"Only the first {max_pages} pages will be processed."
             )
-            pages_to_process = max_pages
 
-        async def process_page(page_num: int) -> tuple[int, str, bool]:
-            page = doc[page_num]
+        page_data: list[tuple[int, bytes]] = []
+        for i in range(pages_to_process):
+            page_bytes = await loop.run_in_executor(
+                None, partial(_serialize_page, doc, i)
+            )
+            page_data.append((i, page_bytes))
+    finally:
+        doc.close()
+
+    async def process_page(page_num: int, page_bytes: bytes) -> tuple[int, str, bool]:
+        async with page_semaphore:
             content, vis_used = await _extract_page_with_layout(
-                page, doc, semaphore, vision_client, process_images, ocr_scanned_pages
+                page_bytes,
+                page_num,
+                pdf_bytes,
+                vision_semaphore,
+                vision_client,
+                process_images,
+                ocr_scanned_pages,
             )
             return page_num, f"--- Page {page_num + 1} ---\n{content}", vis_used
 
-        tasks = [process_page(i) for i in range(pages_to_process)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+    tasks = [process_page(pn, pb) for pn, pb in page_data]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        pages_content: list[tuple[int, str]] = []
-        vision_used = False
+    pages_content: list[tuple[int, str]] = []
+    vision_used = False
 
-        for result in results:
-            if isinstance(result, Exception):
-                logger.warning(f"Page processing failed: {result}")
-                continue
-            page_num, content, page_vision_used = result
-            pages_content.append((page_num, content))
-            if page_vision_used:
-                vision_used = True
-    finally:
-        doc.close()
+    for result in results:
+        if isinstance(result, Exception):
+            logger.warning(f"Page processing failed: {result}")
+            continue
+        page_num, content, page_vision_used = result
+        pages_content.append((page_num, content))
+        if page_vision_used:
+            vision_used = True
 
     pages_content.sort(key=lambda x: x[0])
     combined_text = "\n\n".join(p[1] for p in pages_content)

@@ -71,8 +71,8 @@ class RagSearchService:
         except asyncpg.UndefinedColumnError:
             logger.info("Schema not ready, returning empty results")
             return []
-        except Exception as e:
-            if "bm25" in str(e).lower() and "index" in str(e).lower():
+        except asyncpg.InternalServerError as e:
+            if "bm25" in str(e).lower():
                 logger.warning("BM25 index not ready: {}, falling back to vector-only", e)
                 if query_embedding is None:
                     query_embedding = await self._embedding.embed_query(query)
@@ -133,7 +133,7 @@ class RagSearchService:
             async with acquire_with_retry(self._pool) as conn:
                 rows = await conn.fetch(sql, *params)
                 return [dict(r) for r in rows]
-        except Exception as e:
+        except asyncpg.InternalServerError as e:
             if "bm25" in str(e).lower():
                 logger.warning("BM25 search failed: {}", e)
                 return []

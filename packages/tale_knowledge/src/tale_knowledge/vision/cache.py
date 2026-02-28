@@ -3,10 +3,16 @@
 Uses SHA-256 hash of image bytes as cache key with in-memory LRU cache
 (O(1) operations via OrderedDict). Separate caches for OCR and image
 description results with configurable sizes and hit/miss stats.
+
+Async ``get_or_set_*`` methods use per-key ``asyncio.Lock`` instances so
+concurrent callers for the *same* image coalesce into a single Vision API
+call while callers for *different* images proceed without contention.
 """
 
+import asyncio
 import hashlib
 from collections import OrderedDict
+from collections.abc import Awaitable, Callable
 
 from loguru import logger
 
@@ -23,6 +29,8 @@ class VisionCache:
     """LRU cache for Vision API results.
 
     Uses OrderedDict for O(1) LRU operations via move_to_end() and popitem().
+    Per-key asyncio.Lock instances prevent duplicate Vision API calls when
+    multiple coroutines miss the cache for the same image concurrently.
     """
 
     def __init__(
@@ -40,10 +48,38 @@ class VisionCache:
             "description_hits": 0,
             "description_misses": 0,
         }
+        self._ocr_key_locks: dict[str, asyncio.Lock] = {}
+        self._description_key_locks: dict[str, asyncio.Lock] = {}
+        self._ocr_locks_guard = asyncio.Lock()
+        self._description_locks_guard = asyncio.Lock()
 
     def _evict_if_needed(self, cache: OrderedDict[str, str], max_size: int) -> None:
         while len(cache) >= max_size:
             cache.popitem(last=False)
+
+    async def _acquire_key_lock(
+        self,
+        key: str,
+        key_locks: dict[str, asyncio.Lock],
+        guard: asyncio.Lock,
+    ) -> asyncio.Lock:
+        """Get or create a per-key lock, guarded by a lightweight meta-lock."""
+        async with guard:
+            if key not in key_locks:
+                key_locks[key] = asyncio.Lock()
+            return key_locks[key]
+
+    async def _release_key_lock(
+        self,
+        key: str,
+        key_locks: dict[str, asyncio.Lock],
+        guard: asyncio.Lock,
+    ) -> None:
+        """Remove a per-key lock once no one is waiting on it."""
+        async with guard:
+            lock = key_locks.get(key)
+            if lock is not None and not lock.locked():
+                key_locks.pop(key, None)
 
     def get_ocr(self, image_bytes: bytes) -> tuple[str | None, str]:
         """Get cached OCR result. Returns (cached_result_or_None, image_hash)."""
@@ -61,6 +97,47 @@ class VisionCache:
         self._ocr_cache[image_hash] = result
         self._ocr_cache.move_to_end(image_hash)
 
+    async def get_or_set_ocr(
+        self,
+        image_bytes: bytes,
+        fetch_fn: Callable[[], Awaitable[str]],
+    ) -> str:
+        """Get cached OCR result or fetch via ``fetch_fn``, with per-key locking.
+
+        Only one coroutine per image hash will call ``fetch_fn``; concurrent
+        callers for the same image wait on the per-key lock and then read
+        from the cache.
+        """
+        image_hash = compute_image_hash(image_bytes)
+
+        if image_hash in self._ocr_cache:
+            self._stats["ocr_hits"] += 1
+            self._ocr_cache.move_to_end(image_hash)
+            logger.debug(f"Vision cache HIT (OCR): {image_hash[:16]}...")
+            return self._ocr_cache[image_hash]
+
+        key_lock = await self._acquire_key_lock(
+            image_hash, self._ocr_key_locks, self._ocr_locks_guard
+        )
+        try:
+            async with key_lock:
+                if image_hash in self._ocr_cache:
+                    self._stats["ocr_hits"] += 1
+                    self._ocr_cache.move_to_end(image_hash)
+                    logger.debug(
+                        f"Vision cache HIT (OCR, after lock): {image_hash[:16]}..."
+                    )
+                    return self._ocr_cache[image_hash]
+
+                self._stats["ocr_misses"] += 1
+                result = await fetch_fn()
+                self.set_ocr(image_hash, result)
+                return result
+        finally:
+            await self._release_key_lock(
+                image_hash, self._ocr_key_locks, self._ocr_locks_guard
+            )
+
     def get_description(self, image_bytes: bytes) -> tuple[str | None, str]:
         """Get cached image description. Returns (cached_result_or_None, image_hash)."""
         image_hash = compute_image_hash(image_bytes)
@@ -76,6 +153,47 @@ class VisionCache:
         self._evict_if_needed(self._description_cache, self._desc_max)
         self._description_cache[image_hash] = result
         self._description_cache.move_to_end(image_hash)
+
+    async def get_or_set_description(
+        self,
+        image_bytes: bytes,
+        fetch_fn: Callable[[], Awaitable[str]],
+    ) -> str:
+        """Get cached description or fetch via ``fetch_fn``, with per-key locking.
+
+        Only one coroutine per image hash will call ``fetch_fn``; concurrent
+        callers for the same image wait on the per-key lock and then read
+        from the cache.
+        """
+        image_hash = compute_image_hash(image_bytes)
+
+        if image_hash in self._description_cache:
+            self._stats["description_hits"] += 1
+            self._description_cache.move_to_end(image_hash)
+            logger.debug(f"Vision cache HIT (description): {image_hash[:16]}...")
+            return self._description_cache[image_hash]
+
+        key_lock = await self._acquire_key_lock(
+            image_hash, self._description_key_locks, self._description_locks_guard
+        )
+        try:
+            async with key_lock:
+                if image_hash in self._description_cache:
+                    self._stats["description_hits"] += 1
+                    self._description_cache.move_to_end(image_hash)
+                    logger.debug(
+                        f"Vision cache HIT (description, after lock): {image_hash[:16]}..."
+                    )
+                    return self._description_cache[image_hash]
+
+                self._stats["description_misses"] += 1
+                result = await fetch_fn()
+                self.set_description(image_hash, result)
+                return result
+        finally:
+            await self._release_key_lock(
+                image_hash, self._description_key_locks, self._description_locks_guard
+            )
 
     def get_stats(self) -> dict[str, int]:
         return {

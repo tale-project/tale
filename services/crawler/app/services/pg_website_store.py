@@ -273,7 +273,7 @@ class PgWebsiteStoreManager:
 
     async def execute_delete(self, domain: str) -> None:
         """Run the actual CASCADE DELETE. Intended for background execution."""
-        async with acquire_with_retry(self._pool) as conn:
+        async with acquire_with_retry(self._pool) as conn, conn.transaction():
             await conn.execute("SET LOCAL statement_timeout = '120s'")
             await conn.execute("DELETE FROM websites WHERE domain = $1", domain)
         logger.info(f"Deleted website: {domain}")

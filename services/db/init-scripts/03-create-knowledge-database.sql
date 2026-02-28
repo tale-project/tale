@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public_web.websites (
     title           TEXT,
     description     TEXT,
     page_count      INTEGER NOT NULL DEFAULT 0,
-    status          TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'scanning', 'deleting', 'error', 'completed')),
+    status          TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'active', 'scanning', 'deleting', 'error', 'completed')),
     scan_interval   INTEGER NOT NULL DEFAULT 21600,
     last_scanned_at TIMESTAMPTZ,
     error           TEXT,

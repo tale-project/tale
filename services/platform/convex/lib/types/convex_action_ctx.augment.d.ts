@@ -1,5 +1,4 @@
 import 'convex/server';
-import type { RagPrefetchCache } from '../rag_prefetch';
 
 declare module 'convex/server' {
   interface GenericActionCtx<DataModel extends GenericDataModel> {
@@ -18,11 +17,5 @@ declare module 'convex/server' {
      * when a sub-agent creates approvals.
      */
     parentThreadId?: string;
-    /**
-     * RAG search prefetch cache.
-     * Started at the beginning of generateAgentResponse, used by the first
-     * rag_search tool call to avoid redundant requests.
-     */
-    ragPrefetchCache?: RagPrefetchCache;
   }
 }

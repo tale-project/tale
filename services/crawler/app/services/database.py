@@ -5,6 +5,7 @@ Provides a singleton pool tied to FastAPI's lifespan for the tale_knowledge data
 (public_web schema for crawler data).
 """
 
+import asyncio
 import os
 
 import asyncpg
@@ -16,6 +17,7 @@ from app.config import settings
 SCHEMA = "public_web"
 
 _pool: asyncpg.Pool | None = None
+_pool_lock = asyncio.Lock()
 
 
 def _get_database_url() -> str:
@@ -34,55 +36,59 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
     if _pool is not None:
         return _pool
 
-    dsn = _get_database_url()
-    _pool = await asyncpg.create_pool(
-        dsn,
-        min_size=min(2, max_size),
-        max_size=max_size,
-        server_settings={"search_path": f"{SCHEMA},public"},
-    )
-    logger.info(f"PostgreSQL connection pool initialized (min={min(2, max_size)}, max={max_size})")
+    async with _pool_lock:
+        if _pool is not None:
+            return _pool
 
-    # Guard against embedding dimension mismatch: if existing data uses a
-    # different dimension than the current config, refuse to start.
-    configured_dims = settings.get_embedding_dimensions()
-    async with acquire_with_retry(_pool) as conn:
-        stored_dims = await conn.fetchval(
-            f"SELECT vector_dims(embedding) FROM {SCHEMA}.chunks WHERE embedding IS NOT NULL LIMIT 1"
+        dsn = _get_database_url()
+        _pool = await asyncpg.create_pool(
+            dsn,
+            min_size=min(2, max_size),
+            max_size=max_size,
+            server_settings={"search_path": f"{SCHEMA},public"},
         )
-    if stored_dims is not None and stored_dims != configured_dims:
-        await _pool.close()
-        _pool = None
-        raise RuntimeError(
-            f"Embedding dimension mismatch: database has {stored_dims}d vectors "
-            f"but CRAWLER_EMBEDDING_DIMENSIONS={configured_dims}. "
-            f"Re-index existing data or update the config to match."
-        )
+        logger.info(f"PostgreSQL connection pool initialized (min={min(2, max_size)}, max={max_size})")
 
-    # Pin the embedding column to explicit dimensions so HNSW indexes work.
-    expected_type = f"vector({int(configured_dims)})"
-    async with acquire_with_retry(_pool) as conn:
-        col_type = await conn.fetchval(
-            "SELECT format_type(atttypid, atttypmod) "
-            "FROM pg_attribute "
-            "WHERE attrelid = $1::regclass AND attname = 'embedding'",
-            f"{SCHEMA}.chunks",
-        )
-        if col_type != expected_type:
-            await conn.execute(f"DROP INDEX IF EXISTS {SCHEMA}.idx_pw_chunks_embedding_hnsw")
-            await conn.execute(
-                f"ALTER TABLE {SCHEMA}.chunks ALTER COLUMN embedding TYPE vector({int(configured_dims)})"
-            )
-            logger.info(f"Pinned embedding column to vector({configured_dims}) (was {col_type})")
-
-    # Create HNSW index if it doesn't exist yet.
-    try:
+        # Guard against embedding dimension mismatch: if existing data uses a
+        # different dimension than the current config, refuse to start.
+        configured_dims = settings.get_embedding_dimensions()
         async with acquire_with_retry(_pool) as conn:
-            await conn.execute(f"SELECT {SCHEMA}.create_chunks_hnsw_index()")
-    except Exception as e:
-        logger.warning(f"HNSW index creation deferred: {e}")
+            stored_dims = await conn.fetchval(
+                f"SELECT vector_dims(embedding) FROM {SCHEMA}.chunks WHERE embedding IS NOT NULL LIMIT 1"
+            )
+        if stored_dims is not None and stored_dims != configured_dims:
+            await _pool.close()
+            _pool = None
+            raise RuntimeError(
+                f"Embedding dimension mismatch: database has {stored_dims}d vectors "
+                f"but CRAWLER_EMBEDDING_DIMENSIONS={configured_dims}. "
+                f"Re-index existing data or update the config to match."
+            )
 
-    return _pool
+        # Pin the embedding column to explicit dimensions so HNSW indexes work.
+        expected_type = f"vector({int(configured_dims)})"
+        async with acquire_with_retry(_pool) as conn:
+            col_type = await conn.fetchval(
+                "SELECT format_type(atttypid, atttypmod) "
+                "FROM pg_attribute "
+                "WHERE attrelid = $1::regclass AND attname = 'embedding'",
+                f"{SCHEMA}.chunks",
+            )
+            if col_type != expected_type:
+                await conn.execute(f"DROP INDEX IF EXISTS {SCHEMA}.idx_pw_chunks_embedding_hnsw")
+                await conn.execute(
+                    f"ALTER TABLE {SCHEMA}.chunks ALTER COLUMN embedding TYPE vector({int(configured_dims)})"
+                )
+                logger.info(f"Pinned embedding column to vector({configured_dims}) (was {col_type})")
+
+        # Create HNSW index if it doesn't exist yet.
+        try:
+            async with acquire_with_retry(_pool) as conn:
+                await conn.execute(f"SELECT {SCHEMA}.create_chunks_hnsw_index()")
+        except Exception as e:
+            logger.warning(f"HNSW index creation deferred: {e}")
+
+        return _pool
 
 
 def get_pool() -> asyncpg.Pool:
