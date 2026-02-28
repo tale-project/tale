@@ -242,7 +242,7 @@ export function ChatHistorySidebar({
                         }}
                         className="absolute inset-0 cursor-pointer rounded-md"
                       />
-                      <span className="pointer-events-none relative z-10 min-h-[20px] flex-1 truncate text-left text-sm leading-snug">
+                      <span className="pointer-events-none relative z-10 min-h-[1.5rem] flex-1 truncate text-left text-sm leading-snug">
                         {chat.title}
                       </span>
                       <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
