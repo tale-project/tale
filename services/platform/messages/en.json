@@ -2221,7 +2221,6 @@
       "loadMore": "Load more",
       "loadingMore": "Loading...",
       "toast": {
-        "titleEmpty": "Chat title cannot be empty",
         "renameFailed": "Failed to rename chat"
       }
     },

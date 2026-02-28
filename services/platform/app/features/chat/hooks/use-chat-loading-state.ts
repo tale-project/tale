@@ -11,34 +11,17 @@ interface UseChatLoadingStateParams {
 }
 
 /**
- * Checks whether the assistant message represents an in-progress tool turn
- * (the final text response has not yet arrived).
- *
- * The SDK appends parts in message order: tool-call parts first, then
- * tool-result merges into existing parts, then final text parts last.
- * If the last meaningful part is a tool-* part, the final response
- * hasn't arrived yet.
- */
-function isUnfinishedToolTurn(message: UIMessage) {
-  const parts = message.parts;
-  if (!parts?.length) return false;
-
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const type = parts[i].type;
-    if (type === 'step-start' || type.startsWith('source-')) continue;
-    return type.startsWith('tool-');
-  }
-  return false;
-}
-
-/**
  * Derives a single `isLoading` boolean that answers: "Is the AI turn active?"
  *
- * The AI turn is considered complete (not loading) only when ALL three
- * conditions are met:
+ * The AI turn is considered complete (not loading) only when BOTH conditions
+ * are met:
  *   1. The last message is from the assistant
- *   2. The last meaningful part is not a tool part (final text has arrived)
- *   3. The last message has a terminal status (success/failed)
+ *   2. The last message has a terminal status (success/failed)
+ *
+ * `failed` is unconditionally terminal — even mid-tool-call — because the
+ * SDK maps stream abort to `failed` (not `aborted`), and a failed generation
+ * cannot resume. Without this, a failure during a tool turn would leave
+ * isLoading stuck forever.
  *
  * When no messages exist, falls back to `isPending` to bridge the gap
  * between send and first subscription data.
@@ -61,12 +44,8 @@ export function useChatLoadingState({
     const status: string | undefined = lastMessage.status;
 
     if (lastMessage.role !== 'assistant') return true;
-    if (status === 'aborted') return false;
 
-    return !(
-      !isUnfinishedToolTurn(lastMessage) &&
-      (status === 'success' || status === 'failed')
-    );
+    return !(status === 'success' || status === 'failed');
   }, [isPending, uiMessages]);
 
   useEffect(() => {
