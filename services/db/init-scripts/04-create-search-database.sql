@@ -62,6 +62,21 @@ CREATE INDEX IF NOT EXISTS idx_website_urls_domain_status ON website_urls(domain
 CREATE INDEX IF NOT EXISTS idx_website_urls_crawl_order ON website_urls(domain, last_crawled_at NULLS FIRST);
 
 -- ============================================================================
+-- Paragraph hashes (cross-page boilerplate detection)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS page_paragraph_hashes (
+    domain          TEXT NOT NULL,
+    url             TEXT NOT NULL,
+    paragraph_hash  TEXT NOT NULL,
+    PRIMARY KEY (domain, url, paragraph_hash),
+    FOREIGN KEY (domain, url) REFERENCES website_urls(domain, url) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_pph_domain_hash
+    ON page_paragraph_hashes(domain, paragraph_hash);
+
+-- ============================================================================
 -- Chunks (search index)
 -- ============================================================================
 
