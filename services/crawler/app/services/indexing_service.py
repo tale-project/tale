@@ -55,6 +55,14 @@ class IndexingService:
         existing: asyncpg.Record | None = None
 
         async with acquire_with_retry(self._pool) as conn:
+            # Ensure website_url row exists (FK required by page_paragraph_hashes)
+            await conn.execute(
+                """INSERT INTO website_urls (domain, url, status, discovered_at)
+                   VALUES ($1, $2, 'active', NOW())
+                   ON CONFLICT (domain, url) DO NOTHING""",
+                domain,
+                url,
+            )
             await conn.execute(
                 "DELETE FROM page_paragraph_hashes WHERE domain = $1 AND url = $2",
                 domain,
