@@ -1,5 +1,9 @@
 """
 Content indexing pipeline: chunk → embed → store in PostgreSQL.
+
+Includes incremental cross-page paragraph deduplication: paragraph
+fingerprints are tracked per page, and paragraphs appearing on >50%
+of a domain's pages are filtered as boilerplate before chunking.
 """
 
 import asyncio
@@ -11,10 +15,25 @@ import asyncpg
 from app.services.chunking_service import chunk_content
 from app.services.database import acquire_with_retry
 from app.services.embedding_service import EmbeddingService
+from app.utils.paragraph_dedup import (
+    BOILERPLATE_FREQUENCY_THRESHOLD,
+    MIN_DOMAIN_PAGES_FOR_DEDUP,
+    extract_paragraph_hashes,
+    filter_boilerplate_paragraphs,
+)
 
 logger = logging.getLogger(__name__)
 
 INDEXING_CONCURRENCY = 5
+
+_UPSERT_WEBSITE_URL = """\
+INSERT INTO website_urls (domain, url, title, content_hash, status, discovered_at, last_crawled_at, metadata)
+VALUES ($1, $2, $3, $4, 'active', NOW(), NOW(), jsonb_build_object('filtering_hash', $5))
+ON CONFLICT (domain, url) DO UPDATE SET
+  title = COALESCE(EXCLUDED.title, website_urls.title),
+  content_hash = EXCLUDED.content_hash,
+  metadata = jsonb_set(COALESCE(website_urls.metadata, '{}'), '{filtering_hash}', to_jsonb($5::text)),
+  last_crawled_at = NOW()"""
 
 
 def _sha256(content: str) -> str:
@@ -29,16 +48,58 @@ class IndexingService:
 
     async def index_page(self, domain: str, url: str, title: str | None, content: str) -> dict:
         content_hash = _sha256(content)
+        hashes = extract_paragraph_hashes(content)
 
-        # Check if already indexed with same hash
+        # --- Single connection: hash update + frequency query + skip check ---
+        frequencies: dict[str, float] = {}
+        existing: asyncpg.Record | None = None
+
         async with acquire_with_retry(self._pool) as conn:
-            existing_hash = await conn.fetchval("SELECT content_hash FROM chunks WHERE url = $1 LIMIT 1", url)
-            if existing_hash == content_hash:
-                return {"url": url, "status": "skipped", "chunks_indexed": 0}
+            await conn.execute(
+                "DELETE FROM page_paragraph_hashes WHERE domain = $1 AND url = $2",
+                domain,
+                url,
+            )
+            if hashes:
+                await conn.executemany(
+                    "INSERT INTO page_paragraph_hashes (domain, url, paragraph_hash) VALUES ($1, $2, $3)",
+                    [(domain, url, h) for h in hashes],
+                )
 
-        # Chunk content
-        chunks = chunk_content(content, title=title, url=url)
+            total_pages = await conn.fetchval(
+                "SELECT COUNT(DISTINCT url) FROM page_paragraph_hashes WHERE domain = $1",
+                domain,
+            )
+            if total_pages >= MIN_DOMAIN_PAGES_FOR_DEDUP and hashes:
+                rows = await conn.fetch(
+                    """SELECT paragraph_hash, COUNT(DISTINCT url) as url_count
+                       FROM page_paragraph_hashes
+                       WHERE domain = $1 AND paragraph_hash = ANY($2)
+                       GROUP BY paragraph_hash""",
+                    domain,
+                    hashes,
+                )
+                frequencies = {row["paragraph_hash"]: row["url_count"] / total_pages for row in rows}
+
+            existing = await conn.fetchrow(
+                """SELECT content_hash, metadata->>'filtering_hash' as filtering_hash
+                   FROM website_urls WHERE domain = $1 AND url = $2""",
+                domain,
+                url,
+            )
+
+        # --- Pure computation (no DB) ---
+        filtered = filter_boilerplate_paragraphs(content, frequencies) if frequencies else content
+        filtered_hash = _sha256(filtered)
+
+        if existing and existing["content_hash"] == content_hash and existing["filtering_hash"] == filtered_hash:
+            return {"url": url, "status": "skipped", "chunks_indexed": 0}
+
+        # Chunk filtered content
+        chunks = chunk_content(filtered, title=title, url=url)
         if not chunks:
+            async with acquire_with_retry(self._pool) as conn:
+                await conn.execute(_UPSERT_WEBSITE_URL, domain, url, title, content_hash, filtered_hash)
             return {"url": url, "status": "empty", "chunks_indexed": 0}
 
         # Generate embeddings
@@ -49,20 +110,9 @@ class IndexingService:
             logger.exception(f"Embedding failed for {url}")
             return {"url": url, "status": "error", "chunks_indexed": 0, "error": "embedding_failed"}
 
-        # Store in DB (ensure website_urls entry exists, delete old chunks → insert new)
+        # Store in DB (single transaction)
         async with acquire_with_retry(self._pool) as conn, conn.transaction():
-            await conn.execute(
-                """INSERT INTO website_urls (domain, url, title, content_hash, status, discovered_at, last_crawled_at)
-                   VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())
-                   ON CONFLICT (domain, url) DO UPDATE SET
-                     title = COALESCE(EXCLUDED.title, website_urls.title),
-                     content_hash = EXCLUDED.content_hash,
-                     last_crawled_at = NOW()""",
-                domain,
-                url,
-                title,
-                content_hash,
-            )
+            await conn.execute(_UPSERT_WEBSITE_URL, domain, url, title, content_hash, filtered_hash)
             await conn.execute("DELETE FROM chunks WHERE url = $1", url)
             await conn.executemany(
                 """INSERT INTO chunks (domain, url, title, content_hash, chunk_index, chunk_content, embedding)
@@ -82,7 +132,14 @@ class IndexingService:
             except Exception as e:
                 logger.warning("HNSW index creation deferred: %s", e)
 
-        logger.info(f"Indexed {len(chunks)} chunks for {url}")
+        if frequencies:
+            boilerplate_count = sum(1 for f in frequencies.values() if f > BOILERPLATE_FREQUENCY_THRESHOLD)
+            logger.info(
+                "Indexed %d chunks for %s (filtered %d boilerplate paragraphs)", len(chunks), url, boilerplate_count
+            )
+        else:
+            logger.info("Indexed %d chunks for %s", len(chunks), url)
+
         return {"url": url, "status": "indexed", "chunks_indexed": len(chunks)}
 
     async def index_website(self, domain: str) -> dict:
