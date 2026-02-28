@@ -17,6 +17,7 @@ WORKDIR /app
 # - fonts-noto-color-emoji: Emoji support
 # - fonts-dejavu-core: Fallback fonts with broad Unicode coverage
 RUN apt-get update && apt-get install -y \
+    tini \
     curl \
     wget \
     gnupg \
@@ -72,11 +73,11 @@ ENV TALE_VERSION=${VERSION} \
     CRAWLER_WORKERS=1 \
     CRAWLER_LOG_LEVEL=info \
     CRAWLER_ALLOWED_ORIGINS="*" \
-    CRAWLER_MAX_CONCURRENT_CRAWLS=5 \
-    CRAWLER_DEFAULT_MAX_PAGES=100 \
-    CRAWLER_DEFAULT_WORD_COUNT_THRESHOLD=100 \
-    CRAWLER_DEFAULT_CONCURRENCY=5 \
-    CRAWLER_REQUEST_TIMEOUT_SECONDS=300 \
+    CRAWLER_POLL_INTERVAL=300 \
+    CRAWLER_MAX_CONCURRENT_SCANS=1 \
+    CRAWLER_CRAWL_BATCH_SIZE=5 \
+    CRAWLER_CRAWL_COUNT_BEFORE_RESTART=25 \
+    CRAWLER_DB_POOL_MAX_SIZE=10 \
     DO_NOT_TRACK=1
 
 # Expose port
@@ -85,6 +86,11 @@ EXPOSE 8002
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8002/health || exit 1
+
+# Use tini as init process to reap zombie Chrome/Playwright child processes.
+# Without it, uvicorn (PID 1) cannot call waitpid() and orphaned Chrome
+# subprocesses accumulate as zombies until the PID table is exhausted.
+ENTRYPOINT ["tini", "--"]
 
 # Run the application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]

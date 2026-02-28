@@ -4,6 +4,7 @@ Configuration for the Tale Crawler service.
 
 import os
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.utils.model_list import get_first_model
@@ -21,12 +22,14 @@ class Settings(BaseSettings):
     # CORS configuration
     allowed_origins: str = "*"
 
-    # Crawling configuration
-    max_concurrent_crawls: int = 5
-    default_max_pages: int = 100
-    default_word_count_threshold: int = 100
-    default_concurrency: int = 5
-    request_timeout_seconds: int = 300
+    # Scheduling & crawling frequency
+    poll_interval: int = Field(300, ge=1)
+    max_concurrent_scans: int = Field(1, ge=1)
+    crawl_batch_size: int = Field(5, ge=1)
+    crawl_count_before_restart: int = Field(25, ge=1)
+
+    # Database pool
+    db_pool_max_size: int = Field(10, ge=2)
 
     # OpenAI API Configuration
     openai_api_key: str | None = None

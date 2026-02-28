@@ -26,14 +26,14 @@ def _get_database_url() -> str:
     return f"postgresql://tale:{password}@db:5432/tale_search"
 
 
-async def init_pool() -> asyncpg.Pool:
+async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
     global _pool
     if _pool is not None:
         return _pool
 
     dsn = _get_database_url()
-    _pool = await asyncpg.create_pool(dsn, min_size=5, max_size=25)
-    logger.info("PostgreSQL connection pool initialized")
+    _pool = await asyncpg.create_pool(dsn, min_size=min(2, max_size), max_size=max_size)
+    logger.info(f"PostgreSQL connection pool initialized (min={min(2, max_size)}, max={max_size})")
 
     # Guard against embedding dimension mismatch: if existing data uses a
     # different dimension than the current config, refuse to start.

@@ -260,22 +260,36 @@ class PgWebsiteStoreManager:
                 page_count,
             )
 
-    async def remove_website(self, domain: str) -> bool:
+    async def begin_delete(self, domain: str) -> bool:
+        """Mark a website for deletion. Returns True if the domain was found and marked."""
         self._stores.pop(domain, None)
         async with acquire_with_retry(self._pool) as conn:
-            # ON DELETE CASCADE on website_urls and chunks handles child row cleanup
-            result = await conn.execute("DELETE FROM websites WHERE domain = $1", domain)
-            deleted = result == "DELETE 1"
-        if deleted:
-            logger.info(f"Removed website: {domain}")
-        return deleted
+            row = await conn.fetchrow(
+                "UPDATE websites SET status = 'deleting', updated_at = NOW() "
+                "WHERE domain = $1 AND status != 'deleting' RETURNING domain",
+                domain,
+            )
+            return row is not None
+
+    async def execute_delete(self, domain: str) -> None:
+        """Run the actual CASCADE DELETE. Intended for background execution."""
+        async with acquire_with_retry(self._pool) as conn:
+            await conn.execute("SET LOCAL statement_timeout = '120s'")
+            await conn.execute("DELETE FROM websites WHERE domain = $1", domain)
+        logger.info(f"Deleted website: {domain}")
+
+    async def recover_stuck_deletes(self) -> list[str]:
+        """Find domains stuck in 'deleting' status (e.g. after a crash)."""
+        async with acquire_with_retry(self._pool) as conn:
+            rows = await conn.fetch("SELECT domain FROM websites WHERE status = 'deleting'")
+        return [r["domain"] for r in rows]
 
     async def get_due_websites(self) -> list[dict]:
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
                 """SELECT domain, status, scan_interval, last_scanned_at, error
                    FROM websites
-                   WHERE status != 'scanning'
+                   WHERE status NOT IN ('scanning', 'deleting')
                      AND (last_scanned_at IS NULL
                           OR last_scanned_at + make_interval(secs => scan_interval) < NOW())"""
             )
@@ -284,7 +298,8 @@ class PgWebsiteStoreManager:
     async def update_scan_status(self, domain: str, status: str, error: str | None = None) -> None:
         async with acquire_with_retry(self._pool) as conn:
             await conn.execute(
-                "UPDATE websites SET status = $2, error = $3, updated_at = NOW() WHERE domain = $1",
+                "UPDATE websites SET status = $2, error = $3, updated_at = NOW() "
+                "WHERE domain = $1 AND status != 'deleting'",
                 domain,
                 status,
                 error,

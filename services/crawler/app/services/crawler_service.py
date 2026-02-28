@@ -26,14 +26,12 @@ def _cleanup_memory():
 class CrawlerService:
     """Service for crawling websites using Crawl4AI."""
 
-    # Restart browser after this many crawl operations to prevent memory leaks
-    CRAWL_COUNT_BEFORE_RESTART = 50
-
-    def __init__(self):
+    def __init__(self, crawl_count_before_restart: int = 25):
         self.initialized = False
         self._seeder = None
         self._crawler = None
         self._crawl_count = 0
+        self._crawl_count_before_restart = crawl_count_before_restart
         self._restart_lock = asyncio.Lock()
 
     async def initialize(self):
@@ -49,7 +47,13 @@ class CrawlerService:
             raise RuntimeError("crawl4ai is not installed. Install with: pip install crawl4ai") from e
 
         browser_config = BrowserConfig(
-            extra_args=["--disable-crashpad"],
+            extra_args=[
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--no-zygote",
+                "--disable-breakpad",
+                "--disable-crash-reporter",
+            ],
         )
         self._seeder = AsyncUrlSeeder()
         self._crawler = AsyncWebCrawler(config=browser_config)
@@ -65,10 +69,10 @@ class CrawlerService:
     async def _maybe_restart_browser(self):
         """Restart the browser if crawl count exceeds threshold to prevent memory leaks."""
         async with self._restart_lock:
-            if self._crawl_count >= self.CRAWL_COUNT_BEFORE_RESTART:
+            if self._crawl_count >= self._crawl_count_before_restart:
                 logger.info(
                     f"Crawl count ({self._crawl_count}) reached threshold "
-                    f"({self.CRAWL_COUNT_BEFORE_RESTART}), restarting browser..."
+                    f"({self._crawl_count_before_restart}), restarting browser..."
                 )
                 await self.cleanup()
                 await self.initialize()
@@ -460,9 +464,9 @@ class CrawlerService:
 _crawler_service: CrawlerService | None = None
 
 
-def get_crawler_service() -> CrawlerService:
+def get_crawler_service(crawl_count_before_restart: int = 25) -> CrawlerService:
     """Get or create the global Crawler service instance."""
     global _crawler_service
     if _crawler_service is None:
-        _crawler_service = CrawlerService()
+        _crawler_service = CrawlerService(crawl_count_before_restart=crawl_count_before_restart)
     return _crawler_service

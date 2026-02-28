@@ -8,6 +8,7 @@ import json
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from loguru import logger
 
 from app.models import RegisterWebsiteRequest, WebsiteInfoResponse, WebsiteUrl, WebsiteUrlsResponse
@@ -17,6 +18,40 @@ from app.services.scheduler import cancel_scan, trigger_scan
 from app.utils.metadata import extract_meta_description
 
 router = APIRouter(prefix="/api/v1/websites", tags=["Websites"])
+
+_delete_sem = asyncio.Semaphore(3)
+_delete_tasks: set[asyncio.Task] = set()
+
+
+async def _background_delete(manager: PgWebsiteStoreManager, domain: str) -> None:
+    """Run CASCADE DELETE in a bounded background task."""
+    async with _delete_sem:
+        try:
+            await manager.execute_delete(domain)
+        except Exception:
+            logger.exception(f"Background delete failed for {domain}")
+            try:
+                await manager.update_scan_status(domain, "error", "Delete failed")
+            except Exception:
+                logger.exception(f"Failed to set error status for {domain}")
+
+
+def _spawn_delete_task(manager: PgWebsiteStoreManager, domain: str) -> None:
+    """Create a tracked background delete task."""
+
+    def _on_done(t: asyncio.Task) -> None:
+        _delete_tasks.discard(t)
+        if not t.cancelled() and (exc := t.exception()):
+            logger.error(f"Background delete task error for {domain}: {exc}")
+
+    task = asyncio.create_task(_background_delete(manager, domain))
+    _delete_tasks.add(task)
+    task.add_done_callback(_on_done)
+
+
+def get_delete_tasks() -> set[asyncio.Task]:
+    """Expose tracked delete tasks for graceful shutdown."""
+    return _delete_tasks
 
 
 def _get_manager(request: Request) -> PgWebsiteStoreManager:
@@ -97,6 +132,15 @@ async def _initialize_website(domain: str, manager: PgWebsiteStoreManager):
 async def register_website(request: RegisterWebsiteRequest, http_request: Request):
     try:
         manager = _get_manager(http_request)
+
+        # Reject registration if domain is currently being deleted
+        website = await manager.get_website(request.domain)
+        if website and website.get("status") == "deleting":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Domain {request.domain} is currently being deleted. Please retry later.",
+            )
+
         await manager.register_website(
             domain=request.domain,
             scan_interval=request.scan_interval,
@@ -116,6 +160,8 @@ async def register_website(request: RegisterWebsiteRequest, http_request: Reques
             status="scanning",
             scan_interval=request.scan_interval,
         )
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("Error registering website")
         raise HTTPException(status_code=500, detail="Failed to register website") from None
@@ -155,10 +201,22 @@ async def deregister_website(domain: str, http_request: Request):
     try:
         cancel_scan(domain)
         manager = _get_manager(http_request)
-        deleted = await manager.remove_website(domain)
-        if not deleted:
+        marked = await manager.begin_delete(domain)
+        if not marked:
+            # Already deleting — return 202 idempotently
+            website = await manager.get_website(domain)
+            if website and website.get("status") == "deleting":
+                return JSONResponse(
+                    status_code=202,
+                    content={"domain": domain, "status": "deleting"},
+                )
             raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
-        return {"domain": domain, "deleted": True}
+
+        _spawn_delete_task(manager, domain)
+        return JSONResponse(
+            status_code=202,
+            content={"domain": domain, "status": "deleting"},
+        )
     except HTTPException:
         raise
     except Exception:

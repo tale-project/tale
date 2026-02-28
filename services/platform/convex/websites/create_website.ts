@@ -12,7 +12,7 @@ export interface CreateWebsiteArgs {
   title?: string;
   description?: string;
   scanInterval: string; // e.g., '60m' | '6h' | '12h' | '1d' | '5d' | '7d' | '30d'
-  status?: 'idle' | 'scanning' | 'active' | 'error';
+  status?: 'idle' | 'scanning' | 'active' | 'error' | 'deleting';
 }
 
 export function ensureUrl(s: string) {

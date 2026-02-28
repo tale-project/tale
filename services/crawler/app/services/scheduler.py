@@ -20,9 +20,6 @@ from app.utils.metadata import extract_meta_description
 
 logger = logging.getLogger(__name__)
 
-MAX_CONCURRENT_SCANS = 2
-CRAWL_BATCH_SIZE = 10
-POLL_INTERVAL = 60  # seconds
 _HEAD_TIMEOUT = 10
 _HEAD_CONCURRENCY = 5
 _HEAD_BATCH_SIZE = 50
@@ -58,15 +55,19 @@ async def run_scheduler(
     store_manager: PgWebsiteStoreManager,
     crawler_service: CrawlerService,
     indexing_service: IndexingService | None = None,
+    *,
+    max_concurrent_scans: int = 1,
+    poll_interval: int = 300,
+    crawl_batch_size: int = 5,
 ):
     global _scan_trigger
     _scan_trigger = asyncio.Event()
 
-    sem = asyncio.Semaphore(MAX_CONCURRENT_SCANS)
+    sem = asyncio.Semaphore(max_concurrent_scans)
 
     async def bounded_scan(domain: str):
         async with sem:
-            await _scan_website(domain, store_manager, crawler_service, indexing_service)
+            await _scan_website(domain, store_manager, crawler_service, indexing_service, crawl_batch_size)
 
     while True:
         try:
@@ -87,7 +88,7 @@ async def run_scheduler(
 
         _scan_trigger.clear()
         try:
-            await asyncio.wait_for(_scan_trigger.wait(), timeout=POLL_INTERVAL)
+            await asyncio.wait_for(_scan_trigger.wait(), timeout=poll_interval)
             logger.info("Scheduler: woke up via trigger")
         except TimeoutError:
             pass
@@ -210,6 +211,7 @@ async def _scan_website(
     store_manager: PgWebsiteStoreManager,
     crawler_service: CrawlerService,
     indexing_service: IndexingService | None = None,
+    crawl_batch_size: int = 5,
 ):
     _clear_cancelled(domain)
     site_store = store_manager.get_site_store(domain)
@@ -256,14 +258,14 @@ async def _scan_website(
         homepage_title: str | None = None
         homepage_description: str | None = None
 
-        for i in range(0, len(needs_crawl), CRAWL_BATCH_SIZE):
+        for i in range(0, len(needs_crawl), crawl_batch_size):
             if _is_cancelled(domain):
                 logger.info(f"Scan [{domain}]: cancelled during crawl (crawled {crawled_total} so far)")
                 await store_manager.update_scan_status(domain, "idle")
                 return
-            batch = needs_crawl[i : i + CRAWL_BATCH_SIZE]
+            batch = needs_crawl[i : i + crawl_batch_size]
             logger.info(
-                f"Scan [{domain}]: Phase 3 — crawling batch {i // CRAWL_BATCH_SIZE + 1} "
+                f"Scan [{domain}]: Phase 3 — crawling batch {i // crawl_batch_size + 1} "
                 f"({len(batch)} URLs, total so far: {crawled_total})"
             )
             results = await crawler_service.crawl_urls(urls=batch)

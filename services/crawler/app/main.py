@@ -47,10 +47,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"Starting Tale Crawler service v{__version__}...")
     logger.info(f"Server: {settings.host}:{settings.port}")
     logger.info(f"Log level: {settings.log_level}")
+    logger.info(
+        f"Config: scans={settings.max_concurrent_scans}, "
+        f"poll={settings.poll_interval}s, batch={settings.crawl_batch_size}, "
+        f"browser_restart={settings.crawl_count_before_restart}, "
+        f"db_pool={settings.db_pool_max_size}"
+    )
 
     # Initialize crawler service
     try:
-        crawler = get_crawler_service()
+        crawler = get_crawler_service(
+            crawl_count_before_restart=settings.crawl_count_before_restart,
+        )
         await crawler.initialize()
         logger.info("Crawler service initialized successfully")
     except Exception:
@@ -64,7 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     from app.services.scheduler import run_scheduler
     from app.services.search_service import SearchService
 
-    pool = await init_pool()
+    pool = await init_pool(max_size=settings.db_pool_max_size)
     pg_store_manager = PgWebsiteStoreManager(pool)
     embedding_service = get_embedding_service()
     indexing_service = IndexingService(pool, embedding_service)
@@ -83,8 +91,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 
     logger.info("PostgreSQL pool + search services initialized")
 
+    # Resume any deletions interrupted by a previous crash
+    from app.routers.websites import _spawn_delete_task
+
+    stuck = await pg_store_manager.recover_stuck_deletes()
+    for domain in stuck:
+        logger.warning(f"Resuming stuck deletion for {domain}")
+        _spawn_delete_task(pg_store_manager, domain)
+    if stuck:
+        logger.info(f"Re-enqueued {len(stuck)} stuck deletion(s)")
+
     # Start background scheduler
-    scheduler_task = asyncio.create_task(run_scheduler(pg_store_manager, get_crawler_service(), indexing_service))
+    scheduler_task = asyncio.create_task(
+        run_scheduler(
+            pg_store_manager,
+            get_crawler_service(),
+            indexing_service,
+            max_concurrent_scans=settings.max_concurrent_scans,
+            poll_interval=settings.poll_interval,
+            crawl_batch_size=settings.crawl_batch_size,
+        )
+    )
     logger.info("Background scheduler started")
 
     yield
@@ -96,6 +123,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     with suppress(asyncio.CancelledError):
         await scheduler_task
     logger.info("Scheduler stopped")
+
+    # Wait for any in-flight background deletions to finish
+    from app.routers.websites import get_delete_tasks
+
+    delete_tasks = get_delete_tasks()
+    if delete_tasks:
+        logger.info(f"Waiting for {len(delete_tasks)} background deletion(s)...")
+        await asyncio.gather(*delete_tasks, return_exceptions=True)
+        logger.info("Background deletions finished")
 
     await pg_store_manager.close()
     await close_pool()

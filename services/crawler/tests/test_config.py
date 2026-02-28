@@ -1,9 +1,10 @@
-"""Tests for Crawler config model list parsing."""
+"""Tests for Crawler config settings."""
 
 import os
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.config import Settings
 
@@ -107,3 +108,61 @@ class TestGetEmbeddingDimensions:
             s = Settings()
             with pytest.raises(ValueError, match="EMBEDDING_DIMENSIONS"):
                 s.get_embedding_dimensions()
+
+
+class TestFrequencyDefaults:
+    def test_conservative_defaults(self):
+        env = _base_env()
+        with patch.dict(os.environ, env, clear=True):
+            s = Settings()
+            assert s.poll_interval == 300
+            assert s.max_concurrent_scans == 1
+            assert s.crawl_batch_size == 5
+            assert s.crawl_count_before_restart == 25
+            assert s.db_pool_max_size == 10
+
+    def test_env_var_override(self):
+        env = _base_env()
+        env["CRAWLER_POLL_INTERVAL"] = "60"
+        env["CRAWLER_MAX_CONCURRENT_SCANS"] = "4"
+        env["CRAWLER_CRAWL_BATCH_SIZE"] = "20"
+        env["CRAWLER_CRAWL_COUNT_BEFORE_RESTART"] = "100"
+        env["CRAWLER_DB_POOL_MAX_SIZE"] = "25"
+        with patch.dict(os.environ, env, clear=True):
+            s = Settings()
+            assert s.poll_interval == 60
+            assert s.max_concurrent_scans == 4
+            assert s.crawl_batch_size == 20
+            assert s.crawl_count_before_restart == 100
+            assert s.db_pool_max_size == 25
+
+    def test_rejects_zero_poll_interval(self):
+        env = _base_env()
+        env["CRAWLER_POLL_INTERVAL"] = "0"
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(ValidationError):
+                Settings()
+
+    def test_rejects_zero_max_concurrent_scans(self):
+        env = _base_env()
+        env["CRAWLER_MAX_CONCURRENT_SCANS"] = "0"
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(ValidationError):
+                Settings()
+
+    def test_rejects_pool_size_below_minimum(self):
+        env = _base_env()
+        env["CRAWLER_DB_POOL_MAX_SIZE"] = "1"
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(ValidationError):
+                Settings()
+
+    def test_dead_settings_removed(self):
+        env = _base_env()
+        with patch.dict(os.environ, env, clear=True):
+            s = Settings()
+            assert not hasattr(s, "max_concurrent_crawls")
+            assert not hasattr(s, "default_max_pages")
+            assert not hasattr(s, "default_word_count_threshold")
+            assert not hasattr(s, "default_concurrency")
+            assert not hasattr(s, "request_timeout_seconds")

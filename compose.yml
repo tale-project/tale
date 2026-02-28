@@ -136,6 +136,10 @@ services:
     # Automatically restart the container if it crashes
     restart: unless-stopped
 
+    # Shared memory for Chromium - default 64MB is insufficient for Chrome's
+    # inter-process rendering data, causing crashes and orphaned processes.
+    shm_size: '1gb'
+
     # Health check - optimized for faster blue-green deployment
     # Docker will check if the service is healthy
     healthcheck:
