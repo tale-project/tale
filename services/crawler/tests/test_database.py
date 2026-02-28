@@ -136,5 +136,5 @@ class TestEmbeddingColumnPinning:
 
         conn = fake_pool.acquire().__aenter__.return_value
         execute_calls = [str(c) for c in conn.execute.call_args_list]
-        assert any("DROP INDEX" in c and "idx_chunks_embedding_hnsw" in c for c in execute_calls)
+        assert any("DROP INDEX" in c and "idx_pw_chunks_embedding_hnsw" in c for c in execute_calls)
         assert any("ALTER TABLE" in c and "vector(1536)" in c for c in execute_calls)

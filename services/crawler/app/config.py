@@ -7,7 +7,7 @@ import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.utils.model_list import get_first_model
+from tale_shared.utils.model_list import get_first_model
 
 
 class Settings(BaseSettings):

@@ -69,7 +69,7 @@ class TestEmbedTexts:
         )
 
     async def test_batching_splits_large_input(self, monkeypatch):
-        import app.services.embedding_service as module
+        import tale_knowledge.embedding.service as module
 
         monkeypatch.setattr(module, "MAX_BATCH_SIZE", 2)
 
@@ -90,7 +90,7 @@ class TestEmbedTexts:
         assert calls[1].kwargs == {"model": "test-model", "input": ["c"], "dimensions": 2}
 
     async def test_batching_exact_multiple(self, monkeypatch):
-        import app.services.embedding_service as module
+        import tale_knowledge.embedding.service as module
 
         monkeypatch.setattr(module, "MAX_BATCH_SIZE", 2)
 
@@ -123,7 +123,7 @@ class TestEmbedQuery:
 
 
 class TestRetryBehavior:
-    @patch("app.services.embedding_service.asyncio.sleep", new_callable=AsyncMock)
+    @patch("tale_knowledge.embedding.service.asyncio.sleep", new_callable=AsyncMock)
     async def test_retries_on_first_failure(self, mock_sleep):
         service = create_service(dimensions=2)
         expected = [[0.1, 0.2]]
@@ -138,7 +138,7 @@ class TestRetryBehavior:
         assert service._client.embeddings.create.call_count == 2
         mock_sleep.assert_awaited_once_with(1.0)
 
-    @patch("app.services.embedding_service.asyncio.sleep", new_callable=AsyncMock)
+    @patch("tale_knowledge.embedding.service.asyncio.sleep", new_callable=AsyncMock)
     async def test_raises_after_all_retries_exhausted(self, mock_sleep):
         service = create_service(dimensions=2)
         service._client.embeddings.create.side_effect = [
