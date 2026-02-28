@@ -16,11 +16,7 @@ export function createDeployCommand(): Command {
   return new Command('deploy')
     .description('Deploy a version to the environment')
     .argument('[version]', 'Version to deploy (e.g., v1.0.0 or 1.0.0)')
-    .option(
-      '-a, --all',
-      'Also update infrastructure (db, proxy)',
-      false,
-    )
+    .option('-a, --all', 'Also update infrastructure (db, proxy)', false)
     .option(
       '-s, --services <list>',
       `Specific services to update (comma-separated: ${ALL_SERVICES.join(',')})`,

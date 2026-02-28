@@ -9,7 +9,6 @@ import asyncio
 
 import asyncpg
 from loguru import logger
-
 from tale_shared.db import acquire_with_retry
 
 from ..config import settings

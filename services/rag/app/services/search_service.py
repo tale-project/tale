@@ -12,7 +12,6 @@ from typing import Any
 
 import asyncpg
 from loguru import logger
-
 from tale_knowledge.embedding import EmbeddingService
 from tale_knowledge.retrieval import merge_rrf
 from tale_shared.db import acquire_with_retry

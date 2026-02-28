@@ -10,14 +10,12 @@ from typing import Any
 
 import asyncpg
 from loguru import logger
-
 from tale_knowledge.chunking import chunk_content
 from tale_knowledge.embedding import EmbeddingService
 from tale_knowledge.extraction import extract_text
 from tale_knowledge.vision import VisionClient
-from tale_shared.utils.hashing import compute_content_hash
-
 from tale_shared.db import acquire_with_retry
+from tale_shared.utils.hashing import compute_content_hash
 
 SCHEMA = "private_knowledge"
 
@@ -128,45 +126,44 @@ async def index_document(
     embeddings = await embedding_service.embed_texts([c.content for c in chunks])
 
     # Store in single transaction
-    async with acquire_with_retry(pool) as conn:
-        async with conn.transaction():
-            doc_row = await conn.fetchrow(
-                f"""
+    async with acquire_with_retry(pool) as conn, conn.transaction():
+        doc_row = await conn.fetchrow(
+            f"""
                 INSERT INTO {SCHEMA}.documents
                     (document_id, filename, content_hash, team_id, user_id, status, chunks_count)
                 VALUES ($1, $2, $3, $4, $5, 'completed', $6)
                 RETURNING id
                 """,
-                document_id,
-                filename,
-                content_hash,
+            document_id,
+            filename,
+            content_hash,
+            team_id,
+            user_id,
+            len(chunks),
+        )
+        doc_uuid = doc_row["id"]
+
+        chunk_rows = [
+            (
+                doc_uuid,
                 team_id,
                 user_id,
-                len(chunks),
+                chunk.index,
+                chunk.content,
+                compute_content_hash(chunk.content.encode("utf-8")),
+                str(embedding),
             )
-            doc_uuid = doc_row["id"]
-
-            chunk_rows = [
-                (
-                    doc_uuid,
-                    team_id,
-                    user_id,
-                    chunk.index,
-                    chunk.content,
-                    compute_content_hash(chunk.content.encode("utf-8")),
-                    str(embedding),
-                )
-                for chunk, embedding in zip(chunks, embeddings, strict=True)
-            ]
-            await conn.executemany(
-                f"""
+            for chunk, embedding in zip(chunks, embeddings, strict=True)
+        ]
+        await conn.executemany(
+            f"""
                 INSERT INTO {SCHEMA}.chunks
                     (document_id, team_id, user_id, chunk_index, chunk_content,
                      content_hash, embedding)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 """,
-                chunk_rows,
-            )
+            chunk_rows,
+        )
 
     logger.info("Indexed document {}: {} chunks, vision_used={}", document_id, len(chunks), vision_used)
 

@@ -7,12 +7,11 @@ ensures it exists as a safety net.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
 from loguru import logger
-
 from tale_shared.db import acquire_with_retry
 
 from ..config import settings
@@ -23,7 +22,7 @@ TABLE = f"{SCHEMA}.rag_jobs"
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def init_job_store() -> None:

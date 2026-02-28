@@ -13,7 +13,6 @@ from typing import Any
 import asyncpg
 from loguru import logger
 from openai import AsyncOpenAI
-
 from tale_knowledge.embedding import EmbeddingService
 from tale_knowledge.vision import VisionClient
 from tale_shared.db import acquire_with_retry

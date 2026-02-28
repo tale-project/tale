@@ -129,11 +129,11 @@ Remove inactive (non-current) color containers.
 
 Remove ALL blue-green containers.
 
-| Option      | Description                                      |
-| ----------- | ------------------------------------------------ |
-| `--force`   | Required to confirm reset                        |
-| `-a, --all` | Also remove infrastructure (db, proxy)           |
-| `--dry-run` | Preview reset without making changes             |
+| Option      | Description                            |
+| ----------- | -------------------------------------- |
+| `--force`   | Required to confirm reset              |
+| `-a, --all` | Also remove infrastructure (db, proxy) |
+| `--dry-run` | Preview reset without making changes   |
 
 ## Environment Variables
 
