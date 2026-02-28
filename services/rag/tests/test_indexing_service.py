@@ -12,8 +12,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
+import asyncpg.exceptions
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -554,3 +555,118 @@ class TestExtractionErrors:
                     "my-file.bin",
                     embedding_service=mock_embed,
                 )
+
+
+class TestHnswIndexSelfHealing:
+    """HNSW index corruption auto-recovery via REINDEX + retry."""
+
+    async def test_reindexes_and_retries_on_hnsw_corruption(self):
+        from app.services.indexing_service import store_prepared_document, PreparedDocument
+
+        pool, mock_conn = _mock_pool(existing_row=None)
+        # fetchrow: SELECT (dedup) → None, INSERT (attempt 1) → id, INSERT (attempt 2) → id
+        mock_conn.fetchrow = AsyncMock(side_effect=[None, {"id": "uuid-1"}, {"id": "uuid-2"}])
+
+        prepared = PreparedDocument(
+            content_hash=SAMPLE_HASH,
+            chunks=SAMPLE_CHUNKS,
+            embeddings=SAMPLE_EMBEDDINGS,
+            vision_used=False,
+        )
+
+        corruption_error = asyncpg.exceptions.InternalServerError(
+            'page 0 of relation "chunks" should be empty but is not'
+        )
+
+        call_count = 0
+        original_executemany = mock_conn.executemany
+
+        async def fail_then_succeed(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise corruption_error
+            return await original_executemany(*args, **kwargs)
+
+        mock_conn.executemany = AsyncMock(side_effect=fail_then_succeed)
+
+        with (
+            _patch_acquire(mock_conn),
+            patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
+        ):
+            result = await store_prepared_document(
+                pool,
+                SAMPLE_DOC_ID,
+                SAMPLE_FILENAME,
+                prepared,
+                team_id=SAMPLE_TEAM_ID,
+            )
+
+        assert result["success"] is True
+        assert result["chunks_created"] == 2
+        assert call_count == 2
+        reindex_calls = [c for c in mock_conn.execute.call_args_list if "REINDEX" in str(c)]
+        assert len(reindex_calls) == 1
+
+    async def test_raises_on_second_hnsw_corruption(self):
+        from app.services.indexing_service import store_prepared_document, PreparedDocument
+
+        pool, mock_conn = _mock_pool(existing_row=None)
+        # fetchrow: SELECT (dedup) → None, INSERT (attempt 1) → id, INSERT (attempt 2) → id
+        mock_conn.fetchrow = AsyncMock(side_effect=[None, {"id": "uuid-1"}, {"id": "uuid-2"}])
+
+        prepared = PreparedDocument(
+            content_hash=SAMPLE_HASH,
+            chunks=SAMPLE_CHUNKS,
+            embeddings=SAMPLE_EMBEDDINGS,
+            vision_used=False,
+        )
+
+        corruption_error = asyncpg.exceptions.InternalServerError(
+            'page 0 of relation "chunks" should be empty but is not'
+        )
+        mock_conn.executemany = AsyncMock(side_effect=corruption_error)
+
+        with (
+            _patch_acquire(mock_conn),
+            patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
+        ):
+            with pytest.raises(asyncpg.exceptions.InternalServerError):
+                await store_prepared_document(
+                    pool,
+                    SAMPLE_DOC_ID,
+                    SAMPLE_FILENAME,
+                    prepared,
+                    team_id=SAMPLE_TEAM_ID,
+                )
+
+    async def test_non_hnsw_internal_error_not_retried(self):
+        from app.services.indexing_service import store_prepared_document, PreparedDocument
+
+        pool, mock_conn = _mock_pool(existing_row=None)
+
+        prepared = PreparedDocument(
+            content_hash=SAMPLE_HASH,
+            chunks=SAMPLE_CHUNKS,
+            embeddings=SAMPLE_EMBEDDINGS,
+            vision_used=False,
+        )
+
+        other_error = asyncpg.exceptions.InternalServerError("some other internal error")
+        mock_conn.executemany = AsyncMock(side_effect=other_error)
+
+        with (
+            _patch_acquire(mock_conn),
+            patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
+        ):
+            with pytest.raises(asyncpg.exceptions.InternalServerError, match="some other internal error"):
+                await store_prepared_document(
+                    pool,
+                    SAMPLE_DOC_ID,
+                    SAMPLE_FILENAME,
+                    prepared,
+                    team_id=SAMPLE_TEAM_ID,
+                )
+
+        reindex_calls = [c for c in mock_conn.execute.call_args_list if "REINDEX" in str(c)]
+        assert len(reindex_calls) == 0

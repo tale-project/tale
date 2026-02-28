@@ -179,9 +179,10 @@ async def _background_ingest(
         )
     except Exception as exc:
         await job_store.mark_failed(job_id=document_id, error=str(exc))
-        logger.error(
-            "Background ingestion failed",
-            extra={"document_id": document_id, "error": str(exc)},
+        logger.opt(exception=True).error(
+            "Background ingestion failed for {}: {}",
+            document_id,
+            exc,
         )
     finally:
         cleanup_memory(context=f"after background ingestion for {document_id}")

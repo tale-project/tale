@@ -19,6 +19,8 @@ from tale_shared.db import acquire_with_retry
 from tale_shared.utils.hashing import compute_content_hash
 
 SCHEMA = "private_knowledge"
+_HNSW_INDEX = f"{SCHEMA}.idx_pk_chunks_embedding_hnsw"
+_HNSW_CORRUPTION_MARKER = "should be empty but is not"
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,49 +84,30 @@ async def prepare_document(
     )
 
 
-async def store_prepared_document(
+async def _reindex_chunks_hnsw(pool: asyncpg.Pool) -> None:
+    """Rebuild the HNSW vector index to recover from page corruption."""
+    logger.warning("HNSW index corruption detected — rebuilding {}", _HNSW_INDEX)
+    async with acquire_with_retry(pool) as conn:
+        await conn.execute(f"REINDEX INDEX {_HNSW_INDEX}", timeout=300)
+    logger.info("HNSW index rebuild completed")
+
+
+async def _do_store(
     pool: asyncpg.Pool,
     document_id: str,
     filename: str,
     prepared: PreparedDocument,
+    existing_id: int | None,
     *,
     team_id: str | None = None,
     user_id: str | None = None,
 ) -> dict[str, Any]:
-    """Store a pre-processed document for a single tenant scope.
-
-    Handles dedup check and old-version replacement.
-    """
-    async with acquire_with_retry(pool) as conn:
-        existing = await conn.fetchrow(
-            f"""
-            SELECT id, content_hash FROM {SCHEMA}.documents
-            WHERE document_id = $1
-              AND COALESCE(team_id, '') = COALESCE($2, '')
-              AND COALESCE(user_id, '') = COALESCE($3, '')
-            """,
-            document_id,
-            team_id,
-            user_id,
-        )
-
-    if existing and existing["content_hash"] == prepared.content_hash:
-        logger.info("Document {} content unchanged for team={} user={}, skipping", document_id, team_id, user_id)
-        return {
-            "success": True,
-            "document_id": document_id,
-            "chunks_created": 0,
-            "skipped": True,
-            "skip_reason": "content_unchanged",
-        }
-
-    if existing:
-        logger.info("Document {} content changed, replacing for team={} user={}", document_id, team_id, user_id)
-        async with acquire_with_retry(pool) as conn, conn.transaction():
-            await conn.execute(f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1", existing["id"])
-            await conn.execute(f"DELETE FROM {SCHEMA}.documents WHERE id = $1", existing["id"])
-
+    """Execute the delete-old + insert-new DB operations in a single transaction."""
     async with acquire_with_retry(pool) as conn, conn.transaction():
+        if existing_id is not None:
+            await conn.execute(f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1", existing_id)
+            await conn.execute(f"DELETE FROM {SCHEMA}.documents WHERE id = $1", existing_id)
+
         doc_row = await conn.fetchrow(
             f"""
                 INSERT INTO {SCHEMA}.documents
@@ -163,14 +146,6 @@ async def store_prepared_document(
             chunk_rows,
         )
 
-    logger.info(
-        "Indexed document {}: {} chunks for team={} user={}",
-        document_id,
-        len(prepared.chunks),
-        team_id,
-        user_id,
-    )
-
     return {
         "success": True,
         "document_id": document_id,
@@ -178,6 +153,73 @@ async def store_prepared_document(
         "skipped": False,
         "skip_reason": None,
     }
+
+
+async def store_prepared_document(
+    pool: asyncpg.Pool,
+    document_id: str,
+    filename: str,
+    prepared: PreparedDocument,
+    *,
+    team_id: str | None = None,
+    user_id: str | None = None,
+) -> dict[str, Any]:
+    """Store a pre-processed document for a single tenant scope.
+
+    Handles dedup check, old-version replacement, and HNSW index self-healing.
+    """
+    async with acquire_with_retry(pool) as conn:
+        existing = await conn.fetchrow(
+            f"""
+            SELECT id, content_hash FROM {SCHEMA}.documents
+            WHERE document_id = $1
+              AND COALESCE(team_id, '') = COALESCE($2, '')
+              AND COALESCE(user_id, '') = COALESCE($3, '')
+            """,
+            document_id,
+            team_id,
+            user_id,
+        )
+
+    if existing and existing["content_hash"] == prepared.content_hash:
+        logger.info("Document {} content unchanged for team={} user={}, skipping", document_id, team_id, user_id)
+        return {
+            "success": True,
+            "document_id": document_id,
+            "chunks_created": 0,
+            "skipped": True,
+            "skip_reason": "content_unchanged",
+        }
+
+    if existing:
+        logger.info("Document {} content changed, replacing for team={} user={}", document_id, team_id, user_id)
+
+    existing_id = existing["id"] if existing else None
+
+    for attempt in range(2):
+        try:
+            result = await _do_store(
+                pool,
+                document_id,
+                filename,
+                prepared,
+                existing_id,
+                team_id=team_id,
+                user_id=user_id,
+            )
+            logger.info(
+                "Indexed document {}: {} chunks for team={} user={}",
+                document_id,
+                result["chunks_created"],
+                team_id,
+                user_id,
+            )
+            return result
+        except asyncpg.exceptions.InternalServerError as exc:
+            if _HNSW_CORRUPTION_MARKER in str(exc) and attempt == 0:
+                await _reindex_chunks_hnsw(pool)
+                continue
+            raise
 
 
 async def index_document(
