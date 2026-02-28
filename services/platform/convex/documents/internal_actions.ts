@@ -313,31 +313,60 @@ export const checkRagJobStatus = internalAction({
 
 export const deleteDocumentFromRag = internalAction({
   args: {
-    documentId: v.string(),
+    documentId: v.id('documents'),
   },
   returns: v.null(),
-  handler: async (_ctx, args): Promise<null> => {
+  handler: async (ctx, args): Promise<null> => {
     const ragUrl = getRagConfig().serviceUrl;
 
+    // Look up document for team scoping
+    const document = await ctx.runQuery(
+      internal.documents.internal_queries.getDocumentByIdRaw,
+      { documentId: args.documentId },
+    );
+
+    const teamIds = document?.teamTags?.length
+      ? document.teamTags
+      : document?.organizationId
+        ? [`org_${String(document.organizationId)}`]
+        : [];
+
+    // Step 1: Delete from RAG service first
+    const params = new URLSearchParams({ mode: 'hard' });
+    if (teamIds.length > 0) {
+      params.set('team_ids', teamIds.join(','));
+    }
+
+    let ragSuccess = false;
     try {
       const response = await fetch(
-        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}?mode=hard`,
+        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}?${params.toString()}`,
         {
           method: 'DELETE',
           signal: AbortSignal.timeout(60000),
         },
       );
 
-      if (!response.ok) {
+      if (response.ok) {
+        ragSuccess = true;
+      } else {
         const errorText = await response.text();
-        console.warn(
-          `[deleteDocumentFromRag] Failed to delete document ${args.documentId} from RAG: ${response.status} ${errorText}`,
+        console.error(
+          `[deleteDocumentFromRag] RAG delete failed for ${args.documentId}: ${response.status} ${errorText}`,
         );
       }
     } catch (error) {
       console.error(
-        `[deleteDocumentFromRag] Error deleting document ${args.documentId} from RAG:`,
+        `[deleteDocumentFromRag] RAG delete error for ${args.documentId}:`,
         error,
+      );
+    }
+
+    // Step 2: Only delete Convex record if RAG cleanup succeeded
+    if (ragSuccess) {
+      await ctx.runMutation(
+        internal.documents.internal_mutations.deleteDocumentById,
+        { documentId: args.documentId },
       );
     }
 

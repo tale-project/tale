@@ -26,21 +26,24 @@ DEFAULT_PAGE_CONCURRENCY = 8
 
 
 def _extract_page_text_sync(page_bytes: bytes) -> dict:
-    """Extract text blocks from a single page (runs in thread pool).
+    """Extract text and image blocks from a single page (runs in thread pool).
 
     Accepts serialised page bytes to avoid sharing fitz objects across threads.
-    Returns a dict with text elements and total_text_len.
+    Returns a dict with text elements, image blocks, and total_text_len.
     """
     doc = fitz.open(stream=page_bytes, filetype="pdf")
     try:
         page = doc[0]
         text_dict = page.get_text("dict")
         elements: list[tuple[float, str]] = []
+        images: list[tuple[float, bytes]] = []
         total_text_len = 0
 
         for block in text_dict.get("blocks", []):
-            if block.get("type") == 0:
-                y0 = block.get("bbox", [0, 0, 0, 0])[1]
+            block_type = block.get("type")
+            y0 = block.get("bbox", [0, 0, 0, 0])[1]
+
+            if block_type == 0:
                 lines_text = []
                 for line in block.get("lines", []):
                     spans_text = "".join(
@@ -51,8 +54,18 @@ def _extract_page_text_sync(page_bytes: bytes) -> dict:
                 if text:
                     elements.append((y0, text))
                     total_text_len += len(text)
+            elif block_type == 1:
+                width = block.get("width", 0)
+                height = block.get("height", 0)
+                image_bytes = block.get("image", b"")
+                if width * height >= MIN_IMAGE_SIZE and image_bytes:
+                    images.append((y0, bytes(image_bytes)))
 
-        return {"elements": elements, "total_text_len": total_text_len}
+        return {
+            "elements": elements,
+            "images": images,
+            "total_text_len": total_text_len,
+        }
     finally:
         doc.close()
 
@@ -71,47 +84,6 @@ def _render_page_to_png_sync(page_bytes: bytes, dpi: int) -> bytes:
         doc.close()
 
 
-def _get_page_images_sync(page_bytes: bytes) -> list[tuple[float, int]]:
-    """Get image positions and xrefs from a page (runs in thread pool).
-
-    Returns list of (y0, xref) tuples.
-    """
-    doc = fitz.open(stream=page_bytes, filetype="pdf")
-    try:
-        page = doc[0]
-        result: list[tuple[float, int]] = []
-        for img_info in page.get_images(full=True):
-            xref = img_info[0]
-            try:
-                bbox_list = page.get_image_rects(xref)
-                y0 = bbox_list[0].y0 if bbox_list else float("inf")
-                result.append((y0, xref))
-            except Exception:
-                result.append((float("inf"), xref))
-        return result
-    finally:
-        doc.close()
-
-
-def _extract_image_sync(pdf_bytes: bytes, xref: int) -> dict | None:
-    """Extract image bytes from PDF by xref (runs in thread pool)."""
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    try:
-        base_image = doc.extract_image(xref)
-        if not base_image:
-            return None
-        image_bytes = base_image.get("image")
-        if not image_bytes:
-            return None
-        width = base_image.get("width", 0)
-        height = base_image.get("height", 0)
-        if width * height < MIN_IMAGE_SIZE:
-            return None
-        return {"image_bytes": image_bytes, "width": width, "height": height}
-    finally:
-        doc.close()
-
-
 def _serialize_page(doc: fitz.Document, page_num: int) -> bytes:
     """Serialize a single page to its own PDF bytes for thread-safe processing."""
     single = fitz.open()
@@ -125,7 +97,6 @@ def _serialize_page(doc: fitz.Document, page_num: int) -> bytes:
 async def _extract_page_with_layout(
     page_bytes: bytes,
     page_num: int,
-    pdf_bytes: bytes,
     vision_semaphore: asyncio.Semaphore,
     vision_client: VisionClient | None,
     process_images: bool,
@@ -138,6 +109,7 @@ async def _extract_page_with_layout(
         None, partial(_extract_page_text_sync, page_bytes)
     )
     elements: list[tuple[float, str]] = text_data["elements"]
+    images: list[tuple[float, bytes]] = text_data["images"]
     total_text_len: int = text_data["total_text_len"]
     vision_used = False
 
@@ -148,35 +120,26 @@ async def _extract_page_with_layout(
         async with vision_semaphore:
             try:
                 dpi = vision_client.pdf_dpi
-                image_bytes = await loop.run_in_executor(
+                ocr_png = await loop.run_in_executor(
                     None, partial(_render_page_to_png_sync, page_bytes, dpi)
                 )
-                ocr_text = await vision_client.ocr_image(image_bytes)
+                ocr_text = await vision_client.ocr_image(ocr_png)
                 if ocr_text:
                     elements = [(0, ocr_text)]
                     vision_used = True
             except Exception as e:
                 logger.warning(f"Failed to OCR page {page_num + 1}: {e}")
 
-    if process_images and vision_client:
-        image_infos = await loop.run_in_executor(
-            None, partial(_get_page_images_sync, page_bytes)
-        )
-        for y0, xref in image_infos:
+    if process_images and vision_client and images:
+        for y0, img_bytes in images:
             try:
-                img_data = await loop.run_in_executor(
-                    None, partial(_extract_image_sync, pdf_bytes, xref)
-                )
-                if img_data:
-                    async with vision_semaphore:
-                        description = await vision_client.describe_image(
-                            img_data["image_bytes"]
-                        )
-                    if description:
-                        elements.append((y0, f"[Image: {description}]"))
-                        vision_used = True
+                async with vision_semaphore:
+                    description = await vision_client.describe_image(img_bytes)
+                if description:
+                    elements.append((y0, f"[Image: {description}]"))
+                    vision_used = True
             except Exception as e:
-                logger.warning(f"Failed to process image on page {page_num + 1}: {e}")
+                logger.warning(f"Failed to describe image on page {page_num + 1}: {e}")
 
     elements.sort(key=lambda x: x[0])
     content = "\n\n".join(elem[1] for elem in elements)
@@ -240,7 +203,6 @@ async def extract_text_from_pdf_bytes(
             content, vis_used = await _extract_page_with_layout(
                 page_bytes,
                 page_num,
-                pdf_bytes,
                 vision_semaphore,
                 vision_client,
                 process_images,

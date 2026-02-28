@@ -9,7 +9,6 @@ import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { createDocument } from './create_document';
-import { deleteDocument as deleteDocumentHelper } from './delete_document';
 import { updateDocument as updateDocumentHelper } from './update_document';
 import { sourceProviderValidator } from './validators';
 
@@ -99,13 +98,11 @@ export const deleteDocument = mutation({
       name: authUser.name,
     });
 
-    await deleteDocumentHelper(ctx, args.documentId);
-
     await ctx.scheduler.runAfter(
       0,
       internal.documents.internal_actions.deleteDocumentFromRag,
       {
-        documentId: String(args.documentId),
+        documentId: args.documentId,
       },
     );
 
