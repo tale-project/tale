@@ -37,8 +37,10 @@ COPY packages/tale_knowledge/src/ /packages/tale_knowledge/src/
 RUN uv pip install --system /packages/tale_shared /packages/tale_knowledge
 
 # Copy pyproject.toml and install service dependencies
+# Fix local package paths: relative ../../packages/* → absolute /packages/* for Docker context
 COPY services/rag/pyproject.toml /app/pyproject.toml
-RUN uv pip install --system .
+RUN sed -i 's|../../packages/tale_knowledge|/packages/tale_knowledge|g; s|../../packages/tale_shared|/packages/tale_shared|g' pyproject.toml \
+    && uv pip install --system .
 
 # ============================================================================
 # Stage 3: Final

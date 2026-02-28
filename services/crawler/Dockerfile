@@ -58,8 +58,10 @@ COPY packages/tale_knowledge/src/ /packages/tale_knowledge/src/
 RUN uv pip install --system /packages/tale_shared /packages/tale_knowledge
 
 # Copy pyproject.toml and install service dependencies
+# Fix local package paths: relative ../../packages/* → absolute /packages/* for Docker context
 COPY services/crawler/pyproject.toml .
-RUN uv pip install --system .
+RUN sed -i 's|../../packages/tale_knowledge|/packages/tale_knowledge|g; s|../../packages/tale_shared|/packages/tale_shared|g' pyproject.toml \
+    && uv pip install --system .
 
 # Install Playwright browsers (Chromium)
 # Note: We already installed dependencies manually above, so we skip `playwright install-deps`
