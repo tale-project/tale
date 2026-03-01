@@ -217,16 +217,16 @@ function DropZone({
 
   return (
     <div
-      role={clickable ? 'button' : undefined}
-      tabIndex={clickable && !disabled ? 0 : undefined}
-      aria-disabled={clickable ? disabled : undefined}
-      aria-label={clickable ? ariaLabel : undefined}
+      role="group"
       className={className}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={clickable ? handleClick : undefined}
       onKeyDown={clickable ? handleKeyDown : undefined}
+      tabIndex={clickable && !disabled ? 0 : undefined}
+      aria-disabled={clickable ? disabled : undefined}
+      aria-label={ariaLabel}
     >
       {children}
       {clickable && (

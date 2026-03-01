@@ -171,7 +171,7 @@ export function isTextBasedFile(filename: string, mimeType?: string): boolean {
   return false;
 }
 
-export type TextFileCategory = 'code' | 'config' | 'markup' | 'data' | 'text';
+type TextFileCategory = 'code' | 'config' | 'markup' | 'data' | 'text';
 
 export function getTextFileCategory(filename: string): TextFileCategory {
   const ext = getFileExtensionLower(filename);

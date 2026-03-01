@@ -34,7 +34,7 @@ function generatePassword(): string {
 
 const DEFAULT_DB_PASSWORD = 'tale_password_change_me';
 
-export interface EnvSetupOptions {
+interface EnvSetupOptions {
   deployDir: string;
   skipIfExists?: boolean;
 }

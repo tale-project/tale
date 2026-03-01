@@ -29,10 +29,10 @@ const config: StorybookConfig = {
   docs: {
     autodocs: 'tag',
   },
-  async viteFinal(config) {
+  async viteFinal(viteConfig) {
     const { mergeConfig } = await import('vite');
     const path = await import('path');
-    return mergeConfig(config, {
+    return mergeConfig(viteConfig, {
       resolve: {
         alias: {
           '@': path.resolve(import.meta.dirname, '..'),

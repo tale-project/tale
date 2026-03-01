@@ -3,6 +3,7 @@
 import {
   createContext,
   useContext,
+  useMemo,
   useState,
   useEffect,
   type ReactNode,
@@ -52,8 +53,13 @@ export function AdaptiveHeaderProvider({
 }: AdaptiveHeaderProviderProps) {
   const [headerContent, setHeaderContent] = useState<ReactNode>(null);
 
+  const value = useMemo(
+    () => ({ headerContent, setHeaderContent }),
+    [headerContent],
+  );
+
   return (
-    <AdaptiveHeaderContext.Provider value={{ headerContent, setHeaderContent }}>
+    <AdaptiveHeaderContext.Provider value={value}>
       {children}
     </AdaptiveHeaderContext.Provider>
   );

@@ -23,8 +23,8 @@ const getStatusVariant = (status: CustomerStatus) => {
 export function CustomerStatusBadge({ status }: { status?: CustomerStatus }) {
   const { t } = useT('customers');
 
-  const getStatusLabel = (status: CustomerStatus) => {
-    switch (status) {
+  const getStatusLabel = (customerStatus: CustomerStatus) => {
+    switch (customerStatus) {
       case 'active':
         return t('filter.status.active');
       case 'churned':
@@ -32,7 +32,7 @@ export function CustomerStatusBadge({ status }: { status?: CustomerStatus }) {
       case 'potential':
         return t('filter.status.potential');
       default:
-        return status;
+        return customerStatus;
     }
   };
 

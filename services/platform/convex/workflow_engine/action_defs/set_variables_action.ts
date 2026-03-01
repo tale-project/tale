@@ -52,7 +52,9 @@ export const setVariablesAction: ActionDefinition<{
     debugLog(
       'set_variables Processing variables:',
       params.variables
-        .map((v) => `${v.name}${v.secure ? ' (secure)' : ''}`)
+        .map(
+          (variable) => `${variable.name}${variable.secure ? ' (secure)' : ''}`,
+        )
         .join(', '),
     );
 

@@ -682,11 +682,11 @@ export function DataTable<TData, TValue = unknown>({
     return (
       <ErrorBoundaryBase
         organizationId={orgId}
-        fallback={({ error, reset }) => (
+        fallback={(fallbackProps) => (
           <ErrorDisplayCompact
-            error={error}
+            error={fallbackProps.error}
             organizationId={orgId}
-            reset={reset}
+            reset={fallbackProps.reset}
           />
         )}
       >
@@ -707,11 +707,11 @@ export function DataTable<TData, TValue = unknown>({
   return (
     <ErrorBoundaryBase
       organizationId={orgId}
-      fallback={({ error, reset }) => (
+      fallback={(fallbackProps) => (
         <ErrorDisplayCompact
-          error={error}
+          error={fallbackProps.error}
           organizationId={orgId}
-          reset={reset}
+          reset={fallbackProps.reset}
         />
       )}
     >

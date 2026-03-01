@@ -2,7 +2,7 @@ import * as logger from '../../utils/logger';
 import { getContainerHealth } from './get-container-health';
 import { isContainerRunning } from './is-container-running';
 
-export interface HealthCheckOptions {
+interface HealthCheckOptions {
   timeout: number;
   interval?: number;
   requestTimeoutMs?: number;

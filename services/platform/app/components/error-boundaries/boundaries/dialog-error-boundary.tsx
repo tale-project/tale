@@ -60,11 +60,11 @@ export function DialogErrorBoundary({
         // Call custom error handler (e.g., close dialog)
         onError?.(error);
       }}
-      fallback={({ error, reset, organizationId }) => (
+      fallback={(fallbackProps) => (
         <ErrorDisplayCompact
-          error={error}
-          organizationId={organizationId}
-          reset={reset}
+          error={fallbackProps.error}
+          organizationId={fallbackProps.organizationId}
+          reset={fallbackProps.reset}
         />
       )}
     >

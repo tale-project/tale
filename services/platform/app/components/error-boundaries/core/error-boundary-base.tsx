@@ -30,6 +30,18 @@ export class ErrorBoundaryBase extends Component<
 > {
   private resetKeysRef: unknown[];
   private retryTimerId: ReturnType<typeof setTimeout> | null = null;
+  private cachedContextValue: {
+    hasError: boolean;
+    error: Error | null;
+    reset: () => void;
+    organizationId?: string;
+  } | null = null;
+  private cachedContextInputs: {
+    hasError: boolean;
+    error: Error | null;
+    isRetrying: boolean;
+    organizationId?: string;
+  } | null = null;
 
   constructor(props: ErrorBoundaryBaseProps) {
     super(props);
@@ -124,16 +136,36 @@ export class ErrorBoundaryBase extends Component<
     });
   };
 
-  render() {
+  private getContextValue() {
     const { hasError, error, isRetrying } = this.state;
-    const { children, fallback, organizationId } = this.props;
+    const { organizationId } = this.props;
 
-    const contextValue = {
+    const inputs = { hasError, error, isRetrying, organizationId };
+    if (
+      this.cachedContextValue &&
+      this.cachedContextInputs &&
+      this.cachedContextInputs.hasError === inputs.hasError &&
+      this.cachedContextInputs.error === inputs.error &&
+      this.cachedContextInputs.isRetrying === inputs.isRetrying &&
+      this.cachedContextInputs.organizationId === inputs.organizationId
+    ) {
+      return this.cachedContextValue;
+    }
+
+    this.cachedContextInputs = inputs;
+    this.cachedContextValue = {
       hasError: hasError && !isRetrying,
       error: isRetrying ? null : error,
       reset: this.reset,
       organizationId,
     };
+    return this.cachedContextValue;
+  }
+
+  render() {
+    const { hasError, error, isRetrying } = this.state;
+    const { children, fallback, organizationId } = this.props;
+    const contextValue = this.getContextValue();
 
     // Auto-retry in progress: render nothing so Suspense ancestor shows its fallback
     if (hasError && isRetrying) {
