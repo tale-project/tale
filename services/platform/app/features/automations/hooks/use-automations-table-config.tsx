@@ -19,7 +19,7 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
       header: tTables('headers.automation'),
       size: 328,
       cell: ({ row }) => (
-        <Text as="span" variant="label" truncate className="px-2">
+        <Text as="span" variant="label" truncate>
           {row.original.name}
         </Text>
       ),
