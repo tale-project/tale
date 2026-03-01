@@ -11,6 +11,7 @@ FROM paradedb/paradedb:0.21.10-pg16
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}"
 
 # Switch to root for all setup operations
 USER root

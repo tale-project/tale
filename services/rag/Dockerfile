@@ -49,6 +49,7 @@ FROM dependencies AS final
 
 # Re-declare VERSION arg for this stage (ARGs don't persist across stages)
 ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}"
 
 WORKDIR /app
 

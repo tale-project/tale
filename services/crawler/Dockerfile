@@ -73,6 +73,7 @@ COPY services/crawler/app ./app
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}"
 
 # Set environment variables with CRAWLER_ prefix defaults
 ENV TALE_VERSION=${VERSION} \

@@ -113,6 +113,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}"
 
 ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \

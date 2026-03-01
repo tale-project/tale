@@ -126,7 +126,7 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}
           build-args: |
-            VERSION=${{ needs.prepare.outputs.version }}
+            VERSION=${{ needs.prepare.outputs.version_number }}
           provenance: false
 
   manifest:
