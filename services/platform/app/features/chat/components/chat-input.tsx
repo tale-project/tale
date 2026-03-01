@@ -300,29 +300,26 @@ export function ChatInput({
               </Tooltip>
               <HStack gap={2} align="center">
                 <AgentSelector organizationId={organizationId} />
-                {isLoading ? (
-                  <Button
-                    type="button"
-                    onClick={onStopGenerating}
-                    disabled={!onStopGenerating}
-                    size="icon"
-                    aria-label={tChat('stopGenerating')}
-                  >
+                <Button
+                  type="button"
+                  onClick={isLoading ? onStopGenerating : handleSendMessage}
+                  disabled={
+                    isLoading
+                      ? !onStopGenerating
+                      : (!value.trim() && attachments.length === 0) ||
+                        inputDisabled
+                  }
+                  size="icon"
+                  aria-label={
+                    isLoading ? tChat('stopGenerating') : tChat('send')
+                  }
+                >
+                  {isLoading ? (
                     <CircleStop className="size-4" />
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handleSendMessage}
-                    disabled={
-                      (!value.trim() && attachments.length === 0) ||
-                      inputDisabled
-                    }
-                    size="icon"
-                    aria-label={tChat('send')}
-                  >
+                  ) : (
                     <ArrowUp className="size-4" />
-                  </Button>
-                )}
+                  )}
+                </Button>
               </HStack>
             </HStack>
           </div>

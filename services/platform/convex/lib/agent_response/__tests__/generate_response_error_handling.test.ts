@@ -130,6 +130,7 @@ function createMockArgs(
 describe('generateAgentResponse error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockListMessages.mockResolvedValue({ page: [] });
   });
 
   it('saves a failed assistant message when an error occurs', async () => {
@@ -243,36 +244,39 @@ describe('generateAgentResponse error handling', () => {
 // User cancellation detection (isUserCancellation)
 // ============================================================================
 
-describe('generateAgentResponse — user cancellation', () => {
+describe('generateAgentResponse — user cancellation (state-driven)', () => {
+  const cancelledAssistant = {
+    _id: 'msg_cancelled',
+    message: { role: 'assistant', content: '' },
+    status: 'failed',
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockListMessages.mockResolvedValue({ page: [] });
   });
 
-  it('does NOT save a failed message for AbortError', async () => {
+  it('does NOT save a failed message when cancelGeneration already created one', async () => {
     const ctx = createMockCtx();
-    const abortError = new DOMException(
-      'The operation was aborted',
-      'AbortError',
-    );
 
-    mockBuildStructuredContext.mockRejectedValueOnce(abortError);
+    mockListMessages.mockResolvedValue({ page: [cancelledAssistant] });
+    mockBuildStructuredContext.mockRejectedValueOnce(new Error('aborted'));
 
     await expect(
       generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
     ).rejects.toThrow();
 
-    // Should NOT save a failed message for user cancellation
     expect(mockSaveMessage).not.toHaveBeenCalled();
   });
 
-  it('does NOT mark stream as errored for AbortError', async () => {
+  it('does NOT mark stream as errored when stream is already aborted', async () => {
     const ctx = createMockCtx();
-    const abortError = new DOMException(
-      'The operation was aborted',
-      'AbortError',
-    );
 
-    mockBuildStructuredContext.mockRejectedValueOnce(abortError);
+    ctx.runQuery.mockResolvedValue([
+      { streamId: 'stream_abc', status: 'aborted' },
+    ]);
+    mockListMessages.mockResolvedValue({ page: [cancelledAssistant] });
+    mockBuildStructuredContext.mockRejectedValueOnce(new Error('aborted'));
 
     await expect(
       generateAgentResponse(
@@ -281,18 +285,22 @@ describe('generateAgentResponse — user cancellation', () => {
       ),
     ).rejects.toThrow();
 
-    // errorStream should NOT be called for user cancellation
     expect(ctx.runMutation).not.toHaveBeenCalledWith(
       'mock-errorStream',
       expect.anything(),
     );
   });
 
-  it('detects user-cancelled in error message', async () => {
+  it('skips both errorStream and saveMessage when stream is aborted and failed message exists', async () => {
     const ctx = createMockCtx();
-    const error = new Error('Stream aborted: user-cancelled');
 
-    mockBuildStructuredContext.mockRejectedValueOnce(error);
+    ctx.runQuery.mockResolvedValue([
+      { streamId: 'stream_xyz', status: 'aborted' },
+    ]);
+    mockListMessages.mockResolvedValue({ page: [cancelledAssistant] });
+    mockBuildStructuredContext.mockRejectedValueOnce(
+      new Error('Stream aborted: user-cancelled'),
+    );
 
     await expect(
       generateAgentResponse(
@@ -308,40 +316,13 @@ describe('generateAgentResponse — user cancellation', () => {
     );
   });
 
-  it('detects abortSignal in error message', async () => {
+  it('still re-throws the original error after detecting cancellation', async () => {
     const ctx = createMockCtx();
-    const error = new Error('The request was cancelled by the abortSignal');
 
-    mockBuildStructuredContext.mockRejectedValueOnce(error);
-
-    await expect(
-      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
-    ).rejects.toThrow('abortSignal');
-
-    expect(mockSaveMessage).not.toHaveBeenCalled();
-  });
-
-  it('detects async abort in error message', async () => {
-    const ctx = createMockCtx();
-    const error = new Error('Operation failed due to async abort');
-
-    mockBuildStructuredContext.mockRejectedValueOnce(error);
-
-    await expect(
-      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
-    ).rejects.toThrow('async abort');
-
-    expect(mockSaveMessage).not.toHaveBeenCalled();
-  });
-
-  it('still re-throws the original AbortError', async () => {
-    const ctx = createMockCtx();
-    const abortError = new DOMException(
-      'The operation was aborted',
-      'AbortError',
+    mockListMessages.mockResolvedValue({ page: [cancelledAssistant] });
+    mockBuildStructuredContext.mockRejectedValueOnce(
+      new DOMException('The operation was aborted', 'AbortError'),
     );
-
-    mockBuildStructuredContext.mockRejectedValueOnce(abortError);
 
     await expect(
       generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
@@ -358,7 +339,6 @@ describe('generateAgentResponse — user cancellation', () => {
       generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
     ).rejects.toThrow('Connection refused');
 
-    // Non-cancellation errors SHOULD save a failed message
     expect(mockSaveMessage).toHaveBeenCalledOnce();
   });
 
@@ -375,22 +355,19 @@ describe('generateAgentResponse — user cancellation', () => {
       ),
     ).rejects.toThrow('Rate limit exceeded');
 
-    // Non-cancellation errors SHOULD mark stream as errored
     expect(ctx.runMutation).toHaveBeenCalledWith('mock-errorStream', {
       streamId: 'stream_rate',
     });
   });
 
-  it('detects cancellation via stream status even when error name is unrecognised', async () => {
+  it('detects cancellation via stream status even when error is unrecognised', async () => {
     const ctx = createMockCtx();
-    // Error with no abort-related name or message — heuristic would miss it
     const error = new Error('Something unexpected happened');
 
-    // But the stream WAS aborted (cancelGeneration mutation ran first)
-    ctx.runQuery.mockResolvedValueOnce([
+    ctx.runQuery.mockResolvedValue([
       { streamId: 'stream_check', status: 'aborted' },
     ]);
-
+    mockListMessages.mockResolvedValue({ page: [cancelledAssistant] });
     mockBuildStructuredContext.mockRejectedValueOnce(error);
 
     await expect(
@@ -400,7 +377,6 @@ describe('generateAgentResponse — user cancellation', () => {
       ),
     ).rejects.toThrow('Something unexpected happened');
 
-    // Should detect cancellation via stream status and skip error message
     expect(mockSaveMessage).not.toHaveBeenCalled();
     expect(ctx.runMutation).not.toHaveBeenCalledWith(
       'mock-errorStream',
@@ -408,17 +384,11 @@ describe('generateAgentResponse — user cancellation', () => {
     );
   });
 
-  it('falls back to heuristic when stream query fails', async () => {
+  it('saves failed message when stream query fails but no prior failed message exists', async () => {
     const ctx = createMockCtx();
-    const abortError = new DOMException(
-      'The operation was aborted',
-      'AbortError',
-    );
 
-    // Stream query fails
-    ctx.runQuery.mockRejectedValueOnce(new Error('Query failed'));
-
-    mockBuildStructuredContext.mockRejectedValueOnce(abortError);
+    ctx.runQuery.mockRejectedValue(new Error('Query failed'));
+    mockBuildStructuredContext.mockRejectedValueOnce(new Error('Some error'));
 
     await expect(
       generateAgentResponse(
@@ -427,36 +397,7 @@ describe('generateAgentResponse — user cancellation', () => {
       ),
     ).rejects.toThrow();
 
-    // Should still detect cancellation via heuristic (AbortError name)
-    expect(mockSaveMessage).not.toHaveBeenCalled();
-  });
-
-  it('detects cancellation via case-insensitive aborted in error message', async () => {
-    const ctx = createMockCtx();
-    const error = new Error('The request was Aborted by the server');
-
-    mockBuildStructuredContext.mockRejectedValueOnce(error);
-
-    await expect(
-      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
-    ).rejects.toThrow();
-
-    expect(mockSaveMessage).not.toHaveBeenCalled();
-  });
-
-  it('does not save failed message when error has AbortError name (non-DOMException)', async () => {
-    const ctx = createMockCtx();
-    // Some environments use plain Error with name set to 'AbortError'
-    const error = new Error('Signal was aborted');
-    error.name = 'AbortError';
-
-    mockBuildStructuredContext.mockRejectedValueOnce(error);
-
-    await expect(
-      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
-    ).rejects.toThrow();
-
-    expect(mockSaveMessage).not.toHaveBeenCalled();
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
   });
 });
 
@@ -468,6 +409,7 @@ describe('generateAgentResponse — abort watcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    mockListMessages.mockResolvedValue({ page: [] });
   });
 
   afterEach(() => {
@@ -532,19 +474,28 @@ describe('generateAgentResponse — abort watcher', () => {
 
   it('detects cancellation via watcher flag even with unrecognised error', async () => {
     const ctx = createMockCtx();
-    // Error that doesn't match any heuristic
     const error = new Error('Internal SDK error 42');
 
     // Baseline query → empty (no prior aborts)
-    // Watcher polls → newly aborted stream
+    // Watcher polls + catch block query → newly aborted stream
     ctx.runQuery
       .mockResolvedValueOnce([])
       .mockResolvedValue([
         { _id: 'sid_watch', streamId: 'stream_watch', status: 'aborted' },
       ]);
 
+    // cancelGeneration also creates a failed assistant message
+    mockListMessages.mockResolvedValueOnce({ page: [] }).mockResolvedValue({
+      page: [
+        {
+          _id: 'msg_cancel',
+          message: { role: 'assistant', content: '' },
+          status: 'failed',
+        },
+      ],
+    });
+
     mockBuildStructuredContext.mockImplementation(async () => {
-      // Give the watcher time to detect the abort before throwing
       await new Promise((resolve) => setTimeout(resolve, 300));
       throw error;
     });
@@ -553,14 +504,12 @@ describe('generateAgentResponse — abort watcher', () => {
       createMockConfig({ enableStreaming: true }),
       createMockArgs(ctx, { streamId: 'stream_watch' }),
     );
-    promise.catch(() => {}); // prevent unhandled-rejection noise under fake timers
+    promise.catch(() => {});
 
-    // Advance past the watcher poll interval (200ms) + the buildStructuredContext delay (300ms)
     await vi.advanceTimersByTimeAsync(600);
 
     await expect(promise).rejects.toThrow('Internal SDK error 42');
 
-    // The watcher detected the abort → isUserCancellation = true → no error message
     expect(mockSaveMessage).not.toHaveBeenCalled();
     expect(ctx.runMutation).not.toHaveBeenCalledWith(
       'mock-errorStream',
@@ -574,12 +523,23 @@ describe('generateAgentResponse — abort watcher', () => {
   it('does not overwrite truncated content (no errorStream / no saveMessage) when watcher detects abort', async () => {
     const ctx = createMockCtx();
 
-    // Baseline → empty, watcher → newly aborted
+    // Baseline → empty, watcher + catch block → newly aborted
     ctx.runQuery
       .mockResolvedValueOnce([])
       .mockResolvedValue([
         { _id: 'sid_content', streamId: 'stream_content', status: 'aborted' },
       ]);
+
+    // cancelGeneration also creates a failed assistant message
+    mockListMessages.mockResolvedValueOnce({ page: [] }).mockResolvedValue({
+      page: [
+        {
+          _id: 'msg_cancel',
+          message: { role: 'assistant', content: '' },
+          status: 'failed',
+        },
+      ],
+    });
 
     mockBuildStructuredContext.mockImplementation(async () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -609,19 +569,27 @@ describe('generateAgentResponse — abort watcher', () => {
   // execution pipeline. Verify the controller is actually aborted.
   it('aborts the AbortController when watcher detects cancellation during long operation', async () => {
     const ctx = createMockCtx();
-    let _capturedSignalAborted = false;
 
-    // Baseline → empty, watcher → newly aborted
+    // Baseline → empty, watcher + catch block → newly aborted
     ctx.runQuery
       .mockResolvedValueOnce([])
       .mockResolvedValue([
         { _id: 'sid_tools', streamId: 'stream_tools', status: 'aborted' },
       ]);
 
+    // cancelGeneration also creates a failed assistant message
+    mockListMessages.mockResolvedValueOnce({ page: [] }).mockResolvedValue({
+      page: [
+        {
+          _id: 'msg_cancel',
+          message: { role: 'assistant', content: '' },
+          status: 'failed',
+        },
+      ],
+    });
+
     mockBuildStructuredContext.mockImplementation(async () => {
-      // Simulate a long-running tool operation; check signal after delay
       await new Promise((resolve) => setTimeout(resolve, 500));
-      _capturedSignalAborted = true; // if we get here, we'll check the flag in assertions
       throw new Error('Operation aborted');
     });
 
@@ -644,7 +612,7 @@ describe('generateAgentResponse — abort watcher', () => {
     await vi.advanceTimersByTimeAsync(400);
     await expect(promise).rejects.toThrow();
 
-    // Watcher detected cancellation → isUserCancellation=true → no error message
+    // Watcher detected cancellation → catch block finds failed assistant → no new save
     expect(mockSaveMessage).not.toHaveBeenCalled();
   });
 
@@ -691,7 +659,7 @@ describe('generateAgentResponse — abort watcher', () => {
     expect(mockSaveMessage).not.toHaveBeenCalled();
   });
 
-  it('ignores stale failed assistant message from previous cancellation', async () => {
+  it('does not create duplicate failed message when stale one exists from previous cancellation', async () => {
     const ctx = createMockCtx();
 
     // No aborted streams
@@ -699,6 +667,7 @@ describe('generateAgentResponse — abort watcher', () => {
 
     // Both baseline and watcher see the SAME stale failed assistant.
     // Since the ID matches the baseline, the watcher should NOT trigger.
+    // The catch block also finds the stale failed assistant and skips saving.
     const staleAssistant = {
       _id: 'msg_stale_assistant',
       message: { role: 'assistant', content: '' },
@@ -723,19 +692,20 @@ describe('generateAgentResponse — abort watcher', () => {
     await vi.advanceTimersByTimeAsync(600);
     await expect(promise).rejects.toThrow('Network failure');
 
-    // No early cancellation detected → real error → failed message saved
-    expect(mockSaveMessage).toHaveBeenCalled();
+    // Stale failed assistant exists → catch block skips creating a duplicate
+    expect(mockSaveMessage).not.toHaveBeenCalled();
   });
 
-  it('ignores SDK-created assistant messages (non-failed) during early check', async () => {
+  it('does not create duplicate when stale failed assistant exists alongside SDK messages', async () => {
     const ctx = createMockCtx();
 
     // No aborted streams
     ctx.runQuery.mockResolvedValue([]);
 
-    // Baseline: stale failed assistant from T8.
+    // Baseline: stale failed assistant from previous cancellation.
     // Watcher poll: SDK has created its own NEW assistant (status undefined/success).
     // The watcher should NOT trigger because the new message is not failed.
+    // The catch block also finds the stale failed assistant and skips saving.
     const staleFailedAssistant = {
       _id: 'msg_stale_failed',
       message: { role: 'assistant', content: '' },
@@ -767,8 +737,8 @@ describe('generateAgentResponse — abort watcher', () => {
     await vi.advanceTimersByTimeAsync(600);
     await expect(promise).rejects.toThrow('Network failure');
 
-    // No early cancellation detected — SDK message is not failed
-    expect(mockSaveMessage).toHaveBeenCalled();
+    // Stale failed assistant exists → catch block skips creating a duplicate
+    expect(mockSaveMessage).not.toHaveBeenCalled();
   });
 
   it('ignores stale aborted streams from previous cancellations', async () => {

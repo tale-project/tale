@@ -8,7 +8,9 @@ import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -80,7 +82,6 @@ export function ChatInterface({
   // Message processing
   const {
     messages: rawMessages,
-    uiMessages,
     loadMore,
     canLoadMore,
     isLoadingMore,
@@ -119,11 +120,17 @@ export function ChatInterface({
     humanInputRequests,
   });
 
+  // Server-derived generation status (reactive Convex subscription)
+  const { data: isGenerating } = useConvexQuery(
+    api.threads.queries.isThreadGenerating,
+    threadId ? { threadId } : 'skip',
+  );
+
   // Single derived loading state: "Is the AI turn active?"
-  const { isLoading, setIsPendingWithBaseline } = useChatLoadingState({
+  const { isLoading } = useChatLoadingState({
     isPending,
     setIsPending,
-    uiMessages,
+    isGenerating: isGenerating ?? false,
     threadId,
     pendingThreadId,
   });
@@ -211,7 +218,7 @@ export function ChatInterface({
     organizationId,
     threadId,
     messages: rawMessages,
-    setIsPending: setIsPendingWithBaseline,
+    setIsPending: setIsPending,
     setPendingThreadId,
     setPendingMessage,
     clearChatState,
@@ -231,9 +238,9 @@ export function ChatInterface({
   };
 
   const handleHumanInputResponseSubmitted = useCallback(() => {
-    setIsPendingWithBaseline(true);
+    setIsPending(true);
     shouldScrollToAIRef.current = true;
-  }, [setIsPendingWithBaseline]);
+  }, [setIsPending]);
 
   const handleSendFollowUp = useCallback(
     (message: string) => {

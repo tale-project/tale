@@ -1,132 +1,51 @@
-import type { UIMessage } from '@convex-dev/agent/react';
-
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect } from 'react';
 
 interface UseChatLoadingStateParams {
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
-  uiMessages: UIMessage[] | undefined;
+  isGenerating: boolean;
   threadId: string | undefined;
   pendingThreadId: string | null;
 }
 
-const STABLE_OFF_DEBOUNCE_MS = 2_000;
 const SAFETY_TIMEOUT_MS = 60_000;
 
 /**
  * Derives a single `isLoading` boolean that answers: "Is the AI turn active?"
  *
- * `isLoading = isPending || isMessageActive`
+ * `isLoading = isPending || isGenerating`
  *
- * `isMessageActive` is a pure derivation from `uiMessages`: scans ALL messages
- * so that a non-terminal assistant message anywhere keeps it true. `failed` is
- * unconditionally terminal — the SDK maps stream abort to `failed`, and a
- * failed generation cannot resume.
+ * `isGenerating` is a reactive Convex subscription that checks whether any
+ * stream for the thread is in `streaming` status. Stream status transitions
+ * are atomic (unlike paginated message subscriptions which oscillate), making
+ * this a reliable source of truth.
  *
- * `isPending` bridges the entire turn — from send to AI response completion.
- * It is only cleared when ALL three conditions are met simultaneously and
- * remain stable for a debounce period:
- *   1. The subscription acknowledged the generation (`hasSeenActive`)
- *   2. No active streaming messages exist (`!isMessageActive`)
- *   3. A genuinely NEW terminal assistant appeared (`_creationTime > baseline`)
+ * `isPending` is a client-side optimistic flag set synchronously on send click.
+ * It bridges the ~100-500ms gap until the server creates the stream and
+ * `isGenerating` becomes `true`. Once `isGenerating` takes over, `isPending`
+ * is cleared (handoff).
  *
- * The creation-time baseline prevents subscription oscillation and pagination
- * window shifts from triggering false clears — old assistants that appear due
- * to pagination always have earlier creation times. The debounce prevents
- * brief subscription flickers from clearing prematurely.
- *
- * Thread-mismatch cleanup handles the case where the user navigates away
- * from the pending thread.
+ * Safety mechanisms:
+ * - Safety timeout clears `isPending` after 60s to prevent stuck states
+ * - Thread mismatch clears `isPending` when navigating away from the pending
+ *   thread
  */
 export function useChatLoadingState({
   isPending,
   setIsPending,
-  uiMessages,
+  isGenerating,
   threadId,
   pendingThreadId,
 }: UseChatLoadingStateParams) {
-  // Snapshot the max _creationTime when isPending becomes true.
-  // Only a NEW assistant (created after this timestamp) with terminal status
-  // can clear isPending. Old assistants exposed by pagination shifts have
-  // earlier creation times and are ignored.
-  const baselineCreationTimeRef = useRef<number | null>(null);
+  const isLoading = isPending || isGenerating;
 
-  // Track whether isMessageActive was ever true during this pending cycle.
-  const hasSeenActiveRef = useRef(false);
-
-  if (
-    isPending &&
-    baselineCreationTimeRef.current === null &&
-    uiMessages?.length
-  ) {
-    baselineCreationTimeRef.current = Math.max(
-      ...uiMessages.map((m) => m._creationTime),
-    );
-  }
-  if (!isPending) {
-    baselineCreationTimeRef.current = null;
-    hasSeenActiveRef.current = false;
-  }
-
-  // Derive loading purely from message statuses.
-  const isMessageActive = useMemo(() => {
-    if (!uiMessages?.length) return false;
-
-    if (
-      uiMessages.some(
-        (m) =>
-          m.role === 'assistant' &&
-          m.status !== 'success' &&
-          m.status !== 'failed',
-      )
-    )
-      return true;
-
-    const lastMessage = uiMessages[uiMessages.length - 1];
-
-    if (lastMessage.role !== 'assistant') return true;
-
-    const status: string | undefined = lastMessage.status;
-    return !(status === 'success' || status === 'failed');
-  }, [uiMessages]);
-
-  // Mark that the subscription acknowledged the generation.
-  if (isPending && isMessageActive) {
-    hasSeenActiveRef.current = true;
-  }
-
-  const isLoading = isPending || isMessageActive;
-
-  // Clear isPending only when ALL conditions are met simultaneously for
-  // STABLE_OFF_DEBOUNCE_MS:
-  //   1. hasSeenActive — subscription saw the generation start
-  //   2. !isMessageActive — no active streaming messages
-  //   3. New terminal assistant with _creationTime > baseline — generation
-  //      actually completed (not just subscription oscillation hiding messages)
-  //
-  // The effect re-runs on every uiMessages change. If conditions stay met
-  // across updates, the timer resets each time — it only fires after the
-  // subscription stabilizes for the full debounce period.
+  // Handoff: clear isPending once isGenerating takes over.
+  // This prevents double-true from keeping isPending alive unnecessarily.
   useEffect(() => {
-    if (!isPending || !hasSeenActiveRef.current || isMessageActive) return;
-    if (baselineCreationTimeRef.current === null || !uiMessages?.length) return;
-
-    const baseline = baselineCreationTimeRef.current;
-    const hasNewTerminalAssistant = uiMessages.some(
-      (m) =>
-        m.role === 'assistant' &&
-        (m.status === 'success' || m.status === 'failed') &&
-        m._creationTime > baseline,
-    );
-
-    if (!hasNewTerminalAssistant) return;
-
-    const timer = setTimeout(() => {
+    if (isPending && isGenerating) {
       setIsPending(false);
-    }, STABLE_OFF_DEBOUNCE_MS);
-
-    return () => clearTimeout(timer);
-  }, [isPending, isMessageActive, uiMessages, setIsPending]);
+    }
+  }, [isPending, isGenerating, setIsPending]);
 
   // Safety valve: clear isPending after a max lifetime to prevent stuck states
   // (e.g. silent mutation failure, network partition).
@@ -152,5 +71,5 @@ export function useChatLoadingState({
     }
   }, [isPending, pendingThreadId, threadId, setIsPending]);
 
-  return { isLoading, setIsPendingWithBaseline: setIsPending };
+  return { isLoading };
 }
