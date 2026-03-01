@@ -122,7 +122,7 @@ export function useApiKeysTableConfig(
     columns,
     searchPlaceholder: tSettings('apiKeys.searchKeys'),
     stickyLayout: true,
-    pageSize: 10,
+    pageSize: 20,
     infiniteScroll: false,
   };
 }

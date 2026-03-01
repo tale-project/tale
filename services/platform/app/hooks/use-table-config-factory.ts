@@ -94,7 +94,7 @@ export function createTableConfigHook<TTableName extends TableNames>(
     additionalNamespaces = [],
     defaultSort,
     defaultSortDesc = true,
-    pageSize = 10,
+    pageSize = 20,
     stickyLayout = true,
     infiniteScroll = true,
   } = options;

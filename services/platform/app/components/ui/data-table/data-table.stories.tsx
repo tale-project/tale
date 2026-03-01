@@ -260,7 +260,7 @@ export const WithClientPagination: Story = {
     caption: 'Paginated user list',
     pagination: {
       clientSide: true,
-      pageSize: 10,
+      pageSize: 20,
       total: manyUsers.length,
     },
   },
@@ -331,7 +331,7 @@ export const StickyLayout: Story = {
     stickyLayout: true,
     pagination: {
       clientSide: true,
-      pageSize: 10,
+      pageSize: 20,
       total: 20,
     },
   },
@@ -561,7 +561,7 @@ export const FullFeatured: Story = {
           }
           pagination={{
             clientSide: true,
-            pageSize: 10,
+            pageSize: 20,
             total: filteredData.length,
           }}
           stickyLayout

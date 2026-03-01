@@ -230,7 +230,7 @@ export const LargeData: Story = {
       })),
       pagination: {
         page: 1,
-        pageSize: 10,
+        pageSize: 20,
         total: 100,
       },
     },
