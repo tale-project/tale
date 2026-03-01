@@ -10,7 +10,7 @@
  * 3. Updates stepType to 'start' with clean config
  *
  * Usage:
- *   npx convex run migrations/trigger_steps_to_start:migrateTriggerStepsToStart
+ *   bunx convex run migrations/trigger_steps_to_start:migrateTriggerStepsToStart
  */
 
 import { getString } from '../../lib/utils/type-guards';

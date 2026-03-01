@@ -15,7 +15,7 @@ on:
       - 'tools/cli/**'
       - '.github/workflows/lint.yml'
       - 'package.json'
-      - 'package-lock.json'
+      - 'bun.lock'
       - 'turbo.json'
       - 'knip.config.ts'
       - '.oxlintrc.json'
@@ -35,7 +35,7 @@ on:
       - 'tools/cli/**'
       - '.github/workflows/lint.yml'
       - 'package.json'
-      - 'package-lock.json'
+      - 'bun.lock'
       - 'turbo.json'
       - 'knip.config.ts'
       - '.oxlintrc.json'
@@ -67,7 +67,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lint
-        run: npx turbo run lint
+        run: bunx turbo run lint
 
   format:
     name: Format
@@ -89,7 +89,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Format check
-        run: npx turbo run format:check
+        run: bunx turbo run format:check
 
   typecheck:
     name: Type check
@@ -111,7 +111,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Type check
-        run: npx turbo run typecheck
+        run: bunx turbo run typecheck
 
   knip:
     name: Knip
@@ -123,14 +123,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '24'
-          cache: 'npm'
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Knip (unused code)
-        run: npm run knip:check
+        run: bun run knip:check

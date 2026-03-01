@@ -4,35 +4,39 @@
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
 
+# Bun binary for all stages
+FROM oven/bun:latest AS bun-bin
+
 # ============================================================================
 # Stage 1: Dependencies
 # ============================================================================
 FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS workspace-deps
 
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json bun.lock ./
 COPY services/platform/package.json ./services/platform/
 COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
+COPY patches/ ./patches/
 
-RUN npm ci --legacy-peer-deps
+RUN bun install
 
 # ============================================================================
 # Stage 2: Builder
 # ============================================================================
 FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS builder
 
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+
 WORKDIR /app
 
 COPY --from=workspace-deps /app/node_modules ./node_modules
 COPY --from=workspace-deps /app/services/platform/node_modules/ ./node_modules/
-# Workspace overlay may overwrite root deps with incompatible workspace versions.
-# lru-cache@11 (dev dep for jsdom) overwrites lru-cache@5 (needed by @babel). Restore it.
-RUN rm -rf node_modules/lru-cache
-COPY --from=workspace-deps /app/node_modules/lru-cache/ ./node_modules/lru-cache/
 
 COPY services/platform/vite.config.ts \
      services/platform/tsconfig.json \
@@ -63,27 +67,37 @@ COPY services/platform/server.js \
 
 ENV NODE_ENV=production
 
-RUN npx vite build
+RUN bun --bun vite build
 
 # ============================================================================
 # Stage 3: Pruner
 # ============================================================================
 FROM builder AS pruner
 
-RUN npm prune --omit=dev --legacy-peer-deps 2>/dev/null || true \
-    && rm -rf ./node_modules/@swc/core* \
-              ./node_modules/lightningcss* \
-              ./node_modules/@parcel/watcher* \
-              ./node_modules/typescript \
-              ./node_modules/@types \
-              ./node_modules/@storybook \
-              ./node_modules/storybook \
-              ./node_modules/pdfjs-dist/legacy \
+COPY --from=workspace-deps /app/package.json /app/bun.lock /tmp/workspace/
+COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/
+COPY --from=workspace-deps /app/services/crawler/package.json /tmp/workspace/services/crawler/
+COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/services/rag/
+COPY --from=workspace-deps /app/services/graph-db/package.json /tmp/workspace/services/graph-db/
+COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services/db/
+COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
+
+RUN cd /tmp/workspace && bun install --production \
+    && rm -rf /app/node_modules \
+    && mv /tmp/workspace/node_modules /app/node_modules \
+    && rm -rf /app/node_modules/@swc/core* \
+              /app/node_modules/lightningcss* \
+              /app/node_modules/@parcel/watcher* \
+              /app/node_modules/typescript \
+              /app/node_modules/@types \
+              /app/node_modules/@storybook \
+              /app/node_modules/storybook \
+              /app/node_modules/pdfjs-dist/legacy \
     2>/dev/null || true \
-    && find ./node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -exec rm -rf {} + 2>/dev/null || true \
-    && find ./node_modules -type f -name "*.map" -delete 2>/dev/null || true \
-    && find ./node_modules -type d \( -name "test" -o -name "tests" -o -name "__tests__" -o -name "__mocks__" -o -name "coverage" \) -exec rm -rf {} + 2>/dev/null || true \
-    && find ./node_modules -type f \( -name "*.md" -o -name "*.markdown" -o -name "CHANGELOG*" -o -name "LICENSE*" -o -name "README*" \) -delete 2>/dev/null || true
+    && find /app/node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -exec rm -rf {} + 2>/dev/null || true \
+    && find /app/node_modules -type f -name "*.map" -delete 2>/dev/null || true \
+    && find /app/node_modules -type d \( -name "test" -o -name "tests" -o -name "__tests__" -o -name "__mocks__" -o -name "coverage" \) -exec rm -rf {} + 2>/dev/null || true \
+    && find /app/node_modules -type f \( -name "*.md" -o -name "*.markdown" -o -name "CHANGELOG*" -o -name "LICENSE*" -o -name "README*" \) -delete 2>/dev/null || true
 
 # ============================================================================
 # Stage 4: Convex Dashboard
@@ -94,6 +108,8 @@ FROM ghcr.io/get-convex/convex-dashboard:5f66740ae8dd506577d27294adc55b81e4fbe91
 # Stage 5: Runtime
 # ============================================================================
 FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS runner
+
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 
 WORKDIR /app
 

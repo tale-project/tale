@@ -1,11 +1,11 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Encrypt a plaintext secret to compact JWE using the same method as convex/lib/crypto/encrypt_string.ts
  * - Algorithm: JWE (dir + A256GCM)
  * - Key source: ENCRYPTION_SECRET (base64url 32 bytes) or ENCRYPTION_SECRET_HEX (64 hex chars)
  *
  * Usage:
- *   echo -n "PLAINTEXT" | node scripts/encrypt-inline-secret.mjs
+ *   echo -n "PLAINTEXT" | bun scripts/encrypt-inline-secret.mjs
  */
 import fs from 'node:fs';
 import path from 'node:path';

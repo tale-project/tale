@@ -9,7 +9,7 @@ on:
       - 'packages/**'
       - '.github/workflows/build.yml'
       - 'package.json'
-      - 'package-lock.json'
+      - 'bun.lock'
   push:
     branches:
       - main
@@ -18,7 +18,7 @@ on:
       - 'packages/**'
       - '.github/workflows/build.yml'
       - 'package.json'
-      - 'package-lock.json'
+      - 'bun.lock'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -121,4 +121,4 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Storybook
-        run: npx turbo run storybook:build
+        run: bunx turbo run storybook:build

@@ -9,7 +9,7 @@ if [ -z "$FILE_PATH" ]; then
 fi
 
 if [[ "$FILE_PATH" =~ \.(ts|tsx|js|jsx|mjs)$ ]]; then
-  npx oxfmt -c "$CLAUDE_PROJECT_DIR/.oxfmtrc.json" "$FILE_PATH" 2>/dev/null
+  bunx oxfmt -c "$CLAUDE_PROJECT_DIR/.oxfmtrc.json" "$FILE_PATH" 2>/dev/null
 fi
 
 if [[ "$FILE_PATH" =~ \.py$ ]]; then

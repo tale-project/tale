@@ -495,7 +495,7 @@ deploy_convex_functions() {
   # Generate admin key for deployment
   ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
 
-  # Set HOME for npm to work properly
+  # Set HOME for bun to work properly
   export HOME=/home/tanstack
 
   # List of environment variables to sync to Convex
@@ -532,7 +532,7 @@ deploy_convex_functions() {
 
   # Fetch current env vars from Convex (output format: KEY=value per line)
   echo "   Fetching current Convex env vars..."
-  CONVEX_ENV_OUTPUT=$(npx convex env list \
+  CONVEX_ENV_OUTPUT=$(bunx convex env list \
     --url "http://localhost:${CONVEX_BACKEND_PORT}" \
     --admin-key "$ADMIN_KEY" 2>/dev/null || echo "")
 
@@ -567,7 +567,7 @@ deploy_convex_functions() {
     local change_type="updated"
     [ -z "${CONVEX_ENV_MAP[$var_name]+_}" ] && change_type="new"
 
-    if npx convex env set "$var_name" "$var_value" \
+    if bunx convex env set "$var_name" "$var_value" \
       --url "http://localhost:${CONVEX_BACKEND_PORT}" \
       --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
       sync_count=$((sync_count + 1))
@@ -586,7 +586,7 @@ deploy_convex_functions() {
   # Deploy functions
   # Note: --typecheck disable is used because TypeScript is removed from the Docker image to reduce size
   echo "   Deploying functions..."
-  if npx convex deploy --url "http://localhost:${CONVEX_BACKEND_PORT}" --admin-key "$ADMIN_KEY" --typecheck disable --yes 2>&1; then
+  if bunx convex deploy --url "http://localhost:${CONVEX_BACKEND_PORT}" --admin-key "$ADMIN_KEY" --typecheck disable --yes 2>&1; then
     echo "✅ Convex functions deployed successfully"
   else
     echo "⚠️  Convex function deployment failed (this may be normal on first run)"
@@ -600,7 +600,7 @@ deploy_convex_functions
 # ============================================================================
 
 echo "🌐 Starting Vite server on port ${PORT}..."
-node server.js &
+bun server.js &
 VITE_PID=$!
 
 wait_for_http "http://localhost:${PORT}/api/health" 30 "Vite server" true

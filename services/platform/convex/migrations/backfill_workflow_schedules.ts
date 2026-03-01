@@ -6,7 +6,7 @@
  * but no corresponding wfSchedules record. This migration creates them.
  *
  * Usage:
- *   npx convex run migrations/backfill_workflow_schedules:backfillWorkflowSchedules
+ *   bunx convex run migrations/backfill_workflow_schedules:backfillWorkflowSchedules
  */
 
 import { getString } from '../../lib/utils/type-guards';

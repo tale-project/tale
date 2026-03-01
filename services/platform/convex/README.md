@@ -5,7 +5,7 @@
 Start the local Convex backend:
 
 ```bash
-npm run convex:dev --workspace=@tale/platform
+bun run --filter @tale/platform convex:dev
 ```
 
 ### Resetting local state

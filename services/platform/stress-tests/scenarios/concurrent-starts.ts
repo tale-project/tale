@@ -9,7 +9,7 @@
  * Point CONVEX_URL at staging/production for meaningful contention testing.
  *
  * Usage:
- *   npx tsx stress-tests/scenarios/concurrent-starts.ts
+ *   bunx tsx stress-tests/scenarios/concurrent-starts.ts
  *
  * Requires: CONVEX_URL, ORGANIZATION_ID, WORKFLOW_DEFINITION_ID
  */
@@ -82,7 +82,7 @@ async function run() {
     `Started: ${launched.length}/${config.total} | Failed at launch: ${config.total - launched.length}`,
   );
 
-  // Poll for completion via npx convex run (getRawExecution is internalQuery)
+  // Poll for completion via bunx convex run (getRawExecution is internalQuery)
   const pending = new Map(
     launched
       .filter(

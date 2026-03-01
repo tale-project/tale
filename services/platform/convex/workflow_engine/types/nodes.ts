@@ -165,7 +165,7 @@ export const llmNodeConfigValidator = v.object({
   // ==========================================================================
   // DEPRECATED FIELDS (kept for backward compatibility during migration)
   // These fields are ignored at runtime. Run the migration to remove them:
-  //   npx convex run migrations/remove_deprecated_llm_fields:removeDeprecatedLLMFields
+  //   bunx convex run migrations/remove_deprecated_llm_fields:removeDeprecatedLLMFields
   // After migration completes, these fields can be removed from the validator.
   // ==========================================================================
   temperature: v.optional(v.number()),

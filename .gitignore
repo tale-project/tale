@@ -29,6 +29,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# bun
+package-lock.json
+
 # env files - NEVER commit secrets!
 .env
 *.env

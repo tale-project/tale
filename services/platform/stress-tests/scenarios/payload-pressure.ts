@@ -6,7 +6,7 @@
  * threshold triggers storage rather than inline serialization).
  *
  * Usage:
- *   npx tsx stress-tests/scenarios/payload-pressure.ts
+ *   bunx tsx stress-tests/scenarios/payload-pressure.ts
  *
  * Requires: CONVEX_URL, ORGANIZATION_ID, WORKFLOW_DEFINITION_ID
  */

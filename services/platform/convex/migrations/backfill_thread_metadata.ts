@@ -6,7 +6,7 @@
  * shadow records.
  *
  * Usage:
- *   npx convex run migrations/backfill_thread_metadata:backfillThreadMetadata
+ *   bunx convex run migrations/backfill_thread_metadata:backfillThreadMetadata
  */
 
 import { parseJson } from '../../lib/utils/type-cast-helpers';

@@ -9,7 +9,7 @@
  * Run this migration once after deploying the updated schema.
  *
  * Usage:
- *   npx convex run migrations/remove_deprecated_llm_fields:removeDeprecatedLLMFields
+ *   bunx convex run migrations/remove_deprecated_llm_fields:removeDeprecatedLLMFields
  */
 
 import { internalMutation } from '../_generated/server';

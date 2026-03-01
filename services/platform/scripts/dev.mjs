@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /*
   Dev orchestrator for LOCAL development:
 
@@ -19,7 +19,7 @@
 
   This ensures local development without cloud dependencies and avoids timing issues.
 
-  Uses Node.js native spawn + wait-on library for proper signal handling (Ctrl+C works correctly).
+  Uses Bun native spawn + wait-on library for proper signal handling (Ctrl+C works correctly).
 */
 
 import { spawn } from 'node:child_process';
@@ -306,7 +306,7 @@ async function main() {
     }
 
     function spawnConvex() {
-      convexProcess = spawn('npx', ['--yes', 'convex', 'dev'], {
+      convexProcess = spawn('bunx', ['convex', 'dev'], {
         stdio: 'inherit',
         cwd: platformRoot,
         env: convexEnv,
@@ -320,8 +320,7 @@ async function main() {
 
     async function waitForConvex() {
       console.log('[dev] ⏳ Waiting for Convex backend on port 3210...');
-      await runCommand('npx', [
-        '--yes',
+      await runCommand('bunx', [
         'wait-on',
         `tcp:${CONVEX_HOST}:${CONVEX_PORT}`,
         '--timeout',
@@ -415,7 +414,7 @@ async function main() {
     // Step 3: Sync environment variables
     console.log('[dev] 🔄 Syncing environment variables...');
     try {
-      await runCommand('node', ['scripts/sync-convex-env-from-dotenv.mjs']);
+      await runCommand('bun', ['scripts/sync-convex-env-from-dotenv.mjs']);
       console.log('[dev] ✅ Environment variables synced successfully');
     } catch (err) {
       console.warn('[dev] ⚠️  Env sync had errors:', err.message);
@@ -424,7 +423,7 @@ async function main() {
 
     // Step 4: Run code generation
     console.log('[dev] 🔄 Running code generation...');
-    await runCommand('npx', ['--yes', 'convex', 'codegen']);
+    await runCommand('bunx', ['convex', 'codegen']);
     console.log('[dev] ✅ Code generation completed');
 
     // Step 5: Set CONVEX_URL for Vite proxy configuration
@@ -446,8 +445,8 @@ async function main() {
     console.log('');
 
     viteProcess = spawn(
-      'npx',
-      ['--yes', 'vite', 'dev', '--port', port, '--host', '0.0.0.0'],
+      'bun',
+      ['--bun', 'vite', 'dev', '--port', port, '--host', '0.0.0.0'],
       {
         stdio: 'inherit',
         cwd: platformRoot,

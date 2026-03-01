@@ -6,7 +6,7 @@
  * write pressure on execution documents and variable storage.
  *
  * Usage:
- *   npx tsx stress-tests/scenarios/loop-contention.ts
+ *   bunx tsx stress-tests/scenarios/loop-contention.ts
  *
  * Requires: CONVEX_URL, ORGANIZATION_ID, WORKFLOW_DEFINITION_ID
  *           (use a workflow definition that includes a loop step)

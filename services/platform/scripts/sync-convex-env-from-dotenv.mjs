@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /*
 	Sync ALL environment variables from .env/.env.local into the LOCAL Convex deployment
 	so Convex functions can read them at runtime (e.g., requireEnv("SITE_URL")).
@@ -8,7 +8,7 @@
 	How it works:
 	- Reads .env and .env.local from both repository root AND services/platform
 	- Priority (highest to lowest): services/platform/.env.local > services/platform/.env > repo root/.env.local > repo root/.env
-	- Syncs ALL environment variables to Convex using `npx convex env set --local`
+	- Syncs ALL environment variables to Convex using `bunx convex env set --local`
 	- Optimized: Checks existing values first and skips variables that are already set with the same value
 
 	Notes:
@@ -77,7 +77,7 @@ function findEnv() {
 
 function runConvexEnvList() {
   // Get all current environment variables from Convex
-  const proc = spawnSync('npx', ['--yes', 'convex', 'env', 'list'], {
+  const proc = spawnSync('bunx', ['convex', 'env', 'list'], {
     stdio: ['inherit', 'pipe', 'inherit'], // Capture stdout only
     cwd: platformRoot,
     env: {
@@ -135,7 +135,7 @@ function runConvexEnvList() {
 
 function runConvexEnvGet(key) {
   // Get a specific environment variable from Convex (more reliable than parsing list output)
-  const proc = spawnSync('npx', ['--yes', 'convex', 'env', 'get', key], {
+  const proc = spawnSync('bunx', ['convex', 'env', 'get', key], {
     stdio: ['inherit', 'pipe', 'pipe'], // Capture stdout and stderr
     cwd: platformRoot,
     env: {
@@ -162,7 +162,7 @@ function runConvexEnvSet(key, value) {
   if (typeof value !== 'string' || value.length === 0)
     return { ok: false, reason: 'empty' };
   // Use spawn to avoid shell quoting pitfalls - use anonymous mode for local development
-  const proc = spawnSync('npx', ['--yes', 'convex', 'env', 'set', key, value], {
+  const proc = spawnSync('bunx', ['convex', 'env', 'set', key, value], {
     stdio: 'inherit',
     cwd: platformRoot,
     env: {
@@ -181,7 +181,7 @@ function runConvexEnvSet(key, value) {
 
 function runConvexEnvRemove(key) {
   // Use spawn to avoid shell quoting pitfalls - use anonymous mode for local development
-  const proc = spawnSync('npx', ['--yes', 'convex', 'env', 'remove', key], {
+  const proc = spawnSync('bunx', ['convex', 'env', 'remove', key], {
     stdio: 'inherit',
     cwd: platformRoot,
     env: {
@@ -333,7 +333,7 @@ async function main() {
     console.warn(
       '\n[sync-convex-env] Completed with some errors. You can re-run:',
     );
-    console.warn('  node scripts/sync-convex-env-from-dotenv.mjs');
+    console.warn('  bun scripts/sync-convex-env-from-dotenv.mjs');
     process.exitCode = 1;
   } else {
     console.log('[sync-convex-env] ✓ Sync completed successfully.');

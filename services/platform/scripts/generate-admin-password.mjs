@@ -1,8 +1,8 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 /**
  * Script to generate a secure password hash for the admin user
- * Usage: node scripts/generate-admin-password.mjs [password]
+ * Usage: bun scripts/generate-admin-password.mjs [password]
  */
 
 import bcrypt from 'bcryptjs';

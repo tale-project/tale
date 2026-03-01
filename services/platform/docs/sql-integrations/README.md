@@ -327,7 +327,7 @@ See `docs/sql-integrations/protel-example.md` for a complete working example.
 
 ## Dependencies
 
-New npm packages installed:
+New packages installed:
 
 - `mssql` - MS SQL Server client
 - `pg` - PostgreSQL client

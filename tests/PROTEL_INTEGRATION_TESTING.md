@@ -20,11 +20,11 @@ Tests the Protel PMS SQL integration covering:
 - Docker and Docker Compose installed
 - Access to `.env` file with Protel test credentials (project root)
 - Browser automation capability (Playwright MCP tools)
-- Node.js with dependencies installed in `services/platform`
+- Bun with dependencies installed in `services/platform`
 
 **Install dependencies:**
 ```bash
-cd /home/larry/Documents/tale/services/platform && npm ci
+cd /home/larry/Documents/tale/services/platform && bun install
 ```
 
 **Protel Credentials (from `.env`):**
@@ -53,7 +53,7 @@ rm -rf /home/larry/Documents/tale/.playwright-mcp/tests && mkdir -p /home/larry/
 **Action:** Run cleanup script from `services/platform` directory to remove test data.
 
 ```bash
-cd /home/larry/Documents/tale/services/platform && node -e "
+cd /home/larry/Documents/tale/services/platform && bun -e "
 const sql = require('mssql');
 
 async function cleanupTestData() {

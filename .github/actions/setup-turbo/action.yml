@@ -1,10 +1,10 @@
 name: Setup Turbo
-description: Installs Node.js, Python, uv, npm dependencies, and starts turbo cache server
+description: Installs Bun, Python, uv, dependencies, and starts turbo cache server
 
 inputs:
-  node-version:
-    description: Node.js version
-    default: '24'
+  bun-version:
+    description: Bun version
+    default: 'latest'
   python-version:
     description: Python version
     default: '3.11'
@@ -15,15 +15,14 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
       with:
-        node-version: ${{ inputs.node-version }}
-        cache: 'npm'
+        bun-version: ${{ inputs.bun-version }}
 
-    - name: Install npm dependencies
+    - name: Install dependencies
       shell: bash
-      run: npm ci
+      run: bun install
 
     - name: Setup Python
       uses: actions/setup-python@v6

@@ -1,13 +1,7 @@
-import express from 'express';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const app = express();
 const port = process.env.PORT || 3000;
+const distDir = join(import.meta.dir, 'dist');
 
 let indexHtmlTemplate = null;
 
@@ -23,37 +17,48 @@ function getEnvConfig() {
   };
 }
 
-app.use(express.static(join(__dirname, 'dist'), { index: false }));
+Bun.serve({
+  port,
+  hostname: '0.0.0.0',
+  async fetch(request) {
+    const url = new URL(request.url);
+    const pathname = url.pathname;
 
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok' });
+    if (pathname === '/api/health') {
+      return Response.json({ status: 'ok' });
+    }
+
+    if (pathname !== '/') {
+      const filePath = resolve(distDir, pathname.slice(1));
+      if (filePath.startsWith(distDir)) {
+        const file = Bun.file(filePath);
+        if (await file.exists()) {
+          return new Response(file);
+        }
+      }
+    }
+
+    if (!indexHtmlTemplate) {
+      indexHtmlTemplate = await Bun.file(join(distDir, 'index.html')).text();
+    }
+
+    const envConfig = getEnvConfig();
+    const acceptLanguage = request.headers.get('accept-language') ?? '';
+
+    const html = indexHtmlTemplate
+      .replace(
+        /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
+        `window.__ENV__ = ${JSON.stringify(envConfig)};`,
+      )
+      .replace(
+        /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
+        `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
+      );
+
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html' },
+    });
+  },
 });
 
-app.get('{*path}', (req, res) => {
-  if (!indexHtmlTemplate) {
-    indexHtmlTemplate = readFileSync(
-      join(__dirname, 'dist', 'index.html'),
-      'utf-8',
-    );
-  }
-
-  const envConfig = getEnvConfig();
-  const acceptLanguage = req.headers['accept-language'] || '';
-
-  const html = indexHtmlTemplate
-    .replace(
-      /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
-      `window.__ENV__ = ${JSON.stringify(envConfig)};`,
-    )
-    .replace(
-      /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
-      `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
-    );
-
-  res.setHeader('Content-Type', 'text/html');
-  res.send(html);
-});
-
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on http://0.0.0.0:${port}`);
-});
+console.log(`Server running on http://0.0.0.0:${port}`);
