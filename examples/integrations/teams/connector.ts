@@ -1,9 +1,87 @@
+// ─── Sandbox API Types ──────────────────────────────────────────────────────
+// These types describe the APIs available inside the integration sandbox.
+// They are stripped during transpilation and exist only for editor support.
+
+interface HttpResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: unknown;
+  text(): string;
+  json(): unknown;
+}
+
+interface HttpMethodOptions {
+  headers?: Record<string, string>;
+  responseType?: 'base64';
+}
+
+interface BodyMethodOptions extends HttpMethodOptions {
+  body?: string;
+  binaryBody?: string;
+}
+
+interface HttpApi {
+  get(url: string, options?: HttpMethodOptions): HttpResponse;
+  post(url: string, options?: BodyMethodOptions): HttpResponse;
+  put(url: string, options?: BodyMethodOptions): HttpResponse;
+  patch(url: string, options?: BodyMethodOptions): HttpResponse;
+  delete(url: string, options?: BodyMethodOptions): HttpResponse;
+}
+
+interface SecretsApi {
+  get(key: string): string | undefined;
+}
+
+interface FileReference {
+  fileId: string;
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+interface FilesApi {
+  download(
+    url: string,
+    options: { headers?: Record<string, string>; fileName: string },
+  ): FileReference;
+  store(
+    data: string,
+    options: {
+      encoding: 'base64' | 'utf-8';
+      contentType: string;
+      fileName: string;
+    },
+  ): FileReference;
+}
+
+interface ConnectorContext {
+  operation: string;
+  params: Record<string, unknown>;
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+interface TestConnectionContext {
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Microsoft Teams Connector - Microsoft Graph API
 // This connector runs in a sandboxed environment with controlled HTTP access
 
-var GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
+const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 
-var connector = {
+const connector = {
   operations: [
     'list_teams',
     'get_team',
@@ -16,14 +94,14 @@ var connector = {
     'send_chat_message',
   ],
 
-  testConnection: function (ctx) {
-    var accessToken = ctx.secrets.get('accessToken');
+  testConnection: function (ctx: TestConnectionContext) {
+    const accessToken = ctx.secrets.get('accessToken');
 
     if (!accessToken) {
       throw new Error('Access token is required. Please authorize via OAuth2.');
     }
 
-    var response = ctx.http.get(GRAPH_BASE_URL + '/me', {
+    const response = ctx.http.get(GRAPH_BASE_URL + '/me', {
       headers: {
         Authorization: 'Bearer ' + accessToken,
         Accept: 'application/json',
@@ -49,7 +127,7 @@ var connector = {
       );
     }
 
-    var user = response.json();
+    const user = response.json();
     return {
       status: 'ok',
       displayName: user.displayName,
@@ -57,18 +135,18 @@ var connector = {
     };
   },
 
-  execute: function (ctx) {
-    var operation = ctx.operation;
-    var params = ctx.params;
-    var http = ctx.http;
-    var secrets = ctx.secrets;
+  execute: function (ctx: ConnectorContext) {
+    const operation = ctx.operation;
+    const params = ctx.params;
+    const http = ctx.http;
+    const secrets = ctx.secrets;
 
-    var accessToken = secrets.get('accessToken');
+    const accessToken = secrets.get('accessToken');
     if (!accessToken) {
       throw new Error('Access token is required.');
     }
 
-    var headers = {
+    const headers = {
       Authorization: 'Bearer ' + accessToken,
       Accept: 'application/json',
       'Content-Type': 'application/json',
@@ -106,7 +184,7 @@ var connector = {
   },
 };
 
-function handleError(response, operation) {
+function handleError(response: HttpResponse, operation: string) {
   if (response.status === 401) {
     throw new Error(
       'Authentication failed during ' +
@@ -132,9 +210,9 @@ function handleError(response, operation) {
     );
   }
   if (response.status >= 400) {
-    var errorBody = '';
+    let errorBody = '';
     try {
-      var err = response.json();
+      const err = response.json();
       errorBody = err.error ? err.error.message : response.text();
     } catch (e) {
       errorBody = response.text();
@@ -150,14 +228,18 @@ function handleError(response, operation) {
   }
 }
 
-function listTeams(http, headers, params) {
-  var url = GRAPH_BASE_URL + '/me/joinedTeams';
+function listTeams(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const url = GRAPH_BASE_URL + '/me/joinedTeams';
   console.log('Fetching teams from: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list teams');
 
-  var data = response.json();
+  const data = response.json();
   return {
     success: true,
     operation: 'list_teams',
@@ -171,18 +253,22 @@ function listTeams(http, headers, params) {
   };
 }
 
-function getTeam(http, headers, params) {
+function getTeam(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.teamId) {
     throw new Error('teamId is required.');
   }
 
-  var url = GRAPH_BASE_URL + '/teams/' + params.teamId;
+  const url = GRAPH_BASE_URL + '/teams/' + params.teamId;
   console.log('Fetching team: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get team');
 
-  var team = response.json();
+  const team = response.json();
   return {
     success: true,
     operation: 'get_team',
@@ -192,18 +278,22 @@ function getTeam(http, headers, params) {
   };
 }
 
-function listChannels(http, headers, params) {
+function listChannels(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.teamId) {
     throw new Error('teamId is required.');
   }
 
-  var url = GRAPH_BASE_URL + '/teams/' + params.teamId + '/channels';
+  const url = GRAPH_BASE_URL + '/teams/' + params.teamId + '/channels';
   console.log('Fetching channels from: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list channels');
 
-  var data = response.json();
+  const data = response.json();
   return {
     success: true,
     operation: 'list_channels',
@@ -217,7 +307,11 @@ function listChannels(http, headers, params) {
   };
 }
 
-function getChannel(http, headers, params) {
+function getChannel(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.teamId) {
     throw new Error('teamId is required.');
   }
@@ -225,7 +319,7 @@ function getChannel(http, headers, params) {
     throw new Error('channelId is required.');
   }
 
-  var url =
+  const url =
     GRAPH_BASE_URL +
     '/teams/' +
     params.teamId +
@@ -233,10 +327,10 @@ function getChannel(http, headers, params) {
     params.channelId;
   console.log('Fetching channel: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get channel');
 
-  var channel = response.json();
+  const channel = response.json();
   return {
     success: true,
     operation: 'get_channel',
@@ -246,7 +340,11 @@ function getChannel(http, headers, params) {
   };
 }
 
-function listMessages(http, headers, params) {
+function listMessages(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.teamId) {
     throw new Error('teamId is required.');
   }
@@ -254,10 +352,10 @@ function listMessages(http, headers, params) {
     throw new Error('channelId is required.');
   }
 
-  var top = Math.min(params.top || 20, 50);
-  var queryParts = ['$top=' + top];
+  const top = Math.min((params.top || 20) as number, 50);
+  const queryParts = ['$top=' + top];
 
-  var url =
+  const url =
     GRAPH_BASE_URL +
     '/teams/' +
     params.teamId +
@@ -267,10 +365,10 @@ function listMessages(http, headers, params) {
     queryParts.join('&');
   console.log('Fetching messages from: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list messages');
 
-  var data = response.json();
+  const data = response.json();
   return {
     success: true,
     operation: 'list_messages',
@@ -284,7 +382,11 @@ function listMessages(http, headers, params) {
   };
 }
 
-function sendMessage(http, headers, params) {
+function sendMessage(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.teamId) {
     throw new Error('teamId is required.');
   }
@@ -295,23 +397,23 @@ function sendMessage(http, headers, params) {
     throw new Error('content is required.');
   }
 
-  var url =
+  const url =
     GRAPH_BASE_URL +
     '/teams/' +
     params.teamId +
     '/channels/' +
     params.channelId +
     '/messages';
-  var payload = {
+  const payload = {
     body: {
       content: params.content,
-      contentType: params.contentType || 'text',
+      contentType: (params.contentType || 'text') as string,
     },
   };
 
   console.log('Sending message to: ' + url);
 
-  var response = http.post(url, {
+  const response = http.post(url, {
     headers: headers,
     body: JSON.stringify(payload),
   });
@@ -326,7 +428,7 @@ function sendMessage(http, headers, params) {
 
   handleError(response, 'send message');
 
-  var message = response.json();
+  const message = response.json();
   return {
     success: true,
     operation: 'send_message',
@@ -336,18 +438,22 @@ function sendMessage(http, headers, params) {
   };
 }
 
-function listMembers(http, headers, params) {
+function listMembers(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.teamId) {
     throw new Error('teamId is required.');
   }
 
-  var top = params.top || 100;
-  var queryParts = ['$top=' + top];
+  const top = (params.top || 100) as number;
+  const queryParts = ['$top=' + top];
   if (params.skip) {
     queryParts.push('$skip=' + params.skip);
   }
 
-  var url =
+  const url =
     GRAPH_BASE_URL +
     '/teams/' +
     params.teamId +
@@ -355,10 +461,10 @@ function listMembers(http, headers, params) {
     queryParts.join('&');
   console.log('Fetching members from: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list members');
 
-  var data = response.json();
+  const data = response.json();
   return {
     success: true,
     operation: 'list_members',
@@ -372,15 +478,19 @@ function listMembers(http, headers, params) {
   };
 }
 
-function listChats(http, headers, params) {
-  var top = Math.min(params.top || 20, 50);
-  var url = GRAPH_BASE_URL + '/me/chats?$top=' + top;
+function listChats(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const top = Math.min((params.top || 20) as number, 50);
+  const url = GRAPH_BASE_URL + '/me/chats?$top=' + top;
   console.log('Fetching chats from: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list chats');
 
-  var data = response.json();
+  const data = response.json();
   return {
     success: true,
     operation: 'list_chats',
@@ -394,7 +504,11 @@ function listChats(http, headers, params) {
   };
 }
 
-function sendChatMessage(http, headers, params) {
+function sendChatMessage(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.chatId) {
     throw new Error('chatId is required.');
   }
@@ -402,17 +516,17 @@ function sendChatMessage(http, headers, params) {
     throw new Error('content is required.');
   }
 
-  var url = GRAPH_BASE_URL + '/chats/' + params.chatId + '/messages';
-  var payload = {
+  const url = GRAPH_BASE_URL + '/chats/' + params.chatId + '/messages';
+  const payload = {
     body: {
       content: params.content,
-      contentType: params.contentType || 'text',
+      contentType: (params.contentType || 'text') as string,
     },
   };
 
   console.log('Sending chat message to: ' + url);
 
-  var response = http.post(url, {
+  const response = http.post(url, {
     headers: headers,
     body: JSON.stringify(payload),
   });
@@ -427,7 +541,7 @@ function sendChatMessage(http, headers, params) {
 
   handleError(response, 'send chat message');
 
-  var message = response.json();
+  const message = response.json();
   return {
     success: true,
     operation: 'send_chat_message',

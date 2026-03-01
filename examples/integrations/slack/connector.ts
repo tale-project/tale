@@ -1,9 +1,87 @@
+// ─── Sandbox API Types ──────────────────────────────────────────────────────
+// These types describe the APIs available inside the integration sandbox.
+// They are stripped during transpilation and exist only for editor support.
+
+interface HttpResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: unknown;
+  text(): string;
+  json(): unknown;
+}
+
+interface HttpMethodOptions {
+  headers?: Record<string, string>;
+  responseType?: 'base64';
+}
+
+interface BodyMethodOptions extends HttpMethodOptions {
+  body?: string;
+  binaryBody?: string;
+}
+
+interface HttpApi {
+  get(url: string, options?: HttpMethodOptions): HttpResponse;
+  post(url: string, options?: BodyMethodOptions): HttpResponse;
+  put(url: string, options?: BodyMethodOptions): HttpResponse;
+  patch(url: string, options?: BodyMethodOptions): HttpResponse;
+  delete(url: string, options?: BodyMethodOptions): HttpResponse;
+}
+
+interface SecretsApi {
+  get(key: string): string | undefined;
+}
+
+interface FileReference {
+  fileId: string;
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+interface FilesApi {
+  download(
+    url: string,
+    options: { headers?: Record<string, string>; fileName: string },
+  ): FileReference;
+  store(
+    data: string,
+    options: {
+      encoding: 'base64' | 'utf-8';
+      contentType: string;
+      fileName: string;
+    },
+  ): FileReference;
+}
+
+interface ConnectorContext {
+  operation: string;
+  params: Record<string, unknown>;
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+interface TestConnectionContext {
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Slack Connector - Slack Web API
 // This connector runs in a sandboxed environment with controlled HTTP access
 
-var API_BASE = 'https://slack.com/api/';
+const API_BASE = 'https://slack.com/api/';
 
-var connector = {
+const connector = {
   operations: [
     'list_channels',
     'get_channel',
@@ -14,8 +92,8 @@ var connector = {
     'upload_file',
   ],
 
-  testConnection: function (ctx) {
-    var accessToken = ctx.secrets.get('accessToken');
+  testConnection: function (ctx: TestConnectionContext) {
+    const accessToken = ctx.secrets.get('accessToken');
 
     if (!accessToken) {
       throw new Error(
@@ -23,7 +101,7 @@ var connector = {
       );
     }
 
-    var response = ctx.http.post(API_BASE + 'auth.test', {
+    const response = ctx.http.post(API_BASE + 'auth.test', {
       headers: {
         Authorization: 'Bearer ' + accessToken,
         'Content-Type': 'application/json',
@@ -31,7 +109,7 @@ var connector = {
     });
 
     handleError(response, 'auth test');
-    var data = response.json();
+    const data = response.json();
     if (!data.ok) {
       throw new Error(
         'Slack authentication failed: ' + (data.error || 'unknown'),
@@ -47,18 +125,18 @@ var connector = {
     };
   },
 
-  execute: function (ctx) {
-    var operation = ctx.operation;
-    var params = ctx.params;
-    var http = ctx.http;
-    var secrets = ctx.secrets;
+  execute: function (ctx: ConnectorContext) {
+    const operation = ctx.operation;
+    const params = ctx.params;
+    const http = ctx.http;
+    const secrets = ctx.secrets;
 
-    var accessToken = secrets.get('accessToken');
+    const accessToken = secrets.get('accessToken');
     if (!accessToken) {
       throw new Error('Slack bot token is required.');
     }
 
-    var headers = {
+    const headers = {
       Authorization: 'Bearer ' + accessToken,
       'Content-Type': 'application/json',
     };
@@ -89,9 +167,9 @@ var connector = {
   },
 };
 
-function handleSlackResponse(response, operation) {
+function handleSlackResponse(response: HttpResponse, operation: string) {
   handleError(response, operation);
-  var data = response.json();
+  const data = response.json();
   if (!data.ok) {
     throw new Error(
       'Slack API error during ' +
@@ -103,7 +181,7 @@ function handleSlackResponse(response, operation) {
   return data;
 }
 
-function handleError(response, operation) {
+function handleError(response: HttpResponse, operation: string) {
   if (response.status === 401) {
     throw new Error(
       'Authentication failed during ' +
@@ -124,7 +202,7 @@ function handleError(response, operation) {
     );
   }
   if (response.status >= 400) {
-    var errorBody = '';
+    let errorBody = '';
     try {
       errorBody = response.text();
     } catch (e) {
@@ -141,9 +219,13 @@ function handleError(response, operation) {
   }
 }
 
-function listChannels(http, headers, params) {
-  var body = {
-    limit: Math.min(params.limit || 100, 200),
+function listChannels(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const body: Record<string, unknown> = {
+    limit: Math.min((params.limit || 100) as number, 200),
   };
   if (params.cursor) {
     body.cursor = params.cursor;
@@ -152,11 +234,11 @@ function listChannels(http, headers, params) {
     body.types = params.types;
   }
 
-  var response = http.post(API_BASE + 'conversations.list', {
+  const response = http.post(API_BASE + 'conversations.list', {
     headers: headers,
     body: JSON.stringify(body),
   });
-  var data = handleSlackResponse(response, 'list channels');
+  const data = handleSlackResponse(response, 'list channels');
 
   return {
     success: true,
@@ -174,19 +256,23 @@ function listChannels(http, headers, params) {
   };
 }
 
-function getChannel(http, headers, params) {
+function getChannel(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.channel) {
     throw new Error('channel (channel ID) is required.');
   }
 
-  var response = http.post(API_BASE + 'conversations.info', {
+  const response = http.post(API_BASE + 'conversations.info', {
     headers: {
       Authorization: headers.Authorization,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: 'channel=' + encodeURIComponent(params.channel),
+    body: 'channel=' + encodeURIComponent(params.channel as string),
   });
-  var data = handleSlackResponse(response, 'get channel');
+  const data = handleSlackResponse(response, 'get channel');
 
   return {
     success: true,
@@ -197,14 +283,18 @@ function getChannel(http, headers, params) {
   };
 }
 
-function listMessages(http, headers, params) {
+function listMessages(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.channel) {
     throw new Error('channel (channel ID) is required.');
   }
 
-  var body = {
+  const body: Record<string, unknown> = {
     channel: params.channel,
-    limit: Math.min(params.limit || 50, 200),
+    limit: Math.min((params.limit || 50) as number, 200),
   };
   if (params.cursor) {
     body.cursor = params.cursor;
@@ -216,11 +306,11 @@ function listMessages(http, headers, params) {
     body.latest = String(params.latest);
   }
 
-  var response = http.post(API_BASE + 'conversations.history', {
+  const response = http.post(API_BASE + 'conversations.history', {
     headers: headers,
     body: JSON.stringify(body),
   });
-  var data = handleSlackResponse(response, 'list messages');
+  const data = handleSlackResponse(response, 'list messages');
 
   return {
     success: true,
@@ -236,7 +326,11 @@ function listMessages(http, headers, params) {
   };
 }
 
-function sendMessage(http, headers, params) {
+function sendMessage(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.channel) {
     throw new Error('channel (channel ID) is required.');
   }
@@ -244,7 +338,7 @@ function sendMessage(http, headers, params) {
     throw new Error('text (message text) is required.');
   }
 
-  var payload = {
+  const payload: Record<string, unknown> = {
     channel: params.channel,
     text: params.text,
   };
@@ -258,7 +352,7 @@ function sendMessage(http, headers, params) {
     payload.thread_ts = params.thread_ts;
   }
 
-  var response = http.post(API_BASE + 'chat.postMessage', {
+  const response = http.post(API_BASE + 'chat.postMessage', {
     headers: headers,
     body: JSON.stringify(payload),
   });
@@ -269,7 +363,7 @@ function sendMessage(http, headers, params) {
       data: { pending: true },
     };
   }
-  var data = handleSlackResponse(response, 'send message');
+  const data = handleSlackResponse(response, 'send message');
 
   return {
     success: true,
@@ -284,19 +378,23 @@ function sendMessage(http, headers, params) {
   };
 }
 
-function listUsers(http, headers, params) {
-  var body = {
-    limit: Math.min(params.limit || 100, 200),
+function listUsers(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const body: Record<string, unknown> = {
+    limit: Math.min((params.limit || 100) as number, 200),
   };
   if (params.cursor) {
     body.cursor = params.cursor;
   }
 
-  var response = http.post(API_BASE + 'users.list', {
+  const response = http.post(API_BASE + 'users.list', {
     headers: headers,
     body: JSON.stringify(body),
   });
-  var data = handleSlackResponse(response, 'list users');
+  const data = handleSlackResponse(response, 'list users');
 
   return {
     success: true,
@@ -314,19 +412,23 @@ function listUsers(http, headers, params) {
   };
 }
 
-function getUser(http, headers, params) {
+function getUser(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.user) {
     throw new Error('user (user ID) is required.');
   }
 
-  var response = http.post(API_BASE + 'users.info', {
+  const response = http.post(API_BASE + 'users.info', {
     headers: {
       Authorization: headers.Authorization,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: 'user=' + encodeURIComponent(params.user),
+    body: 'user=' + encodeURIComponent(params.user as string),
   });
-  var data = handleSlackResponse(response, 'get user');
+  const data = handleSlackResponse(response, 'get user');
 
   return {
     success: true,
@@ -337,7 +439,11 @@ function getUser(http, headers, params) {
   };
 }
 
-function uploadFile(http, headers, params) {
+function uploadFile(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.channels) {
     throw new Error('channels (comma-separated channel IDs) is required.');
   }
@@ -345,10 +451,10 @@ function uploadFile(http, headers, params) {
     throw new Error('content (file content) is required.');
   }
 
-  var filename = params.filename || 'file.txt';
-  var contentLength = params.content.length;
+  const filename = (params.filename || 'file.txt') as string;
+  const contentLength = (params.content as string).length;
 
-  var urlResponse = http.post(API_BASE + 'files.getUploadURLExternal', {
+  const urlResponse = http.post(API_BASE + 'files.getUploadURLExternal', {
     headers: {
       Authorization: headers.Authorization,
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -356,23 +462,23 @@ function uploadFile(http, headers, params) {
     body:
       'filename=' + encodeURIComponent(filename) + '&length=' + contentLength,
   });
-  var urlData = handleSlackResponse(urlResponse, 'get upload URL');
+  const urlData = handleSlackResponse(urlResponse, 'get upload URL');
 
-  var uploadResponse = http.post(urlData.upload_url, {
+  const uploadResponse = http.post(urlData.upload_url, {
     headers: { 'Content-Type': 'text/plain' },
-    body: params.content,
+    body: params.content as string,
   });
   handleError(uploadResponse, 'upload file content');
 
-  var channelList = params.channels.split(',').map(function (ch) {
+  const channelList = (params.channels as string).split(',').map(function (ch) {
     return ch.trim();
   });
-  var files = [{ id: urlData.file_id }];
+  const files: Record<string, unknown>[] = [{ id: urlData.file_id }];
   if (params.title) {
     files[0].title = params.title;
   }
 
-  var completeBody = {
+  const completeBody: Record<string, unknown> = {
     files: files,
     channel_id: channelList[0],
   };
@@ -380,10 +486,13 @@ function uploadFile(http, headers, params) {
     completeBody.initial_comment = params.initial_comment;
   }
 
-  var completeResponse = http.post(API_BASE + 'files.completeUploadExternal', {
-    headers: headers,
-    body: JSON.stringify(completeBody),
-  });
+  const completeResponse = http.post(
+    API_BASE + 'files.completeUploadExternal',
+    {
+      headers: headers,
+      body: JSON.stringify(completeBody),
+    },
+  );
   if (completeResponse.status === 0) {
     return {
       success: true,
@@ -391,9 +500,9 @@ function uploadFile(http, headers, params) {
       data: { pending: true },
     };
   }
-  var completeData = handleSlackResponse(completeResponse, 'complete upload');
+  const completeData = handleSlackResponse(completeResponse, 'complete upload');
 
-  var fileInfo =
+  const fileInfo =
     completeData.files && completeData.files[0] ? completeData.files[0] : {};
 
   return {
