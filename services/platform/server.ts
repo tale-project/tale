@@ -47,7 +47,12 @@ Bun.serve({
     }
 
     if (!indexHtmlTemplate) {
-      indexHtmlTemplate = await Bun.file(join(distDir, 'index.html')).text();
+      const indexFile = Bun.file(join(distDir, 'index.html'));
+      if (!(await indexFile.exists())) {
+        console.error(`Missing dist/index.html in ${distDir}`);
+        return new Response('Internal Server Error', { status: 500 });
+      }
+      indexHtmlTemplate = await indexFile.text();
     }
 
     const envConfig = getEnvConfig();

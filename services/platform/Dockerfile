@@ -5,7 +5,7 @@
 ARG VERSION=dev
 
 # Bun binary for all stages
-FROM oven/bun:latest AS bun-bin
+FROM oven/bun:1.3.10 AS bun-bin
 
 # ============================================================================
 # Stage 1: Dependencies

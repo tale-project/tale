@@ -4,7 +4,7 @@ description: Installs Bun, Python, uv, dependencies, and starts turbo cache serv
 inputs:
   bun-version:
     description: Bun version
-    default: 'latest'
+    default: '1.3.10'
   python-version:
     description: Python version
     default: '3.11'
