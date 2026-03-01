@@ -127,5 +127,4 @@ function parseMarkers(text: string, isStreaming: boolean): MarkerParseResult {
   };
 }
 
-export type { ParsedSection };
 export { parseMarkers };
