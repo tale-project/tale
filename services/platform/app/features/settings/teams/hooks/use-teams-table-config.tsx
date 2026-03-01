@@ -56,7 +56,7 @@ export function useTeamsTableConfig(organizationId: string): TeamsTableConfig {
     columns,
     searchPlaceholder: tSettings('teams.searchTeam'),
     stickyLayout: true,
-    pageSize: 10,
+    pageSize: 20,
     infiniteScroll: false,
   };
 }

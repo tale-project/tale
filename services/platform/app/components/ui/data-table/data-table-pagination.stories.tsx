@@ -23,7 +23,7 @@ import { DataTablePagination } from '@/app/components/ui/data-table/data-table-p
 <DataTablePagination
   currentPage={1}
   total={150}
-  pageSize={10}
+  pageSize={20}
   onPageChange={setPage}
 />
 
@@ -75,7 +75,7 @@ export const Default: Story = {
   args: {
     currentPage: 1,
     total: 50,
-    pageSize: 10,
+    pageSize: 20,
   },
 };
 
@@ -86,7 +86,7 @@ export const Interactive: Story = {
       <DataTablePagination
         currentPage={page}
         total={150}
-        pageSize={10}
+        pageSize={20}
         onPageChange={setPage}
       />
     );
@@ -103,7 +103,7 @@ export const Interactive: Story = {
 export const WithPageSizeSelector: Story = {
   render: function PageSizeSelectorStory() {
     const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(20);
     return (
       <DataTablePagination
         currentPage={page}
@@ -131,12 +131,12 @@ export const MiddlePage: Story = {
   args: {
     currentPage: 5,
     total: 100,
-    pageSize: 10,
+    pageSize: 20,
   },
   parameters: {
     docs: {
       description: {
-        story: 'Showing a middle page with "Showing 41-50 of 100" text.',
+        story: 'Showing a middle page with "Showing 81-100 of 100" text.',
       },
     },
   },
@@ -146,7 +146,7 @@ export const LastPage: Story = {
   args: {
     currentPage: 10,
     total: 100,
-    pageSize: 10,
+    pageSize: 20,
   },
   parameters: {
     docs: {
@@ -161,7 +161,7 @@ export const FirstPage: Story = {
   args: {
     currentPage: 1,
     total: 100,
-    pageSize: 10,
+    pageSize: 20,
   },
   parameters: {
     docs: {
@@ -176,7 +176,7 @@ export const Loading: Story = {
   args: {
     currentPage: 3,
     total: 100,
-    pageSize: 10,
+    pageSize: 20,
     isLoading: true,
   },
   parameters: {
@@ -215,7 +215,7 @@ export const SinglePage: Story = {
   args: {
     currentPage: 1,
     total: 5,
-    pageSize: 10,
+    pageSize: 20,
   },
   parameters: {
     docs: {
@@ -230,7 +230,7 @@ export const EmptyData: Story = {
   args: {
     currentPage: 1,
     total: 0,
-    pageSize: 10,
+    pageSize: 20,
   },
   parameters: {
     docs: {

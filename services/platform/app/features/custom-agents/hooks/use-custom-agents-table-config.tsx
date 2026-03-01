@@ -145,6 +145,6 @@ export function useCustomAgentsTableConfig({
     columns,
     searchPlaceholder: t('customAgents.searchAgent'),
     stickyLayout: false,
-    pageSize: 25,
+    pageSize: 20,
   };
 }
