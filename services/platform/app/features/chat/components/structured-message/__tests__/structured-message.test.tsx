@@ -175,5 +175,28 @@ describe('StructuredMessage', () => {
       expect(tw.getAttribute('data-text')).toContain('Main content here');
       expect(tw.getAttribute('data-text')).not.toContain('[[NEXT_STEPS]]');
     });
+
+    it('does NOT remount TypewriterText when isStreaming transitions from true to false', () => {
+      const { rerender } = render(
+        <StructuredMessage
+          text="Streaming content"
+          isStreaming={true}
+          onSendFollowUp={noop}
+        />,
+      );
+
+      const mountCountBefore = typewriterMountCount;
+
+      rerender(
+        <StructuredMessage
+          text="Streaming content"
+          isStreaming={false}
+          onSendFollowUp={noop}
+        />,
+      );
+
+      // TypewriterText should be reused, not remounted
+      expect(typewriterMountCount).toBe(mountCountBefore);
+    });
   });
 });

@@ -149,7 +149,6 @@ export function useAutoScroll({
       lastContentHeightRef.current = newHeight;
 
       if (changed && wasAtBottomRef.current) {
-        programmaticScrollAtRef.current = performance.now();
         container.scrollTo({
           top: container.scrollHeight,
           behavior: 'instant',

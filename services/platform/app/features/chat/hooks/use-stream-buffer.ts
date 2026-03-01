@@ -434,9 +434,8 @@ export function useStreamBuffer({
 
   // Freeze anchor during and after drain to prevent StableMarkdown re-parse
   // layout shifts. Each advance changes stableContent → full markdown re-parse
-  // → potential height change. After streaming ends, enabledRef is false so
-  // ResizeObserver won't follow shrinkage, causing cumulative upward scrollbar
-  // drift. See: incremental-markdown.tsx comment at line 324.
+  // → potential DOM restructuring and height oscillation during typewriter drain.
+  // See: incremental-markdown.tsx comment at line 324.
   if (rawAnchor > anchorRef.current && !anchorFrozenRef.current) {
     anchorRef.current = rawAnchor;
   }

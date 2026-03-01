@@ -93,8 +93,12 @@ function createMockContainer() {
 
 let resizeObserverCallback: ResizeObserverCallback | undefined;
 let resizeObserverDisconnect: ReturnType<typeof vi.fn>;
+let now = 1000;
 
 beforeEach(() => {
+  now = 1000;
+  vi.spyOn(performance, 'now').mockImplementation(() => now);
+
   resizeObserverCallback = undefined;
   resizeObserverDisconnect = vi.fn();
 
@@ -256,9 +260,6 @@ describe('useAutoScroll', () => {
 
   describe('user scroll-away and recovery', () => {
     it('stops auto-scrolling when user scrolls away, resumes when they return', () => {
-      let now = 1000;
-      vi.spyOn(performance, 'now').mockImplementation(() => now);
-
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
       container.scrollTop = 600; // at bottom
@@ -304,6 +305,39 @@ describe('useAutoScroll', () => {
         top: 1300,
         behavior: 'instant',
       });
+    });
+
+    it('allows user to scroll away during rapid content growth', () => {
+      const container = createMockContainer();
+      container.setScrollGeometry(1000, 400);
+      container.scrollTop = 600; // at bottom
+
+      const { rerender } = setupStreamingHook(container);
+
+      rerender({ enabled: true });
+
+      // Simulate rapid streaming: multiple content growth cycles
+      container.setScrollGeometry(1050, 400);
+      simulateContentGrowth(650);
+      container.setScrollGeometry(1100, 400);
+      simulateContentGrowth(700);
+      container.setScrollGeometry(1150, 400);
+      simulateContentGrowth(750);
+
+      // User scrolls away between growth cycles. The ResizeObserver
+      // should NOT prevent this — the timestamp guard must NOT be
+      // refreshed by ResizeObserver callbacks.
+      act(() => {
+        container.scrollTop = 200; // far from bottom
+        container.fireScrollEvent();
+      });
+
+      container.scrollToSpy.mockClear();
+
+      // More content growth — should NOT auto-scroll (user escaped)
+      container.setScrollGeometry(1200, 400);
+      simulateContentGrowth(800);
+      expect(container.scrollToSpy).not.toHaveBeenCalled();
     });
 
     it('handles scrollbar drag correctly (no wheel/touch events needed)', () => {
@@ -503,30 +537,29 @@ describe('useAutoScroll', () => {
   });
 
   describe('programmatic scroll guard', () => {
-    it('guards multiple scroll events from a single programmatic scrollTo', () => {
+    it('guards scroll events within the timestamp window after scrollToBottom', () => {
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
       container.scrollTop = 600; // at bottom
 
-      const { rerender } = setupStreamingHook(container);
+      const { result, rerender } = setupStreamingHook(container);
 
       rerender({ enabled: true });
       container.scrollToSpy.mockClear();
 
-      // Content grows — triggers programmatic scrollTo in ResizeObserver
-      container.setScrollGeometry(1200, 400);
-      simulateContentGrowth(800);
+      // scrollToBottom sets the timestamp guard
+      act(() => {
+        result.current.scrollToBottom();
+      });
 
-      // First scroll event was fired by mock scrollTo (synchronous).
-      // Simulate a SECOND scroll event arriving from the same scrollTo
-      // (browsers can fire multiple events for a single scrollTo call).
-      // With a boolean guard, this second event would be unguarded and
-      // could corrupt wasAtBottomRef. With the timestamp guard, it's safe.
-      container.scrollTop = 700; // NOT at bottom (1200 - 700 - 400 = 100)
+      // Content grew between the scrollTo and a second browser scroll event
+      // (Safari can fire multiple events for a single scrollTo call).
+      container.setScrollGeometry(1200, 400);
+      // scrollTop is still at the old position — clearly NOT at bottom
+      container.scrollTop = 500; // 1200 - 500 - 400 = 300 > threshold
       container.fireScrollEvent();
 
       // wasAtBottomRef should still be true (guarded by timestamp)
-      // Verify by checking that subsequent growth is followed
       container.scrollToSpy.mockClear();
       container.setScrollGeometry(1400, 400);
       simulateContentGrowth(1000);
@@ -535,6 +568,37 @@ describe('useAutoScroll', () => {
         top: 1400,
         behavior: 'instant',
       });
+    });
+
+    it('does NOT guard scroll events after the timestamp window expires', () => {
+      const container = createMockContainer();
+      container.setScrollGeometry(1000, 400);
+      container.scrollTop = 600; // at bottom
+
+      const { result, rerender } = setupStreamingHook(container);
+
+      rerender({ enabled: true });
+      container.scrollToSpy.mockClear();
+
+      // scrollToBottom sets the timestamp guard
+      act(() => {
+        result.current.scrollToBottom();
+      });
+
+      // Advance past the guard window
+      now += 100;
+
+      // User scroll arrives after the window — NOT guarded
+      container.setScrollGeometry(1200, 400);
+      container.scrollTop = 200; // 1200 - 200 - 400 = 600 > threshold
+      container.fireScrollEvent();
+
+      // wasAtBottomRef should be false — auto-scroll should stop
+      container.scrollToSpy.mockClear();
+      container.setScrollGeometry(1400, 400);
+      simulateContentGrowth(1000);
+
+      expect(container.scrollToSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -591,9 +655,6 @@ describe('useAutoScroll', () => {
     });
 
     it('resumes auto-scroll when user scrolls to bottom after enabled goes false', () => {
-      let now = 1000;
-      vi.spyOn(performance, 'now').mockImplementation(() => now);
-
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
       container.scrollTop = 600; // at bottom
