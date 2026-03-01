@@ -73,8 +73,10 @@ export function ChatInput({
 
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
+  const inputDisabled = disabled || isLoading;
+
   const handleSendMessage = () => {
-    if ((!value.trim() && attachments.length === 0) || disabled) return;
+    if ((!value.trim() && attachments.length === 0) || inputDisabled) return;
 
     const attachmentsToSend =
       attachments.length > 0 ? clearAttachments() : undefined;
@@ -104,7 +106,7 @@ export function ChatInput({
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
-    if (disabled) return;
+    if (inputDisabled) return;
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -256,10 +258,10 @@ export function ChatInput({
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                disabled={disabled}
+                disabled={inputDisabled}
                 placeholder=""
               />
-              {value.length === 0 && !disabled && (
+              {value.length === 0 && !inputDisabled && (
                 <Text
                   as="div"
                   variant="muted"
@@ -289,7 +291,7 @@ export function ChatInput({
                   variant="ghost"
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={disabled}
+                  disabled={inputDisabled}
                   aria-label={tDialogs('attach')}
                 >
                   <Paperclip className="size-4" />
@@ -300,16 +302,18 @@ export function ChatInput({
                 {isLoading ? (
                   <Button
                     onClick={onStopGenerating}
+                    disabled={!onStopGenerating}
                     size="icon"
                     aria-label={tChat('stopGenerating')}
                   >
-                    <CircleStop className="text-destructive size-4" />
+                    <CircleStop className="size-4" />
                   </Button>
                 ) : (
                   <Button
                     onClick={handleSendMessage}
                     disabled={
-                      (!value.trim() && attachments.length === 0) || disabled
+                      (!value.trim() && attachments.length === 0) ||
+                      inputDisabled
                     }
                     size="icon"
                     aria-label={tChat('send')}
