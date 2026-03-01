@@ -256,6 +256,9 @@ describe('useAutoScroll', () => {
 
   describe('user scroll-away and recovery', () => {
     it('stops auto-scrolling when user scrolls away, resumes when they return', () => {
+      let now = 1000;
+      vi.spyOn(performance, 'now').mockImplementation(() => now);
+
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
       container.scrollTop = 600; // at bottom
@@ -271,6 +274,9 @@ describe('useAutoScroll', () => {
         top: 1100,
         behavior: 'instant',
       });
+
+      // Advance past programmatic scroll guard window before user scroll
+      now += 100;
 
       // User scrolls away (any method — scrollbar, wheel, keyboard)
       act(() => {
@@ -461,6 +467,77 @@ describe('useAutoScroll', () => {
     });
   });
 
+  describe('scrollTo', () => {
+    it('scrolls to a specific position and preserves auto-follow', () => {
+      const container = createMockContainer();
+      container.setScrollGeometry(1000, 400);
+      container.scrollTop = 600; // at bottom
+
+      const { result, rerender } = setupStreamingHook(container);
+
+      rerender({ enabled: true });
+      container.scrollToSpy.mockClear();
+
+      // Programmatic scroll to mid-page position (like scrollToAIResponse)
+      act(() => {
+        result.current.scrollTo(200);
+      });
+
+      expect(container.scrollToSpy).toHaveBeenCalledWith({
+        top: 200,
+        behavior: 'instant',
+      });
+
+      container.scrollToSpy.mockClear();
+
+      // Content grows — auto-scroll should still follow because scrollTo
+      // preserved wasAtBottomRef
+      container.setScrollGeometry(1200, 400);
+      simulateContentGrowth(800);
+
+      expect(container.scrollToSpy).toHaveBeenCalledWith({
+        top: 1200,
+        behavior: 'instant',
+      });
+    });
+  });
+
+  describe('programmatic scroll guard', () => {
+    it('guards multiple scroll events from a single programmatic scrollTo', () => {
+      const container = createMockContainer();
+      container.setScrollGeometry(1000, 400);
+      container.scrollTop = 600; // at bottom
+
+      const { rerender } = setupStreamingHook(container);
+
+      rerender({ enabled: true });
+      container.scrollToSpy.mockClear();
+
+      // Content grows — triggers programmatic scrollTo in ResizeObserver
+      container.setScrollGeometry(1200, 400);
+      simulateContentGrowth(800);
+
+      // First scroll event was fired by mock scrollTo (synchronous).
+      // Simulate a SECOND scroll event arriving from the same scrollTo
+      // (browsers can fire multiple events for a single scrollTo call).
+      // With a boolean guard, this second event would be unguarded and
+      // could corrupt wasAtBottomRef. With the timestamp guard, it's safe.
+      container.scrollTop = 700; // NOT at bottom (1200 - 700 - 400 = 100)
+      container.fireScrollEvent();
+
+      // wasAtBottomRef should still be true (guarded by timestamp)
+      // Verify by checking that subsequent growth is followed
+      container.scrollToSpy.mockClear();
+      container.setScrollGeometry(1400, 400);
+      simulateContentGrowth(1000);
+
+      expect(container.scrollToSpy).toHaveBeenCalledWith({
+        top: 1400,
+        behavior: 'instant',
+      });
+    });
+  });
+
   describe('post-streaming auto-scroll (typewriter drain)', () => {
     it('follows content growth after enabled goes false (user at bottom)', () => {
       const container = createMockContainer();
@@ -488,7 +565,7 @@ describe('useAutoScroll', () => {
       });
     });
 
-    it('does NOT follow content shrinkage after enabled goes false', () => {
+    it('follows content shrinkage after enabled goes false (user stays at bottom)', () => {
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
       container.scrollTop = 600; // at bottom
@@ -503,13 +580,20 @@ describe('useAutoScroll', () => {
       rerender({ enabled: false });
       container.scrollToSpy.mockClear();
 
-      // Content shrinks (e.g., layout shift) — should NOT auto-scroll
+      // Content shrinks (e.g., markdown re-parse during typewriter drain)
+      // — should auto-scroll to keep user at bottom
       simulateContentGrowth(500);
 
-      expect(container.scrollToSpy).not.toHaveBeenCalled();
+      expect(container.scrollToSpy).toHaveBeenCalledWith({
+        top: 1000,
+        behavior: 'instant',
+      });
     });
 
     it('resumes auto-scroll when user scrolls to bottom after enabled goes false', () => {
+      let now = 1000;
+      vi.spyOn(performance, 'now').mockImplementation(() => now);
+
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
       container.scrollTop = 600; // at bottom
@@ -518,6 +602,9 @@ describe('useAutoScroll', () => {
 
       rerender({ enabled: true });
       simulateContentGrowth(600);
+
+      // Advance past programmatic scroll guard window before user scroll
+      now += 100;
 
       // User scrolls away during streaming
       act(() => {

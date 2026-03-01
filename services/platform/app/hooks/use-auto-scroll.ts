@@ -4,7 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
 interface UseAutoScrollOptions {
   /**
-   * Whether auto-scroll should be active (e.g., during streaming)
+   * Whether auto-scroll should be active (e.g., during streaming).
+   * Used only for end-of-streaming scroll correction via useLayoutEffect.
    */
   enabled: boolean;
   /**
@@ -28,25 +29,34 @@ interface UseAutoScrollReturn {
    */
   scrollToBottom: () => void;
   /**
+   * Programmatic scroll to a specific position. Sets the programmatic scroll
+   * guard so the scroll event doesn't corrupt wasAtBottomRef, and enables
+   * auto-follow for subsequent content growth.
+   */
+  scrollTo: (top: number) => void;
+  /**
    * Whether user is currently at bottom (for showing scroll button)
    */
   isAtBottom: () => boolean;
 }
 
+// Scroll events arriving within this window after a programmatic scrollTo are
+// treated as programmatic (wasAtBottomRef stays true). A single scrollTo can
+// fire multiple scroll events in some browsers; a boolean guard only covers
+// the first. 50ms gives ~3 frames of margin for instant scrolls while being
+// short enough to never swallow a real user scroll.
+const PROGRAMMATIC_SCROLL_WINDOW_MS = 50;
+
 /**
- * useAutoScroll - Position-based auto-scrolling for growing content.
+ * useAutoScroll - Position-based auto-scrolling for changing content.
  *
- * Core invariant: "If the user is at the bottom and content grows, follow it."
+ * Core invariant: "If the user is at the bottom and content height changes,
+ * follow it." Both growth AND shrinkage are followed — the distinction between
+ * them was a source of bugs when streaming ends but typewriter drain continues.
  *
- * The ResizeObserver and scroll handler run continuously — position is the sole
- * source of truth, not streaming state. The `enabled` flag only controls whether
- * shrinkage is also followed (useful during streaming when markdown restructuring
- * can temporarily reduce height).
- *
- * A programmatic scroll guard distinguishes our own scrollTo calls from user
- * scrolls, preventing async scroll events from falsely updating the position
- * state. Works correctly with ALL scroll methods (mouse wheel, trackpad,
- * scrollbar drag, keyboard, programmatic scroll).
+ * A timestamp-based programmatic scroll guard distinguishes our own scrollTo
+ * calls from user scrolls, preventing async scroll events from falsely
+ * updating the position state.
  *
  * Nested scrollable containers (e.g. code blocks) are handled automatically:
  * when a nested container absorbs the scroll, the outer container's scrollTop
@@ -60,30 +70,19 @@ export function useAutoScroll({
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   // Whether the user was "at bottom" as of the last scroll position update.
-  // Read by the ResizeObserver to decide if content growth should auto-scroll.
+  // Read by the ResizeObserver to decide if height changes should auto-scroll.
   const wasAtBottomRef = useRef(true);
 
-  // Guard: marks the next scroll event as originating from our own scrollTo
-  // call, preventing it from overriding wasAtBottomRef via the isAtBottom()
-  // geometry check. Without this, the async scroll event from a programmatic
-  // scrollTo can arrive after content has grown, causing isAtBottom() to
-  // return false and permanently breaking auto-scroll.
-  const programmaticScrollRef = useRef(false);
+  // Timestamp of the last programmatic scrollTo call. Scroll events arriving
+  // within PROGRAMMATIC_SCROLL_WINDOW_MS are treated as ours, preventing
+  // isAtBottom() from corrupting wasAtBottomRef when content grows between
+  // the scrollTo and the async scroll event.
+  const programmaticScrollAtRef = useRef(0);
 
-  // Track content height for growth vs. shrinkage detection.
+  // Track content height to detect changes.
   const lastContentHeightRef = useRef(0);
   // Track enabled transitions for end-of-streaming scroll.
   const wasEnabledRef = useRef(false);
-  // Ref mirror of `enabled` — read inside ResizeObserver without stale closures.
-  // Deferred to useEffect so the ResizeObserver sees the PREVIOUS value during
-  // the transition frame. When enabled goes false (streaming ends), the DOM
-  // changes (ThinkingAnimation unmount) happen in the same commit. The
-  // ResizeObserver fires before useEffect, so it still sees enabled=true and
-  // follows the shrinkage — preventing a visible scroll jump.
-  const enabledRef = useRef(enabled);
-  useEffect(() => {
-    enabledRef.current = enabled;
-  }, [enabled]);
 
   const isAtBottom = useCallback(() => {
     const container = containerRef.current;
@@ -98,25 +97,33 @@ export function useAutoScroll({
     if (!container) return;
 
     wasAtBottomRef.current = true;
-    programmaticScrollRef.current = true;
+    programmaticScrollAtRef.current = performance.now();
     container.scrollTo({
       top: container.scrollHeight,
       behavior: 'instant',
     });
   }, []);
 
+  const scrollTo = useCallback((top: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    wasAtBottomRef.current = true;
+    programmaticScrollAtRef.current = performance.now();
+    container.scrollTo({ top, behavior: 'instant' });
+  }, []);
+
   /**
    * Scroll tracking + ResizeObserver — runs continuously.
    *
    * The scroll handler keeps wasAtBottomRef in sync with the user's position.
-   * The ResizeObserver reads wasAtBottomRef (set BEFORE growth) to decide
-   * whether to follow content growth — avoiding the isAtBottom()-after-growth
-   * trap that would break auto-scroll on large DOM changes (>threshold).
+   * The ResizeObserver reads wasAtBottomRef (set BEFORE height change) to
+   * decide whether to follow — avoiding the isAtBottom()-after-growth trap
+   * that would break auto-scroll on large DOM changes (>threshold).
    *
-   * Growth is always followed when the user is at the bottom (streaming,
-   * typewriter drain, new messages). Shrinkage is only followed when
-   * `enabled` is true (during streaming, where markdown restructuring
-   * can temporarily reduce height).
+   * Both growth and shrinkage are followed when the user is at the bottom.
+   * This handles streaming, typewriter drain, new messages, markdown
+   * restructuring, and end-of-streaming DOM mutations uniformly.
    */
   useEffect(() => {
     const content = contentRef.current;
@@ -126,8 +133,10 @@ export function useAutoScroll({
     wasAtBottomRef.current = isAtBottom();
 
     const handleScroll = () => {
-      if (programmaticScrollRef.current) {
-        programmaticScrollRef.current = false;
+      if (
+        performance.now() - programmaticScrollAtRef.current <
+        PROGRAMMATIC_SCROLL_WINDOW_MS
+      ) {
         wasAtBottomRef.current = true;
         return;
       }
@@ -136,21 +145,15 @@ export function useAutoScroll({
 
     const resizeObserver = new ResizeObserver((entries) => {
       const newHeight = entries[0]?.contentRect?.height ?? 0;
-      const grew = newHeight > lastContentHeightRef.current;
       const changed = newHeight !== lastContentHeightRef.current;
       lastContentHeightRef.current = newHeight;
 
-      // Always follow growth when user is at bottom (streaming, typewriter
-      // drain, new messages). Only follow shrinkage during streaming (handles
-      // markdown restructuring, code block transitions).
-      if (changed && (grew || enabledRef.current) && wasAtBottomRef.current) {
-        programmaticScrollRef.current = true;
+      if (changed && wasAtBottomRef.current) {
+        programmaticScrollAtRef.current = performance.now();
         container.scrollTo({
           top: container.scrollHeight,
           behavior: 'instant',
         });
-        // Sync for back-to-back observer callbacks that may fire
-        // before the asynchronous scroll event from scrollTo above.
         wasAtBottomRef.current = true;
       }
     });
@@ -179,7 +182,7 @@ export function useAutoScroll({
       wasEnabledRef.current = false;
       const container = containerRef.current;
       if (container) {
-        programmaticScrollRef.current = true;
+        programmaticScrollAtRef.current = performance.now();
         container.scrollTo({
           top: container.scrollHeight,
           behavior: 'instant',
@@ -192,6 +195,7 @@ export function useAutoScroll({
     containerRef,
     contentRef,
     scrollToBottom,
+    scrollTo,
     isAtBottom,
   };
 }

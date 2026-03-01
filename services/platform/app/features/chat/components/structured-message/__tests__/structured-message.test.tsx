@@ -147,5 +147,33 @@ describe('StructuredMessage', () => {
 
       expect(typewriterMountCount).toBe(mountCountBefore);
     });
+
+    it('does NOT remount TypewriterText when [[NEXT_STEPS]] appears during streaming', () => {
+      const { rerender, getByTestId } = render(
+        <StructuredMessage
+          text="Main content here"
+          isStreaming={true}
+          onSendFollowUp={noop}
+        />,
+      );
+
+      const mountCountBefore = typewriterMountCount;
+
+      rerender(
+        <StructuredMessage
+          text="Main content here\n[[NEXT_STEPS]]\nOption A\nOption B"
+          isStreaming={true}
+          onSendFollowUp={noop}
+        />,
+      );
+
+      // TypewriterText at key="section-0" should be reused, not remounted
+      expect(typewriterMountCount).toBe(mountCountBefore);
+
+      // The plain section should have the text before the marker
+      const tw = getByTestId('typewriter');
+      expect(tw.getAttribute('data-text')).toContain('Main content here');
+      expect(tw.getAttribute('data-text')).not.toContain('[[NEXT_STEPS]]');
+    });
   });
 });
