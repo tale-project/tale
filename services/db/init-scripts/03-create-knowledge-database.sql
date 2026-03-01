@@ -10,6 +10,17 @@ GRANT ALL PRIVILEGES ON DATABASE tale_knowledge TO tale;
 
 \c tale_knowledge
 
+-- LEGACY CLEANUP (safe to remove once all environments are migrated, see 01-init-extensions.sql).
+DO $$
+BEGIN
+    BEGIN ALTER EVENT TRIGGER timescaledb_ddl_command_end DISABLE; EXCEPTION WHEN undefined_object THEN NULL; END;
+    BEGIN ALTER EVENT TRIGGER timescaledb_ddl_sql_drop DISABLE; EXCEPTION WHEN undefined_object THEN NULL; END;
+    BEGIN DROP EXTENSION IF EXISTS timescaledb CASCADE; EXCEPTION WHEN OTHERS THEN NULL; END;
+END;
+$$;
+DROP EVENT TRIGGER IF EXISTS timescaledb_ddl_command_end;
+DROP EVENT TRIGGER IF EXISTS timescaledb_ddl_sql_drop;
+
 -- Extensions (database-level, shared by both schemas)
 CREATE EXTENSION IF NOT EXISTS "vector";
 DO $$ BEGIN
