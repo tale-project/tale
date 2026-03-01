@@ -10,7 +10,7 @@ import { useT } from '@/lib/i18n/client';
 /** Shared table configuration for executions - used by both table and skeleton */
 export function useExecutionsTableConfig() {
   const { t: tTables } = useT('tables');
-  const { t: tCommon } = useT('common');
+  const { t } = useT('automations');
 
   const columns = useMemo<ColumnDef<Doc<'wfExecutions'>>[]>(
     () => [
@@ -52,7 +52,7 @@ export function useExecutionsTableConfig() {
 
   return {
     columns,
-    searchPlaceholder: tCommon('search.placeholder'),
+    searchPlaceholder: t('executions.searchPlaceholder'),
     stickyLayout: true as const,
     pageSize: 30,
     defaultSort: 'startedAt' as const,

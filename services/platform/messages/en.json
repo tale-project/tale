@@ -1579,6 +1579,7 @@
     },
     "executions": {
       "title": "Executions",
+      "searchPlaceholder": "Search executions",
       "columns": {
         "executionId": "Execution ID",
         "status": "Status",
