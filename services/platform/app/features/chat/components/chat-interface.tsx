@@ -128,7 +128,7 @@ export function ChatInterface({
   });
 
   // Auto-scroll
-  const { containerRef, contentRef, scrollToBottom, isAtBottom } =
+  const { containerRef, contentRef, scrollToBottom, scrollTo, isAtBottom } =
     useAutoScroll({
       enabled: isLoading,
       threshold: 100,
@@ -148,12 +148,9 @@ export function ChatInterface({
       const targetScrollTop =
         container.scrollTop + (aiAreaRect.top - containerRect.top) - 80;
 
-      container.scrollTo({
-        top: Math.max(0, targetScrollTop),
-        behavior: 'smooth',
-      });
+      scrollTo(Math.max(0, targetScrollTop));
     }
-  }, [containerRef]);
+  }, [containerRef, scrollTo]);
 
   useEffect(() => {
     if (isLoading && shouldScrollToAIRef.current) {

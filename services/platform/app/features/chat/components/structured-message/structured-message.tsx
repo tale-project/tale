@@ -7,12 +7,13 @@
  * follow-up buttons. All other recognised markers ([[CONCLUSION]], etc.)
  * are silently stripped so their content renders as regular markdown.
  *
- * Falls back to plain TypewriterText when no markers are detected.
+ * Always renders via the mapped-sections path so the TypewriterText at
+ * key="section-0" survives when new sections appear (e.g. [[NEXT_STEPS]]
+ * arriving mid-stream). Without this, the render-path switch would
+ * unmount the TypewriterText, dumping all buffered content at once.
  */
 
 import { memo, useMemo } from 'react';
-
-import type { ParsedSection } from '@/lib/utils/marker-parser';
 
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
@@ -34,39 +35,6 @@ interface StructuredMessageProps {
 }
 
 // ============================================================================
-// SECTION RENDERER
-// ============================================================================
-
-function renderSection(
-  section: ParsedSection,
-  index: number,
-  isActiveSection: boolean,
-  onSendFollowUp?: (message: string) => void,
-) {
-  switch (section.type) {
-    case 'NEXT_STEPS':
-      return (
-        <NextStepsSection
-          key={`section-${index}`}
-          content={section.content}
-          isStreaming={isActiveSection}
-          onSendFollowUp={onSendFollowUp}
-        />
-      );
-    case 'plain':
-      return (
-        <TypewriterText
-          key={`section-${index}`}
-          text={section.content}
-          isStreaming={isActiveSection}
-          components={markdownComponents}
-          className={markdownWrapperStyles}
-        />
-      );
-  }
-}
-
-// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -80,36 +48,37 @@ function StructuredMessageComponent({
     [text, isStreaming],
   );
 
-  // Only switch to the structural wrapper when a section type that needs
-  // its own renderer (e.g. NEXT_STEPS) is present.  Strip-only markers
-  // (CONCLUSION, KEY_POINTS, …) produce a single 'plain' section — keeping
-  // the same render path avoids unmounting TypewriterText mid-stream.
-  const hasStructuralSections = parsed.sections.some((s) => s.type !== 'plain');
-
-  if (!hasStructuralSections) {
-    return (
-      <TypewriterText
-        text={parsed.sections[0]?.content ?? text}
-        isStreaming={isStreaming}
-        components={markdownComponents}
-        className={markdownWrapperStyles}
-      />
-    );
-  }
-
-  // Render structured sections
-  // The last section with content is the actively streaming one
   const lastSectionIndex = parsed.sections.length - 1;
 
   return (
-    <div className="structured-message">
+    <>
       {parsed.sections.map((section, index) => {
         const isLastSection = index === lastSectionIndex;
         const isActiveSection = isStreaming && isLastSection;
 
-        return renderSection(section, index, isActiveSection, onSendFollowUp);
+        switch (section.type) {
+          case 'NEXT_STEPS':
+            return (
+              <NextStepsSection
+                key={`section-${index}`}
+                content={section.content}
+                isStreaming={isActiveSection}
+                onSendFollowUp={onSendFollowUp}
+              />
+            );
+          case 'plain':
+            return (
+              <TypewriterText
+                key={`section-${index}`}
+                text={section.content}
+                isStreaming={isActiveSection}
+                components={markdownComponents}
+                className={markdownWrapperStyles}
+              />
+            );
+        }
       })}
-    </div>
+    </>
   );
 }
 

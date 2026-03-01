@@ -380,6 +380,89 @@ describe('useStreamBuffer — anchor monotonicity', () => {
 });
 
 // ============================================================================
+// anchor freeze during drain
+// ============================================================================
+
+describe('useStreamBuffer — anchor freeze during drain', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('anchor does not advance while draining remaining buffer', () => {
+    // Text with multiple paragraph boundaries — anchor COULD advance
+    // at each \n\n if not frozen during drain
+    const fullText =
+      'First paragraph.\n\n' +
+      'Second paragraph with more content here.\n\n' +
+      'Third paragraph that continues on.\n\n' +
+      'Fourth paragraph with even more text.\n\n' +
+      'Fifth paragraph at the very end of this message.';
+
+    const { result, rerender } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text: fullText, isStreaming: true } },
+    );
+
+    // Advance to reveal some text — anchor should reach a boundary
+    act(() => advanceFrames(60));
+    const anchorDuringStreaming = result.current.anchorPosition;
+    expect(anchorDuringStreaming).toBeGreaterThan(0);
+
+    // Stream ends — enter drain phase
+    rerender({ text: fullText, isStreaming: false });
+    const anchorAtDrainStart = result.current.anchorPosition;
+
+    // Drain remaining buffer
+    act(() => advanceFrames(300));
+
+    // Anchor should NOT have advanced during drain
+    expect(result.current.anchorPosition).toBe(anchorAtDrainStart);
+    // But text should be fully revealed
+    expect(result.current.displayLength).toBe(fullText.length);
+  });
+
+  it('anchor still advances normally during active streaming', () => {
+    const fullText =
+      'First paragraph.\n\n' +
+      'Second paragraph with more content here.\n\n' +
+      'Third paragraph that continues on.\n\n' +
+      'Fourth paragraph with even more text.';
+
+    const { result } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text: fullText, isStreaming: true } },
+    );
+
+    act(() => advanceFrames(30));
+    const anchor1 = result.current.anchorPosition;
+
+    act(() => advanceFrames(60));
+    const anchor2 = result.current.anchorPosition;
+
+    // Anchor should have advanced as more text was revealed
+    expect(anchor2).toBeGreaterThanOrEqual(anchor1);
+  });
+
+  it('anchor advances normally for non-streaming messages', () => {
+    const text = 'First paragraph.\n\nSecond paragraph.';
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({ text, isStreaming: false }),
+    );
+
+    // Non-streaming: anchor should be at the paragraph boundary
+    expect(result.current.anchorPosition).toBe(18);
+  });
+});
+
+// ============================================================================
 // findSafeAnchor
 // ============================================================================
 

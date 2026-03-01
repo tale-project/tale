@@ -412,9 +412,19 @@ export function useStreamBuffer({
   // the correct position, causing StableMarkdown to unmount/remount the
   // entire DOM tree on every frame.
   const anchorRef = useRef(0);
+  // Latches true when drain begins; stays true for the rest of the message
+  // lifecycle. Reset only when streaming resumes or displayLength resets.
+  const anchorFrozenRef = useRef(false);
 
   if (displayLength === 0) {
     anchorRef.current = 0;
+    anchorFrozenRef.current = false;
+  }
+
+  if (isStreaming) {
+    anchorFrozenRef.current = false;
+  } else if (wasStreamingRef.current) {
+    anchorFrozenRef.current = true;
   }
 
   const rawAnchor = useMemo(
@@ -422,7 +432,11 @@ export function useStreamBuffer({
     [text, displayLength],
   );
 
-  if (rawAnchor > anchorRef.current) {
+  // Freeze anchor during and after drain to prevent StableMarkdown re-parse
+  // layout shifts. Each advance changes stableContent → full markdown re-parse
+  // → potential DOM restructuring and height oscillation during typewriter drain.
+  // See: incremental-markdown.tsx comment at line 324.
+  if (rawAnchor > anchorRef.current && !anchorFrozenRef.current) {
     anchorRef.current = rawAnchor;
   }
 
