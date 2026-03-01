@@ -72,6 +72,7 @@ COPY services/operator/docker-entrypoint.sh /usr/local/bin/
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
+LABEL org.opencontainers.image.version="${VERSION}"
 
 # Set permissions and ownership
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
