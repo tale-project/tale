@@ -89,6 +89,8 @@ function startAbortWatcher(
   let stopped = false;
   let cancelledByWatcher = false;
   let earlyCheckDone = false;
+  let earlyCheckCount = 0;
+  const MAX_EARLY_CHECK_POLLS = 50; // ~10s at 200ms interval
 
   const check = async () => {
     if (stopped || abortController.signal.aborted) return;
@@ -111,6 +113,7 @@ function startAbortWatcher(
       // assistant message when no streams exist yet. Only need to check
       // until the SDK creates its own stream (first few polls).
       if (!earlyCheckDone) {
+        earlyCheckCount++;
         const msgs = await listMessages(ctx, components.agent, {
           threadId,
           paginationOpts: { numItems: 5, cursor: null },
@@ -130,7 +133,11 @@ function startAbortWatcher(
         }
         // Once the SDK starts streaming it creates its own message,
         // making this check unreliable. Switch to stream-only checks.
-        if (streams.length > baselineAbortedIds.size) {
+        // Also stop after MAX_EARLY_CHECK_POLLS to bound polling.
+        if (
+          streams.length > baselineAbortedIds.size ||
+          earlyCheckCount >= MAX_EARLY_CHECK_POLLS
+        ) {
           earlyCheckDone = true;
         }
       }
@@ -589,6 +596,15 @@ export async function generateAgentResponse(
           });
 
           const retryAbortController = new AbortController();
+          if (abortController.signal.aborted) {
+            retryAbortController.abort();
+          } else {
+            abortController.signal.addEventListener(
+              'abort',
+              () => retryAbortController.abort(),
+              { once: true },
+            );
+          }
           const retryStreamResult = await retryAgent.streamText(
             contextWithOrg,
             { threadId, userId },
@@ -864,6 +880,17 @@ export async function generateAgentResponse(
             retryDurationMs: Date.now() - emptyRetryStartTime,
           });
         }
+
+        // Post-generation abort check (mirrors streaming path at line 678)
+        if (abortWatcher?.cancelled) {
+          abortWatcher.stop();
+          return {
+            threadId,
+            text: '',
+            durationMs: Date.now() - startTime,
+            finishReason: 'cancelled',
+          };
+        }
       }
 
       // Fallback: if text is still missing after all retries, provide a minimal response
@@ -1129,8 +1156,9 @@ export async function generateAgentResponse(
       }
     }
 
-    // Complete stream if streamId provided
-    if (streamId) {
+    // Complete stream if streamId provided (skip if user cancelled —
+    // appending would concatenate fallback text onto already-streamed content)
+    if (streamId && !abortWatcher?.cancelled) {
       if (responseResult.text) {
         await ctx.runMutation(
           internal.streaming.internal_mutations.appendToStream,

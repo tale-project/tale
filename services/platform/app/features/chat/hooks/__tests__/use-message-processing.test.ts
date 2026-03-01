@@ -196,7 +196,7 @@ describe('useMessageProcessing', () => {
       expect(result.current.activeMessage).toBe(pendingMsg);
     });
 
-    it('prefers streaming over pending when both exist', () => {
+    it('returns first non-terminal assistant in array order when both pending and streaming exist', () => {
       const pendingMsg = createUIMessage({
         id: 'msg-2',
         order: 1,

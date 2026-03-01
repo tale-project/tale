@@ -62,6 +62,7 @@ compose.override.yml
 
 # Agent rules
 .agent/*
+!.agent/rules/
 !.agent/rules/README.md
 
 # Python
