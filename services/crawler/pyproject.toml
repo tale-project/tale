@@ -10,7 +10,7 @@ dependencies = [
     "crawl4ai==0.8.0",
     "beautifulsoup4==4.14.3",
     "python-multipart==0.0.22",
-    "python-dotenv==1.2.1",
+    "python-dotenv==1.2.2",
     "loguru==0.7.3",
     "httpx==0.28.1",
     "markdown==3.10.2",
