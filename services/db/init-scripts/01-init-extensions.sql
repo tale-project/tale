@@ -1,8 +1,20 @@
 -- Tale DB: Core extensions and schema setup
 -- Idempotent: safe to run on every startup
 
--- Remove legacy TimescaleDB extension if present
-DROP EXTENSION IF EXISTS timescaledb CASCADE;
+-- LEGACY CLEANUP (safe to remove once all environments are migrated):
+-- Older ParadeDB images bundled TimescaleDB. After upgrading, the .so
+-- is gone but its event triggers remain and block ALL DDL. We disable
+-- them first (ALTER doesn't fire sql_drop, and the altered trigger is
+-- already disabled before ddl_command_end fires), then drop safely.
+DO $$
+BEGIN
+    BEGIN ALTER EVENT TRIGGER timescaledb_ddl_command_end DISABLE; EXCEPTION WHEN undefined_object THEN NULL; END;
+    BEGIN ALTER EVENT TRIGGER timescaledb_ddl_sql_drop DISABLE; EXCEPTION WHEN undefined_object THEN NULL; END;
+    BEGIN DROP EXTENSION IF EXISTS timescaledb CASCADE; EXCEPTION WHEN OTHERS THEN NULL; END;
+END;
+$$;
+DROP EVENT TRIGGER IF EXISTS timescaledb_ddl_command_end;
+DROP EVENT TRIGGER IF EXISTS timescaledb_ddl_sql_drop;
 
 -- Enable core extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
