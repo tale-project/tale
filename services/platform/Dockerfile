@@ -13,6 +13,7 @@ FROM oven/bun:1.3.10 AS bun-bin
 FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS workspace-deps
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
 
@@ -26,7 +27,9 @@ COPY services/proxy/package.json ./services/proxy/
 COPY tools/cli/package.json ./tools/cli/
 COPY patches/ ./patches/
 
-RUN bun install
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/* \
+    && HUSKY=0 bun install
 
 # ============================================================================
 # Stage 2: Builder
@@ -34,11 +37,15 @@ RUN bun install
 FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS builder
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
 
+# Preserve workspace layout so bun's internal symlinks resolve correctly
 COPY --from=workspace-deps /app/node_modules ./node_modules
-COPY --from=workspace-deps /app/services/platform/node_modules/ ./node_modules/
+COPY --from=workspace-deps /app/services/platform/node_modules ./services/platform/node_modules
+
+COPY tsconfig.base.json ./tsconfig.base.json
 
 COPY services/platform/vite.config.ts \
      services/platform/tsconfig.json \
@@ -49,27 +56,25 @@ COPY services/platform/vite.config.ts \
      services/platform/tsr.config.json \
      services/platform/components.json \
      services/platform/package.json \
-     ./
+     ./services/platform/
 
-COPY tsconfig.base.json /tsconfig.base.json
-
-COPY services/platform/app ./app
-COPY services/platform/lib ./lib
-COPY services/platform/convex ./convex
-COPY services/platform/public ./public
-COPY services/platform/types ./types
-COPY services/platform/messages ./messages
-COPY services/platform/vite-plugins ./vite-plugins
+COPY services/platform/app ./services/platform/app
+COPY services/platform/lib ./services/platform/lib
+COPY services/platform/convex ./services/platform/convex
+COPY services/platform/public ./services/platform/public
+COPY services/platform/types ./services/platform/types
+COPY services/platform/messages ./services/platform/messages
+COPY services/platform/vite-plugins ./services/platform/vite-plugins
 
 COPY services/platform/server.ts \
      services/platform/docker-entrypoint.sh \
      services/platform/generate-admin-key.sh \
      services/platform/env.sh \
-     ./
+     ./services/platform/
 
 ENV NODE_ENV=production
 
-RUN bun --bun vite build
+RUN cd services/platform && bun --bun vite build
 
 # ============================================================================
 # Stage 3: Pruner
@@ -84,8 +89,9 @@ COPY --from=workspace-deps /app/services/operator/package.json /tmp/workspace/se
 COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services/db/
 COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
 COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
+COPY --from=workspace-deps /app/patches/ /tmp/workspace/patches/
 
-RUN cd /tmp/workspace && bun install --production \
+RUN cd /tmp/workspace && HUSKY=0 bun install --production \
     && rm -rf /app/node_modules \
     && mv /tmp/workspace/node_modules /app/node_modules \
     && rm -rf /app/node_modules/@swc/core* \
@@ -151,13 +157,13 @@ ENV NODE_ENV=production \
 
 COPY --from=convex-dashboard --chown=app:app /app /dashboard
 
-COPY --from=pruner --chown=app:app /app/dist ./dist
-COPY --from=pruner --chown=app:app /app/server.ts ./
-COPY --from=pruner --chown=app:app /app/convex ./convex
-COPY --from=pruner --chown=app:app /app/lib ./lib
+COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
+COPY --from=pruner --chown=app:app /app/services/platform/server.ts ./
+COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
+COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
-COPY --from=pruner --chown=app:app /app/package.json ./
-COPY --from=pruner --chown=app:app /app/docker-entrypoint.sh /app/generate-admin-key.sh /app/env.sh ./
+COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
+COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/env.sh ./
 
 RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh
 
