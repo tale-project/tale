@@ -38,7 +38,7 @@ import { memo, useRef, useEffect } from 'react';
 
 import type { MarkdownComponentMap } from '@/lib/utils/markdown-types';
 
-import { useStreamBuffer } from '../hooks/use-stream-buffer';
+import { isStreamFrozen, useStreamBuffer } from '../hooks/use-stream-buffer';
 import { IncrementalMarkdown } from './incremental-markdown';
 
 // ============================================================================
@@ -143,7 +143,8 @@ function TypewriterTextComponent({
   // Show cursor while text is being revealed — covers both the live streaming
   // phase (isStreaming) and the post-stream drain phase (isDraining). isTyping
   // guards against showing a cursor on a message that finished animating.
-  const showCursor = (isStreaming || isDraining) && isTyping;
+  const showCursor =
+    (isStreaming || isDraining) && isTyping && !isStreamFrozen();
 
   return (
     <div className={className}>

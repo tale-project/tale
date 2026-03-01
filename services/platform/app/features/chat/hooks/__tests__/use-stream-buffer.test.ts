@@ -1355,6 +1355,35 @@ describe('useStreamBuffer — freeze edge cases', () => {
     act(() => advanceFrames(60));
     expect(result.current.displayLength).toBe(frozenLen);
   });
+
+  it('does not re-register RAF after freeze when text updates', () => {
+    const text =
+      'Initial text for RAF re-registration test that is long enough ' +
+      'for the animation to be actively running when freeze triggers.';
+
+    const { rerender } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text, isStreaming: true } },
+    );
+
+    act(() => advanceFrames(10));
+    expect(rafCallbacks.size).toBeGreaterThan(0);
+
+    act(() => freezeActiveStream());
+    expect(rafCallbacks.size).toBe(0);
+
+    // Simulate more text arriving from backend after freeze
+    const updatedText = text + ' More text arriving after stop was clicked.';
+    rerender({ text: updatedText, isStreaming: true });
+
+    // RAF should NOT be re-registered because freeze is active
+    expect(rafCallbacks.size).toBe(0);
+
+    // Further frames should not advance display
+    act(() => advanceFrames(30));
+    expect(rafCallbacks.size).toBe(0);
+  });
 });
 
 // ============================================================================

@@ -515,7 +515,7 @@ export function useStreamBuffer({
         accumulatedCharsRef.current = 0;
       }
 
-      if (!animationFrameRef.current) {
+      if (!animationFrameRef.current && !frozenRef.current && !globalFrozen) {
         lastFrameTimeRef.current = 0;
         animationFrameRef.current = requestAnimationFrame(animate);
       }
