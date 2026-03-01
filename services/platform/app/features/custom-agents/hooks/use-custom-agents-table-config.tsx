@@ -96,13 +96,18 @@ export function useCustomAgentsTableConfig({
       },
       {
         id: 'tools',
-        header: t('customAgents.columns.tools'),
+        header: () => (
+          <span className="block w-full text-right">
+            {t('customAgents.columns.tools')}
+          </span>
+        ),
+        size: 100,
+        meta: { headerLabel: t('customAgents.columns.tools') },
         cell: ({ row }) => (
-          <Text as="span" variant="muted">
+          <Text as="span" variant="muted" className="block text-right">
             {row.original.toolNames.length}
           </Text>
         ),
-        size: 100,
       },
       {
         id: 'team',
