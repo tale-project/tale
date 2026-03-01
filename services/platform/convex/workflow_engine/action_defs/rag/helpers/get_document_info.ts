@@ -2,7 +2,7 @@ import type { ActionCtx } from '../../../../_generated/server';
 import type { DocumentMetadata } from '../../../../documents/types';
 import type { RagActionParams } from './types';
 
-import { api, internal } from '../../../../_generated/api';
+import { internal } from '../../../../_generated/api';
 import { toId } from '../../../../lib/type_cast_helpers';
 
 /**
@@ -52,9 +52,7 @@ export async function getDocumentInfo(
 
   // Check if document has file content
   if (document.fileId) {
-    const fileUrl = await ctx.runQuery?.(api.files.queries.getFileUrl, {
-      fileId: document.fileId,
-    });
+    const fileUrl = await ctx.storage.getUrl(document.fileId);
 
     if (!fileUrl) {
       throw new Error(`File URL not available for document ${params.recordId}`);
