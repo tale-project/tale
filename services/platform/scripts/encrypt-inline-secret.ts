@@ -5,17 +5,16 @@
  * - Key source: ENCRYPTION_SECRET (base64url 32 bytes) or ENCRYPTION_SECRET_HEX (64 hex chars)
  *
  * Usage:
- *   echo -n "PLAINTEXT" | bun scripts/encrypt-inline-secret.mjs
+ *   echo -n "PLAINTEXT" | bun scripts/encrypt-inline-secret.ts
  */
-import fs from 'node:fs';
-import path from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-// Load environment variables from .env and .env.local (local overrides base)
-function parseEnvFile(filePath) {
+function parseEnvFile(filePath: string): Record<string, string> {
   try {
-    if (!fs.existsSync(filePath)) return {};
-    const content = fs.readFileSync(filePath, 'utf8');
-    const out = {};
+    if (!existsSync(filePath)) return {};
+    const content = readFileSync(filePath, 'utf8');
+    const out: Record<string, string> = {};
     for (const rawLine of content.split(/\r?\n/)) {
       const line = rawLine.trim();
       if (!line || line.startsWith('#')) continue;
@@ -39,8 +38,8 @@ function parseEnvFile(filePath) {
 
 (function loadEnv() {
   const root = process.cwd();
-  const envBase = parseEnvFile(path.join(root, '.env'));
-  const envLocal = parseEnvFile(path.join(root, '.env.local'));
+  const envBase = parseEnvFile(join(root, '.env'));
+  const envLocal = parseEnvFile(join(root, '.env.local'));
   const merged = { ...envBase, ...envLocal };
   for (const [k, v] of Object.entries(merged)) {
     if (process.env[k] === undefined) process.env[k] = v;
@@ -49,14 +48,14 @@ function parseEnvFile(filePath) {
 
 import { CompactEncrypt } from 'jose';
 
-function base64UrlToBuffer(input) {
+function base64UrlToBuffer(input: string): Buffer {
   let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
   const pad = base64.length % 4;
   if (pad) base64 += '='.repeat(4 - pad);
   return Buffer.from(base64, 'base64');
 }
 
-function getSecretKey() {
+function getSecretKey(): Uint8Array {
   const b64 = process.env.ENCRYPTION_SECRET;
   const hex = process.env.ENCRYPTION_SECRET_HEX;
   const value = b64 ?? hex;
@@ -78,8 +77,8 @@ function getSecretKey() {
   return new Uint8Array(keyBuf);
 }
 
-async function readStdin() {
-  const chunks = [];
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
   const data = Buffer.concat(chunks).toString('utf8');
   return data.trim();
@@ -96,7 +95,6 @@ async function main() {
   const jwe = await new CompactEncrypt(encoder.encode(plaintext))
     .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
     .encrypt(secret);
-  // Output compact JWE to stdout only
   process.stdout.write(jwe);
 }
 

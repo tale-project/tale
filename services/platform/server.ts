@@ -1,11 +1,19 @@
 import { join, resolve } from 'node:path';
 
+interface EnvConfig {
+  SITE_URL: string | undefined;
+  MICROSOFT_AUTH_ENABLED: boolean;
+  SENTRY_DSN: string | undefined;
+  SENTRY_TRACES_SAMPLE_RATE: number;
+  TALE_VERSION: string | undefined;
+}
+
 const port = process.env.PORT || 3000;
 const distDir = join(import.meta.dir, 'dist');
 
-let indexHtmlTemplate = null;
+let indexHtmlTemplate: string | null = null;
 
-function getEnvConfig() {
+function getEnvConfig(): EnvConfig {
   return {
     SITE_URL: process.env.SITE_URL,
     MICROSOFT_AUTH_ENABLED: !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID,

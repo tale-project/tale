@@ -19,19 +19,33 @@
 	*/
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
-import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const platformRoot = join(__dirname, '..');
-// Repository root is two levels up from services/platform
-const repoRoot = join(__dirname, '..', '..', '..');
+const platformRoot = join(import.meta.dir, '..');
+const repoRoot = join(import.meta.dir, '..', '..', '..');
 
-function parseDotEnv(filePath) {
-  const result = {};
+interface ConvexEnvListResult {
+  ok: boolean;
+  reason?: string;
+  envVars: Record<string, string>;
+}
+
+interface ConvexEnvGetResult {
+  ok: boolean;
+  exists: boolean;
+  reason?: string;
+  value?: string;
+}
+
+interface ConvexEnvMutationResult {
+  ok: boolean;
+  reason?: string;
+}
+
+function parseDotEnv(filePath: string): Record<string, string> {
+  const result: Record<string, string> = {};
   if (!existsSync(filePath)) return result;
   const raw = readFileSync(filePath, 'utf8');
   for (const line of raw.split(/\r?\n/)) {
@@ -41,7 +55,6 @@ function parseDotEnv(filePath) {
     if (eq === -1) continue;
     const key = trimmed.slice(0, eq).trim();
     let value = trimmed.slice(eq + 1).trim();
-    // Strip surrounding quotes if present
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
       (value.startsWith("'") && value.endsWith("'"))
@@ -53,9 +66,7 @@ function parseDotEnv(filePath) {
   return result;
 }
 
-function findEnv() {
-  // Read .env and .env.local from both repository root and services/platform
-  // Priority (highest to lowest): services/platform/.env.local > services/platform/.env > repo root/.env.local > repo root/.env
+function findEnv(): Record<string, string> {
   const repoEnvPath = join(repoRoot, '.env');
   const repoEnvLocalPath = join(repoRoot, '.env.local');
   const platformEnvPath = join(platformRoot, '.env');
@@ -66,7 +77,6 @@ function findEnv() {
   const platformBaseEnv = parseDotEnv(platformEnvPath);
   const platformLocalEnv = parseDotEnv(platformEnvLocalPath);
 
-  // Merge with priority: services/platform/.env.local > services/platform/.env > repo root/.env.local > repo root/.env
   return {
     ...repoBaseEnv,
     ...repoLocalEnv,
@@ -75,14 +85,13 @@ function findEnv() {
   };
 }
 
-function runConvexEnvList() {
-  // Get all current environment variables from Convex
+function runConvexEnvList(): ConvexEnvListResult {
   const proc = spawnSync('bunx', ['convex', 'env', 'list'], {
-    stdio: ['inherit', 'pipe', 'inherit'], // Capture stdout only
+    stdio: ['inherit', 'pipe', 'inherit'],
     cwd: platformRoot,
     env: {
       ...process.env,
-      CONVEX_AGENT_MODE: 'anonymous', // Skip login prompt and force local development
+      CONVEX_AGENT_MODE: 'anonymous',
     },
   });
   if (proc.error) {
@@ -92,16 +101,13 @@ function runConvexEnvList() {
     return { ok: false, reason: `exit ${proc.status}`, envVars: {} };
   }
 
-  // Parse the output to extract environment variables
   const output = proc.stdout?.toString() || '';
-  const envVars = {};
+  const envVars: Record<string, string> = {};
 
-  // Parse lines like "KEY=value" from the convex env list output
   for (const line of output.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Skip header lines or decorative lines
     if (
       trimmed.includes('Environment Variables') ||
       trimmed.includes('---') ||
@@ -118,7 +124,6 @@ function runConvexEnvList() {
     const key = trimmed.slice(0, eq).trim();
     const value = trimmed.slice(eq + 1).trim();
 
-    // Remove quotes if present
     let cleanValue = value;
     if (
       (cleanValue.startsWith('"') && cleanValue.endsWith('"')) ||
@@ -133,41 +138,36 @@ function runConvexEnvList() {
   return { ok: true, envVars };
 }
 
-function runConvexEnvGet(key) {
-  // Get a specific environment variable from Convex (more reliable than parsing list output)
+function runConvexEnvGet(key: string): ConvexEnvGetResult {
   const proc = spawnSync('bunx', ['convex', 'env', 'get', key], {
-    stdio: ['inherit', 'pipe', 'pipe'], // Capture stdout and stderr
+    stdio: ['inherit', 'pipe', 'pipe'],
     cwd: platformRoot,
     env: {
       ...process.env,
-      CONVEX_AGENT_MODE: 'anonymous', // Skip login prompt and force local development
+      CONVEX_AGENT_MODE: 'anonymous',
     },
   });
 
-  // Check for error or non-zero exit (env var doesn't exist)
   if (proc.error) {
     return { ok: false, exists: false, reason: proc.error.message };
   }
   if (typeof proc.status === 'number' && proc.status !== 0) {
-    // Non-zero exit usually means the env var doesn't exist
     return { ok: true, exists: false };
   }
 
-  // Parse the output - convex env get outputs just the value
   const output = proc.stdout?.toString().trim() || '';
   return { ok: true, exists: true, value: output };
 }
 
-function runConvexEnvSet(key, value) {
+function runConvexEnvSet(key: string, value: string): ConvexEnvMutationResult {
   if (typeof value !== 'string' || value.length === 0)
     return { ok: false, reason: 'empty' };
-  // Use spawn to avoid shell quoting pitfalls - use anonymous mode for local development
   const proc = spawnSync('bunx', ['convex', 'env', 'set', key, value], {
     stdio: 'inherit',
     cwd: platformRoot,
     env: {
       ...process.env,
-      CONVEX_AGENT_MODE: 'anonymous', // Skip login prompt and force local development
+      CONVEX_AGENT_MODE: 'anonymous',
     },
   });
   if (proc.error) {
@@ -179,14 +179,13 @@ function runConvexEnvSet(key, value) {
   return { ok: true };
 }
 
-function runConvexEnvRemove(key) {
-  // Use spawn to avoid shell quoting pitfalls - use anonymous mode for local development
+function runConvexEnvRemove(key: string): ConvexEnvMutationResult {
   const proc = spawnSync('bunx', ['convex', 'env', 'remove', key], {
     stdio: 'inherit',
     cwd: platformRoot,
     env: {
       ...process.env,
-      CONVEX_AGENT_MODE: 'anonymous', // Skip login prompt and force local development
+      CONVEX_AGENT_MODE: 'anonymous',
     },
   });
   if (proc.error) {
@@ -201,7 +200,6 @@ function runConvexEnvRemove(key) {
 async function main() {
   const envMap = findEnv();
 
-  // If SITE_URL is absent, default to http://localhost:3000
   if (!envMap.SITE_URL) {
     const inferred = 'http://localhost:3000';
     console.log(
@@ -210,7 +208,6 @@ async function main() {
     envMap.SITE_URL = inferred;
   }
 
-  // Get all keys from the environment map
   const keys = Object.keys(envMap);
 
   if (keys.length === 0) {
@@ -224,7 +221,6 @@ async function main() {
     `[sync-convex-env] Found ${keys.length} environment variables to sync`,
   );
 
-  // Step 1: Get all existing environment variables from Convex
   console.log('[sync-convex-env] Fetching existing environment variables...');
   const existingEnvRes = runConvexEnvList();
   const existingEnvVars = existingEnvRes.ok ? existingEnvRes.envVars : {};
@@ -241,14 +237,12 @@ async function main() {
     );
   }
 
-  // Step 2: Smart sync - compare and only update what's different
   let hadError = false;
   let skippedCount = 0;
   let updatedCount = 0;
   let removedCount = 0;
   let isFirstUpdate = true;
 
-  // 2a: Set/update variables from .env
   console.log('[sync-convex-env] Syncing environment variables...');
   for (const key of keys) {
     const newValue = envMap[key];
@@ -259,15 +253,12 @@ async function main() {
 
     const listValue = existingEnvVars[key];
 
-    // Quick check using list output first
     if (existingKeys.has(key) && listValue === newValue) {
       console.log(`  ⏭️  ${key} (unchanged, skipping)`);
       skippedCount++;
       continue;
     }
 
-    // If list says it's different or missing, double-check with `convex env get`
-    // (convex env list output can be unreliable)
     const getResult = runConvexEnvGet(key);
     if (getResult.ok && getResult.exists && getResult.value === newValue) {
       console.log(`  ⏭️  ${key} (unchanged after verify, skipping)`);
@@ -275,7 +266,6 @@ async function main() {
       continue;
     }
 
-    // Value is new or different, update it
     const action = getResult.exists ? 'updating' : 'adding';
     console.log(`  ✏️  ${key} = ******** (${action})`);
     const res = runConvexEnvSet(key, newValue);
@@ -286,14 +276,12 @@ async function main() {
       updatedCount++;
     }
 
-    // Wait ~15s after first env update to allow Convex to settle (helps first deploy)
     if (isFirstUpdate && updatedCount === 1) {
       isFirstUpdate = false;
       console.log(
         '  ⏳ Waiting 15 seconds for Convex to settle after first environment variable...',
       );
 
-      // Show countdown every second
       for (let i = 15; i > 0; i--) {
         console.log(`  ⏳ ${i} seconds remaining...`);
         await wait(1000);
@@ -303,7 +291,6 @@ async function main() {
     }
   }
 
-  // 2b: Remove variables that exist in Convex but not in .env (to keep in sync)
   const keysToRemove = [...existingKeys].filter((key) => !envMap[key]);
   if (keysToRemove.length > 0) {
     console.log(
@@ -323,7 +310,6 @@ async function main() {
     }
   }
 
-  // Summary
   console.log('\n[sync-convex-env] Summary:');
   console.log(`  - Skipped (unchanged): ${skippedCount}`);
   console.log(`  - Updated/Added: ${updatedCount}`);
@@ -333,7 +319,7 @@ async function main() {
     console.warn(
       '\n[sync-convex-env] Completed with some errors. You can re-run:',
     );
-    console.warn('  bun scripts/sync-convex-env-from-dotenv.mjs');
+    console.warn('  bun scripts/sync-convex-env-from-dotenv.ts');
     process.exitCode = 1;
   } else {
     console.log('[sync-convex-env] ✓ Sync completed successfully.');

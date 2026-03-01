@@ -22,25 +22,18 @@
   Uses Bun native spawn + wait-on library for proper signal handling (Ctrl+C works correctly).
 */
 
-import { spawn } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import { type ChildProcess, spawn } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
 import kill from 'tree-kill';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const platformRoot = join(__dirname, '..');
-// Repository root is two levels up from services/platform
-const repoRoot = join(__dirname, '..', '..', '..');
+const platformRoot = join(import.meta.dir, '..');
+const repoRoot = join(import.meta.dir, '..', '..', '..');
 
-/**
- * Parse a .env file and return key-value pairs
- */
-function parseDotEnv(filePath) {
-  const result = {};
+function parseDotEnv(filePath: string): Record<string, string> {
+  const result: Record<string, string> = {};
   if (!existsSync(filePath)) return result;
   const raw = readFileSync(filePath, 'utf8');
   for (const line of raw.split(/\r?\n/)) {
@@ -50,7 +43,6 @@ function parseDotEnv(filePath) {
     if (eq === -1) continue;
     const key = trimmed.slice(0, eq).trim();
     let value = trimmed.slice(eq + 1).trim();
-    // Strip surrounding quotes if present
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
       (value.startsWith("'") && value.endsWith("'"))
@@ -62,39 +54,21 @@ function parseDotEnv(filePath) {
   return result;
 }
 
-/**
- * Normalize and inject environment variables similar to services/platform/env.sh
- * Does not overwrite already-set values.
- */
 function envNormalizeCommon() {
-  // TanStack Start/server basics
-  // Force development mode for local dev
   process.env.NODE_ENV = 'development';
   if (!process.env.PORT) process.env.PORT = '3000';
   if (!process.env.HOSTNAME) process.env.HOSTNAME = '0.0.0.0';
 
-  // Domain configuration
   const port = process.env.PORT || '3000';
   const host = process.env.HOST || 'localhost';
 
-  // Database: POSTGRES_URL left as-is if provided
-
-  // Convex instance configuration
   if (!process.env.INSTANCE_NAME) process.env.INSTANCE_NAME = 'tale_platform';
-  // INSTANCE_SECRET handled by ensureInstanceSecret()
 
-  // AI providers: OPENAI_API_KEY left as-is if provided
-
-  // SITE_URL is the canonical base URL - all other URLs are derived from it in code
-  // For local development, default to http://localhost:PORT if not set
   if (!process.env.SITE_URL) {
     process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
   }
 }
 
-/**
- * Ensure INSTANCE_SECRET exists for local dev; warn if using insecure default.
- */
 function ensureInstanceSecret() {
   if (!process.env.INSTANCE_SECRET) {
     console.warn(
@@ -104,11 +78,6 @@ function ensureInstanceSecret() {
   }
 }
 
-/**
- * Load environment variables from repository root and services/platform .env and .env.local files
- * and merge them into process.env (without overwriting existing values)
- * Priority (highest to lowest): services/platform/.env.local > services/platform/.env > repo root/.env.local > repo root/.env
- */
 function loadEnvFiles() {
   const repoEnvPath = join(repoRoot, '.env');
   const repoEnvLocalPath = join(repoRoot, '.env.local');
@@ -130,7 +99,6 @@ function loadEnvFiles() {
     `[dev]   - Platform .env.local: ${platformEnvLocalPath} (exists: ${existsSync(platformEnvLocalPath)})`,
   );
 
-  // Read all .env files
   const repoBaseEnv = parseDotEnv(repoEnvPath);
   const repoLocalEnv = parseDotEnv(repoEnvLocalPath);
   const platformBaseEnv = parseDotEnv(platformEnvPath);
@@ -148,7 +116,6 @@ function loadEnvFiles() {
     `[dev]   - Platform .env.local: ${Object.keys(platformLocalEnv).length} vars`,
   );
 
-  // Merge with priority: services/platform/.env.local > services/platform/.env > repo root/.env.local > repo root/.env
   const mergedEnv = {
     ...repoBaseEnv,
     ...repoLocalEnv,
@@ -160,7 +127,6 @@ function loadEnvFiles() {
     `[dev] 📦 Total unique vars after merge: ${Object.keys(mergedEnv).length}`,
   );
 
-  // Apply to process.env (but don't overwrite existing values)
   let loadedCount = 0;
   let skippedCount = 0;
   for (const [key, value] of Object.entries(mergedEnv)) {
@@ -185,11 +151,12 @@ function loadEnvFiles() {
   );
 }
 
-/**
- * Run a command and wait for it to complete
- */
-function runCommand(cmd, args, env = {}) {
-  return new Promise((resolve, reject) => {
+function runCommand(
+  cmd: string,
+  args: string[],
+  env: Record<string, string> = {},
+) {
+  return new Promise<void>((resolve, reject) => {
     const child = spawn(cmd, args, {
       stdio: 'inherit',
       cwd: platformRoot,
@@ -203,7 +170,6 @@ function runCommand(cmd, args, env = {}) {
   });
 }
 
-// Health check & auto-restart configuration
 const CONVEX_PORT = 3210;
 const CONVEX_HOST = '127.0.0.1';
 const HEALTH_CHECK_INTERVAL_MS = 30_000;
@@ -212,10 +178,11 @@ const MAX_CONSECUTIVE_FAILURES = 3;
 const MAX_AUTO_RESTARTS = 5;
 const STABLE_THRESHOLD_MS = 120_000;
 
-/**
- * TCP probe — resolves true if port accepts a connection, false otherwise.
- */
-function tcpProbe(host, port, timeoutMs) {
+function tcpProbe(
+  host: string,
+  port: number,
+  timeoutMs: number,
+): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({ host, port });
     const timer = setTimeout(() => {
@@ -235,10 +202,10 @@ function tcpProbe(host, port, timeoutMs) {
   });
 }
 
-/**
- * Kill a process tree and wait for it to exit.
- */
-function killProcessTree(proc, signal = 'SIGKILL') {
+function killProcessTree(
+  proc: ChildProcess | null,
+  signal: string = 'SIGKILL',
+): Promise<void> {
   return new Promise((resolve) => {
     if (!proc || proc.killed || !proc.pid) {
       resolve();
@@ -267,9 +234,9 @@ async function main() {
   console.log('[dev] 💡 Press Ctrl+C to stop all services');
   console.log('');
 
-  let convexProcess = null;
-  let viteProcess = null;
-  let healthCheckTimer = null;
+  let convexProcess: ChildProcess | null = null;
+  let viteProcess: ChildProcess | null = null;
+  let healthCheckTimer: ReturnType<typeof setInterval> | null = null;
   let shuttingDown = false;
   let restartCount = 0;
   let convexReadyAt = 0;
@@ -277,16 +244,11 @@ async function main() {
   let restarting = false;
 
   try {
-    // Step 0: Load environment variables from repository root
     loadEnvFiles();
     console.log('');
 
-    // Step 0.5: Normalize and inject derived env vars (mirror env.sh)
     envNormalizeCommon();
     ensureInstanceSecret();
-    // Clear non-local CONVEX_DEPLOYMENT values (e.g. cloud deployments) so
-    // Convex runs without requiring a cloud login. Preserve anonymous (local)
-    // deployments so the backend reconnects to the same instance across restarts.
     const deployment = process.env.CONVEX_DEPLOYMENT;
     const hasLocalDeployment = deployment?.startsWith('anonymous:');
     if (deployment && !hasLocalDeployment) {
@@ -299,7 +261,6 @@ async function main() {
     }
     console.log('[dev] ✅ Environment normalized (env.sh parity)');
 
-    // Build Convex environment once (reused across restarts)
     const convexEnv = { ...process.env };
     if (!hasLocalDeployment) {
       convexEnv.CONVEX_AGENT_MODE = 'anonymous';
@@ -337,7 +298,6 @@ async function main() {
       if (shuttingDown || restarting) return;
       restarting = true;
 
-      // Reset counter if Convex was stable long enough
       if (convexReadyAt && Date.now() - convexReadyAt > STABLE_THRESHOLD_MS) {
         restartCount = 0;
       }
@@ -362,7 +322,10 @@ async function main() {
         await waitForConvex();
         console.log('[dev] Convex recovered successfully');
       } catch (err) {
-        console.error('[dev] Convex failed to recover:', err.message);
+        console.error(
+          '[dev] Convex failed to recover:',
+          err instanceof Error ? err.message : err,
+        );
         restarting = false;
         void shutdown();
         return;
@@ -386,7 +349,6 @@ async function main() {
           return;
         }
 
-        // Process already exited — the exit handler will deal with shutdown
         if (convexProcess?.killed || convexProcess?.exitCode != null) return;
 
         consecutiveFailures++;
@@ -400,40 +362,35 @@ async function main() {
         }
       }, HEALTH_CHECK_INTERVAL_MS);
 
-      // Don't let the timer keep the process alive during shutdown
       healthCheckTimer.unref();
     }
 
-    // Step 1: Start Convex in background
     console.log('[dev] ⏳ Starting Convex backend...');
     spawnConvex();
 
-    // Step 2: Wait for Convex to be ready
     await waitForConvex();
 
-    // Step 3: Sync environment variables
     console.log('[dev] 🔄 Syncing environment variables...');
     try {
-      await runCommand('bun', ['scripts/sync-convex-env-from-dotenv.mjs']);
+      await runCommand('bun', ['scripts/sync-convex-env-from-dotenv.ts']);
       console.log('[dev] ✅ Environment variables synced successfully');
     } catch (err) {
-      console.warn('[dev] ⚠️  Env sync had errors:', err.message);
-      // Continue anyway - this is not critical
+      console.warn(
+        '[dev] ⚠️  Env sync had errors:',
+        err instanceof Error ? err.message : err,
+      );
     }
 
-    // Step 4: Run code generation
     console.log('[dev] 🔄 Running code generation...');
     await runCommand('bunx', ['convex', 'codegen']);
     console.log('[dev] ✅ Code generation completed');
 
-    // Step 5: Set CONVEX_URL for Vite proxy configuration
     const convexUrl =
       process.env.NEXT_PUBLIC_CONVEX_URL ||
       `http://${CONVEX_HOST}:${CONVEX_PORT}`;
     process.env.CONVEX_URL = convexUrl;
     console.log(`[dev] ✅ Set CONVEX_URL=${convexUrl} for Vite proxy`);
 
-    // Step 6: Start TanStack Start
     const port = process.env.PORT || '3000';
     const siteUrl = process.env.SITE_URL || `http://localhost:${port}`;
 
@@ -454,7 +411,6 @@ async function main() {
       },
     );
 
-    // Handle shutdown
     const shutdown = async () => {
       if (shuttingDown) return;
       shuttingDown = true;
@@ -468,34 +424,32 @@ async function main() {
         killProcessTree(viteProcess, 'SIGTERM'),
       ]);
 
-      // Wait a bit for graceful shutdown
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       console.log('[dev] ✅ All processes stopped');
       process.exit(0);
     };
 
-    // Handle Ctrl+C and other termination signals
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
 
-    // Vite exit shuts everything down
     viteProcess.on('exit', (code) => {
       if (shuttingDown) return;
       console.log(`[dev] TanStack Start exited with code ${code}`);
       void shutdown();
     });
 
-    // Step 7: Start health check for Convex auto-recovery
     startHealthCheck();
     console.log(
       `[dev] 🏥 Convex health check active (every ${HEALTH_CHECK_INTERVAL_MS / 1000}s)`,
     );
 
-    // Keep the script running
     await new Promise(() => {});
   } catch (err) {
-    console.error('[dev] ❌ Development environment failed:', err.message);
+    console.error(
+      '[dev] ❌ Development environment failed:',
+      err instanceof Error ? err.message : err,
+    );
     process.exit(1);
   }
 }

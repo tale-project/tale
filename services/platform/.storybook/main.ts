@@ -1,7 +1,8 @@
+import type { StorybookConfig } from '@storybook/react-vite';
+
 process.env.SITE_URL ??= 'http://localhost:6006';
 
-/** @type {import('@storybook/react-vite').StorybookConfig} */
-const config = {
+const config: StorybookConfig = {
   stories: [
     '../app/components/ui/**/*.stories.@(ts|tsx)',
     '../app/components/icons/**/*.stories.@(ts|tsx)',

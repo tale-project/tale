@@ -2,7 +2,7 @@
 
 /**
  * Script to generate a secure password hash for the admin user
- * Usage: bun scripts/generate-admin-password.mjs [password]
+ * Usage: bun scripts/generate-admin-password.ts [password]
  */
 
 import bcrypt from 'bcryptjs';
@@ -25,7 +25,6 @@ async function main() {
   const args = process.argv.slice(2);
   let password = args[0];
 
-  // If no password provided, generate a secure one
   if (!password) {
     password = generateSecurePassword();
     console.log('Generated secure password:', password);
@@ -33,14 +32,12 @@ async function main() {
     console.log('Using provided password:', password);
   }
 
-  // Validate password strength
   if (password.length < 8) {
     console.error('Error: Password must be at least 8 characters long');
     process.exit(1);
   }
 
   try {
-    // Generate hash with cost 12 (same as in the application)
     const hash = await bcrypt.hash(password, 12);
 
     console.log('\n=== Admin User Setup ===');

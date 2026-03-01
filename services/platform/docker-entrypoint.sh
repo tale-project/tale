@@ -600,7 +600,7 @@ deploy_convex_functions
 # ============================================================================
 
 echo "🌐 Starting Vite server on port ${PORT}..."
-bun server.js &
+bun server.ts &
 VITE_PID=$!
 
 wait_for_http "http://localhost:${PORT}/api/health" 30 "Vite server" true

@@ -6,20 +6,20 @@ This directory contains development and utility scripts for the project.
 
 ### Development Scripts
 
-- **`dev.mjs`** - Main development orchestrator
+- **`dev.ts`** - Main development orchestrator
   - Starts Convex backend in LOCAL mode
   - Syncs environment variables
   - Starts Vite dev server
   - **Usage**: `bun run dev`
 
-- **`sync-convex-env-from-dotenv.mjs`** - Environment variable sync
+- **`sync-convex-env-from-dotenv.ts`** - Environment variable sync
   - Syncs .env/.env.local variables to LOCAL Convex deployment
   - Uses `--local` flag for local development
-  - **Usage**: Called automatically by dev.mjs
+  - **Usage**: Called automatically by dev.ts
 
 ### Utility Scripts
 
-- **`generate-admin-password.mjs`** - Admin password generation
+- **`generate-admin-password.ts`** - Admin password generation
   - **Usage**: `bun run admin:generate-password`
 
 ## 🔧 Local Development Focus
@@ -34,5 +34,5 @@ All Convex-related scripts use `CONVEX_AGENT_MODE=anonymous` to ensure:
 
 ## Entry Points (package.json)
 
-- `bun run dev` → `bun scripts/dev.mjs`
-- `bun run admin:generate-password` → `bun scripts/generate-admin-password.mjs`
+- `bun run dev` → `bun scripts/dev.ts`
+- `bun run admin:generate-password` → `bun scripts/generate-admin-password.ts`
