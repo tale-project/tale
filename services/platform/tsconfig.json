@@ -12,5 +12,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist", "storybook-static"]
+  "exclude": ["node_modules", "dist", "storybook-static", "vitest.*.ts"]
 }
