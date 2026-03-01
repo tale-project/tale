@@ -78,10 +78,7 @@ export interface StartAgentChatArgs {
 
 export interface StartAgentChatResult {
   messageAlreadyExists: boolean;
-  /**
-   * The stream ID for the AI response.
-   * Empty string if streaming is disabled for this agent.
-   */
+  /** The stream ID for the AI response (always created for async delivery). */
   streamId: string;
 }
 
@@ -89,7 +86,7 @@ export interface StartAgentChatResult {
  * Start a chat with an agent.
  *
  * This function handles the common mutation logic:
- * 1. Create persistent stream (if streaming enabled)
+ * 1. Create persistent stream for async delivery
  * 2. Get thread and user team IDs
  * 3. Deduplicate and save user message
  * 4. Process attachments as markdown
@@ -117,10 +114,9 @@ export async function startAgentChat(
   // Use caller's maxSteps if provided, otherwise use agent config's maxSteps
   const maxSteps = args.maxSteps ?? agentConfig.maxSteps ?? 20;
 
-  // Create persistent stream if streaming is enabled for this agent
-  const streamId = enableStreaming
-    ? await persistentStreaming.createStream(ctx)
-    : '';
+  // Always create a persistent stream for async result delivery.
+  // enableStreaming only controls the LLM call strategy (streamText vs generateText).
+  const streamId = await persistentStreaming.createStream(ctx);
 
   // Get thread to retrieve userId, then resolve team IDs for RAG search.
   // If ragTeamIds is provided (e.g. custom agents), use those instead of the user's teams.

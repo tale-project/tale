@@ -27,6 +27,7 @@ export const chatViaWebhook = internalMutation({
     webhookId: v.id('customAgentWebhooks'),
     message: v.string(),
     threadId: v.optional(v.string()),
+    enableStreaming: v.optional(v.boolean()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -89,7 +90,7 @@ export const chatViaWebhook = internalMutation({
       model: agentConfig.model ?? model,
       provider,
       debugTag: `[CustomAgent:webhook:${activeVersion.name}]`,
-      enableStreaming: true,
+      enableStreaming: args.enableStreaming ?? true,
       ragTeamIds,
       hooks,
     });

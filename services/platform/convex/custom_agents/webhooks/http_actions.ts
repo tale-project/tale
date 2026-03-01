@@ -1,5 +1,4 @@
 import type { StreamId } from '@convex-dev/persistent-text-streaming';
-import type { GenericActionCtx, GenericDataModel } from 'convex/server';
 
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
@@ -12,6 +11,14 @@ import {
 } from '../../lib/rate_limiter/helpers';
 import { persistentStreaming } from '../../streaming/helpers';
 import { extractClientIp } from '../../workflows/triggers/helpers/validate';
+
+/**
+ * Maximum time (ms) to poll for agent generation results.
+ * Aligns with the platform hard limit in generate_response.ts (540s / 9 min)
+ * so the webhook waits long enough for any generation to complete.
+ */
+const MAX_POLL_MS = 540_000;
+const POLL_INTERVAL_MS = 100;
 
 function jsonResponse(data: Record<string, unknown>, status: number) {
   return new Response(JSON.stringify(data), {
@@ -132,6 +139,7 @@ export const agentWebhookHandler = httpAction(async (ctx, req) => {
         webhookId: webhook._id,
         message,
         threadId,
+        enableStreaming: shouldStream,
         attachments: attachment ? [attachment] : undefined,
       },
     );
@@ -147,7 +155,7 @@ export const agentWebhookHandler = httpAction(async (ctx, req) => {
   );
 
   if (shouldStream) {
-    return streamResponse(ctx, req, chatResult);
+    return streamResponse(ctx, chatResult);
   }
 
   return pollResponse(ctx, chatResult);
@@ -159,13 +167,16 @@ async function pollResponse(
 ) {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StreamId is a branded string from the persistent-streaming SDK; runMutation returns plain string
   const streamId = chatResult.streamId as StreamId;
-  const maxPolls = 600;
-  const pollInterval = 100;
+  const maxPolls = Math.ceil(MAX_POLL_MS / POLL_INTERVAL_MS);
 
   for (let i = 0; i < maxPolls; i++) {
     const body = await persistentStreaming.getStreamBody(ctx, streamId);
 
-    if (body.status === 'done' || body.status === 'error') {
+    if (
+      body.status === 'done' ||
+      body.status === 'error' ||
+      body.status === 'timeout'
+    ) {
       return jsonResponse(
         {
           threadId: chatResult.threadId,
@@ -176,18 +187,7 @@ async function pollResponse(
       );
     }
 
-    if (body.status === 'timeout') {
-      return jsonResponse(
-        {
-          threadId: chatResult.threadId,
-          message: body.text,
-          status: 'timeout',
-        },
-        200,
-      );
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 
   return jsonResponse(
@@ -196,74 +196,71 @@ async function pollResponse(
   );
 }
 
+/**
+ * Stream the agent response over HTTP using a manual ReadableStream.
+ *
+ * We avoid `persistentStreaming.stream()` because it requires the stream
+ * status to be "pending" at call time. Since the generation action is
+ * scheduled asynchronously, a race condition can cause the status to
+ * transition to "streaming" before the HTTP handler runs, resulting in
+ * an empty 205 response.
+ */
 async function streamResponse(
-  ctx: GenericActionCtx<GenericDataModel>,
-  req: Request,
+  ctx: ActionCtx,
   chatResult: { threadId: string; streamId: string },
 ) {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StreamId is a branded string from the persistent-streaming SDK; runMutation returns plain string
   const streamId = chatResult.streamId as StreamId;
+  const encoder = new TextEncoder();
+  const maxPolls = Math.ceil(MAX_POLL_MS / POLL_INTERVAL_MS);
 
-  try {
-    const response = await persistentStreaming.stream(
-      ctx,
-      req,
-      streamId,
-      async (actionCtx, _req, sid, append) => {
-        await append(
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+
+  void (async () => {
+    try {
+      await writer.write(
+        encoder.encode(
           `data: ${JSON.stringify({ threadId: chatResult.threadId })}\n\n`,
-        );
+        ),
+      );
 
-        let lastLength = 0;
-        let pollCount = 0;
-        const maxPolls = 600;
-        const pollInterval = 100;
+      let lastLength = 0;
+      for (let i = 0; i < maxPolls; i++) {
+        const body = await persistentStreaming.getStreamBody(ctx, streamId);
 
-        while (pollCount < maxPolls) {
-          const body = await persistentStreaming.getStreamBody(actionCtx, sid);
-
-          if (body.text.length > lastLength) {
-            const newText = body.text.slice(lastLength);
-            await append(newText);
-            lastLength = body.text.length;
-          }
-
-          if (
-            body.status === 'done' ||
-            body.status === 'error' ||
-            body.status === 'timeout'
-          ) {
-            break;
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, pollInterval));
-          pollCount++;
+        if (body.text.length > lastLength) {
+          await writer.write(encoder.encode(body.text.slice(lastLength)));
+          lastLength = body.text.length;
         }
-      },
-    );
 
-    const corsHeaders = {
+        if (
+          body.status === 'done' ||
+          body.status === 'error' ||
+          body.status === 'timeout'
+        ) {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
+    } catch (error) {
+      console.error('[agent:webhook] Stream polling error:', error);
+    } finally {
+      await writer.close();
+    }
+  })();
+
+  return new Response(readable, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
-    };
-
-    const responseHeaders: Record<string, string> = {};
-    response.headers.forEach((value: string, key: string) => {
-      responseHeaders[key] = value;
-    });
-
-    return new Response(response.body, {
-      status: response.status,
-      headers: {
-        ...responseHeaders,
-        ...corsHeaders,
-      },
-    });
-  } catch (error) {
-    console.error('[agent:webhook] Stream error:', error);
-    return jsonResponse({ error: 'Internal server error' }, 500);
-  }
+    },
+  });
 }
 
 export const agentWebhookOptionsHandler = httpAction(async () => {
