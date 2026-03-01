@@ -147,11 +147,15 @@ let frozenDisplayText: string | null = null;
 
 // The active streaming hook instance registers its refs here so
 // freezeActiveStream() can snapshot the displayed text and cancel animation.
+// Invariant: only one hook instance should be active (streaming) at a time.
 let activeTextRef: { current: string } | null = null;
 let activeDisplayedLengthRef: { current: number } | null = null;
 let activeFrozenRef: { current: boolean } | null = null;
 let activeAnimationFrameRef: { current: number | null } | null = null;
 let activeWasStreamingRef: { current: boolean } | null = null;
+let activeInstanceId: string | null = null;
+
+let instanceCounter = 0;
 
 /**
  * Freeze all active stream buffers. Called by the stop generating flow.
@@ -331,6 +335,9 @@ export function useStreamBuffer({
   // Set by freeze(), cleared when a new streaming session begins.
   const frozenRef = useRef(false);
 
+  // Unique instance id for dev-mode single-instance assertion
+  const [instanceId] = useState(() => String(++instanceCounter));
+
   // Tab visibility tracking
   const isVisibleRef = useRef(true);
   const hiddenTimeRef = useRef(0);
@@ -492,6 +499,16 @@ export function useStreamBuffer({
 
       // Register this instance's refs so freezeActiveStream() can
       // snapshot the displayed text and cancel animation at freeze time.
+      if (process.env.NODE_ENV === 'development') {
+        if (activeInstanceId !== null && activeInstanceId !== instanceId) {
+          console.warn(
+            `[useStreamBuffer] Multiple streaming instances detected ` +
+              `(active: ${activeInstanceId}, new: ${instanceId}). ` +
+              `Module-level freeze state assumes a single active instance.`,
+          );
+        }
+      }
+      activeInstanceId = instanceId;
       activeTextRef = targetTextRef;
       activeDisplayedLengthRef = displayedLengthRef;
       activeFrozenRef = frozenRef;
@@ -539,7 +556,7 @@ export function useStreamBuffer({
       setDisplayLength(text.length);
       setIsTyping(false);
     }
-  }, [text, isStreaming, animate]);
+  }, [text, isStreaming, animate, instanceId]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -560,6 +577,7 @@ export function useStreamBuffer({
         activeFrozenRef = null;
         activeAnimationFrameRef = null;
         activeWasStreamingRef = null;
+        activeInstanceId = null;
       }
     };
   }, []);

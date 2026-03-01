@@ -1,19 +1,22 @@
 // @vitest-environment jsdom
 import type { UIMessage } from '@convex-dev/agent/react';
 
-import { renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useChatLoadingState } from '../use-chat-loading-state';
+
+let creationTimeCounter = 1_000_000;
 
 function createUIMessage(
   overrides: Partial<UIMessage> & { id: string; order: number },
 ): UIMessage {
+  creationTimeCounter += 1;
   return {
     key: overrides.id,
     role: 'assistant',
     text: '',
-    _creationTime: Date.now(),
+    _creationTime: creationTimeCounter,
     status: 'success',
     parts: [],
     ...overrides,
@@ -21,13 +24,20 @@ function createUIMessage(
 }
 
 const THREAD_A = 'thread-a';
+const DEBOUNCE_MS = 2_000;
 
 describe('useChatLoadingState', () => {
   let setIsPending: (pending: boolean) => void;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
     setIsPending = vi.fn<(pending: boolean) => void>();
+    creationTimeCounter = 1_000_000;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('last message check', () => {
@@ -175,7 +185,7 @@ describe('useChatLoadingState', () => {
       expect(result.current.isLoading).toBe(true);
     });
 
-    it('returns false when new assistant message reaches success', () => {
+    it('keeps isLoading true via isPending until debounce clears it', () => {
       const userMsg = createUIMessage({
         id: 'msg-1',
         order: 0,
@@ -196,6 +206,25 @@ describe('useChatLoadingState', () => {
         },
       );
 
+      // Subscription delivers streaming message
+      const streamingMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        status: 'streaming',
+      });
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg, streamingMsg],
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+      });
+
+      expect(result.current.isLoading).toBe(true);
+
+      // Generation completes
       const completedMsg = createUIMessage({
         id: 'msg-2',
         order: 1,
@@ -212,7 +241,15 @@ describe('useChatLoadingState', () => {
         pendingThreadId: THREAD_A,
       });
 
-      expect(result.current.isLoading).toBe(false);
+      // isPending still true (debounce hasn't fired), so isLoading stays true
+      expect(result.current.isLoading).toBe(true);
+
+      // After debounce, isPending is cleared
+      act(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS);
+      });
+
+      expect(setIsPending).toHaveBeenCalledWith(false);
     });
   });
 
@@ -260,20 +297,13 @@ describe('useChatLoadingState', () => {
     });
   });
 
-  describe('context sync (setIsPending)', () => {
-    it('clears isPending when last assistant message reaches success', () => {
+  describe('context sync (setIsPending) — debounced clearing', () => {
+    it('clears isPending after debounce when assistant reaches success', () => {
       const userMsg = createUIMessage({
         id: 'msg-1',
         order: 0,
         role: 'user',
         text: 'Hello',
-      });
-      const completedMsg = createUIMessage({
-        id: 'msg-2',
-        order: 1,
-        role: 'assistant',
-        text: 'Hi there!',
-        status: 'success',
       });
 
       const { rerender } = renderHook((props) => useChatLoadingState(props), {
@@ -286,6 +316,29 @@ describe('useChatLoadingState', () => {
         },
       });
 
+      // Subscription delivers streaming → sets hasSeenActive
+      const streamingMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        status: 'streaming',
+      });
+      rerender({
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg, streamingMsg],
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+      });
+
+      // Generation completes
+      const completedMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        text: 'Hi!',
+        status: 'success',
+      });
       rerender({
         isPending: true,
         setIsPending,
@@ -294,22 +347,22 @@ describe('useChatLoadingState', () => {
         pendingThreadId: THREAD_A,
       });
 
+      // Not cleared yet — debounce in progress
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
+
+      act(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS);
+      });
+
       expect(setIsPending).toHaveBeenCalledWith(false);
     });
 
-    it('clears isPending when last assistant message reaches failed', () => {
+    it('clears isPending after debounce when assistant reaches failed', () => {
       const userMsg = createUIMessage({
         id: 'msg-1',
         order: 0,
         role: 'user',
         text: 'Hello',
-      });
-      const failedMsg = createUIMessage({
-        id: 'msg-2',
-        order: 1,
-        role: 'assistant',
-        text: '',
-        status: 'failed',
       });
 
       const { rerender } = renderHook((props) => useChatLoadingState(props), {
@@ -322,6 +375,29 @@ describe('useChatLoadingState', () => {
         },
       });
 
+      // Streaming phase
+      const streamingMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        status: 'streaming',
+      });
+      rerender({
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg, streamingMsg],
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+      });
+
+      // Fails
+      const failedMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        text: '',
+        status: 'failed',
+      });
       rerender({
         isPending: true,
         setIsPending,
@@ -330,16 +406,47 @@ describe('useChatLoadingState', () => {
         pendingThreadId: THREAD_A,
       });
 
+      act(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS);
+      });
+
       expect(setIsPending).toHaveBeenCalledWith(false);
     });
 
-    it('clears isPending when failed mid-tool-call', () => {
+    it('clears isPending after debounce when failed mid-tool-call', () => {
       const userMsg = createUIMessage({
         id: 'msg-1',
         order: 0,
         role: 'user',
         text: 'Hello',
       });
+
+      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          uiMessages: [userMsg] as UIMessage[] | undefined,
+          threadId: THREAD_A as string | undefined,
+          pendingThreadId: THREAD_A as string | null,
+        },
+      });
+
+      // Streaming phase
+      const streamingMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        status: 'streaming',
+      });
+      rerender({
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg, streamingMsg],
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+      });
+
+      // Fails mid-tool-call
       const failedToolMsg = createUIMessage({
         id: 'msg-2',
         order: 1,
@@ -357,23 +464,16 @@ describe('useChatLoadingState', () => {
           },
         ],
       });
-
-      const { rerender } = renderHook((props) => useChatLoadingState(props), {
-        initialProps: {
-          isPending: true,
-          setIsPending,
-          uiMessages: [userMsg] as UIMessage[] | undefined,
-          threadId: THREAD_A as string | undefined,
-          pendingThreadId: THREAD_A as string | null,
-        },
-      });
-
       rerender({
         isPending: true,
         setIsPending,
         uiMessages: [userMsg, failedToolMsg],
         threadId: THREAD_A,
         pendingThreadId: THREAD_A,
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS);
       });
 
       expect(setIsPending).toHaveBeenCalledWith(false);
@@ -411,6 +511,10 @@ describe('useChatLoadingState', () => {
         pendingThreadId: THREAD_A,
       });
 
+      act(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS);
+      });
+
       expect(setIsPending).not.toHaveBeenCalledWith(false);
     });
 
@@ -424,6 +528,10 @@ describe('useChatLoadingState', () => {
           pendingThreadId: THREAD_A,
         }),
       );
+
+      act(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS);
+      });
 
       expect(setIsPending).not.toHaveBeenCalled();
     });
@@ -453,27 +561,154 @@ describe('useChatLoadingState', () => {
         }),
       );
 
+      act(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS);
+      });
+
       expect(setIsPending).not.toHaveBeenCalledWith(false);
     });
 
-    it('clears isPending on component remount with completed conversation', () => {
+    it('resets debounce when isMessageActive flickers back to true', () => {
+      const userMsg = createUIMessage({
+        id: 'msg-1',
+        order: 0,
+        role: 'user',
+        text: 'Hello',
+      });
+
+      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          uiMessages: [userMsg] as UIMessage[] | undefined,
+          threadId: THREAD_A as string | undefined,
+          pendingThreadId: THREAD_A as string | null,
+        },
+      });
+
+      // Streaming → sets hasSeenActive
+      const streamingMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        status: 'streaming',
+      });
+      rerender({
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg, streamingMsg],
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+      });
+
+      // Terminal briefly (subscription oscillation)
       const completedMsg = createUIMessage({
         id: 'msg-2',
         order: 1,
         role: 'assistant',
-        text: 'Done',
         status: 'success',
       });
+      rerender({
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg, completedMsg],
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+      });
 
+      // Advance only 1 second (half the debounce)
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
+
+      // Subscription flickers back to streaming
+      rerender({
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg, streamingMsg],
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+      });
+
+      // Back to terminal
+      rerender({
+        isPending: true,
+        setIsPending,
+        uiMessages: [userMsg, completedMsg],
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+      });
+
+      // Full debounce period after flicker
+      act(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS);
+      });
+
+      expect(setIsPending).toHaveBeenCalledWith(false);
+    });
+
+    it('does not clear isPending when subscription shows only old terminal assistants', () => {
+      // Simulates subscription oscillation: only old messages visible,
+      // new assistant not yet in the pagination window
+      const oldAssistant = createUIMessage({
+        id: 'msg-1',
+        order: 0,
+        role: 'assistant',
+        text: 'Previous answer',
+        status: 'success',
+      });
+      const userMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'user',
+        text: 'Follow up',
+      });
+
+      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          uiMessages: [oldAssistant, userMsg] as UIMessage[] | undefined,
+          threadId: THREAD_A as string | undefined,
+          pendingThreadId: THREAD_A as string | null,
+        },
+      });
+
+      // Subscription oscillates back to just the old assistant
+      rerender({
+        isPending: true,
+        setIsPending,
+        uiMessages: [oldAssistant],
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(DEBOUNCE_MS * 3);
+      });
+
+      // Should NOT clear — old assistant's creation time is before the baseline
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('safety timeout', () => {
+    it('clears isPending after safety timeout even without activity', () => {
       renderHook(() =>
         useChatLoadingState({
           isPending: true,
           setIsPending,
-          uiMessages: [completedMsg],
+          uiMessages: [],
           threadId: THREAD_A,
           pendingThreadId: THREAD_A,
         }),
       );
+
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
 
       expect(setIsPending).toHaveBeenCalledWith(false);
     });

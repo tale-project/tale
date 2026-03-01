@@ -52,8 +52,13 @@ export async function cancelGeneration(
     (m) => m.message?.role === 'assistant',
   );
 
-  if (latestAssistant) {
-    const patch: Record<string, unknown> = { status: 'failed' };
+  if (latestAssistant && latestAssistant.status !== 'success') {
+    const patch: {
+      status: 'failed';
+      message?: { role: 'assistant'; content: string };
+    } = {
+      status: 'failed',
+    };
 
     if (displayedContent != null) {
       patch.message = { role: 'assistant', content: displayedContent };
@@ -63,7 +68,7 @@ export async function cancelGeneration(
       messageId: latestAssistant._id,
       patch,
     });
-  } else {
+  } else if (!latestAssistant) {
     // No assistant message yet (very early stop). Create one with empty
     // content and failed status so the frontend exits loading and shows
     // "Generation stopped" via the isAborted flag.

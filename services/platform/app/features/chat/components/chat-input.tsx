@@ -76,7 +76,8 @@ export function ChatInput({
   const inputDisabled = disabled || isLoading;
 
   const handleSendMessage = () => {
-    if ((!value.trim() && attachments.length === 0) || inputDisabled) return;
+    if ((!value.trim() && attachments.length === 0) || isLoading || disabled)
+      return;
 
     const attachmentsToSend =
       attachments.length > 0 ? clearAttachments() : undefined;
@@ -301,6 +302,7 @@ export function ChatInput({
                 <AgentSelector organizationId={organizationId} />
                 {isLoading ? (
                   <Button
+                    type="button"
                     onClick={onStopGenerating}
                     disabled={!onStopGenerating}
                     size="icon"

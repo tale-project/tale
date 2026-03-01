@@ -85,7 +85,6 @@ export function ChatInterface({
     canLoadMore,
     isLoadingMore,
     activeMessage,
-    streamingMessage,
   } = useMessageProcessing(threadId);
 
   // Merge with pending messages from context for optimistic UI
@@ -131,6 +130,14 @@ export function ChatInterface({
 
   // Stop generating
   const { stopGenerating, resetCancelled } = useStopGenerating({ threadId });
+
+  // Auto-clear freeze when loading ends — covers mutation failure, thread
+  // navigation, and natural completion without needing explicit .catch()
+  useEffect(() => {
+    if (!isLoading) {
+      resetCancelled();
+    }
+  }, [isLoading, resetCancelled]);
 
   // Auto-scroll
   const { containerRef, contentRef, scrollToBottom, scrollTo, isAtBottom } =
@@ -263,7 +270,6 @@ export function ChatInterface({
             isLoadingMore={isLoadingMore}
             loadMore={loadMore}
             activeMessage={activeMessage}
-            streamingMessage={streamingMessage}
             isLoading={isLoading}
             aiResponseAreaRef={aiResponseAreaRef}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}

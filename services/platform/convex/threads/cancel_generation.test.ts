@@ -488,4 +488,29 @@ describe('cancelGeneration — edge cases', () => {
       ),
     ).rejects.toThrow('Thread not found');
   });
+
+  it('does not overwrite a successful message when stop is clicked late', async () => {
+    const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
+    mockListMessages.mockResolvedValue({
+      page: [
+        {
+          _id: 'msg_1',
+          message: { role: 'assistant', content: 'Completed response' },
+          text: 'Completed response',
+          status: 'success',
+        },
+      ],
+    });
+
+    await cancelGeneration(
+      ctx as unknown as MutationCtx,
+      'user_1',
+      'thread_1',
+      'Completed',
+    );
+
+    // Should NOT update or save — message is already in terminal status
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+    expect(mockSaveMessage).not.toHaveBeenCalled();
+  });
 });

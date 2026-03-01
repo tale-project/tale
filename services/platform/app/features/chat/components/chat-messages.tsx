@@ -24,7 +24,6 @@ interface ChatMessagesProps {
   isLoadingMore: boolean;
   loadMore: (numItems: number) => void;
   activeMessage: UIMessage | undefined;
-  streamingMessage: UIMessage | undefined;
   isLoading: boolean;
   aiResponseAreaRef: RefObject<HTMLDivElement | null>;
   onHumanInputResponseSubmitted?: () => void;
@@ -42,7 +41,6 @@ export function ChatMessages({
   isLoadingMore,
   loadMore,
   activeMessage,
-  streamingMessage: _streamingMessage,
   isLoading,
   aiResponseAreaRef,
   onHumanInputResponseSubmitted,
