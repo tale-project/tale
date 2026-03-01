@@ -19,6 +19,20 @@ const connector = {
 };
 `;
 
+const validConnectorTs = `
+interface Ctx {
+  operation: string;
+  params: Record<string, unknown>;
+  http: { get: (url: string) => Promise<unknown> };
+}
+
+const connector = {
+  operations: ['list_items'] as const,
+  testConnection(ctx: Ctx): { status: string } { return { status: 'ok' }; },
+  execute(ctx: Ctx): Ctx { return ctx; }
+};
+`;
+
 const connectorWithoutTestConnection = `
 const connector = {
   operations: ['list_items'],
@@ -63,6 +77,18 @@ describe('parseIntegrationFiles', () => {
       expect(result.data?.connectorCode).toBe(validConnector);
     });
 
+    it('should parse config.json and connector.ts as individual files', async () => {
+      const files = [
+        makeFile('config.json', JSON.stringify(validConfig)),
+        makeFile('connector.ts', validConnectorTs),
+      ];
+      const result = await parseIntegrationFiles(files);
+      expect(result.success).toBe(true);
+      expect(result.data?.config.name).toBe('my-api');
+      expect(result.data?.connectorCode).not.toContain('interface Ctx');
+      expect(result.data?.connectorCode).toContain('testConnection');
+    });
+
     it('should fail when config.json is missing', async () => {
       const files = [makeFile('connector.js', validConnector)];
       const result = await parseIntegrationFiles(files);
@@ -70,11 +96,11 @@ describe('parseIntegrationFiles', () => {
       expect(result.error).toContain('config.json');
     });
 
-    it('should fail when connector.js is missing', async () => {
+    it('should fail when connector file is missing', async () => {
       const files = [makeFile('config.json', JSON.stringify(validConfig))];
       const result = await parseIntegrationFiles(files);
       expect(result.success).toBe(false);
-      expect(result.error).toContain('connector.js');
+      expect(result.error).toContain('connector');
     });
 
     it('should fail with invalid JSON in config.json', async () => {
@@ -116,7 +142,7 @@ describe('parseIntegrationFiles', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should allow SQL without connector.js', async () => {
+    it('should allow SQL without connector file', async () => {
       const files = [makeFile('config.json', JSON.stringify(sqlConfig))];
       const result = await parseIntegrationFiles(files);
       expect(result.success).toBe(true);
@@ -162,6 +188,34 @@ describe('parseIntegrationFiles', () => {
       const result = await parseIntegrationFiles(files);
       expect(result.success).toBe(true);
     });
+
+    it('should fail with invalid TypeScript syntax', async () => {
+      const invalidTs = `
+        const connector = {
+          testConnection(ctx: {): { status: string } { return { status: 'ok' }; },
+          execute(ctx) { return ctx; }
+        };
+      `;
+      const files = [
+        makeFile('config.json', JSON.stringify(validConfig)),
+        makeFile('connector.ts', invalidTs),
+      ];
+      const result = await parseIntegrationFiles(files);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('transpile');
+    });
+
+    it('should prefer connector.ts over connector.js when both provided', async () => {
+      const files = [
+        makeFile('config.json', JSON.stringify(validConfig)),
+        makeFile('connector.ts', validConnectorTs),
+        makeFile('connector.js', validConnector),
+      ];
+      const result = await parseIntegrationFiles(files);
+      expect(result.success).toBe(true);
+      // TypeScript types should be stripped
+      expect(result.data?.connectorCode).not.toContain('interface Ctx');
+    });
   });
 
   describe('zip package', () => {
@@ -173,6 +227,17 @@ describe('parseIntegrationFiles', () => {
       const result = await parseIntegrationFiles([zip]);
       expect(result.success).toBe(true);
       expect(result.data?.config.name).toBe('my-api');
+    });
+
+    it('should parse zip with connector.ts', async () => {
+      const zip = await makeZip({
+        'config.json': JSON.stringify(validConfig),
+        'connector.ts': validConnectorTs,
+      });
+      const result = await parseIntegrationFiles([zip]);
+      expect(result.success).toBe(true);
+      expect(result.data?.connectorCode).not.toContain('interface Ctx');
+      expect(result.data?.connectorCode).toContain('testConnection');
     });
 
     it('should parse zip with files in a subfolder', async () => {
@@ -196,22 +261,33 @@ describe('parseIntegrationFiles', () => {
       expect(result.error).toContain('config.json');
     });
 
-    it('should fail if REST zip is missing connector.js', async () => {
+    it('should fail if REST zip is missing connector file', async () => {
       const zip = await makeZip({
         'config.json': JSON.stringify(validConfig),
       });
       const result = await parseIntegrationFiles([zip]);
       expect(result.success).toBe(false);
-      expect(result.error).toContain('connector.js');
+      expect(result.error).toContain('connector');
     });
 
-    it('should allow SQL zip without connector.js', async () => {
+    it('should allow SQL zip without connector file', async () => {
       const zip = await makeZip({
         'config.json': JSON.stringify(sqlConfig),
       });
       const result = await parseIntegrationFiles([zip]);
       expect(result.success).toBe(true);
       expect(result.data?.connectorCode).toBe('');
+    });
+
+    it('should prefer connector.ts over connector.js in zip', async () => {
+      const zip = await makeZip({
+        'config.json': JSON.stringify(validConfig),
+        'connector.ts': validConnectorTs,
+        'connector.js': validConnector,
+      });
+      const result = await parseIntegrationFiles([zip]);
+      expect(result.success).toBe(true);
+      expect(result.data?.connectorCode).not.toContain('interface Ctx');
     });
   });
 

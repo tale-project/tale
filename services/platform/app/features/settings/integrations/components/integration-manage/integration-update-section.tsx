@@ -54,7 +54,7 @@ export function IntegrationUpdateSection({
         <FileUpload.Root>
           <FileUpload.DropZone
             onFilesSelected={onFilesSelected}
-            accept=".zip,.json,.js,.png,.svg,.jpg,.jpeg,.webp"
+            accept=".zip,.json,.js,.ts,.png,.svg,.jpg,.jpeg,.webp"
             multiple
             disabled={isParsingUpdate || isApplyingUpdate}
             inputId="integration-update-upload"

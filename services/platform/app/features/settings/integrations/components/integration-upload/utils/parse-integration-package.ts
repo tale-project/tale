@@ -7,6 +7,7 @@ import {
   ICON_MIME_TYPES,
   MAX_ICON_SIZE,
 } from '../../../constants';
+import { transpileConnectorCode } from './transpile-connector';
 import { validateConfig } from './validate-config';
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB
@@ -24,8 +25,10 @@ export interface ParseResult {
   error?: string;
 }
 
+const CONNECTOR_FILE_NAMES = ['connector.ts', 'connector.js'];
+
 /**
- * Parse uploaded files — either a single .zip package or individual config.json + connector.js files.
+ * Parse uploaded files — either a single .zip package or individual config.json + connector.js/ts files.
  */
 export async function parseIntegrationFiles(
   files: File[],
@@ -73,25 +76,36 @@ async function parseZipPackage(file: File): Promise<ParseResult> {
     return { success: false, error: 'config.json is not valid JSON' };
   }
 
-  // Determine type early to decide if connector.js is required
+  // Determine type early to decide if connector is required
   const isSql =
     typeof configRaw === 'object' &&
     configRaw !== null &&
     'type' in configRaw &&
     (configRaw as Record<string, unknown>).type === 'sql';
 
-  const connectorEntry = findFile(zip, 'connector.js');
-  if (!connectorEntry && !isSql) {
+  const connectorMatch = findConnectorFile(zip);
+  if (!connectorMatch && !isSql) {
     return {
       success: false,
       error:
-        'Missing connector.js in package. REST API integrations require a connector.js file.',
+        'Missing connector file in package. REST API integrations require a connector.js or connector.ts file.',
     };
   }
 
-  const connectorCode = connectorEntry
-    ? await connectorEntry.async('string')
+  let connectorCode = connectorMatch
+    ? await connectorMatch.entry.async('string')
     : '';
+
+  if (connectorMatch?.isTypeScript && connectorCode.trim().length > 0) {
+    try {
+      connectorCode = transpileConnectorCode(connectorCode);
+    } catch (e) {
+      return {
+        success: false,
+        error: `Failed to transpile connector.ts: ${e instanceof Error ? e.message : String(e)}`,
+      };
+    }
+  }
 
   // Look for an icon file in the zip
   const iconFile = await extractIconFromZip(zip);
@@ -116,7 +130,10 @@ async function extractIconFromZip(zip: JSZip): Promise<File | undefined> {
 
 async function parseIndividualFiles(files: File[]): Promise<ParseResult> {
   const configFile = files.find((f) => f.name === 'config.json');
-  const connectorFile = files.find((f) => f.name === 'connector.js');
+  const connectorFile = files.find((f) =>
+    CONNECTOR_FILE_NAMES.includes(f.name),
+  );
+  const isTypeScript = connectorFile?.name.endsWith('.ts') ?? false;
 
   if (!configFile) {
     return {
@@ -141,7 +158,7 @@ async function parseIndividualFiles(files: File[]): Promise<ParseResult> {
     return { success: false, error: 'config.json is not valid JSON' };
   }
 
-  // Determine type early to decide if connector.js is required
+  // Determine type early to decide if connector is required
   const isSql =
     typeof configRaw === 'object' &&
     configRaw !== null &&
@@ -152,7 +169,7 @@ async function parseIndividualFiles(files: File[]): Promise<ParseResult> {
     return {
       success: false,
       error:
-        'Missing connector.js. REST API integrations require a connector.js file.',
+        'Missing connector file. REST API integrations require a connector.js or connector.ts file.',
     };
   }
 
@@ -162,7 +179,19 @@ async function parseIndividualFiles(files: File[]): Promise<ParseResult> {
     return ICON_FILE_NAMES.includes(name) && f.size <= MAX_ICON_SIZE;
   });
 
-  const connectorCode = connectorFile ? await connectorFile.text() : '';
+  let connectorCode = connectorFile ? await connectorFile.text() : '';
+
+  if (isTypeScript && connectorCode.trim().length > 0) {
+    try {
+      connectorCode = transpileConnectorCode(connectorCode);
+    } catch (e) {
+      return {
+        success: false,
+        error: `Failed to transpile connector.ts: ${e instanceof Error ? e.message : String(e)}`,
+      };
+    }
+  }
+
   return validateAndBuild(configRaw, connectorCode, iconFile);
 }
 
@@ -174,7 +203,7 @@ function validateAndBuild(
   if (connectorCode.length > MAX_CONNECTOR_SIZE) {
     return {
       success: false,
-      error: `connector.js exceeds maximum size of ${MAX_CONNECTOR_SIZE / 1024}KB`,
+      error: `Connector code exceeds maximum size of ${MAX_CONNECTOR_SIZE / 1024}KB`,
     };
   }
 
@@ -194,7 +223,7 @@ function validateAndBuild(
     return {
       success: false,
       error:
-        'connector.js is empty. REST API integrations require connector code.',
+        'Connector file is empty. REST API integrations require connector code.',
     };
   }
 
@@ -203,7 +232,7 @@ function validateAndBuild(
       return {
         success: false,
         error:
-          'connector.js must define a testConnection method on the connector object. ' +
+          'Connector must define a testConnection method on the connector object. ' +
           'This method is called when users click "Test connection".',
       };
     }
@@ -231,5 +260,18 @@ function findFile(zip: JSZip, fileName: string): JSZip.JSZipObject | null {
   );
   if (match) return zip.file(match);
 
+  return null;
+}
+
+/** Find connector.ts or connector.js in a zip, preferring .ts over .js. */
+function findConnectorFile(
+  zip: JSZip,
+): { entry: JSZip.JSZipObject; isTypeScript: boolean } | null {
+  for (const name of CONNECTOR_FILE_NAMES) {
+    const entry = findFile(zip, name);
+    if (entry) {
+      return { entry, isTypeScript: name.endsWith('.ts') };
+    }
+  }
   return null;
 }
