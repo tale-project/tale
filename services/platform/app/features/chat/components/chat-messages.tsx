@@ -23,7 +23,7 @@ interface ChatMessagesProps {
   canLoadMore: boolean;
   isLoadingMore: boolean;
   loadMore: (numItems: number) => void;
-  streamingMessage: UIMessage | undefined;
+  activeMessage: UIMessage | undefined;
   isLoading: boolean;
   aiResponseAreaRef: RefObject<HTMLDivElement | null>;
   onHumanInputResponseSubmitted?: () => void;
@@ -40,7 +40,7 @@ export function ChatMessages({
   canLoadMore,
   isLoadingMore,
   loadMore,
-  streamingMessage,
+  activeMessage,
   isLoading,
   aiResponseAreaRef,
   onHumanInputResponseSubmitted,
@@ -101,7 +101,10 @@ export function ChatMessages({
             );
           }
 
-          const shouldShow = message.role === 'user' || message.content !== '';
+          const shouldShow =
+            message.role === 'user' ||
+            message.content !== '' ||
+            message.isAborted;
 
           return shouldShow ? (
             <MessageBubble
@@ -168,7 +171,7 @@ export function ChatMessages({
       })}
 
       <div ref={aiResponseAreaRef}>
-        {isLoading && <ThinkingAnimation streamingMessage={streamingMessage} />}
+        {isLoading && <ThinkingAnimation streamingMessage={activeMessage} />}
       </div>
     </div>
   );

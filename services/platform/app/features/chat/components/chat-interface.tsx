@@ -8,7 +8,9 @@ import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -29,6 +31,7 @@ import { useMessageProcessing } from '../hooks/use-message-processing';
 import { usePendingMessages } from '../hooks/use-pending-messages';
 import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
 import { useSendMessage } from '../hooks/use-send-message';
+import { useStopGenerating } from '../hooks/use-stop-generating';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
@@ -79,11 +82,10 @@ export function ChatInterface({
   // Message processing
   const {
     messages: rawMessages,
-    uiMessages,
     loadMore,
     canLoadMore,
     isLoadingMore,
-    streamingMessage,
+    activeMessage,
   } = useMessageProcessing(threadId);
 
   // Merge with pending messages from context for optimistic UI
@@ -118,14 +120,31 @@ export function ChatInterface({
     humanInputRequests,
   });
 
+  // Server-derived generation status (reactive Convex subscription)
+  const { data: isGenerating } = useConvexQuery(
+    api.threads.queries.isThreadGenerating,
+    threadId ? { threadId } : 'skip',
+  );
+
   // Single derived loading state: "Is the AI turn active?"
-  const { isLoading, setIsPendingWithBaseline } = useChatLoadingState({
+  const { isLoading } = useChatLoadingState({
     isPending,
     setIsPending,
-    uiMessages,
+    isGenerating: isGenerating ?? false,
     threadId,
     pendingThreadId,
   });
+
+  // Stop generating
+  const { stopGenerating, resetCancelled } = useStopGenerating({ threadId });
+
+  // Auto-clear freeze when loading ends — covers mutation failure, thread
+  // navigation, and natural completion without needing explicit .catch()
+  useEffect(() => {
+    if (!isLoading) {
+      resetCancelled();
+    }
+  }, [isLoading, resetCancelled]);
 
   // Auto-scroll
   const { containerRef, contentRef, scrollToBottom, scrollTo, isAtBottom } =
@@ -199,11 +218,12 @@ export function ChatInterface({
     organizationId,
     threadId,
     messages: rawMessages,
-    setIsPending: setIsPendingWithBaseline,
+    setIsPending: setIsPending,
     setPendingThreadId,
     setPendingMessage,
     clearChatState,
     onBeforeSend: () => {
+      resetCancelled();
       shouldScrollToAIRef.current = true;
     },
     selectedAgent: effectiveAgent,
@@ -218,9 +238,9 @@ export function ChatInterface({
   };
 
   const handleHumanInputResponseSubmitted = useCallback(() => {
-    setIsPendingWithBaseline(true);
+    setIsPending(true);
     shouldScrollToAIRef.current = true;
-  }, [setIsPendingWithBaseline]);
+  }, [setIsPending]);
 
   const handleSendFollowUp = useCallback(
     (message: string) => {
@@ -256,7 +276,7 @@ export function ChatInterface({
             canLoadMore={canLoadMore}
             isLoadingMore={isLoadingMore}
             loadMore={loadMore}
-            streamingMessage={streamingMessage}
+            activeMessage={activeMessage}
             isLoading={isLoading}
             aiResponseAreaRef={aiResponseAreaRef}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
@@ -295,6 +315,7 @@ export function ChatInterface({
             value={inputValue}
             onChange={setInputValue}
             onSendMessage={handleSendMessage}
+            onStopGenerating={stopGenerating}
             isLoading={isLoading}
             disabled={hasNoAgents}
             organizationId={organizationId}

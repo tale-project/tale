@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { cancelGeneration as cancelGenerationHelper } from './cancel_generation';
 import { createChatThread as createChatThreadHelper } from './create_chat_thread';
 import { deleteChatThread as deleteChatThreadHelper } from './delete_chat_thread';
 import { updateChatThread as updateChatThreadHelper } from './update_chat_thread';
@@ -63,6 +64,28 @@ export const updateChatThread = mutation({
     }
 
     await updateChatThreadHelper(ctx, args.threadId, args.title);
+    return null;
+  },
+});
+
+export const cancelGeneration = mutation({
+  args: {
+    threadId: v.string(),
+    displayedContent: v.optional(v.union(v.string(), v.null())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    await cancelGenerationHelper(
+      ctx,
+      String(authUser._id),
+      args.threadId,
+      args.displayedContent,
+    );
     return null;
   },
 });

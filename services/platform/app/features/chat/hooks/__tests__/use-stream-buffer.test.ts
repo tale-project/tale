@@ -3,8 +3,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   clearDisplayPositionCache,
+  consumeFrozenDisplayText,
   findCachedPosition,
   findSafeAnchor,
+  freezeActiveStream,
+  isStreamFrozen,
+  resetGlobalFreeze,
   saveToCache,
   useStreamBuffer,
 } from '../use-stream-buffer';
@@ -69,11 +73,15 @@ function advanceFrames(count: number) {
 
 describe('useStreamBuffer', () => {
   beforeEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
     setupAnimationMocks();
     vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
   });
 
   afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
     vi.restoreAllMocks();
   });
 
@@ -144,11 +152,11 @@ describe('useStreamBuffer', () => {
 
   describe('rate-matched output', () => {
     it('reveals text steadily without aggressive catch-up', () => {
-      const longText =
-        'The quick brown fox jumps over the lazy dog. ' +
-        'This is a longer piece of text that should be revealed at a steady rate. ' +
-        'We want to verify that the output speed remains steady and predictable. ' +
-        'No sudden bursts or pauses should occur during the reveal animation.';
+      // Use a long text (2000+ chars) so the adaptive CPS never catches up
+      // within the test's frame budget, preventing delta === 0 false failures.
+      const longText = 'The quick brown fox jumps over the lazy dog. '.repeat(
+        50,
+      );
 
       const { result } = renderHook(() =>
         useStreamBuffer({
@@ -159,7 +167,7 @@ describe('useStreamBuffer', () => {
       );
 
       // Advance past initial buffer
-      act(() => advanceFrames(60));
+      act(() => advanceFrames(30));
       const len1 = result.current.displayLength;
 
       act(() => advanceFrames(30));
@@ -262,6 +270,8 @@ describe('useStreamBuffer — reconnection resilience', () => {
   });
 
   afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
     vi.restoreAllMocks();
   });
 
@@ -311,6 +321,8 @@ describe('useStreamBuffer — anchor monotonicity', () => {
   });
 
   afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
     vi.restoreAllMocks();
   });
 
@@ -670,5 +682,793 @@ describe('display position cache', () => {
       clearDisplayPositionCache();
       expect(findCachedPosition(text)).toBe(0);
     });
+  });
+});
+
+// ============================================================================
+// Stream Buffer Freeze (Stop Generating)
+// ============================================================================
+
+describe('useStreamBuffer — flush (freeze)', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    vi.restoreAllMocks();
+  });
+
+  it('freezes display at current position when flush is called', () => {
+    const text =
+      'Streaming text that is long enough to not finish revealing immediately ' +
+      'during the animation loop, giving us time to call flush and verify ' +
+      'that the display length stays frozen at the exact position.';
+
+    const { result, rerender } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text, isStreaming: true } },
+    );
+
+    // Advance to reveal some text
+    act(() => advanceFrames(30));
+    const frozenLength = result.current.displayLength;
+    expect(frozenLength).toBeGreaterThan(0);
+    expect(frozenLength).toBeLessThan(text.length);
+
+    // Call flush to freeze
+    act(() => result.current.freeze());
+
+    // Advance more frames — display should NOT advance
+    act(() => advanceFrames(60));
+    expect(result.current.displayLength).toBe(frozenLength);
+
+    // Even when more text arrives, display stays frozen
+    const longerText =
+      text + ' Even more content being streamed from the server.';
+    rerender({ text: longerText, isStreaming: true });
+    act(() => advanceFrames(60));
+    expect(result.current.displayLength).toBe(frozenLength);
+  });
+
+  it('resets freeze on new streaming session', () => {
+    const text =
+      'First message that is long enough for the animation buffer to work ' +
+      'properly and give us time to test the freeze and reset behavior.';
+
+    const { result, rerender } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text, isStreaming: true } },
+    );
+
+    // Advance and freeze
+    act(() => advanceFrames(30));
+    const frozenLength = result.current.displayLength;
+    act(() => result.current.freeze());
+
+    // Stream ends (aborted)
+    rerender({ text, isStreaming: false });
+
+    // New streaming session starts with new text
+    const newText =
+      'Second response that should stream normally without being frozen ' +
+      'because the freeze was cleared when the new session started up.';
+    rerender({ text: newText, isStreaming: true });
+    act(() => advanceFrames(60));
+
+    // Display should advance past the old frozen position
+    expect(result.current.displayLength).toBeGreaterThan(0);
+    // For a new session, it starts from 0 and advances
+    expect(result.current.displayLength).not.toBe(frozenLength);
+  });
+});
+
+// ============================================================================
+// Global freeze (freezeActiveStream)
+// ============================================================================
+
+describe('useStreamBuffer — freezeActiveStream (module-level)', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    vi.restoreAllMocks();
+  });
+
+  it('stops display advancement when global freeze is set', () => {
+    const text =
+      'Global freeze test text that is long enough for the animation loop ' +
+      'to work properly and allow us to test the freeze behavior here.';
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({ text, isStreaming: true, initialBufferChars: 3 }),
+    );
+
+    // Advance to reveal some text
+    act(() => advanceFrames(30));
+    const frozenLength = result.current.displayLength;
+    expect(frozenLength).toBeGreaterThan(0);
+    expect(frozenLength).toBeLessThan(text.length);
+
+    // Set global freeze
+    act(() => freezeActiveStream());
+
+    // Advance more frames — display should NOT advance
+    act(() => advanceFrames(60));
+    expect(result.current.displayLength).toBe(frozenLength);
+  });
+
+  it('clears global freeze on new streaming session', () => {
+    const text =
+      'First message for global freeze testing that needs to be long ' +
+      'enough for the buffer to work and the animation to progress.';
+
+    const { result, rerender } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text, isStreaming: true } },
+    );
+
+    // Advance and freeze globally
+    act(() => advanceFrames(30));
+    act(() => freezeActiveStream());
+
+    // Stream ends
+    rerender({ text, isStreaming: false });
+
+    // New streaming session
+    const newText =
+      'New response after global freeze was cleared by the new session ' +
+      'starting up, which should allow normal streaming to continue.';
+    rerender({ text: newText, isStreaming: true });
+    act(() => advanceFrames(60));
+
+    expect(result.current.displayLength).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================================
+// Adaptive CPS (drain rate scaling)
+// ============================================================================
+
+describe('useStreamBuffer — adaptive CPS', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    vi.restoreAllMocks();
+  });
+
+  it('uses base CPS for small buffers (near-empty buffer)', () => {
+    // With a short text, buffer is small so CPS should stay at base rate (~50)
+    const text =
+      'A relatively short streaming message that fits within a small buffer.';
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 50,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // Run 60 frames = 1 second at base 50 CPS → expect ~50 chars revealed
+    act(() => advanceFrames(60));
+
+    // At base 50 CPS over 1 second, should reveal roughly 50 chars
+    // (word boundary snapping adds tolerance)
+    expect(result.current.displayLength).toBeGreaterThan(30);
+    expect(result.current.displayLength).toBeLessThanOrEqual(text.length);
+  });
+
+  it('accelerates CPS for large buffers', () => {
+    // Use a very long text to create a large buffer, which should trigger
+    // the adaptive CPS acceleration (buffer > 50 chars ahead)
+    const longText = 'word '.repeat(500); // 2500 chars
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text: longText,
+        isStreaming: true,
+        targetCPS: 50,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // Run 60 frames (1 second). With 2500 char buffer, effective CPS should
+    // be well above 50 (sqrt(2450) * 15 + 50 ≈ 792, capped at 600)
+    act(() => advanceFrames(60));
+
+    // Should reveal significantly more than 50 chars due to acceleration
+    expect(result.current.displayLength).toBeGreaterThan(100);
+  });
+
+  it('CPS approaches cap for very large buffers', () => {
+    const hugeText = 'x'.repeat(5000);
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text: hugeText,
+        isStreaming: true,
+        targetCPS: 50,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // Run 60 frames (1 second). Buffer is huge, so CPS should be at/near cap (600)
+    act(() => advanceFrames(60));
+
+    // At 600 CPS for 1 second, expect ~600 chars (with tolerance for word snap)
+    expect(result.current.displayLength).toBeGreaterThan(400);
+    // Shouldn't exceed cap significantly
+    expect(result.current.displayLength).toBeLessThan(800);
+  });
+
+  it('CPS slows down as buffer drains', () => {
+    const text = 'word '.repeat(200); // 1000 chars
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 50,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // First second: large buffer → fast rate
+    act(() => advanceFrames(60));
+    const afterFirstSecond = result.current.displayLength;
+
+    // Advance another second. Buffer is smaller now, so rate should decrease.
+    // We measure the delta per second to compare.
+    act(() => advanceFrames(60));
+    const afterSecondSecond = result.current.displayLength;
+
+    const firstDelta = afterFirstSecond;
+    const secondDelta = afterSecondSecond - afterFirstSecond;
+
+    // If buffer drained, second delta should be smaller (or equal if buffer
+    // is still large). At minimum, the first delta should be positive.
+    expect(firstDelta).toBeGreaterThan(0);
+    // The key insight: with a shrinking buffer, the rate should decrease
+    // (or at least not increase beyond the first interval)
+    expect(secondDelta).toBeLessThanOrEqual(firstDelta + 50); // tolerance for word-snap
+  });
+
+  it('respects custom targetCPS parameter', () => {
+    const text =
+      'A streaming message for custom CPS test that needs to be long enough ' +
+      'to not fully drain in a few frames of animation at slower speeds.';
+
+    // Low CPS
+    const { result: slowResult } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 20,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // High CPS
+    const { result: fastResult } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 200,
+        initialBufferChars: 3,
+      }),
+    );
+
+    act(() => advanceFrames(30));
+
+    // Fast CPS should reveal more text than slow CPS
+    expect(fastResult.current.displayLength).toBeGreaterThan(
+      slowResult.current.displayLength,
+    );
+  });
+});
+
+// ============================================================================
+// Frame time clamping (maxDeltaTime)
+// ============================================================================
+
+describe('useStreamBuffer — frame time clamping', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    vi.restoreAllMocks();
+  });
+
+  it('clamps large delta time to prevent jumps after tab switch', () => {
+    const text = 'x'.repeat(2000);
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 50,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // Run a few normal frames to start animation
+    act(() => advanceFrames(5));
+    const lenAfterNormal = result.current.displayLength;
+
+    // Simulate a long gap (e.g., tab was hidden for 5 seconds)
+    // maxDeltaTime is 100ms, so even though 5s passed the effective
+    // delta should be clamped to 100ms
+    mockNow += 5000;
+    const callbacks = new Map(rafCallbacks);
+    rafCallbacks.clear();
+    for (const [, cb] of callbacks) {
+      cb(mockNow);
+    }
+
+    const lenAfterGap = result.current.displayLength;
+    const jumpedChars = lenAfterGap - lenAfterNormal;
+
+    // With maxDeltaTime=100ms and CPS=50 (small buffer), max chars per clamped frame
+    // would be (100/16.67) * (50/60) ≈ 5 chars. Even with adaptive acceleration
+    // the jump should be reasonable (not 5000ms worth of chars).
+    expect(jumpedChars).toBeLessThan(100);
+  });
+});
+
+// ============================================================================
+// consumeFrozenDisplayText integration
+// ============================================================================
+
+describe('useStreamBuffer — consumeFrozenDisplayText', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    vi.restoreAllMocks();
+  });
+
+  it('captures displayed text at freeze time', () => {
+    const text =
+      'This streaming text will be frozen partway through to verify ' +
+      'that consumeFrozenDisplayText returns the exact visible portion.';
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({ text, isStreaming: true, initialBufferChars: 3 }),
+    );
+
+    // Advance to reveal partial text
+    act(() => advanceFrames(30));
+    const frozenLength = result.current.displayLength;
+    expect(frozenLength).toBeGreaterThan(0);
+    expect(frozenLength).toBeLessThan(text.length);
+
+    // Freeze and consume
+    act(() => freezeActiveStream());
+    const captured = consumeFrozenDisplayText();
+
+    // Captured text is a valid prefix of the source text. Its length may
+    // exceed frozenLength because the ref advances between state flushes.
+    expect(captured).not.toBeNull();
+    const frozenText = captured ?? '';
+    expect(text.startsWith(frozenText)).toBe(true);
+    expect(frozenText.length).toBeGreaterThanOrEqual(frozenLength);
+  });
+
+  it('returns null when consumed twice', () => {
+    const text =
+      'Streaming text for double consume test that needs to be long ' +
+      'enough for the animation to progress before freezing occurs.';
+
+    renderHook(() =>
+      useStreamBuffer({ text, isStreaming: true, initialBufferChars: 3 }),
+    );
+
+    act(() => advanceFrames(20));
+    act(() => freezeActiveStream());
+
+    // First consume should return captured text
+    const first = consumeFrozenDisplayText();
+    expect(first).not.toBeNull();
+    expect(typeof first).toBe('string');
+
+    // Second consume should return null (already consumed)
+    const second = consumeFrozenDisplayText();
+    expect(second).toBeNull();
+  });
+
+  it('returns null when no freeze has occurred', () => {
+    const captured = consumeFrozenDisplayText();
+    expect(captured).toBeNull();
+  });
+
+  it('captures empty string when freeze is called before any text is revealed', () => {
+    const text =
+      'Buffering text that has not started revealing yet because the ' +
+      'initial buffer threshold has not been met so display is zero.';
+
+    renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        initialBufferChars: 999, // very high threshold — reveal won't start
+      }),
+    );
+
+    act(() => advanceFrames(5)); // not enough to start reveal
+
+    act(() => freezeActiveStream());
+    const captured = consumeFrozenDisplayText();
+
+    // Should capture empty string (displayedLength is 0, text.slice(0,0) = '')
+    expect(captured).toBe('');
+  });
+});
+
+// ============================================================================
+// isStreamFrozen
+// ============================================================================
+
+describe('useStreamBuffer — isStreamFrozen', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    vi.restoreAllMocks();
+  });
+
+  it('returns false initially', () => {
+    renderHook(() =>
+      useStreamBuffer({
+        text: 'some text',
+        isStreaming: true,
+        initialBufferChars: 3,
+      }),
+    );
+
+    act(() => advanceFrames(5));
+    expect(isStreamFrozen()).toBe(false);
+  });
+
+  it('returns true after freezeActiveStream is called', () => {
+    renderHook(() =>
+      useStreamBuffer({
+        text: 'streaming text long enough for animation to progress and test',
+        isStreaming: true,
+        initialBufferChars: 3,
+      }),
+    );
+
+    act(() => advanceFrames(10));
+    act(() => freezeActiveStream());
+    expect(isStreamFrozen()).toBe(true);
+  });
+
+  it('returns false after a new streaming session clears the freeze', () => {
+    const { rerender } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      {
+        initialProps: {
+          text: 'first streaming message with enough text for buffer',
+          isStreaming: true,
+        },
+      },
+    );
+
+    act(() => advanceFrames(10));
+    act(() => freezeActiveStream());
+    expect(isStreamFrozen()).toBe(true);
+
+    // End stream, then start new session
+    rerender({
+      text: 'first streaming message with enough text for buffer',
+      isStreaming: false,
+    });
+    rerender({
+      text: 'new streaming message starting a fresh session now',
+      isStreaming: true,
+    });
+
+    expect(isStreamFrozen()).toBe(false);
+  });
+
+  it('resetGlobalFreeze clears the freeze without needing a new streaming session', () => {
+    renderHook(() =>
+      useStreamBuffer({
+        text: 'streaming text long enough for animation to progress and test',
+        isStreaming: true,
+        initialBufferChars: 3,
+      }),
+    );
+
+    act(() => advanceFrames(10));
+    act(() => freezeActiveStream());
+    expect(isStreamFrozen()).toBe(true);
+
+    act(() => resetGlobalFreeze());
+    expect(isStreamFrozen()).toBe(false);
+  });
+
+  it('resetGlobalFreeze allows non-streaming text to show immediately', () => {
+    const { rerender, result } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      {
+        initialProps: {
+          text: 'first streaming message with enough text for buffer',
+          isStreaming: true,
+        },
+      },
+    );
+
+    act(() => advanceFrames(10));
+    act(() => freezeActiveStream());
+    const frozenLen = result.current.displayLength;
+
+    // End stream — display stays frozen because globalFrozen is true
+    rerender({
+      text: 'first streaming message with enough text for buffer',
+      isStreaming: false,
+    });
+    expect(result.current.displayLength).toBe(frozenLen);
+
+    // Reset freeze externally (simulates onBeforeSend → resetCancelled)
+    act(() => resetGlobalFreeze());
+
+    // Now render a new non-streaming message — should show immediately
+    rerender({
+      text: 'new completed response loaded from DB after reload',
+      isStreaming: false,
+    });
+    expect(result.current.displayLength).toBe(
+      'new completed response loaded from DB after reload'.length,
+    );
+  });
+});
+
+// ============================================================================
+// Freeze edge cases
+// ============================================================================
+
+describe('useStreamBuffer — freeze edge cases', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    vi.restoreAllMocks();
+  });
+
+  it('freezeActiveStream cancels the in-flight rAF', () => {
+    const text =
+      'Text for rAF cancellation test long enough for animation progress.';
+
+    renderHook(() =>
+      useStreamBuffer({ text, isStreaming: true, initialBufferChars: 3 }),
+    );
+
+    act(() => advanceFrames(10));
+
+    // Before freeze, rAF should be active
+    expect(rafCallbacks.size).toBeGreaterThan(0);
+
+    act(() => freezeActiveStream());
+
+    // After freeze, the pending rAF should be cancelled
+    expect(rafCallbacks.size).toBe(0);
+  });
+
+  it('multiple rapid freezeActiveStream calls are idempotent', () => {
+    const text =
+      'Text for multiple freeze calls test that is sufficiently long ' +
+      'for the animation to have progressed when we freeze it here.';
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({ text, isStreaming: true, initialBufferChars: 3 }),
+    );
+
+    act(() => advanceFrames(20));
+    const lengthBefore = result.current.displayLength;
+
+    // Freeze multiple times in rapid succession
+    act(() => {
+      freezeActiveStream();
+      freezeActiveStream();
+      freezeActiveStream();
+    });
+
+    // Should still be frozen at the same length
+    act(() => advanceFrames(60));
+    expect(result.current.displayLength).toBe(lengthBefore);
+
+    // consumeFrozenDisplayText should still work (returns text from first freeze)
+    const captured = consumeFrozenDisplayText();
+    expect(captured).not.toBeNull();
+    const frozenText = captured ?? '';
+    expect(text.startsWith(frozenText)).toBe(true);
+    expect(frozenText.length).toBeGreaterThanOrEqual(lengthBefore);
+  });
+
+  it('freezeActiveStream before any hook is mounted (no registered refs)', () => {
+    // This tests the case where freezeActiveStream is called when no stream
+    // buffer hook is mounted (e.g., the component unmounted before stop was clicked)
+    act(() => freezeActiveStream());
+
+    // Should not throw, and consumeFrozenDisplayText should return null
+    // because there are no active refs to read from
+    const captured = consumeFrozenDisplayText();
+    expect(captured).toBeNull();
+    expect(isStreamFrozen()).toBe(true);
+  });
+
+  it('instance freeze() also cancels rAF and stops animation', () => {
+    const text =
+      'Long enough text for the instance-level freeze test to work ' +
+      'properly and verify that the animation loop is actually stopped.';
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({ text, isStreaming: true, initialBufferChars: 3 }),
+    );
+
+    act(() => advanceFrames(20));
+    const frozenLen = result.current.displayLength;
+
+    act(() => result.current.freeze());
+
+    // rAF should be cancelled
+    expect(rafCallbacks.size).toBe(0);
+    // isTyping should be false
+    expect(result.current.isTyping).toBe(false);
+
+    // Further frames should not advance
+    act(() => advanceFrames(60));
+    expect(result.current.displayLength).toBe(frozenLen);
+  });
+
+  it('does not re-register RAF after freeze when text updates', () => {
+    const text =
+      'Initial text for RAF re-registration test that is long enough ' +
+      'for the animation to be actively running when freeze triggers.';
+
+    const { rerender } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text, isStreaming: true } },
+    );
+
+    act(() => advanceFrames(10));
+    expect(rafCallbacks.size).toBeGreaterThan(0);
+
+    act(() => freezeActiveStream());
+    expect(rafCallbacks.size).toBe(0);
+
+    // Simulate more text arriving from backend after freeze
+    const updatedText = text + ' More text arriving after stop was clicked.';
+    rerender({ text: updatedText, isStreaming: true });
+
+    // RAF should NOT be re-registered because freeze is active
+    expect(rafCallbacks.size).toBe(0);
+
+    // Further frames should not advance display
+    act(() => advanceFrames(30));
+    expect(rafCallbacks.size).toBe(0);
+  });
+});
+
+// ============================================================================
+// Progress and isDraining
+// ============================================================================
+
+describe('useStreamBuffer — progress and isDraining', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    vi.restoreAllMocks();
+  });
+
+  it('progress starts at 0 and reaches 1 when fully revealed', () => {
+    const text = 'Short streaming message for progress tracking test.';
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 800,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // Initially (after buffering), progress should be low
+    act(() => advanceFrames(5));
+    expect(result.current.progress).toBeGreaterThanOrEqual(0);
+    expect(result.current.progress).toBeLessThanOrEqual(1);
+
+    // Drain fully
+    act(() => advanceFrames(300));
+    expect(result.current.progress).toBe(1);
+  });
+
+  it('isDraining is true when stream ended but buffer has content', () => {
+    const longText =
+      'A longer message that will not fully drain before the stream ends ' +
+      'so we can verify the isDraining flag is set correctly during drain. ' +
+      'Adding extra content to ensure the buffer has plenty of remaining ' +
+      'characters after thirty frames of animation at the adaptive rate.';
+
+    const { result, rerender } = renderHook(
+      ({ text, isStreaming }) =>
+        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      { initialProps: { text: longText, isStreaming: true } },
+    );
+
+    // Partially reveal
+    act(() => advanceFrames(30));
+    expect(result.current.displayLength).toBeLessThan(longText.length);
+
+    // End stream while buffer still has content
+    rerender({ text: longText, isStreaming: false });
+
+    expect(result.current.isDraining).toBe(true);
+
+    // After fully draining, isDraining should become false
+    act(() => advanceFrames(300));
+    expect(result.current.isDraining).toBe(false);
+  });
+
+  it('bufferSize decreases as text is revealed', () => {
+    const text = 'word '.repeat(100); // 500 chars
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 200,
+        initialBufferChars: 3,
+      }),
+    );
+
+    act(() => advanceFrames(10));
+    const buf1 = result.current.bufferSize;
+
+    act(() => advanceFrames(30));
+    const buf2 = result.current.bufferSize;
+
+    expect(buf2).toBeLessThan(buf1);
   });
 });

@@ -52,6 +52,116 @@ import { AgentTimeoutError, withTimeout } from './with_timeout';
 const PLATFORM_HARD_LIMIT_MS = 540_000;
 
 /**
+ * How often the abort watcher polls the stream status (ms).
+ */
+const ABORT_POLL_INTERVAL_MS = 200;
+
+interface AbortWatcher {
+  stop: () => void;
+  readonly cancelled: boolean;
+}
+
+/**
+ * Polls the stream status for cancellation and aborts the controller when
+ * detected. This bridges the gap between the `cancelGeneration` mutation
+ * (which sets the DB flag) and the running action (which needs an
+ * AbortSignal to stop the AI SDK / DeltaStreamer).
+ *
+ * `baselineAbortedIds` contains stream IDs that were already aborted before
+ * this generation started. The watcher ignores these so that stale aborted
+ * streams from previous cancellations don't immediately kill a new generation.
+ *
+ * `baselineNewestAssistantId` is the ID of the newest *failed* assistant
+ * message in the thread when this generation started. If `cancelGeneration`
+ * runs before any stream exists, it creates a failed assistant message. The
+ * watcher detects this by checking whether a NEW failed assistant message
+ * (different from the baseline) appeared. Only `status === 'failed'` messages
+ * are considered, so the SDK's own assistant messages (created during normal
+ * generation) are never confused with cancellation signals.
+ */
+function startAbortWatcher(
+  ctx: GenerateResponseArgs['ctx'],
+  threadId: string,
+  abortController: AbortController,
+  baselineAbortedIds: Set<string>,
+  baselineNewestAssistantId: string | undefined,
+): AbortWatcher {
+  let stopped = false;
+  let cancelledByWatcher = false;
+  let earlyCheckDone = false;
+  let earlyCheckCount = 0;
+  const MAX_EARLY_CHECK_POLLS = 50; // ~10s at 200ms interval
+
+  const check = async () => {
+    if (stopped || abortController.signal.aborted) return;
+    try {
+      // Check 1: new aborted streams (mid-stream cancellation)
+      const streams = await ctx.runQuery(components.agent.streams.list, {
+        threadId,
+        statuses: ['aborted'] as const,
+      });
+      const hasNewAbort = streams.some(
+        (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
+      );
+      if (hasNewAbort) {
+        cancelledByWatcher = true;
+        abortController.abort();
+        return;
+      }
+
+      // Check 2: early cancellation — cancelGeneration creates a failed
+      // assistant message when no streams exist yet. Only need to check
+      // until the SDK creates its own stream (first few polls).
+      if (!earlyCheckDone) {
+        earlyCheckCount++;
+        const msgs = await listMessages(ctx, components.agent, {
+          threadId,
+          paginationOpts: { numItems: 5, cursor: null },
+          excludeToolMessages: true,
+        });
+        const newestFailedAssistant = msgs.page.find(
+          (m: MessageDoc) =>
+            m.message?.role === 'assistant' && m.status === 'failed',
+        );
+        if (
+          newestFailedAssistant &&
+          newestFailedAssistant._id !== baselineNewestAssistantId
+        ) {
+          cancelledByWatcher = true;
+          abortController.abort();
+          return;
+        }
+        // Once the SDK starts streaming it creates its own message,
+        // making this check unreliable. Switch to stream-only checks.
+        // Also stop after MAX_EARLY_CHECK_POLLS to bound polling.
+        if (
+          streams.length > baselineAbortedIds.size ||
+          earlyCheckCount >= MAX_EARLY_CHECK_POLLS
+        ) {
+          earlyCheckDone = true;
+        }
+      }
+    } catch {
+      // Query failure is non-fatal; will retry on next poll
+    }
+    if (!stopped && !abortController.signal.aborted) {
+      setTimeout(check, ABORT_POLL_INTERVAL_MS);
+    }
+  };
+
+  setTimeout(check, ABORT_POLL_INTERVAL_MS);
+
+  return {
+    stop: () => {
+      stopped = true;
+    },
+    get cancelled() {
+      return cancelledByWatcher;
+    },
+  };
+}
+
+/**
  * Generate an agent response using the provided configuration.
  *
  * This is the core implementation shared by all agents.
@@ -105,6 +215,9 @@ export async function generateAgentResponse(
   const startTime = Date.now();
   const abortController = new AbortController();
 
+  // Declared outside try so the catch block can access it for cleanup
+  let abortWatcher: AbortWatcher | undefined;
+
   try {
     debugLog(`generate${capitalize(agentType)}Response called`, {
       threadId,
@@ -123,6 +236,67 @@ export async function generateAgentResponse(
         streamId,
       });
     }
+
+    // Snapshot existing aborted streams and the newest assistant message
+    // so the watcher can distinguish stale state from new cancellations.
+    let baselineAbortedIds = new Set<string>();
+    let baselineNewestAssistantId: string | undefined;
+    if (enableStreaming) {
+      try {
+        const existing = await ctx.runQuery(components.agent.streams.list, {
+          threadId,
+          statuses: ['aborted'] as const,
+        });
+        baselineAbortedIds = new Set(
+          existing.map((s: { streamId: string }) => s.streamId),
+        );
+      } catch {
+        // Non-fatal — watcher will still work, just without baseline filter
+      }
+      try {
+        const msgs = await listMessages(ctx, components.agent, {
+          threadId,
+          paginationOpts: { numItems: 5, cursor: null },
+          excludeToolMessages: true,
+        });
+        const newestFailedAssistant = msgs.page.find(
+          (m: MessageDoc) =>
+            m.message?.role === 'assistant' && m.status === 'failed',
+        );
+        baselineNewestAssistantId = newestFailedAssistant?._id;
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    // Start abort watcher for streaming mode — polls the stream status
+    // and triggers abortController when the user cancels via cancelGeneration.
+    abortWatcher = enableStreaming
+      ? startAbortWatcher(
+          ctx,
+          threadId,
+          abortController,
+          baselineAbortedIds,
+          baselineNewestAssistantId,
+        )
+      : undefined;
+
+    // Direct DB check for cancellation — closes the 200ms polling gap
+    // that abortWatcher?.cancelled can miss.
+    const checkFreshAbort = async (): Promise<boolean> => {
+      if (abortWatcher?.cancelled) return true;
+      try {
+        const streams = await ctx.runQuery(components.agent.streams.list, {
+          threadId,
+          statuses: ['aborted'] as const,
+        });
+        return streams.some(
+          (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
+        );
+      } catch {
+        return false;
+      }
+    };
 
     // Determine retrieval modes
     const knowledgeMode = configKnowledgeMode ?? 'off';
@@ -369,6 +543,18 @@ export async function generateAgentResponse(
           response: streamResponse,
         };
 
+        // Post-success abort check: direct DB query closes the 200ms
+        // polling gap that the watcher flag alone can miss.
+        if (await checkFreshAbort()) {
+          abortWatcher?.stop();
+          return {
+            threadId,
+            text: '',
+            durationMs: Date.now() - startTime,
+            finishReason: 'cancelled',
+          };
+        }
+
         // If the LLM called tools but didn't generate a substantive follow-up response,
         // retry without tools. This handles cases where the LLM outputs preamble text
         // (e.g., "Let me check...") before tool calls but stops without summarizing results.
@@ -426,6 +612,15 @@ export async function generateAgentResponse(
           });
 
           const retryAbortController = new AbortController();
+          if (abortController.signal.aborted) {
+            retryAbortController.abort();
+          } else {
+            abortController.signal.addEventListener(
+              'abort',
+              () => retryAbortController.abort(),
+              { once: true },
+            );
+          }
           const retryResult = await withTimeout(
             retryAgent.generateText(
               contextWithOrg,
@@ -446,6 +641,7 @@ export async function generateAgentResponse(
                   excludeToolMessages: false,
                   searchOtherThreads: false,
                 },
+                storageOptions: { saveMessages: 'none' },
               },
             ),
             retryRemainingMs,
@@ -454,7 +650,7 @@ export async function generateAgentResponse(
 
           result = {
             text: retryResult.text,
-            steps: [...(result.steps || []), ...retryResult.steps],
+            steps: result.steps,
             usage: mergeUsage(result.usage, retryResult.usage),
             finishReason: retryResult.finishReason,
             response: result.response,
@@ -465,6 +661,17 @@ export async function generateAgentResponse(
             finishReason: result.finishReason,
             retryDurationMs: Date.now() - streamRetryStartTime,
           });
+        }
+
+        // Post-retry abort check
+        if (await checkFreshAbort()) {
+          abortWatcher?.stop();
+          return {
+            threadId,
+            text: '',
+            durationMs: Date.now() - startTime,
+            finishReason: 'cancelled',
+          };
         }
       } else {
         // Non-streaming mode (sub-agents)
@@ -681,6 +888,17 @@ export async function generateAgentResponse(
             retryDurationMs: Date.now() - emptyRetryStartTime,
           });
         }
+
+        // Post-generation abort check (mirrors streaming path)
+        if (await checkFreshAbort()) {
+          abortWatcher?.stop();
+          return {
+            threadId,
+            text: '',
+            durationMs: Date.now() - startTime,
+            finishReason: 'cancelled',
+          };
+        }
       }
 
       // Fallback: if text is still missing after all retries, provide a minimal response
@@ -863,6 +1081,18 @@ export async function generateAgentResponse(
       provider,
     };
 
+    // Final abort check before post-processing — direct DB query
+    // closes the polling gap the watcher alone can miss.
+    if (await checkFreshAbort()) {
+      abortWatcher?.stop();
+      return {
+        threadId,
+        text: '',
+        durationMs,
+        finishReason: 'cancelled',
+      };
+    }
+
     // Call afterGenerate hook if provided
     if (hooks?.afterGenerate) {
       await hooks.afterGenerate(ctx, args, responseResult, hookData);
@@ -934,8 +1164,9 @@ export async function generateAgentResponse(
       }
     }
 
-    // Complete stream if streamId provided
-    if (streamId) {
+    // Complete stream if streamId provided (skip if user cancelled —
+    // appending would concatenate fallback text onto already-streamed content)
+    if (streamId && !(await checkFreshAbort())) {
       if (responseResult.text) {
         await ctx.runMutation(
           internal.streaming.internal_mutations.appendToStream,
@@ -951,26 +1182,42 @@ export async function generateAgentResponse(
       );
     }
 
+    abortWatcher?.stop();
     return responseResult;
   } catch (error) {
-    // Log the original error BEFORE calling any hooks
+    abortWatcher?.stop();
+
     const err = isRecord(error) ? error : { message: String(error) };
+    const errorName = getString(err, 'name') ?? '';
+    const errorMessage = getString(err, 'message') ?? '';
+
     console.error('[generateAgentResponse] ORIGINAL ERROR:', {
-      name: getString(err, 'name'),
-      message: getString(err, 'message'),
+      name: errorName,
+      message: errorMessage,
       code: getString(err, 'code'),
       status: err['status'],
       cause: err['cause'],
-      stack: getString(err, 'stack'),
     });
 
-    // Mark stream as errored
+    // State-driven cleanup: check DB state and act only if needed.
+    // No heuristic error-message parsing — works regardless of cause.
+
+    // Mark stream as errored — skip if already aborted by cancelGeneration
     if (streamId) {
       try {
-        await ctx.runMutation(
-          internal.streaming.internal_mutations.errorStream,
-          { streamId },
+        const streams = await ctx.runQuery(components.agent.streams.list, {
+          threadId,
+          statuses: ['aborted'] as const,
+        });
+        const alreadyAborted = streams.some(
+          (s: { streamId: string }) => s.streamId === streamId,
         );
+        if (!alreadyAborted) {
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.errorStream,
+            { streamId },
+          );
+        }
       } catch (streamError) {
         console.error(
           '[generateAgentResponse] Failed to mark stream as errored:',
@@ -979,21 +1226,30 @@ export async function generateAgentResponse(
       }
     }
 
-    // Save a failed assistant message so the client exits the loading state.
-    // Without this, the UI stays stuck in "thinking" forever because no
-    // assistant message with a terminal status ever appears in the thread.
+    // Save failed message — skip if cancelGeneration already created one
     try {
-      await saveMessage(ctx, components.agent, {
+      const msgs = await listMessages(ctx, components.agent, {
         threadId,
-        message: {
-          role: 'assistant',
-          content: 'I was unable to complete your request. Please try again.',
-        },
-        metadata: {
-          status: 'failed',
-          error: getString(err, 'message') ?? 'Unknown error',
-        },
+        paginationOpts: { cursor: null, numItems: 5 },
+        excludeToolMessages: true,
       });
+      const hasFailedAssistant = msgs.page.some(
+        (m: MessageDoc) =>
+          m.message?.role === 'assistant' && m.status === 'failed',
+      );
+      if (!hasFailedAssistant) {
+        await saveMessage(ctx, components.agent, {
+          threadId,
+          message: {
+            role: 'assistant',
+            content: 'I was unable to complete your request. Please try again.',
+          },
+          metadata: {
+            status: 'failed',
+            error: errorMessage || 'Unknown error',
+          },
+        });
+      }
     } catch (saveError) {
       console.error(
         '[generateAgentResponse] Failed to save failed message:',

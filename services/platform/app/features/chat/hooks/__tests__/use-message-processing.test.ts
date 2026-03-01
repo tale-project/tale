@@ -13,6 +13,8 @@ vi.mock('@convex-dev/agent/react', () => ({
   })),
 }));
 
+vi.mock('../use-stream-buffer', () => ({}));
+
 import { useUIMessages } from '@convex-dev/agent/react';
 
 import {
@@ -139,6 +141,160 @@ describe('useMessageProcessing', () => {
     });
   });
 
+  describe('activeMessage', () => {
+    it('returns streaming message when available', () => {
+      const streamingMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        text: 'Hello...',
+        status: 'streaming',
+      });
+
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          streamingMsg,
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(result.current.activeMessage).toBe(streamingMsg);
+    });
+
+    it('returns pending message when no streaming message exists', () => {
+      const pendingMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        text: '',
+        status: 'pending',
+      });
+
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Search',
+          }),
+          pendingMsg,
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(result.current.activeMessage).toBe(pendingMsg);
+    });
+
+    it('returns first non-terminal assistant in array order when both pending and streaming exist', () => {
+      const pendingMsg = createUIMessage({
+        id: 'msg-2',
+        order: 1,
+        role: 'assistant',
+        text: '',
+        status: 'pending',
+      });
+      const streamingMsg = createUIMessage({
+        id: 'msg-3',
+        order: 2,
+        role: 'assistant',
+        text: 'Results...',
+        status: 'streaming',
+      });
+
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Search',
+          }),
+          pendingMsg,
+          streamingMsg,
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(result.current.activeMessage).toBe(pendingMsg);
+      expect(result.current.streamingMessage).toBeUndefined();
+      expect(result.current.pendingToolResponse).toBe(pendingMsg);
+    });
+
+    it('returns undefined when all messages are terminal', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: 'Done',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(result.current.activeMessage).toBeUndefined();
+    });
+  });
+
+  describe('hasActiveTools with pending messages', () => {
+    it('detects active tools on pending message', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Search',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'pending',
+            parts: [
+              { type: 'step-start' },
+              {
+                type: 'tool-rag_search',
+                toolCallId: 'call-1',
+                input: { query: 'test' },
+                state: 'input-available',
+              },
+            ],
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(result.current.hasActiveTools).toBe(true);
+    });
+  });
+
   describe('sticky isStreaming', () => {
     it('keeps isStreaming true when status transitions from streaming to pending', () => {
       const msgKey = 'msg-2';
@@ -244,6 +400,153 @@ describe('useMessageProcessing', () => {
       ).toBe(false);
     });
 
+    it('keeps isStreaming true for one cycle when empty-streaming message gets content at terminal status', () => {
+      const msgKey = 'msg-2';
+
+      // First render: streaming with no text (tool turn phase)
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Search my docs',
+          }),
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'streaming',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result, rerender } = renderHook(() =>
+        useMessageProcessing('thread-1'),
+      );
+      // Empty streaming message: isStreaming true but content is empty
+      const emptyMsg = result.current.messages.find((m) => m.key === msgKey);
+      expect(emptyMsg?.isStreaming).toBe(true);
+      expect(emptyMsg?.content).toBe('');
+
+      // Second render: jumps to success with full text (SDK batched update)
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Search my docs',
+          }),
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: 'Here are the search results for your documents...',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      rerender();
+      // Should keep isStreaming true so TypewriterText can mount and animate
+      const filledMsg = result.current.messages.find((m) => m.key === msgKey);
+      expect(filledMsg?.isStreaming).toBe(true);
+      expect(filledMsg?.content).toBe(
+        'Here are the search results for your documents...',
+      );
+
+      // Third render: same data (new reference to trigger useMemo), isStreaming should now be false
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Search my docs',
+          }),
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: 'Here are the search results for your documents...',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      rerender();
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(false);
+    });
+
+    it('does not extend isStreaming when message had text during streaming', () => {
+      const msgKey = 'msg-2';
+
+      // First render: streaming with text (normal text streaming)
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: 'Hello there! How can I help?',
+            status: 'streaming',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result, rerender } = renderHook(() =>
+        useMessageProcessing('thread-1'),
+      );
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(true);
+
+      // Second render: completed
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: msgKey,
+            order: 1,
+            role: 'assistant',
+            text: 'Hello there! How can I help you today?',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      rerender();
+      // Should be false immediately — TypewriterText was already mounted
+      expect(
+        result.current.messages.find((m) => m.key === msgKey)?.isStreaming,
+      ).toBe(false);
+    });
+
     it('does not treat a never-streaming pending message as streaming', () => {
       mockUseUIMessages.mockReturnValue({
         results: [
@@ -269,6 +572,111 @@ describe('useMessageProcessing', () => {
       expect(
         result.current.messages.find((m) => m.key === 'msg-2')?.isStreaming,
       ).toBe(false);
+    });
+  });
+
+  describe('isAborted flag', () => {
+    it('sets isAborted true when failed message has empty text', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Tell me about RAG',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'assistant',
+            text: '',
+            status: 'failed',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const abortedMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(abortedMsg?.isAborted).toBe(true);
+      expect(abortedMsg?.content).toBe('');
+    });
+
+    it('sets isAborted true when failed message has whitespace-only text', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'assistant',
+            text: '   \n  ',
+            status: 'failed',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(result.current.messages[0]?.isAborted).toBe(true);
+    });
+
+    it('does not set isAborted for failed messages with real content', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'assistant',
+            text: 'The history of computing begins with...',
+            status: 'failed',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(result.current.messages[0]?.isAborted).toBe(false);
+    });
+
+    it('does not set isAborted for successful messages', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'assistant',
+            text: 'Done!',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(result.current.messages[0]?.isAborted).toBe(false);
+    });
+
+    it('sets isAborted true for failed messages with null text', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'assistant',
+            text: undefined,
+            status: 'failed',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      expect(result.current.messages[0]?.isAborted).toBe(true);
     });
   });
 
