@@ -21,6 +21,7 @@ export interface Message {
   role: 'user' | 'assistant';
   timestamp: Date;
   isStreaming?: boolean;
+  isAborted?: boolean;
   attachments?: FileAttachment[];
   fileParts?: FilePart[];
   threadId?: string;

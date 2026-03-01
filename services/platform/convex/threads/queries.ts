@@ -1,6 +1,8 @@
+import { listStreams } from '@convex-dev/agent';
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
+import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
@@ -24,6 +26,22 @@ export const listThreads = query({
       userId: authUser.userId,
       paginationOpts: args.paginationOpts ?? { cursor: null, numItems: 20 },
     });
+  },
+});
+
+export const isThreadGenerating = query({
+  args: { threadId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return false;
+
+    const activeStreams = await listStreams(ctx, components.agent, {
+      threadId: args.threadId,
+      includeStatuses: ['streaming'],
+    });
+
+    return activeStreams.length > 0;
   },
 });
 

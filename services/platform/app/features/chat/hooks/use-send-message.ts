@@ -136,7 +136,9 @@ export function useSendMessage({
           await updateThread({ threadId: currentThreadId, title });
         }
 
-        // Send message via unified agent chat mutation
+        // Send message via unified agent chat mutation.
+        // isPending stays true until useChatLoadingState confirms a new
+        // terminal assistant appeared (creation-time baseline + debounce).
         await chatWithAgent({
           agentId: toId<'customAgents'>(selectedAgent._id),
           threadId: currentThreadId,

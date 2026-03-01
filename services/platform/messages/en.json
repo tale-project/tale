@@ -2147,6 +2147,8 @@
     "messagePlaceholder": "Type a message...",
     "typeMessageHere": "Type your message here…",
     "send": "Send message",
+    "stopGenerating": "Stop generating",
+    "generationStopped": "Generation stopped",
     "noAgentsAvailable": "No agents available. Please publish an agent first.",
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",

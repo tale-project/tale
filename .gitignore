@@ -61,7 +61,9 @@ compose.override.yml
 !.claude/hooks/
 
 # Agent rules
-.agent/
+.agent/*
+!.agent/rules/
+!.agent/rules/README.md
 
 # Python
 __pycache__/

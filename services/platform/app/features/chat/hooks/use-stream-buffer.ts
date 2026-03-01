@@ -1,18 +1,20 @@
 'use client';
 
 /**
- * Stream Buffer Hook — Constant Drain Rate
+ * Stream Buffer Hook — Adaptive Drain Rate
  *
  * Manages the buffer between incoming streamed text and displayed text,
- * using a constant output rate with the buffer as a shock absorber.
- * This produces a smooth, steady typing rhythm regardless of how
- * irregularly the server delivers chunks.
+ * using an adaptive output rate that scales with buffer depth.
+ * Small buffers drain at a relaxed typing speed for a natural feel;
+ * large buffers ramp up so the user isn't left watching text trickle
+ * long after the server has finished.
  *
  * STRATEGY:
  * =========
- * 1. CONSTANT RATE: Text is revealed at a fixed speed (default 50 CPS)
- *    - Buffer absorbs server timing variations
- *    - No adaptive speed or catch-up multiplier
+ * 1. ADAPTIVE RATE: Base CPS (default 50) when buffer is small.
+ *    As buffer grows past a threshold, CPS increases via sqrt curve
+ *    up to a configurable cap (default 600). This keeps short responses
+ *    feeling like smooth typing while long responses reveal quickly.
  *
  * 2. INITIAL BUFFERING: Waits for enough characters before starting
  *    - Builds a small reservoir to smooth the first few seconds
@@ -20,10 +22,10 @@
  *
  * 3. BUFFER EMPTY: Keeps animation loop running
  *    - Cursor stays visible while waiting for next chunk
- *    - Resumes at the same constant rate when text arrives
+ *    - Resumes at the same rate when text arrives
  *
- * 4. STREAM ENDS: Drains remaining buffer at same rate
- *    - No instant jump to end — finishes revealing naturally
+ * 4. STREAM ENDS: Drains remaining buffer at adaptive rate
+ *    - Large leftover buffer drains fast, short tail drains smoothly
  *
  * USAGE:
  * ------
@@ -42,7 +44,7 @@ import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion'
 // ============================================================================
 
 const DEFAULT_CONFIG = {
-  /** Target characters per second */
+  /** Base characters per second (used when buffer is small) */
   targetCPS: 50,
   /** Characters to buffer before starting reveal */
   initialBufferChars: 30,
@@ -50,6 +52,12 @@ const DEFAULT_CONFIG = {
   stateUpdateInterval: 50,
   /** Maximum delta time (ms) to prevent jumps after tab switching */
   maxDeltaTime: 100,
+  /** Buffer chars before adaptive acceleration kicks in */
+  accelerationThreshold: 50,
+  /** Sqrt scale factor — controls how aggressively CPS ramps with buffer depth */
+  accelerationScale: 15,
+  /** Hard ceiling on CPS regardless of buffer size */
+  maxCPS: 600,
 };
 
 // ============================================================================
@@ -61,7 +69,7 @@ interface UseStreamBufferOptions {
   text: string;
   /** Whether the text is currently being streamed */
   isStreaming?: boolean;
-  /** Target characters per second for reveal animation */
+  /** Base characters per second for reveal animation */
   targetCPS?: number;
   /** Characters to buffer before starting reveal */
   initialBufferChars?: number;
@@ -80,6 +88,8 @@ interface UseStreamBufferResult {
   bufferSize: number;
   /** True while the buffer still has content to reveal after streaming ends */
   isDraining: boolean;
+  /** Freeze the display at its current position. No more text will be revealed until the next streaming session. */
+  freeze: () => void;
 }
 
 // ============================================================================
@@ -122,6 +132,118 @@ export function saveToCache(text: string, position: number) {
 
 export function clearDisplayPositionCache() {
   displayPositionCache.clear();
+}
+
+// ============================================================================
+// MODULE-LEVEL FREEZE SIGNAL
+// ============================================================================
+// Allows external callers (e.g. stop generating) to freeze all active stream
+// buffer instances without prop drilling. Only one stream is active at a time,
+// so a single global flag is sufficient. Cleared when a new streaming session
+// begins.
+
+let globalFrozen = false;
+let frozenDisplayText: string | null = null;
+
+// The active streaming hook instance registers its refs here so
+// freezeActiveStream() can snapshot the displayed text and cancel animation.
+// Invariant: only one hook instance should be active (streaming) at a time.
+let activeTextRef: { current: string } | null = null;
+let activeDisplayedLengthRef: { current: number } | null = null;
+let activeFrozenRef: { current: boolean } | null = null;
+let activeAnimationFrameRef: { current: number | null } | null = null;
+let activeWasStreamingRef: { current: boolean } | null = null;
+let activeInstanceId: string | null = null;
+
+let instanceCounter = 0;
+
+/**
+ * Freeze all active stream buffers. Called by the stop generating flow.
+ * Captures the currently displayed text so it can be sent to the backend.
+ * Also cancels the in-flight animation frame and sets the instance-level
+ * frozen flag so no further chars are revealed before React flushes.
+ */
+export function freezeActiveStream() {
+  globalFrozen = true;
+
+  // Cancel the active RAF so no more displayedLengthRef advances happen
+  if (activeAnimationFrameRef?.current) {
+    cancelAnimationFrame(activeAnimationFrameRef.current);
+    activeAnimationFrameRef.current = null;
+  }
+
+  // Set instance-level frozen flag (belt-and-suspenders with globalFrozen)
+  if (activeFrozenRef) {
+    activeFrozenRef.current = true;
+  }
+
+  if (activeTextRef && activeDisplayedLengthRef) {
+    frozenDisplayText = activeTextRef.current.slice(
+      0,
+      activeDisplayedLengthRef.current,
+    );
+  }
+}
+
+/**
+ * Check whether the global freeze is active.
+ */
+export function isStreamFrozen() {
+  return globalFrozen;
+}
+
+/**
+ * Reset the global freeze flag. Called before sending a new message so that
+ * a previous stop doesn't prevent the next response from rendering.
+ */
+export function resetGlobalFreeze() {
+  globalFrozen = false;
+  frozenDisplayText = null;
+  if (activeFrozenRef) {
+    activeFrozenRef.current = false;
+  }
+  if (activeWasStreamingRef) {
+    activeWasStreamingRef.current = false;
+  }
+}
+
+/**
+ * Returns the displayed text captured at the moment of freeze, then clears it.
+ * Returns null if no freeze has occurred or text was already consumed.
+ */
+export function consumeFrozenDisplayText(): string | null {
+  const text = frozenDisplayText;
+  frozenDisplayText = null;
+  return text;
+}
+
+// ============================================================================
+// ADAPTIVE CPS
+// ============================================================================
+
+/**
+ * Compute the effective CPS given the current buffer depth.
+ *
+ *   effectiveCPS = baseCPS + sqrt(max(0, buffer - threshold)) * scale
+ *
+ * sqrt gives a smooth, non-linear ramp: gentle acceleration for small
+ * buffers, tapering off as the cap is approached. This avoids jarring
+ * speed jumps while keeping long responses from falling behind.
+ *
+ *   Buffer   50 → 50 CPS  (base)
+ *   Buffer  100 → 156 CPS
+ *   Buffer  300 → 237 CPS
+ *   Buffer  500 → 368 CPS
+ *   Buffer 1000 → 512 CPS
+ *   Buffer 2000 → 600 CPS  (cap)
+ */
+function getEffectiveCPS(baseCPS: number, bufferSize: number): number {
+  if (bufferSize <= DEFAULT_CONFIG.accelerationThreshold) return baseCPS;
+  const excess = bufferSize - DEFAULT_CONFIG.accelerationThreshold;
+  return Math.min(
+    baseCPS + Math.sqrt(excess) * DEFAULT_CONFIG.accelerationScale,
+    DEFAULT_CONFIG.maxCPS,
+  );
 }
 
 // ============================================================================
@@ -205,16 +327,20 @@ export function useStreamBuffer({
   const accumulatedCharsRef = useRef(0);
   const lastStateUpdateRef = useRef<number>(0);
 
-  // Constant-rate specific refs
+  // Adaptive-rate specific refs
   const hasStartedRevealRef = useRef(false);
   const wasStreamingRef = useRef(false);
+
+  // Freeze state: when true, animation stops advancing displayLength.
+  // Set by freeze(), cleared when a new streaming session begins.
+  const frozenRef = useRef(false);
+
+  // Unique instance id for dev-mode single-instance assertion
+  const [instanceId] = useState(() => String(++instanceCounter));
 
   // Tab visibility tracking
   const isVisibleRef = useRef(true);
   const hiddenTimeRef = useRef(0);
-
-  // Constant chars per frame — never speeds up, never slows down
-  const charsPerFrame = targetCPS / 60;
 
   // Animation loop
   const animate = useCallback(
@@ -231,6 +357,14 @@ export function useStreamBuffer({
           setDisplayLength(targetTextRef.current.length);
           setIsTyping(false);
         }
+        animationFrameRef.current = null;
+        return;
+      }
+
+      // Frozen: display was frozen (stop generating). Stop the loop entirely.
+      // Check both instance-level and module-level freeze signals.
+      if (frozenRef.current || globalFrozen) {
+        setIsTyping(false);
         animationFrameRef.current = null;
         return;
       }
@@ -273,6 +407,10 @@ export function useStreamBuffer({
       const normalizedDelta = Math.min(deltaTime, DEFAULT_CONFIG.maxDeltaTime);
       const frameRatio = normalizedDelta / 16.67;
 
+      // Adaptive CPS: ramps with buffer depth so long responses don't lag
+      const effectiveCPS = getEffectiveCPS(targetCPS, bufferSize);
+      const charsPerFrame = effectiveCPS / 60;
+
       accumulatedCharsRef.current += charsPerFrame * frameRatio;
 
       const charsToAdd = Math.floor(accumulatedCharsRef.current);
@@ -308,7 +446,7 @@ export function useStreamBuffer({
 
       animationFrameRef.current = requestAnimationFrame(animate);
     },
-    [charsPerFrame, prefersReducedMotion, initialBufferChars],
+    [targetCPS, prefersReducedMotion, initialBufferChars],
   );
 
   // Handle tab visibility changes
@@ -323,6 +461,8 @@ export function useStreamBuffer({
 
         if (
           catchUpChars > 0 &&
+          !frozenRef.current &&
+          !globalFrozen &&
           (isStreamingRef.current || wasStreamingRef.current)
         ) {
           const newDisplayed = Math.min(
@@ -345,10 +485,35 @@ export function useStreamBuffer({
   // Start/manage animation when text or streaming state changes
   useEffect(() => {
     targetTextRef.current = text;
+    // Capture BEFORE updating — needed for new-session detection (pitfall #5)
     const prevStreaming = isStreamingRef.current;
     isStreamingRef.current = isStreaming;
 
     if (isStreaming) {
+      // New streaming session: clear freeze so text can flow again
+      if (!prevStreaming) {
+        frozenRef.current = false;
+        globalFrozen = false;
+        frozenDisplayText = null;
+      }
+
+      // Register this instance's refs so freezeActiveStream() can
+      // snapshot the displayed text and cancel animation at freeze time.
+      if (process.env.NODE_ENV === 'development') {
+        if (activeInstanceId !== null && activeInstanceId !== instanceId) {
+          console.warn(
+            `[useStreamBuffer] Multiple streaming instances detected ` +
+              `(active: ${activeInstanceId}, new: ${instanceId}). ` +
+              `Module-level freeze state assumes a single active instance.`,
+          );
+        }
+      }
+      activeInstanceId = instanceId;
+      activeTextRef = targetTextRef;
+      activeDisplayedLengthRef = displayedLengthRef;
+      activeFrozenRef = frozenRef;
+      activeAnimationFrameRef = animationFrameRef;
+      activeWasStreamingRef = wasStreamingRef;
       wasStreamingRef.current = true;
 
       // Eagerly save position for cross-mount recovery.
@@ -367,12 +532,14 @@ export function useStreamBuffer({
         accumulatedCharsRef.current = 0;
       }
 
-      if (!animationFrameRef.current) {
+      if (!animationFrameRef.current && !frozenRef.current && !globalFrozen) {
         lastFrameTimeRef.current = 0;
         animationFrameRef.current = requestAnimationFrame(animate);
       }
     } else if (
       wasStreamingRef.current &&
+      !frozenRef.current &&
+      !globalFrozen &&
       displayedLengthRef.current < text.length
     ) {
       // Stream ended but buffer still has content — keep draining
@@ -380,7 +547,7 @@ export function useStreamBuffer({
         lastFrameTimeRef.current = 0;
         animationFrameRef.current = requestAnimationFrame(animate);
       }
-    } else {
+    } else if (!frozenRef.current && !globalFrozen) {
       // Never was streaming or fully caught up — show immediately
       wasStreamingRef.current = false;
       hasStartedRevealRef.current = false;
@@ -389,7 +556,7 @@ export function useStreamBuffer({
       setDisplayLength(text.length);
       setIsTyping(false);
     }
-  }, [text, isStreaming, animate]);
+  }, [text, isStreaming, animate, instanceId]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -402,6 +569,15 @@ export function useStreamBuffer({
       // that the streaming effect may not have saved yet)
       if (isStreamingRef.current || wasStreamingRef.current) {
         saveToCache(targetTextRef.current, displayedLengthRef.current);
+      }
+      // Unregister this instance's refs
+      if (activeTextRef === targetTextRef) {
+        activeTextRef = null;
+        activeDisplayedLengthRef = null;
+        activeFrozenRef = null;
+        activeAnimationFrameRef = null;
+        activeWasStreamingRef = null;
+        activeInstanceId = null;
       }
     };
   }, []);
@@ -445,12 +621,25 @@ export function useStreamBuffer({
   const progress = text.length > 0 ? displayLength / text.length : 1;
   const bufferSize = text.length - displayLength;
 
+  // Freeze the display at its current position.
+  // After calling freeze(), displayLength will not advance even as more text arrives.
+  // The freeze is automatically cleared when the next streaming session begins.
+  const freeze = useCallback(() => {
+    frozenRef.current = true;
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    setIsTyping(false);
+  }, []);
+
   return {
     displayLength,
     anchorPosition,
     progress,
     isTyping,
     bufferSize,
-    isDraining: wasStreamingRef.current && !isStreamingRef.current,
+    isDraining: wasStreamingRef.current && !isStreaming,
+    freeze,
   };
 }

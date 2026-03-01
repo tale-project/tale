@@ -1,6 +1,6 @@
 'use client';
 
-import { CopyIcon, CheckIcon, Info } from 'lucide-react';
+import { CopyIcon, CheckIcon, Info, Square } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
   useRef,
@@ -38,6 +38,7 @@ function MessageBubbleComponent({
   ...restProps
 }: MessageBubbleProps) {
   const { t } = useT('common');
+  const { t: tChat } = useT('chat');
   const isUser = message.role === 'user';
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
@@ -100,7 +101,7 @@ function MessageBubbleComponent({
           </div>
         )}
 
-        {sanitizedContent && (
+        {sanitizedContent ? (
           <div className="text-sm leading-5">
             <StructuredMessage
               text={sanitizedContent}
@@ -108,6 +109,13 @@ function MessageBubbleComponent({
               onSendFollowUp={!isUser ? onSendFollowUp : undefined}
             />
           </div>
+        ) : (
+          message.isAborted && (
+            <div className="text-muted-foreground flex items-center gap-1.5 text-sm italic">
+              <Square className="size-3" />
+              {tChat('generationStopped')}
+            </div>
+          )
         )}
 
         {message.attachments && message.attachments.length > 0 && (
@@ -171,6 +179,7 @@ export const MessageBubble = memo(
       prevProps.message.id === nextProps.message.id &&
       prevProps.message.content === nextProps.message.content &&
       prevProps.message.isStreaming === nextProps.message.isStreaming &&
+      prevProps.message.isAborted === nextProps.message.isAborted &&
       prevProps.message.attachments === nextProps.message.attachments &&
       prevProps.message.fileParts === nextProps.message.fileParts &&
       prevProps.className === nextProps.className &&

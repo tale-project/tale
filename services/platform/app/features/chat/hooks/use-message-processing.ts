@@ -63,6 +63,7 @@ export interface ChatMessage {
   fileParts?: FilePart[];
   _creationTime?: number;
   isStreaming?: boolean;
+  isAborted?: boolean;
   isHumanInputResponse?: boolean;
 }
 
@@ -72,6 +73,7 @@ interface UseMessageProcessingResult {
   loadMore: (numItems: number) => void;
   canLoadMore: boolean;
   isLoadingMore: boolean;
+  activeMessage: UIMessage | undefined;
   streamingMessage: UIMessage | undefined;
   pendingToolResponse: UIMessage | undefined;
   hasActiveTools: boolean;
@@ -145,6 +147,13 @@ export function useMessageProcessing(
   // from resetting the typewriter animation.
   const streamingKeysRef = useRef(new Set<string>());
 
+  // Track messages that were streaming while their text was still empty
+  // (e.g. during tool turns / RAG retrieval). When such a message reaches
+  // a terminal status with text in the same reactive update, we keep
+  // isStreaming=true for one cycle so TypewriterText can mount and animate
+  // instead of showing the full response instantly.
+  const emptyStreamingKeysRef = useRef(new Set<string>());
+
   // Convert UIMessage to ChatMessage format
   // Handles orphan filtering (Issue #184) and file part extraction
   const messages: ChatMessage[] = useMemo(() => {
@@ -201,7 +210,19 @@ export function useMessageProcessing(
         if (m.status === 'streaming') {
           streamingKeysRef.current.add(m.key);
           isStreaming = true;
+          if (!m.text) {
+            emptyStreamingKeysRef.current.add(m.key);
+          } else {
+            emptyStreamingKeysRef.current.delete(m.key);
+          }
         } else if (m.status === 'success' || m.status === 'failed') {
+          // If this message was streaming with no text and now has content,
+          // keep isStreaming=true for one cycle so TypewriterText can mount
+          // with animation instead of showing the full response instantly.
+          if (emptyStreamingKeysRef.current.has(m.key) && m.text) {
+            isStreaming = true;
+          }
+          emptyStreamingKeysRef.current.delete(m.key);
           streamingKeysRef.current.delete(m.key);
         } else {
           isStreaming = streamingKeysRef.current.has(m.key);
@@ -223,6 +244,8 @@ export function useMessageProcessing(
           fileParts: fileParts.length > 0 ? fileParts : undefined,
           _creationTime: m._creationTime,
           isStreaming,
+          isAborted:
+            m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),
           isHumanInputResponse,
         };
       });
@@ -233,24 +256,33 @@ export function useMessageProcessing(
         streamingKeysRef.current.delete(key);
       }
     }
+    for (const key of emptyStreamingKeysRef.current) {
+      if (!currentKeys.has(key)) {
+        emptyStreamingKeysRef.current.delete(key);
+      }
+    }
 
     return result;
   }, [uiMessages]);
 
-  // Find streaming message
-  const streamingMessage = uiMessages?.find(
-    (m) => m.role === 'assistant' && m.status === 'streaming',
+  // Find active assistant message (streaming or pending tool execution).
+  // Unified lookup ensures ThinkingAnimation receives tool parts during both phases.
+  const activeMessage = uiMessages?.find(
+    (m) =>
+      m.role === 'assistant' &&
+      (m.status === 'streaming' || m.status === 'pending'),
   );
 
-  // Find pending tool response (waiting for tool results to complete)
-  const pendingToolResponse = uiMessages?.find(
-    (m) => m.role === 'assistant' && m.status === 'pending',
-  );
+  const streamingMessage =
+    activeMessage?.status === 'streaming' ? activeMessage : undefined;
 
-  // Check for active tools in streaming message
+  const pendingToolResponse =
+    activeMessage?.status === 'pending' ? activeMessage : undefined;
+
+  // Check for active tools in active message (streaming or pending)
   const hasActiveTools = useMemo(() => {
-    if (!streamingMessage?.parts) return false;
-    return streamingMessage.parts.some(
+    if (!activeMessage?.parts) return false;
+    return activeMessage.parts.some(
       (part: { type: string; state?: string }) => {
         if (!part.type.startsWith('tool-')) return false;
         return (
@@ -258,7 +290,7 @@ export function useMessageProcessing(
         );
       },
     );
-  }, [streamingMessage?.parts]);
+  }, [activeMessage?.parts]);
 
   return {
     messages,
@@ -266,6 +298,7 @@ export function useMessageProcessing(
     loadMore,
     canLoadMore,
     isLoadingMore,
+    activeMessage,
     streamingMessage,
     pendingToolResponse,
     hasActiveTools,

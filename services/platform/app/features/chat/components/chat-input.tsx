@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Paperclip, ArrowUp } from 'lucide-react';
+import { X, Paperclip, ArrowUp, CircleStop } from 'lucide-react';
 import { LoaderCircleIcon } from 'lucide-react';
 import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
 
@@ -31,6 +31,7 @@ interface ChatInputProps extends Omit<
   'onChange'
 > {
   onSendMessage: (message: string, attachments?: FileAttachment[]) => void;
+  onStopGenerating?: () => void;
   isLoading?: boolean;
   disabled?: boolean;
   placeholder?: string;
@@ -48,6 +49,7 @@ export function ChatInput({
   value = '',
   onChange,
   onSendMessage,
+  onStopGenerating,
   isLoading = false,
   disabled = false,
   placeholder,
@@ -70,6 +72,8 @@ export function ChatInput({
   } | null>(null);
 
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
+
+  const inputDisabled = disabled || isLoading;
 
   const handleSendMessage = () => {
     if ((!value.trim() && attachments.length === 0) || isLoading || disabled)
@@ -103,7 +107,7 @@ export function ChatInput({
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
-    if (disabled) return;
+    if (inputDisabled) return;
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -255,10 +259,10 @@ export function ChatInput({
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                disabled={isLoading || disabled}
+                disabled={inputDisabled}
                 placeholder=""
               />
-              {value.length === 0 && !disabled && (
+              {value.length === 0 && !inputDisabled && (
                 <Text
                   as="div"
                   variant="muted"
@@ -288,7 +292,7 @@ export function ChatInput({
                   variant="ghost"
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading || disabled}
+                  disabled={inputDisabled}
                   aria-label={tDialogs('attach')}
                 >
                   <Paperclip className="size-4" />
@@ -297,16 +301,24 @@ export function ChatInput({
               <HStack gap={2} align="center">
                 <AgentSelector organizationId={organizationId} />
                 <Button
-                  onClick={handleSendMessage}
+                  type="button"
+                  onClick={isLoading ? onStopGenerating : handleSendMessage}
                   disabled={
-                    (!value.trim() && attachments.length === 0) ||
-                    isLoading ||
-                    disabled
+                    isLoading
+                      ? !onStopGenerating
+                      : (!value.trim() && attachments.length === 0) ||
+                        inputDisabled
                   }
                   size="icon"
-                  aria-label={tChat('send')}
+                  aria-label={
+                    isLoading ? tChat('stopGenerating') : tChat('send')
+                  }
                 >
-                  <ArrowUp className="size-4" />
+                  {isLoading ? (
+                    <CircleStop className="size-4" />
+                  ) : (
+                    <ArrowUp className="size-4" />
+                  )}
                 </Button>
               </HStack>
             </HStack>

@@ -1,69 +1,75 @@
-import type { UIMessage } from '@convex-dev/agent/react';
-
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 
 interface UseChatLoadingStateParams {
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
-  uiMessages: UIMessage[] | undefined;
+  isGenerating: boolean;
   threadId: string | undefined;
   pendingThreadId: string | null;
 }
 
+const SAFETY_TIMEOUT_MS = 60_000;
+
 /**
  * Derives a single `isLoading` boolean that answers: "Is the AI turn active?"
  *
- * The AI turn is considered complete (not loading) only when BOTH conditions
- * are met:
- *   1. The last message is from the assistant
- *   2. The last message has a terminal status (success/failed)
+ * `isLoading = isPending || isGenerating`
  *
- * `failed` is unconditionally terminal — even mid-tool-call — because the
- * SDK maps stream abort to `failed` (not `aborted`), and a failed generation
- * cannot resume. Without this, a failure during a tool turn would leave
- * isLoading stuck forever.
+ * `isGenerating` is a reactive Convex subscription that checks whether any
+ * stream for the thread is in `streaming` status. Stream status transitions
+ * are atomic (unlike paginated message subscriptions which oscillate), making
+ * this a reliable source of truth.
  *
- * When no messages exist, falls back to `isPending` to bridge the gap
- * between send and first subscription data.
+ * `isPending` is a client-side optimistic flag set synchronously on send click.
+ * It bridges the ~100-500ms gap until the server creates the stream and
+ * `isGenerating` becomes `true`. Once `isGenerating` takes over, `isPending`
+ * is cleared (handoff).
  *
- * The cleanup effect clears `isPending` once loading resolves, and handles
- * thread-mismatch when the user navigates away from the pending thread.
+ * Safety mechanisms:
+ * - Safety timeout clears `isPending` after 60s to prevent stuck states
+ * - Thread mismatch clears `isPending` when navigating away from the pending
+ *   thread
  */
 export function useChatLoadingState({
   isPending,
   setIsPending,
-  uiMessages,
+  isGenerating,
   threadId,
   pendingThreadId,
 }: UseChatLoadingStateParams) {
-  const isLoading = useMemo(() => {
-    if (!uiMessages?.length) return isPending;
+  const isLoading = isPending || isGenerating;
 
-    const lastMessage = uiMessages[uiMessages.length - 1];
+  // Handoff: clear isPending once isGenerating takes over.
+  // This prevents double-true from keeping isPending alive unnecessarily.
+  useEffect(() => {
+    if (isPending && isGenerating) {
+      setIsPending(false);
+    }
+  }, [isPending, isGenerating, setIsPending]);
 
-    const status: string | undefined = lastMessage.status;
-
-    if (lastMessage.role !== 'assistant') return true;
-
-    return !(status === 'success' || status === 'failed');
-  }, [isPending, uiMessages]);
-
+  // Safety valve: clear isPending after a max lifetime to prevent stuck states
+  // (e.g. silent mutation failure, network partition).
   useEffect(() => {
     if (!isPending) return;
 
-    // Thread mismatch: navigated away from the pending thread.
-    // Guard: pendingThreadId !== null prevents false cleanup during
-    // new-chat → new-thread transition (pendingThreadId is temporarily null).
+    const timeout = setTimeout(() => {
+      setIsPending(false);
+    }, SAFETY_TIMEOUT_MS);
+
+    return () => clearTimeout(timeout);
+  }, [isPending, setIsPending]);
+
+  // Thread mismatch: navigated away from the pending thread.
+  useEffect(() => {
+    if (!isPending) return;
+
     if (
       pendingThreadId !== null &&
       (pendingThreadId ?? null) !== (threadId ?? null)
     ) {
       setIsPending(false);
-      return;
     }
+  }, [isPending, pendingThreadId, threadId, setIsPending]);
 
-    if (!isLoading) setIsPending(false);
-  }, [isPending, isLoading, pendingThreadId, threadId, setIsPending]);
-
-  return { isLoading, setIsPendingWithBaseline: setIsPending };
+  return { isLoading };
 }
