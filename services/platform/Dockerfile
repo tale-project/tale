@@ -20,8 +20,10 @@ COPY package.json bun.lock ./
 COPY services/platform/package.json ./services/platform/
 COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
+COPY services/operator/package.json ./services/operator/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
+COPY tools/cli/package.json ./tools/cli/
 COPY patches/ ./patches/
 
 RUN bun install
@@ -78,9 +80,10 @@ COPY --from=workspace-deps /app/package.json /app/bun.lock /tmp/workspace/
 COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/
 COPY --from=workspace-deps /app/services/crawler/package.json /tmp/workspace/services/crawler/
 COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/services/rag/
-COPY --from=workspace-deps /app/services/graph-db/package.json /tmp/workspace/services/graph-db/
+COPY --from=workspace-deps /app/services/operator/package.json /tmp/workspace/services/operator/
 COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services/db/
 COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
+COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
 
 RUN cd /tmp/workspace && bun install --production \
     && rm -rf /app/node_modules \
