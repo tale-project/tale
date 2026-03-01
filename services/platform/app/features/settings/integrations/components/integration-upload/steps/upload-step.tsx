@@ -52,7 +52,7 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
       <FileUpload.Root>
         <FileUpload.DropZone
           onFilesSelected={handleFilesSelected}
-          accept=".zip,.json,.js,.png,.svg,.jpg,.jpeg,.webp"
+          accept=".zip,.json,.js,.ts,.png,.svg,.jpg,.jpeg,.webp"
           multiple
           disabled={isParsing}
           inputId="integration-package-upload"
@@ -95,7 +95,7 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
           {t('integrations.upload.packageStructure')}
         </Text>
         <pre className="bg-muted mt-1 rounded p-2 text-xs">
-          {`Option A: my-integration.zip\n            ├── config.json\n            ├── connector.js\n            └── icon.svg (optional)\n\nOption B: Select files directly\n            ├── config.json\n            ├── connector.js\n            └── icon.svg (optional)`}
+          {`Option A: my-integration.zip\n            ├── config.json\n            ├── connector.js or connector.ts\n            └── icon.svg (optional)\n\nOption B: Select files directly\n            ├── config.json\n            ├── connector.js or connector.ts\n            └── icon.svg (optional)`}
         </pre>
       </div>
 

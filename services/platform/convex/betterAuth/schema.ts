@@ -5,7 +5,7 @@
  * for optimized query performance.
  *
  * Base schema regeneration:
- * cd convex/betterAuth && npx @better-auth/cli generate -y --output generated_schema.ts
+ * cd convex/betterAuth && bunx @better-auth/cli generate -y --output generated_schema.ts
  */
 
 import { defineSchema } from 'convex/server';

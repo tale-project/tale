@@ -2,7 +2,7 @@ import type { Plugin } from 'vite';
 
 /**
  * Vite plugin to inject the Accept-Language request header into the HTML
- * during dev. In production, server.js handles this replacement instead.
+ * during dev. In production, server.ts handles this replacement instead.
  *
  * Registers pre-middleware that patches res.end before Vite's internal HTML
  * middleware sends the response. When Vite calls res.end(html), the patched

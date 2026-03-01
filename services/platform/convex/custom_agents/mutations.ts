@@ -165,8 +165,8 @@ async function getMaxVersionNumber(
   const versions = ctx.db
     .query('customAgents')
     .withIndex('by_root', (q) => q.eq('rootVersionId', rootVersionId));
-  for await (const v of versions) {
-    if (v.versionNumber > max) max = v.versionNumber;
+  for await (const version of versions) {
+    if (version.versionNumber > max) max = version.versionNumber;
   }
   return max;
 }
@@ -534,9 +534,9 @@ export const activateCustomAgentVersion = mutation({
     const versions = ctx.db
       .query('customAgents')
       .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId));
-    for await (const v of versions) {
-      if (v.versionNumber === args.targetVersion) {
-        targetVersion = v;
+    for await (const version of versions) {
+      if (version.versionNumber === args.targetVersion) {
+        targetVersion = version;
         break;
       }
     }
@@ -604,9 +604,9 @@ export const createDraftFromVersion = mutation({
     const versions = ctx.db
       .query('customAgents')
       .withIndex('by_root', (q) => q.eq('rootVersionId', args.customAgentId));
-    for await (const v of versions) {
-      if (v.versionNumber === args.sourceVersionNumber) {
-        source = v;
+    for await (const version of versions) {
+      if (version.versionNumber === args.sourceVersionNumber) {
+        source = version;
         break;
       }
     }

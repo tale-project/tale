@@ -14,7 +14,7 @@ export interface VersionInfo {
   aliases: string[];
 }
 
-export interface VersionsResult {
+interface VersionsResult {
   versions: VersionInfo[];
   error?: 'network' | 'unknown';
 }

@@ -143,11 +143,11 @@ export function EditMemberDialog({
     onOpenChange(false);
   };
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
       reset();
     }
-    onOpenChange(open);
+    onOpenChange(isOpen);
   };
 
   return (

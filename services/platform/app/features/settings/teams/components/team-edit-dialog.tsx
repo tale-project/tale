@@ -88,11 +88,11 @@ export function TeamEditDialog({
     }
   };
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
       reset({ name: team.name });
     }
-    onOpenChange(open);
+    onOpenChange(isOpen);
   };
 
   return (

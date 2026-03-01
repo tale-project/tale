@@ -1,16 +1,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { transform } from 'sucrase';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 import { executeIntegrationImpl } from '../execute_integration_impl';
 
-const connectorCode = fs.readFileSync(
+const connectorTs = fs.readFileSync(
   path.resolve(
     __dirname,
-    '../../../../../../examples/integrations/gmail/connector.js',
+    '../../../../../../examples/integrations/gmail/connector.ts',
   ),
   'utf-8',
 );
+const connectorCode = transform(connectorTs, {
+  transforms: ['typescript'],
+  disableESTransforms: true,
+}).code;
 
 function mockFetchSequence(responses: Array<() => Response>) {
   let callIndex = 0;

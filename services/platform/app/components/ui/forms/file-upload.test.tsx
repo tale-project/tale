@@ -106,7 +106,7 @@ describe('FileUpload', () => {
           </FileUpload.DropZone>
         </FileUpload.Root>,
       );
-      const dropzone = screen.getByRole('button', { name: 'Upload files' });
+      const dropzone = screen.getByRole('group', { name: 'Upload files' });
       expect(dropzone).toHaveAttribute('tabindex', '0');
     });
 
@@ -122,7 +122,7 @@ describe('FileUpload', () => {
           </FileUpload.DropZone>
         </FileUpload.Root>,
       );
-      const dropzone = screen.getByRole('button', { name: 'Upload files' });
+      const dropzone = screen.getByRole('group', { name: 'Upload files' });
       expect(dropzone).toHaveAttribute('aria-disabled', 'true');
     });
   });

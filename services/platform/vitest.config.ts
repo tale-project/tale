@@ -3,7 +3,6 @@ import { playwright } from '@vitest/browser-playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import tsconfigPaths from 'vite-tsconfig-paths';
-// ESM config to avoid CJS/ESM interop issues
 import { defineConfig } from 'vitest/config';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -53,7 +52,9 @@ export default defineConfig({
       {
         extends: true,
         plugins: [
-          storybookTest({ configDir: path.join(dirname, '.storybook') }),
+          storybookTest({
+            configDir: path.join(dirname, '.storybook'),
+          }),
         ],
         test: {
           name: 'storybook',

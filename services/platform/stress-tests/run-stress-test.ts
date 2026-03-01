@@ -5,7 +5,7 @@
  * success rates, latency, and failure patterns.
  *
  * Usage:
- *   npx tsx stress-tests/run-stress-test.ts --concurrency 10 --total 50
+ *   bun stress-tests/run-stress-test.ts --concurrency 10 --total 50
  *
  * Requires:
  *   CONVEX_URL - deployment URL (e.g. from .env.local or convex.json)

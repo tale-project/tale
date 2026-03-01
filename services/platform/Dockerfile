@@ -4,35 +4,48 @@
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
 
+# Bun binary for all stages
+FROM oven/bun:1.3.10 AS bun-bin
+
 # ============================================================================
 # Stage 1: Dependencies
 # ============================================================================
 FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS workspace-deps
 
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
+
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json bun.lock ./
 COPY services/platform/package.json ./services/platform/
 COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
+COPY services/operator/package.json ./services/operator/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
+COPY tools/cli/package.json ./tools/cli/
+COPY patches/ ./patches/
 
-RUN npm ci --legacy-peer-deps
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/* \
+    && HUSKY=0 bun install
 
 # ============================================================================
 # Stage 2: Builder
 # ============================================================================
 FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS builder
 
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
+
 WORKDIR /app
 
+# Preserve workspace layout so bun's internal symlinks resolve correctly
 COPY --from=workspace-deps /app/node_modules ./node_modules
-COPY --from=workspace-deps /app/services/platform/node_modules/ ./node_modules/
-# Workspace overlay may overwrite root deps with incompatible workspace versions.
-# lru-cache@11 (dev dep for jsdom) overwrites lru-cache@5 (needed by @babel). Restore it.
-RUN rm -rf node_modules/lru-cache
-COPY --from=workspace-deps /app/node_modules/lru-cache/ ./node_modules/lru-cache/
+COPY --from=workspace-deps /app/services/platform/node_modules ./services/platform/node_modules
+
+COPY tsconfig.base.json ./tsconfig.base.json
 
 COPY services/platform/vite.config.ts \
      services/platform/tsconfig.json \
@@ -43,47 +56,57 @@ COPY services/platform/vite.config.ts \
      services/platform/tsr.config.json \
      services/platform/components.json \
      services/platform/package.json \
-     ./
+     ./services/platform/
 
-COPY tsconfig.base.json /tsconfig.base.json
+COPY services/platform/app ./services/platform/app
+COPY services/platform/lib ./services/platform/lib
+COPY services/platform/convex ./services/platform/convex
+COPY services/platform/public ./services/platform/public
+COPY services/platform/types ./services/platform/types
+COPY services/platform/messages ./services/platform/messages
+COPY services/platform/vite-plugins ./services/platform/vite-plugins
 
-COPY services/platform/app ./app
-COPY services/platform/lib ./lib
-COPY services/platform/convex ./convex
-COPY services/platform/public ./public
-COPY services/platform/types ./types
-COPY services/platform/messages ./messages
-COPY services/platform/vite-plugins ./vite-plugins
-
-COPY services/platform/server.js \
+COPY services/platform/server.ts \
      services/platform/docker-entrypoint.sh \
      services/platform/generate-admin-key.sh \
      services/platform/env.sh \
-     ./
+     ./services/platform/
 
 ENV NODE_ENV=production
 
-RUN npx vite build
+RUN cd services/platform && bun --bun vite build
 
 # ============================================================================
 # Stage 3: Pruner
 # ============================================================================
 FROM builder AS pruner
 
-RUN npm prune --omit=dev --legacy-peer-deps 2>/dev/null || true \
-    && rm -rf ./node_modules/@swc/core* \
-              ./node_modules/lightningcss* \
-              ./node_modules/@parcel/watcher* \
-              ./node_modules/typescript \
-              ./node_modules/@types \
-              ./node_modules/@storybook \
-              ./node_modules/storybook \
-              ./node_modules/pdfjs-dist/legacy \
+COPY --from=workspace-deps /app/package.json /app/bun.lock /tmp/workspace/
+COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/
+COPY --from=workspace-deps /app/services/crawler/package.json /tmp/workspace/services/crawler/
+COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/services/rag/
+COPY --from=workspace-deps /app/services/operator/package.json /tmp/workspace/services/operator/
+COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services/db/
+COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
+COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
+COPY --from=workspace-deps /app/patches/ /tmp/workspace/patches/
+
+RUN cd /tmp/workspace && HUSKY=0 bun install --production \
+    && rm -rf /app/node_modules \
+    && mv /tmp/workspace/node_modules /app/node_modules \
+    && rm -rf /app/node_modules/@swc/core* \
+              /app/node_modules/lightningcss* \
+              /app/node_modules/@parcel/watcher* \
+              /app/node_modules/typescript \
+              /app/node_modules/@types \
+              /app/node_modules/@storybook \
+              /app/node_modules/storybook \
+              /app/node_modules/pdfjs-dist/legacy \
     2>/dev/null || true \
-    && find ./node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -exec rm -rf {} + 2>/dev/null || true \
-    && find ./node_modules -type f -name "*.map" -delete 2>/dev/null || true \
-    && find ./node_modules -type d \( -name "test" -o -name "tests" -o -name "__tests__" -o -name "__mocks__" -o -name "coverage" \) -exec rm -rf {} + 2>/dev/null || true \
-    && find ./node_modules -type f \( -name "*.md" -o -name "*.markdown" -o -name "CHANGELOG*" -o -name "LICENSE*" -o -name "README*" \) -delete 2>/dev/null || true
+    && find /app/node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -exec rm -rf {} + 2>/dev/null || true \
+    && find /app/node_modules -type f -name "*.map" -delete 2>/dev/null || true \
+    && find /app/node_modules -type d \( -name "test" -o -name "tests" -o -name "__tests__" -o -name "__mocks__" -o -name "coverage" \) -exec rm -rf {} + 2>/dev/null || true \
+    && find /app/node_modules -type f \( -name "*.md" -o -name "*.markdown" -o -name "CHANGELOG*" -o -name "LICENSE*" -o -name "README*" \) -delete 2>/dev/null || true
 
 # ============================================================================
 # Stage 4: Convex Dashboard
@@ -94,6 +117,8 @@ FROM ghcr.io/get-convex/convex-dashboard:5f66740ae8dd506577d27294adc55b81e4fbe91
 # Stage 5: Runtime
 # ============================================================================
 FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS runner
+
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 
 WORKDIR /app
 
@@ -132,13 +157,13 @@ ENV NODE_ENV=production \
 
 COPY --from=convex-dashboard --chown=app:app /app /dashboard
 
-COPY --from=pruner --chown=app:app /app/dist ./dist
-COPY --from=pruner --chown=app:app /app/server.js ./
-COPY --from=pruner --chown=app:app /app/convex ./convex
-COPY --from=pruner --chown=app:app /app/lib ./lib
+COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
+COPY --from=pruner --chown=app:app /app/services/platform/server.ts ./
+COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
+COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
-COPY --from=pruner --chown=app:app /app/package.json ./
-COPY --from=pruner --chown=app:app /app/docker-entrypoint.sh /app/generate-admin-key.sh /app/env.sh ./
+COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
+COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/env.sh ./
 
 RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh
 

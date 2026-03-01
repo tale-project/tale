@@ -6,7 +6,7 @@
  * overwhelming the workpool in a single burst.
  *
  * Usage:
- *   npx tsx stress-tests/scenarios/sustained-load.ts
+ *   bunx tsx stress-tests/scenarios/sustained-load.ts
  *
  * Requires: CONVEX_URL, ORGANIZATION_ID, WORKFLOW_DEFINITION_ID
  */

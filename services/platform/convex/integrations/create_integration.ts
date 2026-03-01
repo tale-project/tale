@@ -94,7 +94,7 @@ export async function createIntegration(
   }
 
   // Create integration - type assertion needed due to schema mismatches between shared types and mutation
-  // The generated API types need regeneration (run `npx convex dev`)
+  // The generated API types need regeneration (run `bunx convex dev`)
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex runMutation return type mismatch with generated API
   const integrationId = (await ctx.runMutation(
     internal.integrations.internal_mutations.createIntegration,

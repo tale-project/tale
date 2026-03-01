@@ -85,10 +85,10 @@ export function FormDialog({
   const onOpenChangeRef = useRef(onOpenChange);
   onOpenChangeRef.current = onOpenChange;
 
-  const handleClose = useCallback((open: boolean) => {
+  const handleClose = useCallback((isOpen: boolean) => {
     // Block closing while submitting, but always allow opening
-    if (open || !isSubmittingRef.current) {
-      onOpenChangeRef.current?.(open);
+    if (isOpen || !isSubmittingRef.current) {
+      onOpenChangeRef.current?.(isOpen);
     }
   }, []);
 

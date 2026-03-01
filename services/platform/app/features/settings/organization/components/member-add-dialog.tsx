@@ -166,11 +166,11 @@ export function AddMemberDialog({
     onOpenChange(false);
   };
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open && !showCredentials) {
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen && !showCredentials) {
       reset();
     }
-    onOpenChange(open);
+    onOpenChange(isOpen);
   };
 
   return (

@@ -1,4 +1,4 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env bun
 /**
  * Generate OpenAPI spec with x-api-key authentication
  *
@@ -49,7 +49,7 @@ function main() {
 
   try {
     execFileSync(
-      'npx',
+      'bunx',
       ['convex-helpers', 'open-api-spec', '--output-file', tempYamlPath],
       {
         cwd: platformDir,

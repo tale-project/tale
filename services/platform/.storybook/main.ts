@@ -1,7 +1,8 @@
+import type { StorybookConfig } from '@storybook/react-vite';
+
 process.env.SITE_URL ??= 'http://localhost:6006';
 
-/** @type {import('@storybook/react-vite').StorybookConfig} */
-const config = {
+const config: StorybookConfig = {
   stories: [
     '../app/components/ui/**/*.stories.@(ts|tsx)',
     '../app/components/icons/**/*.stories.@(ts|tsx)',
@@ -28,10 +29,10 @@ const config = {
   docs: {
     autodocs: 'tag',
   },
-  async viteFinal(config) {
+  async viteFinal(viteConfig) {
     const { mergeConfig } = await import('vite');
     const path = await import('path');
-    return mergeConfig(config, {
+    return mergeConfig(viteConfig, {
       resolve: {
         alias: {
           '@': path.resolve(import.meta.dirname, '..'),

@@ -1,3 +1,81 @@
+// ─── Sandbox API Types ──────────────────────────────────────────────────────
+// These types describe the APIs available inside the integration sandbox.
+// They are stripped during transpilation and exist only for editor support.
+
+interface HttpResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: unknown;
+  text(): string;
+  json(): unknown;
+}
+
+interface HttpMethodOptions {
+  headers?: Record<string, string>;
+  responseType?: 'base64';
+}
+
+interface BodyMethodOptions extends HttpMethodOptions {
+  body?: string;
+  binaryBody?: string;
+}
+
+interface HttpApi {
+  get(url: string, options?: HttpMethodOptions): HttpResponse;
+  post(url: string, options?: BodyMethodOptions): HttpResponse;
+  put(url: string, options?: BodyMethodOptions): HttpResponse;
+  patch(url: string, options?: BodyMethodOptions): HttpResponse;
+  delete(url: string, options?: BodyMethodOptions): HttpResponse;
+}
+
+interface SecretsApi {
+  get(key: string): string | undefined;
+}
+
+interface FileReference {
+  fileId: string;
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+interface FilesApi {
+  download(
+    url: string,
+    options: { headers?: Record<string, string>; fileName: string },
+  ): FileReference;
+  store(
+    data: string,
+    options: {
+      encoding: 'base64' | 'utf-8';
+      contentType: string;
+      fileName: string;
+    },
+  ): FileReference;
+}
+
+interface ConnectorContext {
+  operation: string;
+  params: Record<string, unknown>;
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+interface TestConnectionContext {
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Circuly Connector - Fetch data from Circuly API
 // This connector runs in a sandboxed environment with controlled HTTP access
 
@@ -6,9 +84,9 @@ const CIRCULY_API_VERSION = '2025-01';
 const connector = {
   operations: ['list_products', 'list_customers', 'list_subscriptions'],
 
-  testConnection: function (ctx) {
-    var username = ctx.secrets.get('username');
-    var password = ctx.secrets.get('password');
+  testConnection: function (ctx: TestConnectionContext) {
+    const username = ctx.secrets.get('username');
+    const password = ctx.secrets.get('password');
 
     if (!username) {
       throw new Error('Circuly username is required.');
@@ -17,13 +95,13 @@ const connector = {
       throw new Error('Circuly password is required.');
     }
 
-    var authString = ctx.base64Encode(username + ':' + password);
-    var url =
+    const authString = ctx.base64Encode(username + ':' + password);
+    const url =
       'https://api.circuly.io/api/' +
       CIRCULY_API_VERSION +
       '/customers?per_page=1';
 
-    var response = ctx.http.get(url, {
+    const response = ctx.http.get(url, {
       headers: {
         Authorization: 'Basic ' + authString,
         Accept: 'application/json',
@@ -53,7 +131,7 @@ const connector = {
     return { status: 'ok' };
   },
 
-  execute: function (ctx) {
+  execute: function (ctx: ConnectorContext) {
     const { operation, params, http, secrets } = ctx;
 
     // Get credentials from secrets
@@ -73,20 +151,24 @@ const connector = {
     const endpoint = '/' + resource;
 
     // Build query parameters
-    const queryParts = [];
+    const queryParts: string[] = [];
     const page = params.page || 1;
-    const perPage = Math.min(params.per_page || 50, 100);
+    const perPage = Math.min((params.per_page as number) || 50, 100);
     queryParts.push('page=' + page);
     queryParts.push('per_page=' + perPage);
 
-    if (params.sort) queryParts.push('sort=' + encodeURIComponent(params.sort));
+    if (params.sort)
+      queryParts.push('sort=' + encodeURIComponent(params.sort as string));
     if (params.desc !== undefined)
-      queryParts.push('desc=' + encodeURIComponent(params.desc));
-    if (params.id) queryParts.push('id=' + encodeURIComponent(params.id));
+      queryParts.push('desc=' + encodeURIComponent(params.desc as string));
+    if (params.id)
+      queryParts.push('id=' + encodeURIComponent(params.id as string));
     if (params.customer_id)
-      queryParts.push('customer_id=' + encodeURIComponent(params.customer_id));
+      queryParts.push(
+        'customer_id=' + encodeURIComponent(params.customer_id as string),
+      );
     if (params.status)
-      queryParts.push('status=' + encodeURIComponent(params.status));
+      queryParts.push('status=' + encodeURIComponent(params.status as string));
 
     const fullUrl = baseUrl + endpoint + '?' + queryParts.join('&');
 
@@ -108,12 +190,12 @@ const connector = {
       );
     }
 
-    const responseData = response.json();
-    const data = responseData.data;
-    const meta = responseData.meta;
+    const responseData = response.json() as Record<string, unknown>;
+    const data = responseData.data as unknown[];
+    const meta = responseData.meta as Record<string, number> | undefined;
 
     // Extract pagination
-    var pagination = null;
+    let pagination = null;
     if (meta) {
       const currentPage = meta.current_page || 1;
       const lastPage = meta.last_page || 1;

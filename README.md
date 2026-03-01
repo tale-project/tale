@@ -211,8 +211,7 @@ For local development (non-Docker):
 
 ### Prerequisites
 
-- **Node.js**: v20.19.0 or higher (current: v20.16.0 - upgrade recommended)
-- **npm**: 10.x or higher
+- **Bun**: 1.3.x or higher ([installation instructions](https://bun.sh/docs/installation))
 - **Python**: 3.12.x (required for Python services: rag, crawler)
 - **uv**: Python package manager ([installation instructions](https://github.com/astral-sh/uv))
 
@@ -231,8 +230,8 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ### Development Commands
 
 ```bash
-# Install dependencies (Node.js)
-npm install
+# Install dependencies
+bun install
 
 # Install Python dev dependencies (optional, required for linting/testing Python services)
 cd services/rag && uv sync --extra dev
@@ -240,22 +239,22 @@ cd ../crawler && uv sync --extra dev
 cd ../..
 
 # Type checking
-npm run typecheck
+bun run typecheck
 
 # Linting
-npm run lint
-npm run lint:fix
+bun run lint
+bun run lint:fix
 
 # Build all services
-npm run build
+bun run build
 
 # Run tests
-npm run test
-npm run test:watch
-npm run test:coverage
+bun run test
+bun run test:watch
+bun run test:coverage
 
 # Start development servers
-npm run dev
+bun run dev
 ```
 
 ### Known Issues

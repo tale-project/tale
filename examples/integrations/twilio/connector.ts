@@ -1,9 +1,87 @@
+// ─── Sandbox API Types ──────────────────────────────────────────────────────
+// These types describe the APIs available inside the integration sandbox.
+// They are stripped during transpilation and exist only for editor support.
+
+interface HttpResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: unknown;
+  text(): string;
+  json(): unknown;
+}
+
+interface HttpMethodOptions {
+  headers?: Record<string, string>;
+  responseType?: 'base64';
+}
+
+interface BodyMethodOptions extends HttpMethodOptions {
+  body?: string;
+  binaryBody?: string;
+}
+
+interface HttpApi {
+  get(url: string, options?: HttpMethodOptions): HttpResponse;
+  post(url: string, options?: BodyMethodOptions): HttpResponse;
+  put(url: string, options?: BodyMethodOptions): HttpResponse;
+  patch(url: string, options?: BodyMethodOptions): HttpResponse;
+  delete(url: string, options?: BodyMethodOptions): HttpResponse;
+}
+
+interface SecretsApi {
+  get(key: string): string | undefined;
+}
+
+interface FileReference {
+  fileId: string;
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+interface FilesApi {
+  download(
+    url: string,
+    options: { headers?: Record<string, string>; fileName: string },
+  ): FileReference;
+  store(
+    data: string,
+    options: {
+      encoding: 'base64' | 'utf-8';
+      contentType: string;
+      fileName: string;
+    },
+  ): FileReference;
+}
+
+interface ConnectorContext {
+  operation: string;
+  params: Record<string, unknown>;
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+interface TestConnectionContext {
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Twilio Connector - Twilio REST API
 // This connector runs in a sandboxed environment with controlled HTTP access
 
-var API_BASE = 'https://api.twilio.com/2010-04-01';
+const API_BASE = 'https://api.twilio.com/2010-04-01';
 
-var connector = {
+const connector = {
   operations: [
     'send_sms',
     'list_messages',
@@ -14,9 +92,9 @@ var connector = {
     'list_phone_numbers',
   ],
 
-  testConnection: function (ctx) {
-    var accountSid = ctx.secrets.get('username');
-    var authToken = ctx.secrets.get('password');
+  testConnection: function (ctx: TestConnectionContext) {
+    const accountSid = ctx.secrets.get('username');
+    const authToken = ctx.secrets.get('password');
 
     if (!accountSid) {
       throw new Error('Twilio Account SID is required.');
@@ -25,8 +103,8 @@ var connector = {
       throw new Error('Twilio Auth Token is required.');
     }
 
-    var authString = ctx.base64Encode(accountSid + ':' + authToken);
-    var response = ctx.http.get(
+    const authString = ctx.base64Encode(accountSid + ':' + authToken);
+    const response = ctx.http.get(
       API_BASE + '/Accounts/' + accountSid + '.json',
       {
         headers: {
@@ -50,7 +128,7 @@ var connector = {
       );
     }
 
-    var account = response.json();
+    const account = response.json();
     return {
       status: 'ok',
       accountSid: account.sid,
@@ -58,21 +136,21 @@ var connector = {
     };
   },
 
-  execute: function (ctx) {
-    var operation = ctx.operation;
-    var params = ctx.params;
-    var http = ctx.http;
-    var secrets = ctx.secrets;
-    var base64Encode = ctx.base64Encode;
+  execute: function (ctx: ConnectorContext) {
+    const operation = ctx.operation;
+    const params = ctx.params;
+    const http = ctx.http;
+    const secrets = ctx.secrets;
+    const base64Encode = ctx.base64Encode;
 
-    var accountSid = secrets.get('username');
-    var authToken = secrets.get('password');
+    const accountSid = secrets.get('username');
+    const authToken = secrets.get('password');
     if (!accountSid || !authToken) {
       throw new Error('Twilio Account SID and Auth Token are required.');
     }
 
-    var authString = base64Encode(accountSid + ':' + authToken);
-    var headers = {
+    const authString = base64Encode(accountSid + ':' + authToken);
+    const headers = {
       Authorization: 'Basic ' + authString,
       Accept: 'application/json',
     };
@@ -96,7 +174,7 @@ var connector = {
   },
 };
 
-function handleError(response, operation) {
+function handleError(response: HttpResponse, operation: string) {
   if (response.status === 401) {
     throw new Error(
       'Authentication failed during ' +
@@ -118,9 +196,9 @@ function handleError(response, operation) {
     );
   }
   if (response.status >= 400) {
-    var errorBody = '';
+    let errorBody = '';
     try {
-      var err = response.json();
+      const err = response.json();
       errorBody = err.message || err.more_info || JSON.stringify(err);
     } catch (e) {
       errorBody = response.text();
@@ -136,19 +214,24 @@ function handleError(response, operation) {
   }
 }
 
-function encodeFormData(params) {
-  var parts = [];
-  for (var key in params) {
+function encodeFormData(params: Record<string, unknown>) {
+  const parts: string[] = [];
+  for (const key in params) {
     if (params[key] !== undefined && params[key] !== null) {
       parts.push(
-        encodeURIComponent(key) + '=' + encodeURIComponent(params[key]),
+        encodeURIComponent(key) + '=' + encodeURIComponent(String(params[key])),
       );
     }
   }
   return parts.join('&');
 }
 
-function sendSms(http, headers, accountSid, params) {
+function sendSms(
+  http: HttpApi,
+  headers: Record<string, string>,
+  accountSid: string,
+  params: Record<string, unknown>,
+) {
   if (!params.to) {
     throw new Error('to (phone number in E.164 format) is required.');
   }
@@ -159,14 +242,14 @@ function sendSms(http, headers, accountSid, params) {
     throw new Error('body (message text) is required.');
   }
 
-  var url = API_BASE + '/Accounts/' + accountSid + '/Messages.json';
-  var formData = encodeFormData({
+  const url = API_BASE + '/Accounts/' + accountSid + '/Messages.json';
+  const formData = encodeFormData({
     To: params.to,
     From: params.from,
     Body: params.body,
   });
 
-  var response = http.post(url, {
+  const response = http.post(url, {
     headers: {
       Authorization: headers.Authorization,
       Accept: 'application/json',
@@ -184,7 +267,7 @@ function sendSms(http, headers, accountSid, params) {
   }
   handleError(response, 'send SMS');
 
-  var message = response.json();
+  const message = response.json();
   return {
     success: true,
     operation: 'send_sms',
@@ -194,25 +277,36 @@ function sendSms(http, headers, accountSid, params) {
   };
 }
 
-function listMessages(http, headers, accountSid, params) {
-  var queryParts = [];
-  if (params.to) queryParts.push('To=' + encodeURIComponent(params.to));
-  if (params.from) queryParts.push('From=' + encodeURIComponent(params.from));
+function listMessages(
+  http: HttpApi,
+  headers: Record<string, string>,
+  accountSid: string,
+  params: Record<string, unknown>,
+) {
+  const queryParts: string[] = [];
+  if (params.to)
+    queryParts.push('To=' + encodeURIComponent(params.to as string));
+  if (params.from)
+    queryParts.push('From=' + encodeURIComponent(params.from as string));
   if (params.dateSent)
-    queryParts.push('DateSent=' + encodeURIComponent(params.dateSent));
-  queryParts.push('PageSize=' + Math.min(params.pageSize || 50, 1000));
+    queryParts.push(
+      'DateSent=' + encodeURIComponent(params.dateSent as string),
+    );
+  queryParts.push(
+    'PageSize=' + Math.min((params.pageSize || 50) as number, 1000),
+  );
   if (params.page !== undefined) queryParts.push('Page=' + params.page);
 
-  var url =
+  const url =
     API_BASE +
     '/Accounts/' +
     accountSid +
     '/Messages.json?' +
     queryParts.join('&');
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list messages');
 
-  var data = response.json();
+  const data = response.json();
   return {
     success: true,
     operation: 'list_messages',
@@ -226,22 +320,27 @@ function listMessages(http, headers, accountSid, params) {
   };
 }
 
-function getMessage(http, headers, accountSid, params) {
+function getMessage(
+  http: HttpApi,
+  headers: Record<string, string>,
+  accountSid: string,
+  params: Record<string, unknown>,
+) {
   if (!params.messageSid) {
     throw new Error('messageSid (message SID) is required.');
   }
 
-  var url =
+  const url =
     API_BASE +
     '/Accounts/' +
     accountSid +
     '/Messages/' +
     params.messageSid +
     '.json';
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get message');
 
-  var message = response.json();
+  const message = response.json();
   return {
     success: true,
     operation: 'get_message',
@@ -251,25 +350,34 @@ function getMessage(http, headers, accountSid, params) {
   };
 }
 
-function listCalls(http, headers, accountSid, params) {
-  var queryParts = [];
-  if (params.to) queryParts.push('To=' + encodeURIComponent(params.to));
-  if (params.from) queryParts.push('From=' + encodeURIComponent(params.from));
+function listCalls(
+  http: HttpApi,
+  headers: Record<string, string>,
+  accountSid: string,
+  params: Record<string, unknown>,
+) {
+  const queryParts: string[] = [];
+  if (params.to)
+    queryParts.push('To=' + encodeURIComponent(params.to as string));
+  if (params.from)
+    queryParts.push('From=' + encodeURIComponent(params.from as string));
   if (params.status)
-    queryParts.push('Status=' + encodeURIComponent(params.status));
-  queryParts.push('PageSize=' + Math.min(params.pageSize || 50, 1000));
+    queryParts.push('Status=' + encodeURIComponent(params.status as string));
+  queryParts.push(
+    'PageSize=' + Math.min((params.pageSize || 50) as number, 1000),
+  );
   if (params.page !== undefined) queryParts.push('Page=' + params.page);
 
-  var url =
+  const url =
     API_BASE +
     '/Accounts/' +
     accountSid +
     '/Calls.json?' +
     queryParts.join('&');
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list calls');
 
-  var data = response.json();
+  const data = response.json();
   return {
     success: true,
     operation: 'list_calls',
@@ -283,7 +391,12 @@ function listCalls(http, headers, accountSid, params) {
   };
 }
 
-function makeCall(http, headers, accountSid, params) {
+function makeCall(
+  http: HttpApi,
+  headers: Record<string, string>,
+  accountSid: string,
+  params: Record<string, unknown>,
+) {
   if (!params.to) {
     throw new Error('to (phone number in E.164 format) is required.');
   }
@@ -294,8 +407,8 @@ function makeCall(http, headers, accountSid, params) {
     throw new Error('url (TwiML URL for call instructions) is required.');
   }
 
-  var url = API_BASE + '/Accounts/' + accountSid + '/Calls.json';
-  var formParams = {
+  const url = API_BASE + '/Accounts/' + accountSid + '/Calls.json';
+  const formParams: Record<string, unknown> = {
     To: params.to,
     From: params.from,
     Url: params.url,
@@ -303,9 +416,9 @@ function makeCall(http, headers, accountSid, params) {
   if (params.method) {
     formParams.Method = params.method;
   }
-  var formData = encodeFormData(formParams);
+  const formData = encodeFormData(formParams);
 
-  var response = http.post(url, {
+  const response = http.post(url, {
     headers: {
       Authorization: headers.Authorization,
       Accept: 'application/json',
@@ -323,7 +436,7 @@ function makeCall(http, headers, accountSid, params) {
   }
   handleError(response, 'make call');
 
-  var call = response.json();
+  const call = response.json();
   return {
     success: true,
     operation: 'make_call',
@@ -333,12 +446,16 @@ function makeCall(http, headers, accountSid, params) {
   };
 }
 
-function getAccount(http, headers, accountSid) {
-  var url = API_BASE + '/Accounts/' + accountSid + '.json';
-  var response = http.get(url, { headers: headers });
+function getAccount(
+  http: HttpApi,
+  headers: Record<string, string>,
+  accountSid: string,
+) {
+  const url = API_BASE + '/Accounts/' + accountSid + '.json';
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get account');
 
-  var account = response.json();
+  const account = response.json();
   return {
     success: true,
     operation: 'get_account',
@@ -348,21 +465,28 @@ function getAccount(http, headers, accountSid) {
   };
 }
 
-function listPhoneNumbers(http, headers, accountSid, params) {
-  var queryParts = [];
-  queryParts.push('PageSize=' + Math.min(params.pageSize || 50, 1000));
+function listPhoneNumbers(
+  http: HttpApi,
+  headers: Record<string, string>,
+  accountSid: string,
+  params: Record<string, unknown>,
+) {
+  const queryParts: string[] = [];
+  queryParts.push(
+    'PageSize=' + Math.min((params.pageSize || 50) as number, 1000),
+  );
   if (params.page !== undefined) queryParts.push('Page=' + params.page);
 
-  var url =
+  const url =
     API_BASE +
     '/Accounts/' +
     accountSid +
     '/IncomingPhoneNumbers.json?' +
     queryParts.join('&');
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list phone numbers');
 
-  var data = response.json();
+  const data = response.json();
   return {
     success: true,
     operation: 'list_phone_numbers',

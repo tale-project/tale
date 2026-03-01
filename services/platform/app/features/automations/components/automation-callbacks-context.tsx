@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 /**
  * Context for automation workflow callbacks
@@ -36,10 +36,13 @@ export function AutomationCallbacksProvider({
   onAddStepOnEdge,
   onDeleteEdge,
 }: AutomationCallbacksContextType & { children: ReactNode }) {
+  const value = useMemo(
+    () => ({ onNodeClick, onAddStep, onAddStepOnEdge, onDeleteEdge }),
+    [onNodeClick, onAddStep, onAddStepOnEdge, onDeleteEdge],
+  );
+
   return (
-    <AutomationCallbacksContext.Provider
-      value={{ onNodeClick, onAddStep, onAddStepOnEdge, onDeleteEdge }}
-    >
+    <AutomationCallbacksContext.Provider value={value}>
       {children}
     </AutomationCallbacksContext.Provider>
   );

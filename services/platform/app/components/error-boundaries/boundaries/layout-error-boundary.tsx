@@ -52,11 +52,11 @@ export function LayoutErrorBoundary({
       resetKeys={[pathname]}
       maxRetries={MAX_RETRIES}
       isRetryableError={isConvexTransientError}
-      fallback={({ error, reset, organizationId }) => (
+      fallback={(fallbackProps) => (
         <ErrorDisplayCompact
-          error={error}
-          organizationId={organizationId}
-          reset={reset}
+          error={fallbackProps.error}
+          organizationId={fallbackProps.organizationId}
+          reset={fallbackProps.reset}
         />
       )}
     >

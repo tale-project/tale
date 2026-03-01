@@ -111,9 +111,12 @@ const itemsWithAbilityCheck = [
   { label: 'Settings', href: '/dashboard/settings' },
 ];
 
+const adminAbility = defineAbilityFor('admin');
+const memberAbility = defineAbilityFor('member');
+
 export const WithAdminAbility: Story = {
   render: (args) => (
-    <AbilityContext.Provider value={defineAbilityFor('admin')}>
+    <AbilityContext.Provider value={adminAbility}>
       <TabNavigation {...args} />
     </AbilityContext.Provider>
   ),
@@ -132,7 +135,7 @@ export const WithAdminAbility: Story = {
 
 export const WithMemberAbility: Story = {
   render: (args) => (
-    <AbilityContext.Provider value={defineAbilityFor('member')}>
+    <AbilityContext.Provider value={memberAbility}>
       <TabNavigation {...args} />
     </AbilityContext.Provider>
   ),

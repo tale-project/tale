@@ -51,8 +51,8 @@ export const chatViaWebhook = internalMutation({
       );
 
     let activeVersion = null;
-    for await (const v of activeVersionQuery) {
-      activeVersion = v;
+    for await (const version of activeVersionQuery) {
+      activeVersion = version;
       break;
     }
 

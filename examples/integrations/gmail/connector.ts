@@ -1,9 +1,87 @@
+// ─── Sandbox API Types ──────────────────────────────────────────────────────
+// These types describe the APIs available inside the integration sandbox.
+// They are stripped during transpilation and exist only for editor support.
+
+interface HttpResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: unknown;
+  text(): string;
+  json(): unknown;
+}
+
+interface HttpMethodOptions {
+  headers?: Record<string, string>;
+  responseType?: 'base64';
+}
+
+interface BodyMethodOptions extends HttpMethodOptions {
+  body?: string;
+  binaryBody?: string;
+}
+
+interface HttpApi {
+  get(url: string, options?: HttpMethodOptions): HttpResponse;
+  post(url: string, options?: BodyMethodOptions): HttpResponse;
+  put(url: string, options?: BodyMethodOptions): HttpResponse;
+  patch(url: string, options?: BodyMethodOptions): HttpResponse;
+  delete(url: string, options?: BodyMethodOptions): HttpResponse;
+}
+
+interface SecretsApi {
+  get(key: string): string | undefined;
+}
+
+interface FileReference {
+  fileId: string;
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+interface FilesApi {
+  download(
+    url: string,
+    options: { headers?: Record<string, string>; fileName: string },
+  ): FileReference;
+  store(
+    data: string,
+    options: {
+      encoding: 'base64' | 'utf-8';
+      contentType: string;
+      fileName: string;
+    },
+  ): FileReference;
+}
+
+interface ConnectorContext {
+  operation: string;
+  params: Record<string, unknown>;
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+interface TestConnectionContext {
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Gmail Connector - Google Gmail API v1
 // This connector runs in a sandboxed environment with controlled HTTP access
 
-var API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
+const API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
-var connector = {
+const connector = {
   operations: [
     'list_messages',
     'get_message',
@@ -17,8 +95,8 @@ var connector = {
     'check_delivery',
   ],
 
-  testConnection: function (ctx) {
-    var accessToken = ctx.secrets.get('accessToken');
+  testConnection: function (ctx: TestConnectionContext) {
+    const accessToken = ctx.secrets.get('accessToken');
 
     if (!accessToken) {
       throw new Error(
@@ -26,7 +104,7 @@ var connector = {
       );
     }
 
-    var response = ctx.http.get(API_BASE + '/profile', {
+    const response = ctx.http.get(API_BASE + '/profile', {
       headers: {
         Authorization: 'Bearer ' + accessToken,
         Accept: 'application/json',
@@ -52,7 +130,7 @@ var connector = {
       );
     }
 
-    var profile = response.json();
+    const profile = response.json() as Record<string, unknown>;
     return {
       status: 'ok',
       emailAddress: profile.emailAddress,
@@ -60,21 +138,21 @@ var connector = {
     };
   },
 
-  execute: function (ctx) {
-    var operation = ctx.operation;
-    var params = ctx.params;
-    var http = ctx.http;
-    var secrets = ctx.secrets;
-    var files = ctx.files;
-    var base64Encode = ctx.base64Encode;
-    var base64Decode = ctx.base64Decode;
+  execute: function (ctx: ConnectorContext) {
+    const operation = ctx.operation;
+    const params = ctx.params;
+    const http = ctx.http;
+    const secrets = ctx.secrets;
+    const files = ctx.files;
+    const base64Encode = ctx.base64Encode;
+    const base64Decode = ctx.base64Decode;
 
-    var accessToken = secrets.get('accessToken');
+    const accessToken = secrets.get('accessToken');
     if (!accessToken) {
       throw new Error('Google access token is required.');
     }
 
-    var headers = {
+    const headers = {
       Authorization: 'Bearer ' + accessToken,
       Accept: 'application/json',
       'Content-Type': 'application/json',
@@ -115,7 +193,7 @@ var connector = {
   },
 };
 
-function handleError(response, operation) {
+function handleError(response: HttpResponse, operation: string): void {
   if (response.status === 401) {
     throw new Error(
       'Authentication failed during ' +
@@ -141,9 +219,9 @@ function handleError(response, operation) {
     );
   }
   if (response.status >= 400) {
-    var errorBody = '';
+    let errorBody = '';
     try {
-      var err = response.json();
+      const err = response.json() as Record<string, Record<string, string>>;
       errorBody = err.error
         ? err.error.message || JSON.stringify(err.error)
         : response.text();
@@ -165,10 +243,23 @@ function handleError(response, operation) {
 // Email format mapping helpers (Gmail → standard email type)
 // ---------------------------------------------------------------------------
 
-function getGmailHeader(headers, name) {
+interface GmailHeader {
+  name: string;
+  value: string;
+}
+
+interface GmailPayloadPart {
+  mimeType?: string;
+  filename?: string;
+  headers?: GmailHeader[];
+  body?: { data?: string; attachmentId?: string; size?: number };
+  parts?: GmailPayloadPart[];
+}
+
+function getGmailHeader(headers: GmailHeader[] | undefined, name: string) {
   if (!headers) return '';
-  var lower = name.toLowerCase();
-  for (var i = 0; i < headers.length; i++) {
+  const lower = name.toLowerCase();
+  for (let i = 0; i < headers.length; i++) {
     if (headers[i].name.toLowerCase() === lower) {
       return headers[i].value || '';
     }
@@ -176,9 +267,9 @@ function getGmailHeader(headers, name) {
   return '';
 }
 
-function parseEmailAddress(str) {
+function parseEmailAddress(str: string) {
   if (!str) return { name: '', address: '' };
-  var match = str.match(/^(.*?)\s*<(.+?)>$/);
+  const match = str.match(/^(.*?)\s*<(.+?)>$/);
   if (match) {
     return {
       name: match[1].trim().replace(/^"|"$/g, ''),
@@ -188,14 +279,14 @@ function parseEmailAddress(str) {
   return { name: '', address: str.trim() };
 }
 
-function parseEmailAddressList(str) {
+function parseEmailAddressList(str: string) {
   if (!str) return [];
   // Split on commas that are not inside angle brackets
-  var parts = [];
-  var depth = 0;
-  var current = '';
-  for (var i = 0; i < str.length; i++) {
-    var ch = str[i];
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
     if (ch === '<') depth++;
     else if (ch === '>') depth--;
     else if (ch === ',' && depth === 0) {
@@ -206,17 +297,20 @@ function parseEmailAddressList(str) {
     current += ch;
   }
   if (current.trim()) parts.push(current.trim());
-  var result = [];
-  for (var j = 0; j < parts.length; j++) {
+  const result: Array<{ name: string; address: string }> = [];
+  for (let j = 0; j < parts.length; j++) {
     result.push(parseEmailAddress(parts[j]));
   }
   return result;
 }
 
-function base64UrlDecodeString(data, base64Decode) {
+function base64UrlDecodeString(
+  data: string,
+  base64Decode: (input: string) => string,
+) {
   if (!data) return '';
-  var base64 = data.replace(/-/g, '+').replace(/_/g, '/');
-  var pad = base64.length % 4;
+  let base64 = data.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = base64.length % 4;
   if (pad === 2) base64 += '==';
   else if (pad === 3) base64 += '=';
   if (base64Decode) {
@@ -225,39 +319,55 @@ function base64UrlDecodeString(data, base64Decode) {
   return '';
 }
 
-function extractBodyPart(payload, mimeType, base64Decode) {
+function extractBodyPart(
+  payload: GmailPayloadPart | undefined,
+  mimeType: string,
+  base64Decode: (input: string) => string,
+): string {
   if (!payload) return '';
   if (payload.mimeType === mimeType && payload.body && payload.body.data) {
     return base64UrlDecodeString(payload.body.data, base64Decode);
   }
   if (payload.parts) {
-    for (var i = 0; i < payload.parts.length; i++) {
-      var result = extractBodyPart(payload.parts[i], mimeType, base64Decode);
+    for (let i = 0; i < payload.parts.length; i++) {
+      const result = extractBodyPart(payload.parts[i], mimeType, base64Decode);
       if (result) return result;
     }
   }
   return '';
 }
 
-function getGmailAccountEmail(http, headers) {
-  var response = http.get(API_BASE + '/profile', { headers: headers });
+function getGmailAccountEmail(http: HttpApi, headers: Record<string, string>) {
+  const response = http.get(API_BASE + '/profile', { headers: headers });
   if (response.status === 200) {
-    return response.json().emailAddress || '';
+    return (response.json() as Record<string, string>).emailAddress || '';
   }
   return '';
 }
 
-function mapGmailToEmailType(msg, accountEmail, base64Decode) {
-  var hdrs = msg.payload ? msg.payload.headers : [];
-  var fromStr = getGmailHeader(hdrs, 'From');
-  var fromParsed = parseEmailAddress(fromStr);
-  var senderAddr = (fromParsed.address || '').toLowerCase();
-  var direction =
+interface GmailMessage {
+  id?: string;
+  threadId?: string;
+  labelIds?: string[];
+  internalDate?: string;
+  payload?: GmailPayloadPart;
+}
+
+function mapGmailToEmailType(
+  msg: GmailMessage,
+  accountEmail: string,
+  base64Decode: (input: string) => string,
+) {
+  const hdrs = msg.payload ? (msg.payload.headers as GmailHeader[]) : [];
+  const fromStr = getGmailHeader(hdrs, 'From');
+  const fromParsed = parseEmailAddress(fromStr);
+  const senderAddr = (fromParsed.address || '').toLowerCase();
+  const direction =
     accountEmail && senderAddr === accountEmail.toLowerCase()
       ? 'outbound'
       : 'inbound';
 
-  var attachmentParts = findAttachmentParts(msg.payload || {}, []);
+  const attachmentParts = findAttachmentParts(msg.payload || {}, []);
 
   return {
     uid: 0,
@@ -278,11 +388,14 @@ function mapGmailToEmailType(msg, accountEmail, base64Decode) {
       references: getGmailHeader(hdrs, 'References') || '',
     },
     attachments: attachmentParts.map(function (part) {
-      var contentIdHeader = getGmailHeader(part.headers, 'Content-ID');
-      var contentId = contentIdHeader
+      const contentIdHeader = getGmailHeader(
+        part.headers as GmailHeader[],
+        'Content-ID',
+      );
+      const contentId = contentIdHeader
         ? contentIdHeader.replace(/^<|>$/g, '')
         : '';
-      var att = {
+      const att: Record<string, unknown> = {
         id: part.body ? part.body.attachmentId : '',
         filename: part.filename || 'attachment',
         contentType: part.mimeType || 'application/octet-stream',
@@ -301,12 +414,16 @@ function mapGmailToEmailType(msg, accountEmail, base64Decode) {
 
 // ---------------------------------------------------------------------------
 
-function listMessages(http, headers, params) {
-  var maxResults = Math.min(params.maxResults || 25, 500);
-  var queryParts = ['maxResults=' + maxResults];
+function listMessages(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const maxResults = Math.min((params.maxResults as number) || 25, 500);
+  const queryParts = ['maxResults=' + maxResults];
 
   // Exclude draft messages — drafts should never enter the sync pipeline
-  var q = params.q || '';
+  let q = (params.q as string) || '';
   if (q.indexOf('is:draft') === -1 && q.indexOf('label:draft') === -1) {
     q = q ? q + ' -is:draft' : '-is:draft';
   }
@@ -314,28 +431,31 @@ function listMessages(http, headers, params) {
     queryParts.push('q=' + encodeURIComponent(q));
   }
   if (params.pageToken) {
-    queryParts.push('pageToken=' + encodeURIComponent(params.pageToken));
+    queryParts.push(
+      'pageToken=' + encodeURIComponent(params.pageToken as string),
+    );
   }
   if (params.labelIds) {
-    var labels = params.labelIds.split(',');
-    for (var i = 0; i < labels.length; i++) {
+    const labels = (params.labelIds as string).split(',');
+    for (let i = 0; i < labels.length; i++) {
       queryParts.push('labelIds=' + encodeURIComponent(labels[i].trim()));
     }
   }
 
-  var url = API_BASE + '/messages?' + queryParts.join('&');
+  const url = API_BASE + '/messages?' + queryParts.join('&');
   console.log('Listing messages: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list messages');
 
-  var data = response.json();
+  const data = response.json() as Record<string, unknown>;
+  const messages = data.messages as unknown[] | undefined;
   return {
     success: true,
     operation: 'list_messages',
-    data: data.messages || [],
-    count: data.messages ? data.messages.length : 0,
-    resultSizeEstimate: data.resultSizeEstimate || 0,
+    data: messages || [],
+    count: messages ? messages.length : 0,
+    resultSizeEstimate: (data.resultSizeEstimate as number) || 0,
     pagination: {
       hasNextPage: !!data.nextPageToken,
       nextPageToken: data.nextPageToken || null,
@@ -344,37 +464,45 @@ function listMessages(http, headers, params) {
   };
 }
 
-function getMessage(http, headers, params, files) {
+function getMessage(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+  files: FilesApi | undefined,
+) {
   if (!params.messageId) {
     throw new Error('messageId is required.');
   }
 
-  var format = params.format || 'full';
-  var url =
+  const format = (params.format as string) || 'full';
+  const url =
     API_BASE +
     '/messages/' +
-    encodeURIComponent(params.messageId) +
+    encodeURIComponent(params.messageId as string) +
     '?format=' +
     encodeURIComponent(format);
   console.log('Fetching message: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get message');
 
-  var message = response.json();
+  const message = response.json() as Record<string, unknown>;
 
   if (params.includeAttachments && files && message.payload) {
-    var attachmentParts = findAttachmentParts(message.payload, []);
+    const attachmentParts = findAttachmentParts(
+      message.payload as GmailPayloadPart,
+      [],
+    );
     if (attachmentParts.length > 0) {
-      var attachmentFiles = [];
-      for (var i = 0; i < attachmentParts.length; i++) {
-        var part = attachmentParts[i];
+      const attachmentFiles = [];
+      for (let i = 0; i < attachmentParts.length; i++) {
+        const part = attachmentParts[i];
         if (part.body && part.body.attachmentId) {
-          var file = downloadAndStoreAttachment(
+          const file = downloadAndStoreAttachment(
             http,
             headers,
             files,
-            params.messageId,
+            params.messageId as string,
             part.body.attachmentId,
             part.filename || 'attachment',
             part.mimeType || 'application/octet-stream',
@@ -396,34 +524,41 @@ function getMessage(http, headers, params, files) {
   };
 }
 
-function searchMessages(http, headers, params) {
+function searchMessages(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.query) {
     throw new Error('query is required for searching messages.');
   }
 
-  var maxResults = Math.min(params.maxResults || 25, 500);
-  var queryParts = [
-    'q=' + encodeURIComponent(params.query),
+  const maxResults = Math.min((params.maxResults as number) || 25, 500);
+  const queryParts = [
+    'q=' + encodeURIComponent(params.query as string),
     'maxResults=' + maxResults,
   ];
 
   if (params.pageToken) {
-    queryParts.push('pageToken=' + encodeURIComponent(params.pageToken));
+    queryParts.push(
+      'pageToken=' + encodeURIComponent(params.pageToken as string),
+    );
   }
 
-  var url = API_BASE + '/messages?' + queryParts.join('&');
+  const url = API_BASE + '/messages?' + queryParts.join('&');
   console.log('Searching messages: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'search messages');
 
-  var data = response.json();
+  const data = response.json() as Record<string, unknown>;
+  const messages = data.messages as unknown[] | undefined;
   return {
     success: true,
     operation: 'search_messages',
-    data: data.messages || [],
-    count: data.messages ? data.messages.length : 0,
-    resultSizeEstimate: data.resultSizeEstimate || 0,
+    data: messages || [],
+    count: messages ? messages.length : 0,
+    resultSizeEstimate: (data.resultSizeEstimate as number) || 0,
     pagination: {
       hasNextPage: !!data.nextPageToken,
       nextPageToken: data.nextPageToken || null,
@@ -432,33 +567,47 @@ function searchMessages(http, headers, params) {
   };
 }
 
-function toMimeContentType(contentType) {
+function toMimeContentType(contentType: string | undefined) {
   if (!contentType) return 'text/plain';
-  var lower = contentType.toLowerCase();
+  const lower = contentType.toLowerCase();
   if (lower === 'html' || lower === 'text/html') return 'text/html';
   if (lower === 'text' || lower === 'text/plain') return 'text/plain';
   return contentType;
 }
 
-function hasNonAscii(str) {
-  for (var i = 0; i < str.length; i++) {
+function hasNonAscii(str: string) {
+  for (let i = 0; i < str.length; i++) {
     if (str.charCodeAt(i) > 127) return true;
   }
   return false;
 }
 
-function encodeRfc2047(text, base64Encode) {
+function encodeRfc2047(text: string, base64Encode: (input: string) => string) {
   if (!text || !hasNonAscii(text)) return text;
   return '=?UTF-8?B?' + base64Encode(text) + '?=';
 }
 
-function formatReferences(refs, fallback) {
+function formatReferences(refs: unknown, fallback: string) {
   if (Array.isArray(refs)) return refs.join(' ');
-  return refs || fallback;
+  return (refs as string) || fallback;
 }
 
-function buildSimpleMimeMessage(params, base64Encode) {
-  var lines = [];
+interface MimeParams {
+  to: string;
+  cc?: string;
+  bcc?: string;
+  subject: string;
+  body?: string;
+  contentType?: string;
+  inReplyTo?: string | null;
+  references?: unknown;
+}
+
+function buildSimpleMimeMessage(
+  params: MimeParams,
+  base64Encode: (input: string) => string,
+) {
+  const lines: string[] = [];
   lines.push('To: ' + params.to);
   if (params.cc) lines.push('Cc: ' + params.cc);
   if (params.bcc) lines.push('Bcc: ' + params.bcc);
@@ -480,9 +629,19 @@ function buildSimpleMimeMessage(params, base64Encode) {
   return lines.join('\r\n');
 }
 
-function buildMimeWithAttachments(params, attachmentDataList, base64Encode) {
-  var boundary = 'boundary_' + Date.now() + '_tale';
-  var lines = [];
+interface AttachmentData {
+  name: string;
+  contentType?: string;
+  base64Data: string;
+}
+
+function buildMimeWithAttachments(
+  params: MimeParams,
+  attachmentDataList: AttachmentData[],
+  base64Encode: (input: string) => string,
+) {
+  const boundary = 'boundary_' + Date.now() + '_tale';
+  const lines: string[] = [];
   lines.push('To: ' + params.to);
   if (params.cc) lines.push('Cc: ' + params.cc);
   if (params.bcc) lines.push('Bcc: ' + params.bcc);
@@ -506,8 +665,8 @@ function buildMimeWithAttachments(params, attachmentDataList, base64Encode) {
   lines.push('');
   lines.push(params.body || '');
   // Attachment parts
-  for (var i = 0; i < attachmentDataList.length; i++) {
-    var att = attachmentDataList[i];
+  for (let i = 0; i < attachmentDataList.length; i++) {
+    const att = attachmentDataList[i];
     lines.push('--' + boundary);
     lines.push(
       'Content-Type: ' +
@@ -525,12 +684,18 @@ function buildMimeWithAttachments(params, attachmentDataList, base64Encode) {
   return lines.join('\r\n');
 }
 
-function base64UrlEncode(base64Encode, str) {
-  var b64 = base64Encode(str);
+function base64UrlEncode(base64Encode: (input: string) => string, str: string) {
+  const b64 = base64Encode(str);
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function sendMessage(http, headers, params, base64Encode, files) {
+function sendMessage(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+  base64Encode: (input: string) => string,
+  files: FilesApi | undefined,
+) {
   if (!params.to) {
     throw new Error('to (recipient email address) is required.');
   }
@@ -543,40 +708,46 @@ function sendMessage(http, headers, params, base64Encode, files) {
   // pass and uses a sequential counter for HTTP request caching. If we mutate
   // params (e.g. setting params.threadId), a conditional branch may be skipped
   // on the next pass, shifting the counter and returning wrong cached responses.
-  var threadId = params.threadId || null;
-  var inReplyTo = params.inReplyTo || null;
+  let threadId = (params.threadId as string) || null;
+  let inReplyTo = (params.inReplyTo as string) || null;
 
   if (params.inReplyTo && !params.threadId) {
-    var isRfc2822 = params.inReplyTo.indexOf('<') !== -1;
+    const isRfc2822 = (params.inReplyTo as string).indexOf('<') !== -1;
 
     if (isRfc2822) {
       // RFC 2822 Message-ID — search by rfc822msgid
-      var searchUrl =
+      const searchUrl =
         API_BASE +
         '/messages?q=rfc822msgid:' +
-        encodeURIComponent(params.inReplyTo) +
+        encodeURIComponent(params.inReplyTo as string) +
         '&maxResults=1';
-      var searchResponse = http.get(searchUrl, { headers: headers });
+      const searchResponse = http.get(searchUrl, { headers: headers });
       if (searchResponse.status === 200) {
-        var searchData = searchResponse.json();
-        if (searchData.messages && searchData.messages.length > 0) {
-          threadId = searchData.messages[0].threadId;
+        const searchData = searchResponse.json() as Record<string, unknown>;
+        const searchMessages = searchData.messages as
+          | Array<{ threadId: string }>
+          | undefined;
+        if (searchMessages && searchMessages.length > 0) {
+          threadId = searchMessages[0].threadId;
         }
       }
     } else {
       // Gmail internal ID — fetch the message directly to get threadId
       // and resolve the RFC 2822 Message-ID for proper MIME threading headers
-      var lookupUrl =
+      const lookupUrl =
         API_BASE +
         '/messages/' +
-        encodeURIComponent(params.inReplyTo) +
+        encodeURIComponent(params.inReplyTo as string) +
         '?format=metadata&metadataHeaders=Message-ID';
-      var lookupResponse = http.get(lookupUrl, { headers: headers });
+      const lookupResponse = http.get(lookupUrl, { headers: headers });
       if (lookupResponse.status === 200) {
-        var lookupData = lookupResponse.json();
-        threadId = lookupData.threadId;
-        var rfc2822Id = getGmailHeader(
-          lookupData.payload ? lookupData.payload.headers : [],
+        const lookupData = lookupResponse.json() as Record<string, unknown>;
+        threadId = lookupData.threadId as string;
+        const lookupPayload = lookupData.payload as
+          | { headers?: GmailHeader[] }
+          | undefined;
+        const rfc2822Id = getGmailHeader(
+          lookupPayload ? lookupPayload.headers : [],
           'Message-ID',
         );
         if (rfc2822Id) {
@@ -587,26 +758,25 @@ function sendMessage(http, headers, params, base64Encode, files) {
   }
 
   // Build MIME params with resolved threading values (not mutating original params)
-  var mimeParams = {
-    to: params.to,
-    cc: params.cc,
-    bcc: params.bcc,
-    subject: params.subject,
-    body: params.body,
-    contentType: params.contentType,
+  const mimeParams: MimeParams = {
+    to: params.to as string,
+    cc: params.cc as string | undefined,
+    bcc: params.bcc as string | undefined,
+    subject: params.subject as string,
+    body: params.body as string | undefined,
+    contentType: params.contentType as string | undefined,
     inReplyTo: inReplyTo,
     references: params.references,
   };
 
-  var hasAttachments =
-    params.attachments && params.attachments.length > 0 && files;
+  const attachments = params.attachments as
+    | Array<{ url: string; name: string; contentType?: string }>
+    | undefined;
+  const hasAttachments = attachments && attachments.length > 0 && files;
 
-  var mimeMessage;
+  let mimeMessage: string;
   if (hasAttachments) {
-    var attachmentDataList = downloadAttachmentsForSend(
-      http,
-      params.attachments,
-    );
+    const attachmentDataList = downloadAttachmentsForSend(http, attachments);
     mimeMessage = buildMimeWithAttachments(
       mimeParams,
       attachmentDataList,
@@ -616,38 +786,41 @@ function sendMessage(http, headers, params, base64Encode, files) {
     mimeMessage = buildSimpleMimeMessage(mimeParams, base64Encode);
   }
 
-  var raw = base64UrlEncode(base64Encode, mimeMessage);
+  const raw = base64UrlEncode(base64Encode, mimeMessage);
 
-  var body = { raw: raw };
+  const body: Record<string, unknown> = { raw: raw };
   if (threadId) {
     body.threadId = threadId;
   }
 
-  var url = API_BASE + '/messages/send';
+  const url = API_BASE + '/messages/send';
   console.log('Sending message via: ' + url);
 
-  var response = http.post(url, {
+  const response = http.post(url, {
     headers: headers,
     body: JSON.stringify(body),
   });
   handleError(response, 'send message');
 
-  var sent = response.json();
+  const sent = response.json() as Record<string, unknown>;
 
   // Fetch the sent message to extract the RFC 2822 Message-ID header,
   // which is needed for delivery tracking and threading.
-  var internetMessageId = '';
+  let internetMessageId = '';
   if (sent.id) {
-    var metaUrl =
+    const metaUrl =
       API_BASE +
       '/messages/' +
-      encodeURIComponent(sent.id) +
+      encodeURIComponent(sent.id as string) +
       '?format=metadata&metadataHeaders=Message-ID';
-    var metaResponse = http.get(metaUrl, { headers: headers });
+    const metaResponse = http.get(metaUrl, { headers: headers });
     if (metaResponse.status === 200) {
-      var metaData = metaResponse.json();
+      const metaData = metaResponse.json() as Record<string, unknown>;
+      const metaPayload = metaData.payload as
+        | { headers?: GmailHeader[] }
+        | undefined;
       internetMessageId = getGmailHeader(
-        metaData.payload ? metaData.payload.headers : [],
+        metaPayload ? metaPayload.headers : [],
         'Message-ID',
       );
     }
@@ -670,14 +843,17 @@ function sendMessage(http, headers, params, base64Encode, files) {
   };
 }
 
-function downloadAttachmentsForSend(http, attachments) {
-  var result = [];
-  for (var i = 0; i < attachments.length; i++) {
-    var att = attachments[i];
+function downloadAttachmentsForSend(
+  http: HttpApi,
+  attachments: Array<{ url: string; name: string; contentType?: string }>,
+) {
+  const result: AttachmentData[] = [];
+  for (let i = 0; i < attachments.length; i++) {
+    const att = attachments[i];
     if (!att.url) {
       throw new Error('Attachment "' + (att.name || i) + '" is missing a url.');
     }
-    var fileResponse = http.get(att.url, { responseType: 'base64' });
+    const fileResponse = http.get(att.url, { responseType: 'base64' });
     if (fileResponse.status !== 200) {
       throw new Error(
         'Failed to download attachment "' +
@@ -690,58 +866,65 @@ function downloadAttachmentsForSend(http, attachments) {
     result.push({
       name: att.name || 'attachment',
       contentType: att.contentType || 'application/octet-stream',
-      base64Data: fileResponse.body,
+      base64Data: fileResponse.body as string,
     });
   }
   return result;
 }
 
-function listLabels(http, headers) {
-  var url = API_BASE + '/labels';
+function listLabels(http: HttpApi, headers: Record<string, string>) {
+  const url = API_BASE + '/labels';
   console.log('Listing labels: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list labels');
 
-  var data = response.json();
+  const data = response.json() as Record<string, unknown>;
+  const labels = data.labels as unknown[] | undefined;
   return {
     success: true,
     operation: 'list_labels',
-    data: data.labels || [],
-    count: data.labels ? data.labels.length : 0,
+    data: labels || [],
+    count: labels ? labels.length : 0,
     timestamp: Date.now(),
   };
 }
 
-function getThread(http, headers, params, base64Decode) {
+function getThread(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+  base64Decode: (input: string) => string,
+) {
   if (!params.threadId) {
     throw new Error('threadId is required.');
   }
 
   // Always fetch full format from API to have payload available
-  var apiFormat = params.format === 'email' ? 'full' : params.format || 'full';
-  var url =
+  const apiFormat =
+    params.format === 'email' ? 'full' : (params.format as string) || 'full';
+  const url =
     API_BASE +
     '/threads/' +
-    encodeURIComponent(params.threadId) +
+    encodeURIComponent(params.threadId as string) +
     '?format=' +
     encodeURIComponent(apiFormat);
   console.log('Fetching thread: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get thread');
 
-  var thread = response.json();
+  const thread = response.json() as Record<string, unknown>;
 
   if (params.format === 'email') {
-    var accountEmail = getGmailAccountEmail(http, headers);
-    var messages = thread.messages || [];
-    var mapped = [];
-    for (var i = 0; i < messages.length; i++) {
+    const accountEmail = getGmailAccountEmail(http, headers);
+    const messages = (thread.messages || []) as GmailMessage[];
+    const mapped = [];
+    for (let i = 0; i < messages.length; i++) {
       // Skip draft messages — they should not be synced into conversations
       if (
         messages[i].labelIds &&
-        messages[i].labelIds.indexOf('DRAFT') !== -1
+        messages[i].labelIds!.indexOf('DRAFT') !== -1
       ) {
         continue;
       }
@@ -761,32 +944,41 @@ function getThread(http, headers, params, base64Decode) {
     success: true,
     operation: 'get_thread',
     data: thread,
-    count: thread.messages ? thread.messages.length : 1,
+    count: (thread.messages as unknown[])
+      ? (thread.messages as unknown[]).length
+      : 1,
     timestamp: Date.now(),
   };
 }
 
-function listDrafts(http, headers, params) {
-  var maxResults = Math.min(params.maxResults || 25, 500);
-  var queryParts = ['maxResults=' + maxResults];
+function listDrafts(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const maxResults = Math.min((params.maxResults as number) || 25, 500);
+  const queryParts = ['maxResults=' + maxResults];
 
   if (params.pageToken) {
-    queryParts.push('pageToken=' + encodeURIComponent(params.pageToken));
+    queryParts.push(
+      'pageToken=' + encodeURIComponent(params.pageToken as string),
+    );
   }
 
-  var url = API_BASE + '/drafts?' + queryParts.join('&');
+  const url = API_BASE + '/drafts?' + queryParts.join('&');
   console.log('Listing drafts: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list drafts');
 
-  var data = response.json();
+  const data = response.json() as Record<string, unknown>;
+  const drafts = data.drafts as unknown[] | undefined;
   return {
     success: true,
     operation: 'list_drafts',
-    data: data.drafts || [],
-    count: data.drafts ? data.drafts.length : 0,
-    resultSizeEstimate: data.resultSizeEstimate || 0,
+    data: drafts || [],
+    count: drafts ? drafts.length : 0,
+    resultSizeEstimate: (data.resultSizeEstimate as number) || 0,
     pagination: {
       hasNextPage: !!data.nextPageToken,
       nextPageToken: data.nextPageToken || null,
@@ -795,7 +987,12 @@ function listDrafts(http, headers, params) {
   };
 }
 
-function getAttachment(http, headers, params, files) {
+function getAttachment(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+  files: FilesApi | undefined,
+) {
   if (!params.messageId) {
     throw new Error('messageId is required.');
   }
@@ -808,32 +1005,33 @@ function getAttachment(http, headers, params, files) {
     );
   }
 
-  var url =
+  const url =
     API_BASE +
     '/messages/' +
-    encodeURIComponent(params.messageId) +
+    encodeURIComponent(params.messageId as string) +
     '/attachments/' +
-    encodeURIComponent(params.attachmentId);
+    encodeURIComponent(params.attachmentId as string);
   console.log('Fetching attachment: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get attachment');
 
-  var data = response.json();
-  var base64UrlData = data.data || '';
+  const data = response.json() as Record<string, unknown>;
+  const base64UrlData = (data.data as string) || '';
 
-  var base64Standard = base64UrlData.replace(/-/g, '+').replace(/_/g, '/');
-  var padding = base64Standard.length % 4;
+  let base64Standard = base64UrlData.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = base64Standard.length % 4;
   if (padding === 2) {
     base64Standard += '==';
   } else if (padding === 3) {
     base64Standard += '=';
   }
 
-  var storedFile = files.store(base64Standard, {
+  const storedFile = files.store(base64Standard, {
     encoding: 'base64',
-    contentType: params.contentType || 'application/octet-stream',
-    fileName: params.fileName || 'attachment-' + params.attachmentId,
+    contentType: (params.contentType as string) || 'application/octet-stream',
+    fileName:
+      (params.fileName as string) || 'attachment-' + params.attachmentId,
   });
 
   return {
@@ -851,12 +1049,15 @@ function getAttachment(http, headers, params, files) {
 }
 
 // Recursively find all parts with attachmentId in a Gmail message payload.
-function findAttachmentParts(part, result) {
+function findAttachmentParts(
+  part: GmailPayloadPart,
+  result: GmailPayloadPart[],
+) {
   if (part.body && part.body.attachmentId) {
     result.push(part);
   }
   if (part.parts) {
-    for (var i = 0; i < part.parts.length; i++) {
+    for (let i = 0; i < part.parts.length; i++) {
       findAttachmentParts(part.parts[i], result);
     }
   }
@@ -865,37 +1066,37 @@ function findAttachmentParts(part, result) {
 
 // Download a single attachment and store it via the files API.
 function downloadAndStoreAttachment(
-  http,
-  headers,
-  files,
-  messageId,
-  attachmentId,
-  fileName,
-  contentType,
-  size,
+  http: HttpApi,
+  headers: Record<string, string>,
+  files: FilesApi,
+  messageId: string,
+  attachmentId: string,
+  fileName: string,
+  contentType: string,
+  size: number,
 ) {
-  var url =
+  const url =
     API_BASE +
     '/messages/' +
     encodeURIComponent(messageId) +
     '/attachments/' +
     encodeURIComponent(attachmentId);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get attachment');
 
-  var data = response.json();
-  var base64UrlData = data.data || '';
+  const data = response.json() as Record<string, string>;
+  const base64UrlData = data.data || '';
 
-  var base64Standard = base64UrlData.replace(/-/g, '+').replace(/_/g, '/');
-  var padding = base64Standard.length % 4;
+  let base64Standard = base64UrlData.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = base64Standard.length % 4;
   if (padding === 2) {
     base64Standard += '==';
   } else if (padding === 3) {
     base64Standard += '=';
   }
 
-  var storedFile = files.store(base64Standard, {
+  const storedFile = files.store(base64Standard, {
     encoding: 'base64',
     contentType: contentType,
     fileName: fileName,
@@ -912,7 +1113,12 @@ function downloadAndStoreAttachment(
 }
 
 // Download all file attachments from a message and store them.
-function getAttachments(http, headers, params, files) {
+function getAttachments(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+  files: FilesApi | undefined,
+) {
   if (!params.messageId) {
     throw new Error('messageId is required.');
   }
@@ -923,34 +1129,43 @@ function getAttachments(http, headers, params, files) {
   }
 
   // Fetch the message to discover attachment parts
-  var msgUrl =
+  const msgUrl =
     API_BASE +
     '/messages/' +
-    encodeURIComponent(params.messageId) +
+    encodeURIComponent(params.messageId as string) +
     '?format=full';
-  var msgResponse = http.get(msgUrl, { headers: headers });
+  const msgResponse = http.get(msgUrl, { headers: headers });
   handleError(msgResponse, 'get message for attachments');
 
-  var message = msgResponse.json();
-  var attachmentParts = findAttachmentParts(message.payload || {}, []);
-  var attachments = [];
+  const message = msgResponse.json() as Record<string, unknown>;
+  const attachmentParts = findAttachmentParts(
+    (message.payload as GmailPayloadPart) || {},
+    [],
+  );
+  const attachments: Array<Record<string, unknown>> = [];
 
-  for (var i = 0; i < attachmentParts.length; i++) {
-    var part = attachmentParts[i];
+  for (let i = 0; i < attachmentParts.length; i++) {
+    const part = attachmentParts[i];
     if (part.body && part.body.attachmentId) {
-      var file = downloadAndStoreAttachment(
+      const file = downloadAndStoreAttachment(
         http,
         headers,
         files,
-        params.messageId,
+        params.messageId as string,
         part.body.attachmentId,
         part.filename || 'attachment',
         part.mimeType || 'application/octet-stream',
         part.body.size || 0,
       );
-      var cidHeader = getGmailHeader(part.headers, 'Content-ID');
+      const cidHeader = getGmailHeader(
+        part.headers as GmailHeader[],
+        'Content-ID',
+      );
       if (cidHeader) {
-        file.contentId = cidHeader.replace(/^<|>$/g, '');
+        (file as Record<string, unknown>).contentId = cidHeader.replace(
+          /^<|>$/g,
+          '',
+        );
       }
       attachments.push(file);
     }
@@ -967,31 +1182,36 @@ function getAttachments(http, headers, params, files) {
 
 // Check whether a sent message has been delivered.
 // Accepts either an RFC 2822 Message-ID or a Gmail internal message ID.
-function checkDelivery(http, headers, params) {
+function checkDelivery(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.internetMessageId) {
     throw new Error('internetMessageId is required.');
   }
 
-  var isRfc2822 = params.internetMessageId.indexOf('<') !== -1;
-  var delivered = false;
+  const isRfc2822 = (params.internetMessageId as string).indexOf('<') !== -1;
+  let delivered = false;
 
   if (isRfc2822) {
-    var searchUrl =
+    const searchUrl =
       API_BASE +
       '/messages?q=rfc822msgid:' +
-      encodeURIComponent(params.internetMessageId) +
+      encodeURIComponent(params.internetMessageId as string) +
       '&maxResults=1';
-    var searchResponse = http.get(searchUrl, { headers: headers });
+    const searchResponse = http.get(searchUrl, { headers: headers });
     handleError(searchResponse, 'check delivery');
-    var searchData = searchResponse.json();
-    delivered = !!(searchData.messages && searchData.messages.length > 0);
+    const searchData = searchResponse.json() as Record<string, unknown>;
+    const searchMessages = searchData.messages as unknown[] | undefined;
+    delivered = !!(searchMessages && searchMessages.length > 0);
   } else {
-    var msgUrl =
+    const msgUrl =
       API_BASE +
       '/messages/' +
-      encodeURIComponent(params.internetMessageId) +
+      encodeURIComponent(params.internetMessageId as string) +
       '?format=minimal';
-    var msgResponse = http.get(msgUrl, { headers: headers });
+    const msgResponse = http.get(msgUrl, { headers: headers });
     delivered = msgResponse.status === 200;
   }
 

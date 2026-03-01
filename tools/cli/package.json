@@ -7,11 +7,11 @@
     "build": "bun run build:linux && bun run build:mac",
     "build:linux": "bun build --compile --target=bun-linux-x64 --outfile=dist/tale src/index.ts",
     "build:mac": "bun build --compile --target=bun-darwin-arm64 --outfile=dist/tale src/index.ts",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "format": "oxfmt -c ../../.oxfmtrc.json",
-    "format:check": "oxfmt -c ../../.oxfmtrc.json --check",
-    "typecheck": "tsc --noEmit"
+    "lint": "bunx oxlint",
+    "lint:fix": "bunx oxlint --fix",
+    "format": "bunx oxfmt -c ../../.oxfmtrc.json",
+    "format:check": "bunx oxfmt -c ../../.oxfmtrc.json --check",
+    "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.0.0",

@@ -298,17 +298,17 @@ export function getLayoutedElements(
       const dynamicHeight = Math.max(300, calculatedHeight);
 
       // Update the parent loop container's height in the style object
-      const parentNode = layoutedParentNodes.find((n) => n.id === parentId);
-      if (parentNode) {
-        if (parentNode.style) {
-          parentNode.style.height = dynamicHeight;
+      const loopContainer = layoutedParentNodes.find((n) => n.id === parentId);
+      if (loopContainer) {
+        if (loopContainer.style) {
+          loopContainer.style.height = dynamicHeight;
         }
         // CRITICAL: Also update the node's width/height properties for React Flow
-        parentNode.width =
-          typeof parentNode.style?.width === 'number'
-            ? parentNode.style.width
+        loopContainer.width =
+          typeof loopContainer.style?.width === 'number'
+            ? loopContainer.style.width
             : 640;
-        parentNode.height = dynamicHeight;
+        loopContainer.height = dynamicHeight;
       }
     }
   });

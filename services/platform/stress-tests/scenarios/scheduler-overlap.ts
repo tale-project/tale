@@ -10,7 +10,7 @@
  * before/after comparisons when deploying contention fixes.
  *
  * Usage:
- *   npx tsx stress-tests/scenarios/scheduler-overlap.ts
+ *   bunx tsx stress-tests/scenarios/scheduler-overlap.ts
  *
  * Requires: CONVEX_URL, ORGANIZATION_ID, WORKFLOW_DEFINITION_ID
  */
@@ -105,7 +105,7 @@ async function run() {
     `Started: ${executionMap.size}/${config.total} | Failed at launch: ${config.total - executionMap.size}`,
   );
 
-  // Poll for completion via npx convex run (getRawExecution is internalQuery)
+  // Poll for completion via bunx convex run (getRawExecution is internalQuery)
   const pending = new Set(executionMap.keys());
   const startTime = Date.now();
 

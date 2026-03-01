@@ -1,9 +1,87 @@
+// ─── Sandbox API Types ──────────────────────────────────────────────────────
+// These types describe the APIs available inside the integration sandbox.
+// They are stripped during transpilation and exist only for editor support.
+
+interface HttpResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: unknown;
+  text(): string;
+  json(): unknown;
+}
+
+interface HttpMethodOptions {
+  headers?: Record<string, string>;
+  responseType?: 'base64';
+}
+
+interface BodyMethodOptions extends HttpMethodOptions {
+  body?: string;
+  binaryBody?: string;
+}
+
+interface HttpApi {
+  get(url: string, options?: HttpMethodOptions): HttpResponse;
+  post(url: string, options?: BodyMethodOptions): HttpResponse;
+  put(url: string, options?: BodyMethodOptions): HttpResponse;
+  patch(url: string, options?: BodyMethodOptions): HttpResponse;
+  delete(url: string, options?: BodyMethodOptions): HttpResponse;
+}
+
+interface SecretsApi {
+  get(key: string): string | undefined;
+}
+
+interface FileReference {
+  fileId: string;
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+interface FilesApi {
+  download(
+    url: string,
+    options: { headers?: Record<string, string>; fileName: string },
+  ): FileReference;
+  store(
+    data: string,
+    options: {
+      encoding: 'base64' | 'utf-8';
+      contentType: string;
+      fileName: string;
+    },
+  ): FileReference;
+}
+
+interface ConnectorContext {
+  operation: string;
+  params: Record<string, unknown>;
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+interface TestConnectionContext {
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Shopify Connector - Fetch data from Shopify Admin API
 // This connector runs in a sandboxed environment with controlled HTTP access
 
 const SHOPIFY_API_VERSION = '2026-01';
 
-function normalizeShopDomain(domain) {
+function normalizeShopDomain(domain: string): string {
   return domain
     .replace(/^https?:\/\//, '')
     .split(/[/?#]/)[0]
@@ -23,9 +101,9 @@ const connector = {
     'count_orders',
   ],
 
-  testConnection: function (ctx) {
-    var domain = ctx.secrets.get('domain');
-    var accessToken = ctx.secrets.get('accessToken');
+  testConnection: function (ctx: TestConnectionContext) {
+    const domain = ctx.secrets.get('domain');
+    const accessToken = ctx.secrets.get('accessToken');
 
     if (!domain) {
       throw new Error('Shopify domain is required.');
@@ -34,19 +112,19 @@ const connector = {
       throw new Error('Shopify access token is required.');
     }
 
-    var cleanDomain = normalizeShopDomain(domain);
-    var shopDomain = cleanDomain.endsWith('.myshopify.com')
+    const cleanDomain = normalizeShopDomain(domain);
+    const shopDomain = cleanDomain.endsWith('.myshopify.com')
       ? cleanDomain
       : cleanDomain + '.myshopify.com';
 
-    var url =
+    const url =
       'https://' +
       shopDomain +
       '/admin/api/' +
       SHOPIFY_API_VERSION +
       '/shop.json';
 
-    var response = ctx.http.get(url, {
+    const response = ctx.http.get(url, {
       headers: {
         'X-Shopify-Access-Token': accessToken,
         'Content-Type': 'application/json',
@@ -75,19 +153,22 @@ const connector = {
       );
     }
 
-    var data = response.json();
+    const data = response.json() as Record<string, unknown>;
     if (!data.shop) {
       throw new Error('Invalid response from Shopify API');
     }
 
-    return { status: 'ok', shopName: data.shop.name };
+    return {
+      status: 'ok',
+      shopName: (data.shop as Record<string, unknown>).name,
+    };
   },
 
-  execute: function (ctx) {
+  execute: function (ctx: ConnectorContext) {
     const { operation, params, http, secrets } = ctx;
 
     // Get credentials - domain from params or secrets, token from secrets
-    const domain = params.domain || secrets.get('domain');
+    const domain = (params.domain as string) || secrets.get('domain');
     const accessToken = secrets.get('accessToken');
 
     if (!domain) {
@@ -133,7 +214,7 @@ const connector = {
       );
     }
 
-    const data = response.json();
+    const data = response.json() as Record<string, unknown>;
     const result = extractData(operation, data);
     const pagination = extractPagination(response);
 
@@ -148,7 +229,10 @@ const connector = {
   },
 };
 
-function buildEndpoint(operation, params) {
+function buildEndpoint(
+  operation: string,
+  params: Record<string, unknown>,
+): string {
   const parts = operation.split('_');
   const action = parts[0];
   const resource = parts.slice(1).join('_');
@@ -162,14 +246,17 @@ function buildEndpoint(operation, params) {
   return resource;
 }
 
-function buildQueryParams(operation, params) {
-  const queryParts = [];
-  const addParam = (key, value) => {
+function buildQueryParams(
+  operation: string,
+  params: Record<string, unknown>,
+): string {
+  const queryParts: string[] = [];
+  const addParam = (key: string, value: unknown) => {
     if (value === undefined || value === null) return;
     queryParts.push(key + '=' + encodeURIComponent(String(value)));
   };
   if (operation.startsWith('list_')) {
-    const limit = Math.min(params.limit || 50, 250);
+    const limit = Math.min((params.limit as number) || 50, 250);
     addParam('limit', limit);
     addParam('page_info', params.page_info);
     addParam('since_id', params.since_id);
@@ -181,13 +268,16 @@ function buildQueryParams(operation, params) {
   return queryParts.join('&');
 }
 
-function extractData(operation, responseData) {
+function extractData(
+  operation: string,
+  responseData: Record<string, unknown>,
+): { data: unknown; count: number } {
   const parts = operation.split('_');
   const action = parts[0];
   const resource = parts.slice(1).join('_');
   if (action === 'count')
-    return { data: responseData, count: responseData.count || 0 };
-  const keyMap = {
+    return { data: responseData, count: (responseData.count as number) || 0 };
+  const keyMap: Record<string, string> = {
     products: action === 'get' ? 'product' : 'products',
     customers: action === 'get' ? 'customer' : 'customers',
     orders: action === 'get' ? 'order' : 'orders',
@@ -200,10 +290,13 @@ function extractData(operation, responseData) {
   };
 }
 
-function extractPagination(response) {
+function extractPagination(response: HttpResponse): {
+  hasNextPage: boolean;
+  nextPageInfo: string | null;
+} {
   const linkHeader = response.headers['link'] || response.headers['Link'] || '';
-  let nextPageInfo = null,
-    hasNextPage = false;
+  let nextPageInfo: string | null = null;
+  let hasNextPage = false;
   if (linkHeader) {
     const links = linkHeader.split(',');
     for (const link of links) {

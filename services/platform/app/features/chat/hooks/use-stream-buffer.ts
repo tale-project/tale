@@ -369,8 +369,8 @@ export function useStreamBuffer({
         return;
       }
 
-      const text = targetTextRef.current;
-      const textLength = text.length;
+      const targetText = targetTextRef.current;
+      const textLength = targetText.length;
       const currentDisplayed = displayedLengthRef.current;
       const bufferSize = textLength - currentDisplayed;
       const streaming = isStreamingRef.current;
@@ -419,7 +419,7 @@ export function useStreamBuffer({
         let newDisplayed = Math.min(currentDisplayed + charsToAdd, textLength);
 
         // Snap to next word boundary
-        const nextBoundary = findNextWordBoundary(text, newDisplayed);
+        const nextBoundary = findNextWordBoundary(targetText, newDisplayed);
         if (nextBoundary <= textLength && nextBoundary - newDisplayed <= 3) {
           newDisplayed = nextBoundary;
         }
@@ -428,7 +428,9 @@ export function useStreamBuffer({
           displayedLengthRef.current = newDisplayed;
 
           const timeSinceLastUpdate = currentTime - lastStateUpdateRef.current;
-          const atWordBoundary = isWordBoundary(text[newDisplayed - 1] || '');
+          const atWordBoundary = isWordBoundary(
+            targetText[newDisplayed - 1] || '',
+          );
           const caughtUp = newDisplayed === textLength;
 
           const shouldUpdate =

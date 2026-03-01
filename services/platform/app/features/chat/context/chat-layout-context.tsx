@@ -3,6 +3,7 @@
 import {
   createContext,
   useContext,
+  useMemo,
   useState,
   useCallback,
   type ReactNode,
@@ -80,22 +81,33 @@ export function ChatLayoutProvider({
     setPendingMessage(null);
   }, []);
 
+  const value = useMemo(
+    () => ({
+      isPending,
+      setIsPending,
+      pendingThreadId,
+      setPendingThreadId,
+      clearChatState,
+      pendingMessage,
+      setPendingMessage,
+      isHistoryOpen,
+      setIsHistoryOpen,
+      selectedAgent,
+      setSelectedAgent,
+    }),
+    [
+      isPending,
+      pendingThreadId,
+      clearChatState,
+      pendingMessage,
+      isHistoryOpen,
+      selectedAgent,
+      setSelectedAgent,
+    ],
+  );
+
   return (
-    <ChatLayoutContext.Provider
-      value={{
-        isPending,
-        setIsPending,
-        pendingThreadId,
-        setPendingThreadId,
-        clearChatState,
-        pendingMessage,
-        setPendingMessage,
-        isHistoryOpen,
-        setIsHistoryOpen,
-        selectedAgent,
-        setSelectedAgent,
-      }}
-    >
+    <ChatLayoutContext.Provider value={value}>
       {children}
     </ChatLayoutContext.Provider>
   );

@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   type ReactNode,
 } from 'react';
@@ -124,16 +125,19 @@ export function BrandingProvider({
     };
   }, [branding?.faviconLightUrl, branding?.faviconDarkUrl]);
 
-  const value: BrandingContextValue = {
-    appName: branding?.appName,
-    textLogo: branding?.textLogo,
-    logoUrl: branding?.logoUrl,
-    faviconLightUrl: branding?.faviconLightUrl,
-    faviconDarkUrl: branding?.faviconDarkUrl,
-    brandColor: branding?.brandColor,
-    accentColor: branding?.accentColor,
-    isLoaded: branding !== undefined,
-  };
+  const value = useMemo<BrandingContextValue>(
+    () => ({
+      appName: branding?.appName,
+      textLogo: branding?.textLogo,
+      logoUrl: branding?.logoUrl,
+      faviconLightUrl: branding?.faviconLightUrl,
+      faviconDarkUrl: branding?.faviconDarkUrl,
+      brandColor: branding?.brandColor,
+      accentColor: branding?.accentColor,
+      isLoaded: branding !== undefined,
+    }),
+    [branding],
+  );
 
   return (
     <BrandingContext.Provider value={value}>

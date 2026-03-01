@@ -284,8 +284,7 @@ describe('useStreamBuffer — reconnection resilience', () => {
       'a simulated WebSocket reconnection event that briefly interrupts.';
 
     const { result, rerender } = renderHook(
-      ({ text, isStreaming }) =>
-        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
       { initialProps: { text, isStreaming: true } },
     );
 
@@ -416,8 +415,7 @@ describe('useStreamBuffer — anchor freeze during drain', () => {
       'Fifth paragraph at the very end of this message.';
 
     const { result, rerender } = renderHook(
-      ({ text, isStreaming }) =>
-        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
       { initialProps: { text: fullText, isStreaming: true } },
     );
 
@@ -447,8 +445,7 @@ describe('useStreamBuffer — anchor freeze during drain', () => {
       'Fourth paragraph with even more text.';
 
     const { result } = renderHook(
-      ({ text, isStreaming }) =>
-        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
       { initialProps: { text: fullText, isStreaming: true } },
     );
 
@@ -708,8 +705,7 @@ describe('useStreamBuffer — flush (freeze)', () => {
       'that the display length stays frozen at the exact position.';
 
     const { result, rerender } = renderHook(
-      ({ text, isStreaming }) =>
-        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
       { initialProps: { text, isStreaming: true } },
     );
 
@@ -740,8 +736,7 @@ describe('useStreamBuffer — flush (freeze)', () => {
       'properly and give us time to test the freeze and reset behavior.';
 
     const { result, rerender } = renderHook(
-      ({ text, isStreaming }) =>
-        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
       { initialProps: { text, isStreaming: true } },
     );
 
@@ -812,8 +807,7 @@ describe('useStreamBuffer — freezeActiveStream (module-level)', () => {
       'enough for the buffer to work and the animation to progress.';
 
     const { result, rerender } = renderHook(
-      ({ text, isStreaming }) =>
-        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
       { initialProps: { text, isStreaming: true } },
     );
 
@@ -1173,8 +1167,7 @@ describe('useStreamBuffer — isStreamFrozen', () => {
 
   it('returns false after a new streaming session clears the freeze', () => {
     const { rerender } = renderHook(
-      ({ text, isStreaming }) =>
-        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
       {
         initialProps: {
           text: 'first streaming message with enough text for buffer',
@@ -1219,8 +1212,7 @@ describe('useStreamBuffer — isStreamFrozen', () => {
 
   it('resetGlobalFreeze allows non-streaming text to show immediately', () => {
     const { rerender, result } = renderHook(
-      ({ text, isStreaming }) =>
-        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
       {
         initialProps: {
           text: 'first streaming message with enough text for buffer',
@@ -1362,8 +1354,7 @@ describe('useStreamBuffer — freeze edge cases', () => {
       'for the animation to be actively running when freeze triggers.';
 
     const { rerender } = renderHook(
-      ({ text, isStreaming }) =>
-        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
       { initialProps: { text, isStreaming: true } },
     );
 
@@ -1432,8 +1423,7 @@ describe('useStreamBuffer — progress and isDraining', () => {
       'characters after thirty frames of animation at the adaptive rate.';
 
     const { result, rerender } = renderHook(
-      ({ text, isStreaming }) =>
-        useStreamBuffer({ text, isStreaming, initialBufferChars: 3 }),
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
       { initialProps: { text: longText, isStreaming: true } },
     );
 

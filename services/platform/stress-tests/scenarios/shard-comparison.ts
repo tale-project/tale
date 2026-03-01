@@ -11,7 +11,7 @@
  * and OCC differences require staging/production conditions.
  *
  * Usage:
- *   npx tsx stress-tests/scenarios/shard-comparison.ts
+ *   bunx tsx stress-tests/scenarios/shard-comparison.ts
  *
  * Requires:
  *   CONVEX_URL

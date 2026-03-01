@@ -1,9 +1,87 @@
+// ─── Sandbox API Types ──────────────────────────────────────────────────────
+// These types describe the APIs available inside the integration sandbox.
+// They are stripped during transpilation and exist only for editor support.
+
+interface HttpResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: unknown;
+  text(): string;
+  json(): unknown;
+}
+
+interface HttpMethodOptions {
+  headers?: Record<string, string>;
+  responseType?: 'base64';
+}
+
+interface BodyMethodOptions extends HttpMethodOptions {
+  body?: string;
+  binaryBody?: string;
+}
+
+interface HttpApi {
+  get(url: string, options?: HttpMethodOptions): HttpResponse;
+  post(url: string, options?: BodyMethodOptions): HttpResponse;
+  put(url: string, options?: BodyMethodOptions): HttpResponse;
+  patch(url: string, options?: BodyMethodOptions): HttpResponse;
+  delete(url: string, options?: BodyMethodOptions): HttpResponse;
+}
+
+interface SecretsApi {
+  get(key: string): string | undefined;
+}
+
+interface FileReference {
+  fileId: string;
+  url: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+interface FilesApi {
+  download(
+    url: string,
+    options: { headers?: Record<string, string>; fileName: string },
+  ): FileReference;
+  store(
+    data: string,
+    options: {
+      encoding: 'base64' | 'utf-8';
+      contentType: string;
+      fileName: string;
+    },
+  ): FileReference;
+}
+
+interface ConnectorContext {
+  operation: string;
+  params: Record<string, unknown>;
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+interface TestConnectionContext {
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Microsoft Outlook Connector - Microsoft Graph API
 // This connector runs in a sandboxed environment with controlled HTTP access
 
-var GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
+const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 
-var connector = {
+const connector = {
   operations: [
     'list_messages',
     'get_message',
@@ -18,14 +96,14 @@ var connector = {
     'get_contact',
   ],
 
-  testConnection: function (ctx) {
-    var accessToken = ctx.secrets.get('accessToken');
+  testConnection: function (ctx: TestConnectionContext) {
+    const accessToken = ctx.secrets.get('accessToken');
 
     if (!accessToken) {
       throw new Error('Access token is required. Please authorize via OAuth2.');
     }
 
-    var response = ctx.http.get(GRAPH_BASE_URL + '/me', {
+    const response = ctx.http.get(GRAPH_BASE_URL + '/me', {
       headers: {
         Authorization: 'Bearer ' + accessToken,
         Accept: 'application/json',
@@ -51,7 +129,7 @@ var connector = {
       );
     }
 
-    var user = response.json();
+    const user = response.json() as Record<string, string>;
     return {
       status: 'ok',
       displayName: user.displayName,
@@ -59,19 +137,19 @@ var connector = {
     };
   },
 
-  execute: function (ctx) {
-    var operation = ctx.operation;
-    var params = ctx.params;
-    var http = ctx.http;
-    var secrets = ctx.secrets;
-    var files = ctx.files;
+  execute: function (ctx: ConnectorContext) {
+    const operation = ctx.operation;
+    const params = ctx.params;
+    const http = ctx.http;
+    const secrets = ctx.secrets;
+    const files = ctx.files;
 
-    var accessToken = secrets.get('accessToken');
+    const accessToken = secrets.get('accessToken');
     if (!accessToken) {
       throw new Error('Access token is required.');
     }
 
-    var headers = {
+    const headers = {
       Authorization: 'Bearer ' + accessToken,
       Accept: 'application/json',
       'Content-Type': 'application/json',
@@ -115,26 +193,63 @@ var connector = {
   },
 };
 
-function escapeODataString(value) {
+function escapeODataString(value: unknown) {
   return String(value).replace(/'/g, "''");
 }
 
-function mapGraphToEmailType(msg, accountEmail) {
-  var fromAddr = msg.from && msg.from.emailAddress ? msg.from.emailAddress : {};
-  var mapRecipients = function (list) {
+interface GraphEmailAddress {
+  name?: string;
+  address?: string;
+}
+
+interface GraphRecipient {
+  emailAddress?: GraphEmailAddress;
+}
+
+interface GraphAttachment {
+  '@odata.type'?: string;
+  id?: string;
+  name?: string;
+  contentType?: string;
+  contentId?: string;
+  contentBytes?: string;
+  size?: number;
+}
+
+interface GraphMessage {
+  id?: string;
+  internetMessageId?: string;
+  conversationId?: string;
+  subject?: string;
+  receivedDateTime?: string;
+  sentDateTime?: string;
+  isRead?: boolean;
+  hasAttachments?: boolean;
+  from?: { emailAddress?: GraphEmailAddress };
+  toRecipients?: GraphRecipient[];
+  ccRecipients?: GraphRecipient[];
+  bccRecipients?: GraphRecipient[];
+  body?: { contentType?: string; content?: string };
+  attachments?: GraphAttachment[];
+}
+
+function mapGraphToEmailType(msg: GraphMessage, accountEmail: string) {
+  const fromAddr =
+    msg.from && msg.from.emailAddress ? msg.from.emailAddress : {};
+  const mapRecipients = function (list: GraphRecipient[] | undefined) {
     if (!list) return [];
     return list.map(function (r) {
-      var addr = r.emailAddress || {};
+      const addr = r.emailAddress || {};
       return { name: addr.name || '', address: addr.address || '' };
     });
   };
 
-  var contentType =
+  const contentType =
     msg.body && msg.body.contentType ? msg.body.contentType.toLowerCase() : '';
-  var bodyContent = msg.body ? msg.body.content || '' : '';
+  const bodyContent = msg.body ? msg.body.content || '' : '';
 
-  var senderAddr = (fromAddr.address || '').toLowerCase();
-  var direction =
+  const senderAddr = (fromAddr.address || '').toLowerCase();
+  const direction =
     accountEmail && senderAddr === accountEmail.toLowerCase()
       ? 'outbound'
       : 'inbound';
@@ -157,7 +272,7 @@ function mapGraphToEmailType(msg, accountEmail) {
         return att['@odata.type'] === '#microsoft.graph.fileAttachment';
       })
       .map(function (att) {
-        var mapped = {
+        const mapped: Record<string, unknown> = {
           id: att.id,
           filename: att.name || 'attachment',
           contentType: att.contentType || 'application/octet-stream',
@@ -174,38 +289,42 @@ function mapGraphToEmailType(msg, accountEmail) {
   };
 }
 
-function getAccountEmail(http, headers) {
-  var response = http.get(
+function getAccountEmail(http: HttpApi, headers: Record<string, string>) {
+  const response = http.get(
     GRAPH_BASE_URL + '/me?$select=mail,userPrincipalName',
     { headers: headers },
   );
   if (response.status === 200) {
-    var me = response.json();
+    const me = response.json() as Record<string, string>;
     return me.mail || me.userPrincipalName || '';
   }
   return '';
 }
 
-function listMessages(http, headers, params) {
-  var top = Math.min(params.top || 25, 100);
-  var orderby = params.orderby || 'receivedDateTime desc';
-  var filter = params.filter || '';
+function listMessages(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const top = Math.min((params.top as number) || 25, 100);
+  const orderby = (params.orderby as string) || 'receivedDateTime desc';
+  const filter = (params.filter as string) || '';
 
   // Graph API does not support $orderby combined with $filter on conversationId.
   // When this combination is detected, drop $orderby from the request and sort
   // the results in memory afterwards.
-  var needsClientSort = false;
+  let needsClientSort = false;
   if (filter && filter.indexOf('conversationId') !== -1 && orderby) {
     needsClientSort = true;
   }
 
-  var queryParts = ['$top=' + top];
+  const queryParts = ['$top=' + top];
   if (!needsClientSort) {
     queryParts.push('$orderby=' + orderby);
   }
 
   // Exclude draft messages — drafts should never enter the sync pipeline
-  var draftFilter = 'isDraft eq false';
+  const draftFilter = 'isDraft eq false';
   if (filter) {
     queryParts.push('$filter=' + filter + ' and ' + draftFilter);
   } else if (params.folder) {
@@ -232,27 +351,28 @@ function listMessages(http, headers, params) {
     queryParts.push('$expand=' + params.expand);
   }
 
-  var url = GRAPH_BASE_URL + '/me/messages?' + queryParts.join('&');
+  const url = GRAPH_BASE_URL + '/me/messages?' + queryParts.join('&');
   console.log('Fetching messages from: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list messages');
 
-  var data = response.json();
-  var accountEmail = getAccountEmail(http, headers);
-  var messages =
+  const data = response.json() as Record<string, unknown>;
+  const accountEmail = getAccountEmail(http, headers);
+  const rawValues = (data.value || []) as GraphMessage[];
+  const messages =
     params.format === 'email'
-      ? data.value.map(function (msg) {
+      ? rawValues.map(function (msg) {
           return mapGraphToEmailType(msg, accountEmail);
         })
-      : data.value;
+      : rawValues;
 
   if (needsClientSort) {
-    var field = params.format === 'email' ? 'date' : 'receivedDateTime';
-    var desc = orderby.indexOf('desc') !== -1;
+    const field = params.format === 'email' ? 'date' : 'receivedDateTime';
+    const desc = orderby.indexOf('desc') !== -1;
     messages.sort(function (a, b) {
-      var ta = new Date(a[field] || 0).getTime();
-      var tb = new Date(b[field] || 0).getTime();
+      const ta = new Date((a as Record<string, string>)[field] || 0).getTime();
+      const tb = new Date((b as Record<string, string>)[field] || 0).getTime();
       return desc ? tb - ta : ta - tb;
     });
   }
@@ -263,28 +383,33 @@ function listMessages(http, headers, params) {
     data: messages,
     count: messages.length,
     pagination: {
-      hasNextPage: !!data['@odata.nextLink'],
-      nextLink: data['@odata.nextLink'] || null,
+      hasNextPage: !!(data as Record<string, unknown>)['@odata.nextLink'],
+      nextLink: (data as Record<string, unknown>)['@odata.nextLink'] || null,
     },
     timestamp: Date.now(),
   };
 }
 
-function getMessage(http, headers, params, files) {
+function getMessage(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+  files: FilesApi | undefined,
+) {
   if (!params.messageId) {
     throw new Error('messageId is required.');
   }
 
-  var url = GRAPH_BASE_URL + '/me/messages/' + params.messageId;
+  const url = GRAPH_BASE_URL + '/me/messages/' + params.messageId;
   console.log('Fetching message: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get message');
 
-  var message = response.json();
+  const message = response.json() as Record<string, unknown>;
 
   if (params.includeAttachments && message.hasAttachments && files) {
-    var attachmentResult = getAttachments(http, headers, files, {
+    const attachmentResult = getAttachments(http, headers, files, {
       messageId: params.messageId,
     });
     message.attachmentFiles = attachmentResult.data;
@@ -299,30 +424,35 @@ function getMessage(http, headers, params, files) {
   };
 }
 
-function searchMessages(http, headers, params) {
+function searchMessages(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.query) {
     throw new Error('query is required for searching messages.');
   }
 
-  var top = Math.min(params.top || 25, 100);
-  var queryParts = [
+  const top = Math.min((params.top as number) || 25, 100);
+  const queryParts = [
     '$top=' + top,
-    '$search="' + encodeURIComponent(params.query) + '"',
+    '$search="' + encodeURIComponent(params.query as string) + '"',
     '$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
   ];
 
-  var url = GRAPH_BASE_URL + '/me/messages?' + queryParts.join('&');
+  const url = GRAPH_BASE_URL + '/me/messages?' + queryParts.join('&');
   console.log('Searching messages: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'search messages');
 
-  var data = response.json();
+  const data = response.json() as Record<string, unknown>;
+  const values = (data.value || []) as unknown[];
   return {
     success: true,
     operation: 'search_messages',
-    data: data.value,
-    count: data.value.length,
+    data: values,
+    count: values.length,
     pagination: {
       hasNextPage: !!data['@odata.nextLink'],
       nextLink: data['@odata.nextLink'] || null,
@@ -333,21 +463,31 @@ function searchMessages(http, headers, params) {
 
 // Look up a message's Graph internal ID by its internet message ID.
 // Returns the Graph ID string, or null if not found / still pending.
-function findGraphMessageByInternetId(http, headers, internetMessageId) {
-  var encoded = encodeURIComponent(
+function findGraphMessageByInternetId(
+  http: HttpApi,
+  headers: Record<string, string>,
+  internetMessageId: string,
+): string | null {
+  const encoded = encodeURIComponent(
     "internetMessageId eq '" + escapeODataString(internetMessageId) + "'",
   );
-  var url =
+  const url =
     GRAPH_BASE_URL + '/me/messages?$filter=' + encoded + '&$select=id&$top=1';
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   // status 0 = sandbox placeholder (HTTP not yet executed)
   if (response.status === 0) return 'pending';
   if (response.status !== 200) return null;
-  var data = response.json();
+  const data = response.json() as {
+    value?: Array<{ id: string }>;
+  };
   return data.value && data.value.length > 0 ? data.value[0].id : null;
 }
 
-function sendMessage(http, headers, params) {
+function sendMessage(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.to) {
     throw new Error('to (recipient email) is required.');
   }
@@ -355,15 +495,17 @@ function sendMessage(http, headers, params) {
     throw new Error('subject is required.');
   }
 
-  var toRecipients = Array.isArray(params.to) ? params.to : [params.to];
+  const toRecipients = Array.isArray(params.to)
+    ? (params.to as string[])
+    : [params.to as string];
 
   // When replying to a thread, find the original message and use Graph's
   // reply endpoint so Outlook handles threading natively.
   if (params.inReplyTo) {
-    var graphMsgId = findGraphMessageByInternetId(
+    const graphMsgId = findGraphMessageByInternetId(
       http,
       headers,
-      params.inReplyTo,
+      params.inReplyTo as string,
     );
 
     // Still waiting for the search HTTP call to complete — return early
@@ -391,18 +533,18 @@ function sendMessage(http, headers, params) {
 // Helper: send a draft and return a result with its internetMessageId.
 // Uses POST /me/messages/{draftId}/send (returns 202, no body).
 function sendDraftAndReturn(
-  http,
-  headers,
-  draftId,
-  internetMessageId,
-  toRecipients,
-  subject,
-  isReply,
+  http: HttpApi,
+  headers: Record<string, string>,
+  draftId: string,
+  internetMessageId: string | undefined,
+  toRecipients: string[],
+  subject: unknown,
+  isReply: boolean,
 ) {
-  var sendUrl = GRAPH_BASE_URL + '/me/messages/' + draftId + '/send';
+  const sendUrl = GRAPH_BASE_URL + '/me/messages/' + draftId + '/send';
   console.log('Sending draft via: ' + sendUrl);
 
-  var sendResponse = http.post(sendUrl, { headers: headers, body: '' });
+  const sendResponse = http.post(sendUrl, { headers: headers, body: '' });
   // status 0 = sandbox placeholder, will be executed on next pass
   if (sendResponse.status === 0) {
     return {
@@ -430,8 +572,13 @@ function sendDraftAndReturn(
 
 // Create a new draft message, then send it.
 // This lets us capture the internetMessageId (assigned at draft creation).
-function sendDirectMail(http, headers, params, toRecipients) {
-  var draft = {
+function sendDirectMail(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+  toRecipients: string[],
+) {
+  const draft: Record<string, unknown> = {
     subject: params.subject,
     body: {
       contentType: params.contentType || 'Text',
@@ -443,16 +590,18 @@ function sendDirectMail(http, headers, params, toRecipients) {
   };
 
   if (params.cc) {
-    var ccRecipients = Array.isArray(params.cc) ? params.cc : [params.cc];
+    const ccRecipients = Array.isArray(params.cc)
+      ? (params.cc as string[])
+      : [params.cc as string];
     draft.ccRecipients = ccRecipients.map(function (email) {
       return { emailAddress: { address: email } };
     });
   }
 
-  var createUrl = GRAPH_BASE_URL + '/me/messages';
+  const createUrl = GRAPH_BASE_URL + '/me/messages';
   console.log('Creating draft via: ' + createUrl);
 
-  var createResponse = http.post(createUrl, {
+  const createResponse = http.post(createUrl, {
     headers: headers,
     body: JSON.stringify(draft),
   });
@@ -465,14 +614,17 @@ function sendDirectMail(http, headers, params, toRecipients) {
   }
   handleError(createResponse, 'create draft');
 
-  var created = createResponse.json();
+  const created = createResponse.json() as Record<string, unknown>;
 
-  if (params.attachments && params.attachments.length > 0) {
-    var attached = addAttachmentsToDraft(
+  const attachments = params.attachments as
+    | Array<{ url: string; name: string; contentType?: string }>
+    | undefined;
+  if (attachments && attachments.length > 0) {
+    const attached = addAttachmentsToDraft(
       http,
       headers,
-      created.id,
-      params.attachments,
+      created.id as string,
+      attachments,
     );
     if (!attached) {
       return {
@@ -486,8 +638,8 @@ function sendDirectMail(http, headers, params, toRecipients) {
   return sendDraftAndReturn(
     http,
     headers,
-    created.id,
-    created.internetMessageId,
+    created.id as string,
+    created.internetMessageId as string | undefined,
     toRecipients,
     params.subject,
     false,
@@ -496,12 +648,18 @@ function sendDirectMail(http, headers, params, toRecipients) {
 
 // Create a reply draft via createReply, then send it.
 // Graph sets threading headers (In-Reply-To, References, conversationId) automatically.
-function sendReply(http, headers, params, graphMessageId, toRecipients) {
-  var createUrl =
+function sendReply(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+  graphMessageId: string,
+  toRecipients: string[],
+) {
+  const createUrl =
     GRAPH_BASE_URL + '/me/messages/' + graphMessageId + '/createReply';
   console.log('Creating reply draft via: ' + createUrl);
 
-  var replyMessage = {
+  const replyMessage: Record<string, unknown> = {
     body: {
       contentType: params.contentType || 'Text',
       content: params.body || '',
@@ -512,13 +670,15 @@ function sendReply(http, headers, params, graphMessageId, toRecipients) {
   };
 
   if (params.cc) {
-    var ccRecipients = Array.isArray(params.cc) ? params.cc : [params.cc];
+    const ccRecipients = Array.isArray(params.cc)
+      ? (params.cc as string[])
+      : [params.cc as string];
     replyMessage.ccRecipients = ccRecipients.map(function (email) {
       return { emailAddress: { address: email } };
     });
   }
 
-  var createResponse = http.post(createUrl, {
+  const createResponse = http.post(createUrl, {
     headers: headers,
     body: JSON.stringify({ message: replyMessage }),
   });
@@ -531,14 +691,17 @@ function sendReply(http, headers, params, graphMessageId, toRecipients) {
   }
   handleError(createResponse, 'create reply draft');
 
-  var created = createResponse.json();
+  const created = createResponse.json() as Record<string, unknown>;
 
-  if (params.attachments && params.attachments.length > 0) {
-    var attached = addAttachmentsToDraft(
+  const attachments = params.attachments as
+    | Array<{ url: string; name: string; contentType?: string }>
+    | undefined;
+  if (attachments && attachments.length > 0) {
+    const attached = addAttachmentsToDraft(
       http,
       headers,
-      created.id,
-      params.attachments,
+      created.id as string,
+      attachments,
     );
     if (!attached) {
       return {
@@ -552,8 +715,8 @@ function sendReply(http, headers, params, graphMessageId, toRecipients) {
   return sendDraftAndReturn(
     http,
     headers,
-    created.id,
-    created.internetMessageId,
+    created.id as string,
+    created.internetMessageId as string | undefined,
     toRecipients,
     params.subject,
     true,
@@ -562,15 +725,19 @@ function sendReply(http, headers, params, graphMessageId, toRecipients) {
 
 // Verify that a sent message actually appeared in the mailbox (Sent Items).
 // Accepts { internetMessageId } and returns { delivered: true/false }.
-function checkDelivery(http, headers, params) {
+function checkDelivery(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.internetMessageId) {
     throw new Error('internetMessageId is required for check_delivery.');
   }
 
-  var graphId = findGraphMessageByInternetId(
+  const graphId = findGraphMessageByInternetId(
     http,
     headers,
-    params.internetMessageId,
+    params.internetMessageId as string,
   );
 
   if (graphId === 'pending') {
@@ -592,9 +759,13 @@ function checkDelivery(http, headers, params) {
   };
 }
 
-function listEvents(http, headers, params) {
-  var top = Math.min(params.top || 25, 100);
-  var queryParts = [
+function listEvents(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const top = Math.min((params.top as number) || 25, 100);
+  const queryParts = [
     '$top=' + top,
     '$orderby=start/dateTime',
     '$select=id,subject,start,end,location,organizer,isAllDay,bodyPreview',
@@ -610,18 +781,19 @@ function listEvents(http, headers, params) {
     );
   }
 
-  var url = GRAPH_BASE_URL + '/me/events?' + queryParts.join('&');
+  const url = GRAPH_BASE_URL + '/me/events?' + queryParts.join('&');
   console.log('Fetching events from: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list events');
 
-  var data = response.json();
+  const data = response.json() as Record<string, unknown>;
+  const values = (data.value || []) as unknown[];
   return {
     success: true,
     operation: 'list_events',
-    data: data.value,
-    count: data.value.length,
+    data: values,
+    count: values.length,
     pagination: {
       hasNextPage: !!data['@odata.nextLink'],
       nextLink: data['@odata.nextLink'] || null,
@@ -630,18 +802,22 @@ function listEvents(http, headers, params) {
   };
 }
 
-function getEvent(http, headers, params) {
+function getEvent(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.eventId) {
     throw new Error('eventId is required.');
   }
 
-  var url = GRAPH_BASE_URL + '/me/events/' + params.eventId;
+  const url = GRAPH_BASE_URL + '/me/events/' + params.eventId;
   console.log('Fetching event: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get event');
 
-  var event = response.json();
+  const event = response.json();
   return {
     success: true,
     operation: 'get_event',
@@ -651,7 +827,11 @@ function getEvent(http, headers, params) {
   };
 }
 
-function createEvent(http, headers, params) {
+function createEvent(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.subject) {
     throw new Error('subject is required.');
   }
@@ -662,15 +842,15 @@ function createEvent(http, headers, params) {
     throw new Error('endDateTime is required (ISO 8601 format).');
   }
 
-  var event = {
+  const event: Record<string, unknown> = {
     subject: params.subject,
     start: {
       dateTime: params.startDateTime,
-      timeZone: params.timeZone || 'UTC',
+      timeZone: (params.timeZone as string) || 'UTC',
     },
     end: {
       dateTime: params.endDateTime,
-      timeZone: params.timeZone || 'UTC',
+      timeZone: (params.timeZone as string) || 'UTC',
     },
   };
 
@@ -686,9 +866,9 @@ function createEvent(http, headers, params) {
   }
 
   if (params.attendees) {
-    var attendeeList = Array.isArray(params.attendees)
-      ? params.attendees
-      : [params.attendees];
+    const attendeeList = Array.isArray(params.attendees)
+      ? (params.attendees as string[])
+      : [params.attendees as string];
     event.attendees = attendeeList.map(function (email) {
       return {
         emailAddress: { address: email },
@@ -701,16 +881,16 @@ function createEvent(http, headers, params) {
     event.isAllDay = true;
   }
 
-  var url = GRAPH_BASE_URL + '/me/events';
+  const url = GRAPH_BASE_URL + '/me/events';
   console.log('Creating event via: ' + url);
 
-  var response = http.post(url, {
+  const response = http.post(url, {
     headers: headers,
     body: JSON.stringify(event),
   });
   handleError(response, 'create event');
 
-  var created = response.json();
+  const created = response.json();
   return {
     success: true,
     operation: 'create_event',
@@ -720,9 +900,13 @@ function createEvent(http, headers, params) {
   };
 }
 
-function listContacts(http, headers, params) {
-  var top = Math.min(params.top || 25, 100);
-  var queryParts = [
+function listContacts(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
+  const top = Math.min((params.top as number) || 25, 100);
+  const queryParts = [
     '$top=' + top,
     '$orderby=displayName',
     '$select=id,displayName,givenName,surname,emailAddresses,businessPhones,mobilePhone,companyName,jobTitle',
@@ -743,18 +927,19 @@ function listContacts(http, headers, params) {
     queryParts.push('$skip=' + params.skip);
   }
 
-  var url = GRAPH_BASE_URL + '/me/contacts?' + queryParts.join('&');
+  const url = GRAPH_BASE_URL + '/me/contacts?' + queryParts.join('&');
   console.log('Fetching contacts from: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'list contacts');
 
-  var data = response.json();
+  const data = response.json() as Record<string, unknown>;
+  const values = (data.value || []) as unknown[];
   return {
     success: true,
     operation: 'list_contacts',
-    data: data.value,
-    count: data.value.length,
+    data: values,
+    count: values.length,
     pagination: {
       hasNextPage: !!data['@odata.nextLink'],
       nextLink: data['@odata.nextLink'] || null,
@@ -763,18 +948,22 @@ function listContacts(http, headers, params) {
   };
 }
 
-function getContact(http, headers, params) {
+function getContact(
+  http: HttpApi,
+  headers: Record<string, string>,
+  params: Record<string, unknown>,
+) {
   if (!params.contactId) {
     throw new Error('contactId is required.');
   }
 
-  var url = GRAPH_BASE_URL + '/me/contacts/' + params.contactId;
+  const url = GRAPH_BASE_URL + '/me/contacts/' + params.contactId;
   console.log('Fetching contact: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get contact');
 
-  var contact = response.json();
+  const contact = response.json();
   return {
     success: true,
     operation: 'get_contact',
@@ -784,7 +973,12 @@ function getContact(http, headers, params) {
   };
 }
 
-function getAttachments(http, headers, files, params) {
+function getAttachments(
+  http: HttpApi,
+  headers: Record<string, string>,
+  files: FilesApi | undefined,
+  params: Record<string, unknown>,
+) {
   if (!params.messageId) {
     throw new Error('messageId is required.');
   }
@@ -797,9 +991,9 @@ function getAttachments(http, headers, files, params) {
   // The stored externalMessageId may be an RFC 2822 internet message ID
   // (e.g. "<ABC@prod.outlook.com>") rather than a Graph internal ID.
   // The Graph API requires the internal ID for resource paths.
-  var graphId = params.messageId;
+  let graphId = params.messageId as string;
   if (graphId.indexOf('<') !== -1 || graphId.indexOf('@') !== -1) {
-    var resolved = findGraphMessageByInternetId(http, headers, graphId);
+    const resolved = findGraphMessageByInternetId(http, headers, graphId);
     if (!resolved || resolved === 'pending') {
       throw new Error(
         'Could not resolve internet message ID to Graph ID: ' + graphId,
@@ -808,35 +1002,45 @@ function getAttachments(http, headers, files, params) {
     graphId = resolved;
   }
 
-  var url = GRAPH_BASE_URL + '/me/messages/' + graphId + '/attachments';
+  const url = GRAPH_BASE_URL + '/me/messages/' + graphId + '/attachments';
   console.log('Fetching attachments from: ' + url);
 
-  var response = http.get(url, { headers: headers });
+  const response = http.get(url, { headers: headers });
   handleError(response, 'get attachments');
 
-  var data = response.json();
-  var attachments = [];
+  const data = response.json() as {
+    value: Array<{
+      '@odata.type'?: string;
+      id?: string;
+      name?: string;
+      contentType?: string;
+      contentId?: string;
+      contentBytes?: string;
+      size?: number;
+    }>;
+  };
+  const attachments: Array<Record<string, unknown>> = [];
 
-  for (var i = 0; i < data.value.length; i++) {
-    var att = data.value[i];
+  for (let i = 0; i < data.value.length; i++) {
+    const att = data.value[i];
     if (att['@odata.type'] !== '#microsoft.graph.fileAttachment') {
       continue;
     }
 
-    var fileName = att.name || 'attachment';
-    var contentType = att.contentType || 'application/octet-stream';
+    const fileName = att.name || 'attachment';
+    const contentType = att.contentType || 'application/octet-stream';
 
-    var inlineContentId = att.contentId
+    const inlineContentId = att.contentId
       ? att.contentId.replace(/^<|>$/g, '')
       : undefined;
 
     if (att.contentBytes) {
-      var storedFile = files.store(att.contentBytes, {
+      const storedFile = files.store(att.contentBytes, {
         encoding: 'base64',
         contentType: contentType,
         fileName: fileName,
       });
-      var entry = {
+      const entry: Record<string, unknown> = {
         id: att.id,
         name: fileName,
         contentType: contentType,
@@ -849,18 +1053,18 @@ function getAttachments(http, headers, files, params) {
       }
       attachments.push(entry);
     } else {
-      var downloadUrl =
+      const downloadUrl =
         GRAPH_BASE_URL +
         '/me/messages/' +
         graphId +
         '/attachments/' +
         att.id +
         '/$value';
-      var downloadedFile = files.download(downloadUrl, {
+      const downloadedFile = files.download(downloadUrl, {
         headers: { Authorization: headers.Authorization },
         fileName: fileName,
       });
-      var dlEntry = {
+      const dlEntry: Record<string, unknown> = {
         id: att.id,
         name: fileName,
         contentType: contentType,
@@ -884,13 +1088,18 @@ function getAttachments(http, headers, files, params) {
   };
 }
 
-function addAttachmentsToDraft(http, headers, draftId, attachments) {
-  var url = GRAPH_BASE_URL + '/me/messages/' + draftId + '/attachments';
-  for (var i = 0; i < attachments.length; i++) {
-    var att = attachments[i];
+function addAttachmentsToDraft(
+  http: HttpApi,
+  headers: Record<string, string>,
+  draftId: string,
+  attachments: Array<{ url: string; name: string; contentType?: string }>,
+) {
+  const url = GRAPH_BASE_URL + '/me/messages/' + draftId + '/attachments';
+  for (let i = 0; i < attachments.length; i++) {
+    const att = attachments[i];
 
     // Download the file content as base64 from Convex storage URL
-    var fileResponse = http.get(att.url, { responseType: 'base64' });
+    const fileResponse = http.get(att.url, { responseType: 'base64' });
     if (fileResponse.status === 0) {
       return false;
     }
@@ -904,14 +1113,14 @@ function addAttachmentsToDraft(http, headers, draftId, attachments) {
       );
     }
 
-    var payload = {
+    const payload = {
       '@odata.type': '#microsoft.graph.fileAttachment',
       name: att.name,
       contentType: att.contentType || 'application/octet-stream',
       contentBytes: fileResponse.body,
     };
     console.log('Adding attachment: ' + att.name);
-    var resp = http.post(url, {
+    const resp = http.post(url, {
       headers: headers,
       body: JSON.stringify(payload),
     });
@@ -923,7 +1132,7 @@ function addAttachmentsToDraft(http, headers, draftId, attachments) {
   return true;
 }
 
-function handleError(response, operation) {
+function handleError(response: HttpResponse, operation: string): void {
   if (response.status === 401) {
     throw new Error(
       'Authentication failed during ' +
@@ -949,10 +1158,12 @@ function handleError(response, operation) {
     );
   }
   if (response.status >= 400) {
-    var errorBody = '';
+    let errorBody = '';
     try {
-      var err = response.json();
-      errorBody = err.error ? err.error.message : response.text();
+      const err = response.json() as {
+        error?: { message?: string };
+      };
+      errorBody = err.error ? err.error.message || '' : response.text();
     } catch (e) {
       errorBody = response.text();
     }

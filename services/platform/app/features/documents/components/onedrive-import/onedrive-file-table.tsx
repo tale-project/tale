@@ -86,35 +86,26 @@ export function OneDriveFileTable({
           return (
             <HStack gap={2}>
               <DocumentIcon fileName={item.name} isFolder={isFolder(item)} />
-              <div
-                title={item.name}
-                className={`text-foreground max-w-[25rem] truncate text-base font-medium ${
-                  isFolder(item) ? 'cursor-pointer hover:text-blue-600' : ''
-                }`}
-                onClick={
-                  isFolder(item)
-                    ? (e) => {
-                        e.stopPropagation();
-                        handleFolderClick(item);
-                      }
-                    : undefined
-                }
-                onKeyDown={
-                  isFolder(item)
-                    ? (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleFolderClick(item);
-                        }
-                      }
-                    : undefined
-                }
-                role={isFolder(item) ? 'button' : undefined}
-                tabIndex={isFolder(item) ? 0 : undefined}
-              >
-                {item.name}
-              </div>
+              {isFolder(item) ? (
+                <button
+                  type="button"
+                  title={item.name}
+                  className="text-foreground max-w-[25rem] cursor-pointer truncate text-base font-medium hover:text-blue-600"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleFolderClick(item);
+                  }}
+                >
+                  {item.name}
+                </button>
+              ) : (
+                <span
+                  title={item.name}
+                  className="text-foreground max-w-[25rem] truncate text-base font-medium"
+                >
+                  {item.name}
+                </span>
+              )}
             </HStack>
           );
         },

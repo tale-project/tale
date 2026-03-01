@@ -107,7 +107,7 @@ export function ToolSelector({
 
   const availableToolNames = useMemo(
     () =>
-      (tools?.map((t) => t.name) ?? []).filter(
+      (tools?.map((tool) => tool.name) ?? []).filter(
         (name) => !hiddenTools?.has(name),
       ),
     [tools, hiddenTools],

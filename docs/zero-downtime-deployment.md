@@ -148,7 +148,7 @@ Database changes require special handling since the database is shared between b
 
 ```bash
 # 1. Run migrations BEFORE deploying new code
-npm run db:migrate  # or your migration command
+bun run db:migrate  # or your migration command
 
 # 2. Deploy new version
 ./scripts/deploy.sh deploy v1.0.0
@@ -156,7 +156,7 @@ npm run db:migrate  # or your migration command
 # 3. Verify everything works
 
 # 4. (Later) Run cleanup migrations if needed
-npm run db:migrate:cleanup
+bun run db:migrate:cleanup
 ```
 
 ### Non-Backward-Compatible Changes

@@ -1,8 +1,8 @@
 /**
- * Execution polling via `npx convex run`
+ * Execution polling via `bunx convex run`
  *
  * ConvexHttpClient cannot call internalQuery functions.
- * This helper shells out to `npx convex run` which can.
+ * This helper shells out to `bunx convex run` which can.
  *
  * Supports remote deployments via CONVEX_URL env var — pass --url
  * so polling targets the same backend as the ConvexHttpClient.
@@ -29,7 +29,7 @@ export function pollExecutionViaConvexRun(
 ): ExecutionStatus {
   try {
     const output = execFileSync(
-      'npx',
+      'bunx',
       buildConvexRunArgs(
         'wf_executions/queries:getRawExecution',
         JSON.stringify({ executionId }),

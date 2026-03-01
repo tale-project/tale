@@ -15,7 +15,7 @@ on:
       - 'tools/cli/**'
       - '.github/workflows/test.yml'
       - 'package.json'
-      - 'package-lock.json'
+      - 'bun.lock'
       - 'turbo.json'
       - 'tsconfig.base.json'
   push:
@@ -32,7 +32,7 @@ on:
       - 'tools/cli/**'
       - '.github/workflows/test.yml'
       - 'package.json'
-      - 'package-lock.json'
+      - 'bun.lock'
       - 'turbo.json'
       - 'tsconfig.base.json'
 
@@ -61,7 +61,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run tests
-        run: npx turbo run test
+        run: bunx turbo run test
 
   test-ui:
     name: Test UI
@@ -83,4 +83,4 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run UI tests
-        run: npx turbo run test:ui
+        run: bunx turbo run test:ui
