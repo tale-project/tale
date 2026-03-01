@@ -1411,7 +1411,7 @@
       "ariaLabel": "Toggle automation active state"
     },
     "createWithAI": "Create automation with AI",
-    "searchPlaceholder": "Search automations...",
+    "searchPlaceholder": "Search automations",
     "accessDenied": "You need Admin or Developer permissions to access automations.",
     "navigation": {
       "editor": "Editor",
@@ -2108,7 +2108,7 @@
       "defaultAgent": "Assistant",
       "defaultAgentDescription": "General-purpose AI assistant",
       "usingAgent": "Using {name}",
-      "searchPlaceholder": "Search agents...",
+      "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
       "addAgent": "Add agent",
       "builtinAgents": {
@@ -2143,7 +2143,7 @@
     "showHistory": "Show history",
     "hideHistory": "Hide history",
     "chatHistory": "Chat history",
-    "searchPlaceholder": "Search chats...",
+    "searchPlaceholder": "Search chats",
     "messagePlaceholder": "Type a message...",
     "typeMessageHere": "Type your message here…",
     "send": "Send message",
@@ -2236,7 +2236,7 @@
   },
   "documents": {
     "title": "Documents",
-    "searchPlaceholder": "Search documents...",
+    "searchPlaceholder": "Search documents",
     "addButton": "Add document",
     "deleteDocument": "Delete document",
     "deleteSyncFolder": {
@@ -2259,7 +2259,7 @@
     "noItemsMatchingSearch": "No items found matching your search.",
     "noItemsAvailable": "No items available",
     "noItemsSelected": "No items selected",
-    "searchFilesAndFolders": "Search files and folders...",
+    "searchFilesAndFolders": "Search files and folders",
     "emptyState": {
       "title": "No documents yet",
       "description": "Import documents to make your AI smarter"
@@ -2454,7 +2454,7 @@
   },
   "products": {
     "title": "Products",
-    "searchPlaceholder": "Search products...",
+    "searchPlaceholder": "Search products",
     "addButton": "Add product",
     "editProduct": "Edit product",
     "deleteProduct": "Delete product",
@@ -2746,7 +2746,7 @@
       "wordCount": "{count} words",
       "chunks": "{count} chunks",
       "lastCrawled": "Crawled {date}",
-      "searchPlaceholder": "Search website content...",
+      "searchPlaceholder": "Search website content",
       "noSearchResults": "No results found",
       "noChunks": "No chunks indexed for this page",
       "chunkIndex": "Chunk {index}",
