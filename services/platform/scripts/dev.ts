@@ -401,9 +401,11 @@ async function main() {
     );
     console.log('');
 
+    // Run Vite on Node.js (no --bun flag): Bun 1.3.x lacks socket.destroySoon,
+    // which Vite 7's dev proxy requires. Build/preview still use --bun.
     viteProcess = spawn(
       'bun',
-      ['--bun', 'vite', 'dev', '--port', port, '--host', '0.0.0.0'],
+      ['vite', 'dev', '--port', port, '--host', '0.0.0.0'],
       {
         stdio: 'inherit',
         cwd: platformRoot,
@@ -411,7 +413,7 @@ async function main() {
       },
     );
 
-    const shutdown = async () => {
+    async function shutdown() {
       if (shuttingDown) return;
       shuttingDown = true;
 
@@ -428,7 +430,7 @@ async function main() {
 
       console.log('[dev] ✅ All processes stopped');
       process.exit(0);
-    };
+    }
 
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);

@@ -43,6 +43,7 @@ async def fetch_urls(request: FetchUrlsRequest, http_request: Request):
                 urls=urls_to_crawl,
                 word_count_threshold=threshold,
             )
+            crawled_pages = [p for p in crawled_pages if p.get("content") is not None]
 
         if cached:
             logger.info(f"Served {len(cached)} pages from cache, crawled {len(crawled_pages)} live")

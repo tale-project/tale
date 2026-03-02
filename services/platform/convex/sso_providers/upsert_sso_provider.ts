@@ -4,7 +4,7 @@ import type {
   PlatformRole,
   ProviderFeatures,
   RoleMappingRule,
-} from '@/lib/shared/schemas/sso_providers';
+} from '../../lib/shared/schemas/sso_providers';
 
 import { internal } from '../_generated/api';
 import { DataModel } from '../_generated/dataModel';

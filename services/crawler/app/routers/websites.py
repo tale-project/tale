@@ -83,6 +83,8 @@ async def _initialize_website(domain: str, manager: PgWebsiteStoreManager):
             if not results:
                 return
             page = results[0]
+            if page.get("content") is None:
+                return
             title = page.get("title")
             sd = page.get("structured_data")
             if isinstance(sd, str):
