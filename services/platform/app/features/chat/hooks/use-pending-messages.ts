@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
@@ -14,70 +14,95 @@ interface UsePendingMessagesParams {
 
 /**
  * Hook to merge pending messages from context with real messages.
- * Shows optimistic user message only for NEW thread creation (realMessages is empty)
- * to bridge the navigation gap. We intentionally do NOT show optimistic messages for
- * existing threads — Convex subscriptions deliver updates fast enough, and appending
- * an optimistic entry alongside real-time data causes duplicate messages on slow networks.
+ *
+ * For NEW threads (no real messages): shows optimistic user message to bridge
+ * the navigation gap during thread creation.
+ *
+ * For EXISTING threads: appends optimistic user message at the end while the
+ * real message is in-flight. Uses `lastMessageKey` (captured at send time) to
+ * detect when the real message arrives — when the last key in realMessages
+ * changes from the baseline, the optimistic message is dropped.
  */
 export function usePendingMessages({
   threadId,
   realMessages,
 }: UsePendingMessagesParams): ChatMessage[] {
   const { pendingMessage, setPendingMessage } = useChatLayout();
-  const hasCleared = useRef(false);
 
-  // Reset cleared flag when threadId changes
+  // Clear pending message once the real message arrives
   useEffect(() => {
-    hasCleared.current = false;
-  }, [threadId]);
+    if (!pendingMessage) return;
 
-  // Clear pending message once real messages arrive
-  useEffect(() => {
+    // Only clear for matching thread
+    const isMatchingThread =
+      pendingMessage.threadId === threadId ||
+      threadId === undefined ||
+      pendingMessage.threadId === 'pending';
+    if (!isMatchingThread) return;
+
+    // For new threads: clear when any real message arrives
     if (
       realMessages.length > 0 &&
-      pendingMessage &&
-      pendingMessage.threadId === threadId &&
-      !hasCleared.current
+      pendingMessage.lastMessageKey === undefined
     ) {
-      hasCleared.current = true;
       setPendingMessage(null);
+      return;
     }
-  }, [realMessages.length, pendingMessage, threadId, setPendingMessage]);
+
+    // For existing threads: clear when last key changes from baseline
+    if (pendingMessage.lastMessageKey !== undefined) {
+      const currentLastKey = realMessages[realMessages.length - 1]?.key;
+      if (
+        currentLastKey !== undefined &&
+        currentLastKey !== pendingMessage.lastMessageKey
+      ) {
+        setPendingMessage(null);
+      }
+    }
+  }, [realMessages, pendingMessage, threadId, setPendingMessage]);
 
   return useMemo(() => {
-    // Show optimistic message when:
-    // 1. threadId matches pendingMessage.threadId (navigated to new thread)
-    // 2. threadId is undefined but pendingMessage exists (still on index page during startTransition)
-    // 3. pendingMessage.threadId is 'pending' (waiting for thread creation)
-    const shouldShowPending =
+    const isMatchingThread =
       pendingMessage &&
-      realMessages.length === 0 &&
       (pendingMessage.threadId === threadId ||
         threadId === undefined ||
         pendingMessage.threadId === 'pending');
 
-    if (shouldShowPending) {
-      const attachments: FileAttachment[] | undefined =
-        pendingMessage.attachments?.map((a) => ({
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- PendingMessageAttachment.fileId is a string from Convex Id serialization
-          fileId: a.fileId as Id<'_storage'>,
-          fileName: a.fileName,
-          fileType: a.fileType,
-          fileSize: a.fileSize,
-        }));
+    if (!isMatchingThread) return realMessages;
 
-      const optimisticMessage: ChatMessage = {
-        id: `pending-${pendingMessage.timestamp.getTime()}`,
-        key: `pending-${pendingMessage.timestamp.getTime()}`,
-        content: pendingMessage.content,
-        role: 'user',
-        timestamp: pendingMessage.timestamp,
-        attachments:
-          attachments && attachments.length > 0 ? attachments : undefined,
-      };
+    const attachments: FileAttachment[] | undefined =
+      pendingMessage.attachments?.map((a) => ({
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- PendingMessageAttachment.fileId is a string from Convex Id serialization
+        fileId: a.fileId as Id<'_storage'>,
+        fileName: a.fileName,
+        fileType: a.fileType,
+        fileSize: a.fileSize,
+      }));
+
+    const optimisticMessage: ChatMessage = {
+      id: `pending-${pendingMessage.timestamp.getTime()}`,
+      key: `pending-${pendingMessage.timestamp.getTime()}`,
+      content: pendingMessage.content,
+      role: 'user',
+      timestamp: pendingMessage.timestamp,
+      attachments:
+        attachments && attachments.length > 0 ? attachments : undefined,
+    };
+
+    // New thread (no real messages yet): show only optimistic
+    if (realMessages.length === 0) {
       return [optimisticMessage];
     }
 
+    // Existing thread: append optimistic until real message arrives at the end
+    if (pendingMessage.lastMessageKey !== undefined) {
+      const currentLastKey = realMessages[realMessages.length - 1]?.key;
+      if (currentLastKey === pendingMessage.lastMessageKey) {
+        return [...realMessages, optimisticMessage];
+      }
+    }
+
+    // Real message arrived — return realMessages as-is (no duplicate)
     return realMessages;
   }, [threadId, realMessages, pendingMessage]);
 }
