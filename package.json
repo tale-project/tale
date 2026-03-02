@@ -50,7 +50,7 @@
     "@convex-dev/persistent-text-streaming": "0.3.0",
     "@convex-dev/rate-limiter": "0.3.2",
     "@convex-dev/workflow": "0.3.2",
-    "@convex-dev/workpool": "0.4.0",
+    "@convex-dev/workpool": "0.4.1",
     "ai": "5.0.141",
     "base64-arraybuffer": "1.0.2",
     "better-auth": "1.4.9",
