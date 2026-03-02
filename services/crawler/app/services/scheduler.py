@@ -270,10 +270,10 @@ async def _scan_website(
             )
             results = await crawler_service.crawl_urls(urls=batch)
 
-            # Split: pages with content vs HTTP errors vs network failures
+            # Split: pages with content vs HTTP 4xx/5xx errors vs network failures
             all_returned_urls = {p["url"] for p in results}
             crawled_pages = [p for p in results if p.get("content") is not None]
-            non_2xx_urls = [p["url"] for p in results if p.get("content") is None]
+            http_error_urls = [p["url"] for p in results if p.get("content") is None]
             network_failed_urls = [u for u in batch if u not in all_returned_urls]
 
             updates = [
@@ -314,11 +314,11 @@ async def _scan_website(
                     except Exception:
                         logger.exception(f"Indexing failed for {p['url']}")
 
-            error_urls = non_2xx_urls + network_failed_urls
+            error_urls = http_error_urls + network_failed_urls
             if error_urls:
                 logger.warning(
                     f"Scan [{domain}]: {len(error_urls)} URLs failed in batch "
-                    f"({len(non_2xx_urls)} HTTP errors, {len(network_failed_urls)} network failures)"
+                    f"({len(http_error_urls)} HTTP errors, {len(network_failed_urls)} network failures)"
                 )
                 await site_store.increment_fail_count(error_urls)
 

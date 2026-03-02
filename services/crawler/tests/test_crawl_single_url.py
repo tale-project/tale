@@ -196,6 +196,24 @@ class TestCrawlSingleUrlErrorHandling:
 
         assert page["content"] == "fit content"
 
+    async def test_allows_301_redirect(self):
+        result = _make_crawl_result(status_code=301)
+        service = _make_service(result)
+
+        with patch.object(service, "_extract_structured_data_from_html", return_value={}):
+            page = await service.crawl_single_url("https://example.com")
+
+        assert page["content"] == "fit content"
+
+    async def test_allows_302_redirect(self):
+        result = _make_crawl_result(status_code=302)
+        service = _make_service(result)
+
+        with patch.object(service, "_extract_structured_data_from_html", return_value={}):
+            page = await service.crawl_single_url("https://example.com")
+
+        assert page["content"] == "fit content"
+
     async def test_raises_timeout_error_on_slow_crawl(self):
         async def slow_arun(**kwargs):
             await asyncio.sleep(10)
@@ -228,7 +246,7 @@ class TestCrawlSingleUrlMemoryManagement:
 
         assert service._crawl_count == 1
 
-    async def test_increments_crawl_count_on_non_2xx_status(self):
+    async def test_increments_crawl_count_on_http_error_status(self):
         result = _make_crawl_result(status_code=502)
         service = _make_service(result)
 

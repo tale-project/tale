@@ -351,8 +351,8 @@ class CrawlerService:
         try:
             async for result in await self._crawler.arun_many(urls, config=config):
                 if result.success:
-                    if result.status_code is not None and not (200 <= result.status_code < 300):
-                        logger.warning(f"Non-2xx response for {result.url}: HTTP {result.status_code}")
+                    if result.status_code is not None and result.status_code >= 400:
+                        logger.warning(f"HTTP error for {result.url}: {result.status_code}")
                         results.append(
                             {
                                 "url": result.url,
@@ -451,7 +451,7 @@ class CrawlerService:
             if not result.success:
                 raise RuntimeError(f"Failed to crawl {url}: {result.error_message}")
 
-            if result.status_code is not None and not (200 <= result.status_code < 300):
+            if result.status_code is not None and result.status_code >= 400:
                 raise RuntimeError(f"Failed to crawl {url}: HTTP {result.status_code}")
 
             markdown_content = result.markdown.fit_markdown or result.markdown.raw_markdown

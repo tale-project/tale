@@ -5,7 +5,7 @@ export type {
   SsoGroup,
   PlatformRole,
   RoleMappingRule,
-} from '@/lib/shared/schemas/sso_providers';
+} from '../../lib/shared/schemas/sso_providers';
 
 import type {
   SsoProviderCapabilities,
@@ -14,7 +14,7 @@ import type {
   SsoGroup,
   PlatformRole,
   RoleMappingRule,
-} from '@/lib/shared/schemas/sso_providers';
+} from '../../lib/shared/schemas/sso_providers';
 
 export interface SsoProviderConfig {
   providerId: string;
