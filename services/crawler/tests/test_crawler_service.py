@@ -20,6 +20,7 @@ def _make_crawl_result(
     html: str = "<html></html>",
     success: bool = True,
     error_message: str | None = None,
+    status_code: int | None = 200,
 ):
     """Build a fake crawl4ai CrawlResult."""
     md = SimpleNamespace(raw_markdown=raw_markdown, fit_markdown=fit_markdown)
@@ -31,66 +32,144 @@ def _make_crawl_result(
         html=html,
         success=success,
         error_message=error_message,
+        status_code=status_code,
     )
+
+
+async def _run_crawl(results):
+    """Helper: run crawl_urls with mocked arun_many returning given results."""
+    service = CrawlerService()
+    service.initialized = True
+    service._crawl_count = 0
+
+    async def fake_arun_many(urls, config):
+        async def gen():
+            for r in results:
+                yield r
+
+        return gen()
+
+    service._crawler = MagicMock()
+    service._crawler.arun_many = fake_arun_many
+
+    with patch(
+        "app.services.crawler_service.CrawlerService._extract_structured_data_from_html",
+        return_value={},
+    ):
+        return await service.crawl_urls(["https://example.com"])
 
 
 class TestCrawlUrlsMarkdownSelection:
     """Verify that crawl_urls prefers fit_markdown and falls back to raw_markdown."""
 
-    async def _run_crawl(self, results):
-        """Helper: run crawl_urls with mocked arun_many returning given results."""
-        service = CrawlerService()
-        service.initialized = True
-        service._crawl_count = 0
-
-        async def fake_arun_many(urls, config):
-            async def gen():
-                for r in results:
-                    yield r
-
-            return gen()
-
-        service._crawler = MagicMock()
-        service._crawler.arun_many = fake_arun_many
-
-        with patch(
-            "app.services.crawler_service.CrawlerService._extract_structured_data_from_html",
-            return_value={},
-        ):
-            return await service.crawl_urls(["https://example.com"])
-
     async def test_uses_fit_markdown_when_available(self):
         result = _make_crawl_result(fit_markdown="clean content", raw_markdown="noisy content")
-        pages = await self._run_crawl([result])
+        pages = await _run_crawl([result])
 
         assert len(pages) == 1
         assert pages[0]["content"] == "clean content"
 
     async def test_falls_back_to_raw_markdown_when_fit_is_none(self):
         result = _make_crawl_result(fit_markdown=None, raw_markdown="raw content")
-        pages = await self._run_crawl([result])
+        pages = await _run_crawl([result])
 
         assert len(pages) == 1
         assert pages[0]["content"] == "raw content"
 
     async def test_falls_back_to_raw_markdown_when_fit_is_empty(self):
         result = _make_crawl_result(fit_markdown="", raw_markdown="raw content")
-        pages = await self._run_crawl([result])
+        pages = await _run_crawl([result])
 
         assert len(pages) == 1
         assert pages[0]["content"] == "raw content"
 
     async def test_skips_failed_results(self):
         result = _make_crawl_result(success=False, error_message="404")
-        pages = await self._run_crawl([result])
+        pages = await _run_crawl([result])
 
         assert len(pages) == 0
 
     async def test_word_count_uses_selected_markdown(self):
         result = _make_crawl_result(fit_markdown="one two three")
-        pages = await self._run_crawl([result])
+        pages = await _run_crawl([result])
 
         assert pages[0]["word_count"] == 3
+
+    async def test_successful_result_includes_status_code(self):
+        result = _make_crawl_result(status_code=200)
+        pages = await _run_crawl([result])
+
+        assert pages[0]["status_code"] == 200
+
+
+class TestCrawlUrlsStatusCodeFiltering:
+    """Verify that non-2xx status codes are returned with content=None."""
+
+    async def test_502_returns_with_none_content(self):
+        result = _make_crawl_result(title="502 Bad Gateway", status_code=502)
+        pages = await _run_crawl([result])
+
+        assert len(pages) == 1
+        assert pages[0]["content"] is None
+        assert pages[0]["status_code"] == 502
+
+    async def test_404_returns_with_none_content(self):
+        result = _make_crawl_result(title="Not Found", status_code=404)
+        pages = await _run_crawl([result])
+
+        assert len(pages) == 1
+        assert pages[0]["content"] is None
+        assert pages[0]["status_code"] == 404
+
+    async def test_500_returns_with_none_content(self):
+        result = _make_crawl_result(status_code=500)
+        pages = await _run_crawl([result])
+
+        assert len(pages) == 1
+        assert pages[0]["content"] is None
+        assert pages[0]["status_code"] == 500
+
+    async def test_allows_200_ok(self):
+        result = _make_crawl_result(status_code=200)
+        pages = await _run_crawl([result])
+
+        assert len(pages) == 1
+        assert pages[0]["content"] is not None
+        assert pages[0]["status_code"] == 200
+
+    async def test_allows_none_status_code(self):
+        result = _make_crawl_result(status_code=None)
+        pages = await _run_crawl([result])
+
+        assert len(pages) == 1
+        assert pages[0]["content"] is not None
+
+    async def test_mixed_batch_preserves_both(self):
+        ok = _make_crawl_result(url="https://example.com/ok", status_code=200)
+        bad = _make_crawl_result(url="https://example.com/bad", status_code=503)
+        pages = await _run_crawl([ok, bad])
+
+        assert len(pages) == 2
+        by_url = {p["url"]: p for p in pages}
+        assert by_url["https://example.com/ok"]["content"] is not None
+        assert by_url["https://example.com/bad"]["content"] is None
+        assert by_url["https://example.com/bad"]["status_code"] == 503
+
+    async def test_all_non_2xx_batch(self):
+        r1 = _make_crawl_result(url="https://example.com/a", status_code=502)
+        r2 = _make_crawl_result(url="https://example.com/b", status_code=404)
+        pages = await _run_crawl([r1, r2])
+
+        assert len(pages) == 2
+        assert all(p["content"] is None for p in pages)
+
+    async def test_status_code_zero_treated_as_error(self):
+        result = _make_crawl_result(status_code=0)
+        pages = await _run_crawl([result])
+
+        assert len(pages) == 1
+        assert pages[0]["content"] is None
+        assert pages[0]["status_code"] == 0
 
 
 class TestCrawlerRunConfigSetup:

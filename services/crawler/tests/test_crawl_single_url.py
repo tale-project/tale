@@ -20,6 +20,7 @@ def _make_crawl_result(
     success: bool = True,
     error_message: str | None = None,
     media: dict | None = None,
+    status_code: int | None = 200,
 ):
     """Build a fake crawl4ai CrawlResult for single URL crawl."""
     md = SimpleNamespace(raw_markdown=raw_markdown, fit_markdown=fit_markdown)
@@ -34,6 +35,7 @@ def _make_crawl_result(
         success=success,
         error_message=error_message,
         media=media,
+        status_code=status_code,
     )
 
 
@@ -171,6 +173,29 @@ class TestCrawlSingleUrlErrorHandling:
         with pytest.raises(RuntimeError, match="Connection refused"):
             await service.crawl_single_url("https://example.com")
 
+    async def test_raises_runtime_error_on_502_status(self):
+        result = _make_crawl_result(status_code=502)
+        service = _make_service(result)
+
+        with pytest.raises(RuntimeError, match="HTTP 502"):
+            await service.crawl_single_url("https://example.com")
+
+    async def test_raises_runtime_error_on_404_status(self):
+        result = _make_crawl_result(status_code=404)
+        service = _make_service(result)
+
+        with pytest.raises(RuntimeError, match="HTTP 404"):
+            await service.crawl_single_url("https://example.com")
+
+    async def test_allows_none_status_code(self):
+        result = _make_crawl_result(status_code=None)
+        service = _make_service(result)
+
+        with patch.object(service, "_extract_structured_data_from_html", return_value={}):
+            page = await service.crawl_single_url("https://example.com")
+
+        assert page["content"] == "fit content"
+
     async def test_raises_timeout_error_on_slow_crawl(self):
         async def slow_arun(**kwargs):
             await asyncio.sleep(10)
@@ -196,6 +221,15 @@ class TestCrawlSingleUrlMemoryManagement:
 
     async def test_increments_crawl_count_even_on_failure(self):
         result = _make_crawl_result(success=False, error_message="error")
+        service = _make_service(result)
+
+        with pytest.raises(RuntimeError):
+            await service.crawl_single_url("https://example.com")
+
+        assert service._crawl_count == 1
+
+    async def test_increments_crawl_count_on_non_2xx_status(self):
+        result = _make_crawl_result(status_code=502)
         service = _make_service(result)
 
         with pytest.raises(RuntimeError):

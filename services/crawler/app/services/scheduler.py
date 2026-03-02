@@ -269,8 +269,12 @@ async def _scan_website(
                 f"({len(batch)} URLs, total so far: {crawled_total})"
             )
             results = await crawler_service.crawl_urls(urls=batch)
-            succeeded_urls = {p["url"] for p in results}
-            failed_urls = [u for u in batch if u not in succeeded_urls]
+
+            # Split: pages with content vs HTTP errors vs network failures
+            all_returned_urls = {p["url"] for p in results}
+            crawled_pages = [p for p in results if p.get("content") is not None]
+            non_2xx_urls = [p["url"] for p in results if p.get("content") is None]
+            network_failed_urls = [u for u in batch if u not in all_returned_urls]
 
             updates = [
                 {
@@ -283,13 +287,13 @@ async def _scan_website(
                     "metadata": p.get("metadata"),
                     "structured_data": p.get("structured_data"),
                 }
-                for p in results
+                for p in crawled_pages
             ]
             await site_store.update_content_hashes(updates)
             crawled_total += len(updates)
 
             if homepage_title is None:
-                for p in results:
+                for p in crawled_pages:
                     if _is_homepage(p["url"], domain):
                         homepage_title = p.get("title")
                         sd = p.get("structured_data")
@@ -299,23 +303,27 @@ async def _scan_website(
                         break
 
             if indexing_service:
-                for p in results:
-                    if p.get("content"):
-                        try:
-                            await indexing_service.index_page(
-                                domain=domain,
-                                url=p["url"],
-                                title=p.get("title"),
-                                content=p["content"],
-                            )
-                        except Exception:
-                            logger.exception(f"Indexing failed for {p['url']}")
+                for p in crawled_pages:
+                    try:
+                        await indexing_service.index_page(
+                            domain=domain,
+                            url=p["url"],
+                            title=p.get("title"),
+                            content=p["content"],
+                        )
+                    except Exception:
+                        logger.exception(f"Indexing failed for {p['url']}")
 
-            if failed_urls:
-                logger.warning(f"Scan [{domain}]: {len(failed_urls)} URLs failed in batch")
-                await site_store.increment_fail_count(failed_urls)
+            error_urls = non_2xx_urls + network_failed_urls
+            if error_urls:
+                logger.warning(
+                    f"Scan [{domain}]: {len(error_urls)} URLs failed in batch "
+                    f"({len(non_2xx_urls)} HTTP errors, {len(network_failed_urls)} network failures)"
+                )
+                await site_store.increment_fail_count(error_urls)
 
-            first_time = [u for u in succeeded_urls if u not in had_headers]
+            crawled_page_urls = {p["url"] for p in crawled_pages}
+            first_time = [u for u in crawled_page_urls if u not in had_headers]
             if first_time:
                 await _seed_cache_headers(first_time, site_store)
 
