@@ -82,12 +82,10 @@ export function useSendMessage({
           fileSize: a.fileSize,
         }));
 
-        // Create thread if needed.
-        // Optimistic message is ONLY set for new threads (no currentThreadId) to bridge
-        // the gap during thread creation + navigation. For existing threads, Convex's
-        // real-time subscription delivers the message fast enough, and adding an optimistic
-        // message risks duplicates on slow networks (the cleanup race between the optimistic
-        // entry and the real subscription update is inherently unreliable).
+        // Capture last message key at send time for optimistic message baseline.
+        // Frozen in state before any server round-trip to prevent TOCTOU races.
+        const lastMessageKey = messages[messages.length - 1]?.key;
+
         if (!currentThreadId) {
           const pendingTimestamp = new Date();
           setPendingMessage({
@@ -95,6 +93,7 @@ export function useSendMessage({
             threadId: 'pending',
             attachments: mutationAttachments,
             timestamp: pendingTimestamp,
+            lastMessageKey,
           });
 
           const title =
@@ -113,6 +112,7 @@ export function useSendMessage({
             threadId: newThreadId,
             attachments: mutationAttachments,
             timestamp: pendingTimestamp,
+            lastMessageKey,
           });
 
           // Use startTransition to prevent Suspense from triggering.
@@ -126,6 +126,13 @@ export function useSendMessage({
             });
           });
         } else {
+          setPendingMessage({
+            content: sanitizedContent,
+            threadId: currentThreadId,
+            attachments: mutationAttachments,
+            timestamp: new Date(),
+            lastMessageKey,
+          });
           isFirstMessage = messages?.length === 0;
         }
 
@@ -137,8 +144,8 @@ export function useSendMessage({
         }
 
         // Send message via unified agent chat mutation.
-        // isPending stays true until useChatLoadingState confirms a new
-        // terminal assistant appeared (creation-time baseline + debounce).
+        // isPending stays true until useChatLoadingState detects handoff
+        // (isGenerating) or a new terminal assistant message (slow-network backup).
         await chatWithAgent({
           agentId: toId<'customAgents'>(selectedAgent._id),
           threadId: currentThreadId,
@@ -157,7 +164,7 @@ export function useSendMessage({
     },
     [
       threadId,
-      messages?.length,
+      messages,
       organizationId,
       setIsPending,
       setPendingThreadId,

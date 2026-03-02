@@ -86,6 +86,7 @@ export function ChatInterface({
     canLoadMore,
     isLoadingMore,
     activeMessage,
+    terminalAssistantCount,
   } = useMessageProcessing(threadId);
 
   // Merge with pending messages from context for optimistic UI
@@ -133,6 +134,7 @@ export function ChatInterface({
     isGenerating: isGenerating ?? false,
     threadId,
     pendingThreadId,
+    terminalAssistantCount,
   });
 
   // Stop generating

@@ -77,6 +77,7 @@ interface UseMessageProcessingResult {
   streamingMessage: UIMessage | undefined;
   pendingToolResponse: UIMessage | undefined;
   hasActiveTools: boolean;
+  terminalAssistantCount: number;
 }
 
 /**
@@ -279,6 +280,19 @@ export function useMessageProcessing(
   const pendingToolResponse =
     activeMessage?.status === 'pending' ? activeMessage : undefined;
 
+  // Count terminal assistant messages for slow-network isPending clearing.
+  // This is a monotonically-increasing signal immune to React 18 batching
+  // coalescing (unlike the boolean isGenerating toggle).
+  const terminalAssistantCount = useMemo(
+    () =>
+      uiMessages?.filter(
+        (m) =>
+          m.role === 'assistant' &&
+          (m.status === 'success' || m.status === 'failed'),
+      ).length ?? 0,
+    [uiMessages],
+  );
+
   // Check for active tools in active message (streaming or pending)
   const hasActiveTools = useMemo(() => {
     if (!activeMessage?.parts) return false;
@@ -302,5 +316,6 @@ export function useMessageProcessing(
     streamingMessage,
     pendingToolResponse,
     hasActiveTools,
+    terminalAssistantCount,
   };
 }
