@@ -34,7 +34,6 @@ async def periodic_gc_cleanup() -> None:
 async def lifespan(app: FastAPI):
     """Lifecycle manager for the application."""
     # Startup
-    init_telemetry(app)
     logger.info("Starting Tale RAG service...")
     logger.info("Version: {}", __version__)
     logger.info("Host: {}:{}", settings.host, settings.port)
@@ -145,3 +144,5 @@ app.include_router(health_router)
 app.include_router(documents_router)
 app.include_router(search_router)
 app.include_router(jobs_router)
+
+init_telemetry(app)

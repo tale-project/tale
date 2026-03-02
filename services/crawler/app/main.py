@@ -45,7 +45,6 @@ from app.telemetry import init_telemetry, shutdown_telemetry
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Lifespan context manager for startup and shutdown events."""
     # Startup
-    init_telemetry(app)
     logger.info(f"Starting Tale Crawler service v{__version__}...")
     logger.info(f"Server: {settings.host}:{settings.port}")
     logger.info(f"Log level: {settings.log_level}")
@@ -168,6 +167,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+init_telemetry(app)
 
 
 # Register routers

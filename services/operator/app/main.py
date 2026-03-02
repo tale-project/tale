@@ -28,7 +28,6 @@ from app.telemetry import init_telemetry, shutdown_telemetry
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Lifespan context manager for startup and shutdown events."""
     # Startup
-    init_telemetry(app)
     logger.info(f"Starting Tale Operator service v{__version__}...")
     logger.info(f"Server: {settings.host}:{settings.port}")
     logger.info(f"Log level: {settings.log_level}")
@@ -72,6 +71,8 @@ app = FastAPI(
 
 # Register routers
 app.include_router(browser_router)
+
+init_telemetry(app)
 
 
 @app.get("/health", response_model=HealthResponse)

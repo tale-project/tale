@@ -66,6 +66,7 @@ COPY services/platform/messages ./services/platform/messages
 COPY services/platform/vite-plugins ./services/platform/vite-plugins
 
 COPY services/platform/server.ts \
+     services/platform/telemetry.ts \
      services/platform/docker-entrypoint.sh \
      services/platform/generate-admin-key.sh \
      services/platform/env.sh \
@@ -158,7 +159,7 @@ ENV NODE_ENV=production \
 COPY --from=convex-dashboard --chown=app:app /app /dashboard
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
-COPY --from=pruner --chown=app:app /app/services/platform/server.ts ./
+COPY --from=pruner --chown=app:app /app/services/platform/server.ts /app/services/platform/telemetry.ts ./
 COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
 COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
