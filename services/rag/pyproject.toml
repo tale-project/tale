@@ -19,6 +19,7 @@ dependencies = [
     "loguru>=0.7.0",
     "httpx>=0.28.0",
     "stamina>=25.0.0",
+    "tale-telemetry",
 ]
 
 [project.optional-dependencies]
@@ -31,6 +32,7 @@ dev = [
 ]
 
 [tool.uv.sources]
+tale-telemetry = { path = "../../packages/tale_telemetry" }
 tale-knowledge = { path = "../../packages/tale_knowledge" }
 tale-shared = { path = "../../packages/tale_shared" }
 

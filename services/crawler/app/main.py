@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from tale_telemetry import init_telemetry, shutdown_telemetry
 
 from app import __version__
 from app.config import settings
@@ -144,6 +145,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     except Exception:
         logger.exception("Failed to cleanup crawler service")
 
+    shutdown_telemetry()
+
 
 # Create FastAPI application
 app = FastAPI(
@@ -164,6 +167,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+init_telemetry(app)
 
 
 # Register routers
