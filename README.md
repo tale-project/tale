@@ -222,6 +222,7 @@ When the token is unset, all `/metrics/*` endpoints return `404`.
 | --- | --- | --- |
 | `/metrics/crawler` | Crawler (Python) | HTTP request count & latency, process stats |
 | `/metrics/rag` | RAG (Python) | HTTP request count & latency, process stats |
+| `/metrics/operator` | Operator (Python) | HTTP request count & latency, process stats |
 | `/metrics/platform` | Platform (Bun) | Event loop lag, heap, GC, CPU, memory |
 | `/metrics/convex` | Convex backend | 261 built-in metrics (query/mutation latency, UDF execution, DB ops) |
 

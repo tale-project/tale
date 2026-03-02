@@ -38,7 +38,7 @@ from app.routers import (
 from app.services.crawler_service import get_crawler_service
 from app.services.image_service import get_image_service
 from app.services.pdf_service import get_pdf_service
-from app.telemetry import init_telemetry, shutdown_telemetry
+from tale_telemetry import init_telemetry, shutdown_telemetry
 
 
 @asynccontextmanager

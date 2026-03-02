@@ -54,9 +54,16 @@ RUN groupadd -r pwuser \
 # Install uv for faster package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# Copy and install shared packages first (better layer caching)
+COPY packages/tale_telemetry/pyproject.toml /packages/tale_telemetry/pyproject.toml
+COPY packages/tale_telemetry/src/ /packages/tale_telemetry/src/
+RUN uv pip install --system /packages/tale_telemetry
+
 # Copy pyproject.toml and install dependencies (includes playwright)
+# Fix local package paths: relative ../../packages/* → absolute /packages/* for Docker context
 COPY services/operator/pyproject.toml .
-RUN uv pip install --system .
+RUN sed -i 's|../../packages/tale_telemetry|/packages/tale_telemetry|g' pyproject.toml \
+    && uv pip install --system .
 
 # Install Playwright Chromium browser
 RUN playwright install chromium \

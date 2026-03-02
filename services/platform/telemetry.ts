@@ -8,14 +8,27 @@
  * only serves static files — the real backend is Convex.
  */
 
-import client from 'prom-client';
+import * as client from 'prom-client';
+
+let initialized = false;
 
 export function initTelemetry() {
+  if (initialized) return;
   client.collectDefaultMetrics();
+  initialized = true;
+}
+
+export function shutdownTelemetry() {
+  client.register.clear();
+  initialized = false;
 }
 
 export async function metricsResponse(): Promise<Response> {
-  return new Response(await client.register.metrics(), {
-    headers: { 'Content-Type': client.register.contentType },
-  });
+  try {
+    return new Response(await client.register.metrics(), {
+      headers: { 'Content-Type': client.register.contentType },
+    });
+  } catch {
+    return new Response('Metrics unavailable', { status: 500 });
+  }
 }

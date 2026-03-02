@@ -21,7 +21,7 @@ from app.config import settings
 from app.models import HealthResponse
 from app.routers import browser_router
 from app.services import get_browser_service
-from app.telemetry import init_telemetry, shutdown_telemetry
+from tale_telemetry import init_telemetry, shutdown_telemetry
 
 
 @asynccontextmanager

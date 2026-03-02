@@ -14,7 +14,7 @@ from .config import settings
 from .models import ErrorResponse
 from .routers import documents_router, health_router, jobs_router, search_router
 from .services.rag_service import rag_service
-from .telemetry import init_telemetry, shutdown_telemetry
+from tale_telemetry import init_telemetry, shutdown_telemetry
 from .utils import cleanup_memory
 
 

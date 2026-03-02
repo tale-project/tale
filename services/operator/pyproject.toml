@@ -11,7 +11,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "loguru>=0.7.0",
     "playwright>=1.49.0",
-    "prometheus-client>=0.21.0",
+    "tale-telemetry",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +20,9 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
 ]
+
+[tool.uv.sources]
+tale-telemetry = { path = "../../packages/tale_telemetry" }
 
 [build-system]
 requires = ["hatchling"]

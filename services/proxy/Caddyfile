@@ -123,7 +123,8 @@
 
 	@metricsAuth {
 		path /metrics/crawler /metrics/rag /metrics/operator /metrics/platform /metrics/convex
-		header Authorization "Bearer {$METRICS_BEARER_TOKEN:__disabled__}"
+		expression `"{$METRICS_BEARER_TOKEN:}" != ""`
+		header Authorization "Bearer {$METRICS_BEARER_TOKEN:}"
 	}
 	handle @metricsAuth {
 		handle /metrics/crawler {
