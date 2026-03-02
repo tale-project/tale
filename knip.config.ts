@@ -1,33 +1,6 @@
 export default {
   ignoreBinaries: ['uv'],
   ignore: ['examples/**'],
-  ignoreDependencies: [
-    '@ai-sdk/openai',
-    '@ai-sdk/provider-utils',
-    '@convex-dev/action-cache',
-    '@convex-dev/agent',
-    '@convex-dev/better-auth',
-    '@convex-dev/persistent-text-streaming',
-    '@convex-dev/rate-limiter',
-    '@convex-dev/workflow',
-    '@convex-dev/workpool',
-    'ai',
-    'base64-arraybuffer',
-    'better-auth',
-    'convex',
-    'convex-helpers',
-    'cron-parser',
-    'jexl',
-    'jose',
-    'lodash',
-    'mssql',
-    'mustache',
-    'mysql2',
-    'pg',
-    'sucrase',
-    'xlsx',
-    'zod',
-  ],
   workspaces: {
     'services/platform': {
       entry: [
