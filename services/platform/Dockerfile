@@ -17,7 +17,7 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
 
-COPY package.json bun.lock ./
+COPY package.json bun.lock bunfig.toml ./
 COPY services/platform/package.json ./services/platform/
 COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
@@ -41,9 +41,8 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
 
-# Preserve workspace layout so bun's internal symlinks resolve correctly
+# In hoisted mode all dependencies are in root node_modules
 COPY --from=workspace-deps /app/node_modules ./node_modules
-COPY --from=workspace-deps /app/services/platform/node_modules ./services/platform/node_modules
 
 COPY tsconfig.base.json ./tsconfig.base.json
 
@@ -81,7 +80,7 @@ RUN cd services/platform && bun --bun vite build
 # ============================================================================
 FROM builder AS pruner
 
-COPY --from=workspace-deps /app/package.json /app/bun.lock /tmp/workspace/
+COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
 COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/
 COPY --from=workspace-deps /app/services/crawler/package.json /tmp/workspace/services/crawler/
 COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/services/rag/
