@@ -44,7 +44,7 @@
     "@convex-dev/rate-limiter": "0.3.2",
     "@convex-dev/react-query": "0.1.0",
     "@convex-dev/workflow": "0.3.2",
-    "@convex-dev/workpool": "0.3.0",
+    "@convex-dev/workpool": "0.4.0",
     "@hookform/resolvers": "5.2.2",
     "@microlink/react-json-view": "1.27.1",
     "@milkdown/crepe": "7.18.0",
