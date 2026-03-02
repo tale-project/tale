@@ -122,7 +122,7 @@
 	# ============================================================================
 
 	@metricsAuth {
-		path /metrics/crawler /metrics/rag /metrics/operator /metrics/platform
+		path /metrics/crawler /metrics/rag /metrics/operator /metrics/platform /metrics/convex
 		header Authorization "Bearer {$METRICS_BEARER_TOKEN:__disabled__}"
 	}
 	handle @metricsAuth {
@@ -141,6 +141,10 @@
 		handle /metrics/platform {
 			rewrite * /metrics
 			reverse_proxy platform:3000
+		}
+		handle /metrics/convex {
+			rewrite * /metrics
+			reverse_proxy platform:3210
 		}
 	}
 
