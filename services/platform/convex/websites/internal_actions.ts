@@ -195,7 +195,7 @@ export const registerAndSync = internalAction({
 
     // Schedule a delayed sync to pick up scan results
     await ctx.scheduler.runAfter(
-      60_000,
+      600_000,
       internal.websites.internal_actions.syncSingleWebsite,
       { websiteId: args.websiteId, domain: args.domain },
     );
