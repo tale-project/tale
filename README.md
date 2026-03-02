@@ -205,6 +205,43 @@ The script will display the dashboard URL, deployment URL, and admin key. Follow
 
 The admin key is required every time you open the dashboard. Keep it secure—anyone with this key has full access to your backend.
 
+## Monitoring & Metrics
+
+Every Tale service exposes Prometheus metrics. Access is gated by a single bearer token—set it to enable scraping:
+
+```bash
+# Add to .env
+METRICS_BEARER_TOKEN=your-secret-token-here
+```
+
+When the token is unset, all `/metrics/*` endpoints return `404`.
+
+### Available endpoints
+
+| Endpoint | Service | Metrics |
+| --- | --- | --- |
+| `/metrics/crawler` | Crawler (Python) | HTTP request count & latency, process stats |
+| `/metrics/rag` | RAG (Python) | HTTP request count & latency, process stats |
+| `/metrics/operator` | Operator (Python) | HTTP request count & latency, process stats |
+| `/metrics/platform` | Platform (Bun) | Event loop lag, heap, GC, CPU, memory |
+| `/metrics/convex` | Convex backend | 261 built-in metrics (query/mutation latency, UDF execution, DB ops) |
+
+### Prometheus scrape config
+
+```yaml
+scrape_configs:
+  - job_name: tale-crawler
+    scheme: https
+    metrics_path: /metrics/crawler
+    authorization:
+      credentials: your-secret-token-here
+    static_configs:
+      - targets: ['your-tale-host.com']
+
+  # Repeat for: tale-rag, tale-operator, tale-platform, tale-convex
+  # changing metrics_path accordingly
+```
+
 ## Development
 
 For local development (non-Docker):
@@ -278,6 +315,7 @@ bun run dev
 
 - **[Tale CLI](tools/cli/README.md)** - CLI tool for production deployment, management, and zero-downtime updates
 - **[Zero-Downtime Deployment](docs/zero-downtime-deployment.md)** - Blue-green deployment strategy details
+- **[Monitoring & Metrics](#monitoring--metrics)** - Prometheus endpoints and scrape configuration
 
 ## Need Help?
 

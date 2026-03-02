@@ -1,5 +1,7 @@
 import { join, resolve } from 'node:path';
 
+import { initTelemetry, metricsResponse } from './telemetry';
+
 interface EnvConfig {
   SITE_URL: string | undefined;
   MICROSOFT_AUTH_ENABLED: boolean;
@@ -25,6 +27,8 @@ function getEnvConfig(): EnvConfig {
   };
 }
 
+initTelemetry();
+
 Bun.serve({
   port,
   hostname: '0.0.0.0',
@@ -34,6 +38,10 @@ Bun.serve({
 
     if (pathname === '/api/health') {
       return Response.json({ status: 'ok' });
+    }
+
+    if (pathname === '/metrics') {
+      return metricsResponse();
     }
 
     if (pathname !== '/') {

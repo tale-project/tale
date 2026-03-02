@@ -22,6 +22,7 @@ dependencies = [
     "tiktoken>=0.9.0",
     "semantic-text-splitter>=0.18.0",
     "stamina>=25.0.0",
+    "tale-telemetry",
     "tale-knowledge",
     "tale-shared",
 ]
@@ -36,6 +37,7 @@ dev = [
 ]
 
 [tool.uv.sources]
+tale-telemetry = { path = "../../packages/tale_telemetry" }
 tale-knowledge = { path = "../../packages/tale_knowledge" }
 tale-shared = { path = "../../packages/tale_shared" }
 

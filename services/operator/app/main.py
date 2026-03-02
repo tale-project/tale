@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from loguru import logger
+from tale_telemetry import init_telemetry, shutdown_telemetry
 
 from app import __version__
 from app.config import settings
@@ -54,6 +55,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     except Exception:
         logger.exception("Failed to cleanup browser service")
 
+    shutdown_telemetry()
+
 
 # Create FastAPI application
 app = FastAPI(
@@ -68,6 +71,8 @@ app = FastAPI(
 
 # Register routers
 app.include_router(browser_router)
+
+init_telemetry(app)
 
 
 @app.get("/health", response_model=HealthResponse)

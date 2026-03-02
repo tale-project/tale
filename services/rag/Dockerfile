@@ -34,12 +34,14 @@ COPY packages/tale_shared/pyproject.toml /packages/tale_shared/pyproject.toml
 COPY packages/tale_shared/src/ /packages/tale_shared/src/
 COPY packages/tale_knowledge/pyproject.toml /packages/tale_knowledge/pyproject.toml
 COPY packages/tale_knowledge/src/ /packages/tale_knowledge/src/
-RUN uv pip install --system /packages/tale_shared /packages/tale_knowledge
+COPY packages/tale_telemetry/pyproject.toml /packages/tale_telemetry/pyproject.toml
+COPY packages/tale_telemetry/src/ /packages/tale_telemetry/src/
+RUN uv pip install --system /packages/tale_shared /packages/tale_knowledge /packages/tale_telemetry
 
 # Copy pyproject.toml and install service dependencies
 # Fix local package paths: relative ../../packages/* → absolute /packages/* for Docker context
 COPY services/rag/pyproject.toml /app/pyproject.toml
-RUN sed -i 's|../../packages/tale_knowledge|/packages/tale_knowledge|g; s|../../packages/tale_shared|/packages/tale_shared|g' pyproject.toml \
+RUN sed -i 's|../../packages/tale_knowledge|/packages/tale_knowledge|g; s|../../packages/tale_shared|/packages/tale_shared|g; s|../../packages/tale_telemetry|/packages/tale_telemetry|g' pyproject.toml \
     && uv pip install --system .
 
 # ============================================================================
