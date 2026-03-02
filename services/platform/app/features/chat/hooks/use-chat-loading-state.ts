@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-interface UseChatLoadingStateParams {
+export interface UseChatLoadingStateParams {
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
   isGenerating: boolean;

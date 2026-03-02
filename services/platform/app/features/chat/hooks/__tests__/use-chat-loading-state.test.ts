@@ -2,7 +2,10 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useChatLoadingState } from '../use-chat-loading-state';
+import {
+  useChatLoadingState,
+  type UseChatLoadingStateParams,
+} from '../use-chat-loading-state';
 
 const THREAD_A = 'thread-a';
 const SAFETY_TIMEOUT_MS = 60_000;
@@ -394,7 +397,10 @@ describe('useChatLoadingState', () => {
     });
 
     it('does not clear isPending when terminalAssistantCount unchanged', () => {
-      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+      const { rerender } = renderHook<
+        ReturnType<typeof useChatLoadingState>,
+        UseChatLoadingStateParams
+      >((props) => useChatLoadingState(props), {
         initialProps: {
           isPending: true,
           setIsPending,
@@ -418,7 +424,10 @@ describe('useChatLoadingState', () => {
     });
 
     it('resets baseline when isPending transitions to false', () => {
-      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+      const { rerender } = renderHook<
+        ReturnType<typeof useChatLoadingState>,
+        UseChatLoadingStateParams
+      >((props) => useChatLoadingState(props), {
         initialProps: {
           isPending: true,
           setIsPending,
@@ -464,7 +473,10 @@ describe('useChatLoadingState', () => {
     });
 
     it('captures new baseline on subsequent send', () => {
-      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+      const { rerender } = renderHook<
+        ReturnType<typeof useChatLoadingState>,
+        UseChatLoadingStateParams
+      >((props) => useChatLoadingState(props), {
         initialProps: {
           isPending: true,
           setIsPending,

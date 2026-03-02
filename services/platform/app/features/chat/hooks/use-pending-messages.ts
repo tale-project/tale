@@ -29,6 +29,11 @@ export function usePendingMessages({
 }: UsePendingMessagesParams): ChatMessage[] {
   const { pendingMessage, setPendingMessage } = useChatLayout();
 
+  // Derived scalars for the cleanup effect — avoids re-running on every
+  // streaming update when only the message content (not the tail key) changes.
+  const currentLastKey = realMessages[realMessages.length - 1]?.key;
+  const hasMessages = realMessages.length > 0;
+
   // Clear pending message once the real message arrives
   useEffect(() => {
     if (!pendingMessage) return;
@@ -41,17 +46,13 @@ export function usePendingMessages({
     if (!isMatchingThread) return;
 
     // For new threads: clear when any real message arrives
-    if (
-      realMessages.length > 0 &&
-      pendingMessage.lastMessageKey === undefined
-    ) {
+    if (hasMessages && pendingMessage.lastMessageKey === undefined) {
       setPendingMessage(null);
       return;
     }
 
     // For existing threads: clear when last key changes from baseline
     if (pendingMessage.lastMessageKey !== undefined) {
-      const currentLastKey = realMessages[realMessages.length - 1]?.key;
       if (
         currentLastKey !== undefined &&
         currentLastKey !== pendingMessage.lastMessageKey
@@ -59,7 +60,13 @@ export function usePendingMessages({
         setPendingMessage(null);
       }
     }
-  }, [realMessages, pendingMessage, threadId, setPendingMessage]);
+  }, [
+    currentLastKey,
+    hasMessages,
+    pendingMessage,
+    threadId,
+    setPendingMessage,
+  ]);
 
   return useMemo(() => {
     const isMatchingThread =
@@ -95,14 +102,14 @@ export function usePendingMessages({
     }
 
     // Existing thread: append optimistic until real message arrives at the end
-    if (pendingMessage.lastMessageKey !== undefined) {
-      const currentLastKey = realMessages[realMessages.length - 1]?.key;
-      if (currentLastKey === pendingMessage.lastMessageKey) {
-        return [...realMessages, optimisticMessage];
-      }
+    if (
+      pendingMessage.lastMessageKey !== undefined &&
+      currentLastKey === pendingMessage.lastMessageKey
+    ) {
+      return [...realMessages, optimisticMessage];
     }
 
     // Real message arrived — return realMessages as-is (no duplicate)
     return realMessages;
-  }, [threadId, realMessages, pendingMessage]);
+  }, [threadId, realMessages, pendingMessage, currentLastKey]);
 }
