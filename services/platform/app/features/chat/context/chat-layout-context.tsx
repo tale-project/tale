@@ -23,6 +23,7 @@ export interface PendingMessage {
   threadId: string;
   attachments?: PendingMessageAttachment[];
   timestamp: Date;
+  lastMessageKey?: string;
 }
 
 export interface SelectedAgent {

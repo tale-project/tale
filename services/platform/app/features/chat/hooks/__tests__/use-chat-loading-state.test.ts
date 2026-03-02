@@ -2,7 +2,10 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useChatLoadingState } from '../use-chat-loading-state';
+import {
+  useChatLoadingState,
+  type UseChatLoadingStateParams,
+} from '../use-chat-loading-state';
 
 const THREAD_A = 'thread-a';
 const SAFETY_TIMEOUT_MS = 60_000;
@@ -29,6 +32,7 @@ describe('useChatLoadingState', () => {
           isGenerating: false,
           threadId: THREAD_A,
           pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -43,6 +47,7 @@ describe('useChatLoadingState', () => {
           isGenerating: true,
           threadId: THREAD_A,
           pendingThreadId: null,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -57,6 +62,7 @@ describe('useChatLoadingState', () => {
           isGenerating: true,
           threadId: THREAD_A,
           pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -71,6 +77,7 @@ describe('useChatLoadingState', () => {
           isGenerating: false,
           threadId: THREAD_A,
           pendingThreadId: null,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -87,16 +94,17 @@ describe('useChatLoadingState', () => {
           isGenerating: false,
           threadId: THREAD_A,
           pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
         },
       });
 
-      // Server confirms generation started
       rerender({
         isPending: true,
         setIsPending,
         isGenerating: true,
         threadId: THREAD_A,
         pendingThreadId: THREAD_A,
+        terminalAssistantCount: 0,
       });
 
       expect(setIsPending).toHaveBeenCalledWith(false);
@@ -110,6 +118,7 @@ describe('useChatLoadingState', () => {
           isGenerating: false,
           threadId: THREAD_A,
           pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -126,17 +135,18 @@ describe('useChatLoadingState', () => {
             isGenerating: false,
             threadId: THREAD_A,
             pendingThreadId: THREAD_A,
+            terminalAssistantCount: 0,
           },
         },
       );
 
-      // After handoff, simulate external state update: isPending=false, isGenerating=true
       rerender({
         isPending: false,
         setIsPending,
         isGenerating: true,
         threadId: THREAD_A,
         pendingThreadId: THREAD_A,
+        terminalAssistantCount: 0,
       });
 
       expect(result.current.isLoading).toBe(true);
@@ -152,6 +162,7 @@ describe('useChatLoadingState', () => {
           isGenerating: false,
           threadId: THREAD_A,
           pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -170,6 +181,7 @@ describe('useChatLoadingState', () => {
           isGenerating: false,
           threadId: THREAD_A,
           pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -188,6 +200,7 @@ describe('useChatLoadingState', () => {
           isGenerating: true,
           threadId: THREAD_A,
           pendingThreadId: null,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -208,6 +221,7 @@ describe('useChatLoadingState', () => {
           isGenerating: false,
           threadId: 'thread-b',
           pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -222,6 +236,7 @@ describe('useChatLoadingState', () => {
           isGenerating: false,
           threadId: THREAD_A,
           pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -237,6 +252,7 @@ describe('useChatLoadingState', () => {
           isGenerating: false,
           threadId: undefined,
           pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -251,6 +267,7 @@ describe('useChatLoadingState', () => {
           isGenerating: false,
           threadId: undefined,
           pendingThreadId: null,
+          terminalAssistantCount: 0,
         }),
       );
 
@@ -270,30 +287,30 @@ describe('useChatLoadingState', () => {
             isGenerating: false,
             threadId: THREAD_A,
             pendingThreadId: THREAD_A as string | null,
+            terminalAssistantCount: 0,
           },
         },
       );
 
-      // Phase 1: isPending bridges the gap
       expect(result.current.isLoading).toBe(true);
 
-      // Phase 2: Server confirms generation (handoff clears isPending)
       rerender({
         isPending: false,
         setIsPending,
         isGenerating: true,
         threadId: THREAD_A,
         pendingThreadId: THREAD_A,
+        terminalAssistantCount: 0,
       });
       expect(result.current.isLoading).toBe(true);
 
-      // Phase 3: Generation completes
       rerender({
         isPending: false,
         setIsPending,
         isGenerating: false,
         threadId: THREAD_A,
         pendingThreadId: null,
+        terminalAssistantCount: 0,
       });
       expect(result.current.isLoading).toBe(false);
     });
@@ -308,22 +325,273 @@ describe('useChatLoadingState', () => {
             isGenerating: true,
             threadId: THREAD_A,
             pendingThreadId: null,
+            terminalAssistantCount: 0,
           },
         },
       );
 
       expect(result.current.isLoading).toBe(true);
 
-      // Stream aborted or failed
       rerender({
         isPending: false,
         setIsPending,
         isGenerating: false,
         threadId: THREAD_A,
         pendingThreadId: null,
+        terminalAssistantCount: 0,
       });
 
       expect(result.current.isLoading).toBe(false);
+    });
+  });
+
+  describe('terminal assistant count', () => {
+    it('clears isPending when terminalAssistantCount increases and isGenerating was never true', () => {
+      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          isGenerating: false,
+          threadId: THREAD_A,
+          pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
+        },
+      });
+
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 1,
+      });
+
+      expect(setIsPending).toHaveBeenCalledWith(false);
+    });
+
+    it('clears isPending when terminalAssistantCount increases while isGenerating is also true', () => {
+      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          isGenerating: false,
+          threadId: THREAD_A,
+          pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
+        },
+      });
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: true,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 1,
+      });
+
+      expect(setIsPending).toHaveBeenCalledWith(false);
+    });
+
+    it('does not clear isPending when terminalAssistantCount unchanged', () => {
+      const { rerender } = renderHook<
+        ReturnType<typeof useChatLoadingState>,
+        UseChatLoadingStateParams
+      >((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          isGenerating: false,
+          threadId: THREAD_A,
+          pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
+        },
+      });
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 0,
+      });
+
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
+    });
+
+    it('resets baseline when isPending transitions to false', () => {
+      const { rerender } = renderHook<
+        ReturnType<typeof useChatLoadingState>,
+        UseChatLoadingStateParams
+      >((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          isGenerating: false,
+          threadId: THREAD_A,
+          pendingThreadId: THREAD_A,
+          terminalAssistantCount: 3,
+        },
+      });
+
+      rerender({
+        isPending: false,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: null,
+        terminalAssistantCount: 3,
+      });
+
+      setIsPending.mockClear();
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 3,
+      });
+
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 4,
+      });
+
+      expect(setIsPending).toHaveBeenCalledWith(false);
+    });
+
+    it('captures new baseline on subsequent send', () => {
+      const { rerender } = renderHook<
+        ReturnType<typeof useChatLoadingState>,
+        UseChatLoadingStateParams
+      >((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          isGenerating: false,
+          threadId: THREAD_A,
+          pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
+        },
+      });
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 1,
+      });
+
+      expect(setIsPending).toHaveBeenCalledWith(false);
+      setIsPending.mockClear();
+
+      rerender({
+        isPending: false,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: null,
+        terminalAssistantCount: 1,
+      });
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 1,
+      });
+
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 2,
+      });
+
+      expect(setIsPending).toHaveBeenCalledWith(false);
+    });
+
+    it('does not clear when terminalAssistantCount starts non-zero', () => {
+      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          isGenerating: false,
+          threadId: THREAD_A,
+          pendingThreadId: THREAD_A,
+          terminalAssistantCount: 5,
+        },
+      });
+
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 5,
+      });
+
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 6,
+      });
+
+      expect(setIsPending).toHaveBeenCalledWith(false);
+    });
+
+    it('handles terminalAssistantCount of 0 when messages not yet loaded', () => {
+      const { rerender } = renderHook((props) => useChatLoadingState(props), {
+        initialProps: {
+          isPending: true,
+          setIsPending,
+          isGenerating: false,
+          threadId: THREAD_A,
+          pendingThreadId: THREAD_A,
+          terminalAssistantCount: 0,
+        },
+      });
+
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
+
+      rerender({
+        isPending: true,
+        setIsPending,
+        isGenerating: false,
+        threadId: THREAD_A,
+        pendingThreadId: THREAD_A,
+        terminalAssistantCount: 0,
+      });
+
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
     });
   });
 });
