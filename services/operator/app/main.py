@@ -15,13 +15,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from loguru import logger
+from tale_telemetry import init_telemetry, shutdown_telemetry
 
 from app import __version__
 from app.config import settings
 from app.models import HealthResponse
 from app.routers import browser_router
 from app.services import get_browser_service
-from tale_telemetry import init_telemetry, shutdown_telemetry
 
 
 @asynccontextmanager

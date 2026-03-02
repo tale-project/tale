@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from tale_telemetry import init_telemetry, shutdown_telemetry
 
 from app import __version__
 from app.config import settings
@@ -38,7 +39,6 @@ from app.routers import (
 from app.services.crawler_service import get_crawler_service
 from app.services.image_service import get_image_service
 from app.services.pdf_service import get_pdf_service
-from tale_telemetry import init_telemetry, shutdown_telemetry
 
 
 @asynccontextmanager

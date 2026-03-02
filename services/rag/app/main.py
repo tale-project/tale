@@ -8,13 +8,13 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
+from tale_telemetry import init_telemetry, shutdown_telemetry
 
 from . import __version__
 from .config import settings
 from .models import ErrorResponse
 from .routers import documents_router, health_router, jobs_router, search_router
 from .services.rag_service import rag_service
-from tale_telemetry import init_telemetry, shutdown_telemetry
 from .utils import cleanup_memory
 
 
