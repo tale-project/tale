@@ -141,6 +141,82 @@ describe('convertVmhistogramToPrometheus', () => {
     expect(convertVmhistogramToPrometheus('')).toBe('');
   });
 
+  test('handles vmrange as the first label', () => {
+    const input = [
+      '# TYPE latency vmhistogram',
+      'latency_bucket{vmrange="1.000e-1...2.000e-1",method="GET"} 4',
+      'latency_bucket{vmrange="2.000e-1...3.000e-1",method="GET"} 6',
+      'latency_sum{method="GET"} 2.5',
+      'latency_count{method="GET"} 10',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('latency_bucket{method="GET",le="0.2"} 4');
+    expect(lines).toContain('latency_bucket{method="GET",le="0.3"} 10');
+    expect(lines).toContain('latency_bucket{method="GET",le="+Inf"} 10');
+    expect(result).not.toContain('vmrange');
+  });
+
+  test('flushes remaining buckets when _count is missing', () => {
+    const input = [
+      '# TYPE latency vmhistogram',
+      'latency_bucket{vmrange="1.000e-1...2.000e-1"} 4',
+      'latency_bucket{vmrange="2.000e-1...3.000e-1"} 6',
+      'latency_sum 2.5',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('# TYPE latency histogram');
+    expect(lines).toContain('latency_bucket{le="0.2"} 4');
+    expect(lines).toContain('latency_bucket{le="0.3"} 10');
+    expect(lines).toContain('latency_bucket{le="+Inf"} 10');
+  });
+
+  test('handles sequential vmhistogram metrics', () => {
+    const input = [
+      '# TYPE alpha vmhistogram',
+      'alpha_bucket{vmrange="1.000e0...2.000e0"} 3',
+      'alpha_sum 4.5',
+      'alpha_count 3',
+      '# TYPE beta vmhistogram',
+      'beta_bucket{vmrange="5.000e-1...1.000e0"} 7',
+      'beta_sum 5.0',
+      'beta_count 7',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('# TYPE alpha histogram');
+    expect(lines).toContain('alpha_bucket{le="2"} 3');
+    expect(lines).toContain('alpha_bucket{le="+Inf"} 3');
+
+    expect(lines).toContain('# TYPE beta histogram');
+    expect(lines).toContain('beta_bucket{le="1"} 7');
+    expect(lines).toContain('beta_bucket{le="+Inf"} 7');
+  });
+
+  test('handles _count without braces', () => {
+    const input = [
+      '# TYPE ops vmhistogram',
+      'ops_bucket{vmrange="1.000e-2...2.000e-2"} 10',
+      'ops_sum 0.15',
+      'ops_count 10',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('ops_bucket{le="0.02"} 10');
+    expect(lines).toContain('ops_bucket{le="+Inf"} 10');
+    expect(lines).toContain('ops_count 10');
+    expect(lines).toContain('ops_sum 0.15');
+  });
+
   test('handles vmrange with zero bucket at start', () => {
     const input = [
       '# TYPE ops vmhistogram',

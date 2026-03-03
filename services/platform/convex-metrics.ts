@@ -113,7 +113,7 @@ export function convertVmhistogramToPrometheus(text: string): string {
     output.push(line);
 
     if (line.includes('_count{') || line.includes('_count ')) {
-      flushBucketsForCount(output, currentBaseName, bucketGroups, line);
+      flushBucketsForCount(output, bucketGroups, line);
     }
   }
 
@@ -124,28 +124,51 @@ export function convertVmhistogramToPrometheus(text: string): string {
 }
 
 /**
- * When we encounter a _count line, flush the corresponding bucket group
- * and emit cumulative le-based buckets + the +Inf bucket.
+ * Emit cumulative le-based buckets + the +Inf bucket for a single label group.
+ */
+function emitCumulativeBuckets(
+  output: string[],
+  bucketMetricName: string,
+  labels: string,
+  buckets: Bucket[],
+  infCount: number,
+): void {
+  buckets.sort((a, b) => a.le - b.le);
+
+  let cumulative = 0;
+  for (const bucket of buckets) {
+    cumulative += bucket.count;
+    const leLabel = labels
+      ? `${labels},le="${bucket.le}"`
+      : `le="${bucket.le}"`;
+    output.push(`${bucketMetricName}{${leLabel}} ${cumulative}`);
+  }
+
+  const infLabel = labels ? `${labels},le="+Inf"` : `le="+Inf"`;
+  output.push(`${bucketMetricName}{${infLabel}} ${infCount}`);
+}
+
+/**
+ * When we encounter a _count line, flush the corresponding bucket group.
  */
 function flushBucketsForCount(
   output: string[],
-  baseName: string,
   bucketGroups: Map<string, Bucket[]>,
   countLine: string,
 ): void {
-  // Extract total count value
-  const spaceIdx = countLine.lastIndexOf(' ');
-  const totalCount = parseFloat(countLine.slice(spaceIdx + 1));
+  // Extract total count value (first space after '}' or metric name)
+  const braceClose = countLine.indexOf('}');
+  const valueStart =
+    braceClose !== -1
+      ? countLine.indexOf(' ', braceClose)
+      : countLine.indexOf(' ');
+  const totalCount = parseFloat(countLine.slice(valueStart + 1));
 
   // Extract labels from the _count line
   const braceOpen = countLine.indexOf('{');
-  const braceClose = countLine.indexOf('}');
 
   // Determine the bucket metric name (replace _count with _bucket)
-  const metricEnd =
-    countLine.indexOf('{') !== -1
-      ? countLine.indexOf('{')
-      : countLine.indexOf(' ');
+  const metricEnd = braceOpen !== -1 ? braceOpen : valueStart;
   const countMetricName = countLine.slice(0, metricEnd);
   const bucketMetricName = countMetricName.replace('_count', '_bucket');
 
@@ -155,29 +178,18 @@ function flushBucketsForCount(
   // Find matching bucket group
   // The key format is: "metricname_bucket{labels" (without closing brace)
   for (const [groupKey, buckets] of bucketGroups) {
-    // Check if this group matches the current _count line's labels
     const groupBraceOpen = groupKey.indexOf('{');
     const groupLabels =
       groupBraceOpen !== -1 ? groupKey.slice(groupBraceOpen + 1) : '';
 
     if (groupLabels === labels && groupKey.startsWith(bucketMetricName)) {
-      // Sort by le ascending
-      buckets.sort((a, b) => a.le - b.le);
-
-      // Convert to cumulative counts
-      let cumulative = 0;
-      for (const bucket of buckets) {
-        cumulative += bucket.count;
-        const leLabel = labels
-          ? `${labels},le="${bucket.le}"`
-          : `le="${bucket.le}"`;
-        output.push(`${bucketMetricName}{${leLabel}} ${cumulative}`);
-      }
-
-      // Add +Inf bucket
-      const infLabel = labels ? `${labels},le="+Inf"` : `le="+Inf"`;
-      output.push(`${bucketMetricName}{${infLabel}} ${totalCount}`);
-
+      emitCumulativeBuckets(
+        output,
+        bucketMetricName,
+        labels,
+        buckets,
+        totalCount,
+      );
       bucketGroups.delete(groupKey);
       break;
     }
@@ -199,21 +211,14 @@ function flushBuckets(
     : `${baseName}_bucket`;
 
   for (const [groupKey, buckets] of bucketGroups) {
-    buckets.sort((a, b) => a.le - b.le);
     const braceOpen = groupKey.indexOf('{');
     const labels = braceOpen !== -1 ? groupKey.slice(braceOpen + 1) : '';
 
-    let cumulative = 0;
-    for (const bucket of buckets) {
-      cumulative += bucket.count;
-      const leLabel = labels
-        ? `${labels},le="${bucket.le}"`
-        : `le="${bucket.le}"`;
-      output.push(`${bucketMetricName}{${leLabel}} ${cumulative}`);
-    }
+    // No _count available — use sum of bucket counts as best approximation
+    let total = 0;
+    for (const b of buckets) total += b.count;
 
-    const infLabel = labels ? `${labels},le="+Inf"` : `le="+Inf"`;
-    output.push(`${bucketMetricName}{${infLabel}} ${cumulative}`);
+    emitCumulativeBuckets(output, bucketMetricName, labels, buckets, total);
   }
 
   bucketGroups.clear();
@@ -227,7 +232,9 @@ export async function convexMetricsResponse(
   format?: string | null,
 ): Promise<Response> {
   try {
-    const res = await fetch(CONVEX_METRICS_URL);
+    const res = await fetch(CONVEX_METRICS_URL, {
+      signal: AbortSignal.timeout(5000),
+    });
     if (!res.ok) {
       return new Response(`Convex metrics unavailable: ${res.status}`, {
         status: 502,
@@ -238,7 +245,8 @@ export async function convexMetricsResponse(
     return new Response(body, {
       headers: { 'Content-Type': CONTENT_TYPE },
     });
-  } catch {
+  } catch (error) {
+    console.error('Failed to fetch Convex metrics:', error);
     return new Response('Convex metrics unavailable', { status: 502 });
   }
 }
