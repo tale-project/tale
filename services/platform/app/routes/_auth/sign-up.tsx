@@ -64,7 +64,7 @@ function SignUpPage() {
     },
   });
 
-  const { isSubmitting, errors } = form.formState;
+  const { isSubmitting, isValid, errors } = form.formState;
   const password = form.watch('password');
 
   const handleSubmit = async (data: SignUpFormData) => {
@@ -169,13 +169,7 @@ function SignUpPage() {
               type="submit"
               size="lg"
               fullWidth
-              disabled={
-                isSubmitting ||
-                !form.watch('email')?.trim() ||
-                !form.watch('password')?.trim() ||
-                !!errors.password ||
-                !!errors.email
-              }
+              disabled={isSubmitting || !isValid}
             >
               {isSubmitting ? t('signup.creating') : t('signup.createButton')}
             </Button>

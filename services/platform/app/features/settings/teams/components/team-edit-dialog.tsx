@@ -46,6 +46,7 @@ export function TeamEditDialog({
 
   const form = useForm<TeamFormData>({
     resolver: zodResolver(schema),
+    mode: 'onChange',
     defaultValues: {
       name: team.name,
     },
@@ -103,6 +104,7 @@ export function TeamEditDialog({
       submitText={tCommon('actions.save')}
       submittingText={tCommon('actions.saving')}
       isSubmitting={isSubmitting}
+      isValid={formState.isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

@@ -89,12 +89,19 @@ export function ScheduleCreateDialog({
 
   const form = useForm<ScheduleFormData>({
     resolver: zodResolver(schema),
+    mode: 'onChange',
     defaultValues: {
       cronExpression: schedule?.cronExpression ?? '',
     },
   });
 
-  const { handleSubmit, register, reset, formState, setValue } = form;
+  const {
+    handleSubmit,
+    register,
+    reset,
+    formState: { isValid: isFormValid, errors: formErrors },
+    setValue,
+  } = form;
 
   useEffect(() => {
     if (open) {
@@ -171,6 +178,7 @@ export function ScheduleCreateDialog({
       submitText={isEdit ? tCommon('actions.save') : tCommon('actions.create')}
       submittingText={tCommon('actions.loading')}
       isSubmitting={isSubmitting}
+      isValid={isFormValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormSection>
@@ -224,7 +232,7 @@ export function ScheduleCreateDialog({
             {...register('cronExpression')}
             className="font-mono"
             required
-            errorMessage={formState.errors.cronExpression?.message}
+            errorMessage={formErrors.cronExpression?.message}
           />
           <Text variant="caption">{t('triggers.schedules.form.cronHelp')}</Text>
           <div className="flex flex-wrap gap-2">

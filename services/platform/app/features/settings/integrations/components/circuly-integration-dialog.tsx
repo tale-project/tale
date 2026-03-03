@@ -90,6 +90,7 @@ export function CirculyIntegrationDialog({
   // Initialize form with validation
   const form = useForm<CirculyFormValues>({
     resolver: zodResolver(circulySchema),
+    mode: 'onChange',
     defaultValues: {
       username: credentials?.username || '',
       password: '',
@@ -98,14 +99,9 @@ export function CirculyIntegrationDialog({
 
   const {
     handleSubmit,
-    formState: { isSubmitting },
+    formState: { isSubmitting, isValid: isFormValid },
     reset,
-    watch,
   } = form;
-
-  // Watch form values to enable/disable button
-  const username = watch('username');
-  const password = watch('password');
 
   const handleConnect = async (values: CirculyFormValues) => {
     try {
@@ -168,7 +164,7 @@ export function CirculyIntegrationDialog({
         </Button>
         <Button
           onClick={handleSubmit(handleConnect)}
-          disabled={isSubmitting || !username || !password}
+          disabled={isSubmitting || !isFormValid}
           className="flex-1"
         >
           {isSubmitting
@@ -188,7 +184,7 @@ export function CirculyIntegrationDialog({
         <Button
           onClick={handleSubmit(handleConnect)}
           className="flex-1"
-          disabled={isSubmitting || !username || !password}
+          disabled={isSubmitting || !isFormValid}
         >
           {isSubmitting
             ? t('integrations.circuly.connecting')

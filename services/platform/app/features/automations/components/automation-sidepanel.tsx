@@ -122,10 +122,8 @@ interface StepEditorContentProps {
   onConfigChange: (value: string) => void;
   onNextStepsChange: (value: Record<string, string>) => void;
   onSave: () => void;
-  isDirty: boolean;
-  isValid: boolean;
   isSaving: boolean;
-  isValidating: boolean;
+  isValid: boolean;
   errors: string[];
   warnings: string[];
   stepOptions: Array<{
@@ -142,10 +140,8 @@ const StepEditorContent = memo(function StepEditorContent({
   onConfigChange,
   onNextStepsChange,
   onSave,
-  isDirty,
-  isValid,
   isSaving,
-  isValidating,
+  isValid,
   errors,
   warnings,
   stepOptions,
@@ -182,7 +178,7 @@ const StepEditorContent = memo(function StepEditorContent({
       <HStack className="bg-background shrink-0 border-t p-3">
         <Button
           onClick={onSave}
-          disabled={!isDirty || !isValid || isSaving || isValidating}
+          disabled={isSaving || !isValid}
           size="sm"
           className="flex-1"
         >
@@ -291,21 +287,13 @@ export function AutomationSidePanel({
   });
   const { mutate: updateStep, isPending: isSaving } = useUpdateStep();
 
-  const originalConfigJson = useMemo(
-    () => (step?.config ? JSON.stringify(step.config, null, 2) : '{}'),
-    [step?.config],
-  );
-
   const originalNextStepsJson = useMemo(
     () => (step?.nextSteps ? JSON.stringify(step.nextSteps) : '{}'),
     [step?.nextSteps],
   );
 
-  const isConfigDirty =
-    editState.config !== originalConfigJson && editState.config !== '';
   const isNextStepsDirty =
     JSON.stringify(editState.nextSteps) !== originalNextStepsJson;
-  const isDirty = isConfigDirty || isNextStepsDirty;
 
   useEffect(() => {
     setEditState({
@@ -332,7 +320,7 @@ export function AutomationSidePanel({
     };
   }, [step, parsedEditedConfig]);
 
-  const { isValid, errors, warnings, isValidating } = useStepValidation(
+  const { isValid, errors, warnings } = useStepValidation(
     validationConfig,
     automationId,
   );
@@ -529,10 +517,8 @@ export function AutomationSidePanel({
           onConfigChange={handleConfigChange}
           onNextStepsChange={handleNextStepsChange}
           onSave={handleSave}
-          isDirty={isDirty}
-          isValid={isValid}
           isSaving={isSaving}
-          isValidating={isValidating}
+          isValid={isValid}
           errors={errors}
           warnings={warnings}
           stepOptions={stepOptions}

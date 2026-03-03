@@ -126,12 +126,13 @@ export function CreateStepDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isValid },
     reset,
     setValue,
     watch,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange',
     defaultValues: {
       name: '',
       stepType: 'action',
@@ -222,7 +223,7 @@ export function CreateStepDialog({
       submitText={t('createStep.createButton')}
       submittingText={t('createStep.creating')}
       isSubmitting={isSubmitting}
-      submitDisabled={!watch('name')?.trim()}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
       large
     >

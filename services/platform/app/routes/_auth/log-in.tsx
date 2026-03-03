@@ -83,7 +83,7 @@ function LogInPage() {
     },
   });
 
-  const { isSubmitting, errors } = form.formState;
+  const { isSubmitting, isValid, errors } = form.formState;
 
   const handleSubmit = async (data: LogInFormData) => {
     form.clearErrors('password');
@@ -166,13 +166,7 @@ function LogInPage() {
               type="submit"
               size="lg"
               fullWidth
-              disabled={
-                isSubmitting ||
-                !form.watch('email')?.trim() ||
-                !form.watch('password')?.trim() ||
-                !!errors.password ||
-                !!errors.email
-              }
+              disabled={isSubmitting || !isValid}
             >
               {isSubmitting ? t('login.signingIn') : t('login.loginButton')}
             </Button>

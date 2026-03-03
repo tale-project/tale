@@ -91,6 +91,7 @@ export function ImportVendorsDialog({
 
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange',
     defaultValues: {
       dataSource: mode === 'manual' ? 'manual_import' : 'file_upload',
     },
@@ -98,7 +99,7 @@ export function ImportVendorsDialog({
 
   const {
     handleSubmit,
-    formState: { isSubmitting },
+    formState: { isSubmitting, isValid },
   } = formMethods;
 
   const { mutateAsync: bulkCreateVendors } = useBulkCreateVendors();
@@ -201,6 +202,7 @@ export function ImportVendorsDialog({
       submitText={tCommon('actions.import')}
       submittingText={tCommon('actions.importing')}
       isSubmitting={isSubmitting}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormProvider {...formMethods}>

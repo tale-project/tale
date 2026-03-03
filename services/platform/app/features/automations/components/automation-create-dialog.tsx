@@ -144,7 +144,7 @@ export function CreateAutomationDialog({
       submitText={t('createDialog.continue')}
       submittingText={t('createDialog.creating')}
       isSubmitting={isSubmitting}
-      submitDisabled={!isValid}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

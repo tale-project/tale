@@ -64,7 +64,7 @@ export function OrganizationSettings({
   });
 
   const { formState, handleSubmit, register, reset } = form;
-  const { isDirty, isSubmitting } = formState;
+  const { isSubmitting, isValid } = formState;
 
   const { members: allMembers, isLoading: isMembersLoading } = useMembers(
     organization?._id ?? '',
@@ -124,7 +124,7 @@ export function OrganizationSettings({
             {...register('name')}
             wrapperClassName="max-w-sm flex-1"
           />
-          <Button type="submit" disabled={!isDirty || isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || !isValid}>
             {isSubmitting
               ? tCommon('actions.saving')
               : tCommon('actions.saveChanges')}

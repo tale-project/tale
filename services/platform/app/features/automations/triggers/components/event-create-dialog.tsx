@@ -187,6 +187,7 @@ export function EventCreateDialog({
       }
       submittingText={tCommon('actions.loading')}
       isSubmitting={isSubmitting}
+      isValid={!!selectedEventType}
       onSubmit={handleSubmit}
     >
       <FormSection>

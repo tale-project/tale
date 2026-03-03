@@ -62,7 +62,6 @@ export function SSOConfigDialog({
     isTesting,
     isLoadingConfig,
     isConnected,
-    hasChanges,
     handleSave,
     handleDisconnect,
     handleTest,
@@ -75,6 +74,10 @@ export function SSOConfigDialog({
     organizationId,
     existingProvider,
   });
+
+  const isFormValid = isConnected
+    ? !!issuer && !!clientId
+    : !!issuer && !!clientId && !!clientSecret;
 
   const footer = isConnected ? (
     <>
@@ -90,7 +93,7 @@ export function SSOConfigDialog({
       </Button>
       <Button
         onClick={handleSave}
-        disabled={isSubmitting || !issuer || !clientId || !hasChanges}
+        disabled={isSubmitting || !isFormValid}
         className="flex-1"
       >
         {isSubmitting
@@ -110,7 +113,7 @@ export function SSOConfigDialog({
       <Button
         onClick={handleSave}
         className="flex-1"
-        disabled={isSubmitting || !issuer || !clientId || !clientSecret}
+        disabled={isSubmitting || !isFormValid}
       >
         {isSubmitting
           ? t('integrations.sso.configuring')
@@ -183,10 +186,7 @@ export function SSOConfigDialog({
             variant="secondary"
             onClick={handleTest}
             disabled={
-              isTesting ||
-              isSubmitting ||
-              isLoadingConfig ||
-              (isConnected ? false : !issuer || !clientId || !clientSecret)
+              isTesting || isSubmitting || isLoadingConfig || !isFormValid
             }
           >
             {isTesting ? (
