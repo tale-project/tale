@@ -561,4 +561,21 @@ describe('convexMetricsResponse', () => {
     expect(res.status).toBe(502);
     expect(await res.text()).toBe('Convex metrics unavailable');
   });
+
+  test('returns 500 on conversion failure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(new Response('raw metrics data', { status: 200 })),
+      ),
+    );
+
+    const throwingConverter = () => {
+      throw new Error('conversion failed');
+    };
+    const res = await convexMetricsResponse(null, throwingConverter);
+
+    expect(res.status).toBe(500);
+    expect(await res.text()).toBe('Convex metrics conversion failed');
+  });
 });

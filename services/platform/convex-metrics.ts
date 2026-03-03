@@ -268,6 +268,7 @@ function flushBuckets(
  */
 export async function convexMetricsResponse(
   format?: string | null,
+  convert: (text: string) => string = convertVmhistogramToPrometheus,
 ): Promise<Response> {
   try {
     const res = await fetch(CONVEX_METRICS_URL, {
@@ -280,10 +281,10 @@ export async function convexMetricsResponse(
     const raw = await res.text();
     let body: string;
     try {
-      body = format === 'raw' ? raw : convertVmhistogramToPrometheus(raw);
+      body = format === 'raw' ? raw : convert(raw);
     } catch (err) {
       console.error('Convex metrics conversion failed:', err);
-      body = raw;
+      return new Response('Convex metrics conversion failed', { status: 500 });
     }
     const contentType =
       format === 'raw' ? PLAIN_CONTENT_TYPE : PROMETHEUS_CONTENT_TYPE;
