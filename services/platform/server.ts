@@ -46,7 +46,7 @@ Bun.serve({
     }
 
     if (pathname === '/metrics/convex') {
-      return convexMetricsResponse();
+      return convexMetricsResponse(url.searchParams.get('format'));
     }
 
     if (pathname !== '/') {

@@ -223,7 +223,9 @@ function flushBuckets(
  * Fetch Convex metrics, convert vmhistogram → Prometheus histogram,
  * and return as an HTTP Response.
  */
-export async function convexMetricsResponse(): Promise<Response> {
+export async function convexMetricsResponse(
+  format?: string | null,
+): Promise<Response> {
   try {
     const res = await fetch(CONVEX_METRICS_URL);
     if (!res.ok) {
@@ -232,8 +234,8 @@ export async function convexMetricsResponse(): Promise<Response> {
       });
     }
     const raw = await res.text();
-    const converted = convertVmhistogramToPrometheus(raw);
-    return new Response(converted, {
+    const body = format === 'raw' ? raw : convertVmhistogramToPrometheus(raw);
+    return new Response(body, {
       headers: { 'Content-Type': CONTENT_TYPE },
     });
   } catch {
