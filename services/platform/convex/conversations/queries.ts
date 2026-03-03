@@ -2,7 +2,6 @@
  * Conversations Queries
  *
  * All query operations for conversations.
- * Business logic is in ./helpers.ts
  */
 
 import { paginationOptsValidator } from 'convex/server';
@@ -12,7 +11,7 @@ import type { Doc } from '../_generated/dataModel';
 
 import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { queryWithRLS } from '../lib/rls';
-import * as ConversationsHelpers from './helpers';
+import { getConversationWithMessages as getConversationWithMessagesHelper } from './get_conversation_with_messages';
 import { listConversationsPaginated as listConversationsPaginatedHelper } from './list_conversations_paginated';
 import { transformConversation } from './transform_conversation';
 import { conversationWithMessagesValidator } from './validators';
@@ -81,9 +80,6 @@ export const getConversationWithMessages = queryWithRLS({
   },
   returns: v.union(conversationWithMessagesValidator, v.null()),
   handler: async (ctx, args) => {
-    return await ConversationsHelpers.getConversationWithMessages(
-      ctx,
-      args.conversationId,
-    );
+    return await getConversationWithMessagesHelper(ctx, args.conversationId);
   },
 });

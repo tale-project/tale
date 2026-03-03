@@ -1,60 +1,84 @@
 /**
  * Convex validators for conversation operations
  *
- * Note: Some schemas use jsonRecordSchema which contains z.lazy() for recursive types.
- * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
+ * Uses native Convex v.* validators to avoid pulling zod into the query bundle.
+ * Zod schemas for client-side validation live in lib/shared/schemas/conversations.ts.
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
-import {
-  conversationStatusSchema,
-  conversationPrioritySchema,
-  messageStatusSchema,
-  messageDirectionSchema,
-  messageSchema,
-  customerInfoSchema,
-  attachmentSchema,
-  emailAttachmentMetaSchema,
-  bulkOperationResultSchema,
-} from '../../lib/shared/schemas/conversations';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-
-export {
-  conversationStatusSchema,
-  conversationPrioritySchema,
-  messageStatusSchema,
-  messageDirectionSchema,
-  messageSchema,
-  customerInfoSchema,
-  conversationItemSchema,
-  attachmentSchema,
-  emailAttachmentMetaSchema,
-  conversationWithMessagesSchema,
-} from '../../lib/shared/schemas/conversations';
 import { approvalItemValidator } from '../approvals/validators';
 
-// Simple schemas without z.lazy()
-export const conversationStatusValidator = zodToConvex(
-  conversationStatusSchema,
-);
-export const conversationPriorityValidator = zodToConvex(
-  conversationPrioritySchema,
-);
-export const messageStatusValidator = zodToConvex(messageStatusSchema);
-export const messageDirectionValidator = zodToConvex(messageDirectionSchema);
-export const messageValidator = zodToConvex(messageSchema);
-export const customerInfoValidator = zodToConvex(customerInfoSchema);
-export const attachmentValidator = zodToConvex(attachmentSchema);
-export const emailAttachmentMetaValidator = zodToConvex(
-  emailAttachmentMetaSchema,
-);
-export const bulkOperationResultValidator = zodToConvex(
-  bulkOperationResultSchema,
+export const conversationStatusValidator = v.union(
+  v.literal('open'),
+  v.literal('closed'),
+  v.literal('spam'),
+  v.literal('archived'),
 );
 
-// Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
+export const conversationPriorityValidator = v.union(
+  v.literal('low'),
+  v.literal('medium'),
+  v.literal('high'),
+  v.literal('urgent'),
+);
+
+export const messageStatusValidator = v.union(
+  v.literal('queued'),
+  v.literal('sent'),
+  v.literal('delivered'),
+  v.literal('failed'),
+);
+
+export const messageDirectionValidator = v.union(
+  v.literal('inbound'),
+  v.literal('outbound'),
+);
+
+export const attachmentValidator = v.object({
+  url: v.string(),
+  filename: v.string(),
+  contentType: v.optional(v.string()),
+  size: v.optional(v.number()),
+});
+
+export const emailAttachmentMetaValidator = v.object({
+  id: v.string(),
+  filename: v.string(),
+  contentType: v.string(),
+  size: v.number(),
+  storageId: v.optional(v.string()),
+  url: v.optional(v.string()),
+  contentId: v.optional(v.string()),
+});
+
+export const messageValidator = v.object({
+  id: v.string(),
+  sender: v.string(),
+  content: v.string(),
+  timestamp: v.string(),
+  isCustomer: v.boolean(),
+  status: messageStatusValidator,
+  attachment: v.optional(attachmentValidator),
+  attachments: v.optional(v.array(emailAttachmentMetaValidator)),
+});
+
+export const customerInfoValidator = v.object({
+  id: v.string(),
+  name: v.optional(v.string()),
+  email: v.string(),
+  locale: v.optional(v.string()),
+  status: v.string(),
+  source: v.optional(v.string()),
+  created_at: v.string(),
+});
+
+export const bulkOperationResultValidator = v.object({
+  successCount: v.number(),
+  failedCount: v.number(),
+  errors: v.array(v.string()),
+});
+
 export const conversationItemValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),
@@ -69,7 +93,7 @@ export const conversationItemValidator = v.object({
   direction: v.optional(messageDirectionValidator),
   integrationName: v.optional(v.string()),
   lastMessageAt: v.optional(v.number()),
-  metadata: v.optional(jsonRecordValidator),
+  metadata: v.optional(v.any()),
   id: v.string(),
   title: v.string(),
   description: v.string(),
@@ -110,7 +134,7 @@ export const conversationDocValidator = v.object({
   direction: v.optional(messageDirectionValidator),
   integrationName: v.optional(v.string()),
   lastMessageAt: v.optional(v.number()),
-  metadata: v.optional(jsonRecordValidator),
+  metadata: v.optional(v.any()),
 });
 
 export const conversationWithMessagesValidator = conversationItemValidator;

@@ -330,6 +330,7 @@ import type * as lib_rls_auth_require_authenticated_user from "../lib/rls/auth/r
 import type * as lib_rls_context_create_org_query_builder from "../lib/rls/context/create_org_query_builder.js";
 import type * as lib_rls_context_create_rls_context from "../lib/rls/context/create_rls_context.js";
 import type * as lib_rls_errors from "../lib/rls/errors.js";
+import type * as lib_rls_helpers_access_control from "../lib/rls/helpers/access_control.js";
 import type * as lib_rls_helpers_mutation_with_rls from "../lib/rls/helpers/mutation_with_rls.js";
 import type * as lib_rls_helpers_query_with_rls from "../lib/rls/helpers/query_with_rls.js";
 import type * as lib_rls_helpers_rls_rules from "../lib/rls/helpers/rls_rules.js";
@@ -1165,6 +1166,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/context/create_org_query_builder": typeof lib_rls_context_create_org_query_builder;
   "lib/rls/context/create_rls_context": typeof lib_rls_context_create_rls_context;
   "lib/rls/errors": typeof lib_rls_errors;
+  "lib/rls/helpers/access_control": typeof lib_rls_helpers_access_control;
   "lib/rls/helpers/mutation_with_rls": typeof lib_rls_helpers_mutation_with_rls;
   "lib/rls/helpers/query_with_rls": typeof lib_rls_helpers_query_with_rls;
   "lib/rls/helpers/rls_rules": typeof lib_rls_helpers_rls_rules;

@@ -2,19 +2,24 @@
  * Get all organizations user has access to from Better Auth
  */
 
+import type { MemberRole } from '../../../../lib/shared/schemas/organizations';
 import type { QueryCtx } from '../../../_generated/server';
 import type { AuthenticatedUser, OrganizationMember } from '../types';
 
-import {
-  memberRoleSchema,
-  type MemberRole,
-} from '../../../../lib/shared/schemas/organizations';
 import { components } from '../../../_generated/api';
 import { getTrustedAuthData } from '../auth/get_trusted_auth_data';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 
+const VALID_ROLES: ReadonlySet<string> = new Set([
+  'disabled',
+  'member',
+  'editor',
+  'developer',
+  'admin',
+]);
+
 function isValidRole(role: string): role is MemberRole {
-  return memberRoleSchema.safeParse(role).success;
+  return VALID_ROLES.has(role);
 }
 
 /**
