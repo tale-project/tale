@@ -4,7 +4,7 @@ import type { MemberRole } from '../../lib/shared/schemas/organizations';
 import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
 
 import { components } from '../_generated/api';
-import { query } from '../_generated/server';
+import { query, QueryCtx } from '../_generated/server';
 import {
   getAuthUserIdentity,
   getOrganizationMember,
@@ -12,13 +12,6 @@ import {
 } from '../lib/rls';
 import { UnauthenticatedError, UnauthorizedError } from '../lib/rls/errors';
 import { memberRoleValidator } from './validators';
-
-interface BetterAuthTeam {
-  _id: string;
-  name: string;
-  organizationId: string;
-  createdAt?: number | null;
-}
 
 interface BetterAuthTeamMember {
   _id: string;
@@ -86,6 +79,75 @@ export const getCurrentMemberContext = query({
   },
 });
 
+export async function listByOrganizationHandler(
+  ctx: QueryCtx,
+  args: { organizationId: string },
+) {
+  const authUser = await getAuthUserIdentity(ctx);
+  if (!authUser) {
+    return [];
+  }
+
+  try {
+    await getOrganizationMember(ctx, args.organizationId, authUser);
+  } catch {
+    return [];
+  }
+
+  const result: BetterAuthFindManyResult<BetterAuthMember> = await ctx.runQuery(
+    components.betterAuth.adapter.findMany,
+    {
+      model: 'member',
+      paginationOpts: { cursor: null, numItems: 100 },
+      where: [
+        {
+          field: 'organizationId',
+          value: args.organizationId,
+          operator: 'eq',
+        },
+      ],
+    },
+  );
+
+  if (!result || result.page.length === 0) {
+    return [];
+  }
+
+  return Promise.all(
+    result.page.map(async (member) => {
+      let displayName: string | undefined;
+      let email: string | undefined;
+      try {
+        const userResult = await ctx.runQuery(
+          components.betterAuth.adapter.findOne,
+          {
+            model: 'user',
+            where: [{ field: '_id', value: member.userId, operator: 'eq' }],
+          },
+        );
+        displayName = userResult?.name;
+        email = userResult?.email;
+      } catch {
+        // Graceful degradation: member appears without name/email
+      }
+
+      const role: MemberRole = isValidRole(member.role)
+        ? member.role
+        : 'member';
+
+      return {
+        _id: member._id,
+        organizationId: member.organizationId,
+        userId: member.userId,
+        role,
+        createdAt: member.createdAt,
+        displayName,
+        email,
+      };
+    }),
+  );
+}
+
 export const listByOrganization = query({
   args: { organizationId: v.string() },
   returns: v.array(
@@ -99,61 +161,7 @@ export const listByOrganization = query({
       email: v.optional(v.string()),
     }),
   ),
-  handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      return [];
-    }
-
-    try {
-      await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return [];
-    }
-
-    const result: BetterAuthFindManyResult<BetterAuthMember> =
-      await ctx.runQuery(components.betterAuth.adapter.findMany, {
-        model: 'member',
-        paginationOpts: { cursor: null, numItems: 100 },
-        where: [
-          {
-            field: 'organizationId',
-            value: args.organizationId,
-            operator: 'eq',
-          },
-        ],
-      });
-
-    if (!result || result.page.length === 0) {
-      return [];
-    }
-
-    return Promise.all(
-      result.page.map(async (member) => {
-        const userResult = await ctx.runQuery(
-          components.betterAuth.adapter.findOne,
-          {
-            model: 'user',
-            where: [{ field: '_id', value: member.userId, operator: 'eq' }],
-          },
-        );
-
-        const role: MemberRole = isValidRole(member.role)
-          ? member.role
-          : 'member';
-
-        return {
-          _id: member._id,
-          organizationId: member.organizationId,
-          userId: member.userId,
-          role,
-          createdAt: member.createdAt,
-          displayName: userResult?.name,
-          email: userResult?.email,
-        };
-      }),
-    );
-  },
+  handler: listByOrganizationHandler,
 });
 
 export const getUserIdByEmail = query({
@@ -198,108 +206,115 @@ export const getUserOrganizationsList = query({
   },
 });
 
+export async function approxCountMyTeamsHandler(
+  ctx: QueryCtx,
+  args: { organizationId: string },
+) {
+  const authUser = await getAuthUserIdentity(ctx);
+  if (!authUser) {
+    return 0;
+  }
+
+  const membershipsResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
+    await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'teamMember',
+      paginationOpts: { cursor: null, numItems: 100 },
+      where: [{ field: 'userId', operator: 'eq', value: authUser.userId }],
+    });
+
+  if (!membershipsResult || membershipsResult.page.length === 0) {
+    return 0;
+  }
+
+  const teamResults = await Promise.all(
+    membershipsResult.page.map(async (membership) => {
+      try {
+        return await ctx.runQuery(components.betterAuth.adapter.findMany, {
+          model: 'team',
+          paginationOpts: { cursor: null, numItems: 1 },
+          where: [
+            { field: '_id', operator: 'eq', value: membership.teamId },
+            {
+              field: 'organizationId',
+              operator: 'eq',
+              value: args.organizationId,
+            },
+          ],
+        });
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return teamResults.filter((r) => r && r.page.length > 0).length;
+}
+
 export const approxCountMyTeams = query({
-  args: {
-    organizationId: v.string(),
-  },
+  args: { organizationId: v.string() },
   returns: v.number(),
-  handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      return 0;
-    }
-
-    const membershipsResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
-      await ctx.runQuery(components.betterAuth.adapter.findMany, {
-        model: 'teamMember',
-        paginationOpts: { cursor: null, numItems: 100 },
-        where: [{ field: 'userId', operator: 'eq', value: authUser.userId }],
-      });
-
-    if (!membershipsResult || membershipsResult.page.length === 0) {
-      return 0;
-    }
-
-    const teamResults: BetterAuthFindManyResult<BetterAuthTeam>[] =
-      await Promise.all(
-        membershipsResult.page.map((membership) =>
-          ctx.runQuery(components.betterAuth.adapter.findMany, {
-            model: 'team',
-            paginationOpts: { cursor: null, numItems: 1 },
-            where: [
-              { field: '_id', operator: 'eq', value: membership.teamId },
-              {
-                field: 'organizationId',
-                operator: 'eq',
-                value: args.organizationId,
-              },
-            ],
-          }),
-        ),
-      );
-
-    return teamResults.filter((r) => r && r.page.length > 0).length;
-  },
+  handler: approxCountMyTeamsHandler,
 });
 
-export const getMyTeams = query({
-  args: {
-    organizationId: v.string(),
-  },
-  returns: v.array(
-    v.object({
-      id: v.string(),
-      name: v.string(),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) {
-      return [];
-    }
+export async function getMyTeamsHandler(
+  ctx: QueryCtx,
+  args: { organizationId: string },
+) {
+  const authUser = await getAuthUserIdentity(ctx);
+  if (!authUser) {
+    return [];
+  }
 
-    const membershipsResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
-      await ctx.runQuery(components.betterAuth.adapter.findMany, {
-        model: 'teamMember',
-        paginationOpts: { cursor: null, numItems: 100 },
-        where: [{ field: 'userId', operator: 'eq', value: authUser.userId }],
-      });
+  const membershipsResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
+    await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'teamMember',
+      paginationOpts: { cursor: null, numItems: 100 },
+      where: [{ field: 'userId', operator: 'eq', value: authUser.userId }],
+    });
 
-    if (!membershipsResult || membershipsResult.page.length === 0) {
-      return [];
-    }
+  if (!membershipsResult || membershipsResult.page.length === 0) {
+    return [];
+  }
 
-    const teamIds = membershipsResult.page.map((m) => m.teamId);
+  const teamIds = membershipsResult.page.map((m) => m.teamId);
 
-    const teamResults: BetterAuthFindManyResult<BetterAuthTeam>[] =
-      await Promise.all(
-        teamIds.map((teamId) =>
-          ctx.runQuery(components.betterAuth.adapter.findMany, {
-            model: 'team',
-            paginationOpts: { cursor: null, numItems: 1 },
-            where: [
-              { field: '_id', operator: 'eq', value: teamId },
-              {
-                field: 'organizationId',
-                operator: 'eq',
-                value: args.organizationId,
-              },
-            ],
-          }),
-        ),
-      );
-
-    const teams: Array<{ id: string; name: string }> = [];
-    for (const teamResult of teamResults) {
-      if (teamResult && teamResult.page.length > 0) {
-        const team = teamResult.page[0];
-        teams.push({
-          id: team._id,
-          name: team.name,
+  const teamResults = await Promise.all(
+    teamIds.map(async (teamId) => {
+      try {
+        return await ctx.runQuery(components.betterAuth.adapter.findMany, {
+          model: 'team',
+          paginationOpts: { cursor: null, numItems: 1 },
+          where: [
+            { field: '_id', operator: 'eq', value: teamId },
+            {
+              field: 'organizationId',
+              operator: 'eq',
+              value: args.organizationId,
+            },
+          ],
         });
+      } catch {
+        return null;
       }
-    }
+    }),
+  );
 
-    return teams;
-  },
+  const teams: Array<{ id: string; name: string }> = [];
+  for (const teamResult of teamResults) {
+    if (teamResult && teamResult.page.length > 0) {
+      const team = teamResult.page[0];
+      teams.push({
+        id: team._id,
+        name: team.name,
+      });
+    }
+  }
+
+  return teams;
+}
+
+export const getMyTeams = query({
+  args: { organizationId: v.string() },
+  returns: v.array(v.object({ id: v.string(), name: v.string() })),
+  handler: getMyTeamsHandler,
 });

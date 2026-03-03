@@ -15,9 +15,14 @@ async function withIconUrl(
   ctx: QueryCtx,
   integration: Doc<'integrations'>,
 ): Promise<IntegrationWithIcon> {
-  const iconUrl = integration.iconStorageId
-    ? await ctx.storage.getUrl(integration.iconStorageId)
-    : null;
+  let iconUrl: string | null = null;
+  if (integration.iconStorageId) {
+    try {
+      iconUrl = await ctx.storage.getUrl(integration.iconStorageId);
+    } catch {
+      // Graceful degradation: integration appears without icon
+    }
+  }
   return { ...integration, iconUrl };
 }
 

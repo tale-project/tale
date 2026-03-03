@@ -66,19 +66,25 @@ export const listByTeam = query({
     const userMap = new Map<string, { name?: string; email?: string }>();
     await Promise.all(
       [...userIds].map(async (userId) => {
-        const userResult = await ctx.runQuery(
-          components.betterAuth.adapter.findOne,
-          {
-            model: 'user',
-            where: [{ field: '_id', value: userId, operator: 'eq' }],
-          },
-        );
-        if (userResult) {
-          const name =
-            typeof userResult.name === 'string' ? userResult.name : undefined;
-          const email =
-            typeof userResult.email === 'string' ? userResult.email : undefined;
-          userMap.set(userId, { name, email });
+        try {
+          const userResult = await ctx.runQuery(
+            components.betterAuth.adapter.findOne,
+            {
+              model: 'user',
+              where: [{ field: '_id', value: userId, operator: 'eq' }],
+            },
+          );
+          if (userResult) {
+            const name =
+              typeof userResult.name === 'string' ? userResult.name : undefined;
+            const email =
+              typeof userResult.email === 'string'
+                ? userResult.email
+                : undefined;
+            userMap.set(userId, { name, email });
+          }
+        } catch {
+          // Graceful degradation: member appears without name/email
         }
       }),
     );

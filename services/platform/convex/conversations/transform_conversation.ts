@@ -20,30 +20,39 @@ export async function transformConversation(
 
   // Load customer and messages in parallel
   const [customerDoc, messageDocs] = await Promise.all([
-    conversation.customerId
-      ? ctx.db.get(conversation.customerId)
-      : Promise.resolve(null),
     (async () => {
-      if (includeAllMessages) {
-        const docs: Array<Doc<'conversationMessages'>> = [];
-        for await (const msg of ctx.db
-          .query('conversationMessages')
-          .withIndex('by_conversationId_and_deliveredAt', (q) =>
-            q.eq('conversationId', conversation._id),
-          )) {
-          docs.push(msg);
-        }
-        return docs;
-      } else {
-        const lastMessage = await ctx.db
-          .query('conversationMessages')
-          .withIndex('by_conversationId_and_deliveredAt', (q) =>
-            q.eq('conversationId', conversation._id),
-          )
-          .order('desc')
-          .first();
+      if (!conversation.customerId) return null;
+      try {
+        return await ctx.db.get(conversation.customerId);
+      } catch {
+        return null;
+      }
+    })(),
+    (async (): Promise<Array<Doc<'conversationMessages'>>> => {
+      try {
+        if (includeAllMessages) {
+          const docs: Array<Doc<'conversationMessages'>> = [];
+          for await (const msg of ctx.db
+            .query('conversationMessages')
+            .withIndex('by_conversationId_and_deliveredAt', (q) =>
+              q.eq('conversationId', conversation._id),
+            )) {
+            docs.push(msg);
+          }
+          return docs;
+        } else {
+          const lastMessage = await ctx.db
+            .query('conversationMessages')
+            .withIndex('by_conversationId_and_deliveredAt', (q) =>
+              q.eq('conversationId', conversation._id),
+            )
+            .order('desc')
+            .first();
 
-        return lastMessage ? [lastMessage] : [];
+          return lastMessage ? [lastMessage] : [];
+        }
+      } catch {
+        return [];
       }
     })(),
   ]);
