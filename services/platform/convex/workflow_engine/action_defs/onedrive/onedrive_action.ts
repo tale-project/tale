@@ -20,12 +20,12 @@ import type {
 } from '../../../documents/types';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
+import { internal } from '../../../_generated/api';
+import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import {
   jsonRecordValidator,
   jsonValueValidator,
-} from '../../../../lib/shared/schemas/utils/json-value';
-import { internal } from '../../../_generated/api';
-import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
+} from '../../../lib/validators/json';
 
 // Common field validators
 const filesValidator = v.array(

@@ -1,6 +1,6 @@
-import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import type { ConvexJsonValue } from '../../lib/validators/json';
 import type { CompleteExecutionArgs } from './types';
 
 import { internal } from '../../_generated/api';

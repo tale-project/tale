@@ -3,7 +3,7 @@
  * This should be called after successfully processing a document.
  */
 
-import type { ConvexJsonRecord } from '../../../lib/shared/schemas/utils/json-value';
+import type { ConvexJsonRecord } from '../../lib/validators/json';
 
 import { Id } from '../../_generated/dataModel';
 import { MutationCtx } from '../../_generated/server';
