@@ -8,8 +8,8 @@
 
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../../../../../lib/shared/schemas/utils/json-value';
 import { isRecord } from '../../../../../../lib/utils/type-guards';
+import { jsonRecordValidator } from '../../../../../lib/validators/json';
 
 /**
  * Standard termination signal that LLM agents can return

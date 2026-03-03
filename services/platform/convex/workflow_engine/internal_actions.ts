@@ -2,11 +2,11 @@ import { Infer, v } from 'convex/values';
 
 import type { LLMNodeConfig } from './types';
 
+import { internalAction } from '../_generated/server';
 import {
   jsonValueValidator,
   jsonRecordValidator,
-} from '../../lib/shared/schemas/utils/json-value';
-import { internalAction } from '../_generated/server';
+} from '../lib/validators/json';
 import * as EngineHelpers from './helpers/engine';
 import * as ActionNodeHelpers from './helpers/nodes/action/execute_action_node';
 import * as ConditionNodeHelpers from './helpers/nodes/condition/execute_condition_node';

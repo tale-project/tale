@@ -1,7 +1,8 @@
-import { GenericQueryCtx } from 'convex/server';
+import type { GenericQueryCtx } from 'convex/server';
 
-import { DataModel } from '../_generated/dataModel';
-import { authComponent } from '../auth';
+import type { DataModel } from '../_generated/dataModel';
+
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 type AuthUserResult = {
   _id: string;
@@ -12,13 +13,13 @@ type AuthUserResult = {
 export async function getAuthUser(
   ctx: GenericQueryCtx<DataModel>,
 ): Promise<AuthUserResult> {
-  const authUser = await authComponent.safeGetAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     return null;
   }
   return {
-    _id: String(authUser._id),
-    email: authUser.email,
+    _id: authUser.userId,
+    email: authUser.email ?? '',
     name: authUser.name ?? '',
   };
 }

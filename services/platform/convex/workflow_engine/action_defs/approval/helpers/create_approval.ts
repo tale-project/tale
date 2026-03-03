@@ -1,7 +1,7 @@
-import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { ApprovalResourceType } from '../../../../approvals/types';
+import type { ConvexJsonRecord } from '../../../../lib/validators/json';
 import type {
   CreateApprovalResult,
   ApprovalPriority,

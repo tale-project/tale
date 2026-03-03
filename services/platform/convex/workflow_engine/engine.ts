@@ -13,8 +13,8 @@ import { v } from 'convex/values';
 
 import type { DynamicWorkflowArgs } from './helpers/engine/dynamic_workflow_handler';
 
-import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { components } from '../_generated/api';
+import { jsonValueValidator } from '../lib/validators/json';
 import * as EngineHelpers from './helpers/engine';
 
 export const workflowManagers = [

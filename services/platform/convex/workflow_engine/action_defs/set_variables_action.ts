@@ -20,9 +20,9 @@ import { v } from 'convex/values';
 
 import type { ActionDefinition } from '../helpers/nodes/action/types';
 
-import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
 import { isRecord } from '../../../lib/utils/type-guards';
 import { createDebugLog } from '../../lib/debug_log';
+import { jsonValueValidator } from '../../lib/validators/json';
 import { replaceVariables } from '../../lib/variables/replace_variables';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');

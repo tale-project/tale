@@ -3,9 +3,9 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { RagActionParams, RagUploadResult } from './helpers/types';
 
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
 import { toId } from '../../../lib/type_cast_helpers';
+import { jsonRecordValidator } from '../../../lib/validators/json';
 import { deleteDocumentById } from './helpers/delete_document';
 import { getDocumentInfo } from './helpers/get_document_info';
 import { getRagConfig } from './helpers/get_rag_config';

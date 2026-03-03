@@ -9,7 +9,7 @@ import { v } from 'convex/values';
 import {
   jsonValueValidator,
   jsonRecordValidator,
-} from '../../../lib/shared/schemas/utils/json-value';
+} from '../../lib/validators/json';
 
 // =============================================================================
 // LLM NODE TYPES

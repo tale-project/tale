@@ -1,70 +1,79 @@
 /**
  * Convex validators for workflow executions
- *
- * Note: Some schemas use jsonRecordSchema/jsonValueSchema which contain z.lazy() for recursive types.
- * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
+import { sortOrderValidator } from '../../lib/validators/common';
 import {
   jsonRecordValidator,
   jsonValueValidator,
-} from '../../../lib/shared/schemas/utils/json-value';
-import {
-  executionStatusSchema,
-  executionSortOrderSchema,
-  updateExecutionStatusArgsSchema,
-  failExecutionArgsSchema,
-  patchExecutionArgsSchema,
-  setComponentWorkflowArgsSchema,
-  updateExecutionVariablesArgsSchema,
-  listExecutionsArgsSchema,
-  listExecutionsCursorArgsSchema,
-} from '../../../lib/shared/schemas/wf_executions';
+} from '../../lib/validators/json';
 
-export {
-  executionStatusSchema,
-  executionSortOrderSchema,
-  updateExecutionStatusArgsSchema,
-  completeExecutionArgsSchema,
-  failExecutionArgsSchema,
-  patchExecutionArgsSchema,
-  resumeExecutionArgsSchema,
-  setComponentWorkflowArgsSchema,
-  updateExecutionMetadataArgsSchema,
-  updateExecutionVariablesArgsSchema,
-  listExecutionsArgsSchema,
-  listExecutionsCursorArgsSchema,
-} from '../../../lib/shared/schemas/wf_executions';
-
-// Simple schemas without z.lazy()
-export const executionStatusValidator = zodToConvex(executionStatusSchema);
-export const executionSortOrderValidator = zodToConvex(
-  executionSortOrderSchema,
-);
-export const updateExecutionStatusArgsValidator = zodToConvex(
-  updateExecutionStatusArgsSchema,
-);
-export const failExecutionArgsValidator = zodToConvex(failExecutionArgsSchema);
-export const patchExecutionArgsValidator = zodToConvex(
-  patchExecutionArgsSchema,
-);
-export const setComponentWorkflowArgsValidator = zodToConvex(
-  setComponentWorkflowArgsSchema,
-);
-export const updateExecutionVariablesArgsValidator = zodToConvex(
-  updateExecutionVariablesArgsSchema,
-);
-export const listExecutionsArgsValidator = zodToConvex(
-  listExecutionsArgsSchema,
-);
-export const listExecutionsCursorArgsValidator = zodToConvex(
-  listExecutionsCursorArgsSchema,
+export const executionStatusValidator = v.union(
+  v.literal('pending'),
+  v.literal('running'),
+  v.literal('completed'),
+  v.literal('failed'),
 );
 
-// Complex schemas with jsonRecordSchema/jsonValueSchema (contains z.lazy) - use native Convex v
+export const executionSortOrderValidator = sortOrderValidator;
+
+export const updateExecutionStatusArgsValidator = v.object({
+  executionId: v.string(),
+  status: executionStatusValidator,
+  currentStepSlug: v.optional(v.string()),
+  waitingFor: v.optional(v.string()),
+  error: v.optional(v.string()),
+});
+
+export const failExecutionArgsValidator = v.object({
+  executionId: v.string(),
+  error: v.string(),
+});
+
+export const patchExecutionArgsValidator = v.object({
+  executionId: v.string(),
+  updates: v.object({
+    threadId: v.optional(v.string()),
+    currentStepSlug: v.optional(v.string()),
+    variables: v.optional(v.string()),
+    metadata: v.optional(v.string()),
+  }),
+});
+
+export const setComponentWorkflowArgsValidator = v.object({
+  executionId: v.string(),
+  componentWorkflowId: v.string(),
+});
+
+export const updateExecutionVariablesArgsValidator = v.object({
+  executionId: v.string(),
+  variablesSerialized: v.optional(v.string()),
+  variablesStorageId: v.optional(v.string()),
+});
+
+export const listExecutionsArgsValidator = v.object({
+  wfDefinitionId: v.string(),
+  status: v.optional(executionStatusValidator),
+  limit: v.optional(v.number()),
+  search: v.optional(v.string()),
+  triggeredBy: v.optional(v.string()),
+  dateFrom: v.optional(v.string()),
+  dateTo: v.optional(v.string()),
+});
+
+export const listExecutionsCursorArgsValidator = v.object({
+  wfDefinitionId: v.string(),
+  numItems: v.optional(v.number()),
+  cursor: v.union(v.string(), v.null()),
+  searchTerm: v.optional(v.string()),
+  status: v.optional(v.array(executionStatusValidator)),
+  triggeredBy: v.optional(v.array(v.string())),
+  dateFrom: v.optional(v.string()),
+  dateTo: v.optional(v.string()),
+});
+
 export const completeExecutionArgsValidator = v.object({
   executionId: v.string(),
   output: jsonValueValidator,

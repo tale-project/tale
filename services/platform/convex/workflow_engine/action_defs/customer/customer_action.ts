@@ -35,7 +35,6 @@ import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { QueryResult } from '../conversation/helpers/types';
 
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { narrowStringUnion } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import {
@@ -44,6 +43,7 @@ import {
   customerAddressValidator,
 } from '../../../customers/validators';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
+import { jsonRecordValidator } from '../../../lib/validators/json';
 
 // Type definitions for customer operations
 type CreateCustomerResult = {

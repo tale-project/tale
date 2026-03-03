@@ -8,7 +8,7 @@ import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
-import { hasAnyUsers as hasAnyUsersHelper } from './helpers';
+import { hasAnyUsers as hasAnyUsersHelper } from './has_any_users';
 
 /**
  * Check if any users exist in the system.

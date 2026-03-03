@@ -1,5 +1,5 @@
-import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../../../../_generated/dataModel';
+import type { ConvexJsonRecord } from '../../../../lib/validators/json';
 
 // Discriminated union type for website operations
 export type WebsiteActionParams =

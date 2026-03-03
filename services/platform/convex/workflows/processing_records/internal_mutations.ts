@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../../_generated/server';
+import { jsonRecordValidator } from '../../lib/validators/json';
 import { findUnprocessed as findUnprocessedHelper } from './query_building/find_unprocessed';
 import { recordProcessed as recordProcessedHelper } from './record_processed';
 

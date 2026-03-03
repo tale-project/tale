@@ -1,8 +1,8 @@
 import { vWorkflowId } from '@convex-dev/workflow';
 import { v } from 'convex/values';
 
-import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
+import { jsonValueValidator } from '../lib/validators/json';
 import { workflowManagers } from './engine';
 import * as EngineHelpers from './helpers/engine';
 import { safeShardIndex } from './helpers/engine/shard';

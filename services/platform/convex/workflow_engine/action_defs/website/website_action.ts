@@ -3,8 +3,8 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { WebsiteActionParams } from './helpers/types';
 
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
+import { jsonRecordValidator } from '../../../lib/validators/json';
 
 // Common field validators
 const statusValidator = v.optional(

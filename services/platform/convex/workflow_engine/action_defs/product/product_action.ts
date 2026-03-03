@@ -35,13 +35,13 @@ import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { QueryResult } from '../conversation/helpers/types';
 
-import {
-  jsonRecordValidator,
-  jsonValueValidator,
-} from '../../../../lib/shared/schemas/utils/json-value';
 import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
+import {
+  jsonRecordValidator,
+  jsonValueValidator,
+} from '../../../lib/validators/json';
 import { productStatusValidator } from '../../../products/validators';
 
 type CreateProductResult = {

@@ -1,19 +1,17 @@
 // Note: jsonRecordSchema contains z.lazy() which zodToConvex doesn't support,
 // so validators containing metadata use native Convex v instead.
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
-import { productStatusSchema } from '../../lib/shared/schemas/products';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../lib/validators/json';
 
-export {
-  productStatusSchema,
-  productTranslationSchema,
-  productItemSchema,
-} from '../../lib/shared/schemas/products';
+export const productStatusValidator = v.union(
+  v.literal('active'),
+  v.literal('inactive'),
+  v.literal('draft'),
+  v.literal('archived'),
+);
 
-export const productStatusValidator = zodToConvex(productStatusSchema);
 export const productTranslationValidator = v.object({
   language: v.string(),
   name: v.optional(v.string()),

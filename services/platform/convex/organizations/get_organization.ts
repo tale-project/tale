@@ -2,8 +2,8 @@ import type { QueryCtx } from '../_generated/server';
 
 import { isRecord, getString, getNumber } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
-import { authComponent } from '../auth';
 import { validateOrganizationAccess } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 type BAOrganization = {
   _id: string;
@@ -19,7 +19,7 @@ export async function getOrganization(
   ctx: QueryCtx,
   organizationId: string,
 ): Promise<BAOrganization | null> {
-  const authUser = await authComponent.safeGetAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     return null;
   }

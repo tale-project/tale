@@ -1,32 +1,53 @@
-import { zodToConvex } from 'convex-helpers/server/zod4';
+/**
+ * Convex validators for thread operations
+ */
 
-import {
-  chatTypeSchema,
-  messageRoleSchema,
-  threadStatusSchema,
-  toolStatusSchema,
-  threadMessageSchema,
-  threadListItemSchema,
-  latestToolMessageSchema,
-  getOrCreateSubThreadResultSchema,
-} from '../../lib/shared/schemas/threads';
+import { v } from 'convex/values';
 
-export {
-  chatTypeSchema,
-  messageRoleSchema,
-  threadStatusSchema,
-  toolStatusSchema,
-  threadMessageSchema,
-  threadListItemSchema,
-} from '../../lib/shared/schemas/threads';
-
-export const chatTypeValidator = zodToConvex(chatTypeSchema);
-export const messageRoleValidator = zodToConvex(messageRoleSchema);
-export const threadStatusValidator = zodToConvex(threadStatusSchema);
-export const toolStatusValidator = zodToConvex(toolStatusSchema);
-export const threadMessageValidator = zodToConvex(threadMessageSchema);
-export const threadListItemValidator = zodToConvex(threadListItemSchema);
-export const latestToolMessageValidator = zodToConvex(latestToolMessageSchema);
-export const getOrCreateSubThreadResultValidator = zodToConvex(
-  getOrCreateSubThreadResultSchema,
+export const chatTypeValidator = v.union(
+  v.literal('general'),
+  v.literal('workflow_assistant'),
+  v.literal('agent_test'),
 );
+
+export const messageRoleValidator = v.union(
+  v.literal('user'),
+  v.literal('assistant'),
+);
+
+export const threadStatusValidator = v.union(
+  v.literal('active'),
+  v.literal('archived'),
+);
+
+export const toolStatusValidator = v.union(
+  v.literal('calling'),
+  v.literal('completed'),
+  v.null(),
+);
+
+export const threadMessageValidator = v.object({
+  _id: v.string(),
+  _creationTime: v.number(),
+  role: messageRoleValidator,
+  content: v.string(),
+});
+
+export const threadListItemValidator = v.object({
+  _id: v.string(),
+  _creationTime: v.number(),
+  title: v.optional(v.string()),
+  status: threadStatusValidator,
+  userId: v.optional(v.string()),
+});
+
+export const latestToolMessageValidator = v.object({
+  toolNames: v.array(v.string()),
+  status: toolStatusValidator,
+  timestamp: v.union(v.number(), v.null()),
+});
+
+export const getOrCreateSubThreadResultValidator = v.object({
+  threadId: v.string(),
+  isNew: v.boolean(),
+});

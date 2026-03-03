@@ -17,7 +17,7 @@ import type { TableName } from './helpers/types';
 import {
   jsonRecordValidator,
   type ConvexJsonRecord,
-} from '../../../../lib/shared/schemas/utils/json-value';
+} from '../../../lib/validators/json';
 import { findUnprocessed } from './helpers/find_unprocessed';
 import { recordProcessed } from './helpers/record_processed';
 

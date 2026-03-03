@@ -13,11 +13,11 @@ import { v } from 'convex/values';
 
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
 import { isSqlIntegration } from '../../../integrations/helpers';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
+import { jsonRecordValidator } from '../../../lib/validators/json';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
 import {
   requiresApproval,

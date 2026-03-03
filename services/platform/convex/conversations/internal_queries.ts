@@ -1,8 +1,8 @@
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalQuery } from '../_generated/server';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { jsonRecordValidator } from '../lib/validators/json';
 import * as ConversationsHelpers from './helpers';
 import {
   conversationStatusValidator,

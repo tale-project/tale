@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../lib/validators/json';
 import {
   AUDIT_LOG_ACTOR_TYPES,
   AUDIT_LOG_CATEGORIES,
