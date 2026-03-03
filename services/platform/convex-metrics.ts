@@ -8,8 +8,10 @@
  * cumulative counts), and passes counter/gauge metrics through unchanged.
  */
 
-const CONVEX_METRICS_URL = 'http://localhost:3210/metrics';
-const CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8';
+const CONVEX_PORT = process.env.CONVEX_PORT || '3210';
+const CONVEX_METRICS_URL = `http://localhost:${CONVEX_PORT}/metrics`;
+const PROMETHEUS_CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8';
+const PLAIN_CONTENT_TYPE = 'text/plain; charset=utf-8';
 
 interface Bucket {
   le: number;
@@ -21,7 +23,9 @@ interface Bucket {
  */
 function parseVmrangeUpperBound(vmrange: string): number {
   const dotIdx = vmrange.indexOf('...');
-  return parseFloat(vmrange.slice(dotIdx + 3));
+  const upper = vmrange.slice(dotIdx + 3);
+  if (upper === '+Inf' || upper === 'Inf') return Infinity;
+  return parseFloat(upper);
 }
 
 /**
@@ -29,7 +33,7 @@ function parseVmrangeUpperBound(vmrange: string): number {
  * Prometheus histogram format. Counter and gauge metrics pass through unchanged.
  */
 export function convertVmhistogramToPrometheus(text: string): string {
-  const lines = text.split('\n');
+  const lines = text.replace(/\r/g, '').split('\n');
   const output: string[] = [];
 
   // Track state for the current vmhistogram metric group
@@ -37,11 +41,15 @@ export function convertVmhistogramToPrometheus(text: string): string {
   let currentBaseName = '';
   // Map from label signature (without vmrange) → sorted bucket list
   let bucketGroups = new Map<string, Bucket[]>();
+  // Buffer _sum lines so buckets are emitted before them (Prometheus convention)
+  let pendingLines: string[] = [];
 
   for (const line of lines) {
     // # TYPE line — detect vmhistogram and rewrite to histogram
     if (line.startsWith('# TYPE ')) {
       flushBuckets(output, currentBaseName, bucketGroups);
+      for (const p of pendingLines) output.push(p);
+      pendingLines = [];
       const spaceIdx = line.indexOf(' ', 7);
       const metricName = line.slice(7, spaceIdx);
       const metricType = line.slice(spaceIdx + 1);
@@ -109,18 +117,35 @@ export function convertVmhistogramToPrometheus(text: string): string {
       continue;
     }
 
-    // _sum and _count lines — pass through, and flush buckets on _count
-    output.push(line);
-
-    if (line.includes('_count{') || line.includes('_count ')) {
+    // _count line — flush matching buckets first (Prometheus: buckets → _sum → _count)
+    if (isCountSuffix(line)) {
       flushBucketsForCount(output, bucketGroups, line);
+      for (const p of pendingLines) output.push(p);
+      pendingLines = [];
+      output.push(line);
+      continue;
     }
+
+    // _sum and other vmhistogram data lines — buffer for correct ordering
+    pendingLines.push(line);
   }
 
   // Flush any remaining buckets at end of input
   flushBuckets(output, currentBaseName, bucketGroups);
+  for (const p of pendingLines) output.push(p);
 
   return output.join('\n');
+}
+
+/**
+ * Check if a metric line has `_count` as its metric name suffix.
+ */
+function isCountSuffix(line: string): boolean {
+  const braceIdx = line.indexOf('{');
+  const spaceIdx = line.indexOf(' ');
+  if (spaceIdx === -1) return false;
+  const nameEnd = braceIdx !== -1 && braceIdx < spaceIdx ? braceIdx : spaceIdx;
+  return line.slice(0, nameEnd).endsWith('_count');
 }
 
 /**
@@ -137,6 +162,7 @@ function emitCumulativeBuckets(
 
   let cumulative = 0;
   for (const bucket of buckets) {
+    if (bucket.le === Infinity) continue;
     cumulative += bucket.count;
     const leLabel = labels
       ? `${labels},le="${bucket.le}"`
@@ -170,13 +196,14 @@ function flushBucketsForCount(
   // Determine the bucket metric name (replace _count with _bucket)
   const metricEnd = braceOpen !== -1 ? braceOpen : valueStart;
   const countMetricName = countLine.slice(0, metricEnd);
-  const bucketMetricName = countMetricName.replace('_count', '_bucket');
+  const bucketMetricName = countMetricName.replace(/_count$/, '_bucket');
 
   const labels =
     braceOpen !== -1 ? countLine.slice(braceOpen + 1, braceClose) : '';
 
   // Find matching bucket group
   // The key format is: "metricname_bucket{labels" (without closing brace)
+  let matched = false;
   for (const [groupKey, buckets] of bucketGroups) {
     const groupBraceOpen = groupKey.indexOf('{');
     const groupLabels =
@@ -191,8 +218,15 @@ function flushBucketsForCount(
         totalCount,
       );
       bucketGroups.delete(groupKey);
+      matched = true;
       break;
     }
+  }
+
+  // No bucket lines existed — still emit the mandatory +Inf bucket
+  if (!matched) {
+    const infLabel = labels ? `${labels},le="+Inf"` : `le="+Inf"`;
+    output.push(`${bucketMetricName}{${infLabel}} ${totalCount}`);
   }
 }
 
@@ -236,14 +270,16 @@ export async function convexMetricsResponse(
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) {
-      return new Response(`Convex metrics unavailable: ${res.status}`, {
-        status: 502,
-      });
+      console.error(`Convex metrics upstream returned ${res.status}`);
+      return new Response('Convex metrics unavailable', { status: 502 });
     }
     const raw = await res.text();
-    const body = format === 'raw' ? raw : convertVmhistogramToPrometheus(raw);
+    const isRaw = format === 'raw';
+    const body = isRaw ? raw : convertVmhistogramToPrometheus(raw);
     return new Response(body, {
-      headers: { 'Content-Type': CONTENT_TYPE },
+      headers: {
+        'Content-Type': isRaw ? PLAIN_CONTENT_TYPE : PROMETHEUS_CONTENT_TYPE,
+      },
     });
   } catch (error) {
     console.error('Failed to fetch Convex metrics:', error);

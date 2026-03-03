@@ -234,4 +234,194 @@ describe('convertVmhistogramToPrometheus', () => {
     expect(lines).toContain('ops_bucket{le="0.2"} 105');
     expect(lines).toContain('ops_bucket{le="+Inf"} 105');
   });
+
+  test('handles +Inf vmrange bucket', () => {
+    const input = [
+      '# TYPE big vmhistogram',
+      'big_bucket{vmrange="1.000e0...2.000e0"} 5',
+      'big_bucket{vmrange="1.000e+18...+Inf"} 2',
+      'big_sum 100',
+      'big_count 7',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('big_bucket{le="2"} 5');
+    expect(lines).toContain('big_bucket{le="+Inf"} 7');
+    expect(result).not.toContain('le="NaN"');
+    expect(result).not.toContain('le="Infinity"');
+    expect(result).not.toContain('vmrange');
+  });
+
+  test('handles Inf without plus sign in vmrange', () => {
+    const input = [
+      '# TYPE big vmhistogram',
+      'big_bucket{vmrange="1.000e0...2.000e0"} 5',
+      'big_bucket{vmrange="1.000e+18...Inf"} 2',
+      'big_sum 100',
+      'big_count 7',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('big_bucket{le="2"} 5');
+    expect(lines).toContain('big_bucket{le="+Inf"} 7');
+    expect(result).not.toContain('le="NaN"');
+    expect(result).not.toContain('le="Infinity"');
+    expect(result).not.toContain('vmrange');
+  });
+
+  test('handles metric name containing _count', () => {
+    const input = [
+      '# TYPE retry_count vmhistogram',
+      'retry_count_bucket{vmrange="1.000e-1...2.000e-1"} 3',
+      'retry_count_bucket{vmrange="2.000e-1...3.000e-1"} 7',
+      'retry_count_sum 1.5',
+      'retry_count_count 10',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('# TYPE retry_count histogram');
+    expect(lines).toContain('retry_count_bucket{le="0.2"} 3');
+    expect(lines).toContain('retry_count_bucket{le="0.3"} 10');
+    expect(lines).toContain('retry_count_bucket{le="+Inf"} 10');
+    expect(lines).toContain('retry_count_sum 1.5');
+    expect(lines).toContain('retry_count_count 10');
+  });
+
+  test('emits buckets before _sum and _count (Prometheus ordering)', () => {
+    const input = [
+      '# TYPE latency vmhistogram',
+      'latency_bucket{vmrange="1.000e-1...2.000e-1"} 4',
+      'latency_bucket{vmrange="2.000e-1...3.000e-1"} 6',
+      'latency_sum 2.5',
+      'latency_count 10',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    const firstBucketIdx = lines.findIndex((l) => l.includes('_bucket{'));
+    const infBucketIdx = lines.findIndex((l) => l.includes('le="+Inf"'));
+    const sumIdx = lines.findIndex((l) => l.includes('_sum'));
+    const countIdx = lines.findIndex((l) => l.includes('_count'));
+
+    // Prometheus convention: buckets → +Inf → _sum → _count
+    expect(firstBucketIdx).toBeLessThan(infBucketIdx);
+    expect(infBucketIdx).toBeLessThan(sumIdx);
+    expect(sumIdx).toBeLessThan(countIdx);
+  });
+
+  test('handles CRLF line endings', () => {
+    const input = [
+      '# TYPE ops vmhistogram',
+      'ops_bucket{vmrange="1.000e-2...2.000e-2"} 10',
+      'ops_sum 0.15',
+      'ops_count 10',
+    ].join('\r\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('# TYPE ops histogram');
+    expect(lines).toContain('ops_bucket{le="0.02"} 10');
+    expect(lines).toContain('ops_bucket{le="+Inf"} 10');
+  });
+
+  test('handles vmrange in the middle of multiple labels', () => {
+    const input = [
+      '# TYPE rpc vmhistogram',
+      'rpc_bucket{service="api",vmrange="1.000e0...2.000e0",region="us"} 5',
+      'rpc_sum{service="api",region="us"} 7.5',
+      'rpc_count{service="api",region="us"} 5',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('rpc_bucket{service="api",region="us",le="2"} 5');
+    expect(lines).toContain(
+      'rpc_bucket{service="api",region="us",le="+Inf"} 5',
+    );
+    expect(result).not.toContain('vmrange');
+  });
+
+  test('emits +Inf bucket when only _sum and _count exist without buckets', () => {
+    const input = [
+      '# TYPE empty vmhistogram',
+      'empty_sum 0',
+      'empty_count 0',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('# TYPE empty histogram');
+    expect(lines).toContain('empty_bucket{le="+Inf"} 0');
+    expect(lines).toContain('empty_sum 0');
+    expect(lines).toContain('empty_count 0');
+  });
+
+  test('preserves HELP lines for vmhistogram metrics', () => {
+    const input = [
+      '# HELP latency Request latency in seconds',
+      '# TYPE latency vmhistogram',
+      'latency_bucket{vmrange="1.000e-1...2.000e-1"} 4',
+      'latency_sum 0.6',
+      'latency_count 4',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    const lines = result.split('\n');
+
+    expect(lines).toContain('# HELP latency Request latency in seconds');
+    expect(lines).toContain('# TYPE latency histogram');
+  });
+
+  test('does not trigger on _count substring in non-suffix position', () => {
+    // A gauge metric named "error_count_total" should pass through unchanged
+    const input = [
+      '# TYPE error_count_total counter',
+      'error_count_total 42',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    expect(result).toBe(input);
+  });
+
+  test('produces exact expected output for a simple histogram', () => {
+    const input = [
+      '# TYPE ops vmhistogram',
+      'ops_bucket{vmrange="1.000e-2...2.000e-2"} 10',
+      'ops_sum 0.15',
+      'ops_count 10',
+    ].join('\n');
+
+    const expected = [
+      '# TYPE ops histogram',
+      'ops_bucket{le="0.02"} 10',
+      'ops_bucket{le="+Inf"} 10',
+      'ops_sum 0.15',
+      'ops_count 10',
+    ].join('\n');
+
+    expect(convertVmhistogramToPrometheus(input)).toBe(expected);
+  });
+
+  test('handles trailing newline in input', () => {
+    const input = [
+      '# TYPE ops vmhistogram',
+      'ops_bucket{vmrange="1.000e-2...2.000e-2"} 10',
+      'ops_sum 0.15',
+      'ops_count 10',
+      '',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+    expect(result.endsWith('\n')).toBe(true);
+  });
 });
