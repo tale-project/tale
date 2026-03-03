@@ -33,12 +33,15 @@ export function AutomationRenameDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(
-          1,
-          tCommon('validation.required', {
-            field: tAutomations('configuration.name'),
-          }),
-        ),
+        name: z
+          .string()
+          .trim()
+          .min(
+            1,
+            tCommon('validation.required', {
+              field: tAutomations('configuration.name'),
+            }),
+          ),
       }),
     [tCommon, tAutomations],
   );
@@ -47,9 +50,10 @@ export function AutomationRenameDialog({
     register,
     handleSubmit,
     reset,
-    formState: { isSubmitting, errors },
+    formState: { isSubmitting, isValid, errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange',
     defaultValues: {
       name: currentName,
     },
@@ -87,6 +91,7 @@ export function AutomationRenameDialog({
       submitText={tCommon('actions.save')}
       submittingText={tCommon('actions.saving')}
       isSubmitting={isSubmitting}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

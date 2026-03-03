@@ -137,8 +137,6 @@ export function DocumentUploadDialog({
     [selectedFiles, selectedTeams, uploadFiles],
   );
 
-  const hasFiles = selectedFiles.length > 0;
-
   return (
     <FormDialog
       open={open}
@@ -147,8 +145,8 @@ export function DocumentUploadDialog({
       submitText={tCommon('actions.upload')}
       submittingText={tDocuments('upload.uploading')}
       isSubmitting={isUploading}
+      isValid={selectedFiles.length > 0}
       onSubmit={handleSubmit}
-      submitDisabled={!hasFiles}
       large
     >
       <Stack gap={4}>

@@ -114,7 +114,7 @@ export function CreateCustomAgentDialog({
       submitText={t('customAgents.createDialog.continue')}
       submittingText={t('customAgents.createDialog.creating')}
       isSubmitting={isSubmitting}
-      submitDisabled={!isValid}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

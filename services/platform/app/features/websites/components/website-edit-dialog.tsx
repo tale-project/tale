@@ -42,24 +42,28 @@ export function EditWebsiteDialog({
     [tWebsites],
   );
 
-  const SCAN_INTERVALS = [
-    { value: '60m', label: tWebsites('scanIntervals.1hour') },
-    { value: '6h', label: tWebsites('scanIntervals.6hours') },
-    { value: '12h', label: tWebsites('scanIntervals.12hours') },
-    { value: '1d', label: tWebsites('scanIntervals.1day') },
-    { value: '5d', label: tWebsites('scanIntervals.5days') },
-    { value: '7d', label: tWebsites('scanIntervals.7days') },
-    { value: '30d', label: tWebsites('scanIntervals.30days') },
-  ];
+  const SCAN_INTERVALS = useMemo(
+    () => [
+      { value: '60m', label: tWebsites('scanIntervals.1hour') },
+      { value: '6h', label: tWebsites('scanIntervals.6hours') },
+      { value: '12h', label: tWebsites('scanIntervals.12hours') },
+      { value: '1d', label: tWebsites('scanIntervals.1day') },
+      { value: '5d', label: tWebsites('scanIntervals.5days') },
+      { value: '7d', label: tWebsites('scanIntervals.7days') },
+      { value: '30d', label: tWebsites('scanIntervals.30days') },
+    ],
+    [tWebsites],
+  );
 
   const {
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isValid, isDirty },
     reset,
     setValue,
     watch,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange',
     defaultValues: {
       scanInterval: website.scanInterval,
     },
@@ -106,6 +110,7 @@ export function EditWebsiteDialog({
       onOpenChange={() => onClose()}
       title={tWebsites('editWebsite')}
       isSubmitting={isLoading}
+      isValid={isValid && isDirty}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
@@ -117,7 +122,9 @@ export function EditWebsiteDialog({
 
       <Select
         value={scanInterval}
-        onValueChange={(value) => setValue('scanInterval', value)}
+        onValueChange={(value) =>
+          setValue('scanInterval', value, { shouldDirty: true })
+        }
         disabled={isLoading}
         id="scanInterval"
         label={tWebsites('scanInterval')}

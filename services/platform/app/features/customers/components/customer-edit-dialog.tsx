@@ -56,6 +56,7 @@ export function CustomerEditDialog({
       z.object({
         name: z
           .string()
+          .trim()
           .min(
             1,
             tCommon('validation.required', { field: tCustomers('name') }),
@@ -74,12 +75,13 @@ export function CustomerEditDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isDirty },
+    formState: { errors, isSubmitting, isValid },
     reset,
     setValue,
     watch,
   } = useForm<CustomerFormData>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange',
     defaultValues: {
       name: customer.name || '',
       email: customer.email || '',
@@ -135,7 +137,7 @@ export function CustomerEditDialog({
       onOpenChange={handleOpenChange}
       title={tCustomers('editCustomer')}
       isSubmitting={isSubmitting}
-      submitDisabled={!isDirty}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

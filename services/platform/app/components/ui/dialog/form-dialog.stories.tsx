@@ -49,9 +49,10 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
       control: 'boolean',
       description: 'Whether the form is being submitted',
     },
-    submitDisabled: {
+    isValid: {
       control: 'boolean',
-      description: 'Whether the submit button is disabled',
+      description:
+        'Whether the form is currently valid (e.g. from react-hook-form formState.isValid)',
     },
     large: {
       control: 'boolean',
@@ -144,23 +145,23 @@ export const Submitting: Story = {
   },
 };
 
-export const SubmitDisabled: Story = {
-  render: function DisabledStory() {
+export const InvalidForm: Story = {
+  render: function InvalidFormStory() {
     const [open, setOpen] = useState(false);
 
     return (
       <>
         <Button onClick={() => setOpen(true)}>
-          Open disabled submit dialog
+          Open dialog (invalid form)
         </Button>
         <FormDialog
           open={open}
           onOpenChange={setOpen}
-          title="Create account"
-          submitDisabled={true}
+          title="Create new item"
+          isValid={false}
           onSubmit={(e) => e.preventDefault()}
         >
-          <Input label="Email" placeholder="Enter email to enable submit" />
+          <Input label="Name" placeholder="Enter name (required)" />
         </FormDialog>
       </>
     );
@@ -168,7 +169,8 @@ export const SubmitDisabled: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Submit button disabled until form is valid.',
+        story:
+          'Submit button is disabled when the form is invalid (e.g. required fields not filled).',
       },
     },
   },

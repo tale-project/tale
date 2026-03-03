@@ -94,6 +94,7 @@ export function ImportCustomersDialog({
 
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange',
     defaultValues: {
       dataSource: mode === 'manual' ? 'manual_import' : 'file_upload',
     },
@@ -101,7 +102,7 @@ export function ImportCustomersDialog({
 
   const {
     handleSubmit,
-    formState: { isSubmitting },
+    formState: { isSubmitting, isValid },
   } = formMethods;
 
   const { mutateAsync: bulkCreateCustomers } = useBulkCreateCustomers();
@@ -216,6 +217,7 @@ export function ImportCustomersDialog({
       submitText={tCustomers('import.import')}
       submittingText={tCommon('actions.importing')}
       isSubmitting={isSubmitting}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormProvider {...formMethods}>

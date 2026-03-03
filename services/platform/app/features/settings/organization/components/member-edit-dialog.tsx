@@ -74,6 +74,7 @@ export function EditMemberDialog({
 
   const form = useForm<EditMemberFormData>({
     resolver: zodResolver(editMemberSchema),
+    mode: 'onChange',
     defaultValues: {
       displayName: member?.displayName,
       role: isMemberRole(member?.role) ? member.role : undefined,
@@ -114,12 +115,14 @@ export function EditMemberDialog({
         );
       }
 
-      await Promise.all(promises);
+      if (promises.length > 0) {
+        await Promise.all(promises);
 
-      toast({
-        title: t('organization.memberUpdated'),
-        variant: 'success',
-      });
+        toast({
+          title: t('organization.memberUpdated'),
+          variant: 'success',
+        });
+      }
     } catch (error) {
       console.error(error);
       toast({
@@ -130,7 +133,7 @@ export function EditMemberDialog({
   };
 
   const { handleSubmit, register, reset, watch, formState } = form;
-  const { isSubmitting, isDirty } = formState;
+  const { isSubmitting, isValid, isDirty } = formState;
 
   const isEditingSelf = currentUserMemberId === member?._id;
 
@@ -156,7 +159,7 @@ export function EditMemberDialog({
       onOpenChange={handleOpenChange}
       title={t('organization.editMember')}
       isSubmitting={isSubmitting}
-      submitDisabled={!isDirty}
+      isValid={isValid && isDirty}
       onSubmit={handleSubmit(onSubmit)}
     >
       {/* Name Field */}

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import {
+  cleanup,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
 // Mock next-intl
@@ -69,14 +75,16 @@ describe('BrandingForm', () => {
     expect(button).toBeDisabled();
   });
 
-  it('enables save button when form is dirty', () => {
+  it('enables save button when form is dirty', async () => {
     render(<BrandingForm {...defaultProps} />);
 
     const input = screen.getByLabelText('branding.appName');
     fireEvent.change(input, { target: { value: 'Acme Corp' } });
 
     const button = screen.getByRole('button', { name: 'actions.saveChanges' });
-    expect(button).not.toBeDisabled();
+    await waitFor(() => {
+      expect(button).not.toBeDisabled();
+    });
   });
 
   it('populates form with existing branding data', () => {

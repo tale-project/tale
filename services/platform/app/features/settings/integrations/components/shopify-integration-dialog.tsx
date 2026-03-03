@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useState, useEffect, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
@@ -23,6 +26,11 @@ interface ShopifyIntegrationDialogProps {
   onDisconnect?: () => Promise<void> | void;
 }
 
+type ShopifyFormValues = {
+  domain: string;
+  accessToken: string;
+};
+
 export function ShopifyIntegrationDialog({
   open,
   onOpenChange,
@@ -32,42 +40,61 @@ export function ShopifyIntegrationDialog({
 }: ShopifyIntegrationDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const [domain, setDomain] = useState('');
-  const [accessToken, setAccessToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isConnected = !!credentials?.domain;
 
-  // Initialize form with existing credentials
+  const shopifySchema = useMemo(
+    () =>
+      z.object({
+        domain: z.string().min(1, t('integrations.shopify.domainRequired')),
+        accessToken: z
+          .string()
+          .min(1, t('integrations.shopify.accessTokenRequired')),
+      }),
+    [t],
+  );
+
+  const {
+    register,
+    handleSubmit: formHandleSubmit,
+    reset,
+    formState: { isValid: isFormValid, errors },
+  } = useForm<ShopifyFormValues>({
+    resolver: zodResolver(shopifySchema),
+    mode: 'onChange',
+    defaultValues: {
+      domain: credentials?.domain || '',
+      accessToken: '',
+    },
+  });
+
   useEffect(() => {
     if (credentials?.domain) {
-      setDomain(credentials.domain);
+      reset({
+        domain: credentials.domain,
+        accessToken: '',
+      });
     }
-  }, [credentials]);
+  }, [credentials, reset]);
 
-  const handleConnect = async () => {
+  const handleConnect = async (values: ShopifyFormValues) => {
     setIsSubmitting(true);
     try {
-      await onConnect({ domain, accessToken });
-      // Don't clear on success if updating
+      await onConnect(values);
       if (!isConnected) {
-        setDomain('');
-        setAccessToken('');
+        reset();
       }
-      // Close dialog
       onOpenChange?.(false);
 
       toast({
         title: isConnected
           ? t('integrations.updateSuccessful')
           : t('integrations.connectionSuccessful'),
-        description: isConnected
-          ? t('integrations.connectedTo', { provider: 'Shopify' })
-          : t('integrations.connectedTo', { provider: 'Shopify' }),
+        description: t('integrations.connectedTo', { provider: 'Shopify' }),
         variant: 'success',
       });
     } catch {
-      // Keep dialog open and surface error without leaking credentials
       toast({
         title: isConnected
           ? t('integrations.updateFailed')
@@ -88,8 +115,7 @@ export function ShopifyIntegrationDialog({
     setIsSubmitting(true);
     try {
       await onDisconnect();
-      setDomain('');
-      setAccessToken('');
+      reset();
       onOpenChange?.(false);
     } catch {
       toast({
@@ -118,8 +144,8 @@ export function ShopifyIntegrationDialog({
             : t('integrations.disconnect')}
         </Button>
         <Button
-          onClick={handleConnect}
-          disabled={isSubmitting || !domain || !accessToken}
+          onClick={formHandleSubmit(handleConnect)}
+          disabled={isSubmitting || !isFormValid}
           className="flex-1"
         >
           {isSubmitting
@@ -137,9 +163,9 @@ export function ShopifyIntegrationDialog({
           {tCommon('actions.cancel')}
         </Button>
         <Button
-          onClick={handleConnect}
+          onClick={formHandleSubmit(handleConnect)}
           className="flex-1"
-          disabled={isSubmitting || !domain || !accessToken}
+          disabled={isSubmitting || !isFormValid}
         >
           {isSubmitting
             ? t('integrations.shopify.connecting')
@@ -173,9 +199,9 @@ export function ShopifyIntegrationDialog({
           </>
         }
         placeholder={t('integrations.shopify.domainPlaceholder')}
-        value={domain}
-        onChange={(e) => setDomain(e.target.value)}
+        {...register('domain')}
         disabled={isSubmitting}
+        errorMessage={errors.domain?.message}
         className="border-gray-300 shadow-xs"
       />
 
@@ -195,9 +221,9 @@ export function ShopifyIntegrationDialog({
             ? '••••••••••••••••'
             : 'shpat_1234567890abcdef1234567890abcdef'
         }
-        value={accessToken}
-        onChange={(e) => setAccessToken(e.target.value)}
+        {...register('accessToken')}
         disabled={isSubmitting}
+        errorMessage={errors.accessToken?.message}
         className="border-gray-300 shadow-xs"
       />
     </FormDialog>

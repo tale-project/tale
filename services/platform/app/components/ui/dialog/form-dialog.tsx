@@ -32,10 +32,10 @@ export interface FormDialogProps {
   submittingText?: string;
   /** Whether the form is being submitted */
   isSubmitting?: boolean;
+  /** Whether the form is currently valid (e.g. from react-hook-form formState.isValid) */
+  isValid?: boolean;
   /** Form submit handler (optional when customFooter is provided) */
   onSubmit?: (e: React.FormEvent) => void;
-  /** Whether the submit button is disabled (in addition to submitting state) */
-  submitDisabled?: boolean;
   /** Additional className for DialogContent */
   className?: string;
   /** Custom header content (replaces default title/description) */
@@ -66,8 +66,8 @@ export function FormDialog({
   submitText,
   submittingText,
   isSubmitting = false,
+  isValid = true,
   onSubmit,
-  submitDisabled = false,
   className,
   customHeader,
   customFooter,
@@ -111,7 +111,7 @@ export function FormDialog({
       >
         {cancelText ?? tCommon('actions.cancel')}
       </Button>
-      <Button type="submit" disabled={isSubmitting || submitDisabled}>
+      <Button type="submit" disabled={isSubmitting || !isValid}>
         {isSubmitting
           ? (submittingText ?? tCommon('actions.saving'))
           : (submitText ?? tCommon('actions.save'))}

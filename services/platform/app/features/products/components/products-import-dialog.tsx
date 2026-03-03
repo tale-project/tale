@@ -58,11 +58,12 @@ export function ProductsImportDialog({
 
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange',
   });
 
   const {
     handleSubmit,
-    formState: { isSubmitting },
+    formState: { isSubmitting, isValid },
   } = formMethods;
 
   const createProduct = useCreateProduct();
@@ -230,6 +231,7 @@ export function ProductsImportDialog({
       submitText={tCommon('actions.import')}
       submittingText={tCommon('actions.importing')}
       isSubmitting={isSubmitting}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormProvider {...formMethods}>

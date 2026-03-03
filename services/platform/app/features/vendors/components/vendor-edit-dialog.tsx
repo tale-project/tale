@@ -56,6 +56,7 @@ export function VendorEditDialog({
       z.object({
         name: z
           .string()
+          .trim()
           .min(1, tCommon('validation.required', { field: tVendors('name') })),
         email: z.string().email(tCommon('validation.email')),
         locale: z
@@ -71,12 +72,13 @@ export function VendorEditDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isDirty },
+    formState: { errors, isSubmitting, isValid },
     reset,
     setValue,
     watch,
   } = useForm<VendorFormData>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange',
     defaultValues: {
       name: vendor.name || '',
       email: vendor.email || '',
@@ -132,7 +134,7 @@ export function VendorEditDialog({
       onOpenChange={handleOpenChange}
       title={tVendors('editVendor')}
       isSubmitting={isSubmitting}
-      submitDisabled={!isDirty}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

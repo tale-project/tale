@@ -90,6 +90,7 @@ export function CirculyIntegrationDialog({
   // Initialize form with validation
   const form = useForm<CirculyFormValues>({
     resolver: zodResolver(circulySchema),
+    mode: 'onChange',
     defaultValues: {
       username: credentials?.username || '',
       password: '',
@@ -98,14 +99,9 @@ export function CirculyIntegrationDialog({
 
   const {
     handleSubmit,
-    formState: { isSubmitting },
+    formState: { isSubmitting, isValid: isFormValid },
     reset,
-    watch,
   } = form;
-
-  // Watch form values to enable/disable button
-  const username = watch('username');
-  const password = watch('password');
 
   const handleConnect = async (values: CirculyFormValues) => {
     try {
@@ -155,27 +151,16 @@ export function CirculyIntegrationDialog({
 
   const footer =
     isConnected && onDisconnect ? (
-      <>
-        <Button
-          variant="destructive"
-          onClick={handleDisconnect}
-          disabled={isSubmitting}
-          className="flex-1"
-        >
-          {isSubmitting
-            ? t('integrations.disconnecting')
-            : t('integrations.disconnect')}
-        </Button>
-        <Button
-          onClick={handleSubmit(handleConnect)}
-          disabled={isSubmitting || !username || !password}
-          className="flex-1"
-        >
-          {isSubmitting
-            ? t('integrations.circuly.updating')
-            : t('integrations.circuly.update')}
-        </Button>
-      </>
+      <Button
+        variant="destructive"
+        onClick={handleDisconnect}
+        disabled={isSubmitting}
+        className="flex-1"
+      >
+        {isSubmitting
+          ? t('integrations.disconnecting')
+          : t('integrations.disconnect')}
+      </Button>
     ) : (
       <>
         <Button
@@ -188,7 +173,7 @@ export function CirculyIntegrationDialog({
         <Button
           onClick={handleSubmit(handleConnect)}
           className="flex-1"
-          disabled={isSubmitting || !username || !password}
+          disabled={isSubmitting || !isFormValid}
         >
           {isSubmitting
             ? t('integrations.circuly.connecting')
